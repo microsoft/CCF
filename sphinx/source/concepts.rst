@@ -17,7 +17,7 @@ Nodes are run and maintained by :term:`operators`. However, nodes must be truste
 Application
 -----------
 
-Each node runs the same application (a.k.a. transaction engine). An application is a collection of endpoints that can be triggered by trusted :term:`users`' :term:`JSON-RPC` requests over :term:`TLS`.
+Each node runs the same application (a.k.a. transaction engine). An application is a collection of endpoints that can be triggered by trusted :term:`users`' commands over :term:`TLS`.
 
 Each endpoint mutates an in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either Raft or PBFT), before being applied.
 

@@ -13,9 +13,6 @@
 
 namespace ccf
 {
-  // TODO(#feature): add optional explicit signatures to Proposal and Vote
-  // as in the paper
-
   /** Members use proposals to propose changes to the KV store.
    * Active members can issue proposals through the Propose RPC.
    * A proposal is defined by a Lua script and a corresponding parameter.

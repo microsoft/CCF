@@ -12,15 +12,15 @@ import infra.proc
 import infra.notification
 import infra.net
 import suite.test_requirements as reqs
-import e2e_args
+import infra.e2e_args
 
 from loguru import logger as LOG
 
 
+@reqs.description("Running transactions against logging app")
 @reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
-    LOG.info("Running transactions against logging app")
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as mc:
@@ -53,7 +53,7 @@ def run(args):
         notifications_queue = notifications.get_queue()
 
         with infra.ccf.network(
-            hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+            hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_join(args)
             test(network, args, notifications_queue)
@@ -61,8 +61,8 @@ def run(args):
 
 if __name__ == "__main__":
 
-    args = e2e_args.cli_args()
-    args.package = args.app_script or "libloggingenc"
+    args = infra.e2e_args.cli_args()
+    args.package = args.app_script or "liblogging"
 
     notify_server_host = "localhost"
     args.notify_server = (

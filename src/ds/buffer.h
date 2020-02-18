@@ -65,10 +65,3 @@ CBuffer asCb(const T& o)
 {
   return {reinterpret_cast<const uint8_t*>(&o), sizeof(T)};
 }
-
-// convenience function for testing (leaks memory!)
-template <typename B>
-B alloc(size_t size)
-{
-  return {new uint8_t[size], size};
-}

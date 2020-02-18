@@ -482,7 +482,7 @@ TEST_CASE("Multiple threads can wait" * doctest::test_suite("ringbuffer"))
         REQUIRE(last_message_body[0] < max_n);
         ++reads;
       }
-      _mm_pause();
+      CCF_PAUSE();
     }
 
     REQUIRE(reads == target);

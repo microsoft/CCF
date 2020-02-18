@@ -286,14 +286,14 @@ namespace raft
     }
 
     template <typename T>
-    size_t replicate_to_ledger(const T& data)
+    size_t write_to_ledger(const T& data)
     {
       ledger->put_entry(data->data(), data->size());
       return data->size();
     }
 
     template <>
-    size_t replicate_to_ledger<std::vector<uint8_t>>(
+    size_t write_to_ledger<std::vector<uint8_t>>(
       const std::vector<uint8_t>& data)
     {
       ledger->put_entry(data);
@@ -315,7 +315,7 @@ namespace raft
 
       LOG_DEBUG_FMT("Replicating {} entries", entries.size());
 
-      for (auto&& [index, data, globally_committable] : entries)
+      for (auto& [index, data, globally_committable] : entries)
       {
         if (index != last_idx + 1)
           return false;
@@ -330,7 +330,7 @@ namespace raft
           committable_indices.push_back(index);
 
         last_idx = index;
-        auto s = replicate_to_ledger(data);
+        auto s = write_to_ledger(data);
         entry_size_not_limited += s;
         entry_count++;
 
@@ -478,8 +478,8 @@ namespace raft
       AppendEntries ae = {raft_append_entries,
                           local_id,
                           end_idx,
-                          current_term,
                           prev_idx,
+                          current_term,
                           prev_term,
                           commit_idx,
                           term_of_idx};
@@ -661,7 +661,7 @@ namespace raft
             break;
 
           case kv::DeserialiseSuccess::PASS_SIGNATURE:
-            LOG_INFO_FMT("Deserialising signature at {}", i);
+            LOG_DEBUG_FMT("Deserialising signature at {}", i);
             committable_indices.push_back(i);
             if (sig_term)
               term_history.update(commit_idx + 1, sig_term);
@@ -669,6 +669,9 @@ namespace raft
 
           case kv::DeserialiseSuccess::PASS:
             break;
+
+          default:
+            throw std::logic_error("Unknown DeserialiseSuccess value");
         }
       }
 
@@ -707,8 +710,18 @@ namespace raft
       if (state != Leader)
         return;
 
-      auto r = channels->template recv_authenticated<AppendEntriesResponse>(
-        data, size);
+      AppendEntriesResponse r;
+
+      try
+      {
+        r = channels->template recv_authenticated<AppendEntriesResponse>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT(err.what());
+        return;
+      }
 
       auto node = nodes.find(r.from_node);
       if (node == nodes.end())
@@ -790,7 +803,17 @@ namespace raft
 
     void recv_request_vote(const uint8_t* data, size_t size)
     {
-      auto r = channels->template recv_authenticated<RequestVote>(data, size);
+      RequestVote r;
+
+      try
+      {
+        r = channels->template recv_authenticated<RequestVote>(data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT(err.what());
+        return;
+      }
 
       // Ignore if we don't recognise the node.
       auto node = nodes.find(r.from_node);
@@ -879,8 +902,18 @@ namespace raft
         return;
       }
 
-      auto r =
-        channels->template recv_authenticated<RequestVoteResponse>(data, size);
+      RequestVoteResponse r;
+
+      try
+      {
+        r = channels->template recv_authenticated<RequestVoteResponse>(
+          data, size);
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT(err.what());
+        return;
+      }
 
       // Ignore if we don't recognise the node.
       auto node = nodes.find(r.from_node);
@@ -1202,7 +1235,6 @@ namespace raft
       if (active_nodes.find(local_id) == active_nodes.end())
       {
         LOG_INFO_FMT("Removed self {}", local_id);
-        // TODO(#feature): shut down this node
       }
     }
   };

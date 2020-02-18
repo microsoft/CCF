@@ -33,7 +33,8 @@ struct Reply_rep : public Message_rep
 };
 #pragma pack(pop)
 static_assert(
-  sizeof(Reply_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Reply_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Reply : public Message
 {
@@ -43,9 +44,11 @@ class Reply : public Message
 public:
   Reply() : Message() {}
 
+  Reply(uint32_t msg_size) : Message(msg_size) {}
+
   Reply(Reply_rep* r);
 
-  Reply(View view, Request_id req, Seqno n, int replica);
+  Reply(View view, Request_id req, Seqno n, int replica, uint32_t reply_size);
   // Effects: Creates a new (full) Reply message with an empty reply and no
   // authentication. The method store_reply and authenticate should
   // be used to finish message construction.

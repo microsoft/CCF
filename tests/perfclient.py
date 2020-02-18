@@ -4,7 +4,7 @@ import argparse
 import os
 import logging
 import infra.runner
-import e2e_args
+import infra.e2e_args
 from infra.perf import PERF_COLUMNS
 
 from loguru import logger as LOG
@@ -52,12 +52,13 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         "--config", help="Path to config for client binary", default=default_config_path
     )
 
-    return e2e_args.cli_args(add=add, parser=parser, accept_unknown=accept_unknown)
+    return infra.e2e_args.cli_args(
+        add=add, parser=parser, accept_unknown=accept_unknown
+    )
 
 
 def run(*args, **kwargs):
-    with infra.path.working_dir(args[0]):
-        infra.path.mk_new("perf_summary.csv", PERF_COLUMNS)
+    infra.path.mk_new("perf_summary.csv", PERF_COLUMNS)
 
     infra.runner.run(*args, **kwargs)
 
@@ -68,7 +69,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "-p",
             "--package",
-            help="The enclave package to load (e.g., libloggingenc)",
+            help="The enclave package to load (e.g., liblogging)",
             required=True,
         )
 
@@ -79,4 +80,4 @@ if __name__ == "__main__":
     def get_command(*args):
         return [*args] + unknown_args
 
-    infra.runner.run(args.build_dir, get_command, args)
+    infra.runner.run(get_command, args)

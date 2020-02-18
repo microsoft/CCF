@@ -29,17 +29,17 @@ Rep_info::Rep_info(char* m, int sz) : reps(Max_num_replicas)
 
 void Rep_info::count_request()
 {
-  replica->modify(mem, sizeof(Seqno));
+  pbft::GlobalState::get_replica().modify(mem, sizeof(Seqno));
   (*total_processed)++;
 }
 
-char* Rep_info::new_reply(int pid, Request_id rid, Seqno n)
+char* Rep_info::new_reply(
+  int pid, Request_id rid, Seqno n, uint32_t message_size)
 {
-  auto r = std::make_unique<Reply>(0, rid, n, 0);
-  // TODO: fix to deal more gracefully with running out of memory
+  message_size += sizeof(Reply_rep) + MAC_size;
+  auto r = std::make_unique<Reply>(0, rid, n, 0, message_size);
   PBFT_ASSERT(r != nullptr, "Out of memory");
-
-  r->set_size(Max_rep_size);
+  r->set_size(message_size);
   r->trim();
   char* ret = r->contents() + sizeof(Reply_rep);
   auto ret_insert = reps.insert({Key{(size_t)pid, rid, n}, std::move(r)});
@@ -108,7 +108,7 @@ void Rep_info::send_reply(int pid, Request_id rid, Seqno n, View v, int id)
     r->auth_src_offset = 0;
     r->auth_dst_offset = old_size;
 
-    node->send(r, pid);
+    pbft::GlobalState::get_node().send(r, pid);
     reps.erase(it);
     return;
   }

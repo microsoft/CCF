@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import e2e_args
+import infra.e2e_args
 import infra.ccf
 import os
 import logging
@@ -33,7 +33,7 @@ def run(args):
     hosts = ["localhost"]
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, others = network.find_nodes()
@@ -202,6 +202,6 @@ if __name__ == "__main__":
         )
         parser.add_argument("--run-poll", help="Run the poller", action="store_true")
 
-    args = e2e_args.cli_args(add)
-    args.package = args.app_script and "libluagenericenc" or "libloggingenc"
+    args = infra.e2e_args.cli_args(add)
+    args.package = args.app_script and "libluageneric" or "liblogging"
     run(args)

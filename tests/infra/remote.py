@@ -59,6 +59,7 @@ def sftp_session(hostname):
 
 def log_errors(out_path, err_path):
     error_filter = ["[fail ]", "[fatal]"]
+    error_lines = []
     try:
         errors = 0
         tail_lines = deque(maxlen=10)
@@ -68,6 +69,7 @@ def log_errors(out_path, err_path):
                 tail_lines.append(stripped_line)
                 if any(x in stripped_line for x in error_filter):
                     LOG.error("{}: {}".format(out_path, stripped_line))
+                    error_lines.append(stripped_line)
                     errors += 1
         if errors:
             LOG.info("{} errors found, printing end of output for context:", errors)
@@ -81,6 +83,7 @@ def log_errors(out_path, err_path):
                 LOG.exception("Could not read err output {}".format(err_path))
     except IOError:
         LOG.exception("Could not check output {} for errors".format(out_path))
+    return error_lines
 
 
 class CmdMixin(object):
@@ -259,12 +262,13 @@ class SSHRemote(CmdMixin):
         """
         LOG.info("[{}] closing".format(self.hostname))
         self.get_logs()
-        log_errors(
+        errors = log_errors(
             "{}_out_{}".format(self.hostname, self.name),
             "{}_err_{}".format(self.hostname, self.name),
         )
         self.client.close()
         self.proc_client.close()
+        return errors
 
     def setup(self):
         """
@@ -373,16 +377,13 @@ class LocalRemote(CmdMixin):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.exe_files:
-            dst_path = os.path.join(self.root, os.path.basename(path))
-            src_path = os.path.join(os.getcwd(), path)
+            dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
+            src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = self.root
             src_path = os.path.join(os.getcwd(), path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
-
-        # Make sure relative paths include current directory. Absolute paths will be unaffected
-        self.cmd[0] = os.path.join(".", os.path.normpath(self.cmd[0]))
 
     def get(self, filename, timeout=60, targetname=None):
         path = os.path.join(self.root, filename)
@@ -429,12 +430,12 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] closing".format(self.hostname))
         if self.proc:
             self.proc.terminate()
-            self.proc.wait()
+            self.proc.wait(10)
             if self.stdout:
                 self.stdout.close()
             if self.stderr:
                 self.stderr.close()
-            log_errors(self.out, self.err)
+            return log_errors(self.out, self.err)
 
     def setup(self):
         """
@@ -506,19 +507,22 @@ class CCFRemote(object):
         workspace,
         label,
         target_rpc_address=None,
-        members_certs=None,
+        members_info=None,
+        join_timer=None,
         host_log_level="info",
         ignore_quote=False,
         sig_max_tx=1000,
         sig_max_ms=1000,
         election_timeout=1000,
         consensus="raft",
+        worker_threads=0,
         memory_reserve_startup=0,
         notify_server=None,
         gov_script=None,
         ledger_file=None,
         sealed_secrets=None,
         json_log_path=None,
+        binary_dir=".",
     ):
         """
         Run a ccf binary on a remote host.
@@ -535,29 +539,35 @@ class CCFRemote(object):
         # not been explictly ignored
         if enclave_type != "virtual" and not ignore_quote:
             self.quote = f"quote{local_node_id}.bin"
-        self.BIN = infra.path.build_bin_path(self.BIN, enclave_type)
+        self.BIN = infra.path.build_bin_path(
+            self.BIN, enclave_type, binary_dir=binary_dir
+        )
         self.ledger_file = ledger_file
         self.ledger_file_name = (
             os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
 
         exe_files = [self.BIN, lib_path] + self.DEPS
-        data_files = ([self.ledger_file] if self.ledger_file else []) + (
-            [sealed_secrets] if sealed_secrets else []
-        )
+        data_files = [self.ledger_file] if self.ledger_file else []
+
+        # lib_path may be relative or absolute. The remote implementation should
+        # copy (or symlink) to the target workspace, and then node will be able
+        # to reference the destination file locally in the target workspace.
+        enclave_path = os.path.join(".", os.path.basename(lib_path))
 
         cmd = [
             self.BIN,
-            f"--enclave-file=./{os.path.basename(lib_path)}",
+            f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
             f"--node-address={host}:{node_port}",
             f"--rpc-address={host}:{rpc_port}",
-            f"--public-rpc-address={host}:{rpc_port}",
+            f"--public-rpc-address={pubhost}:{rpc_port}",
             f"--ledger-file={self.ledger_file_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
             f"--raft-election-timeout-ms={election_timeout}",
             f"--consensus={consensus}",
+            f"--worker_threads={worker_threads}",
         ]
 
         if json_log_path:
@@ -596,19 +606,21 @@ class CCFRemote(object):
                 "--network-cert-file=networkcert.pem",
                 f"--gov-script={os.path.basename(gov_script)}",
             ]
-            if members_certs is None:
+            if members_info is None:
                 raise ValueError(
-                    "Starting node should be given at least one member certificate"
+                    "Starting node should be given at least one pair member certificate, member public encryption key"
                 )
-            for mc in members_certs:
-                cmd += [f"--member-cert={mc}"]
-            data_files.extend(members_certs)
-            data_files += [os.path.basename(gov_script)]
+            for mc, mk in members_info:
+                cmd += [f"--member-info={mc},{mk}"]
+                data_files.append(mc)
+                data_files.append(mk)
+            data_files += [gov_script]
         elif start_type == StartType.join:
             cmd += [
                 "join",
                 "--network-cert-file=networkcert.pem",
                 f"--target-rpc-address={target_rpc_address}",
+                f"--join-timer={join_timer}",
             ]
             data_files += ["networkcert.pem"]
         elif start_type == StartType.recover:
@@ -664,8 +676,9 @@ class CCFRemote(object):
         return self.remote._dbg()
 
     def stop(self):
+        errors = []
         try:
-            self.remote.stop()
+            errors = self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
         if self.profraw:
@@ -673,6 +686,7 @@ class CCFRemote(object):
                 self.remote.get(self.profraw)
             except Exception:
                 LOG.info(f"Could not retrieve {self.profraw}")
+        return errors
 
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)

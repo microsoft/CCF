@@ -89,7 +89,7 @@ def run_client(args, primary, command_args):
         time.sleep(60)
 
 
-def run(build_directory, get_command, args):
+def run(get_command, args):
     if args.fixed_seed:
         seed(getpass.getuser())
 
@@ -100,7 +100,7 @@ def run(build_directory, get_command, args):
     LOG.info("Starting nodes on {}".format(hosts))
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
         primary, backups = network.find_nodes()
@@ -123,9 +123,12 @@ def run(build_directory, get_command, args):
             for remote_client in clients:
                 remote_client.start()
 
+            hard_stop_timeout = 90
+
             try:
                 with cimetrics.upload.metrics() as metrics:
                     tx_rates = infra.rates.TxRates(primary)
+                    start_time = time.time()
                     while True:
                         stop_waiting = True
                         for i, remote_client in enumerate(clients):
@@ -137,6 +140,11 @@ def run(build_directory, get_command, args):
                             stop_waiting = stop_waiting and done
                         if stop_waiting:
                             break
+                        if time.time() > start_time + hard_stop_timeout:
+                            raise TimeoutError(
+                                f"Client still running after {hard_stop_timeout}s"
+                            )
+
                         time.sleep(1)
 
                     tx_rates.get_metrics()
@@ -148,6 +156,7 @@ def run(build_directory, get_command, args):
                     tx_rates.save_results(args.metrics_file)
 
             except Exception:
+                LOG.error("Stopping clients due to exception")
                 for remote_client in clients:
                     remote_client.stop()
                 raise

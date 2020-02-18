@@ -24,7 +24,8 @@ struct Commit_rep : public Message_rep
 };
 #pragma pack(pop)
 static_assert(
-  sizeof(Commit_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Commit_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Commit : public Message
 {
@@ -32,6 +33,8 @@ class Commit : public Message
   // Commit messages
   //
 public:
+  Commit(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Commit(View v, Seqno s);
   // Effects: Creates a new Commit message with view number "v"
   // and sequence number "s".

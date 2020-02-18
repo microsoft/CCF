@@ -9,6 +9,8 @@
 #include "tls/context.h"
 #include "tls/msg_types.h"
 
+#include <exception>
+
 namespace enclave
 {
   class TLSEndpoint : public Endpoint
@@ -16,6 +18,7 @@ namespace enclave
   protected:
     ringbuffer::WriterPtr to_host;
     size_t session_id;
+    size_t execution_thread;
 
     enum Status
     {
@@ -62,6 +65,15 @@ namespace enclave
       ctx(move(ctx_)),
       status(handshake)
     {
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        execution_thread =
+          (session_id_ % (enclave::ThreadMessaging::thread_count - 1)) + 1;
+      }
+      else
+      {
+        execution_thread = 0;
+      }
       ctx->set_bio(this, send_callback, recv_callback, dbg_callback);
     }
 
@@ -195,12 +207,42 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
+        throw std::exception();
+      }
       pending_read.insert(pending_read.end(), data, data + size);
       do_handshake();
     }
 
+    struct SendRecvMsg
+    {
+      std::vector<uint8_t> data;
+      std::shared_ptr<Endpoint> self;
+    };
+
+    static void send_raw_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
+    {
+      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
+        ->send_raw_thread(msg->data.data);
+    }
+
     void send_raw(const std::vector<uint8_t>& data)
     {
+      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&send_raw_cb);
+      msg->data.self = this->shared_from_this();
+      msg->data.data = data;
+
+      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+        execution_thread, std::move(msg));
+    }
+
+    void send_raw_thread(std::vector<uint8_t>& data)
+    {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
+        throw std::runtime_error("running from incorrect thread");
+      }
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
       // will try to send pending writes again whenever write() is called.
@@ -222,11 +264,21 @@ namespace enclave
 
     void send_buffered(const std::vector<uint8_t>& data)
     {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
+        throw std::runtime_error("running from incorrect thread");
+      }
+
       pending_write.insert(pending_write.end(), data.begin(), data.end());
     }
 
     void flush()
     {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
+        throw std::runtime_error("running from incorrect thread");
+      }
+
       do_handshake();
 
       if (status != ready)
@@ -444,6 +496,10 @@ namespace enclave
 
     int handle_recv(uint8_t* buf, size_t len)
     {
+      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      {
+        throw std::runtime_error("running from incorrect thread");
+      }
       if (pending_read.size() > 0)
       {
         // Use the pending data vector. This is populated when the host

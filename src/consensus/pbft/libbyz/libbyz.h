@@ -5,14 +5,16 @@
 
 #pragma once
 
-#include "consensus/ledgerenclave.h"
+#include "consensus/pbft/pbftpreprepares.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/pbft/pbfttypes.h"
 #include "nodeinfo.h"
 
 /* Because of FILE parameter */
 #include <stdio.h>
 
 /* Should be a power of 2 less than or equal to the vm page size */
-static const int Block_size = 128;
+static const int Block_size = 64;
 
 #include "types.h"
 
@@ -97,10 +99,10 @@ int Byz_init_replica(
   char* mem,
   unsigned int size,
   ExecCommand exec,
-  void (*comp_ndet)(Seqno, Byz_buffer*),
-  int ndet_max_len,
   INetwork* network,
-  std::unique_ptr<consensus::LedgerEnclave> ledger = nullptr,
+  pbft::RequestsMap& pbft_requests_map,
+  pbft::PrePreparesMap& pbft_pre_prepares_map,
+  pbft::PbftStore& store_,
   IMessageReceiveBase** message_receiver = nullptr);
 /* Requires: "mem" is vm page aligned and "size" is a multiple of the vm page
    size.

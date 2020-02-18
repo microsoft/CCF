@@ -14,7 +14,8 @@
 
 Fetch::Fetch(
   Request_id rid, Seqno lu, int level, size_t index, Seqno rc, int repid) :
-  Message(Fetch_tag, sizeof(Fetch_rep) + node->auth_size())
+  Message(
+    Fetch_tag, sizeof(Fetch_rep) + pbft::GlobalState::get_node().auth_size())
 {
   rep().rid = rid;
   rep().lu = lu;
@@ -22,7 +23,7 @@ Fetch::Fetch(
   rep().index = index;
   rep().rc = rc;
   rep().repid = repid;
-  rep().id = node->id();
+  rep().id = pbft::GlobalState::get_node().id();
 
   auth_type = Auth_type::in;
   auth_len = sizeof(Fetch_rep);
@@ -38,7 +39,7 @@ void Fetch::re_authenticate(Principal* p)
 
 bool Fetch::pre_verify()
 {
-  if (!node->is_replica(id()))
+  if (!pbft::GlobalState::get_node().is_replica(id()))
   {
     return false;
   }
@@ -59,7 +60,9 @@ bool Fetch::pre_verify()
   }
 
   // Check signature size.
-  if (size() - (int)sizeof(Fetch_rep) < node->auth_size(id()))
+  if (
+    size() - (int)sizeof(Fetch_rep) <
+    pbft::GlobalState::get_node().auth_size(id()))
   {
     return false;
   }

@@ -26,7 +26,9 @@ namespace ccf
       // append entries and vote requests are re-sent after a short timeout
       auto signed_public = channels->get_signed_public(to);
       if (!signed_public.has_value())
+      {
         return;
+      }
 
       LOG_DEBUG_FMT("node2node channel with {} initiated", to);
 
@@ -136,7 +138,10 @@ namespace ccf
 
       auto signed_public = channels->get_signed_public(ke.from_node);
       if (!signed_public.has_value())
+      {
+        // Channel is already established
         return;
+      }
 
       if (!channels->load_peer_signed_public(
             ke.from_node, std::vector<uint8_t>(data, data + size)))
@@ -171,12 +176,16 @@ namespace ccf
       switch (serialized::peek<ChannelMsg>(data, size))
       {
         case key_exchange:
+        {
           process_key_exchange(data, size);
           break;
+        }
 
         case key_exchange_response:
+        {
           complete_key_exchange(data, size);
           break;
+        }
 
         default:
         {}

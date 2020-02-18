@@ -22,8 +22,9 @@
 Request::Request(Request_id r, short rr) :
   Message(Request_tag, Max_message_size)
 {
-  rep().cid = node->id();
+  rep().cid = pbft::GlobalState::get_node().id();
   rep().rid = r;
+  rep().uid = thread_ids[std::this_thread::get_id()];
   rep().replier = rr;
   rep().command_size = 0;
   set_size(sizeof(Request_rep));
@@ -31,15 +32,15 @@ Request::Request(Request_id r, short rr) :
 
 Request* Request::clone() const
 {
-  Request* ret = (Request*)new Message(max_size);
+  Request* ret = (Request*)new Request(max_size);
   memcpy(ret->msg, msg, msg->size);
   return ret;
 }
 
 char* Request::store_command(int& max_len)
 {
-  int max_auth_size =
-    std::max(node->principal()->sig_size(), node->auth_size());
+  auto max_auth_size = std::max<size_t>(
+    pbft_max_signature_size, pbft::GlobalState::get_node().auth_size());
   max_len = msize() - sizeof(Request_rep) - max_auth_size;
   return contents() + sizeof(Request_rep);
 }
@@ -50,7 +51,8 @@ inline void Request::comp_digest(Digest& d)
   START_CC(digest_cycles);
 
   d = Digest(
-    (char*)&(rep().cid), sizeof(int) + sizeof(Request_id) + rep().command_size);
+    (char*)&(rep().cid),
+    sizeof(int) + sizeof(uint64_t) + sizeof(Request_id) + rep().command_size);
 
   STOP_CC(digest_cycles);
 }
@@ -58,21 +60,22 @@ inline void Request::comp_digest(Digest& d)
 void Request::authenticate(int act_len, bool read_only)
 {
   PBFT_ASSERT(
-    (unsigned)act_len <= msize() - sizeof(Request_rep) - node->auth_size(),
+    (unsigned)act_len <=
+      msize() - sizeof(Request_rep) - pbft::GlobalState::get_node().auth_size(),
     "Invalid request size");
 
   rep().extra = ((read_only) ? 1 : 0);
   rep().command_size = act_len;
   if (rep().replier == -1)
   {
-    rep().replier = rand() % node->num_of_replicas();
+    rep().replier = rand() % pbft::GlobalState::get_node().num_of_replicas();
   }
   comp_digest(rep().od);
 
   int old_size = sizeof(Request_rep) + act_len;
 
 #ifndef SIGN_ALL_RW_REQUESTS
-  set_size(old_size + node->auth_size());
+  set_size(old_size + pbft::GlobalState::get_node().auth_size());
   auth_type = Auth_type::in;
   auth_len = sizeof(Request_rep);
   auth_dst_offset = old_size;
@@ -82,11 +85,11 @@ void Request::authenticate(int act_len, bool read_only)
   {
     rep().extra |= 2;
     auth_type = Auth_type::unknown;
-    set_size(old_size + node->principal()->sig_size());
+    set_size(old_size + pbft_max_signature_size);
   }
   else
   {
-    set_size(old_size + node->auth_size());
+    set_size(old_size + pbft::GlobalState::get_node().auth_size());
     auth_type = Auth_type::in;
     auth_len = sizeof(Request_rep);
     auth_dst_offset = old_size;
@@ -101,10 +104,10 @@ void Request::re_authenticate(bool change, Principal* p)
   {
     rep().extra &= ~1;
   }
-  int new_rep = rand() % node->num_of_replicas();
+  int new_rep = rand() % pbft::GlobalState::get_node().num_of_replicas();
   rep().replier = (new_rep != rep().replier) ?
     new_rep :
-    (new_rep + 1) % node->num_of_replicas();
+    (new_rep + 1) % pbft::GlobalState::get_node().num_of_replicas();
 
   int old_size = sizeof(Request_rep) + rep().command_size;
   if ((rep().extra & 2) == 0)
@@ -124,7 +127,7 @@ void Request::sign(int act_len)
 {
   PBFT_ASSERT(
     (unsigned)act_len <=
-      msize() - sizeof(Request_rep) - node->principal()->sig_size(),
+      msize() - sizeof(Request_rep) - pbft_max_signature_size,
     "Invalid request size");
 
   rep().extra |= 2;
@@ -132,17 +135,18 @@ void Request::sign(int act_len)
   comp_digest(rep().od);
 
   int old_size = sizeof(Request_rep) + act_len;
-  set_size(old_size + node->principal()->sig_size());
+  set_size(old_size + pbft_max_signature_size);
 }
 
 Request::Request(Request_rep* contents) : Message(contents) {}
 
 bool Request::pre_verify()
 {
-  const int nid = node->id();
+  const int nid = pbft::GlobalState::get_node().id();
   const int cid = client_id();
   const int old_size = sizeof(Request_rep) + rep().command_size;
-  std::shared_ptr<Principal> p = node->get_principal(cid);
+  std::shared_ptr<Principal> p =
+    pbft::GlobalState::get_node().get_principal(cid);
   Digest d;
 
   comp_digest(d);
@@ -151,7 +155,9 @@ bool Request::pre_verify()
     if ((rep().extra & 2) == 0)
     {
       // Message has an authenticator.
-      if (cid != nid && size() - old_size >= node->auth_size(cid))
+      if (
+        cid != nid &&
+        size() - old_size >= pbft::GlobalState::get_node().auth_size(cid))
       {
         return true;
       }
@@ -159,7 +165,7 @@ bool Request::pre_verify()
     else
     {
       // Message is signed.
-      if (size() - old_size >= p->sig_size())
+      if (size() - old_size >= pbft_max_signature_size)
       {
         return true;
       }

@@ -7,20 +7,23 @@
 #include "Node.h"
 #include "Replica.h"
 #include "Request.h"
-#include "consensus/ledgerenclave.h"
+#include "consensus/pbft/pbftpreprepares.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/pbft/pbfttables.h"
+#include "consensus/pbft/pbfttypes.h"
 #include "host/ledger.h"
+#include "kv/test/stub_consensus.h"
 #include "network_mock.h"
+#include "tls/keypair.h"
 
 #include <cstdio>
 #include <doctest/doctest.h>
 
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+
 // power of 2 since ringbuffer circuit size depends on total_requests
 static constexpr size_t total_requests = 32;
-// circuit shift calculated based on the size of the entries, which is the
-// same for this test
-static constexpr size_t circuit_size_shift = 16;
-static constexpr size_t circuit_size =
-  (1 << circuit_size_shift) * total_requests;
 
 class ExecutionMock
 {
@@ -33,254 +36,396 @@ public:
     int64_t ctx;
   };
 
-  ExecCommand exec_command = [](
-                               Byz_req* inb,
-                               Byz_rep* outb,
-                               _Byz_buffer* non_det,
-                               int client,
-                               bool ro,
-                               Seqno total_requests_executed,
-                               ByzInfo& info) {
-    auto request = reinterpret_cast<fake_req*>(inb->contents);
-    info.ctx = request->ctx;
-    info.full_state_merkle_root.fill(0);
-    info.replicated_state_merkle_root.fill(0);
-    info.full_state_merkle_root.data()[0] = request->rt;
-    info.replicated_state_merkle_root.data()[0] = request->rt;
-    return 0;
-  };
+  ExecCommand exec_command =
+    [this](std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
+      for (auto& msg : msgs)
+      {
+        Byz_req* inb = &msg->inb;
+        Byz_rep& outb = msg->outb;
+        int client = msg->client;
+        Request_id rid = msg->rid;
+        uint8_t* req_start = msg->req_start;
+        size_t req_size = msg->req_size;
+        Seqno total_requests_executed = msg->total_requests_executed;
+        ccf::Store::Tx* tx = msg->tx;
+
+        // increase total number of commands executed to compare with fake_req
+        command_counter++;
+
+        outb.contents =
+          pbft::GlobalState::get_replica().create_response_message(
+            client, rid, 0);
+        outb.size = 0;
+        auto request = reinterpret_cast<fake_req*>(inb->contents);
+        info.ctx = request->ctx;
+        info.replicated_state_merkle_root.fill(0);
+        info.replicated_state_merkle_root.data()[0] = request->rt;
+
+        REQUIRE(request->rt == command_counter);
+        msg->cb(*msg.get(), info);
+      }
+      return 0;
+    };
 };
+
+namespace pbft
+{
+  struct RollbackInfo
+  {
+    pbft::PbftStore* store;
+    size_t* called;
+    ExecutionMock* execution_mock;
+  } register_rollback_ctx;
+}
 
 NodeInfo get_node_info()
 {
+  auto kp = tls::make_key_pair();
   std::vector<PrincipalInfo> principal_info;
 
-  PrincipalInfo pi = {
-    0,
-    (short)(3000),
-    "ip",
-    "96031a6cbe405894f1c0295881bd3946f0215f95fc40b7f1f0cc89b821c58504",
-    "8691c3438859c142a26b5f251b96f39a463799430315d34ce8a4db0d2638f751",
-    "name-1",
-    true};
+  auto node_cert = kp->self_sign("CN=CCF node");
+
+  PrincipalInfo pi = {0, (short)(3000), "ip", node_cert, "name-1", true};
   principal_info.emplace_back(pi);
 
   GeneralInfo gi = {
     2, 0, 0, "generic", 1800000, 5000, 100, 9999250000, 50, principal_info};
 
-  NodeInfo node_info = {
-    gi.principal_info[0],
-    "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69",
-    gi};
+  NodeInfo node_info = {gi.principal_info[0], kp->private_key_pem().str(), gi};
 
   return node_info;
 }
 
 void create_replica(
   std::vector<char>& service_mem,
-  std::unique_ptr<consensus::LedgerEnclave> ledger)
+  pbft::PbftStore& store,
+  pbft::RequestsMap& pbft_requests_map,
+  pbft::PrePreparesMap& pbft_pre_prepares_map)
 {
+  Log_allocator::should_use_malloc(true);
   auto node_info = get_node_info();
 
-  replica = new Replica(
+  pbft::GlobalState::set_replica(std::make_unique<Replica>(
     node_info,
     service_mem.data(),
     service_mem.size(),
     Create_Mock_Network(),
-    std::move(ledger));
-  replica->init_state();
+    pbft_requests_map,
+    pbft_pre_prepares_map,
+    store));
+
+  pbft::GlobalState::get_replica().init_state();
+
   for (auto& pi : node_info.general_info.principal_info)
   {
     if (pi.id != node_info.own_info.id)
     {
-      replica->add_principal(pi);
+      pbft::GlobalState::get_replica().add_principal(pi);
     }
+  }
+}
+
+Request* create_and_store_request(
+  size_t index,
+  pbft::PbftStore& store,
+  pbft::RequestsMap& req_map,
+  ccf::Store::Map<std::string, std::string>* derived_map = nullptr)
+{
+  Byz_req req;
+  Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
+
+  auto fr = reinterpret_cast<ExecutionMock::fake_req*>(req.contents);
+  fr->rt = index;
+  // context would be the version of the executed command
+  fr->ctx = store.current_version() + 1;
+
+  Request* request = (Request*)req.opaque;
+  request->request_id() = index;
+  request->authenticate(req.size, false);
+  request->trim();
+
+  ccf::Store::Tx tx;
+  auto req_view = tx.get_view(req_map);
+
+  int command_size;
+  auto command_start = request->command(command_size);
+
+  req_view->put(
+    0,
+    {0,
+     0,
+     {},
+     {command_start, command_start + command_size},
+     {(const uint8_t*)request->contents(),
+      (const uint8_t*)request->contents() + request->size()}});
+
+  if (derived_map)
+  {
+    auto der_view = tx.get_view(*derived_map);
+    der_view->put("key1", "value1");
+  }
+
+  REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+  return request;
+}
+
+void populate_entries(
+  std::vector<std::vector<uint8_t>>& entries,
+  std::shared_ptr<kv::StubConsensus> consensus)
+{
+  while (true)
+  {
+    auto ret = consensus->pop_oldest_data();
+    if (!ret.second)
+    {
+      break;
+    }
+    entries.emplace_back(ret.first);
   }
 }
 
 TEST_CASE("Test Ledger Replay")
 {
-  int mem_size = 400 * 8192;
-  std::vector<char> service_mem(mem_size, 0);
-  ExecutionMock exec_mock(0);
-
-  // initiate replica with ledger enclave to be used on replay
-  ringbuffer::Circuit replay_circuit(circuit_size);
-  auto wf_rplay = ringbuffer::WriterFactory(replay_circuit);
-
-  auto replay_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf_rplay);
-
-  create_replica(service_mem, std::move(replay_ledger_io));
-  replica->register_exec(exec_mock.exec_command);
-
-  // initial ledger enclave is used by the LedgerWriter to simulate writting
-  // entries to the ledger
-  ringbuffer::Circuit init_circuit(circuit_size);
-  auto wf = ringbuffer::WriterFactory(init_circuit);
-  auto initial_ledger_io = std::make_unique<consensus::LedgerEnclave>(wf);
-
+  // initiate replica with stub consensus to be used on replay
+  auto write_consensus = std::make_shared<kv::StubConsensus>();
   INFO("Create dummy pre-prepares and write them to ledger");
   {
-    LedgerWriter ledger_writer(std::move(initial_ledger_io));
+    auto write_store = std::make_shared<ccf::Store>(
+      pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+    write_store->set_consensus(write_consensus);
+    auto& write_pbft_requests_map = write_store->create<pbft::RequestsMap>(
+      pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
+    auto& write_pbft_pre_prepares_map =
+      write_store->create<pbft::PrePreparesMap>(
+        pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+    auto& write_derived_map = write_store->create<std::string, std::string>(
+      "derived_map", kv::SecurityDomain::PUBLIC);
+
+    auto write_pbft_store =
+      std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
+        write_store);
+
+    int mem_size = 256;
+    std::vector<char> service_mem(mem_size, 0);
+    ExecutionMock exec_mock(0);
+
+    create_replica(
+      service_mem,
+      *write_pbft_store,
+      write_pbft_requests_map,
+      write_pbft_pre_prepares_map);
+    pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
+
+    for (size_t i = 1; i < total_requests; i++)
+    {
+      auto request = create_and_store_request(
+        i, *write_pbft_store, write_pbft_requests_map, &write_derived_map);
+      // replica handle request (creates and writes pre prepare to ledger)
+      pbft::GlobalState::get_replica().handle(request);
+    }
+    // remove the requests that were not processed, only written to the ledger
+    pbft::GlobalState::get_replica().big_reqs()->clear();
+  }
+
+  auto corrupt_consensus = std::make_shared<kv::StubConsensus>();
+  INFO("Create dummy corrupt pre-prepares and write them to ledger");
+  {
+    // initialise a corrupt store that will follow the write store but with
+    // the requests and merkle root off and use it later to trigger rollbacks
+    auto corrupt_store = std::make_shared<ccf::Store>(
+      pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+    corrupt_store->set_consensus(corrupt_consensus);
+    auto& corr_req_map = corrupt_store->create<pbft::RequestsMap>(
+      pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
+    auto& corr_pp_map = corrupt_store->create<pbft::PrePreparesMap>(
+      pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+    auto corr_pbft_store =
+      std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
+        corrupt_store);
+
+    int mem_size = 256;
+    std::vector<char> service_mem(mem_size, 0);
+    ExecutionMock exec_mock(0);
+    exec_mock.command_counter++;
+
+    create_replica(service_mem, *corr_pbft_store, corr_req_map, corr_pp_map);
+    pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
+
+    LedgerWriter ledger_writer(*corr_pbft_store, corr_pp_map);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)
     {
-      Byz_req req;
-      Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
+      auto request =
+        create_and_store_request(i, *corr_pbft_store, corr_req_map);
 
-      auto fr = reinterpret_cast<ExecutionMock::fake_req*>(req.contents);
-      fr->rt = i;
-      fr->ctx = i;
-
-      Request* request = (Request*)req.opaque;
-      request->request_id() = i;
-      request->authenticate(req.size, false);
-      request->trim();
-
+      // request is compatible but pre-prepare root is different
       rqueue.append(request);
       size_t num_requests = 1;
       auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests);
 
       // imitate exec command
       ByzInfo info;
-      info.ctx = fr->ctx;
-      info.full_state_merkle_root.fill(0);
+      info.ctx = i;
       info.replicated_state_merkle_root.fill(0);
-      info.full_state_merkle_root.data()[0] = fr->rt;
-      info.replicated_state_merkle_root.data()[0] = fr->rt;
+      // mess up merkle roots
+      info.replicated_state_merkle_root.data()[0] = i + 1;
 
-      pp->set_merkle_roots_and_ctx(
-        info.full_state_merkle_root,
-        info.replicated_state_merkle_root,
-        info.ctx);
+      pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
 
       ledger_writer.write_pre_prepare(pp.get());
     }
     // remove the requests that were not processed, only written to the ledger
-    replica->big_reqs()->clear();
+    pbft::GlobalState::get_replica().big_reqs()->clear();
   }
 
-  INFO("Read the ledger entries and replay them out of order and in order");
+  INFO(
+    "Read the ledger entries and replay them out of order, while being "
+    "corrupt, and in order");
   {
-    std::vector<uint8_t> initial_ledger;
-    std::vector<size_t> positions;
-    size_t total_len = 0;
-    size_t num_msgs = 0;
-    // We can get the entries that would have been written to the ledger file
-    // from the circuit and put them in initial_ledger for them to be replayed.
-    // Replay expects the entries to be preceeded by the entry frame indicating
-    // the size of the entry that follows, and that is simulated here.
-    init_circuit.read_from_inside().read(
-      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
-        switch (m)
-        {
-          case consensus::ledger_append:
-          {
-            positions.push_back(total_len);
-            size_t framed_entry_size = size + sizeof(uint32_t);
-            total_len += framed_entry_size;
-            initial_ledger.reserve(total_len);
-            uint32_t s = (uint32_t)size;
+    auto store = std::make_shared<ccf::Store>(
+      pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+    auto consensus = std::make_shared<kv::StubConsensus>();
+    store->set_consensus(consensus);
+    auto& pbft_requests_map = store->create<pbft::RequestsMap>(
+      pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
+    auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
+      pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+    auto& derived_map = store->create<std::string, std::string>(
+      "derived_map", kv::SecurityDomain::PUBLIC);
 
-            initial_ledger.insert(
-              end(initial_ledger),
-              (uint8_t*)&s,
-              (uint8_t*)&s + sizeof(uint32_t));
-            initial_ledger.insert(end(initial_ledger), data, data + size);
-          }
-          break;
-          default:
-            INFO(
-              "We should only encounter ledger_append or ledger_truncate "
-              "messages");
-            REQUIRE(false);
-        }
-        ++num_msgs;
-      });
-    REQUIRE(num_msgs == (total_requests - 1));
+    auto replica_store =
+      std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
+        store);
 
-    // check that nothing gets executed out of order
-    INFO("replay entries 5 till 9 should fail");
-    auto first = initial_ledger.begin() + positions.at(4);
-    auto last = initial_ledger.end();
-    std::vector<uint8_t> vec_5_9(first, last);
-    CHECK(!replica->apply_ledger_data(vec_5_9));
+    int mem_size = 256;
+    std::vector<char> service_mem(mem_size, 0);
+    ExecutionMock exec_mock(0);
 
-    INFO("replay entries 1 till 3");
-    first = initial_ledger.begin();
-    last = initial_ledger.begin() + positions.at(3);
-    std::vector<uint8_t> vec_1_3(first, last);
-    CHECK(replica->apply_ledger_data(vec_1_3));
+    create_replica(
+      service_mem, *replica_store, pbft_requests_map, pbft_pre_prepares_map);
+    pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
 
-    INFO("replay entries 2 till 3 should fail");
-    first = initial_ledger.begin() + positions.at(1);
-    last = initial_ledger.begin() + positions.at(3);
-    std::vector<uint8_t> vec_2_3(first, last);
-    CHECK(!replica->apply_ledger_data(vec_2_3));
+    // create rollback cb
+    size_t call_rollback = 0;
+    kv::Version rb_version;
 
-    INFO("replay the rest of the pre-prepares in batches of 4");
-    for (size_t i = 3; i < total_requests - 1; i += 4)
+    auto rollback_cb =
+      [](kv::Version version, pbft::RollbackInfo* rollback_info) {
+        (*rollback_info->called)++;
+        rollback_info->store->rollback(version);
+        rollback_info->execution_mock->command_counter--;
+      };
+
+    pbft::register_rollback_ctx.called = &call_rollback;
+    pbft::register_rollback_ctx.store = replica_store.get();
+    pbft::register_rollback_ctx.execution_mock = &exec_mock;
+
+    pbft::GlobalState::get_replica().register_rollback_cb(
+      rollback_cb, &pbft::register_rollback_ctx);
+
+    // ledgerenclave work
+    std::vector<std::vector<uint8_t>> entries;
+    std::vector<std::vector<uint8_t>> corrupt_entries;
+    populate_entries(entries, write_consensus);
+    populate_entries(corrupt_entries, corrupt_consensus);
+
+    // apply out of order first
+    REQUIRE(
+      store->deserialise(entries.back()) == kv::DeserialiseSuccess::FAILED);
+
+    ccf::Store::Tx tx;
+    auto req_view = tx.get_view(pbft_requests_map);
+    auto req = req_view->get(0);
+    REQUIRE(!req.has_value());
+
+    auto pp_view = tx.get_view(pbft_pre_prepares_map);
+    auto pp = pp_view->get(0);
+    REQUIRE(!pp.has_value());
+
+    REQUIRE(entries.size() > 0);
+
+    Seqno seqno = 1;
+    size_t iterations = 0;
+    size_t count_rollbacks = 0;
+    // keep latest executed request so that we can re-apply it after a rollback
+    std::vector<uint8_t> lastest_executed_request;
+    // apply all of the data in order
+    for (size_t i = 0; i < entries.size(); i++)
     {
-      auto until = i + 4;
-      first = initial_ledger.begin() + positions.at(i);
-      if (until >= positions.size())
+      const auto& entry = entries.at(i);
+      const auto& corrupt_entry = corrupt_entries.at(i);
+
+      if (iterations % 2)
       {
-        last = initial_ledger.end();
+        // odd entries are pre prepares
+        // try to deserialise corrupt pre-prepare which should trigger a
+        // rollback
+        ccf::Store::Tx tx;
+        REQUIRE(
+          store->deserialise_views(corrupt_entry, false, nullptr, &tx) ==
+          kv::DeserialiseSuccess::PASS_PRE_PREPARE);
+        pbft::GlobalState::get_replica().playback_pre_prepare(tx);
+        count_rollbacks++;
+
+        // rolled back latest request so need to re-execute
+        ccf::Store::Tx re_exec_tx;
+        REQUIRE(
+          store->deserialise_views(
+            lastest_executed_request, false, nullptr, &re_exec_tx) ==
+          kv::DeserialiseSuccess::PASS);
+        pbft::GlobalState::get_replica().playback_request(re_exec_tx);
+        REQUIRE(re_exec_tx.commit() == kv::CommitSuccess::OK);
+      }
+
+      if (iterations % 2)
+      {
+        // odd entries are pre prepares
+        ccf::Store::Tx tx;
+        REQUIRE(
+          store->deserialise_views(entry, false, nullptr, &tx) ==
+          kv::DeserialiseSuccess::PASS_PRE_PREPARE);
+        pbft::GlobalState::get_replica().playback_pre_prepare(tx);
+
+        ccf::Store::Tx read_tx;
+        auto pp_view = read_tx.get_view(pbft_pre_prepares_map);
+        auto pp = pp_view->get(0);
+        REQUIRE(pp.has_value());
+        REQUIRE(pp.value().seqno == seqno);
+        seqno++;
       }
       else
       {
-        last = initial_ledger.begin() + positions.at(until);
+        // even entries are requests
+        ccf::Store::Tx tx;
+        REQUIRE(
+          store->deserialise_views(entry, false, nullptr, &tx) ==
+          kv::DeserialiseSuccess::PASS);
+        pbft::GlobalState::get_replica().playback_request(tx);
+        // pre-prepares are committed in playback_pre_prepare
+        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+        ccf::Store::Tx read_tx;
+        lastest_executed_request = entry;
+        // even entries are requests
+        auto req_view = read_tx.get_view(pbft_requests_map);
+        auto req = req_view->get(0);
+        REQUIRE(req.has_value());
+        REQUIRE(req.value().raw.size() > 0);
       }
-      std::vector<uint8_t> vec(first, last);
-      CHECK(replica->apply_ledger_data(vec));
+
+      // no derived data should have gotten deserialised
+      ccf::Store::Tx read_tx;
+      auto der_view = read_tx.get_view(derived_map);
+      auto derived_val = der_view->get("key1");
+      REQUIRE(!derived_val.has_value());
+
+      iterations++;
     }
 
-    std::vector<uint8_t> replay_ledger;
-    std::vector<size_t> positions_replay;
-    size_t total_len_replay = 0;
-    // Same as above we get the entries that would have been written to the
-    // ledger on replay. We also take into account the fact that truncate will
-    // have been called when the entries were played out of order
-    replay_circuit.read_from_inside().read(
-      -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
-        switch (m)
-        {
-          case consensus::ledger_append:
-          {
-            positions_replay.push_back(total_len_replay);
-            size_t framed_entry_size = size + sizeof(uint32_t);
-            total_len_replay += framed_entry_size;
-            replay_ledger.reserve(total_len_replay);
-
-            uint32_t s = (uint32_t)size;
-
-            replay_ledger.insert(
-              end(replay_ledger),
-              (uint8_t*)&s,
-              (uint8_t*)&s + sizeof(uint32_t));
-            replay_ledger.insert(end(replay_ledger), data, data + size);
-          }
-          break;
-          case consensus::ledger_truncate:
-          {
-            auto last_idx = serialized::read<size_t>(data, size);
-            total_len_replay = positions_replay.at(last_idx);
-            positions_replay.resize(last_idx);
-
-            replay_ledger.resize(total_len_replay);
-
-            break;
-          }
-          default:
-            INFO(
-              "We should only encounter ledger_append or ledger_truncate "
-              "messages");
-            REQUIRE(false);
-        }
-      });
-
-    CHECK(std::equal(
-      initial_ledger.begin(), initial_ledger.end(), replay_ledger.begin()));
+    auto last_executed = pbft::GlobalState::get_replica().get_last_executed();
+    REQUIRE(last_executed == total_requests - 1);
+    REQUIRE(call_rollback == count_rollbacks);
   }
 }

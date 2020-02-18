@@ -5,14 +5,18 @@
 
 #pragma once
 
+#include "tls/keypair.h"
+#include "tls/verifier.h"
+
 #include <cstddef>
 
+// replica parameters
 const int Max_num_replicas = 32;
 
 // Interval in sequence space between "checkpoint" states, i.e.,
 // states that are checkpointed and for which Checkpoint messages are
 // sent.
-const int checkpoint_interval = 64;
+const int checkpoint_interval = 32;
 
 // Maximum number of messages for which protocol can be
 // simultaneously in progress, i.e., messages with sequence number
@@ -23,10 +27,11 @@ const int max_out = 512;
 
 static const size_t Max_requests_in_batch = 256;
 
-static constexpr size_t max_sig_size = 64; // in bytes
-
 static const size_t num_senders = 2;
 // number of sender threads
+
+static constexpr auto pbft_max_signature_size = MBEDTLS_ECDSA_MAX_LEN;
+using PbftSignature = std::array<uint8_t, pbft_max_signature_size>;
 
 static const size_t num_receivers_replicas = 1;
 // number of threads that handle receiving messages from replicas

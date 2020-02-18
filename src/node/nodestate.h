@@ -6,7 +6,6 @@
 #include "consensus/ledgerenclave.h"
 #include "consensus/raft/raftconsensus.h"
 #include "ds/logger.h"
-#include "enclave/rpcclient.h"
 #include "enclave/rpcsessions.h"
 #include "encryptor.h"
 #include "entities.h"
@@ -20,6 +19,7 @@
 #include "rpc/memberfrontend.h"
 #include "rpc/serialization.h"
 #include "seal.h"
+#include "secretshare.h"
 #include "timer.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
@@ -28,8 +28,11 @@
 #  include "consensus/pbft/pbft.h"
 #endif
 
+#ifndef VIRTUAL_ENCLAVE
+#  include <ccf_t.h>
+#endif
+
 #include <atomic>
-#include <ccf_t.h>
 #include <chrono>
 #include <fmt/format_header_only.h>
 #include <nlohmann/json.hpp>
@@ -154,7 +157,8 @@ namespace ccf
     SpinLock lock;
 
     NodeId self;
-    tls::KeyPairPtr node_kp;
+    tls::KeyPairPtr node_sign_kp;
+    tls::KeyPairPtr node_encrypt_kp;
     std::vector<uint8_t> node_cert;
     CodeDigest node_code_id;
 
@@ -178,11 +182,11 @@ namespace ccf
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
+    std::shared_ptr<Seal> seal;
+
     //
     // join protocol
     //
-    std::vector<uint8_t> raw_fresh_key;
-    std::map<NodeId, std::vector<uint8_t>> joiners_fresh_keys;
     jsonrpc::SeqNo join_seq_no = 1;
     std::shared_ptr<Timer> join_timer;
 
@@ -209,13 +213,15 @@ namespace ccf
       Timers& timers) :
       sm(State::uninitialized),
       self(INVALID_ID),
-      node_kp(tls::make_key_pair()),
+      node_sign_kp(tls::make_key_pair()),
+      node_encrypt_kp(tls::make_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
       rpcsessions(rpcsessions),
       notifier(notifier),
-      timers(timers)
+      timers(timers),
+      seal(std::make_shared<Seal>(writer_factory))
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -240,67 +246,6 @@ namespace ccf
       sm.advance(State::initialized);
     }
 
-    std::vector<uint8_t> serialize_create_request(
-      const CreateNew::In& args, const std::vector<uint8_t>& quote)
-    {
-      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
-
-      create_rpc.id = 0;
-      create_rpc.method = ccf::MemberProcs::CREATE;
-
-      for (auto& cert : args.config.genesis.member_certs)
-      {
-        create_rpc.params.member_cert.push_back(cert);
-      }
-
-      create_rpc.params.gov_script = args.config.genesis.gov_script;
-      create_rpc.params.node_cert = node_cert;
-      create_rpc.params.network_cert = network.secrets->get_current().cert;
-      create_rpc.params.quote = quote;
-      create_rpc.params.code_digest =
-        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
-      create_rpc.params.node_info_network = args.config.node_info_network;
-
-      nlohmann::json j = create_rpc;
-      auto contents = nlohmann::json::to_msgpack(j);
-
-      auto sig_contents = node_kp->sign(contents);
-
-      nlohmann::json sj;
-      sj["req"] = j;
-      sj["sig"] = sig_contents;
-
-      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
-    }
-
-    void send_create_request(const std::vector<uint8_t>& packed)
-    {
-      constexpr auto actor = ccf::ActorsType::members;
-
-      auto handler = this->rpc_map->find(actor);
-      if (!handler.has_value())
-      {
-        throw std::logic_error("Handler has no value");
-      }
-      auto frontend = handler.value();
-
-      const enclave::SessionContext node_session(
-        enclave::InvalidSessionId, node_cert);
-      auto ctx = enclave::make_rpc_context(node_session, packed);
-
-      ctx.is_create_request = true;
-      ctx.actor = actor;
-
-      frontend->process(ctx);
-    }
-
-    bool create_and_send_request(
-      const CreateNew::In& args, const std::vector<uint8_t>& quote)
-    {
-      send_create_request(serialize_create_request(args, quote));
-      return true;
-    }
-
     //
     // funcs in state "initialized"
     //
@@ -312,8 +257,6 @@ namespace ccf
       create_node_cert(args.config);
       open_node_frontend();
 
-      // Generate quote over node certificate
-      // TODO: https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
@@ -327,13 +270,17 @@ namespace ccf
       {
         case StartType::New:
         {
-          network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=CCF Network", std::make_unique<Seal>(writer_factory));
+          network.identity =
+            std::make_unique<NetworkIdentity>("CN=CCF Network");
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
+
+          auto key_share_info =
+            generate_key_share_info(args.config.genesis.members_info);
 
           self = 0; // The first node id is always 0
 
 #ifdef PBFT
-          setup_pbft();
+          setup_pbft(args.config);
 #else
           setup_raft();
 #endif
@@ -347,7 +294,7 @@ namespace ccf
           // network
           open_member_frontend();
 
-          if (!create_and_send_request(args, quote))
+          if (!create_and_send_request(args, quote, key_share_info))
           {
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
@@ -358,14 +305,10 @@ namespace ccf
           sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
-            {node_cert, quote, network.secrets->get_current().cert});
+            {node_cert, quote, network.identity->cert});
         }
         case StartType::Join:
         {
-          // Generate fresh key to encrypt/decrypt historical network secrets
-          // sent by the primary via the kv store
-          raw_fresh_key = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-
           // TLS connections are not endorsed by the network until the node has
           // joined
           accept_node_tls_connections();
@@ -378,9 +321,11 @@ namespace ccf
         {
           node_info_network = args.config.node_info_network;
 
+          network.identity =
+            std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
-          network.secrets = std::make_unique<NetworkSecrets>(
-            "CN=CCF Network", std::make_unique<Seal>(writer_factory), false);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
+
           setup_history();
           setup_encryptor();
 
@@ -393,7 +338,7 @@ namespace ccf
           sm.advance(State::readingPublicLedger);
 
           return Success<CreateNew::Out>(
-            {node_cert, quote, network.secrets->get_current().cert});
+            {node_cert, quote, network.identity->cert});
         }
         default:
         {
@@ -408,9 +353,10 @@ namespace ccf
     //
     void initiate_join(const Join::In& args)
     {
-      auto tls_ca = std::make_shared<tls::CA>(args.config.joining.network_cert);
+      auto network_ca =
+        std::make_shared<tls::CA>(args.config.joining.network_cert);
       auto join_client_cert = std::make_unique<tls::Cert>(
-        tls_ca, node_cert, node_kp->private_key_pem());
+        network_ca, node_cert, node_sign_kp->private_key_pem());
 
       // Create RPC client and connect to remote node
       auto join_client =
@@ -422,11 +368,12 @@ namespace ccf
         [this, args](const std::vector<uint8_t>& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
+          {
             return false;
+          }
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
-          // Check that the response is valid.
           jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
           try
           {
@@ -442,22 +389,16 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp->node_status == NodeStatus::TRUSTED)
           {
-            // If the current network secrets do not apply since the genesis,
-            // the joining node can only join the public network
-            bool public_only = (resp->network_info.version != 0);
-
-            // In a private network, seal secrets immediately.
-            network.secrets = std::make_unique<NetworkSecrets>(
-              resp->network_info.version,
-              resp->network_info.network_secrets,
-              std::make_unique<Seal>(writer_factory),
-              !public_only);
+            network.identity =
+              std::make_unique<NetworkIdentity>(resp->network_info.identity);
+            network.ledger_secrets = std::make_shared<LedgerSecrets>(
+              std::move(resp->network_info.ledger_secrets), seal);
 
             self = resp->node_id;
 #ifdef PBFT
-            setup_pbft();
+            setup_pbft(args.config);
 #else
-            setup_raft(public_only);
+            setup_raft(resp->public_only);
 #endif
             setup_history();
             setup_encryptor();
@@ -466,17 +407,21 @@ namespace ccf
 
             accept_network_tls_connections(args.config);
 
-            if (public_only)
+            if (resp->public_only)
+            {
               sm.advance(State::partOfPublicNetwork);
+            }
             else
+            {
               sm.advance(State::partOfNetwork);
+            }
 
             join_timer.reset();
 
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (public_only ? "public only" : "all domains"));
+              (resp->public_only ? "public only" : "all domains"));
           }
           else if (resp->node_status == NodeStatus::PENDING)
           {
@@ -494,18 +439,18 @@ namespace ccf
       std::stringstream ss;
       ss << "nodes/" << ccf::NodeProcs::JOIN;
       join_rpc.method = ss.str();
-      join_rpc.params.raw_fresh_key = raw_fresh_key;
       join_rpc.params.node_info_network = args.config.node_info_network;
+      join_rpc.params.public_encryption_key =
+        node_encrypt_kp->public_key_pem().raw();
 
-      // TODO: For now, regenerate the quote from when the node started. This
-      // is OK since the quote generation will change as part of
-      // https://github.com/microsoft/CCF/issues/59
       std::vector<uint8_t> quote{1};
 
 #ifdef GET_QUOTE
       auto quote_opt = get_quote();
       if (!quote_opt.has_value())
-        LOG_FATAL_FMT("Quote could not be retrieved");
+      {
+        throw std::logic_error("Quote could not be retrieved");
+      }
       quote = quote_opt.value();
 #endif
       join_rpc.params.quote = quote;
@@ -526,15 +471,16 @@ namespace ccf
 
       initiate_join(args);
 
-      using namespace std::chrono_literals;
-      join_timer = timers.new_timer(1s, [this, args]() {
-        if (sm.check(State::pending))
-        {
-          initiate_join(args);
-          return true;
-        }
-        return false;
-      });
+      join_timer = timers.new_timer(
+        std::chrono::milliseconds(args.config.joining.join_timer),
+        [this, args]() {
+          if (sm.check(State::pending))
+          {
+            initiate_join(args);
+            return true;
+          }
+          return false;
+        });
       join_timer->start();
     }
 
@@ -611,9 +557,9 @@ namespace ccf
       ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
-      network.secrets->promote_secrets(0, last_index + 1);
+      network.ledger_secrets->promote_secret(1, last_index + 1);
 
-      g.create_service(network.secrets->get_current().cert, last_index + 1);
+      g.create_service(network.identity->cert, last_index + 1);
 
       g.retire_active_nodes();
 
@@ -623,12 +569,17 @@ namespace ccf
 #ifdef GET_QUOTE
       auto quote_opt = get_quote();
       if (!quote_opt.has_value())
-        LOG_FATAL_FMT("Quote could not be retrieved");
+      {
+        throw std::logic_error("Quote could not be retrieved");
+      }
       quote = quote_opt.value();
 #endif
 
-      self =
-        g.add_node({node_info_network, node_cert, quote, NodeStatus::PENDING});
+      self = g.add_node({node_info_network,
+                         node_cert,
+                         quote,
+                         node_encrypt_kp->public_key_pem().raw(),
+                         NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
 
@@ -719,7 +670,7 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(recovery_history.get());
       if (h->get_full_state_root() != recovery_root)
       {
-        LOG_FATAL_FMT(
+        throw std::logic_error(
           "Root of public store does not match root of private store");
       }
 
@@ -731,10 +682,12 @@ namespace ccf
 
       // On backups, resume replication
       if (!consensus->is_primary())
+      {
         consensus->resume_replication();
+      }
 
       // Seal all known network secrets
-      network.secrets->seal_all();
+      network.ledger_secrets->seal_all();
 
       // Open the service
       if (consensus->is_primary())
@@ -742,11 +695,15 @@ namespace ccf
         Store::Tx tx;
         GenesisGenerator g(network, tx);
         if (!g.open_service())
+        {
           throw std::logic_error("Service could not be opened");
+        }
 
         if (g.finalize() != kv::CommitSuccess::OK)
+        {
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
+        }
       }
 
       sm.advance(State::partOfNetwork);
@@ -790,7 +747,7 @@ namespace ccf
       recovery_history = std::make_shared<MerkleTxHistory>(
         *recovery_store.get(),
         self,
-        *node_kp,
+        *node_sign_kp,
         *recovery_signature_map,
         *recovery_nodes_map);
 
@@ -798,7 +755,10 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, *network.secrets);
+        // Recovery encryptor should not seal ledger secrets on compaction.
+        // Since private ledger recovery is done in a temporary store, ledger
+        // secrets are only sealed once the recovery is successful.
+        std::make_shared<TxEncryptor>(self, network.ledger_secrets, true);
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -821,76 +781,26 @@ namespace ccf
       LOG_INFO_FMT("Initiating end of recovery (primary)");
 
       // Unseal past network secrets
-      auto past_secrets_idx = network.secrets->restore(sealed_secrets);
+      auto past_secrets_idx = network.ledger_secrets->restore(sealed_secrets);
 
       // Emit signature to certify transactions that happened on public
       // network
       history->emit_signature();
 
-      // Write past network secrets to backups via secrets table
-      auto [nodes_view, secrets_view] =
-        tx.get_view(network.nodes, network.secrets_table);
-      std::map<NodeId, NodeInfo> new_backups;
-      nodes_view->foreach(
-        [&new_backups, this](const NodeId& nid, const NodeInfo& ni) {
-          if (ni.status != ccf::NodeStatus::RETIRED && nid != self)
-            new_backups[nid] = ni;
-          return true;
-        });
-
       // For all nodes in the new network, write all past network secrets to
-      // the secrets table, encrypted with the respective ephemeral keys
-      for (auto const& ns_idx : past_secrets_idx)
+      // the secrets table, encrypted with the respective public keys
+      for (auto const& secret_idx : past_secrets_idx)
       {
-        ccf::PastNetworkSecrets past_secrets;
-        for (auto [nid, ni] : new_backups)
+        auto secret = network.ledger_secrets->get_secret(secret_idx);
+        if (!secret.has_value())
         {
-          ccf::SerialisedNetworkSecrets ns;
-          ns.node_id = nid;
-
-          auto serial = network.secrets->get_serialised_secret(ns_idx);
-          if (serial.has_value())
-          {
-            LOG_DEBUG_FMT(
-              "Writing network secret {} of size {} to backup {} in secrets "
-              "table",
-              ns_idx,
-              serial.value().size(),
-              nid);
-
-            // Encrypt network secrets with joiner's fresh key
-            auto search = joiners_fresh_keys.find(nid);
-            if (search == joiners_fresh_keys.end())
-            {
-              LOG_FAIL_FMT("No fresh key for joiner {}", nid);
-              continue;
-            }
-
-            crypto::KeyAesGcm joiner_key(
-              CBuffer(search->second.data(), search->second.size()));
-            crypto::GcmCipher gcmcipher(serial.value().size());
-
-            // Get random IV
-            auto iv = tls::create_entropy()->random(gcmcipher.hdr.getIv().n);
-            std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
-
-            joiner_key.encrypt(
-              iv,
-              CBuffer(serial.value().data(), serial.value().size()),
-              CBuffer(),
-              gcmcipher.cipher.data(),
-              gcmcipher.hdr.tag);
-
-            ns.serial_ns = gcmcipher.serialise();
-            past_secrets.secrets.emplace_back(std::move(ns));
-          }
-          else
-          {
-            LOG_FAIL_FMT("Network secrets have not been restored: {}", ns_idx);
-            return false;
-          }
+          LOG_FAIL_FMT("Ledger secrets have not been restored: {}", secret_idx);
+          return false;
         }
-        secrets_view->put(ns_idx, past_secrets);
+
+        // Do not broadcast the ledger secrets to self since they were already
+        // restored from sealed file
+        broadcast_ledger_secret(tx, secret.value(), secret_idx, true);
       }
 
       // Setup new temporary store and record current version/root
@@ -987,8 +897,6 @@ namespace ccf
       uint8_t* report;
       size_t report_len = 0;
 
-      // TODO(#important,#TR): The "alpha" parameters, including the unique
-      // service identifier, should also be included in the quote.
       oe_result_t res = oe_get_report(
         OE_REPORT_FLAGS_REMOTE_ATTESTATION,
         h.h,
@@ -1028,34 +936,23 @@ namespace ccf
 
     bool open_network(Store::Tx& tx) override
     {
-      auto service_view = tx.get_view(network.service);
-
-      auto active_service = service_view->get(0);
-      if (!active_service.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get active service");
-        return false;
-      }
-
-      if (active_service->status != ServiceStatus::OPENING)
-      {
-        LOG_FAIL_FMT("Could not open current service: status is not OPENING");
-        return false;
-      }
-
-      active_service->status = ServiceStatus::OPEN;
-      service_view->put(0, active_service.value());
-
-      return true;
+      GenesisGenerator g(network, tx);
+      return g.open_service();
     }
 
-    // Used from nodefrontend.h to set the joiner's fresh key to encrypt past
-    // network secrets
-    void set_joiner_key(
-      NodeId joiner_id, const std::vector<uint8_t>& raw_key) override
+    bool rekey_ledger(Store::Tx& tx) override
     {
-      LOG_DEBUG_FMT("Setting fresh key for joiner {}", joiner_id);
-      joiners_fresh_keys.emplace(joiner_id, raw_key);
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::partOfNetwork);
+
+      // Effects of ledger rekey are only observed from the next transaction,
+      // once the local hook on the secrets table has been triggered. The
+      // corresponding new ledger secret is only sealed on global hook.
+
+      auto new_ledger_secret = LedgerSecret(true);
+      broadcast_ledger_secret(tx, new_ledger_secret);
+
+      return true;
     }
 
     void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override
@@ -1103,7 +1000,7 @@ namespace ccf
     void create_node_cert(const CCFConfig& config)
     {
       node_cert =
-        node_kp->self_sign("CN=CCF node", get_subject_alt_name(config));
+        node_sign_kp->self_sign("CN=CCF node", get_subject_alt_name(config));
     }
 
     void accept_node_tls_connections()
@@ -1111,7 +1008,7 @@ namespace ccf
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed) node
       // certificate. Once the node is part of the network, this certificate
       // should be replaced with network-endorsed counterpart
-      rpcsessions->set_cert(node_cert, node_kp->private_key_pem());
+      rpcsessions->set_cert(node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
     }
 
@@ -1119,14 +1016,15 @@ namespace ccf
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
-      auto nw = tls::make_key_pair({network.secrets->get_current().priv_key});
+      auto nw = tls::make_key_pair({network.identity->priv_key});
 
       auto endorsed_node_cert = nw->sign_csr(
-        node_kp->create_csr(fmt::format("CN=CCF node {}", self)),
+        node_sign_kp->create_csr(fmt::format("CN=CCF node {}", self)),
         fmt::format("CN={}", "CCF Network"),
         get_subject_alt_name(config));
 
-      rpcsessions->set_cert(endorsed_node_cert, node_kp->private_key_pem());
+      rpcsessions->set_cert(
+        endorsed_node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Network TLS connections now accepted");
     }
 
@@ -1135,7 +1033,8 @@ namespace ccf
       auto fe = rpc_map->find(actor);
       if (!fe.has_value())
       {
-        throw std::logic_error(fmt::format("Cannot open {} frontend", actor));
+        throw std::logic_error(
+          fmt::format("Cannot open {} frontend", (int)actor));
       }
       fe.value()->open();
     }
@@ -1153,6 +1052,164 @@ namespace ccf
     void open_user_frontend()
     {
       open_frontend(ActorsType::users);
+    }
+
+    void broadcast_ledger_secret(
+      Store::Tx& tx,
+      const LedgerSecret& secret,
+      kv::Version version = kv::NoVersion,
+      bool exclude_self = false)
+    {
+      GenesisGenerator g(network, tx);
+      auto secrets_view = tx.get_view(network.secrets);
+
+      auto trusted_nodes = g.get_trusted_nodes(
+        exclude_self ? std::make_optional(self) : std::nullopt);
+
+      ccf::EncryptedLedgerSecrets secret_set;
+      secret_set.primary_public_encryption_key =
+        node_encrypt_kp->public_key_pem().raw();
+
+      for (auto [nid, ni] : trusted_nodes)
+      {
+        ccf::EncryptedLedgerSecret secret_for_node;
+        secret_for_node.node_id = nid;
+
+        // Encrypt secrets with a shared secret derived from backup public
+        // key
+        auto backup_pubk = tls::make_public_key(ni.encryption_pub_key);
+        crypto::KeyAesGcm backup_shared_secret(
+          tls::KeyExchangeContext(node_encrypt_kp, backup_pubk)
+            .compute_shared_secret());
+
+        crypto::GcmCipher gcmcipher(secret.master.size());
+        auto iv = tls::create_entropy()->random(gcmcipher.hdr.get_iv().n);
+        std::copy(iv.begin(), iv.end(), gcmcipher.hdr.iv);
+
+        backup_shared_secret.encrypt(
+          iv, secret.master, nullb, gcmcipher.cipher.data(), gcmcipher.hdr.tag);
+
+        secret_for_node.encrypted_secret = gcmcipher.serialise();
+        secret_set.secrets.emplace_back(std::move(secret_for_node));
+      }
+
+      secrets_view->put(version, secret_set);
+    }
+
+    KeyShareInfo generate_key_share_info(
+      const std::vector<ccf::MemberPubInfo>& members_info)
+    {
+      auto share_wrapping_key_raw =
+        tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+      auto share_wrapping_key = crypto::KeyAesGcm(share_wrapping_key_raw);
+
+      // Encrypt initial ledger secrets with k_z
+      // Once sealing is completely removed, this can be called to the
+      // LedgerSecrets class directly
+      crypto::GcmCipher encrypted_ls(
+        network.ledger_secrets->get_secret(1)->master.size());
+
+      share_wrapping_key.encrypt(
+        encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
+                                   // key is never re-used for encryption
+        network.ledger_secrets->get_secret(1)->master,
+        nullb,
+        encrypted_ls.cipher.data(),
+        encrypted_ls.hdr.tag);
+
+      auto active_members = members_info.size();
+
+      // For now, the secret sharing threshold is set to the number of initial
+      // members
+      size_t threshold = active_members;
+
+      // For now, since members key shares are not yet encrypted, create
+      // share of dummy empty secret
+      SecretSharing::SecretToSplit secret_to_split = {};
+
+      auto shares =
+        SecretSharing::split(secret_to_split, active_members, threshold);
+
+      assert(SecretSharing::combine(shares, threshold) == secret_to_split);
+
+      // For now, shares are recorded in plain text. Instead, they should be
+      // encrypted with each member's public encryption key
+      std::vector<std::vector<uint8_t>> encrypted_shares;
+      for (auto const& s : shares)
+      {
+        encrypted_shares.emplace_back(s.begin(), s.end());
+      }
+
+      return {encrypted_ls.serialise(), encrypted_shares};
+    }
+
+    std::vector<uint8_t> serialize_create_request(
+      const CreateNew::In& args,
+      const std::vector<uint8_t>& quote,
+      const KeyShareInfo& genesis_key_share_info)
+    {
+      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
+
+      create_rpc.id = 0;
+      create_rpc.method = ccf::MemberProcs::CREATE;
+
+      for (auto& m_info : args.config.genesis.members_info)
+      {
+        create_rpc.params.members_info.push_back(m_info);
+      }
+
+      create_rpc.params.gov_script = args.config.genesis.gov_script;
+      create_rpc.params.node_cert = node_cert;
+      create_rpc.params.network_cert = network.identity->cert;
+      create_rpc.params.quote = quote;
+      create_rpc.params.public_encryption_key =
+        node_encrypt_kp->public_key_pem().raw();
+      create_rpc.params.code_digest =
+        std::vector<uint8_t>(node_code_id.begin(), node_code_id.end());
+      create_rpc.params.node_info_network = args.config.node_info_network;
+      create_rpc.params.genesis_key_share_info = genesis_key_share_info;
+
+      nlohmann::json j = create_rpc;
+      auto contents = nlohmann::json::to_msgpack(j);
+
+      auto sig_contents = node_sign_kp->sign(contents);
+
+      nlohmann::json sj;
+      sj["req"] = j;
+      sj["sig"] = sig_contents;
+
+      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
+    }
+
+    void send_create_request(const std::vector<uint8_t>& packed)
+    {
+      constexpr auto actor = ccf::ActorsType::members;
+
+      auto handler = this->rpc_map->find(actor);
+      if (!handler.has_value())
+      {
+        throw std::logic_error("Handler has no value");
+      }
+      auto frontend = handler.value();
+
+      const enclave::SessionContext node_session(
+        enclave::InvalidSessionId, node_cert);
+      auto ctx = enclave::make_rpc_context(node_session, packed);
+
+      ctx->is_create_request = true;
+      ctx->actor = actor;
+
+      frontend->process(ctx);
+    }
+
+    bool create_and_send_request(
+      const CreateNew::In& args,
+      const std::vector<uint8_t>& quote,
+      const KeyShareInfo& genesis_key_share_info)
+    {
+      send_create_request(
+        serialize_create_request(args, quote, genesis_key_share_info));
+      return true;
     }
 
     void backup_finish_recovery()
@@ -1198,61 +1255,80 @@ namespace ccf
                                         const Service::Write& w) {
         if (w.at(0).value.status == ServiceStatus::OPEN)
         {
-          this->consensus->set_f(
-            1); // TODO: we should make f come from a KV table
+          this->consensus->set_f(1);
           open_user_frontend();
-          LOG_INFO_FMT("Now accepting user transactions");
+          LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
         }
       });
 
-      network.secrets_table.set_local_hook([this](
-                                             kv::Version version,
-                                             const Secrets::State& s,
-                                             const Secrets::Write& w) {
-        // If in backup mode in a public network, if new secrets are written
-        // to the secrets table for our entry, decrypt these secrets and
-        // initiate end of recovery protocol
-        if (!(consensus->is_backup() && is_part_of_public_network()))
-          return;
-
+      network.secrets.set_local_hook([this](
+                                       kv::Version version,
+                                       const Secrets::State& s,
+                                       const Secrets::Write& w) {
         bool has_secrets = false;
 
-        for (auto& [v, past_secrets] : w)
+        for (auto& [v, secret_set] : w)
         {
-          for (auto& nw_secrets_at_v : past_secrets.value.secrets)
+          for (auto& encrypted_secret_for_node : secret_set.value.secrets)
           {
-            if (nw_secrets_at_v.node_id == self)
+            if (encrypted_secret_for_node.node_id == self)
             {
               crypto::GcmCipher gcmcipher;
-              gcmcipher.deserialise(nw_secrets_at_v.serial_ns);
-              std::vector<uint8_t> plain_nw_secret_at_v(
-                gcmcipher.cipher.size());
+              gcmcipher.deserialise(encrypted_secret_for_node.encrypted_secret);
+              std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
 
-              crypto::KeyAesGcm fresh_key(raw_fresh_key);
+              auto primary_pubk = tls::make_public_key(
+                secret_set.value.primary_public_encryption_key);
 
-              if (!fresh_key.decrypt(
-                    gcmcipher.hdr.getIv(),
+              crypto::KeyAesGcm primary_shared_key(
+                tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
+                  .compute_shared_secret());
+
+              if (!primary_shared_key.decrypt(
+                    gcmcipher.hdr.get_iv(),
                     gcmcipher.hdr.tag,
                     gcmcipher.cipher,
-                    CBuffer(),
-                    plain_nw_secret_at_v.data()))
+                    nullb,
+                    plain_secret.data()))
               {
                 throw std::logic_error(
                   "Decryption of past network secrets failed");
               }
 
               has_secrets = true;
-              if (!network.secrets->set_secret(v, plain_nw_secret_at_v))
+
+              // If the version key is NoVersion, we are rekeying. Use the
+              // version passed to the hook instead. For recovery, the version
+              // of the past secrets is passed as the key.
+              kv::Version secret_version = (v == kv::NoVersion) ? version : v;
+
+              if (is_part_of_public_network())
               {
-                throw std::logic_error(
-                  "Cannot set secrets because they already exist!");
+                // When recovering, set the past secret as a ledger secret to be
+                // sealed at the end of the recovery
+                if (!network.ledger_secrets->set_secret(
+                      secret_version, plain_secret))
+                {
+                  throw std::logic_error(
+                    "Cannot set ledger secrets because they already exist");
+                }
+              }
+              else
+              {
+                // When rekeying, set the encryption key for the next version
+                // onward (for the backups to deserialise this transaction with
+                // the old key). The encryptor is in charge of updating the
+                // ledger secrets on global commit.
+                encryptor->update_encryption_key(
+                  secret_version + 1, plain_secret);
               }
             }
           }
         }
-        if (has_secrets)
+
+        // When recovering, trigger end of recovery protocol
+        if (has_secrets && is_part_of_public_network())
         {
-          raw_fresh_key.clear();
           backup_finish_recovery();
         }
       });
@@ -1260,7 +1336,7 @@ namespace ccf
 
     void setup_n2n_channels()
     {
-      n2n_channels->initialize(self, {network.secrets->get_current().priv_key});
+      n2n_channels->initialize(self, {network.identity->priv_key});
     }
 
     void setup_cmd_forwarder()
@@ -1345,7 +1421,7 @@ namespace ccf
       history = std::make_shared<MerkleTxHistory>(
         *network.tables.get(),
         self,
-        *node_kp,
+        *node_sign_kp,
         network.signatures,
         network.nodes);
 
@@ -1361,7 +1437,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
         std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, *network.secrets);
+        std::make_shared<TxEncryptor>(self, network.ledger_secrets);
 #endif
 
       network.tables->set_encryptor(encryptor);
@@ -1396,17 +1472,24 @@ namespace ccf
     }
 
 #ifdef PBFT
-    void setup_pbft()
+    void setup_pbft(const CCFConfig& config)
     {
       setup_n2n_channels();
 
       consensus = std::make_shared<PbftConsensusType>(
-        std::make_unique<pbft::Adaptor<Store>>(network.tables),
+        std::make_unique<pbft::Adaptor<Store, kv::DeserialiseSuccess>>(
+          network.tables),
         n2n_channels,
         self,
+        config.signature_intervals.sig_max_tx,
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
-        rpcsessions);
+        rpcsessions,
+        *network.tables->get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS),
+        *network.tables->get<pbft::PrePreparesMap>(
+          pbft::Tables::PBFT_PRE_PREPARES),
+        node_sign_kp->private_key_pem().str(),
+        node_cert);
 
       network.tables->set_consensus(consensus);
 
@@ -1421,10 +1504,11 @@ namespace ccf
           for (auto& [node_id, ni] : w)
           {
             add_node(node_id, ni.value.nodehost, ni.value.nodeport);
+
             consensus->add_configuration(
               version,
               configuration,
-              {node_id, ni.value.nodehost, ni.value.nodeport});
+              {node_id, ni.value.nodehost, ni.value.nodeport, ni.value.cert});
           }
         });
 

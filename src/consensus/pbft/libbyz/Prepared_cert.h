@@ -63,6 +63,9 @@ public:
   // reference to a big request is d, records that d is cached and may
   // make the certificate complete.
 
+  void update();
+  // Update f if needed
+
   Prepare* my_prepare();
   Prepare* my_prepare(Time& t);
   Pre_prepare* my_pre_prepare();
@@ -113,18 +116,13 @@ public:
   bool is_empty() const;
   // Effects: Returns true iff the certificate is empty
 
-  bool encode(FILE* o);
-  bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
-
   void dump_state(std::ostream& os);
   // Effects: dumps state for debugging
 
   struct PrePrepareProof
   {
-    std::array<uint8_t, Asym_key_size> public_key;
-    std::array<uint8_t, signature_size> signature;
+    std::vector<uint8_t> cert;
+    PbftSignature signature;
   };
 
   const std::unordered_map<int, PrePrepareProof>& get_pre_prepared_cert_proof()
@@ -138,11 +136,26 @@ private:
   bool primary; // true iff pp was added with add_mine
 };
 
+inline void Prepared_cert::update()
+{
+  prepare_cert.update();
+}
+
 inline bool Prepared_cert::add(Prepare* m)
 {
-#ifdef SIGN_BATCH
   int id = m->id();
-  std::array<uint8_t, signature_size>& digest_sig = m->digest_sig();
+  auto principal = pbft::GlobalState::get_node().get_principal(id);
+  if (!principal)
+  {
+    LOG_INFO_FMT(
+      "Principal with id {} has not been configured yet, rejecting prepare",
+      id);
+    delete m;
+    return false;
+  }
+
+#ifdef SIGN_BATCH
+  PbftSignature& digest_sig = m->digest_sig();
   PrePrepareProof proof;
   std::copy(
     std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));
@@ -153,12 +166,7 @@ inline bool Prepared_cert::add(Prepare* m)
 #ifdef SIGN_BATCH
   if (result)
   {
-    const std::array<uint8_t, Asym_key_size>& pub_sig =
-      node->get_principal(id)->get_pub_key_enc();
-
-    std::copy(
-      std::begin(pub_sig), std::end(pub_sig), std::begin(proof.public_key));
-
+    proof.cert = principal->get_cert();
     pre_prepare_proof.insert({id, proof});
   }
 #endif
@@ -168,15 +176,21 @@ inline bool Prepared_cert::add(Prepare* m)
 inline bool Prepared_cert::add_mine(Prepare* m)
 {
   PBFT_ASSERT(
-    node->id() != node->primary(m->view()) || node->f() == 0,
+    pbft::GlobalState::get_node().id() !=
+        pbft::GlobalState::get_node().primary(m->view()) ||
+      pbft::GlobalState::get_node().f() == 0,
     "Invalid Argument");
   return prepare_cert.add_mine(m);
 }
 
 inline bool Prepared_cert::add_mine(Pre_prepare* m)
 {
-  PBFT_ASSERT(node->id() == node->primary(m->view()), "Invalid Argument");
+  PBFT_ASSERT(
+    pbft::GlobalState::get_node().id() ==
+      pbft::GlobalState::get_node().primary(m->view()),
+    "Invalid Argument");
   PBFT_ASSERT(!pp_info.pre_prepare(), "Invalid state");
+  prepare_cert.update();
   pp_info.add_complete(m);
   primary = true;
   t_sent = ITimer::current_time();
@@ -280,7 +294,9 @@ inline void Prepared_cert::mark_stale()
 {
   if (!is_complete())
   {
-    if (node->primary() != node->id())
+    if (
+      pbft::GlobalState::get_node().primary() !=
+      pbft::GlobalState::get_node().id())
     {
       pp_info.clear();
     }

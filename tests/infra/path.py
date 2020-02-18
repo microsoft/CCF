@@ -21,7 +21,7 @@ def mk_new(name, contents):
 
 def build_lib_path(lib_name, enclave_type="debug"):
     VIRTUAL_EXT = ".virtual.so"
-    SIGNED_EXT = ".so.signed"
+    SIGNED_EXT = ".enclave.so.signed"
     if os.path.isfile(lib_name):
         if enclave_type == "virtual" and VIRTUAL_EXT not in lib_name:
             raise ValueError(f"Virtual mode requires {VIRTUAL_EXT} enclave image")
@@ -29,17 +29,16 @@ def build_lib_path(lib_name, enclave_type="debug"):
             raise ValueError(f"Real enclave requires {SIGNED_EXT} enclave image")
         return lib_name
     else:
-        if enclave_type == "virtual":
-            return f"./{lib_name}{VIRTUAL_EXT}"
-        else:
-            return f"./{lib_name}{SIGNED_EXT}"
+        ext = VIRTUAL_EXT if enclave_type == "virtual" else SIGNED_EXT
+        # Make sure relative paths include current directory. Absolute paths will be unaffected
+        return os.path.join(".", os.path.normpath(f"{lib_name}{ext}"))
 
 
-def build_bin_path(bin_name, enclave_type=""):
+def build_bin_path(bin_name, enclave_type=None, binary_dir="."):
     if enclave_type == "virtual":
-        return "./{}.virtual".format(bin_name)
-    else:
-        return bin_name
+        bin_name = f"{bin_name}.virtual"
+
+    return os.path.join(binary_dir, bin_name)
 
 
 def default_workspace():

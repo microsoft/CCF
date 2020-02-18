@@ -23,7 +23,9 @@ extern "C"
 #include "Replica.h"
 #include "Statistics.h"
 #include "Timer.h"
+#include "consensus/pbft/pbfttables.h"
 #include "ds/files.h"
+#include "ds/thread_messaging.h"
 #include "host/ledger.h"
 #include "libbyz.h"
 #include "network_impl.h"
@@ -35,6 +37,9 @@ extern "C"
 using std::cerr;
 
 static const int Simple_size = 4096;
+
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 static Timer t;
 static ITimer* test_timer;
@@ -82,7 +87,8 @@ void test_timer_handler(void* owner)
 
 void delayed_start_delay_time(void* owner)
 {
-  if ((replica->id() % 2) == 0) // half the nodes including the primary
+  if ((pbft::GlobalState::get_replica().id() % 2) == 0) // half the nodes
+                                                        // including the primary
   {
     auto delay = 10 * 1000 * 1000; // sleep for 10 seconds
     LOG_INFO << "Sleeping for " << (delay / (1000 * 1000))
@@ -98,8 +104,9 @@ void delayed_start_delay_time(void* owner)
 
 void start_delay_timer()
 {
-  auto delay = 5 * 1000; // sleep for 5 seconds
-  if ((replica->id() % 2) == 0) // half the nodes including the primary
+  auto delay = 5 * 1000; // sleep in 5 seconds
+  if ((pbft::GlobalState::get_replica().id() % 2) == 0) // half the nodes
+                                                        // including the primary
   {
     delay += 10 * 1000; // make sure that all the replicas do not sleep when
                         // enforcing the first view change
@@ -117,13 +124,15 @@ static size_t request_count = 0;
 void setup_client_proxy()
 {
   LOG_INFO << "Setting up client proxy " << std::endl;
-  client_proxy.reset(new ClientProxy<uint64_t, void>(*replica));
+  client_proxy.reset(
+    new ClientProxy<uint64_t, void>(pbft::GlobalState::get_replica()));
 
   auto cb = [](Reply* m, void* ctx) {
     auto cp = (ClientProxy<uint64_t, void>*)ctx;
     cp->recv_reply(m);
   };
-  replica->register_reply_handler(cb, client_proxy.get());
+  pbft::GlobalState::get_replica().register_reply_handler(
+    cb, client_proxy.get());
 
   auto req_timer_cb = [](void* ctx) {
     auto cp = (ClientProxy<uint64_t, void>*)ctx;
@@ -177,98 +186,107 @@ void setup_client_proxy()
 }
 
 static char* service_mem = 0;
+static IMessageReceiveBase* message_receive_base;
 
-// Service specific functions.
-ExecCommand exec_command = [](
-                             Byz_req* inb,
-                             Byz_rep* outb,
-                             _Byz_buffer* non_det,
-                             int client,
-                             bool ro,
-                             Seqno total_requests_executed,
-                             ByzInfo& info) {
-  Long& counter = *(Long*)service_mem;
-  Long* client_counter_arrays = (Long*)service_mem + sizeof(Long);
-  auto client_counter = client_counter_arrays[client];
-
-  Byz_modify(&counter, sizeof(counter));
-  counter++;
-  have_executed_request = true;
-
-  info.full_state_merkle_root.fill(0);
-  ((Long*)(info.full_state_merkle_root.data()))[0] = counter;
-  info.replicated_state_merkle_root.fill(0);
-  ((Long*)(info.replicated_state_merkle_root.data()))[0] = counter;
-  info.ctx = counter;
-
-  if (total_requests_executed != counter)
-  {
-    LOG_FATAL << "total requests executed: " << total_requests_executed
-              << " not equal to exec command counter: " << counter << "\n";
-    throw std::logic_error(
-      "Total requests executed not equal to exec command counter");
-  }
-
-  if (total_requests_executed % 100 == 0)
-  {
-    LOG_INFO << "total requests executed " << total_requests_executed << "\n";
-  }
-
-  auto request = new (inb->contents) test_req;
-
-  for (size_t j = 0; j < request->get_array_size(inb->size); j++)
-  {
-    uint64_t request_array_counter;
-    memcpy(
-      &request_array_counter,
-      &request->get_counter_array()[j],
-      sizeof(uint64_t));
-
-    if (client_counter != request_array_counter && !broken_requests[client])
+ExecCommand exec_command =
+  [](std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
+    for (auto& msg : msgs)
     {
-      broken_requests[client] = 1;
-      LOG_INFO << "client: " << client
-               << " broken state: " << broken_requests[client] << std::endl;
-      LOG_INFO << "client: " << client << std::endl;
-      LOG_INFO << "client counter: " << client_counter
-               << " is smaller than request counter: " << request_array_counter
-               << "\n";
-      // throw std::logic_error("client counter not equal to request counter");
-    }
-    else if (client_counter == request_array_counter && broken_requests[client])
-    {
-      LOG_INFO << "client: " << client << std::endl;
-      broken_requests[client] = 0;
-      LOG_INFO << "client: " << client
-               << " broken state: " << broken_requests[client] << std::endl;
-      LOG_INFO << "Fixed c counter: " << client_counter
-               << " is NOT smaller than request counter: "
-               << request_array_counter << "\n";
-    }
-  }
+      Byz_req* inb = &msg->inb;
+      Byz_rep& outb = msg->outb;
+      int client = msg->client;
+      Request_id rid = msg->rid;
+      uint8_t* req_start = msg->req_start;
+      size_t req_size = msg->req_size;
+      Seqno total_requests_executed = msg->total_requests_executed;
+      ccf::Store::Tx* tx = msg->tx;
 
-  Byz_modify(&client_counter_arrays[client], sizeof(Long));
-  client_counter_arrays[client] = ++client_counter;
+      outb.contents =
+        message_receive_base->create_response_message(client, rid, 8);
 
-  // A simple service.
-  if (request->option == 1)
-  {
-    PBFT_ASSERT(inb->size == 8, "Invalid request");
-    Byz_modify(outb->contents, Simple_size);
-    bzero(outb->contents, Simple_size);
-    outb->size = Simple_size;
+      Long& counter = *(Long*)service_mem;
+      Long* client_counter_arrays = (Long*)service_mem + sizeof(Long);
+      auto client_counter = client_counter_arrays[client];
+
+      Byz_modify(&counter, sizeof(counter));
+      counter++;
+      have_executed_request = true;
+
+      info.replicated_state_merkle_root.fill(0);
+      ((Long*)(info.replicated_state_merkle_root.data()))[0] = counter;
+      info.ctx = counter;
+
+      if (total_requests_executed != counter)
+      {
+        LOG_FATAL << "total requests executed: " << total_requests_executed
+                  << " not equal to exec command counter: " << counter << "\n";
+        throw std::logic_error(
+          "Total requests executed not equal to exec command counter");
+      }
+
+      if (total_requests_executed % 100 == 0)
+      {
+        LOG_INFO << "total requests executed " << total_requests_executed
+                 << "\n";
+      }
+
+      auto request = new (inb->contents) test_req;
+
+      for (size_t j = 0; j < request->get_array_size(inb->size); j++)
+      {
+        uint64_t request_array_counter;
+        memcpy(
+          &request_array_counter,
+          &request->get_counter_array()[j],
+          sizeof(uint64_t));
+
+        if (client_counter != request_array_counter && !broken_requests[client])
+        {
+          broken_requests[client] = 1;
+          LOG_INFO << "client: " << client
+                   << " broken state: " << broken_requests[client] << std::endl;
+          LOG_INFO << "client: " << client << std::endl;
+          LOG_INFO << "client counter: " << client_counter
+                   << " is smaller than request counter: "
+                   << request_array_counter << "\n";
+        }
+        else if (
+          client_counter == request_array_counter && broken_requests[client])
+        {
+          LOG_INFO << "client: " << client << std::endl;
+          broken_requests[client] = 0;
+          LOG_INFO << "client: " << client
+                   << " broken state: " << broken_requests[client] << std::endl;
+          LOG_INFO << "Fixed c counter: " << client_counter
+                   << " is NOT smaller than request counter: "
+                   << request_array_counter << "\n";
+        }
+      }
+
+      Byz_modify(&client_counter_arrays[client], sizeof(Long));
+      client_counter_arrays[client] = ++client_counter;
+
+      // A simple service.
+      if (request->option == 1)
+      {
+        PBFT_ASSERT(inb->size == 8, "Invalid request");
+        Byz_modify(outb.contents, Simple_size);
+        bzero(outb.contents, Simple_size);
+        outb.size = Simple_size;
+        return 0;
+      }
+
+      PBFT_ASSERT(
+        (request->option == 2 && inb->size == Simple_size) ||
+          (request->option == 0 && inb->size == 8),
+        "Invalid request");
+      Byz_modify(outb.contents, 8);
+      *((long long*)(outb.contents)) = 0;
+      outb.size = 8;
+      msg->cb(*msg.get(), info);
+    }
     return 0;
-  }
-
-  PBFT_ASSERT(
-    (request->option == 2 && inb->size == Simple_size) ||
-      (request->option == 0 && inb->size == 8),
-    "Invalid request");
-  Byz_modify(outb->contents, 8);
-  *((long long*)(outb->contents)) = 0;
-  outb->size = 8;
-  return 0;
-};
+  };
 
 int main(int argc, char** argv)
 {
@@ -317,14 +335,25 @@ int main(int argc, char** argv)
     logger::Init(std::to_string(port).c_str());
   }
 
+  Log_allocator::should_use_malloc(true);
+
   GeneralInfo general_info = files::slurp_json(config_file);
-  std::string privk = files::slurp_string(privk_file);
+  // as to not add double escapes on newline when slurping from file
+  PrivateKey privk_j = files::slurp_json(privk_file);
   NodeInfo node_info;
+  tls::KeyPairPtr kp = tls::make_key_pair(privk_j.privk);
+  auto node_cert = kp->self_sign("CN=CCF node");
+
+  for (auto& pi : general_info.principal_info)
+  {
+    pi.cert = node_cert;
+  }
+
   for (auto& pi : general_info.principal_info)
   {
     if (pi.id == id)
     {
-      node_info = {pi, privk, general_info};
+      node_info = {pi, privk_j.privk, general_info};
       break;
     }
   }
@@ -349,7 +378,7 @@ int main(int argc, char** argv)
   sigaction(SIGINT, &act, NULL);
   sigaction(SIGTERM, &act, NULL);
 
-  int mem_size = 400 * 8192;
+  int mem_size = 256;
   char* mem = (char*)valloc(mem_size);
   bzero(mem, mem_size);
 
@@ -372,16 +401,24 @@ int main(int argc, char** argv)
     LOG_FATAL << "--transport {UDP || UDP_MT}" << std::endl;
   }
 
-  IMessageReceiveBase* message_receive_base;
+  auto store = std::make_shared<ccf::Store>(
+    pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
+  auto& pbft_requests_map = store->create<pbft::RequestsMap>(
+    pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
+  auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
+    pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+  auto replica_store =
+    std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(store);
+
   int used_bytes = Byz_init_replica(
     node_info,
     mem,
     mem_size,
     exec_command,
-    0,
-    0,
     network,
-    nullptr,
+    pbft_requests_map,
+    pbft_pre_prepares_map,
+    *replica_store,
     &message_receive_base);
 
   Byz_start_replica();

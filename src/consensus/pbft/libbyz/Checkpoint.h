@@ -2,9 +2,7 @@
 // Copyright (c) 1999 Miguel Castro, Barbara Liskov.
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
-
-#ifndef _Checkpoint_h
-#define _Checkpoint_h 1
+#pragma once
 
 #include "Digest.h"
 #include "Message.h"
@@ -21,13 +19,17 @@ struct Checkpoint_rep : public Message_rep
   Seqno seqno;
   Digest digest;
   int id; // id of the replica that generated the message.
+#ifdef USE_PKEY_CHECKPOINTS
+  size_t sig_size;
+#endif
   int padding;
   // Followed by a variable-sized signature.
 };
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Checkpoint_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Checkpoint_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Checkpoint : public Message
 {
@@ -35,6 +37,8 @@ class Checkpoint : public Message
   //  Checkpoint messages
   //
 public:
+  Checkpoint(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Checkpoint(Seqno s, Digest& d, bool stable = false);
   // Effects: Creates a new signed Checkpoint message with sequence
   // number "s" and digest "d". "stable" should be true iff the checkpoint
@@ -108,5 +112,3 @@ inline bool Checkpoint::match(const Checkpoint* c) const
   PBFT_ASSERT(seqno() == c->seqno(), "Invalid argument");
   return digest() == c->digest();
 }
-
-#endif // _Checkpoint_h

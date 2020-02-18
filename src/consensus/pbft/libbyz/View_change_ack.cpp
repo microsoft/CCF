@@ -15,7 +15,7 @@ View_change_ack::View_change_ack(View v, int id, int vcid, Digest const& vcd) :
   Message(View_change_ack_tag, sizeof(View_change_ack_rep) + MAC_size)
 {
   rep().v = v;
-  rep().id = node->id();
+  rep().id = pbft::GlobalState::get_node().id();
   rep().vcid = vcid;
   rep().vcd = vcd;
 
@@ -44,13 +44,14 @@ bool View_change_ack::verify()
   // These messages must be sent by replicas other than me, the replica that
   // sent the corresponding view-change, or the primary.
   if (
-    !node->is_replica(id()) || id() == node->id() || id() == vc_id() ||
-    node->primary(view()) == id())
+    !pbft::GlobalState::get_node().is_replica(id()) ||
+    id() == pbft::GlobalState::get_node().id() || id() == vc_id() ||
+    pbft::GlobalState::get_node().primary(view()) == id())
   {
     return false;
   }
 
-  if (view() <= 0 || !node->is_replica(vc_id()))
+  if (view() <= 0 || !pbft::GlobalState::get_node().is_replica(vc_id()))
   {
     return false;
   }
@@ -62,7 +63,8 @@ bool View_change_ack::verify()
   }
 
   // Check MAC.
-  std::shared_ptr<Principal> p = node->get_principal(id());
+  std::shared_ptr<Principal> p =
+    pbft::GlobalState::get_node().get_principal(id());
   if (!p)
   {
     return false;

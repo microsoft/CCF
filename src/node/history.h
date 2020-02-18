@@ -2,15 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../consensus/pbft/pbfttypes.h"
-#include "../crypto/hash.h"
-#include "../ds/logger.h"
-#include "../kv/kvtypes.h"
-#include "../tls/keypair.h"
-#include "../tls/tls.h"
+#include "consensus/pbft/pbfttypes.h"
+#include "crypto/hash.h"
+#include "ds/logger.h"
 #include "entities.h"
+#include "kv/kvtypes.h"
 #include "nodes.h"
 #include "signatures.h"
+#include "tls/tls.h"
+#include "tls/verifier.h"
 
 #include <array>
 #include <deque>
@@ -18,18 +18,7 @@
 
 extern "C"
 {
-#if defined(INSIDE_ENCLAVE) && !defined(__linux__)
-// Tricks Kremlin into including the right endian.h for the enclave.
-// MUSL doesn't provide any macros that it could be identified by,
-// so we use our own. This avoids macro redefinition warnings.
-#  define __linux__
-#  include <evercrypt/MerkleTree.h>
-
-#  undef __linux__
-#else
-#  include <evercrypt/MerkleTree.h>
-
-#endif
+#include <evercrypt/MerkleTree.h>
 }
 
 namespace fmt
@@ -161,12 +150,14 @@ namespace ccf
     {
       return true;
     }
+
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
       const std::vector<uint8_t>& replicated,
       const std::vector<uint8_t>& all_data) override
     {}
+
     virtual void add_result(
       RequestID id,
       kv::Version version,
@@ -175,7 +166,9 @@ namespace ccf
       const uint8_t* all_data,
       size_t all_data_size) override
     {}
+
     void add_result(RequestID id, kv::Version version) override {}
+
     void add_response(
       kv::TxHistory::RequestID id,
       const std::vector<uint8_t>& response) override
@@ -290,8 +283,7 @@ namespace ccf
 
     MerkleTreeHistory(const std::vector<uint8_t>& serialised)
     {
-      tree = mt_deserialize(
-        const_cast<uint8_t*>(serialised.data()), serialised.size());
+      tree = mt_deserialize(serialised.data(), serialised.size());
     }
 
     MerkleTreeHistory()
@@ -540,7 +532,7 @@ namespace ccf
       auto version = store.next_version();
       auto view = consensus->get_view();
       auto commit = consensus->get_commit_seqno();
-      LOG_INFO_FMT("Issuing signature at {}", version);
+      LOG_DEBUG_FMT("Issuing signature at {}", version);
       LOG_DEBUG_FMT("Signed at {} view: {} commit: {}", version, view, commit);
       store.commit(
         version,
@@ -569,7 +561,7 @@ namespace ccf
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) override
     {
-      LOG_DEBUG << fmt::format("HISTORY: add_request {0}", id) << std::endl;
+      LOG_DEBUG_FMT("HISTORY: add_request {0}", id);
       requests[id] = request;
 
       auto consensus = store.get_consensus();
@@ -604,27 +596,29 @@ namespace ccf
       size_t all_data_size) override
     {
       append(replicated, replicated_size, all_data, all_data_size);
-      auto root = get_full_state_root();
-      LOG_DEBUG << fmt::format(
-                     "HISTORY: add_result {0} {1} {2}", id, version, root)
-                << std::endl;
 #ifdef PBFT
-      results[id] = {version, root};
       if (on_result.has_value())
-        on_result.value()({id, version, root});
+      {
+        auto root = get_full_state_root();
+        auto replicated_root = get_replicated_state_root();
+        LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
+        results[id] = {version, root};
+        on_result.value()({id, version, root, replicated_root});
+      }
 #endif
     }
 
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override
     {
-      auto root = get_full_state_root();
-      LOG_DEBUG << fmt::format(
-                     "HISTORY: add_result {0} {1} {2}", id, version, root)
-                << std::endl;
 #ifdef PBFT
-      results[id] = {version, root};
       if (on_result.has_value())
-        on_result.value()({id, version, root});
+      {
+        auto root = get_full_state_root();
+        auto replicated_root = get_replicated_state_root();
+        LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
+        results[id] = {version, root};
+        on_result.value()({id, version, root, replicated_root});
+      }
 #endif
     }
 
@@ -632,7 +626,7 @@ namespace ccf
       kv::TxHistory::RequestID id,
       const std::vector<uint8_t>& response) override
     {
-      LOG_DEBUG << fmt::format("HISTORY: add_response {0}", id) << std::endl;
+      LOG_DEBUG_FMT("HISTORY: add_response {0}", id);
       responses[id] = response;
     }
 

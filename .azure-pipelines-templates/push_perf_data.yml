@@ -17,7 +17,7 @@ steps:
       az storage blob upload-batch -d tx-times/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "client_*_recv.csv.gz" --account-name ccfperf --subscription $(subscription)
       az storage blob upload-batch -d metrics/$AGENT_NAME/${BUILD_SOURCEBRANCHNAME}_${BUILD_BUILDNUMBER} -s. --pattern "*_metrics.json.gz" --account-name ccfperf --subscription $(subscription)
     workingDirectory: build
-    
+
 - script: ./cimetrics_env.sh python upload_pico_metrics.py
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)

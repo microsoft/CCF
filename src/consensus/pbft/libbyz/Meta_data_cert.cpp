@@ -9,7 +9,8 @@
 #include "Meta_data_d.h"
 #include "Node.h"
 
-Meta_data_cert::Meta_data_cert(size_t num_replicas) : num_replicas(num_replicas)
+Meta_data_cert::Meta_data_cert(size_t num_replicas, size_t f) :
+  num_replicas(num_replicas)
 {
   last_mdds = new Meta_data_d*[num_replicas];
   last_stables = new Seqno[num_replicas];
@@ -23,10 +24,14 @@ Meta_data_cert::Meta_data_cert(size_t num_replicas) : num_replicas(num_replicas)
   max_size = num_replicas * (max_out / checkpoint_interval + 1);
   vals = new Part_val[max_size];
   cur_size = 0;
-  correct = node->f() + 1;
+  correct = f + 1;
   c = -1;
   has_my_message = false;
 }
+
+Meta_data_cert::Meta_data_cert(size_t num_replicas) :
+  Meta_data_cert(num_replicas, pbft::GlobalState::get_node().f())
+{}
 
 Meta_data_cert::~Meta_data_cert()
 {
@@ -66,7 +71,7 @@ bool Meta_data_cert::add(Meta_data_d* m, bool mine)
   if (mine || m->verify())
   {
     PBFT_ASSERT(
-      mine || m->id() != node->id(),
+      mine || m->id() != pbft::GlobalState::get_node().id(),
       "verify should return false for messages from self");
 
     // Check if node already had a message in the certificate.
@@ -84,7 +89,11 @@ bool Meta_data_cert::add(Meta_data_d* m, bool mine)
 
     if (m->last_stable() > ls)
     {
-      ls = K_max<Seqno>(node->f() + 1, last_stables, num_replicas, Seqno_max);
+      ls = K_max<Seqno>(
+        pbft::GlobalState::get_node().f() + 1,
+        last_stables,
+        num_replicas,
+        Seqno_max);
     }
     else if (m->last_stable() < ls)
     {

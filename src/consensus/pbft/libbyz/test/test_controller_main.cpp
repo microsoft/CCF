@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 #include "New_principal.h"
+#include "ds/files.h"
 
 #include <CLI11/CLI11.hpp>
 #include <arpa/inet.h>
@@ -51,11 +52,8 @@ int main(int argc, char** argv)
   std::string ip;
   app.add_option("--ip", ip, "ip");
 
-  std::string pubk_sig;
-  app.add_option("--pubk_sig", pubk_sig, "pubk_sig");
-
-  std::string pubk_enc;
-  app.add_option("--pubk_enc", pubk_enc, "pubk_enc");
+  std::string cert_file;
+  app.add_option("--cert_file", cert_file, "cert file");
 
   std::string host_name;
   app.add_option("--host_name", host_name, "host_name");
@@ -86,7 +84,8 @@ int main(int argc, char** argv)
     exit(1);
   }
 
-  New_principal msg(id, port, ip, pubk_sig, pubk_enc, host_name, is_replica);
+  auto node_cert = files::slurp_string(cert_file);
+  New_principal msg(id, port, ip, node_cert, host_name, is_replica);
 
   result = sendto(
     sock,

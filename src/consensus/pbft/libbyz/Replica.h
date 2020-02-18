@@ -8,7 +8,6 @@
 #include "Big_req_table.h"
 #include "Certificate.h"
 #include "Digest.h"
-#include "LedgerReplay.h"
 #include "LedgerWriter.h"
 #include "Log.h"
 #include "Network_open.h"
@@ -20,6 +19,7 @@
 #include "Stable_estimator.h"
 #include "State.h"
 #include "View_info.h"
+#include "globalstate.h"
 #include "libbyz.h"
 #include "receive_message_base.h"
 #include "types.h"
@@ -60,7 +60,9 @@ public:
     char* mem,
     size_t nbytes,
     INetwork* network,
-    std::unique_ptr<consensus::LedgerEnclave> ledger = nullptr);
+    pbft::RequestsMap& pbft_requests_map_,
+    pbft::PrePreparesMap& pbft_pre_prepares_map_,
+    pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
   // Effects: Create a new server replica using the information in
@@ -77,19 +79,6 @@ public:
   // specifications for the functions are defined below.
   void register_exec(ExecCommand e);
   // Effects: Registers "e" as the exec_command function.
-
-  void register_nondet_choices(void (*n)(Seqno, Byz_buffer*), int max_len);
-  // Effects: Registers "n" as the non_det_choices function.
-
-  void compute_non_det(Seqno n, char* b, int* b_len);
-  // Requires: "b" points to "*b_len" bytes.
-  // Effects: Computes non-deterministic choices for sequence number
-  // "n", places them in the array pointed to by "b" and returns their
-  // size in "*b_len".
-
-  int max_nd_bytes() const;
-  // Effects: Returns the maximum length in bytes of the choices
-  // computed by compute_non_det
 
   int used_state_bytes() const;
   // Effects: Returns the number of bytes used up to store protocol
@@ -121,8 +110,19 @@ public:
   void register_reply_handler(reply_handler_cb cb, void* ctx);
   // Effects: Registers a handler that takes reply messages
 
-  void register_global_commit(global_commit_handler_cb cb, void* ctx);
+  void register_global_commit(
+    global_commit_handler_cb cb, pbft::GlobalCommitInfo* ctx);
   // Effects:: Registers a handler that is called when a batch is committed
+
+  void register_mark_stable(
+    mark_stable_handler_cb cb, pbft::MarkStableInfo* ctx);
+
+  void register_rollback_cb(rollback_handler_cb cb, pbft::RollbackInfo* ctx);
+  // Effects: Registers a handler that is called when we rollback
+
+  template <typename T>
+  std::unique_ptr<T> create_message(
+    const uint8_t* message_data, size_t data_size);
 
   size_t num_correct_replicas() const;
   size_t f() const;
@@ -135,10 +135,26 @@ public:
   void send(Message* m, int i);
   Seqno get_last_executed() const;
   int my_id() const;
+  char* create_response_message(int client_id, Request_id rid, uint32_t size);
+
+  // variables used to keep track of versions so that we can tell the kv to
+  // rollback
+
+  // Keeps track of the kv version after a request has been tentatively executed
+  // and after its pre prepare has been stored to the ledger. If there
+  // is a merkle root mismatch after request execution we can rollback to the
+  // latest successful execution
+  kv::Version last_te_version = 0;
+
+  // these variables keep track of the kv version and sequence number on global
+  // commit so that when there is a view change we know how far to roll back to
+  kv::Version last_gb_version = 0;
+  Seqno last_gb_seqno = 0;
 
   Seqno signature_offset = 0;
   std::atomic<bool> sign_next = false;
-  std::atomic<int64_t> signed_version = 0;
+  std::atomic<kv::Version> signed_version = 0;
+
   Seqno next_expected_sig_offset()
   {
     return signature_offset;
@@ -161,12 +177,6 @@ public:
     return val;
   }
 
-  bool shutdown();
-  // Effects: Shuts down replica writing a checkpoint to disk.
-
-  bool restart(FILE* i);
-  // Effects: Restarts the replica from the checkpoint in "i"
-
   bool delay_vc();
   // Effects: Returns true iff view change should be delayed.
 
@@ -180,13 +190,12 @@ public:
   // Effects: Use when messages are passed to Replica rather than replica
   // polling
 
+  static Message* create_message(const uint8_t* data, uint32_t size);
+  // Effects: Creates a new message from a buffer
+
   bool compare_execution_results(const ByzInfo& info, Pre_prepare* pre_prepare);
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution
-
-  bool apply_ledger_data(const std::vector<uint8_t>& data);
-  // Effects: Entries are deserialized and requests are executed if they are
-  // able to If not any requests are cleared from the request queues
 
   void init_state();
   void recv_start();
@@ -196,6 +205,18 @@ public:
   static bool gen_pre_verify(Message* m);
 
   void handle(Request* m);
+
+  void recv_process_one_msg(Message* m);
+  // Helper functions when receiving a message. This can be used
+  // when polling for a new message or we have a new message
+  // passed to us.
+
+  // Playback methods
+  void playback_request(ccf::Store::Tx& tx);
+  // Effects: Requests are executed
+  void playback_pre_prepare(ccf::Store::Tx& tx);
+  // Effects: pre-prepare is verified, if merkle roots match
+  // we update the pre-prepare related meta-data, if not we rollback
 
 private:
   friend class State;
@@ -254,13 +275,6 @@ private:
   //
   // Miscellaneous:
   //
-  bool execute_read_only(Request* m);
-  // Effects: If some request that was tentatively executed did not
-  // commit yet (i.e. last_tentative_execute < last_executed), returns
-  // false.  Otherwise, returns true, executes the command in request
-  // "m" (provided it is really read-only and does not require
-  // non-deterministic choices), and sends a reply to the client
-
   void execute_committed(bool was_f_0 = false);
   // Effects: Executes as many commands as possible by calling
   // execute_prepared; sends Checkpoint messages when needed and
@@ -272,6 +286,14 @@ private:
   // Effects: Sets the min_pre_prepare_batch_size based on
   // historical information.
 
+  void rollback_to_globally_comitted();
+  // Effects: initiates roll back to last globally committed seqno and kv
+  // version
+
+  void global_commit(Pre_prepare* pp);
+  // Effects: calls global commit callback, state checkpoints at seqno and
+  // latest_gb_version and latest_gb_seqno are updated
+
   void execute_prepared(bool committed = false);
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.
@@ -282,13 +304,24 @@ private:
   // exec_command for each command; and sends back replies to the
   // client. The replies are tentative unless "committed" is true.
 
+  std::unique_ptr<ExecCommandMsg> execute_tentative_request(
+    Request& request,
+    ByzInfo& info,
+    int64_t& max_local_commit_value,
+    bool include_markle_roots,
+    ccf::Store::Tx* tx = nullptr,
+    Seqno seqno = -1);
+  // Effects: called by execute_tentative or playback_request to execute the
+  // request. seqno == -1 means we are running it from playback
+
+  static void execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info);
+
   void create_recovery_reply(
     int client_id, int last_tentative_execute, Byz_rep& outb);
   // Handle recovery requests, i.e., requests from replicas,
-  // differently.  TODO: make more general to allow other types
-  // of requests from replicas.
+  // differently.
 
-  void right_pad_contents(Byz_rep& outb);
+  static void right_pad_contents(Byz_rep& outb);
 
   void mark_stable(Seqno seqno, bool have_state);
   // Requires: Checkpoint with sequence number "seqno" is stable.
@@ -302,9 +335,6 @@ private:
   void new_state(Seqno seqno);
   // Effects: Updates this to reflect that the checkpoint with
   // sequence number "seqno" was fetch.
-
-  void recover();
-  // Effects: Recover replica.
 
   Pre_prepare* prepared_pre_prepare(Seqno s);
   // Effects: Returns non-zero iff there is a pre-prepare pp that prepared for
@@ -348,11 +378,6 @@ private:
   void try_end_recovery();
   // Effects: Ends recovery if all the conditions are satisfied
 
-  void recv_process_one_msg(Message* m);
-  // Helper functions when receiving a message. This can be used
-  // when polling for a new message or we have a new message
-  // passed to us.
-
   void dump_state(std::ostream& os);
   // logs the replica state for debugging
 
@@ -375,11 +400,11 @@ private:
   // congestion window > 1, setting min_min_pre_prepare_batch_size to
   // Max_requests_in_batch and waiting for max_pre_prepare_request_batch_wait_ms
   // before sending each pre-prepare works better.
-  static int const congestion_window = 1;
+  static constexpr auto congestion_window = 1;
   static int min_pre_prepare_batch_size;
-  static int const min_min_pre_prepare_batch_size = 1;
-  static int const num_look_back_to_set_batch_size = 10;
-  static int const max_pre_prepare_request_batch_wait_ms = 2;
+  static constexpr auto min_min_pre_prepare_batch_size = 1;
+  static constexpr auto num_look_back_to_set_batch_size = 10;
+  static constexpr auto max_pre_prepare_request_batch_wait_ms = 2;
 
   // Logging variables used to measure average batch size
   int nbreqs; // The number of requests executed in current interval
@@ -397,7 +422,6 @@ private:
   // Sets and logs to keep track of messages received. Their size
   // is equal to max_out.
   Req_queue rqueue; // For read-write requests.
-  Req_queue ro_rqueue; // For read-only requests
 
   Log<Prepared_cert> plog;
 
@@ -417,31 +441,61 @@ private:
   Rep_info replies;
 #endif
 
-  // used to register a callback for a client proxy to collect replies sent to
-  // this replica
+  ByzInfo playback_byz_info;
+  size_t playback_before_f = 0;
+  // Latest byz info when we are in playback mode. Used to compare the latest
+  // execution mt roots and version with the ones in the pre prepare we will get
+  // while we are at playback mode
+  Seqno playback_pp_seqno = 0;
+  // seqno of latest pre prepare executed in playback mode
+  bool waiting_for_playback_pp = false;
+  // indicates if we are in append entries playback mode and have executed a
+  // request but haven't gotten the pre prepare yet
+  int64_t playback_max_local_commit_value = INT64_MIN;
+  // playback max local commit value used for when we are playing back batched
+  // requests when playback pre-prepare is called it will reset it since the
+  // batch for that pre-prepare has executed
+
   reply_handler_cb rep_cb;
   void* rep_cb_ctx;
+  // used to register a callback for a client proxy to collect replies sent to
+  // this replica
+
+  pbft::RequestsMap& pbft_requests_map;
+  pbft::PrePreparesMap& pbft_pre_prepares_map;
 
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;
-  void* global_commit_ctx;
+  pbft::GlobalCommitInfo* global_commit_info;
+
+  mark_stable_handler_cb mark_stable_cb = nullptr;
+  pbft::MarkStableInfo* mark_stable_info;
+  // callback when we call mark_stable
+  // Used to note the append_entries_index of the stable seqno
+  // We don't want to send append entries further than the latest stable seqno
+  // since the replicas store enough messages in that case so that the late
+  // joiner can catch up by the usual execution route
+
+  rollback_handler_cb rollback_cb = nullptr;
+  pbft::RollbackInfo* rollback_info;
+  // call back when we are rolling back
+  // Used to rollback the kv to the right version and truncate the ledger
 
   std::unique_ptr<LedgerWriter> ledger_writer;
-  std::unique_ptr<LedgerReplay> ledger_replay;
 
   // State abstraction manages state checkpointing and digesting
   State state;
 
-  ITimer* stimer; // Timer to send status messages periodically.
+  std::unique_ptr<ITimer> stimer; // Timer to send status messages periodically.
   Time last_status; // Time when last status message was sent
 
-  ITimer* btimer; // Timer to make sure pre_prepare batches are sent if we do
-                  // not have a full batch
+  std::unique_ptr<ITimer> btimer; // Timer to make sure pre_prepare batches are
+                                  // sent if we do not have a full batch
   //
   // View changes:
   //
   View_info vi; // View-info abstraction manages information about view changes
-  ITimer* vtimer; // View change timer
+  std::unique_ptr<ITimer> vtimer; // View change timer
   int cid_vtimer; // client id of first request in queue when vtimer started
   Request_id
     rid_vtimer; // request id of first request in queue when vtimer started
@@ -452,16 +506,16 @@ private:
   //
   // Proactive recovery
   //
-  // Recovery timer. TODO: Timeout should be generated by watchdog
-  ITimer* rtimer;
+  // Recovery timer.
+  std::unique_ptr<ITimer> rtimer;
   bool rec_ready; // True iff replica is ready to recover
   bool recovering; // True iff replica is recovering.
   bool vc_recovering; // True iff replica exited limbo for a view after it
                       // started recovery
   bool corrupt; // True iff replica's data was found to be corrupt.
 
-  ITimer* ntimer; // Timer to trigger transmission of null requests when system
-                  // is idle
+  std::unique_ptr<ITimer> ntimer; // Timer to trigger transmission of null
+                                  // requests when system is idle
   // Estimation of the maximum stable checkpoint at any non-faulty replica
   Stable_estimator se;
   Query_stable* qs; // Message sent for estimation; qs != 0 iff replica is
@@ -480,8 +534,8 @@ private:
   // opened their networks
 
 #ifdef DEBUG_SLOW
-  ITimer* debug_slow_timer; // Used to dump state when requests take too long to
-                            // execute
+  std::unique_ptr<ITimer> debug_slow_timer; // Used to dump state when requests
+                                            // take too long to execute
 #endif
 
   //
@@ -489,23 +543,12 @@ private:
   //
   ExecCommand exec_command;
 
-  void (*non_det_choices)(Seqno, Byz_buffer*);
-  int max_nondet_choice_len;
-
   //
   // Statistics to set pre_prepare batch info
   //
   std::unordered_map<Seqno, uint64_t> requests_per_batch;
   std::list<uint64_t> max_pending_reqs;
 };
-
-// Pointer to global replica object.
-extern Replica* replica;
-
-inline int Replica::max_nd_bytes() const
-{
-  return max_nondet_choice_len;
-}
 
 inline int Replica::used_state_bytes() const
 {

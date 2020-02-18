@@ -6,7 +6,7 @@
 
 namespace enclave
 {
-  class Endpoint
+  class Endpoint : public std::enable_shared_from_this<Endpoint>
   {
   public:
     virtual ~Endpoint() {}

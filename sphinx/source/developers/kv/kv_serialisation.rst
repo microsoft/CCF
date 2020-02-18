@@ -7,12 +7,12 @@ Transactions on private :cpp:class:`kv::Map` are encrypted before being serialis
 
 .. note:: Transactions are serialised using MessagePack_ and to which is prepended a header for integrity protection.
 
-.. _protocol:
-
-Serialised format
+Serialised Format
 -----------------
 
-The following table describes the structure of a serialised KV store transaction.
+The ledger is stored as a series of a 4 byte transaction length field followed by a transaction.
+
+The following table describes the structure of a serialised KV Store transaction.
 
 +----------+------------------------------------------+-------------------------------------------------------------------------+
 |          | Field Name                               | Description                                                             |

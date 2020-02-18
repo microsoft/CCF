@@ -5,12 +5,12 @@ The :term:`constitution` defines the set of rules and conditions (as a Lua scrip
 
 Votes for the proposal are evaluated by the constitution's ``pass`` function. If the `pass` function returns ``true``, the vote is passed, and its consequences are applied to the KV in a transaction.
 
-Examples of constitution include (see :ref:`Models` for further details):
+Examples of constitution include (see :ref:`members/constitution:Models` for further details):
 
 - Strict majority (`simple constitution`_) that implements a "one-member, one-vote" constitution, with a majority rule. Votes on so-called sensitive tables, such as the one containing the constitution itself, require unanimity.
 - Operating member + strict majority (`operating member constitution`_) that extends the "strict majority" constitution by defining an operating member allowed to add new nodes to the network, retire existing ones and allow new versions of the code.
 
-Once the initial set of members have agreed on a constitution, the corresponding Lua file can be given to operators to create a new network (see :ref:`Starting a New Network`).
+Once the initial set of members have agreed on a constitution, the corresponding Lua file can be given to operators to create a new network (see :ref:`operators/start_network:Starting a New Network`).
 
 .. note:: The constitution can always be updated after the CCF network has been opened, subject to the existing constitution rules.
 
@@ -25,12 +25,12 @@ Non-member operators
 It is possible for a set of operators to host a CCF network without being members. These operators could:
 
 - Start the network
-- Hand it over to the members for them to Open (see :ref:`Opening a network`)
+- Hand it over to the members for them to Open (see :ref:`members/open_network:Opening a network`)
 
 In case of catastrophic failure, operators could also:
 
 - Start a network in recovery mode from the ledger
-- Hand it over to the members for them to Open (see :ref:`Accepting Recovery`)
+- Hand it over to the members for them to Open (see :ref:`members/common_member_operations:Accepting Recovery`)
 
 Finally, operators could:
 -	Propose new nodes (TR, Section IV D)

@@ -334,8 +334,6 @@ namespace client
 
     void reconnect(const std::shared_ptr<RpcTlsClient>& connection)
     {
-      // TODO: Check how this interferes with latency calculations
-      // (assumption that RPC IDs are unique?)
       connection->disconnect();
       connection->connect();
     }

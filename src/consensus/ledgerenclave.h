@@ -83,6 +83,17 @@ namespace consensus
       serialized::skip(data, size, entry_len);
     }
 
+    std::pair<std::vector<uint8_t>, bool> get_entry(
+      const uint8_t*& data, size_t& size)
+    {
+      auto entry_len = serialized::read<uint32_t>(data, size);
+      std::vector<uint8_t> entry(data, data + entry_len);
+
+      serialized::skip(data, size, entry_len);
+
+      return std::make_pair(std::move(entry), true);
+    }
+
     /**
      * Truncate the ledger at a given index.
      *

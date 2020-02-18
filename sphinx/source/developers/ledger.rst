@@ -5,20 +5,18 @@ The ledger is the persistent distributed append-only record of the transactions 
 
 A node writes its ledger to a file as specified by the ``--ledger-file`` command line argument.
 
-Ledger encryption
+Ledger Encryption
 -----------------
 
 Each entry in the ledger corresponds to a transaction (or delta) committed by the primary's key-value store.
 
 When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the policy set when the ``Store::Map`` was created (default is private). Public ``Store::Map`` are serialised and stored in the ledger as plaintext while private ``Store::Map`` are serialised and encrypted before being stored.
 
-Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the version number is always present in the serialised entry. More information about the ledger entry format is available in the :ref:`protocol` section.
+Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :ref:`developers/cryptography:Algorithms and Curves`). This key is kept secure inside each enclave and sealed to disk for service recovery. See :ref:`members/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
-.. note:: Private ``Store::Map`` are encrypted using `GCM`_ by a key (a.k.a. network secrets) shared by all nodes in the CCF network.
+Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the version number is always present in the serialised entry. More information about the ledger entry format is available in the :ref:`developers/kv/kv_serialisation:Serialised Format` section.
 
-.. _`GCM`: https://en.wikipedia.org/wiki/Galois/Counter_Mode
-
-Ledger replication
+Ledger Replication
 ------------------
 
 The replication process currently uses Raft as the consensus algorithm and therefore the terminology changes slightly. Instead of primary we use the term leader and instead of backup we use the term follower.
@@ -70,25 +68,23 @@ The following diagram describes how deltas committed by the leader are written t
         end
 
 
-Reading the ledger and verifying entries
-----------------------------------------
+Reading and Verifing Ledger
+---------------------------
 
-The ledger is stored as a series of a 4 byte transaction length field followed by a transaction (as described on the :ref:`protocol` section).
-
-A python implementation for parsing the ledger can be found on ledger.py.
+A Python implementation for parsing the ledger can be found in `ledger.py <https://github.com/microsoft/CCF/blob/master/tests/ledger.py>`_.
 
 The ``Ledger`` class is constructed using the path of the ledger. It then exposes an iterator for transaction data structures, where each transaction is composed of the following:
 
  * The GCM header (gcm_header)
  * The serialised public domain, containing operations made only on public tables (get_public_domain)
 
-.. note:: Parsing the encrypted private data (which begins immediately after the public data on the ledger, and is optional) is not supported by the ``Ledger`` class at the moment. This will be added at a later stage.
+.. note:: Parsing the encrypted private data (which begins immediately after the public data on the ledger, and is optional) is not supported by the ``Ledger`` class at the moment.
 
-An example of how to read and verify entries on the ledger can be found on ``votinghistory.py``, which verifies the voting history.
-Since every vote request is signed by the requesting member, verified by the primary and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
+An example of how to read and verify entries on the ledger can be found in `votinghistory.py <https://github.com/microsoft/CCF/blob/master/tests/votinghistory.py>`_, which verifies the voting history.
+Since every vote request is signed by the voting member, verified by the primary and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
 
  1. Read and store the member certificates
- 2. Read an entry from the ``voting_history`` table (each entry on the ``voting_history`` table contains the member id of the voting member, along with the signed request)
+ 2. Read an entry from the ``ccf.voting_history`` table (each entry in the table contains the member id of the voting member, along with the signed request)
  3. Create a public key using the certificate of the voting member (which was stored on step 1)
  4. Verify the signature using the public key and the raw request
  5. Repeat steps 2 - 4 until all voting history entries have been read

@@ -3,8 +3,10 @@
 #pragma once
 
 #include "consensus/ledgerenclave.h"
+#include "consensus/pbft/libbyz/Append_entries.h"
 #include "consensus/pbft/libbyz/Big_req_table.h"
 #include "consensus/pbft/libbyz/Client_proxy.h"
+#include "consensus/pbft/libbyz/Message_tags.h"
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/network.h"
 #include "consensus/pbft/libbyz/receive_message_base.h"
@@ -25,13 +27,56 @@
 
 namespace pbft
 {
+  using SeqNo = kv::Consensus::SeqNo;
+  using View = kv::Consensus::View;
+
+  struct ViewChangeInfo
+  {
+    ViewChangeInfo(View view_, SeqNo min_global_commit_) :
+      min_global_commit(min_global_commit_),
+      view(view_)
+    {}
+
+    SeqNo min_global_commit;
+    View view;
+  };
+
+  struct MarkStableInfo
+  {
+    pbft::PbftStore* store;
+    Index* latest_stable_ae_idx;
+  } register_mark_stable_ctx;
+
+  struct GlobalCommitInfo
+  {
+    pbft::PbftStore* store;
+    SeqNo* global_commit_seqno;
+    View* last_commit_view;
+    std::vector<ViewChangeInfo>* view_change_list;
+  } register_global_commit_ctx;
+
+  struct RollbackInfo
+  {
+    pbft::PbftStore* store;
+    consensus::LedgerEnclave* ledger;
+  } register_rollback_ctx;
+
+  // maps node to last sent index to that node
+  using NodesMap = std::unordered_map<NodeId, Index>;
+  static constexpr Index entries_batch_size = 10;
+
   class PbftEnclaveNetwork : public INetwork
   {
   public:
     PbftEnclaveNetwork(
-      pbft::NodeId id, std::shared_ptr<ccf::NodeToNode> n2n_channels) :
+      NodeId id,
+      std::shared_ptr<ccf::NodeToNode> n2n_channels,
+      NodesMap& nodes_,
+      Index& latest_stable_ae_index_) :
       n2n_channels(n2n_channels),
-      id(id)
+      id(id),
+      nodes(nodes_),
+      latest_stable_ae_index(latest_stable_ae_index_)
     {}
 
     virtual ~PbftEnclaveNetwork() = default;
@@ -45,6 +90,8 @@ namespace pbft
     {
       message_receiver_base = receiver;
     }
+
+    std::vector<uint8_t> serialized_msg;
 
     int Send(Message* msg, IPrincipal& principal) override
     {
@@ -60,10 +107,9 @@ namespace pbft
 
       PbftHeader hdr = {PbftMsgType::pbft_message, id};
 
-      // TODO: Encrypt msg here
-      std::vector<uint8_t> serialized_msg(sizeof(PbftHeader) + msg->size());
+      auto space = (sizeof(PbftHeader) + msg->size());
+      serialized_msg.resize(space);
       auto data_ = serialized_msg.data();
-      auto space = serialized_msg.size();
       serialized::write<PbftHeader>(data_, space, hdr);
       serialized::write(
         data_,
@@ -71,9 +117,72 @@ namespace pbft
         reinterpret_cast<const uint8_t*>(msg->contents()),
         msg->size());
 
+      if (msg->tag() == Append_entries_tag)
+      {
+        auto node = nodes.find(to);
+
+        Index match_idx = 0;
+        if (node != nodes.end())
+        {
+          match_idx = node->second;
+        }
+
+        if (match_idx < latest_stable_ae_index)
+        {
+          send_append_entries(to, match_idx + 1);
+        }
+        return msg->size();
+      }
       n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, serialized_msg);
       return msg->size();
+    }
+
+    void send_append_entries(NodeId to, Index start_idx)
+    {
+      Index end_idx = (latest_stable_ae_index == 0) ?
+        0 :
+        std::min(start_idx + entries_batch_size, latest_stable_ae_index);
+
+      for (Index i = end_idx; i < latest_stable_ae_index;
+           i += entries_batch_size)
+      {
+        send_append_entries_range(to, start_idx, i);
+        start_idx = std::min(i + 1, latest_stable_ae_index);
+      }
+
+      if (latest_stable_ae_index == 0 || end_idx <= latest_stable_ae_index)
+      {
+        send_append_entries_range(to, start_idx, latest_stable_ae_index);
+      }
+    }
+
+    void send_append_entries_range(NodeId to, Index start_idx, Index end_idx)
+    {
+      const auto prev_idx = start_idx - 1;
+
+      LOG_INFO_FMT(
+        "Send append entried from {} to {}: {} to {}",
+        id,
+        to,
+        start_idx,
+        end_idx);
+
+      AppendEntries ae = {pbft_append_entries, id, end_idx, prev_idx};
+
+      auto node = nodes.find(to);
+      if (node != nodes.end())
+      {
+        node->second = end_idx;
+      }
+      else
+      {
+        nodes[to] = end_idx;
+      }
+
+      // The host will append log entries to this message when it is
+      // sent to the destination node.
+      n2n_channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
     }
 
     virtual Message* GetNextMessage() override
@@ -91,12 +200,16 @@ namespace pbft
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
+    NodesMap& nodes;
+    Index& latest_stable_ae_index;
   };
 
   template <class LedgerProxy, class ChannelProxy>
   class Pbft : public kv::Consensus
   {
   private:
+    NodesMap nodes;
+
     std::shared_ptr<ChannelProxy> channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     char* mem;
@@ -106,44 +219,36 @@ namespace pbft
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     SeqNo global_commit_seqno;
     View last_commit_view;
-    std::unique_ptr<pbft::Store> store;
+    std::unique_ptr<pbft::PbftStore> store;
+    std::unique_ptr<consensus::LedgerEnclave> ledger;
+    Index latest_stable_ae_index = 0;
 
-    struct view_change_info
-    {
-      view_change_info(View view_, SeqNo min_global_commit_) :
-        min_global_commit(min_global_commit_),
-        view(view_)
-      {}
-
-      SeqNo min_global_commit;
-      View view;
-    };
-
-    std::vector<view_change_info> view_change_list;
-
-    struct register_global_commit_info
-    {
-      pbft::Store* store;
-      SeqNo* global_commit_seqno;
-      View* last_commit_view;
-      std::vector<view_change_info>* view_change_list;
-    } register_global_commit_ctx;
+    // When this is set, only public domain is deserialised when receving append
+    // entries
+    bool public_only = false;
+    std::vector<ViewChangeInfo> view_change_list;
 
   public:
     Pbft(
-      std::unique_ptr<pbft::Store> store_,
+      std::unique_ptr<pbft::PbftStore> store_,
       std::shared_ptr<ChannelProxy> channels_,
       NodeId id,
-      std::unique_ptr<consensus::LedgerEnclave> ledger,
+      size_t sig_max_tx,
+      std::unique_ptr<consensus::LedgerEnclave> ledger_,
       std::shared_ptr<enclave::RPCMap> rpc_map,
-      std::shared_ptr<enclave::RPCSessions> rpcsessions_) :
+      std::shared_ptr<enclave::RPCSessions> rpcsessions_,
+      pbft::RequestsMap& pbft_requests_map,
+      pbft::PrePreparesMap& pbft_pre_prepares_map,
+      const std::string& privk_pem,
+      const std::vector<uint8_t>& cert) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
+      ledger(std::move(ledger_)),
       global_commit_seqno(1),
       last_commit_view(0),
       store(std::move(store_)),
-      view_change_list(1, view_change_info(0, 0))
+      view_change_list(1, ViewChangeInfo(0, 0))
     {
       // configure replica
       GeneralInfo general_info;
@@ -155,33 +260,26 @@ namespace pbft
       general_info.view_timeout = 5000;
       general_info.status_timeout = 100;
       general_info.recovery_timeout = 9999250000;
-      general_info.max_requests_between_signatures = 50;
-
-      // TODO(#pbft): We do not need this in the long run
-      std::string privk =
-        "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69";
-      std::string pubk_sig =
-        "aad14ecb5d7ca8caf5ee68d2762721a3d4fdb09b1ae4a699daf74985193b7d42";
-      std::string pubk_enc =
-        "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
+      general_info.max_requests_between_signatures =
+        sig_max_tx / Max_requests_in_batch;
 
       // Adding myself
       PrincipalInfo my_info;
       my_info.id = local_id;
       my_info.port = 0;
       my_info.ip = "256.256.256.256"; // Invalid
-      my_info.pubk_sig = pubk_sig;
-      my_info.pubk_enc = pubk_enc;
+      my_info.cert = cert;
       my_info.host_name = "machineB";
       my_info.is_replica = true;
 
-      ::NodeInfo node_info = {my_info, privk, general_info};
+      ::NodeInfo node_info = {my_info, privk_pem, general_info};
 
-      int mem_size = 40 * 8192;
+      int mem_size = 64;
       mem = (char*)malloc(mem_size);
       bzero(mem, mem_size);
 
-      pbft_network = std::make_unique<PbftEnclaveNetwork>(local_id, channels);
+      pbft_network = std::make_unique<PbftEnclaveNetwork>(
+        local_id, channels, nodes, latest_stable_ae_index);
       pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
 
       auto used_bytes = Byz_init_replica(
@@ -189,14 +287,15 @@ namespace pbft
         mem,
         mem_size,
         pbft_config->get_exec_command(),
-        0,
-        0,
         pbft_network.get(),
-        std::move(ledger),
+        pbft_requests_map,
+        pbft_pre_prepares_map,
+        *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
 
       pbft_config->set_service_mem(mem + used_bytes);
+      pbft_config->set_receiver(message_receiver_base);
       pbft_network->set_receiver(message_receiver_base);
 
       Byz_start_replica();
@@ -214,19 +313,34 @@ namespace pbft
       message_receiver_base->register_reply_handler(
         reply_handler_cb, client_proxy.get());
 
-      auto global_commit_cb = [](kv::Version version, ::View view, void* ctx) {
-        auto p = static_cast<register_global_commit_info*>(ctx);
-        if (version == kv::NoVersion || version < *p->global_commit_seqno)
+      auto mark_stable_cb = [](MarkStableInfo* ms_info) {
+        *ms_info->latest_stable_ae_idx = ms_info->store->current_version();
+        LOG_TRACE_FMT(
+          "latest_stable_ae_index is set to {}",
+          *ms_info->latest_stable_ae_idx);
+      };
+
+      register_mark_stable_ctx.store = store.get();
+      register_mark_stable_ctx.latest_stable_ae_idx = &latest_stable_ae_index;
+
+      message_receiver_base->register_mark_stable(
+        mark_stable_cb, &register_mark_stable_ctx);
+
+      auto global_commit_cb = [](
+                                kv::Version version,
+                                ::View view,
+                                GlobalCommitInfo* gb_info) {
+        if (version == kv::NoVersion || version < *gb_info->global_commit_seqno)
         {
           return;
         }
-        *p->global_commit_seqno = version;
+        *gb_info->global_commit_seqno = version;
 
-        if (*p->last_commit_view < view)
+        if (*gb_info->last_commit_view < view)
         {
-          p->view_change_list->emplace_back(view, version);
+          gb_info->view_change_list->emplace_back(view, version);
         }
-        p->store->compact(version);
+        gb_info->store->compact(version);
       };
 
       register_global_commit_ctx.store = store.get();
@@ -236,12 +350,25 @@ namespace pbft
 
       message_receiver_base->register_global_commit(
         global_commit_cb, &register_global_commit_ctx);
+
+      auto rollback_cb = [](kv::Version version, RollbackInfo* rollback_info) {
+        LOG_TRACE_FMT(
+          "Rolling back to version {} and truncating ledger", version);
+        rollback_info->store->rollback(version);
+        rollback_info->ledger->truncate(version);
+      };
+
+      register_rollback_ctx.store = store.get();
+      register_rollback_ctx.ledger = ledger.get();
+
+      message_receiver_base->register_rollback_cb(
+        rollback_cb, &register_rollback_ctx);
     }
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       pbft::Request request = {
-        args.actor, args.caller_id, args.caller_cert, args.request};
+        args.actor, args.caller_id, args.caller_cert, args.request, {}};
       auto serialized_req = request.serialise();
 
       auto rep_cb = [&](
@@ -275,7 +402,7 @@ namespace pbft
       for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
            ++rit)
       {
-        view_change_info& info = *rit;
+        ViewChangeInfo& info = *rit;
         if (info.min_global_commit <= seqno)
         {
           return info.view + 2;
@@ -309,28 +436,22 @@ namespace pbft
       std::unordered_set<kv::NodeId> config,
       const NodeConf& node_conf) override
     {
-      // TODO(#pbft): We do not need this in the long run
-      std::string privk =
-        "0045c65ec31179652c57ae97f50de77e177a939dce74e39d7db51740663afb69";
-      std::string pubk_sig =
-        "aad14ecb5d7ca8caf5ee68d2762721a3d4fdb09b1ae4a699daf74985193b7d42";
-      std::string pubk_enc =
-        "893d4101c5b225c2bdc8633bb322c0ef9861e0c899014536e11196808ffc0d17";
-
       if (node_conf.node_id == local_id)
       {
         return;
       }
+
       PrincipalInfo info;
       info.id = node_conf.node_id;
       info.port = short(atoi(node_conf.port.c_str()));
       info.ip = "256.256.256.256"; // Invalid
-      info.pubk_sig = pubk_sig;
-      info.pubk_enc = pubk_enc;
+      info.cert = node_conf.cert;
       info.host_name = node_conf.host_name;
       info.is_replica = true;
       Byz_add_principal(info);
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
+
+      nodes[node_conf.node_id] = 0;
     }
 
     void periodic(std::chrono::milliseconds elapsed) override
@@ -338,13 +459,36 @@ namespace pbft
       ITimer::handle_timeouts(elapsed);
     }
 
+    template <typename T>
+    size_t write_to_ledger(const T& data)
+    {
+      ledger->put_entry(data->data(), data->size());
+      return data->size();
+    }
+
+    template <>
+    size_t write_to_ledger<std::vector<uint8_t>>(
+      const std::vector<uint8_t>& data)
+    {
+      ledger->put_entry(data);
+      return data.size();
+    }
+
     bool replicate(const kv::BatchDetachedBuffer& entries) override
     {
+      for (auto& [index, data, globally_committable] : entries)
+      {
+        write_to_ledger(data);
+      }
       return true;
     }
 
     bool replicate(const kv::BatchVector& entries) override
     {
+      for (auto& [index, data, globally_committable] : entries)
+      {
+        write_to_ledger(data);
+      }
       return true;
     }
 
@@ -353,11 +497,112 @@ namespace pbft
       switch (serialized::peek<PbftMsgType>(data, size))
       {
         case pbft_message:
+        {
           serialized::skip(data, size, sizeof(PbftHeader));
           message_receiver_base->receive_message(data, size);
           break;
-        default:
-        {}
+        }
+        case pbft_append_entries:
+        {
+          AppendEntries r;
+
+          auto append_entries_index = store->current_version();
+
+          try
+          {
+            r =
+              channels->template recv_authenticated<AppendEntries>(data, size);
+          }
+          catch (const std::logic_error& err)
+          {
+            LOG_FAIL_FMT(err.what());
+            return;
+          }
+
+          LOG_TRACE_FMT(
+            "Append entries message from {}, my ae index is {}",
+            r.from_node,
+            append_entries_index);
+
+          auto node = nodes.find(r.from_node);
+          if (node != nodes.end())
+          {
+            node->second = r.idx;
+          }
+          else
+          {
+            nodes[r.from_node] = r.idx;
+          }
+
+          if (r.idx <= append_entries_index)
+          {
+            LOG_TRACE_FMT(
+              "Skipping append entries msg for index {} as we are at index {}",
+              r.idx,
+              append_entries_index);
+            break;
+          }
+
+          for (Index i = r.prev_idx + 1; i <= r.idx; i++)
+          {
+            append_entries_index = store->current_version();
+            LOG_TRACE_FMT("Recording entry for index {}", i);
+
+            if (i <= append_entries_index)
+            {
+              // If the current entry has already been deserialised, skip the
+              // payload for that entry
+              LOG_INFO_FMT(
+                "Skipping index {} as we are at index {}",
+                i,
+                append_entries_index);
+              ledger->skip_entry(data, size);
+              continue;
+            }
+            LOG_TRACE_FMT("Applying append entry for index {}", i);
+
+            auto ret = ledger->get_entry(data, size);
+
+            if (!ret.second)
+            {
+              // NB: This will currently never be triggered.
+              // This should only fail if there is malformed data. Truncate
+              // the log and reply false.
+              LOG_FAIL_FMT(
+                "Recv append entries to {} from {} but the data is malformed",
+                local_id,
+                r.from_node);
+              ledger->truncate(r.prev_idx);
+              return;
+            }
+
+            ccf::Store::Tx tx;
+            auto deserialise_success =
+              store->deserialise_views(ret.first, public_only, nullptr, &tx);
+
+            switch (deserialise_success)
+            {
+              case kv::DeserialiseSuccess::FAILED:
+              {
+                LOG_FAIL_FMT("Replica failed to apply log entry {}", i);
+                break;
+              }
+              case kv::DeserialiseSuccess::PASS:
+              {
+                message_receiver_base->playback_request(tx);
+                break;
+              }
+              case kv::DeserialiseSuccess::PASS_PRE_PREPARE:
+              {
+                message_receiver_base->playback_pre_prepare(tx);
+                break;
+              }
+              default:
+                throw std::logic_error("Unknown DeserialiseSuccess value");
+            }
+          }
+          break;
+        }
       }
     }
 

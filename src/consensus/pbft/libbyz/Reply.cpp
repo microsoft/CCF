@@ -11,15 +11,16 @@
 #include "Statistics.h"
 #include "pbft_assert.h"
 
-Reply::Reply(View view, Request_id req, Seqno n, int replica) :
-  Message(Reply_tag, Max_message_size)
+Reply::Reply(
+  View view, Request_id req, Seqno n, int replica, uint32_t reply_size) :
+  Message(Reply_tag, sizeof(Reply_rep) + reply_size + MAC_size)
 {
   rep().v = view;
   rep().rid = req;
   rep().n = n;
   rep().replica = replica;
   rep().reply_size = 0;
-  set_size(sizeof(Reply_rep));
+  set_size(sizeof(Reply_rep) + reply_size + MAC_size);
 }
 
 Reply::Reply(Reply_rep* r) : Message(r) {}
@@ -65,7 +66,7 @@ Reply::Reply(
 
 Reply* Reply::copy(int id) const
 {
-  Reply* ret = (Reply*)new Message(msg->size);
+  Reply* ret = (Reply*)new Reply(msg->size);
   memcpy(ret->msg, msg, msg->size);
   ret->rep().replica = id;
   return ret;
@@ -142,7 +143,7 @@ void Reply::commit(Principal* p)
 bool Reply::pre_verify()
 {
   // Replies must be sent by replicas.
-  if (!node->is_replica(id()))
+  if (!pbft::GlobalState::get_node().is_replica(id()))
   {
     return false;
   }
@@ -168,7 +169,8 @@ bool Reply::pre_verify()
   INCR_OP(reply_auth_ver);
   START_CC(reply_auth_ver_cycles);
 
-  std::shared_ptr<Principal> replica = node->get_principal(rep().replica);
+  std::shared_ptr<Principal> replica =
+    pbft::GlobalState::get_node().get_principal(rep().replica);
   if (!replica)
   {
     return false;

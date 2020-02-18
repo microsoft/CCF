@@ -4,6 +4,7 @@
 #include "frontend.h"
 #include "luainterp/txscriptrunner.h"
 #include "node/genesisgen.h"
+#include "node/members.h"
 #include "node/nodes.h"
 #include "node/quoteverification.h"
 #include "tls/entropy.h"
@@ -27,14 +28,8 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
   DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
 
-  class MemberRpcFrontend : public RpcFrontend<Members>
+  class MemberHandlers : public CommonHandlerRegistry
   {
-  protected:
-    std::string invalid_caller_error_message() const override
-    {
-      return "Could not find matching member certificate";
-    }
-
   private:
     Script get_script(Store::Tx& tx, std::string name)
     {
@@ -45,8 +40,6 @@ namespace ccf
       return *s;
     }
 
-    // TODO: This function is very similar to set_app_scripts() in genesisgen.h
-    // Change this as part of https://github.com/microsoft/CCF/issues/320
     void set_app_scripts(
       Store::Tx& tx, std::map<std::string, std::string> scripts)
     {
@@ -65,6 +58,24 @@ namespace ccf
       }
     }
 
+    void set_js_scripts(
+      Store::Tx& tx, std::map<std::string, std::string> scripts)
+    {
+      auto tx_scripts = tx.get_view(network.app_scripts);
+
+      // First, remove all existing handlers
+      tx_scripts->foreach(
+        [&tx_scripts](const std::string& name, const Script& script) {
+          tx_scripts->remove(name);
+          return true;
+        });
+
+      for (auto& rs : scripts)
+      {
+        tx_scripts->put(rs.first, {rs.second});
+      }
+    }
+
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
@@ -78,12 +89,20 @@ namespace ccf
 
            return true;
          }},
+        // set the js application script
+        {"set_js_app",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           const std::string app = args;
+           set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
+           return true;
+         }},
         // add a new member
         {"new_member",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           const Cert pem_cert = args;
+           const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
-           auto new_member_id = g.add_member(pem_cert, MemberStatus::ACCEPTED);
+           auto new_member_id =
+             g.add_member(parsed.cert, parsed.keyshare, MemberStatus::ACCEPTED);
 
            auto ack = tx.get_view(this->network.member_acks);
            ack->put(new_member_id, {rng->random(SIZE_NONCE)});
@@ -122,7 +141,14 @@ namespace ccf
            auto nodes = tx.get_view(this->network.nodes);
            auto info = nodes->get(id);
            if (!info)
+           {
              throw std::logic_error(fmt::format("Node {} does not exist", id));
+           }
+           if (info->status == NodeStatus::RETIRED)
+           {
+             throw std::logic_error(
+               fmt::format("Node {} is already retired", id));
+           }
            info->status = NodeStatus::TRUSTED;
            nodes->put(id, *info);
            LOG_INFO_FMT("Node {} is now {}", id, info->status);
@@ -135,9 +161,17 @@ namespace ccf
            auto nodes = tx.get_view(this->network.nodes);
            auto info = nodes->get(id);
            if (!info)
+           {
              throw std::logic_error(fmt::format("Node {} does not exist", id));
+           }
+           if (info->status == NodeStatus::RETIRED)
+           {
+             throw std::logic_error(
+               fmt::format("Node {} is already retired", id));
+           }
            info->status = NodeStatus::RETIRED;
            nodes->put(id, *info);
+           LOG_INFO_FMT("Node {} is now {}", id, info->status);
            return true;
          }},
         // accept new code
@@ -153,13 +187,8 @@ namespace ccf
            code_ids->put(id, CodeStatus::ACCEPTED);
            return true;
          }},
-        // initiate end of recovery
-        // TODO(#important): for now, recovery assumes that no primary
-        // change can happen between the time the public CFTR is established and
-        // this function is called.
         {"accept_recovery",
          [this](Store::Tx& tx, const nlohmann::json& args) {
-           // TODO: Check type of args here
            if (node.is_part_of_public_network())
              return node.finish_recovery(tx, args);
            else
@@ -168,6 +197,10 @@ namespace ccf
         {"open_network",
          [this](Store::Tx& tx, const nlohmann::json& args) {
            return node.open_network(tx);
+         }},
+        {"rekey_ledger",
+         [this](Store::Tx& tx, const nlohmann::json& args) {
+           return node.rekey_ledger(tx);
          }},
       };
 
@@ -288,23 +321,28 @@ namespace ccf
     static constexpr auto SIZE_NONCE = 16;
 
   public:
-    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
-      RpcFrontend(
-        *network.tables,
-        &network.member_client_signatures,
-        &network.member_certs,
-        &network.members),
+    MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
+      CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
       tsr(network),
       rng(tls::create_entropy())
+    {}
+
+    void init_handlers(Store& tables_) override
     {
+      CommonHandlerRegistry::init_handlers(tables_);
+
       auto read = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx,
               args.caller_id,
               {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
-          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
 
         const auto in = args.params.get<KVRead::In>();
 
@@ -313,34 +351,48 @@ namespace ccf
         return tables[table_name]:get(key) or {}
         )xxx");
 
-        const auto value = tsr.run<nlohmann::json>(
+        auto value = tsr.run<nlohmann::json>(
           args.tx,
           {read_script, {}, WlIds::MEMBER_CAN_READ, {}},
           in.table,
           in.key);
         if (value.empty())
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
               "Key {} does not exist in table {}", in.key.dump(), in.table));
-        return jsonrpc::success(value);
+          return;
+        }
+
+        args.rpc_ctx->set_response_result(std::move(value));
+        return;
       };
       install_with_auto_schema<KVRead>(MemberProcs::READ, read, Read);
 
       auto query = [this](RequestArgs& args) {
         if (!check_member_accepted(args.tx, args.caller_id))
-          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
 
         const auto script = args.params.get<ccf::Script>();
-        return jsonrpc::success(tsr.run<nlohmann::json>(
+        args.rpc_ctx->set_response_result(tsr.run<nlohmann::json>(
           args.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
+        return;
       };
       install_with_auto_schema<Script, nlohmann::json>(
         MemberProcs::QUERY, query, Read);
 
       auto propose = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
-          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
 
         const auto in = args.params.get<Propose::In>();
         const auto proposal_id = get_next_id(
@@ -350,14 +402,20 @@ namespace ccf
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
         const bool completed = complete_proposal(args.tx, proposal_id);
-        return jsonrpc::success<Propose::Out>({proposal_id, completed});
+        args.rpc_ctx->set_response_result(
+          Propose::Out({proposal_id, completed}));
+        return;
       };
       install_with_auto_schema<Propose>(MemberProcs::PROPOSE, propose, Write);
 
       auto withdraw = [this](RequestArgs& args) {
         if (!check_member_status(
               args.tx, args.caller_id, {MemberStatus::ACTIVE}))
-          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
 
         const auto proposal_action = args.params.get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
@@ -365,21 +423,28 @@ namespace ccf
         auto proposal = proposals->get(proposal_id);
 
         if (!proposal)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format("Proposal {} does not exist", proposal_id));
+          return;
+        }
 
         if (proposal->proposer != args.caller_id)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             fmt::format(
               "Proposal {} can only be withdrawn by proposer {}, not caller {}",
               proposal_id,
               proposal->proposer,
               args.caller_id));
+          return;
+        }
 
         if (proposal->state != ProposalState::OPEN)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can be "
@@ -387,33 +452,47 @@ namespace ccf
               proposal_id,
               proposal->state,
               ProposalState::OPEN));
+          return;
+        }
 
         proposal->state = ProposalState::WITHDRAWN;
         proposals->put(proposal_id, *proposal);
 
-        return jsonrpc::success(true);
+        args.rpc_ctx->set_response_result(true);
+        return;
       };
       install_with_auto_schema<ProposalAction, bool>(
         MemberProcs::WITHDRAW, withdraw, Write);
 
       auto vote = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
-          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
 
-        if (!args.rpc_ctx.signed_request.has_value())
-          return jsonrpc::error(
+        if (!args.rpc_ctx->signed_request.has_value())
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
+          return;
+        }
 
         const auto vote = args.params.get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(vote.id);
         if (!proposal)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format("Proposal {} does not exist", vote.id));
+          return;
+        }
 
         if (proposal->state != ProposalState::OPEN)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can "
@@ -421,6 +500,8 @@ namespace ccf
               vote.id,
               proposal->state,
               ProposalState::OPEN));
+          return;
+        }
 
         // record vote
         proposal->votes[args.caller_id] = vote.ballot;
@@ -428,9 +509,10 @@ namespace ccf
 
         auto voting_history = args.tx.get_view(this->network.voting_history);
         voting_history->put(
-          args.caller_id, {args.rpc_ctx.signed_request.value()});
+          args.caller_id, {args.rpc_ctx->signed_request.value()});
 
-        return jsonrpc::success(complete_proposal(args.tx, vote.id));
+        args.rpc_ctx->set_response_result(complete_proposal(args.tx, vote.id));
+        return;
       };
       install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
@@ -443,21 +525,23 @@ namespace ccf
         // node for the genesis transaction to initialise the service
         if (g.is_service_created())
         {
-          return jsonrpc::error(
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "Service is already created");
+          return;
         }
 
         g.init_values();
-        for (auto& cert : in.member_cert)
+        for (auto& [cert, k_encryption_key] : in.members_info)
         {
-          g.add_member(cert);
+          g.add_member(cert, k_encryption_key);
         }
 
-        // Generate quote over node certificate
-        // TODO: https://github.com/microsoft/CCF/issues/59
-        size_t self = g.add_node(
-          {in.node_info_network, in.node_cert, in.quote, NodeStatus::TRUSTED});
+        size_t self = g.add_node({in.node_info_network,
+                                  in.node_cert,
+                                  in.quote,
+                                  in.public_encryption_key,
+                                  NodeStatus::TRUSTED});
 
         if (self != 0)
         {
@@ -473,8 +557,6 @@ namespace ccf
         g.trust_code_id(node_code_id);
 #endif
 
-        // set access whitelists
-        // TODO(#feature): this should be configurable
         for (const auto& wl : default_whitelists)
         {
           g.set_whitelist(wl.first, wl.second);
@@ -485,42 +567,53 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
-        return jsonrpc::success(true);
+        g.add_key_share_info(in.genesis_key_share_info);
+
+        args.rpc_ctx->set_response_result(true);
+        return;
       };
       install(MemberProcs::CREATE, create, Write);
 
       auto complete = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
-          return jsonrpc::error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
 
         const auto proposal_action = args.params.get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
-        if (!complete_proposal(args.tx, proposal_id))
-          return jsonrpc::success(false);
 
-        return jsonrpc::success(true);
+        args.rpc_ctx->set_response_result(
+          complete_proposal(args.tx, proposal_id));
+        return;
       };
       install_with_auto_schema<ProposalAction, bool>(
         MemberProcs::COMPLETE, complete, Write);
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args) {
-        // TODO(#feature): sign and verify Merkle tree roots instead of
-        // nonce as is done in the paper.
         auto mas = args.tx.get_view(this->network.member_acks);
         const auto last_ma = mas->get(args.caller_id);
         if (!last_ma)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             fmt::format("No ACK record exists for caller {}", args.caller_id));
+          return;
+        }
 
         auto verifier = tls::make_verifier(
-          std::vector<uint8_t>(args.rpc_ctx.session.caller_cert));
+          std::vector<uint8_t>(args.rpc_ctx->session.caller_cert));
         const auto rs = args.params.get<RawSignature>();
         if (!verifier->verify(last_ma->next_nonce, rs.sig))
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "Signature is not valid");
+          return;
+        }
 
         MemberAck next_ma{rs.sig, rng->random(SIZE_NONCE)};
         mas->put(args.caller_id, next_ma);
@@ -529,9 +622,12 @@ namespace ccf
         auto members = args.tx.get_view(this->network.members);
         auto member = members->get(args.caller_id);
         if (member->status == MemberStatus::ACCEPTED)
+        {
           member->status = MemberStatus::ACTIVE;
+        }
         members->put(args.caller_id, *member);
-        return jsonrpc::success(true);
+        args.rpc_ctx->set_response_result(true);
+        return;
       };
       // ACK method cannot be forwarded and should be run on primary as it makes
       // explicit use of caller certificate
@@ -543,15 +639,61 @@ namespace ccf
         auto mas = args.tx.get_view(this->network.member_acks);
         auto ma = mas->get(args.caller_id);
         if (!ma)
-          return jsonrpc::error(
+        {
+          args.rpc_ctx->set_response_error(
             jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
             fmt::format("No ACK record exists for caller {}", args.caller_id));
+          return;
+        }
         ma->next_nonce = rng->random(SIZE_NONCE);
         mas->put(args.caller_id, *ma);
-        return jsonrpc::success(true);
+        args.rpc_ctx->set_response_result(true);
+        return;
       };
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
+    }
+  };
+
+  class MemberRpcFrontend : public RpcFrontend
+  {
+  protected:
+    std::string invalid_caller_error_message() const override
+    {
+      return "Could not find matching member certificate";
+    }
+
+    MemberHandlers member_handlers;
+    Members* members;
+
+  public:
+    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
+      RpcFrontend(
+        *network.tables, member_handlers, &network.member_client_signatures),
+      member_handlers(network, node),
+      members(&network.members)
+    {}
+
+    std::vector<uint8_t> get_cert_to_forward(
+      std::shared_ptr<enclave::RpcContext> ctx) override
+    {
+      // Caller cert can be looked up on receiver - so don't forward it
+      return {};
+    }
+
+    bool lookup_forwarded_caller_cert(
+      std::shared_ptr<enclave::RpcContext> ctx, Store::Tx& tx) override
+    {
+      // Lookup the caller member's certificate from the forwarded caller id
+      auto members_view = tx.get_view(*members);
+      auto caller = members_view->get(ctx->session.fwd->caller_id);
+      if (!caller.has_value())
+      {
+        return false;
+      }
+
+      ctx->session.caller_cert = caller.value().cert;
+      return true;
     }
   };
 } // namespace ccf

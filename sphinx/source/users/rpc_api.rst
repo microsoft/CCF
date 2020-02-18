@@ -7,12 +7,11 @@ The API can also be retrieved from a running service using the `listMethods`_ an
 
 .. code-block:: bash
 
-    $ client --pretty-print --rpc-address 127.99.16.14:36785 --ca networkcert.pem userrpc --req @listMethods.json --cert user1_cert.pem --pk user1_privk.pem
-    Doing user RPC:
+    $ curl https://<ccf-node-address>/users/listMethods --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @listMethods.json
     {
       "commit": 4,
       "global_commit": 4,
-      "id": 1,
+      "id": 0,
       "jsonrpc": "2.0",
       "result": {
         "methods": [
@@ -21,18 +20,22 @@ The API can also be retrieved from a running service using the `listMethods`_ an
           "LOG_record",
           "LOG_record_pub",
           "getCommit",
-          "getPrimaryInfo",
           "getMetrics",
+          "getNetworkInfo",
+          "getPrimaryInfo",
+          "getReceipt",
           "getSchema",
           "listMethods",
-          "mkSign"
+          "mkSign",
+          "verifyReceipt",
+          "whoAmI",
+          "whoIs"
         ]
       },
       "term": 2
     }
 
-    $ client --pretty-print --rpc-address 127.99.16.14:36785 --ca networkcert.pem userrpc --req @getSchema.json --cert user1_cert.pem --pk user1_privk.pem
-    Doing user RPC:
+    $ curl https://<ccf-node-address>/users/getSchema --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @getSchema.json
     {
       "commit": 4,
       "global_commit": 4,

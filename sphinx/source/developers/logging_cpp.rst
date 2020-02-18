@@ -41,7 +41,7 @@ The Logging application simply has:
 RPC Handler
 -----------
 
-The handler returned by :cpp:func:`ccfapp::getRpcHandler()` needs to subclass :cpp:class:`ccf::UserRpcFrontend`:
+The handler returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::UserRpcFrontend`, providing an implementation of :cpp:class:`ccf::HandlerRegistry`:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp
@@ -49,7 +49,7 @@ The handler returned by :cpp:func:`ccfapp::getRpcHandler()` needs to subclass :c
     :lines: 1
     :dedent: 2
 
-The constructor then needs to create a handler function or lambda for each transaction type. This takes a transaction object and the request's ``params``, interacts with the KV tables, and returns a result:
+The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and installs handler functions or lambdas for each transaction type. These take a transaction object and the request's ``params``, interact with the KV tables, and return a result:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp
@@ -71,16 +71,7 @@ A handler can either be installed as:
 - ``Read``: this handler can be executed on any node of the network.
 - ``MayWrite``: the execution of this handler on a specific node depends on the value of the ``"readonly"`` parameter in the JSON-RPC command.
 
-App-defined errors
-~~~~~~~~~~~~~~~~~~
-
-Applications can define their own error codes. These should be between ``-32050`` and ``-32099`` to avoid conflicting with CCF's error codes. The Logging application returns errors if the user tries to get an id which has not been logged, or tries to log an empty message. These error codes should be given their own ``enum class``, and a ``get_error_prefix`` function should be defined in the same namespace to help users distinguish error messages:
-
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
-    :language: cpp
-    :start-after: SNIPPET_START: errors
-    :end-before: SNIPPET_END: errors
-    :dedent: 2
+.. warning:: These handlers currently return JSON-RPC error codes, and all responses are returned in the body of a ``200 OK`` HTTP response. In future these handlers will be able to directly set the HTTP return code and payload.
 
 API Schema
 ~~~~~~~~~~

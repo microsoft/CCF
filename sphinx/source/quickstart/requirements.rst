@@ -5,10 +5,10 @@ This page describes how to setup an environment to build and deploy CCF.
 
 There are two options to deploy a CCF-ready environment:
 
-- :ref:`Checkout CCF and its dependencies in a local container <Local Development without SGX (virtual)>`. This is useful for quick prototyping using CCF `virtual` mode.
-- :ref:`Create a SGX-enabled VM on Azure and install CCF dependencies <Azure Confidential Compute>`.
+- :ref:`Checkout CCF and its dependencies in a local container <quickstart/requirements:Local Development without SGX (virtual)>`. This is useful for quick prototyping using CCF `virtual` mode.
+- :ref:`Create a SGX-enabled VM on Azure and install CCF dependencies <quickstart/requirements:Azure Confidential Compute>`.
 
-Once this is done, you should look at how to :ref:`build CCF from source <Building CCF>`.
+Once this is done, you should look at how to :ref:`build CCF from source <quickstart/build:Building CCF>`.
 
 Requirements
 ------------
@@ -68,7 +68,7 @@ Then, to quickly get a VM up and running (in the East US region), you can run th
 
     $ SUBSCRIPTION=$AZURE_SUBSCRIPTION_NAME ./make_vm.sh [path_to_ssh_public_key]
 
-After signing in to your Azure account, the script will create a default ``ccf`` user on the VM, authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``). See :ref:`OE Engine Walkthrough` for further details about how to deploy an ACC VM.
+After signing in to your Azure account, the script will create a default ``ccf`` user on the VM, authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``). See :ref:`quickstart/oeengine:OE Engine Walkthrough` for further details about how to deploy an ACC VM.
 
 Then, you should ssh into your newly created vm and clone the CCF repository:
 
@@ -95,7 +95,7 @@ To quickly set up the dependencies necessary to build CCF, simply run:
     $ cd CCF/getting_started/setup_vm
     $ ./setup.sh
 
-Once this is complete, you can proceed to :ref:`Building CCF`.
+Once this is complete, you can proceed to :ref:`quickstart/build:Building CCF`.
 
 On a machine without SGX, you can instead use:
 

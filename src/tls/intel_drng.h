@@ -33,6 +33,7 @@ namespace tls
     virtual void* get_data() = 0;
     virtual rng_func_t get_rng() = 0;
     virtual std::vector<uint8_t> random(size_t len) = 0;
+    virtual void random(unsigned char* data, size_t len) = 0;
     virtual ~Entropy() {}
   };
 
@@ -272,6 +273,12 @@ namespace tls
         throw std::logic_error("Couldn't create random data");
 
       return std::vector<uint8_t>(buf, buf + len);
+    }
+
+    void random(unsigned char* data, size_t len) override
+    {
+      if (rdrand_get_bytes(len, data) < len)
+        throw std::logic_error("Couldn't create random data");
     }
 
     static int rng(void*, unsigned char* output, size_t len)

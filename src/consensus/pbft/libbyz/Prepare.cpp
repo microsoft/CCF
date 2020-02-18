@@ -16,10 +16,10 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
     Prepare_tag,
     sizeof(Prepare_rep)
 #ifndef USE_PKEY
-      + ((dst) ? MAC_size : node->auth_size()))
+      + ((dst) ? MAC_size : pbft::GlobalState::get_node().auth_size()))
 {
 #else
-      + ((dst) ? MAC_size : node->sig_size()))
+      + ((dst) ? MAC_size : pbft_max_signature_size)
 {
 #endif
   rep().extra = (dst) ? 1 : 0;
@@ -28,22 +28,24 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   rep().digest = d;
 
 #ifdef SIGN_BATCH
+  rep().digest_sig_size = 0;
+  rep().digest_padding.fill(0);
   if (is_signed)
   {
-    node->gen_signature(
+    rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
       d.digest(), d.digest_size(), rep().batch_digest_signature);
   }
   else
   {
-    std::fill(
-      std::begin(rep().batch_digest_signature),
-      std::end(rep().batch_digest_signature),
-      0);
+    rep().batch_digest_signature.fill(0);
   }
-
 #endif
 
-  rep().id = node->id();
+#ifdef USE_PKEY
+  rep().prepare_sig_size = 0;
+#endif
+
+  rep().id = pbft::GlobalState::get_node().id();
   rep().padding = 0;
   if (!dst)
   {
@@ -52,7 +54,7 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
     auth_len = sizeof(Prepare_rep);
     auth_src_offset = 0;
 #else
-    node->gen_signature(
+    rep().prepare_sig_size = pbft::GlobalState::get_node().gen_signature(
       contents(), sizeof(Prepare_rep), contents() + sizeof(Prepare_rep));
 #endif
   }
@@ -93,14 +95,16 @@ void Prepare::re_authenticate(Principal* p)
 bool Prepare::pre_verify()
 {
   // special case for f == 0
-  if (replica->f() == 0)
+  if (pbft::GlobalState::get_replica().f() == 0)
   {
     return true;
   }
 
   // This type of message should only be sent by a replica other than me
   // and different from the primary
-  if (!node->is_replica(id()) || id() == node->id())
+  if (
+    !pbft::GlobalState::get_node().is_replica(id()) ||
+    id() == pbft::GlobalState::get_node().id())
   {
     return false;
   }
@@ -110,8 +114,9 @@ bool Prepare::pre_verify()
     // Check signature size.
 #ifndef USE_PKEY
     if (
-      view() % replica->num_of_replicas() == id() ||
-      size() - (int)sizeof(Prepare_rep) < node->auth_size(id()))
+      view() % pbft::GlobalState::get_replica().num_of_replicas() == id() ||
+      size() - (int)sizeof(Prepare_rep) <
+        pbft::GlobalState::get_node().auth_size(id()))
     {
       return false;
     }
@@ -119,8 +124,8 @@ bool Prepare::pre_verify()
     return true;
 #else
     if (
-      view() % replica->num_of_replicas() == id() ||
-      size() - (int)sizeof(Prepare_rep) < node->sig_size(id()))
+      view() % pbft::GlobalState::get_replica().num_of_replicas() == id() ||
+      size() - (int)sizeof(Prepare_rep) < pbft_max_signature_size)
     {
       return false;
     }

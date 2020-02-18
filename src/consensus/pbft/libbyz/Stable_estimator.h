@@ -2,9 +2,7 @@
 // Copyright (c) 1999 Miguel Castro, Barbara Liskov.
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
-
-#ifndef _Stable_estimator_h
-#define _Stable_estimator_h 1
+#pragma once
 
 #include "types.h"
 
@@ -17,7 +15,7 @@ class Stable_estimator
   // any non-faulty replica by collecting reply-stable messages.
   //
 public:
-  Stable_estimator();
+  Stable_estimator(size_t num_of_replicas);
   // Effects: Creates a stable information with no information.
 
   ~Stable_estimator();
@@ -77,5 +75,3 @@ inline Seqno Stable_estimator::estimate() const
 {
   return est;
 }
-
-#endif // _Stable_estimator_h

@@ -31,7 +31,8 @@ struct Fetch_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Fetch_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Fetch_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Fetch : public Message
 {
@@ -39,6 +40,8 @@ class Fetch : public Message
   // Fetch messages
   //
 public:
+  Fetch(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Fetch(
     Request_id rid,
     Seqno lu,

@@ -4,12 +4,13 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "../src/consensus/consensustypes.h"
 #include "ITimer.h"
 #include "Message.h"
 #include "Message_tags.h"
 #include "Principal.h"
 #include "Statistics.h"
+#include "consensus/consensustypes.h"
+#include "globalstate.h"
 #include "key_format.h"
 #include "network.h"
 #include "nodeinfo.h"
@@ -102,32 +103,16 @@ public:
   //
   // Authenticator generation and verification:
   //
-  int auth_size(int id = -1) const;
+  size_t auth_size(int id = -1) const;
   // Effects: Returns the size in bytes of an authenticator for principal
   // "id" (or current principal if "id" is negative.)
 
-  //
-  // Signature generation:
-  //
-  unsigned sig_size(int id = -1) const;
-  // Requires: id < 0 | id >= num_principals
-  // Effects: Returns the size in bytes of a signature for principal
-  // "id" (or current principal if "id" is negative.)
-
-  void gen_signature(const char* src, unsigned src_len, char* sig);
-  void gen_signature(
-    const char* src, unsigned src_len, KeyPair::Signature& sig);
-  // Requires: "sig" is at least sig_size() bytes long.
+  size_t gen_signature(const char* src, unsigned src_len, char* sig);
+  size_t gen_signature(const char* src, unsigned src_len, PbftSignature& sig);
+  // Requires: "sig" is at least pbft_max_signature_size bytes long.
   // Effects: Generates a signature "sig" (from this principal) for
-  // "src_len" bytes starting at "src" and puts the result in "sig".
-
-  KeyPair* get_keypair();
-
-  unsigned decrypt(
-    const uint8_t* senders_public_key, char* src, char* dst, unsigned dst_len);
-  // Effects: decrypts the cyphertext in "src" using this
-  // principal's private key and places up to "dst_len" bytes of the
-  // result in "dst". Returns the number of bytes placed in "dst".
+  // "src_len" bytes starting at "src" and puts the result in "sig" and
+  // returns the length of the signature
 
 protected:
   std::string service_name;
@@ -140,7 +125,7 @@ protected:
   size_t threshold; // Number of correct replicas. It must be
                     // threshold == 2*max_faulty+1.
 
-  std::unique_ptr<KeyPair> key_pair;
+  std::unique_ptr<tls::KeyPair> key_pair;
 
   // Map from principal identifiers to Principal*. The first "num_replicas"
   // principals correspond to the replicas.
@@ -228,32 +213,11 @@ inline int Node::primary() const
   return cur_primary;
 }
 
-// TODO: check this is correct
-inline int Node::auth_size(int id) const
+inline size_t Node::auth_size(int id) const
 {
   if (id < 0)
     id = node_id;
   return UMAC_size + UNonce_size;
-}
-
-inline unsigned Node::sig_size(int id) const
-{
-  if (id < 0)
-  {
-    id = node_id;
-  }
-
-  auto principals = get_principals();
-  auto it = principals->find(id);
-  PBFT_ASSERT(it != principals->end(), "Invalid argument");
-
-  std::shared_ptr<Principal>& p = it->second;
-  return p->sig_size();
-}
-
-inline KeyPair* Node::get_keypair()
-{
-  return key_pair.get();
 }
 
 inline int cypher_size(char* dst, unsigned dst_len)
@@ -265,6 +229,3 @@ inline int cypher_size(char* dst, unsigned dst_len)
 
   return Nonce_size + Tag_size;
 }
-
-// Pointer to global node object.
-extern Node* node;

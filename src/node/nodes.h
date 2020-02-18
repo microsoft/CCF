@@ -32,12 +32,15 @@ namespace ccf
   {
     std::vector<uint8_t> cert;
     std::vector<uint8_t> quote;
+    std::vector<uint8_t> encryption_pub_key;
     NodeStatus status = NodeStatus::PENDING;
 
-    MSGPACK_DEFINE(MSGPACK_BASE(NodeInfoNetwork), cert, quote, status);
+    MSGPACK_DEFINE(
+      MSGPACK_BASE(NodeInfoNetwork), cert, quote, encryption_pub_key, status);
   };
   DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, NodeInfoNetwork);
-  DECLARE_JSON_REQUIRED_FIELDS(NodeInfo, cert, quote, status);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    NodeInfo, cert, quote, encryption_pub_key, status);
 
   using Nodes = Store::Map<NodeId, NodeInfo>;
 }

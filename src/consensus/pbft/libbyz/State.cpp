@@ -252,7 +252,12 @@ template class Log<Checkpoint_rec>;
 //
 // State methods:
 //
-State::State(Replica* rep, char* memory, size_t num_bytes) :
+State::State(
+  Replica* rep,
+  char* memory,
+  size_t num_bytes,
+  size_t num_of_replicas,
+  size_t f) :
   replica(rep),
   mem((Block*)memory),
   nb(num_bytes / Block_size),
@@ -275,7 +280,7 @@ State::State(Replica* rep, char* memory, size_t num_bytes) :
   }
 
   fetching = false;
-  cert = std::make_unique<Meta_data_cert>(replica->num_of_replicas());
+  cert = std::make_unique<Meta_data_cert>(num_of_replicas, f);
   lreplier = 0;
 
   to_check = std::make_unique<CPartQueue>();
@@ -621,10 +626,8 @@ void State::start_fetch(Seqno le, Seqno c, Digest* cd, bool stable)
     INCR_OP(num_fetches);
 
     fetching = true;
-    // TODO: check if we can remove the code to keep
-    // old checkpointa
     keep_ckpts = false;
-    lreplier = rand() % replica->num_of_replicas();
+    lreplier = rand() % pbft::GlobalState::get_replica().num_of_replicas();
 
     // Update partition information to reflect last modification
     // rather than last checkpointed modification.
@@ -659,8 +662,8 @@ void State::send_fetch(bool change_replier)
   START_CC(fetch_cycles);
 
   last_fetch_t = ITimer::current_time();
-  Request_id rid = replica->new_rid();
-  replica->principal()->set_last_fetch_rid(rid);
+  Request_id rid = pbft::GlobalState::get_replica().new_rid();
+  pbft::GlobalState::get_replica().principal()->set_last_fetch_rid(rid);
 
   PBFT_ASSERT(stalep[flevel]->size() > 0, "Invalid state");
   FPart& p = stalep[flevel]->back();
@@ -673,8 +676,9 @@ void State::send_fetch(bool change_replier)
     {
       do
       {
-        lreplier = (lreplier + 1) % replica->num_of_replicas();
-      } while (lreplier == replica->id());
+        lreplier =
+          (lreplier + 1) % pbft::GlobalState::get_replica().num_of_replicas();
+      } while (lreplier == pbft::GlobalState::get_replica().id());
     }
     replier = lreplier;
   }
@@ -695,7 +699,7 @@ void State::send_fetch(bool change_replier)
 
   // Send fetch to all.
   Fetch f(rid, p.lu, flevel, p.index, p.c, replier);
-  replica->send(&f, Node::All_replicas);
+  pbft::GlobalState::get_replica().send(&f, Node::All_replicas);
   LOG_TRACE << "Sending fetch message: rid=" << rid << " lu=" << p.lu << " ("
             << flevel << "," << p.index << ") c=" << p.c << " rep=" << replier
             << std::endl;
@@ -727,7 +731,8 @@ void State::send_fetch(bool change_replier)
 
 bool State::handle(Fetch* m, Seqno ls)
 {
-  std::shared_ptr<Principal> pi = replica->get_principal(m->id());
+  std::shared_ptr<Principal> pi =
+    pbft::GlobalState::get_replica().get_principal(m->id());
   if (pi == nullptr)
   {
     delete m;
@@ -752,7 +757,7 @@ bool State::handle(Fetch* m, Seqno ls)
               << " lu=" << m->last_uptodate() << " lm=" << ptree[l][i].lm
               << std::endl;
 
-    if (rc >= 0 && m->replier() == replica->id())
+    if (rc >= 0 && m->replier() == pbft::GlobalState::get_replica().id())
     {
       Seqno chosen = -1;
       if (
@@ -780,7 +785,7 @@ bool State::handle(Fetch* m, Seqno ls)
           if (data != nullptr)
           {
             Data d(i, p.lm, data);
-            replica->send(&d, m->id());
+            pbft::GlobalState::get_replica().send(&d, m->id());
             LOG_TRACE << "Sending data i=" << i << " lm=" << p.lm << std::endl;
           }
         }
@@ -806,7 +811,7 @@ bool State::handle(Fetch* m, Seqno ls)
               md.add_sub_part(j, q.d);
             }
           }
-          replica->send(&md, m->id());
+          pbft::GlobalState::get_replica().send(&md, m->id());
           LOG_TRACE << "Sending meta-data l=" << l - 1 << " i=" << i
                     << " lm=" << p.lm << std::endl;
         }
@@ -834,7 +839,7 @@ bool State::handle(Fetch* m, Seqno ls)
       {
         mdd.authenticate(pi.get());
         LOG_TRACE << "Sending meta-data-d l=" << l << " i=" << i << std::endl;
-        replica->send(&mdd, m->id());
+        pbft::GlobalState::get_replica().send(&mdd, m->id());
       }
     }
   }
@@ -978,7 +983,8 @@ void State::handle(Meta_data* m)
   INCR_CNT(meta_data_bytes, m->size());
   START_CC(fetch_cycles);
 
-  Request_id crid = replica->principal()->last_fetch_rid();
+  Request_id crid =
+    pbft::GlobalState::get_replica().principal()->last_fetch_rid();
   LOG_TRACE << "Got meta_data index " << m->index() << " from " << m->id()
             << " rid=" << m->request_id() << " crid=" << crid << std::endl;
   if (
@@ -1059,7 +1065,8 @@ void State::handle(Meta_data_d* m)
 
   LOG_TRACE << "Got meta_data_d from " << m->id() << "index" << m->index()
             << std::endl;
-  Request_id crid = replica->principal()->last_fetch_rid();
+  Request_id crid =
+    pbft::GlobalState::get_replica().principal()->last_fetch_rid();
   if (fetching && m->request_id() == crid && flevel == m->level())
   {
     FPart& wp = stalep[flevel]->back();
@@ -1232,7 +1239,7 @@ void State::done_with_level()
 
       STOP_CC(fetch_cycles);
 
-      replica->new_state(lc);
+      pbft::GlobalState::get_replica().new_state(lc);
 
       return;
     }
@@ -1315,7 +1322,9 @@ void State::check_state()
 
     while (lchecked < max)
     {
-      if (count % poll_cnt == 0 && replica->has_messages(0))
+      if (
+        count % poll_cnt == 0 &&
+        pbft::GlobalState::get_replica().has_messages(0))
       {
         STOP_CC(check_time);
         return;
@@ -1333,7 +1342,6 @@ void State::check_state()
       else
       {
         corrupt = true;
-        // TODO: put these blocks in a queue and fetch them at the end.
         PBFT_FAIL("Replica's state is corrupt. Should not happen yet");
       }
     }
@@ -1347,193 +1355,13 @@ void State::check_state()
   {
     checking = false;
     refetch_level = 0;
-    replica->try_end_recovery();
+    pbft::GlobalState::get_replica().try_end_recovery();
   }
 }
 
 void State::mark_stale()
 {
   cert->clear();
-}
-
-bool State::shutdown(FILE* o, Seqno ls)
-{
-  bool ret = cowb.encode(o);
-
-  size_t wb = 0;
-  size_t ab = 0;
-  for (int i = 0; i < PLevels; i++)
-  {
-    int psize = (i != PLevels - 1) ? PLevelSize[i] : nb;
-    wb += fwrite(ptree[i].get(), sizeof(Part), psize, o);
-    ab += psize;
-  }
-
-  wb += fwrite(&lc, sizeof(Seqno), 1, o);
-  ab++;
-
-  // TODO: what if I shutdown while I am fetching.
-  // recovery should always start s fetch for digests.
-  if (!fetching || keep_ckpts)
-  {
-    for (Seqno i = ls; i <= ls + max_out; i++)
-    {
-      Checkpoint_rec& rec = checkpoint_log.fetch(i);
-
-      if (!rec.is_empty())
-      {
-        wb += fwrite(&i, sizeof(Seqno), 1, o);
-        wb += fwrite(&rec.sd, sizeof(Digest), 1, o);
-
-        int size = rec.num_entries();
-        wb += fwrite(&size, sizeof(int), 1, o);
-        ab += 3;
-
-        Checkpoint_rec::Iter g(&rec);
-        int l;
-        size_t i;
-        Part* p;
-
-        while (g.get(l, i, p))
-        {
-          wb += fwrite(&l, sizeof(int), 1, o);
-          wb += fwrite(&i, sizeof(size_t), 1, o);
-
-          int psize = (l == PLevels - 1) ? sizeof(BlockCopy) : sizeof(Part);
-          wb += fwrite(p, psize, 1, o);
-          ab += 3;
-        }
-      }
-    }
-  }
-  Seqno end = -1;
-  wb += fwrite(&end, sizeof(Seqno), 1, o);
-  ab++;
-
-#ifndef INSIDE_ENCLAVE
-  msync(mem, nb * Block_size, MS_SYNC);
-#endif
-
-  return ret & (ab == wb);
-}
-
-bool State::restart(FILE* in, Replica* rep, Seqno ls, Seqno le, bool corrupt)
-{
-#ifndef INSIDE_ENCLAVE
-  replica = rep;
-
-  if (corrupt)
-  {
-    checkpoint_log.clear(ls);
-    lc = -1;
-    return false;
-  }
-
-  bool ret = cowb.decode(in);
-
-  size_t rb = 0;
-  size_t ab = 0;
-  for (int i = 0; i < PLevels; i++)
-  {
-    int psize = (i != PLevels - 1) ? PLevelSize[i] : nb;
-    rb += fread(ptree[i].get(), sizeof(Part), psize, in);
-    ab += psize;
-  }
-
-  // Compute digests of non-leaf partitions assuming leaf digests are
-  // correct. This should have negligible cost when compared to the
-  // cost of rebooting. This is required for the checking code to ensure
-  // correctness of the state.
-  int np = nb;
-  for (int l = PLevels - 1; l > 0; l--)
-  {
-    for (int i = 0; i < np; i++)
-    {
-      if (l < PLevels - 1)
-      {
-        Digest d;
-        digest(d, l, i);
-        if (d != ptree[l][i].d)
-        {
-          ret = false;
-          ptree[l][i].d = d;
-        }
-      }
-    }
-    np = (np + PSize[l] - 1) / PSize[l];
-  }
-
-  Digest d;
-  digest(d, 0, 0);
-  if (d != ptree[0][0].d)
-  {
-    ret = false;
-  }
-
-  checkpoint_log.clear(ls);
-  rb += fread(&lc, sizeof(Seqno), 1, in);
-  if (lc < ls || lc > le)
-  {
-    return false;
-  }
-
-  Seqno n;
-  rb += fread(&n, sizeof(Seqno), 1, in);
-  ab += 2;
-
-  while (n >= 0)
-  {
-    if (n < ls || n > lc)
-    {
-      return false;
-    }
-
-    Checkpoint_rec& rec = checkpoint_log.fetch(n);
-
-    rb += fread(&rec.sd, sizeof(Digest), 1, in);
-    ab++;
-
-    int size;
-    rb += fread(&size, sizeof(int), 1, in);
-    ab++;
-    if (size > 2 * nb)
-    {
-      return false;
-    }
-
-    for (int k = 0; k < size; k++)
-    {
-      int l, i;
-
-      rb += fread(&l, sizeof(int), 1, in);
-      rb += fread(&i, sizeof(size_t), 1, in);
-
-      Part* p;
-      int psize;
-      if (l == PLevels - 1)
-      {
-        p = new BlockCopy;
-        psize = sizeof(BlockCopy);
-      }
-      else
-      {
-        p = new Part;
-        psize = sizeof(Part);
-      }
-
-      rb += fread(p, psize, 1, in);
-      ab += 3;
-      rec.appendr(l, i, p);
-    }
-
-    rb += fread(&n, sizeof(Seqno), 1, in);
-    ab++;
-  }
-
-  return ret & (ab == rb);
-#else
-  return true;
-#endif
 }
 
 bool State::enforce_bound(Seqno b, Seqno ks, bool corrupt)
@@ -1560,25 +1388,6 @@ bool State::enforce_bound(Seqno b, Seqno ks, bool corrupt)
   }
 
   return true;
-}
-
-void State::simulate_reboot()
-{
-  START_CC(reboot_time);
-
-  static const unsigned long reboot_usec = 30000000;
-  //  static const unsigned long reboot_usec = 3000000;
-  Cycle_counter inv_time;
-
-  // Invalidate state pages to force reading from disk after reboot
-#ifndef INSIDE_ENCLAVE
-  inv_time.start();
-  msync(mem, nb * Block_size, MS_INVALIDATE);
-  inv_time.stop();
-
-  usleep(reboot_usec - inv_time.elapsed() / clock_mhz);
-#endif
-  STOP_CC(reboot_time);
 }
 
 void State::dump_state(std::ostream& os)

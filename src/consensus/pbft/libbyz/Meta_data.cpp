@@ -23,7 +23,7 @@ Meta_data::Meta_data(
   rep().lm = lm;
   rep().l = l;
   rep().i = i;
-  rep().id = replica->id();
+  rep().id = pbft::GlobalState::get_replica().id();
   rep().d = d;
   rep().np = 0;
   set_size(sizeof(Meta_data_rep));
@@ -89,7 +89,9 @@ bool Meta_data::Sub_parts_iter::get(size_t& i, Digest& d)
 bool Meta_data::verify()
 {
   // Meta-data must be sent by replicas.
-  if (!node->is_replica(id()) || node->id() == id())
+  if (
+    !pbft::GlobalState::get_node().is_replica(id()) ||
+    pbft::GlobalState::get_node().id() == id())
   {
     return false;
   }

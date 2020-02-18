@@ -39,7 +39,8 @@ struct Meta_data_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Meta_data_rep) + sizeof(Part_info) * PChildren + max_sig_size <
+  sizeof(Meta_data_rep) + sizeof(Part_info) * PChildren +
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 
@@ -49,6 +50,8 @@ class Meta_data : public Message
   //  Meta_data messages
   //
 public:
+  Meta_data(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Meta_data(Request_id r, int l, size_t i, Seqno lu, Seqno lm, Digest& d);
   // Effects: Creates a new un-authenticated Meta_data message with no
   // subpartition information.

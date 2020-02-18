@@ -37,11 +37,6 @@ class Certificate
   //
   // bool full();
   // // Effects: Returns true iff the message is full
-  //
-  // bool encode(FILE* o);
-  // bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
 
 public:
   Certificate(std::function<int()> complete = nullptr);
@@ -50,6 +45,11 @@ public:
   // complete when it contains at least "complete" matching messages
   // from different replicas. If the complete argument is omitted (or
   // 0) it is taken to be 2f+1.
+
+  Certificate(
+    size_t f,
+    size_t num_correct_replicas,
+    std::function<int()> complete = nullptr);
 
   ~Certificate();
   // Effects: Deletes certificate and all the messages it contains.
@@ -102,6 +102,9 @@ public:
   // Effects: If cvalue() is not null, makes the certificate
   // complete.
 
+  void update();
+  // Effects: reset f if needed
+
   void mark_stale();
   // Effects: Discards all messages in certificate except mine.
 
@@ -132,11 +135,6 @@ public:
   };
   friend class Val_iter;
 
-  bool encode(FILE* o);
-  bool decode(FILE* i);
-  // Effects: Encodes and decodes object state from stream. Return
-  // true if successful and false otherwise.
-
   void dump_state(std::ostream& os);
   // Effects: logs state for debugging
 
@@ -166,6 +164,7 @@ private:
       clear();
     }
   };
+
   Message_val* vals; // vector with all distinct message values in this
   int max_size; // maximum number of elements in vals, f+1
   int cur_size; // current number of elements in vals
@@ -193,6 +192,7 @@ private:
 template <class T>
 inline T* Certificate<T>::mine(Time& t)
 {
+  update();
   if (mym)
   {
     t = t_sent;
@@ -203,6 +203,7 @@ inline T* Certificate<T>::mine(Time& t)
 template <class T>
 inline T* Certificate<T>::mine()
 {
+  update();
   return mym;
 }
 
@@ -222,6 +223,15 @@ template <class T>
 inline int Certificate<T>::num_complete() const
 {
   return complete;
+}
+
+template <class T>
+inline void Certificate<T>::update()
+{
+  if (bmap.none() && f != pbft::GlobalState::get_node().f())
+  {
+    reset_f();
+  }
 }
 
 template <class T>
@@ -284,8 +294,9 @@ inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
 }
 
 template <class T>
-Certificate<T>::Certificate(std::function<int()> comp_) :
-  f(node->f()),
+Certificate<T>::Certificate(
+  size_t f_, size_t num_correct_replicas, std::function<int()> comp_) :
+  f(f_),
   comp(comp_)
 {
   max_size = f + 1;
@@ -298,12 +309,20 @@ Certificate<T>::Certificate(std::function<int()> comp_) :
   }
   else
   {
-    complete = node->num_correct_replicas();
+    complete = num_correct_replicas;
   }
   c = 0;
   mym = 0;
   t_sent = 0;
 }
+
+template <class T>
+Certificate<T>::Certificate(std::function<int()> comp_) :
+  Certificate(
+    pbft::GlobalState::get_node().f(),
+    pbft::GlobalState::get_node().num_correct_replicas(),
+    comp_)
+{}
 
 template <class T>
 Certificate<T>::~Certificate()
@@ -314,7 +333,7 @@ Certificate<T>::~Certificate()
 template <class T>
 void Certificate<T>::reset_f()
 {
-  f = node->f();
+  f = pbft::GlobalState::get_node().f();
   max_size = f + 1;
   delete[] vals;
   vals = new Message_val[max_size];
@@ -326,14 +345,24 @@ void Certificate<T>::reset_f()
   }
   else
   {
-    complete = node->num_correct_replicas();
+    complete = pbft::GlobalState::get_node().num_correct_replicas();
   }
 }
 
 template <class T>
 bool Certificate<T>::add(T* m)
 {
-  if (bmap.none() && f != node->f())
+  auto principal = pbft::GlobalState::get_node().get_principal(m->id());
+  if (!principal)
+  {
+    LOG_INFO_FMT(
+      "Principal with id {} has not been configured yet, rejecting the message",
+      m->id());
+    delete m;
+    return false;
+  }
+
+  if (bmap.none() && f != pbft::GlobalState::get_node().f())
   {
     reset_f();
   }
@@ -353,7 +382,7 @@ bool Certificate<T>::add(T* m)
     return true;
   }
 
-  if (node->is_replica(id) && !bmap.test(id))
+  if (pbft::GlobalState::get_node().is_replica(id) && !bmap.test(id))
   {
     // "m" was sent by a replica that does not have a message in
     // the certificate
@@ -361,7 +390,8 @@ bool Certificate<T>::add(T* m)
     {
       // add "m" to the certificate
       PBFT_ASSERT(
-        id != node->id(), "verify should return false for messages from self");
+        id != pbft::GlobalState::get_node().id(),
+        "verify should return false for messages from self");
 
       bmap.set(id);
       if (c)
@@ -433,10 +463,11 @@ bool Certificate<T>::add(T* m)
 template <class T>
 bool Certificate<T>::add_mine(T* m)
 {
-  PBFT_ASSERT(m->id() == node->id(), "Invalid argument");
+  PBFT_ASSERT(
+    m->id() == pbft::GlobalState::get_node().id(), "Invalid argument");
   PBFT_ASSERT(m->full(), "Invalid argument");
 
-  if (bmap.none() && f != node->f())
+  if (bmap.none() && f != pbft::GlobalState::get_node().f())
   {
     reset_f();
   }
@@ -533,94 +564,6 @@ T* Certificate<T>::cvalue_clear()
   clear();
 
   return ret;
-}
-
-template <class T>
-bool Certificate<T>::encode(FILE* o)
-{
-  bool ret = (fwrite((void*)&bmap, sizeof(bmap), 1, o) == sizeof(bmap));
-
-  size_t sz = fwrite(&max_size, sizeof(int), 1, o);
-  sz += fwrite(&cur_size, sizeof(int), 1, o);
-  for (int i = 0; i < cur_size; i++)
-  {
-    int vcount = vals[i].count;
-    sz += fwrite(&vcount, sizeof(int), 1, o);
-    if (vcount)
-    {
-      ret &= vals[i].m->encode(o);
-    }
-  }
-
-  sz += fwrite(&complete, sizeof(int), 1, o);
-
-  int cindex = (c != 0) ? c - vals : -1;
-  sz += fwrite(&cindex, sizeof(int), 1, o);
-
-  bool hmym = mym != 0;
-  sz += fwrite(&hmym, sizeof(bool), 1, o);
-
-  return ret & (sz == 5U + cur_size);
-}
-
-template <class T>
-bool Certificate<T>::decode(FILE* in)
-{
-  bool ret = (fread((void*)&bmap, sizeof(bmap), 1, in) == sizeof(bmap));
-
-#ifndef INSIDE_ENCLAVE
-  size_t sz = fread(&max_size, sizeof(int), 1, in);
-  delete[] vals;
-
-  vals = new Message_val[max_size];
-
-  sz += fread(&cur_size, sizeof(int), 1, in);
-  if (cur_size < 0 || cur_size >= max_size)
-    return false;
-
-  for (int i = 0; i < cur_size; i++)
-  {
-    sz += fread(&vals[i].count, sizeof(int), 1, in);
-    if (vals[i].count < 0 || vals[i].count > node->num_of_replicas())
-      return false;
-
-    if (vals[i].count)
-    {
-      vals[i].m = (T*)new Message;
-      ret &= vals[i].m->decode(in);
-    }
-  }
-
-  sz += fread(&complete, sizeof(int), 1, in);
-  correct = f + 1;
-
-  int cindex;
-  sz += fread(&cindex, sizeof(int), 1, in);
-
-  bool hmym;
-  sz += fread(&hmym, sizeof(bool), 1, in);
-
-  if (cindex == -1)
-  {
-    c = 0;
-    mym = 0;
-  }
-  else
-  {
-    if (cindex < 0 || cindex > cur_size)
-      return false;
-    c = vals + cindex;
-
-    if (hmym)
-      mym = c->m;
-  }
-
-  t_sent = zero_time();
-
-  return ret & (sz == 5U + cur_size);
-#else
-  return true;
-#endif
 }
 
 template <class T>

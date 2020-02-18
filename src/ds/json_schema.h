@@ -52,6 +52,9 @@ namespace ds
     void fill_schema(nlohmann::json& schema);
 
     template <typename T>
+    void fill_json_schema(nlohmann::json& j, const T& t);
+
+    template <typename T>
     nlohmann::json schema_element()
     {
       auto element = nlohmann::json::object();

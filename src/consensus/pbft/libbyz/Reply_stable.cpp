@@ -15,7 +15,7 @@ Reply_stable::Reply_stable(Seqno lc, Seqno lp, int n, Principal* p) :
 {
   rep().lc = lc;
   rep().lp = lp;
-  rep().id = node->id();
+  rep().id = pbft::GlobalState::get_node().id();
   rep().nonce = n;
 
   // p->gen_mac_out(contents(), sizeof(Reply_stable_rep),
@@ -41,7 +41,7 @@ void Reply_stable::re_authenticate(Principal* p)
 bool Reply_stable::verify()
 {
   // Reply_stables must be sent by replicas.
-  if (!node->is_replica(id()))
+  if (!pbft::GlobalState::get_node().is_replica(id()))
   {
     return false;
   }
@@ -58,7 +58,8 @@ bool Reply_stable::verify()
   }
 
   // Check MAC
-  std::shared_ptr<Principal> p = node->get_principal(id());
+  std::shared_ptr<Principal> p =
+    pbft::GlobalState::get_node().get_principal(id());
   if (p)
   {
     return true;

@@ -2,8 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "node/identity.h"
+#include "node/ledgersecrets.h"
+#include "node/members.h"
 #include "node/nodeinfonetwork.h"
-#include "node/secret.h"
 
 #include <nlohmann/json.hpp>
 
@@ -51,13 +53,15 @@ namespace ccf
   {
     struct In
     {
-      std::vector<std::vector<uint8_t>> member_cert;
+      std::vector<MemberPubInfo> members_info;
       std::string gov_script;
       std::vector<uint8_t> node_cert;
       Cert network_cert;
       std::vector<uint8_t> quote;
+      std::vector<uint8_t> public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
+      KeyShareInfo genesis_key_share_info;
     };
   };
 
@@ -65,25 +69,26 @@ namespace ccf
   {
     struct In
     {
-      std::vector<uint8_t> raw_fresh_key;
       NodeInfoNetwork node_info_network;
       std::vector<uint8_t> quote;
+      std::vector<uint8_t> public_encryption_key;
     };
 
     struct Out
     {
       NodeStatus node_status;
       NodeId node_id;
+      bool public_only;
 
       struct NetworkInfo
       {
-        Secret network_secrets;
-        int64_t version; // Current version of the network secrets
+        LedgerSecrets ledger_secrets;
+        NetworkIdentity identity;
 
         bool operator==(const NetworkInfo& other) const
         {
-          return network_secrets == other.network_secrets &&
-            version == other.version;
+          return ledger_secrets == other.ledger_secrets &&
+            identity == other.identity;
         }
 
         bool operator!=(const NetworkInfo& other) const

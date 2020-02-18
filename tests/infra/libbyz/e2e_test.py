@@ -5,6 +5,7 @@ import os
 import socket
 import time
 import math
+import json
 import create_config
 from node import LocalNode
 from subprocess import PIPE, Popen, run
@@ -49,20 +50,16 @@ def create_nodes(args):
     clients = args.clients
     with open(args.test_config, "r") as test_config:
         lines = [line.strip() for line in test_config]
-        # remove header
-        lines.pop(0)
-
         for i, line in enumerate(lines):
             if line[0] == "#":
                 continue
 
-            values = line.split(",")
-            port = values[0].strip()
-            public_key_sig = values[1].strip()
-            public_key_enc = values[2].strip()
-            private_key = values[3].strip()
+            line_info = json.loads(line)
+            port = str(line_info["port"])
+            private_key = line_info["privk"]
+
             if i < servers:
-                node = Node(i, port, public_key_sig, public_key_enc, private_key, True)
+                node = Node(i, port, private_key, True)
                 node.set_private_ip(args.ip)
                 node.set_machine_name(
                     args.machine_name + "-" + str(i) + "-server-" + args.transport
@@ -71,7 +68,7 @@ def create_nodes(args):
 
                 nodes.append(node)
             elif i < clients + servers:
-                node = Node(i, port, public_key_sig, public_key_enc, private_key, False)
+                node = Node(i, port, private_key, False)
                 node.set_private_ip(args.ip)
                 node.set_machine_name(
                     args.machine_name + "-" + str(i) + "-client-" + args.transport
@@ -128,67 +125,78 @@ def replica_checks(
 ):
     send_view_change = False
     process_view_change = False
-    for node in replicas:
-        logger.info(f"Checking results on replica - id: {node.id} port: {node.port}")
-        replica_ready = False
-        syscall_stats = False
-        operations_complete = False
-        reply_callback = False
 
-        outfile = f"out{node.port}.txt"
-        with open(outfile, "r") as log:
-            counter_broken_logs = 0
-            fix_logs = 0
-            for line in log:
-                if "Replica ready" in line:
-                    replica_ready = True
-                # if it is printing stats the replica hasn't aborted
-                if "Syscall stats" in line:
-                    syscall_stats = True
-                if "Sending view change" in line:
-                    send_view_change = True
-                if "Process new view" in line:
-                    process_view_change = True
-                if "is smaller than request counter" in line:
-                    counter_broken_logs += 1
-                if "Fixed" in line:
-                    fix_logs += 1
-                if "Reply count" in line:
-                    reply_callback = True
-                if (
-                    test_client_proxy
-                    and "total requests executed" in line
-                    and "total requests executed 0" not in line
-                ):
-                    operations_complete = True
+    node_logs = []
 
-        assert replica_ready
-        assert syscall_stats
-        assert fix_logs == counter_broken_logs
-        if test_client_proxy:
-            if f != 0 or node.id == 0:
-                assert operations_complete
-            if f == 0:
-                assert reply_callback
+    try:
+        for node in replicas:
+            logger.info(
+                f"Checking results on replica - id: {node.id} port: {node.port}"
+            )
+            replica_ready = False
+            syscall_stats = False
+            operations_complete = False
+            reply_callback = False
 
-    if not with_delays or f == 0:
-        # if view changes not forced or running with f == 0 we shouldn't see any
-        assert not send_view_change
-        assert not process_view_change
+            outfile = f"out{node.port}.txt"
+            with open(outfile, "r") as log:
+                counter_broken_logs = 0
+                fix_logs = 0
+                lines = log.readlines()
+                node_logs.append(lines)
+                for line in lines:
+                    if "Replica ready" in line:
+                        replica_ready = True
+                    # if it is printing stats the replica hasn't aborted
+                    if "Syscall stats" in line:
+                        syscall_stats = True
+                    if "Sending view change" in line:
+                        send_view_change = True
+                    if "Process new view" in line:
+                        process_view_change = True
+                    if "is smaller than request counter" in line:
+                        counter_broken_logs += 1
+                    if "Fixed" in line:
+                        fix_logs += 1
+                    if "Reply count" in line:
+                        reply_callback = True
+                    if (
+                        test_client_proxy
+                        and "total requests executed" in line
+                        and "total requests executed 0" not in line
+                    ):
+                        operations_complete = True
 
-    if not send_view_change:
-        logger.info(
-            "***************** NO VIEW CHANGES ISSUED DURING THIS TEST *****************"
-        )
-    if not process_view_change:
-        logger.info(
-            "***************** NO VIEW CHANGES PROCESSED DURING THIS TEST *****************"
-        )
+            assert replica_ready
+            assert syscall_stats
+            assert fix_logs == counter_broken_logs
+            if test_client_proxy:
+                if f != 0 or node.id == 0:
+                    assert operations_complete
+                if f == 0:
+                    assert reply_callback
 
-    if with_delays:
-        logger.info("with_delays is set so checking for view changes")
-        assert send_view_change
-        assert process_view_change
+        if not with_delays or f == 0:
+            # if view changes not forced or running with f == 0 we shouldn't see any
+            assert not send_view_change
+            assert not process_view_change
+
+        if not send_view_change:
+            logger.info(
+                "***************** NO VIEW CHANGES ISSUED DURING THIS TEST *****************"
+            )
+        if not process_view_change:
+            logger.info(
+                "***************** NO VIEW CHANGES PROCESSED DURING THIS TEST *****************"
+            )
+
+        if with_delays:
+            logger.info("with_delays is set so checking for view changes")
+            assert send_view_change
+            assert process_view_change
+    except AssertionError:
+        logger.exception("Assertion failed")
+        [[logger.info(l) for l in lines] for lines in node_logs]
 
     err_file = f"err{node.port}.txt"
     log_errors(err_file)
@@ -251,7 +259,7 @@ def get_extra_args(args):
 if __name__ == "__main__":
     """
     Format of test config file should be:
-    port, public_key_sig, public_key_enc, private_key
+    port, private_key
     <comma separated values for servers>
     <comma separated values for clients>
     """

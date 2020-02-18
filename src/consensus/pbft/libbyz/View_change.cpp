@@ -34,9 +34,14 @@ View_change::View_change(View v, Seqno ls, int id) :
   rep().digest.zero();
 
 #ifdef SIGN_BATCH
+  rep().digest_sig_size = 0;
   rep().digest_signature.fill(0);
+  rep().padding.fill(0);
 #endif
 
+#ifdef USE_PKEY_VIEW_CHANGES
+  rep().vc_sig_size = 0;
+#endif
   PBFT_ASSERT(ALIGNED(req_info()), "Improperly aligned pointer");
 }
 
@@ -83,7 +88,7 @@ void View_change::add_request(
 
 bool View_change::ckpt(Seqno n, Digest& d)
 {
-  if (n % checkpoint_interval != 0 || last_stable() > n)
+  if (last_stable() > n)
   {
     return false;
   }
@@ -143,9 +148,7 @@ void View_change::re_authenticate(Principal* p)
   PBFT_ASSERT(
     rep().n_ckpts == 0 || rep().ckpts[rep().n_ckpts - 1] != Digest(),
     "Invalid state");
-  PBFT_ASSERT(
-    last_stable() >= 0 && last_stable() % checkpoint_interval == 0,
-    "Invalid state");
+  PBFT_ASSERT(last_stable() >= 0, "Invalid state");
 
   if (rep().digest.is_zero())
   {
@@ -153,26 +156,31 @@ void View_change::re_authenticate(Principal* p)
 
     // Compute authenticator and update size.
 #ifdef USE_PKEY_VIEW_CHANGES
-    set_size(old_size + node->sig_size());
+    set_size(old_size + pbft_max_signature_size);
 #else
-    set_size(old_size + node->auth_size());
+    set_size(old_size + pbft::GlobalState::get_node().auth_size());
 #endif
 
 #ifdef SIGN_BATCH
+    rep().digest_sig_size = 0;
     rep().digest_signature.fill(0);
 #endif
 
+#ifdef USE_PKEY_VIEW_CHANGES
+    rep().vc_sig_size = 0;
+#endif
     rep().digest = Digest(contents(), old_size);
 
 #ifdef SIGN_BATCH
-    node->gen_signature(
+    rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
       rep().digest.digest(),
       rep().digest.digest_size(),
       rep().digest_signature);
 #endif
 
 #ifdef USE_PKEY_VIEW_CHANGES
-    node->gen_signature(contents(), old_size, contents() + old_size);
+    rep().vc_sig_size = pbft::GlobalState::get_node().gen_signature(
+      contents(), old_size, contents() + old_size);
 #else
     auth_type = Auth_type::out;
     auth_len = old_size;
@@ -185,7 +193,9 @@ void View_change::re_authenticate(Principal* p)
 bool View_change::pre_verify()
 {
   int nreqs = rep().n_reqs;
-  if (!node->is_replica(id()) || nreqs < 0 || nreqs > max_out || view() <= 0)
+  if (
+    !pbft::GlobalState::get_node().is_replica(id()) || nreqs < 0 ||
+    nreqs > max_out || view() <= 0)
   {
     return false;
   }
@@ -201,7 +211,7 @@ bool View_change::pre_verify()
     return false;
   }
 
-  if (last_stable() < 0 || last_stable() % checkpoint_interval != 0)
+  if (last_stable() < 0)
   {
     return false;
   }
@@ -210,12 +220,12 @@ bool View_change::pre_verify()
   int old_size = sizeof(View_change_rep) + sizeof(Req_info) * nreqs;
 
 #ifdef USE_PKEY_VIEW_CHANGES
-  if (size() - old_size < node->sig_size(id()))
+  if (size() - old_size < pbft_max_signature_size)
   {
     return false;
   }
 #else
-  if (size() - old_size < node->auth_size(id()))
+  if (size() - old_size < pbft::GlobalState::get_node().auth_size(id()))
   {
     return false;
   }
@@ -236,7 +246,6 @@ bool View_change::pre_verify()
   {
     return false;
   }
-
   return true;
 }
 
@@ -246,8 +255,15 @@ bool View_change::verify_digest()
   digest().zero(); // zero digest
 
 #ifdef SIGN_BATCH
-  KeyPair::Signature previous_digest_signature = rep().digest_signature;
+  auto previous_digest_signature = rep().digest_signature;
+  auto previous_digest_sig_size = rep().digest_sig_size;
   rep().digest_signature.fill(0);
+  rep().digest_sig_size = 0;
+#endif
+
+#ifdef USE_PKEY_VIEW_CHANGES
+  auto previous_vc_sig_size = rep().vc_sig_size;
+  rep().vc_sig_size = 0;
 #endif
 
   bool verified =
@@ -258,6 +274,10 @@ bool View_change::verify_digest()
   digest() = d; // restore digest
 #ifdef SIGN_BATCH
   rep().digest_signature = previous_digest_signature; // restore signature
+  rep().digest_sig_size = previous_digest_sig_size; // restore signature size
+#endif
+#ifdef USE_PKEY_VIEW_CHANGES
+  rep().vc_sig_size = previous_vc_sig_size;
 #endif
   return verified;
 }

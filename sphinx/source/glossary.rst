@@ -16,7 +16,7 @@ Glossary
     `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_ is a feature of the Intel :term:`SGX` architecture.
 
   JSON-RPC
-    `JSON-RPC <https://en.wikipedia.org/wiki/JSON-RPC>`_ is a remote procedure call protocol encoded in JSON. It is the format used by clients (i.e. members, users and operators) to interact with CCF.
+    `JSON-RPC <https://en.wikipedia.org/wiki/JSON-RPC>`_ is a remote procedure call protocol encoded in JSON.
 
   Members
     Constitute the consortium governing a CCF network. Their public identity should be registered in CCF.

@@ -3,24 +3,9 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#ifndef INSIDE_ENCLAVE
-#  include <stdio.h>
-#  include <string.h>
-#endif
+#include "Replica.h"
 
-#include <limits.h>
-
-#ifndef INSIDE_ENCLAVE
-#  include <arpa/inet.h>
-#  include <netdb.h>
-#  include <netinet/in.h>
-#  include <stdlib.h>
-#  include <sys/socket.h>
-#  include <sys/time.h>
-#  include <sys/types.h>
-#  include <unistd.h>
-#endif
-
+#include "Append_entries.h"
 #include "Checkpoint.h"
 #include "Commit.h"
 #include "Data.h"
@@ -36,7 +21,6 @@
 #include "Prepared_cert.h"
 #include "Principal.h"
 #include "Query_stable.h"
-#include "Replica.h"
 #include "Reply.h"
 #include "Reply_stable.h"
 #include "Request.h"
@@ -46,12 +30,10 @@
 #include "View_change_ack.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
+#include "ds/thread_messaging.h"
 #include "ledger.h"
 #include "network.h"
 #include "pbft_assert.h"
-
-// Global replica object.
-Replica* replica;
 
 template <class T>
 void Replica::retransmit(T* m, Time cur, Time tsent, Principal* p)
@@ -71,14 +53,18 @@ Replica::Replica(
   char* mem,
   size_t nbytes,
   INetwork* network,
-  std::unique_ptr<consensus::LedgerEnclave> ledger) :
+  pbft::RequestsMap& pbft_requests_map_,
+  pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
-  ro_rqueue(),
   plog(max_out),
   clog(max_out),
   elog(max_out * 2, 0),
-  stable_checkpoints(num_of_replicas()),
+  stable_checkpoints(node_info.general_info.num_replicas),
+  brt(node_info.general_info.num_replicas),
+  pbft_requests_map(pbft_requests_map_),
+  pbft_pre_prepares_map(pbft_pre_prepares_map_),
 #ifdef ENFORCE_EXACTLY_ONCE
   replies(mem, nbytes, num_principals),
 #else
@@ -86,11 +72,23 @@ Replica::Replica(
 #endif
   rep_cb(nullptr),
   global_commit_cb(nullptr),
-  state(this, mem, nbytes),
+  state(
+    this,
+    mem,
+    nbytes,
+    node_info.general_info.num_replicas,
+    node_info.general_info.max_faulty),
+  se(node_info.general_info.num_replicas),
+  rr_reps(
+    node_info.general_info.max_faulty,
+    node_info.general_info.max_faulty == 0 ?
+      1 :
+      node_info.general_info.num_replicas - node_info.general_info.max_faulty),
   vi(
     node_id,
     0,
-    64) // make this dynamic - https://github.com/microsoft/CCF/issues/385
+    64, // make this dynamic - https://github.com/microsoft/CCF/issues/385
+    node_info.general_info.num_replicas)
 {
   // Fail if node is not a replica.
   if (!is_replica(id()))
@@ -132,16 +130,19 @@ Replica::Replica(
 
   // Create timers and randomize times to avoid collisions.
 
-  vtimer = new ITimer(vt + (uint64_t)id() % 100, vtimer_handler, this);
-  stimer = new ITimer(st + (uint64_t)id() % 100, stimer_handler, this);
-  btimer =
-    new ITimer(max_pre_prepare_request_batch_wait_ms, btimer_handler, this);
+  vtimer =
+    std::make_unique<ITimer>(vt + (uint64_t)id() % 100, vtimer_handler, this);
+  stimer =
+    std::make_unique<ITimer>(st + (uint64_t)id() % 100, stimer_handler, this);
+  btimer = std::make_unique<ITimer>(
+    max_pre_prepare_request_batch_wait_ms, btimer_handler, this);
 
   cid_vtimer = 0;
   rid_vtimer = 0;
 
 #ifdef DEBUG_SLOW
-  debug_slow_timer = new ITimer(10 * 60 * 1000, debug_slow_timer_handler, this);
+  debug_slow_timer =
+    std::make_unique<ITimer>(10 * 60 * 1000, debug_slow_timer_handler, this);
   debug_slow_timer->start();
 #endif
 
@@ -149,12 +150,12 @@ Replica::Replica(
   // Skew recoveries. It is important for nodes to recover in the reverse order
   // of their node ids to avoid a view-change every recovery which would degrade
   // performance.
-  rtimer = new ITimer(rt, rec_timer_handler, this);
+  rtimer = std::make_unique<ITimer>(rt, rec_timer_handler, this);
   rec_ready = false;
   rtimer->start();
 #endif
 
-  ntimer = new ITimer(30000 / max_out, ntimer_handler, this);
+  ntimer = std::make_unique<ITimer>(30000 / max_out, ntimer_handler, this);
 
   recovering = false;
   qs = 0;
@@ -163,13 +164,8 @@ Replica::Replica(
   max_rec_n = 0;
 
   exec_command = nullptr;
-  non_det_choices = 0;
 
-  if (ledger)
-  {
-    ledger_replay = std::make_unique<LedgerReplay>();
-    ledger_writer = std::make_unique<LedgerWriter>(std::move(ledger));
-  }
+  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -177,38 +173,153 @@ void Replica::register_exec(ExecCommand e)
   exec_command = e;
 }
 
-void Replica::register_nondet_choices(
-  void (*n)(Seqno, Byz_buffer*), int max_len)
-{
-  non_det_choices = n;
-  max_nondet_choice_len = max_len;
-}
+Replica::~Replica() = default;
 
-void Replica::compute_non_det(Seqno s, char* b, int* b_len)
+struct PreVerifyCbMsg
 {
-  if (non_det_choices == 0)
+  Message* m;
+  Replica* self;
+};
+
+struct PreVerifyResultCbMsg
+{
+  Message* m;
+  Replica* self;
+  bool result;
+};
+
+static void pre_verify_reply_cb(
+  std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>> req)
+{
+  Message* m = req->data.m;
+  Replica* self = req->data.self;
+  bool result = req->data.result;
+
+  if (result)
   {
-    *b_len = 0;
-    return;
+    self->recv_process_one_msg(m);
   }
-  Byz_buffer buf;
-  buf.contents = b;
-  buf.size = *b_len;
-  non_det_choices(s, &buf);
-  *b_len = buf.size;
+  else
+  {
+    LOG_INFO_FMT("did not verify - m:{}", m->tag());
+    delete m;
+  }
 }
 
-Replica::~Replica()
+static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
 {
-  delete vtimer;
-#ifdef PROACTIVE_RECOVERY
-  delete rtimer;
+  Message* m = req->data.m;
+  Replica* self = req->data.self;
+
+  auto resp = enclave::ThreadMessaging::
+    ConvertMessage<PreVerifyResultCbMsg, PreVerifyCbMsg>(
+      std::move(req), pre_verify_reply_cb);
+
+  resp->data.m = m;
+  resp->data.self = self;
+  resp->data.result = self->pre_verify(m);
+
+  enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
+    0, std::move(resp));
+}
+
+static uint64_t verification_thread = 0;
+
+Message* Replica::create_message(const uint8_t* data, uint32_t size)
+{
+  uint64_t alloc_size = size;
+
+  Message* m;
+
+  switch (Message::get_tag(data))
+  {
+    case Request_tag:
+      m = new Request(alloc_size);
+      break;
+
+    case Reply_tag:
+      m = new Reply(alloc_size);
+      break;
+
+    case Pre_prepare_tag:
+      m = new Pre_prepare(alloc_size);
+      break;
+
+    case Prepare_tag:
+      m = new Prepare(alloc_size);
+      break;
+
+    case Commit_tag:
+      m = new Commit(alloc_size);
+      break;
+
+    case Checkpoint_tag:
+      m = new Checkpoint(alloc_size);
+      break;
+
+#ifndef USE_PKEY_VIEW_CHANGES
+    case View_change_ack_tag:
+      m = new View_change_ack(alloc_size);
+      break;
 #endif
-  delete stimer;
-  delete btimer;
-#ifdef DEBUG_SLOW
-  delete debug_slow_timer;
-#endif
+
+    case Status_tag:
+      m = new Status(alloc_size);
+      break;
+
+    case Fetch_tag:
+      m = new Fetch(alloc_size);
+      break;
+
+    case Query_stable_tag:
+      m = new Query_stable(alloc_size);
+      break;
+
+    case Reply_stable_tag:
+      m = new Reply_stable(alloc_size);
+      break;
+
+    case Meta_data_tag:
+      m = new Meta_data(alloc_size);
+      break;
+
+    case Meta_data_d_tag:
+      m = new Meta_data_d(alloc_size);
+      break;
+
+    case Data_tag:
+      m = new Data(alloc_size);
+      break;
+
+    case View_change_tag:
+      m = new View_change(alloc_size);
+      break;
+
+    case New_view_tag:
+      m = new New_view((uint32_t)alloc_size);
+      break;
+
+    case New_principal_tag:
+      m = new New_principal(alloc_size);
+      break;
+
+    case Network_open_tag:
+      m = new Network_open((uint32_t)alloc_size);
+      break;
+
+    case Append_entries_tag:
+      m = new Append_entries((uint32_t)alloc_size);
+      break;
+
+    default:
+      // Unknown message type.
+      delete m;
+      return nullptr;
+  }
+
+  memcpy(m->contents(), data, size);
+
+  return m;
 }
 
 void Replica::receive_message(const uint8_t* data, uint32_t size)
@@ -217,35 +328,45 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   {
     LOG_FAIL << "Received message size exceeds message: " << size << std::endl;
   }
-  uint64_t alloc_size = std::max(size, (uint32_t)Max_message_size);
-  Message* m = new Message(alloc_size);
-  // TODO: remove this memcpy
-  memcpy(m->contents(), data, size);
-  if (pre_verify(m))
+  Message* m = create_message(data, size);
+  uint32_t target_thread = 0;
+
+  if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
   {
-    recv_process_one_msg(m);
+    uint32_t num_worker_thread = enclave::ThreadMessaging::thread_count - 1;
+    target_thread = (((Request*)m)->user_id() % num_worker_thread) + 1;
+  }
+
+  if (f() != 0 && target_thread != 0)
+  {
+    auto msg = std::make_unique<enclave::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
+
+    msg->data.m = m;
+    msg->data.self = this;
+
+    enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
+      target_thread, std::move(msg));
   }
   else
   {
-    delete m;
+    if (pre_verify(m))
+    {
+      recv_process_one_msg(m);
+    }
+    else
+    {
+      LOG_INFO_FMT("did not verify - m:{}", m->tag());
+      delete m;
+    }
   }
 }
 
 bool Replica::compare_execution_results(
   const ByzInfo& info, Pre_prepare* pre_prepare)
 {
-  auto& pp_root = pre_prepare->get_full_state_merkle_root();
   auto& r_pp_root = pre_prepare->get_replicated_state_merkle_root();
-  if (!std::equal(
-        std::begin(pp_root),
-        std::end(pp_root),
-        std::begin(info.full_state_merkle_root)))
-  {
-    LOG_FAIL << "Full state merkle root between execution and the pre_prepare "
-                "message does not match, seqno:"
-             << pre_prepare->seqno() << std::endl;
-    return false;
-  }
+
+  auto execution_match = true;
 
   if (!std::equal(
         std::begin(r_pp_root),
@@ -255,7 +376,7 @@ bool Replica::compare_execution_results(
     LOG_FAIL << "Replicated state merkle root between execution and the "
                 "pre_prepare message does not match, seqno:"
              << pre_prepare->seqno() << std::endl;
-    return false;
+    execution_match = false;
   }
 
   auto tx_ctx = pre_prepare->get_ctx();
@@ -265,69 +386,123 @@ bool Replica::compare_execution_results(
                 "does not match, seqno:"
              << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
              << ", info.ctx:" << info.ctx << std::endl;
+    execution_match = false;
+  }
+
+  if (!execution_match)
+  {
+    if (rollback_cb != nullptr)
+    {
+      rollback_cb(last_te_version, rollback_info);
+    }
+    last_tentative_execute--;
     return false;
   }
+
+  last_te_version = info.ctx;
+
   return true;
 }
 
-bool Replica::apply_ledger_data(const std::vector<uint8_t>& data)
+void Replica::playback_request(ccf::Store::Tx& tx)
 {
-  PBFT_ASSERT(ledger_replay, "ledger_replay should be initialized");
+  auto view = tx.get_view(pbft_requests_map);
+  auto req_v = view->get(0);
+  PBFT_ASSERT(
+    req_v.has_value(),
+    "Deserialised request but it was not found in the requests map");
+  auto request = req_v.value();
 
-  if (data.empty())
+  LOG_TRACE_FMT(
+    "Playback request for request with size {}", request.pbft_raw.size());
+  auto req =
+    create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size());
+
+  if (!waiting_for_playback_pp)
   {
-    LOG_FAIL << "Received empty entries" << std::endl;
-    return false;
+    // only increment last tentative execute once per pre-prepare (a pre-prepare
+    // could have batched requests but we can't increment last_tentative_execute
+    // for each one individually)
+    last_tentative_execute = last_tentative_execute + 1;
+    LOG_TRACE_FMT(
+      "in playback execute tentative with lte {}, le {}, for rid {} with cid "
+      "{}",
+      last_tentative_execute,
+      last_executed,
+      req->request_id(),
+      req->client_id());
+    // keep f before this request batch executes
+    // to check on playback pre prepare if we should open the network
+    playback_before_f = f();
   }
 
-  auto executable_pps = ledger_replay->process_data(
-    data, rqueue, brt, *ledger_writer.get(), last_executed);
+  waiting_for_playback_pp = true;
 
-  for (auto& executable_pp : executable_pps)
+  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+  cmds.emplace_back(execute_tentative_request(
+    *req, playback_byz_info, playback_max_local_commit_value, true, &tx, true));
+
+  exec_command(cmds, playback_byz_info);
+}
+
+void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
+{
+  auto view = tx.get_view(pbft_pre_prepares_map);
+  auto pp = view->get(0);
+  PBFT_ASSERT(
+    pp.has_value(),
+    "Deserialised pre prepare but it was not found in the pre prepares map");
+  auto pre_prepare = pp.value();
+
+  LOG_TRACE_FMT("playback pre-prepare {}", pre_prepare.seqno);
+  auto executable_pp = create_message<Pre_prepare>(
+    pre_prepare.contents.data(), pre_prepare.contents.size());
+  auto seqno = executable_pp->seqno();
+  playback_pp_seqno = seqno;
+  waiting_for_playback_pp = false;
+  playback_max_local_commit_value = INT64_MIN;
+
+  if (compare_execution_results(playback_byz_info, executable_pp.get()))
   {
-    auto seqno = executable_pp->seqno();
+    next_pp_seqno = seqno;
 
-    ByzInfo info;
-    if (execute_tentative(executable_pp.get(), info))
+    if (seqno > last_prepared)
     {
-      auto batch_info = compare_execution_results(info, executable_pp.get());
-      if (!batch_info)
-      {
-        return false;
-      }
-
-      next_pp_seqno = seqno;
-
-      if (seqno > last_prepared)
-      {
-        last_prepared = seqno;
-      }
-
-      if (global_commit_cb != nullptr)
-      {
-        global_commit_cb(
-          executable_pp->get_ctx(), executable_pp->view(), global_commit_ctx);
-      }
-
-      last_executed++;
-
-      if (last_executed % checkpoint_interval == 0)
-      {
-        mark_stable(last_executed, true);
-      }
+      last_prepared = seqno;
     }
-    else
+
+    LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
+
+    last_te_version = ledger_writer->write_pre_prepare(tx);
+
+    last_executed++;
+
+    PBFT_ASSERT(
+      last_executed <= executable_pp->seqno(),
+      "last_executed and pre prepares seqno don't match in playback pre "
+      "prepare");
+
+    global_commit(executable_pp.get());
+
+    if (executable_pp->is_signed() && f() > 0)
     {
-      LOG_DEBUG << "Received entries could not be processed. Received seqno: "
-                << seqno
-                << ". Truncating ledger to last executed: " << last_executed
-                << std::endl;
-      ledger_replay->clear_requests(rqueue, brt);
-      ledger_writer->truncate(last_executed);
-      return false;
+      mark_stable(last_executed, true);
     }
+
+    if (playback_before_f == 0 && f() != 0)
+    {
+      Network_open no(Node::id());
+      send(&no, primary());
+    }
+
+    rqueue.clear();
   }
-  return true;
+  else
+  {
+    LOG_INFO_FMT(
+      "Merkle roots don't match in playback pre-prepare for seqno {}",
+      executable_pp->seqno());
+  }
 }
 
 void Replica::init_state()
@@ -349,12 +524,7 @@ void Replica::recv_start()
 
   // Allow recoveries
   rec_ready = true;
-
   LOG_INFO << "Replica ready" << std::endl;
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  std::cout << "Replica ready" << std::endl;
-#endif
 
   if (state.in_check_state())
   {
@@ -533,8 +703,10 @@ void Replica::handle(Request* m)
 
   Digest rd = m->digest();
   LOG_TRACE << "Received request with rid: " << m->request_id()
-            << " id:" << id() << " primary:" << primary()
-            << " with cid: " << m->client_id()
+            << " replier: " << m->replier() << " is_signed: " << m->is_signed()
+            << " is read only: " << m->is_read_only()
+            << " contents size: " << m->contents_size() << " id:" << id()
+            << " primary:" << primary() << " with cid: " << m->client_id()
             << " current seqno: " << next_pp_seqno
             << " last executed: " << last_executed << " digest: " << rd.hash()
             << std::endl;
@@ -543,17 +715,6 @@ void Replica::handle(Request* m)
   {
     LOG_TRACE << "Received request with rid: " << m->request_id()
               << " with cid: " << m->client_id() << std::endl;
-#if 0
-    // TODO: Fix execution of read-only requests
-    if (ro)
-    {
-      // Read-only requests.
-      if (execute_read_only(m) || !ro_rqueue.append(m))
-        delete m;
-
-      return;
-    }
-#endif
 
 #ifdef ENFORCE_EXACTLY_ONCE
     int client_id = m->client_id();
@@ -651,15 +812,9 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       new Pre_prepare(view(), next_pp_seqno, rqueue, requests_in_batch);
     if (execute_tentative(pp, info))
     {
-      // TODO: should make code match my proof with request removed
-      // only when executed rather than removing them from rqueue when the
-      // pre-prepare is constructed.
       LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
                 << std::endl;
-      pp->set_merkle_roots_and_ctx(
-        info.full_state_merkle_root,
-        info.replicated_state_merkle_root,
-        info.ctx);
+      pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
       pp->set_digest(signed_version.load());
       plog.fetch(next_pp_seqno).add_mine(pp);
 
@@ -667,10 +822,10 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
       if (ledger_writer)
       {
-        ledger_writer->write_pre_prepare(pp);
+        last_te_version = ledger_writer->write_pre_prepare(pp);
       }
 
-      if (node->f() > 0)
+      if (pbft::GlobalState::get_node().f() > 0)
       {
         send(pp, All_replicas);
       }
@@ -750,10 +905,14 @@ bool Replica::in_wv(T* m)
 
 void Replica::handle(Pre_prepare* m)
 {
-  const Seqno ms = m->seqno();
-  Byz_buffer b;
+  if (playback_pp_seqno >= m->seqno() || waiting_for_playback_pp)
+  {
+    LOG_TRACE_FMT("Reject pre prepare with seqno {}", m->seqno());
+    delete m;
+    return;
+  }
 
-  b.contents = m->choices(b.size);
+  const Seqno ms = m->seqno();
 
   LOG_TRACE << "Received pre prepare with seqno: " << ms
             << ", in_wv:" << (in_wv(m) ? "true" : "false")
@@ -808,16 +967,16 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         }
       }
 
-      // TODO: fix this check
-      // https://github.com/microsoft/CCF/issues/357
       if (!compare_execution_results(info, pp))
       {
+        LOG_INFO_FMT(
+          "Merkle roots don't match in send prepare for seqno {}", seqno);
         break;
       }
 
       if (ledger_writer && !is_primary())
       {
-        ledger_writer->write_pre_prepare(pp);
+        last_te_version = ledger_writer->write_pre_prepare(pp);
       }
 
       Prepare* p =
@@ -878,6 +1037,13 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
 
 void Replica::handle(Prepare* m)
 {
+  if (playback_pp_seqno >= m->seqno() || waiting_for_playback_pp)
+  {
+    LOG_TRACE_FMT("Reject prepare with seqno {}", m->seqno());
+    delete m;
+    return;
+  }
+
   const Seqno ms = m->seqno();
   // Only accept prepare messages that are not sent by the primary for
   // current view.
@@ -885,7 +1051,6 @@ void Replica::handle(Prepare* m)
     in_wv(m) && ms > low_bound && primary() != m->id() &&
     has_complete_new_view())
   {
-    LOG_TRACE << "handle prepare for seqno: " << ms << std::endl;
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
@@ -913,10 +1078,15 @@ void Replica::handle(Prepare* m)
 
 void Replica::handle(Commit* m)
 {
+  if (playback_pp_seqno >= m->seqno() || waiting_for_playback_pp)
+  {
+    LOG_TRACE_FMT("Reject commit with seqno {}", m->seqno());
+    delete m;
+    return;
+  }
   const Seqno ms = m->seqno();
 
-  // Only accept messages with the current view.  TODO: change to
-  // accept commits from older views as in proof.
+  // Only accept messages with the current view.
   if (in_wv(m) && ms > low_bound)
   {
     LOG_TRACE << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
@@ -940,6 +1110,14 @@ void Replica::handle(Checkpoint* m)
   if (ms <= last_stable)
   {
     // stale checkpoint message
+    delete m;
+    return;
+  }
+
+  if (ms > last_executed || ms > last_tentative_execute)
+  {
+    LOG_TRACE_FMT(
+      "Received Checkpoint out of order from {} with seqno {}", m->id(), ms);
     delete m;
     return;
   }
@@ -1012,17 +1190,7 @@ void Replica::handle(Checkpoint* m)
 
 void Replica::fetch_state_outside_view_change()
 {
-  if (last_tentative_execute > last_executed)
-  {
-    // Rollback to last checkpoint
-    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-    LOG_INFO << "Rolling back before start_fetch last_tentative_execute: "
-             << last_tentative_execute << " last_executed: " << last_executed
-             << std::endl;
-    Seqno rc = state.rollback(last_executed);
-    LOG_INFO << " rolled back to :" << rc << std::endl;
-    last_tentative_execute = last_executed = rc;
-  }
+  rollback_to_globally_comitted();
 
   // Stop view change timer while fetching state. It is restarted
   // in new state when the fetch ends.
@@ -1039,10 +1207,35 @@ void Replica::register_reply_handler(reply_handler_cb cb, void* ctx)
   rep_cb_ctx = ctx;
 }
 
-void Replica::register_global_commit(global_commit_handler_cb cb, void* ctx)
+void Replica::register_global_commit(
+  global_commit_handler_cb cb, pbft::GlobalCommitInfo* gb_info)
 {
   global_commit_cb = cb;
-  global_commit_ctx = ctx;
+  global_commit_info = gb_info;
+}
+
+void Replica::register_mark_stable(
+  mark_stable_handler_cb cb, pbft::MarkStableInfo* ms_info)
+{
+  mark_stable_cb = cb;
+  mark_stable_info = ms_info;
+}
+
+void Replica::register_rollback_cb(
+  rollback_handler_cb cb, pbft::RollbackInfo* rb_info)
+{
+  rollback_cb = cb;
+  rollback_info = rb_info;
+}
+
+template <class T>
+std::unique_ptr<T> Replica::create_message(
+  const uint8_t* message_data, size_t data_size)
+{
+  Message* m = create_message(message_data, data_size);
+  T* msg_type;
+  T::convert(m, msg_type);
+  return std::unique_ptr<T>(msg_type);
 }
 
 void Replica::handle(Reply* m)
@@ -1122,6 +1315,12 @@ int Replica::my_id() const
   return Node::id();
 }
 
+char* Replica::create_response_message(
+  int client_id, Request_id request_id, uint32_t size)
+{
+  return replies.new_reply(client_id, request_id, last_tentative_execute, size);
+}
+
 void Replica::handle(Status* m)
 {
   static const int max_ret_bytes = 65536;
@@ -1131,18 +1330,25 @@ void Replica::handle(Status* m)
     Time current;
     Time t_sent = 0;
     current = ITimer::current_time();
-    std::shared_ptr<Principal> p = node->get_principal(m->id());
+    std::shared_ptr<Principal> p =
+      pbft::GlobalState::get_node().get_principal(m->id());
     if (!p)
     {
       return;
     }
 
     // Retransmit messages that the sender is missing.
+
     if (last_stable > m->last_stable() + max_out)
     {
+      LOG_TRACE_FMT("Sending append entries");
       // Node is so out-of-date that it will not accept any
       // pre-prepare/prepare/commmit messages in my log.
       // Send a stable checkpoint message for my stable checkpoint.
+
+      Append_entries ae;
+      send(&ae, m->id());
+
       Checkpoint* c = elog.fetch(last_stable).mine(t_sent);
       if (c != 0 && c->stable())
       {
@@ -1168,12 +1374,23 @@ void Replica::handle(Status* m)
       }
     }
 
+    LOG_TRACE_FMT(
+      "my last stable {}, m->laststable {}, last executed {}, m->last_executed "
+      "{}, max_out {}",
+      last_stable,
+      m->last_stable(),
+      last_executed,
+      m->last_executed(),
+      max_out);
+
     if (m->view() < v)
     {
       // Retransmit my latest view-change message
       View_change* vc = vi.my_view_change(t_sent);
       if (vc != 0)
       {
+        LOG_TRACE_FMT(
+          "Re transmitting view change with digest: {}", vc->digest().hash());
         retransmit(vc, current, t_sent, p.get());
       }
       delete m;
@@ -1185,67 +1402,84 @@ void Replica::handle(Status* m)
       if (m->has_nv_info())
       {
         min = std::max(last_stable + 1, m->last_executed() + 1);
-        for (Seqno n = min; n <= max; n++)
+        LOG_TRACE_FMT("Rentransmitting from min {} to max {}", min, max);
+        if (
+          last_stable > m->last_stable() &&
+          last_executed > m->last_executed() + 1)
         {
-          if (m->is_committed(n))
-          {
-            // No need for retransmission of commit or pre-prepare/prepare
-            // message.
-            continue;
-          }
-
-          Commit* c = clog.fetch(n).mine(t_sent);
-          if (c != 0)
-          {
-            retransmit(c, current, t_sent, p.get());
-          }
-
-          if (m->is_prepared(n))
-          {
-            // No need for retransmission of pre-prepare/prepare message.
-            continue;
-          }
-
-          // If I have a pre-prepare/prepare send it, provided I have sent
-          // a pre-prepare/prepare for view v.
-          if (primary() == node_id)
-          {
-            Pre_prepare* pp = plog.fetch(n).my_pre_prepare(t_sent);
-            if (pp != 0)
-            {
-              retransmit(pp, current, t_sent, p.get());
-            }
-          }
-          else
-          {
-            Prepare* pr = plog.fetch(n).my_prepare(t_sent);
-            if (pr != 0)
-            {
-              retransmit(pr, current, t_sent, p.get());
-            }
-          }
+          LOG_TRACE_FMT(
+            "Sending append entries to {} since we are way off", m->id());
+          Append_entries ae;
+          send(&ae, m->id());
         }
-
-        if (id() == primary())
+        else
         {
-          // For now only primary retransmits big requests.
-          Status::BRS_iter gen(m);
-
-          int count = 0;
-          Seqno ppn;
-          BR_map mrmap;
-          while (gen.get(ppn, mrmap) && count <= max_ret_bytes)
+          for (Seqno n = min; n <= max; n++)
           {
-            if (plog.within_range(ppn))
+            if (m->is_committed(n))
             {
-              Pre_prepare_info::BRS_iter gen(
-                plog.fetch(ppn).prep_info(), mrmap);
-              Request* r;
-              while (gen.get(r))
+              // No need for retransmission of commit or pre-prepare/prepare
+              // message.
+              continue;
+            }
+
+            Commit* c = clog.fetch(n).mine(t_sent);
+            if (c != 0)
+            {
+              retransmit(c, current, t_sent, p.get());
+            }
+
+            if (m->is_prepared(n))
+            {
+              // No need for retransmission of pre-prepare/prepare message.
+              continue;
+            }
+
+            // If I have a pre-prepare/prepare send it, provided I have sent
+            // a pre-prepare/prepare for view v.
+            if (primary() == node_id)
+            {
+              Pre_prepare* pp = plog.fetch(n).my_pre_prepare(t_sent);
+              if (pp != 0)
               {
-                INCR_OP(message_counts_retransmitted[m->tag()]);
-                send(r, m->id());
-                count += r->size();
+                retransmit(pp, current, t_sent, p.get());
+              }
+            }
+            else
+            {
+              Prepare* pr = plog.fetch(n).my_prepare(t_sent);
+              if (pr != 0)
+              {
+                retransmit(pr, current, t_sent, p.get());
+              }
+            }
+          }
+
+          if (id() == primary())
+          {
+            // For now only primary retransmits big requests.
+            Status::BRS_iter gen(m);
+
+            int count = 0;
+            Seqno ppn;
+            BR_map mrmap;
+            while (gen.get(ppn, mrmap) && count <= max_ret_bytes)
+            {
+              if (plog.within_range(ppn))
+              {
+                Pre_prepare_info::BRS_iter gen(
+                  plog.fetch(ppn).prep_info(), mrmap);
+                Request* r;
+                while (gen.get(r))
+                {
+                  LOG_TRACE_FMT(
+                    "Retransmitting request with id {} and cid {}",
+                    r->request_id(),
+                    r->client_id());
+                  INCR_OP(message_counts_retransmitted[m->tag()]);
+                  send(r, m->id());
+                  count += r->size();
+                }
               }
             }
           }
@@ -1258,6 +1492,8 @@ void Replica::handle(Status* m)
           // p does not have my view-change: send it.
           View_change* vc = vi.my_view_change(t_sent);
           PBFT_ASSERT(vc != 0, "Invalid state");
+          LOG_TRACE_FMT(
+            "Re transmitting view change with digest: {}", vc->digest().hash());
           retransmit(vc, current, t_sent, p.get());
         }
 
@@ -1289,11 +1525,6 @@ void Replica::handle(Status* m)
                 }
               }
             }
-#else
-            // TODO: Send any view-change messages that p may be missing
-            // that are referred to by the new-view message.  This may
-            // be important if the sender of the original message is
-            // faulty.
 #endif
           }
 #ifndef USE_PKEY_VIEW_CHANGES
@@ -1377,8 +1608,12 @@ void Replica::handle(Status* m)
 
 void Replica::handle(View_change* m)
 {
-  LOG_INFO << "Received view change for " << m->view() << " from " << m->id()
-           << ", v:" << v << std::endl;
+  LOG_INFO_FMT(
+    "Received view change for {} from {} with digest {}, v: {}",
+    m->view(),
+    m->id(),
+    m->digest().hash(),
+    v);
 
   if (m->id() == primary() && m->view() > v)
   {
@@ -1388,8 +1623,6 @@ void Replica::handle(View_change* m)
   }
   vi.add(std::unique_ptr<View_change>(m));
 
-  // TODO: memoize maxv and avoid this computation if it cannot change i.e.
-  // m->view() <= last maxv. This also holds for the next check.
   View maxv = vi.max_view();
   if (maxv > v)
   {
@@ -1466,23 +1699,14 @@ void Replica::send_view_change()
   replies.clear();
 #endif
 
-  if (last_tentative_execute > last_executed)
-  {
-    // Rollback to last checkpoint
-    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-    Seqno rc = state.rollback(last_executed);
-    LOG_INFO << "Rolled back in view change to seqno " << rc
-             << " last_executed was " << last_executed
-             << " last_tentative_execute was " << last_tentative_execute
-             << std::endl;
-    last_tentative_execute = last_executed = rc;
-  }
+  rollback_to_globally_comitted();
 
   last_prepared = last_executed;
 
   for (Seqno i = last_stable + 1; i <= last_stable + max_out; i++)
   {
     Prepared_cert& pc = plog.fetch(i);
+    pc.update();
     Certificate<Commit>& cc = clog.fetch(i);
 
     if (pc.is_complete())
@@ -1508,7 +1732,6 @@ void Replica::send_view_change()
 
     pc.clear();
     cc.clear();
-    // TODO: Could remember info about committed requests for efficiency.
   }
 
   // Create and send view-change message.
@@ -1541,24 +1764,25 @@ void Replica::write_view_change_to_ledger()
       continue;
     }
 
+    LOG_TRACE_FMT(
+      "Writing view for {} with digest {} to ledger",
+      vc->view(),
+      vc->digest().hash());
+
     ledger_writer->write_view_change(vc);
   }
 }
 
 void Replica::handle(New_principal* m)
 {
-  LOG_INFO << "recevied new message to add principal, id:" << m->id()
+  LOG_INFO << "received new message to add principal, id:" << m->id()
            << std::endl;
 
-  PrincipalInfo info{m->id(),
-                     m->port(),
-                     m->ip(),
-                     m->pubk_sig(),
-                     m->pubk_enc(),
-                     m->host_name(),
-                     m->is_replica()};
+  std::vector<uint8_t> cert(m->cert().begin(), m->cert().end());
+  PrincipalInfo info{
+    m->id(), m->port(), m->ip(), cert, m->host_name(), m->is_replica()};
 
-  node->add_principal(info);
+  pbft::GlobalState::get_node().add_principal(info);
 }
 
 void Replica::handle(Network_open* m)
@@ -1595,7 +1819,10 @@ void Replica::handle(Network_open* m)
     LOG_INFO << "Finished waiting for machines to network open. "
              << "starting to process requests" << std::endl;
     wait_for_network_to_open = false;
-    send_pre_prepare();
+    if (primary() == id())
+    {
+      send_pre_prepare();
+    }
   }
 
   delete m;
@@ -1624,12 +1851,9 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
   next_pp_seqno = max - 1;
 
-  if (ms > last_stable)
-  {
-    // Call mark_stable to ensure there is space for the pre-prepares
-    // and prepares that are inserted in the log below.
-    mark_stable(ms, last_executed >= ms);
-  }
+  // Call mark_stable to ensure there is space for the pre-prepares
+  // and prepares that are inserted in the log below.
+  mark_stable(last_executed, last_executed >= ms);
 
   if (last_stable > min)
   {
@@ -1650,25 +1874,40 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     Prepared_cert& pc = plog.fetch(i);
     PBFT_ASSERT(pp != 0 && pp->digest() == d, "Invalid state");
 
+    Pre_prepare::Requests_iter iter(pp);
+    Request request;
+
+    size_t req_in_pp = 0;
+
+    while (iter.get(request))
+    {
+      req_in_pp++;
+    }
+
     if (primary() == id())
     {
       ByzInfo info;
       pc.add_mine(pp);
-      if (ledger_writer)
+      if (execute_tentative(pp, info))
       {
-        ledger_writer->write_pre_prepare(pp);
+        if (ledger_writer && req_in_pp > 0)
+        {
+          last_te_version = ledger_writer->write_pre_prepare(pp);
+        }
       }
-      execute_tentative(pp, info);
     }
     else
     {
       ByzInfo info;
       pc.add_old(pp);
-      if (ledger_writer)
+
+      if (execute_tentative(pp, info))
       {
-        ledger_writer->write_pre_prepare(pp);
+        if (ledger_writer && req_in_pp > 0)
+        {
+          last_te_version = ledger_writer->write_pre_prepare(pp);
+        }
       }
-      execute_tentative(pp, info);
 
       Prepare* p = new Prepare(v, i, d, nullptr, pp->is_signed());
       pc.add_mine(p);
@@ -1694,19 +1933,11 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 #ifdef DEBUG_SLOW
     debug_slow_timer->stop();
 #endif
-    LOG_INFO << "fetching state in process new view v: " << v << std::endl;
-    state.start_fetch(last_executed, min, &d, min <= ms);
+    send_status();
   }
   else
   {
     PBFT_ASSERT(last_executed >= last_stable, "Invalid state");
-
-    // Execute any buffered read-only requests
-    for (Request* m = ro_rqueue.remove(); m != 0; m = ro_rqueue.remove())
-    {
-      execute_read_only(m);
-      delete m;
-    }
   }
 
   if (primary() != id() && rqueue.size() > 0)
@@ -1728,10 +1959,6 @@ Pre_prepare* Replica::prepared_pre_prepare(Seqno n)
 
 Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
 {
-  // TODO: This is correct but too conservative: fix to handle case
-  // where commit and prepare are not in same view; and to allow
-  // commits without prepared requests, i.e., only with the
-  // pre-prepare.
   Pre_prepare* pp = prepared_pre_prepare(s);
   if (clog.fetch(s).is_complete() || was_f_0)
   {
@@ -1740,66 +1967,56 @@ Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
   return 0;
 }
 
-bool Replica::execute_read_only(Request* request)
+void Replica::rollback_to_globally_comitted()
 {
-  // JC: won't execute read-only if there's a current tentative execution
-  // this probably isn't necessary if clients wait for 2f+1 RO responses
-  if (
-    last_tentative_execute == last_executed && !state.in_fetch_state() &&
-    !state.in_check_state())
+  if (last_tentative_execute > last_gb_seqno)
   {
-    // Create a new Reply message. Replies to read-only requests always
-    // indicate that they were executed at sequence number zero because
-    // they may execute at different sequence numbers provided the client
-    // gets enough matching replies and the sequence numbers must match.
-    Reply* rep = new Reply(view(), request->request_id(), 0, node_id);
+    // Rollback to last checkpoint
+    PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
 
-    // Obtain "in" and "out" buffers to call exec_command
-    Byz_req inb;
-    Byz_rep outb;
+    auto rv = last_gb_version + 1;
 
-    inb.contents = request->command(inb.size);
-    outb.contents = rep->store_reply(outb.size);
-
-    // Execute command.
-    int client_id = request->client_id();
-    std::shared_ptr<Principal> cp = get_principal(client_id);
-    ByzInfo info;
-    int error = exec_command(&inb, &outb, 0, client_id, true, 0, info);
-    right_pad_contents(outb);
-
-    if (!error)
+    if (rollback_cb != nullptr)
     {
-      // Finish constructing the reply and send it.
-      rep->authenticate(cp.get(), outb.size, true);
-      if (
-        outb.size < SMALL_REPLY_THRESHOLD || request->replier() == node_id ||
-        request->replier() < 0)
-      {
-        // Send full reply.
-        send(rep, client_id);
-      }
-      else
-      {
-        // Send empty reply.
-        Reply empty(
-          view(),
-          request->request_id(),
-          0,
-          node_id,
-          rep->digest(),
-          cp.get(),
-          true);
-        send(&empty, client_id);
-      }
+      rollback_cb(rv, rollback_info);
     }
 
-    delete rep;
-    return true;
+    Seqno rc = state.rollback(last_gb_seqno);
+
+    LOG_INFO_FMT(
+      "Rolled back in view change to seqno {}, to version {}, last_executed "
+      "was {}, last_tentative_execute was {}, "
+      "last gb seqno {}, last gb version was {}",
+      rc,
+      rv,
+      last_executed,
+      last_tentative_execute,
+      last_gb_seqno,
+      last_gb_version);
+
+    last_tentative_execute = rc;
+    last_executed = rc;
+    last_te_version = rv;
+    LOG_INFO_FMT(
+      "Roll back done, last tentative execute and last executed are {} {}",
+      last_tentative_execute,
+      last_executed);
   }
-  else
+}
+
+void Replica::global_commit(Pre_prepare* pp)
+{
+  if (global_commit_cb != nullptr && pp->is_signed())
   {
-    return false;
+    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+
+    state.checkpoint(pp->seqno());
+    last_gb_version = pp->get_ctx();
+    last_gb_seqno = pp->seqno();
+
+    global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+    signed_version = 0;
   }
 }
 
@@ -1871,23 +2088,74 @@ void Replica::execute_prepared(bool committed)
         }
       }
     }
-
-    if (global_commit_cb != nullptr && pp->is_signed())
-    {
-      LOG_TRACE_FMT(
-        "Global_commit: {}, signed_version: {}",
-        pp->get_ctx(),
-        global_commit_ctx);
-
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_ctx);
-      signed_version = 0;
-    }
+    global_commit(pp);
   }
+}
+
+std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
+  Request& request,
+  ByzInfo& info,
+  int64_t& max_local_commit_value,
+  bool include_markle_roots,
+  ccf::Store::Tx* tx,
+  Seqno seqno)
+{
+  auto stash_replier = request.replier();
+  request.set_replier(-1);
+  replies.count_request();
+  int client_id = request.client_id();
+
+  auto cmd = std::make_unique<ExecCommandMsg>(
+    client_id,
+    request.request_id(),
+    reinterpret_cast<uint8_t*>(request.contents()),
+    request.contents_size(),
+    include_markle_roots,
+    replies.total_requests_processed(),
+    last_tentative_execute,
+    max_local_commit_value,
+    stash_replier,
+    request,
+    &Replica::execute_tentative_request_end,
+    tx);
+
+  // Obtain "in" and "out" buffers to call exec_command
+  cmd->inb.contents = request.command(cmd->inb.size);
+
+  LOG_TRACE_FMT(
+    "before exec command with seqno: {} rid {} cid {} rid digest {}",
+    seqno,
+    cmd->rid,
+    request.client_id(),
+    request.digest().hash());
+
+  return cmd;
+}
+
+void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
+{
+  // Finish constructing the reply.
+  right_pad_contents(msg.outb);
+  Request r(reinterpret_cast<Request_rep*>(msg.req_start));
+  r.set_replier(msg.replier);
+
+  if (info.ctx > msg.max_local_commit_value)
+  {
+    msg.max_local_commit_value = info.ctx;
+  }
+
+  info.ctx = msg.max_local_commit_value;
+
+  pbft::GlobalState::get_replica().replies.end_reply(
+    msg.client, msg.rid, msg.last_tentative_execute, msg.outb.size);
 }
 
 bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
 {
-  LOG_DEBUG << "in execute tentative: " << pp->seqno() << std::endl;
+  LOG_DEBUG_FMT(
+    "in execute tentative for seqno {} and last_tentnative_execute {}",
+    pp->seqno(),
+    last_tentative_execute);
   if (
     pp->seqno() == last_tentative_execute + 1 && !state.in_fetch_state() &&
     !state.in_check_state() && has_complete_new_view())
@@ -1903,86 +2171,21 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     Request request;
     int64_t max_local_commit_value = INT64_MIN;
 
+    std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+
     while (iter.get(request))
     {
-      int client_id = request.client_id();
-
-#ifdef ENFORCE_EXACTLY_ONCE
-      if (replies.req_id(client_id) >= request.request_id())
-      {
-        // Request has already been executed and we have the reply to
-        // the request. Resend reply and don't execute request
-        // to ensure idempotence.
-        INCR_OP(message_counts_retransmitted[Reply_tag]);
-        replies.send_reply(
-          client_id, view(), id(), !replies.is_committed(client_id));
-        LOG_DEBUG << "Sending from tentative exec: " << pp->seqno()
-                  << " from client: " << client_id
-                  << " rid: " << request.request_id() << std::endl;
-        continue;
-      }
-#endif
-
-      // Obtain "in" and "out" buffers to call exec_command
-      Byz_req inb;
-      Byz_rep outb;
-      Byz_buffer non_det;
-      inb.contents = request.command(inb.size);
-
-#ifdef ENFORCE_EXACTLY_ONCE
-      outb.contents = replies.new_reply(client_id);
-#else
-      outb.contents = replies.new_reply(
-        client_id, request.request_id(), last_tentative_execute);
-      if (outb.contents == nullptr)
-      {
-        // to defend against a malicious primary that adds the same request id
-        // twice to the same batch
-        continue;
-      }
-#endif
-      outb.size = replies.new_reply_size();
-      non_det.contents = pp->choices(non_det.size);
-      // Execute command in a regular request.
-      replies.count_request();
-      LOG_TRACE << "before exec command with seqno: " << pp->seqno()
-                << std::endl;
-      exec_command(
-        &inb,
-        &outb,
-        &non_det,
-        client_id,
-        false,
-        replies.total_requests_processed(),
-        info);
-      right_pad_contents(outb);
-      // Finish constructing the reply.
-      LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
-                << " from client: " << client_id
-                << " rid: " << request.request_id()
-                << " commit_id: " << info.ctx << std::endl;
-
-      if (info.ctx > max_local_commit_value)
-      {
-        max_local_commit_value = info.ctx;
-      }
-
-      info.ctx = max_local_commit_value;
-#ifdef ENFORCE_EXACTLY_ONCE
-      replies.end_reply(client_id, request.request_id(), outb.size);
-#else
-      replies.end_reply(
-        client_id, request.request_id(), last_tentative_execute, outb.size);
-#endif
+      auto cmd = execute_tentative_request(
+        request,
+        info,
+        max_local_commit_value,
+        !iter.has_more_requests(),
+        nullptr,
+        pp->seqno());
+      cmds.push_back(std::move(cmd));
     }
-    LOG_DEBUG << "Executed from tentative exec: " << pp->seqno()
-              << " rid: " << request.request_id() << " commit_id: " << info.ctx
-              << std::endl;
 
-    if (last_tentative_execute % checkpoint_interval == 0)
-    {
-      state.checkpoint(last_tentative_execute);
-    }
+    exec_command(cmds, info);
     return true;
   }
   return false;
@@ -2031,6 +2234,14 @@ void Replica::execute_committed(bool was_f_0)
         {
           ByzInfo info;
           auto executed_ok = execute_tentative(pp, info);
+          if (!compare_execution_results(info, pp))
+          {
+            LOG_INFO_FMT(
+              "Merkle roots don't match in execute committed for seqno {}",
+              pp->seqno());
+            return;
+          }
+          last_te_version = ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(
             executed_ok,
             "tentative execution while executing committed failed");
@@ -2057,13 +2268,6 @@ void Replica::execute_committed(bool was_f_0)
         }
 #endif
 
-        // Execute any buffered read-only requests
-        for (Request* m = ro_rqueue.remove(); m != 0; m = ro_rqueue.remove())
-        {
-          execute_read_only(m);
-          delete m;
-        }
-
         // Iterate over the requests in the message, marking the saved replies
         // as committed (i.e., non-tentative for each of them).
         Pre_prepare::Requests_iter iter(pp);
@@ -2079,12 +2283,16 @@ void Replica::execute_committed(bool was_f_0)
           // Remove the request from rqueue if present.
           if (rqueue.remove(client_id, request.request_id()))
           {
+            LOG_TRACE_FMT(
+              "Removed request with cid rid {} {}",
+              client_id,
+              request.request_id());
             vtimer->stop();
           }
         }
 
-        // Send and log Checkpoint message for the new state if needed.
-        if (last_executed % checkpoint_interval == 0)
+        // Send and log Checkpoint message for the new state if needed
+        if (pp->is_signed() && f() > 0)
         {
           Digest d_state;
           state.digest(last_executed, d_state);
@@ -2275,13 +2483,6 @@ void Replica::new_state(Seqno c)
     next_pp_seqno = last_tentative_execute;
   }
 
-  // Execute any buffered read-only requests
-  for (Request* m = ro_rqueue.remove(); m != 0; m = ro_rqueue.remove())
-  {
-    execute_read_only(m);
-    delete m;
-  }
-
   if (rqueue.size() > 0)
   {
     if (primary() == id())
@@ -2343,6 +2544,11 @@ void Replica::mark_stable(Seqno n, bool have_state)
   elog.truncate(last_stable);
   state.discard_checkpoints(last_stable, last_executed);
   brt.mark_stable(last_stable);
+
+  if (mark_stable_cb != nullptr)
+  {
+    mark_stable_cb(mark_stable_info);
+  }
 
   if (have_state)
   {
@@ -2524,195 +2730,6 @@ void Replica::send_status(bool send_now)
   }
 }
 
-bool Replica::shutdown()
-{
-  LOG_INFO << "Replica shutdown" << std::endl;
-  START_CC(shutdown_time);
-  vtimer->stop();
-
-  // Rollback to last checkpoint
-  if (!state.in_fetch_state())
-  {
-    Seqno rc = state.rollback(last_executed);
-    last_tentative_execute = last_executed = rc;
-  }
-
-  if (id() == primary())
-  {
-    // Primary sends a view-change before shutting down to avoid
-    // delaying client request processing for the view-change timeout
-    // period.
-    send_view_change();
-  }
-
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  char ckpt_name[1024];
-  sprintf(ckpt_name, "/tmp/%s_%d", service_name.c_str(), id());
-  FILE* o = fopen(ckpt_name, "w");
-
-  size_t sz = fwrite(&v, sizeof(View), 1, o);
-  sz += fwrite(&limbo, sizeof(bool), 1, o);
-  sz += fwrite(&has_nv_state, sizeof(bool), 1, o);
-
-  sz += fwrite(&next_pp_seqno, sizeof(Seqno), 1, o);
-  sz += fwrite(&last_stable, sizeof(Seqno), 1, o);
-  sz += fwrite(&low_bound, sizeof(Seqno), 1, o);
-  sz += fwrite(&last_prepared, sizeof(Seqno), 1, o);
-  sz += fwrite(&last_executed, sizeof(Seqno), 1, o);
-  sz += fwrite(&last_tentative_execute, sizeof(Seqno), 1, o);
-
-  bool ret = true;
-  for (Seqno i = last_stable + 1; i <= last_stable + max_out; i++)
-  {
-    ret &= plog.fetch(i).encode(o);
-  }
-
-  for (Seqno i = last_stable + 1; i <= last_stable + max_out; i++)
-  {
-    ret &= clog.fetch(i).encode(o);
-  }
-
-  for (Seqno i = last_stable; i <= last_stable + max_out; i++)
-  {
-    ret &= elog.fetch(i).encode(o);
-  }
-
-  ret &= state.shutdown(o, last_stable);
-  ret &= vi.shutdown(o);
-
-  fclose(o);
-#endif
-  STOP_CC(shutdown_time);
-
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  return ret & (sz == 9);
-#else
-  return true;
-#endif
-}
-
-bool Replica::restart(FILE* in)
-{
-  LOG_INFO << "Replica restart" << std::endl;
-  START_CC(restart_time);
-
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  bool ret = true;
-  size_t sz = fread(&v, sizeof(View), 1, in);
-  sz += fread(&limbo, sizeof(bool), 1, in);
-  sz += fread(&has_nv_state, sizeof(bool), 1, in);
-
-  limbo = (limbo != 0);
-  cur_primary = v % num_replicas;
-  if (v < 0 || id() == primary())
-  {
-    ret = false;
-    v = 0;
-    limbo = false;
-    has_nv_state = true;
-  }
-
-  sz += fread(&next_pp_seqno, sizeof(Seqno), 1, in);
-  sz += fread(&last_stable, sizeof(Seqno), 1, in);
-  sz += fread(&low_bound, sizeof(Seqno), 1, in);
-  sz += fread(&last_prepared, sizeof(Seqno), 1, in);
-  sz += fread(&last_executed, sizeof(Seqno), 1, in);
-  sz += fread(&last_tentative_execute, sizeof(Seqno), 1, in);
-
-  ret &= (low_bound >= last_stable) & (last_tentative_execute >= last_executed);
-  ret &= last_prepared >= last_tentative_execute;
-
-  if (!ret)
-  {
-    low_bound = last_stable = last_tentative_execute = last_executed =
-      last_prepared = 0;
-  }
-
-  plog.clear(last_stable + 1);
-  for (Seqno i = last_stable + 1; ret && i <= last_stable + max_out; i++)
-  {
-    ret &= plog.fetch(i).decode(in);
-  }
-
-  clog.clear(last_stable + 1);
-  for (Seqno i = last_stable + 1; ret && i <= last_stable + max_out; i++)
-  {
-    ret &= clog.fetch(i).decode(in);
-  }
-
-  elog.clear(last_stable);
-  for (Seqno i = last_stable; ret && i <= last_stable + max_out; i++)
-  {
-    ret &= elog.fetch(i).decode(in);
-  }
-
-  ret &= state.restart(in, this, last_stable, last_tentative_execute, !ret);
-  ret &= vi.restart(in, v, last_stable, !ret);
-#endif
-
-  STOP_CC(restart_time);
-
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  return ret & (sz == 9);
-#else
-  return true;
-#endif
-}
-
-void Replica::recover()
-{
-  LOG_INFO << "Replica recovery" << std::endl;
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  corrupt = false;
-
-  char ckpt_name[1024];
-  sprintf(ckpt_name, "/tmp/%s_%d", service_name.c_str(), id());
-  FILE* i = fopen(ckpt_name, "r");
-
-  if (i == NULL || !restart(i))
-  {
-    // Replica is faulty; start from initial state.
-    LOG_FAIL << "Unable to restart from checkpoint" << std::endl;
-    corrupt = true;
-  }
-
-  // Initialize recovery variables:
-  recovering = true;
-  vc_recovering = false;
-  se.clear();
-  delete qs;
-  qs = 0;
-  rr_reps.clear();
-  delete rr;
-  rr = 0;
-  recovery_point = Seqno_max;
-
-  // Change my incoming session keys and zero client's keys.
-  START_CC(nk_time);
-
-  unsigned zk[Key_size_u];
-  bzero(zk, Key_size);
-
-  STOP_CC(nk_time);
-
-  // Start estimation procedure.
-  START_CC(est_time);
-  qs = new Query_stable();
-  send(qs, All_replicas);
-
-  // Add my own reply-stable message to the estimator.
-  Seqno lc = last_executed / checkpoint_interval * checkpoint_interval;
-  std::shared_ptr<Principal> p = get_principal(id());
-  Reply_stable* rs = new Reply_stable(lc, last_prepared, qs->nonce(), p.get());
-  se.add(rs, true);
-#endif
-}
-
 void Replica::handle(Query_stable* m)
 {
   if (m->verify())
@@ -2721,7 +2738,6 @@ void Replica::handle(Query_stable* m)
     std::shared_ptr<Principal> p = get_principal(m->id());
     Reply_stable rs(lc, last_prepared, m->nonce(), p.get());
 
-    // TODO: should put a bound on the rate at which I send these messages.
     send(&rs, m->id());
   }
 
@@ -2797,7 +2813,7 @@ void Replica::handle(Reply_stable* m)
       LOG_INFO << "sending recovery request" << std::endl;
       // Send recovery request.
       START_CC(rr_time);
-      rr = new Request(new_rid());
+      rr = new Request(new_rid(), -1);
 
       int len;
       char* buf = rr->store_command(len);
@@ -2816,7 +2832,6 @@ void Replica::handle(Reply_stable* m)
       state.start_check(last_executed);
 
       rqueue.clear();
-      ro_rqueue.clear();
     }
     return;
   }
@@ -2868,9 +2883,6 @@ void Replica::send_null()
     }
   }
   ntimer->restart();
-
-  // TODO: backups should force view change if primary does not send null
-  // requests to allow recoveries to complete.
 }
 
 bool Replica::delay_vc()
@@ -2901,24 +2913,27 @@ void Replica::start_vtimer_if_request_waiting()
 
 void Replica::vtimer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
-
-  if (!replica->delay_vc() && replica->f() > 0)
+  if (
+    !pbft::GlobalState::get_replica().delay_vc() &&
+    pbft::GlobalState::get_replica().f() > 0)
   {
-    if (replica->rqueue.size() > 0)
+    if (pbft::GlobalState::get_replica().rqueue.size() > 0)
     {
-      LOG_INFO << "View change timer expired first rid: "
-               << replica->rqueue.first()->request_id()
-               << ", digest:" << replica->rqueue.first()->digest().hash()
-               << " first cid: " << replica->rqueue.first()->client_id()
-               << std::endl;
+      LOG_INFO
+        << "View change timer expired first rid: "
+        << pbft::GlobalState::get_replica().rqueue.first()->request_id()
+        << ", digest:"
+        << pbft::GlobalState::get_replica().rqueue.first()->digest().hash()
+        << " first cid: "
+        << pbft::GlobalState::get_replica().rqueue.first()->client_id()
+        << std::endl;
     }
 
-    replica->send_view_change();
+    pbft::GlobalState::get_replica().send_view_change();
   }
   else
   {
-    replica->vtimer->restart();
+    pbft::GlobalState::get_replica().vtimer->restart();
   }
 }
 
@@ -2934,23 +2949,23 @@ void Replica::stimer_handler(void* owner)
 
 void Replica::btimer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
-  replica->btimer->restop();
-  if (replica->primary() == replica->node_id)
+  pbft::GlobalState::get_replica().btimer->restop();
+  if (
+    pbft::GlobalState::get_replica().primary() ==
+    pbft::GlobalState::get_replica().node_id)
   {
     ++stats.count_pre_prepare_batch_timer;
-    replica->send_pre_prepare(true);
+    pbft::GlobalState::get_replica().send_pre_prepare(true);
   }
 }
 
 void Replica::rec_timer_handler(void* owner)
 {
-  PBFT_ASSERT(replica, "replica is not initialized\n");
   static int rec_count = 0;
 
-  replica->rtimer->restart();
+  pbft::GlobalState::get_replica().rtimer->restart();
 
-  if (!replica->rec_ready)
+  if (!pbft::GlobalState::get_replica().rec_ready)
   {
     // Replica is not ready to recover
     return;
@@ -2958,28 +2973,29 @@ void Replica::rec_timer_handler(void* owner)
 
 #ifdef RECOVERY
   if (
-    replica->num_of_replicas() - 1 - rec_count % replica->num_of_replicas() ==
-    replica->id())
+    pbft::GlobalState::get_replica().num_of_replicas() - 1 -
+      rec_count % pbft::GlobalState::get_replica().num_of_replicas() ==
+    pbft::GlobalState::get_replica().id())
   {
     // Start recovery:
     INIT_REC_STATS();
 
-    if (replica->recovering)
+    if (pbft::GlobalState::get_replica().recovering)
     {
       INCR_OP(incomplete_recs);
       LOG_INFO << "* Starting recovery" << std::endl;
     }
 
     // Checkpoint
-    replica->shutdown();
+    pbft::GlobalState::get_replica().shutdown();
 
-    replica->state.simulate_reboot();
+    pbft::GlobalState::get_replica().state.simulate_reboot();
 
-    replica->recover();
+    pbft::GlobalState::get_replica().recover();
   }
   else
   {
-    if (replica->recovering)
+    if (pbft::GlobalState::get_replica().recovering)
     {
       INCR_OP(rec_overlaps);
     }
@@ -3014,9 +3030,6 @@ void Replica::dump_state(std::ostream& os)
 
   os << "============== rqueue: " << std::endl;
   rqueue.dump_state(os);
-
-  os << "============== ro_rqueue: " << std::endl;
-  ro_rqueue.dump_state(os);
 
   os << "============== plog: " << std::endl;
   plog.dump_state(os);
@@ -3064,13 +3077,6 @@ void Replica::try_end_recovery()
     END_REC_STATS();
 
     recovering = false;
-
-    // Execute any buffered read-only requests
-    for (Request* m = ro_rqueue.remove(); m != 0; m = ro_rqueue.remove())
-    {
-      execute_read_only(m);
-      delete m;
-    }
   }
 }
 

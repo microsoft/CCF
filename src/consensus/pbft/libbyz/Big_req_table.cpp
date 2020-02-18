@@ -34,11 +34,20 @@ public:
   View maxv; // Maximum view in which this entry was marked useful
 };
 
+Big_req_table::Big_req_table(size_t num_of_replicas) :
+  breqs(max_out),
+  last_stable(0),
+  last_view(0),
+  unmatched(num_of_replicas)
+{
+  max_entries = max_out * Max_requests_in_batch;
+}
+
 Big_req_table::Big_req_table() :
   breqs(max_out),
   last_stable(0),
   last_view(0),
-  unmatched(node->num_of_replicas())
+  unmatched(pbft::GlobalState::get_node().num_of_replicas())
 {
   max_entries = max_out * Max_requests_in_batch;
 }
@@ -53,15 +62,6 @@ Big_req_table::~Big_req_table()
 
 inline void Big_req_table::remove_unmatched(BR_entry* bre)
 {
-  // TODO: eventually garbage collect client entries
-  // and bound number of entries for different clients.
-  // One approach would be to make log allocators have bounded
-  // capacity on threads processing incoming messages
-  // and spin waiting for space before taking the message
-  // out of the channel (ring-buffer or socket) if not more
-  // memory. We would want to separate channels ideally with
-  // one per-principal but at least with separate channels for
-  // replicas and clients
   if (bre->maxn < 0)
   {
     PBFT_ASSERT(bre->r != 0, "Invalid state");
@@ -184,14 +184,17 @@ void Big_req_table::add_pre_prepare(Request* r, Seqno n, View v)
 
 bool Big_req_table::check_pcerts(BR_entry* bre)
 {
-  PBFT_ASSERT(replica->has_complete_new_view(), "Invalid state");
+  PBFT_ASSERT(
+    pbft::GlobalState::get_replica().has_complete_new_view(), "Invalid state");
 
   for (int i = 0; i < bre->waiting.size(); i++)
   {
     Waiting_pp wp = bre->waiting[i];
-    if (replica->plog.within_range(wp.n) && wp.v >= last_view)
+    if (
+      pbft::GlobalState::get_replica().plog.within_range(wp.n) &&
+      wp.v >= last_view)
     {
-      Prepared_cert& pc = replica->plog.fetch(wp.n);
+      Prepared_cert& pc = pbft::GlobalState::get_replica().plog.fetch(wp.n);
       if (pc.is_pp_correct())
       {
         return true;
@@ -208,16 +211,18 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
 
   if (
     !centry.requests.empty() &&
-    centry.requests.front()->request_id() >= r->request_id())
+    centry.last_value_seen[r->user_id()] >= r->request_id())
   {
     // client is expected to send requests in request id order
+    LOG_FAIL_FMT(
+      "client is expected to send requests in request id order {}",
+      r->client_id());
     return false;
   }
 
   if (centry.num_requests >= Max_unmatched_requests_per_client)
   {
-    LOG_FAIL << "Too many unbuffered requests for client_id:" << r->client_id()
-             << std::endl;
+    LOG_FAIL_FMT("Too many Requests pending from client: {}", r->client_id());
     old_req = centry.requests.back();
     centry.requests.pop_back();
   }
@@ -226,6 +231,7 @@ bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
     centry.num_requests++;
   }
 
+  centry.last_value_seen[r->user_id()] = r->request_id();
   centry.requests.push_front(r);
   return true;
 }
@@ -244,7 +250,8 @@ bool Big_req_table::add_request(Request* r, bool verified)
 
     if (
       bre->r == 0 &&
-      (verified || !replica->has_complete_new_view() || check_pcerts(bre)))
+      (verified || !pbft::GlobalState::get_replica().has_complete_new_view() ||
+       check_pcerts(bre)))
     {
       bre->r = r;
 
@@ -259,21 +266,23 @@ bool Big_req_table::add_request(Request* r, bool verified)
         View v = wp.v;
         waiting.pop_back();
 
-        if (replica->has_complete_new_view())
+        if (pbft::GlobalState::get_replica().has_complete_new_view())
         {
           // Missing pre-prepare is in replica's plog.
-          if (v >= last_view && replica->plog.within_range(n))
+          if (
+            v >= last_view &&
+            pbft::GlobalState::get_replica().plog.within_range(n))
           {
             PBFT_ASSERT(n > last_stable, "Invalid state");
-            Prepared_cert& pc = replica->plog.fetch(n);
+            Prepared_cert& pc = pbft::GlobalState::get_replica().plog.fetch(n);
             pc.add(bre->rd, i);
-            replica->send_prepare(n);
+            pbft::GlobalState::get_replica().send_prepare(n);
           }
         }
         else
         {
           // Missing pre-prepare is in replica's view-info
-          replica->vi.add_missing(bre->rd, n, i);
+          pbft::GlobalState::get_replica().vi.add_missing(bre->rd, n, i);
         }
       }
 

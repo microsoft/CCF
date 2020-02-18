@@ -11,6 +11,7 @@
 #include "ds/oversized.h"
 #include "ds/ringbuffer_types.h"
 #include "kv/kvtypes.h"
+#include "node/members.h"
 #include "node/nodeinfonetwork.h"
 #include "start_type.h"
 #include "tls/tls.h"
@@ -47,9 +48,9 @@ struct CCFConfig
 
   struct Genesis
   {
-    std::vector<std::vector<uint8_t>> member_certs;
+    std::vector<ccf::MemberPubInfo> members_info;
     std::string gov_script;
-    MSGPACK_DEFINE(member_certs, gov_script);
+    MSGPACK_DEFINE(members_info, gov_script);
   };
   Genesis genesis = {};
 
@@ -58,7 +59,8 @@ struct CCFConfig
     std::string target_host;
     std::string target_port;
     std::vector<uint8_t> network_cert;
-    MSGPACK_DEFINE(target_host, target_port, network_cert);
+    size_t join_timer;
+    MSGPACK_DEFINE(target_host, target_port, network_cert, join_timer);
   };
   Joining joining = {};
 
@@ -99,6 +101,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   std::string,
   size_t,
   logger::Level,
+  uint16_t,
   std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(

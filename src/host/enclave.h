@@ -9,26 +9,17 @@
 
 #include <dlfcn.h>
 #include <msgpack.hpp>
-#include <openenclave/bits/report.h>
-#include <openenclave/bits/result.h>
 #ifdef VIRTUAL_ENCLAVE
 #  include "enclave/ccf_v.h"
 #else
 #  include <ccf_u.h>
+#  include <openenclave/bits/result.h>
 #  include <openenclave/host.h>
 #endif
 
 // Marker to create virtual enclaves, should be distinct from any valid
 // OE_ENCLAVE_FLAG combinations
 #define ENCLAVE_FLAG_VIRTUAL -1
-
-#if defined(__clang__)
-// Clang UBSan doesn't like calling functions through dlsym
-// https://github.com/google/sanitizers/issues/911
-#  define NO_SANITIZE_FUNCTION __attribute__((no_sanitize("function")))
-#else
-#  define NO_SANITIZE_FUNCTION
-#endif
 
 namespace host
 {
@@ -71,7 +62,8 @@ namespace host
 
         if (err != OE_OK)
         {
-          LOG_FATAL_FMT("Could not create enclave: {}", oe_result_str(err));
+          throw std::logic_error(
+            fmt::format("Could not create enclave: {}", oe_result_str(err)));
         }
       }
     }
@@ -83,7 +75,8 @@ namespace host
       std::vector<uint8_t>& quote,
       std::vector<uint8_t>& network_cert,
       StartType start_type,
-      ConsensusType consensus_type)
+      ConsensusType consensus_type,
+      size_t num_worker_thread)
     {
       bool ret;
       size_t node_cert_len = 0;
@@ -109,12 +102,18 @@ namespace host
         network_cert.size(),
         &network_cert_len,
         start_type,
-        consensus_type);
+        consensus_type,
+        num_worker_thread);
 
       if (err != OE_OK)
       {
-        LOG_FATAL_FMT(
-          "Failed to call in enclave_create_node: {}", oe_result_str(err));
+        throw std::logic_error(fmt::format(
+          "Failed to call in enclave_create_node: {}", oe_result_str(err)));
+      }
+
+      if (!ret)
+      {
+        throw std::logic_error("An error occurred when creating CCF node");
       }
 
       node_cert.resize(node_cert_len);
@@ -133,65 +132,11 @@ namespace host
 
       if (err != OE_OK)
       {
-        LOG_FATAL_FMT("Failed to call in enclave_run: {}", oe_result_str(err));
+        throw std::logic_error(
+          fmt::format("Failed to call in enclave_run: {}", oe_result_str(err)));
       }
 
       return ret;
-    }
-
-    /**
-     * Checks that a quote is valid, the signing authority is trusted, and the
-     * quote is over some expected data.
-     *
-     * Note that without libsgx support, the current verification method is
-     * unavailable and this method will throw an unimplemented exception.
-     *
-     * @return Whether the quote is valid. If it fails, an explanatory error
-     * message will be logged.
-     */
-    bool verify_quote(
-      const std::vector<uint8_t>& quote_raw,
-      const std::vector<uint8_t>& expected_contents)
-    {
-      if (is_virtual_enclave)
-      {
-        return true;
-      }
-
-#ifdef GET_QUOTE
-      oe_report_t parsed{0};
-      oe_result_t result =
-        oe_verify_report(e, quote_raw.data(), quote_raw.size(), &parsed);
-      if (result != OE_OK)
-      {
-        LOG_FAIL_FMT("Quote could not be verified: {}", oe_result_str(result));
-        return false;
-      }
-
-      // Hash the expected contents, check that this matches the data in the
-      // quote
-      constexpr auto size = crypto::Sha256Hash::SIZE;
-      if (parsed.report_data_size < size)
-      {
-        LOG_FAIL_FMT(
-          "Quote data length is too small. Expected: {}, Actual: {}",
-          size,
-          parsed.report_data_size);
-        return false;
-      }
-
-      crypto::Sha256Hash hash{expected_contents};
-      if (0 != memcmp(hash.h, parsed.report_data, size))
-      {
-        LOG_FAIL_FMT("Quote does not contain expected data");
-        return false;
-      }
-      LOG_INFO_FMT("Quote verified");
-#else
-      throw std::logic_error("Quote verification is not implemented");
-#endif
-
-      return true;
     }
   };
 }

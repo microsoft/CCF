@@ -3,7 +3,7 @@
 #pragma once
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/pbft_assert.h"
-#include "consensus/pbft/pbftrequests.h"
+#include "enclave/rpchandler.h"
 #include "enclave/rpcmap.h"
 #include "pbftdeps.h"
 
@@ -15,6 +15,7 @@ namespace pbft
     static char* service_mem;
     virtual ~AbstractPbftConfig() = default;
     virtual void set_service_mem(char* sm) = 0;
+    virtual void set_receiver(IMessageReceiveBase* message_receive_base_) = 0;
     virtual ExecCommand get_exec_command() = 0;
   };
 
@@ -31,6 +32,11 @@ namespace pbft
       service_mem = sm;
     }
 
+    void set_receiver(IMessageReceiveBase* message_receive_base_) override
+    {
+      message_receive_base = message_receive_base_;
+    }
+
     ExecCommand get_exec_command() override
     {
       return exec_command;
@@ -39,59 +45,81 @@ namespace pbft
   private:
     std::shared_ptr<enclave::RPCMap> rpc_map;
 
-    ExecCommand exec_command = [this](
-                                 Byz_req* inb,
-                                 Byz_rep* outb,
-                                 _Byz_buffer* non_det,
-                                 int client,
-                                 bool ro,
-                                 Seqno total_requests_executed,
-                                 ByzInfo& info) {
-      pbft::Request request;
-      request.deserialise({inb->contents, inb->contents + inb->size});
+    IMessageReceiveBase* message_receive_base;
 
-      LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
+    ExecCommand exec_command =
+      [this](
+        std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
+        for (auto& msg : msgs)
+        {
+          Byz_req* inb = &msg->inb;
+          Byz_rep& outb = msg->outb;
+          int client = msg->client;
+          Request_id rid = msg->rid;
+          uint8_t* req_start = msg->req_start;
+          size_t req_size = msg->req_size;
+          Seqno total_requests_executed = msg->total_requests_executed;
+          ccf::Store::Tx* tx = msg->tx;
 
-      auto handler = this->rpc_map->find(ccf::ActorsType(request.actor));
-      if (!handler.has_value())
-        throw std::logic_error(
-          "No frontend associated with actor " + std::to_string(request.actor));
+          pbft::Request request;
+          request.deserialise({inb->contents, inb->contents + inb->size});
 
-      auto frontend = handler.value();
+          LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", request.actor);
 
-      // TODO: Should serialise context directly, rather than reconstructing
-      const enclave::SessionContext session(
-        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-      auto ctx = enclave::make_rpc_context(session, request.raw);
-      ctx.actor = (ccf::ActorsType)request.actor;
-      const auto n = ctx.method.find_last_of('/');
-      ctx.method = ctx.method.substr(n + 1, ctx.method.size());
+          auto handler = this->rpc_map->find(ccf::ActorsType(request.actor));
+          if (!handler.has_value())
+            throw std::logic_error(
+              "No frontend associated with actor " +
+              std::to_string(request.actor));
 
-      auto rep = frontend->process_pbft(ctx);
+          auto frontend = handler.value();
 
-      static_assert(
-        sizeof(info.full_state_merkle_root) == sizeof(crypto::Sha256Hash));
-      static_assert(
-        sizeof(info.replicated_state_merkle_root) ==
-        sizeof(crypto::Sha256Hash));
-      std::copy(
-        std::begin(rep.full_state_merkle_root.h),
-        std::end(rep.full_state_merkle_root.h),
-        std::begin(info.full_state_merkle_root));
-      std::copy(
-        std::begin(rep.replicated_state_merkle_root.h),
-        std::end(rep.replicated_state_merkle_root.h),
-        std::begin(info.replicated_state_merkle_root));
-      info.ctx = rep.version;
+          const enclave::SessionContext session(
+            enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+          auto ctx = enclave::make_rpc_context(
+            session, request.raw, {req_start, req_start + req_size});
+          ctx->actor = (ccf::ActorsType)request.actor;
+          const auto n = ctx->method.find_last_of('/');
+          ctx->method = ctx->method.substr(n + 1, ctx->method.size());
 
-      outb->size = rep.result.size();
-      auto outb_ptr = (uint8_t*)outb->contents;
-      size_t outb_size = (size_t)outb->size;
+          ctx->signed_request = ccf::SignedReq();
 
-      serialized::write(
-        outb_ptr, outb_size, rep.result.data(), rep.result.size());
+          enclave::RpcHandler::ProcessPbftResp rep;
+          if (tx != nullptr)
+          {
+            rep =
+              frontend->process_pbft(ctx, *tx, true, msg->include_merkle_roots);
+          }
+          else
+          {
+            rep = frontend->process_pbft(ctx, msg->include_merkle_roots);
+          }
 
-      return 0;
-    };
+          static_assert(
+            sizeof(info.replicated_state_merkle_root) ==
+            sizeof(crypto::Sha256Hash));
+          if (msg->include_merkle_roots)
+          {
+            std::copy(
+              std::begin(rep.replicated_state_merkle_root.h),
+              std::end(rep.replicated_state_merkle_root.h),
+              std::begin(info.replicated_state_merkle_root));
+          }
+          info.ctx = rep.version;
+
+          outb.contents = message_receive_base->create_response_message(
+            client, rid, rep.result.size());
+
+          outb.size = rep.result.size();
+          auto outb_ptr = (uint8_t*)outb.contents;
+          size_t outb_size = (size_t)outb.size;
+
+          serialized::write(
+            outb_ptr, outb_size, rep.result.data(), rep.result.size());
+
+          msg->cb(*msg.get(), info);
+        }
+        return 0;
+      };
   };
 }

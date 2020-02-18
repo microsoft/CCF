@@ -10,6 +10,7 @@
 #include "node/rpc/nodefrontend.h"
 #include "node_stub.h"
 #include "tls/pem.h"
+#include "tls/verifier.h"
 
 using namespace ccf;
 using namespace nlohmann;
@@ -51,13 +52,13 @@ const json frontend_process(
   const Cert& caller)
 {
   auto req = create_json_req(json_params, method);
-  auto serialise_request = pack(req, Pack::MsgPack);
+  auto serialise_request = pack(req, Pack::Text);
 
   const enclave::SessionContext session(0, caller);
-  const auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
+  auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 
-  return unpack(serialised_response.value(), Pack::MsgPack);
+  return unpack(serialised_response.value(), Pack::Text);
 }
 
 TEST_CASE("Add a node to an opening service")
@@ -69,8 +70,12 @@ TEST_CASE("Add a node to an opening service")
 
   StubNodeState node;
   NodeRpcFrontend frontend(network, node);
+  frontend.open();
 
-  network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
+  network.identity = std::make_unique<NetworkIdentity>();
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
+  network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -99,9 +104,10 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
     CHECK(
-      response->network_info.network_secrets == network.secrets->get_current());
-    CHECK(response->network_info.version == 0);
+      response->network_info.ledger_secrets == *network.ledger_secrets.get());
+    CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->node_status == NodeStatus::TRUSTED);
+    CHECK(response->public_only == false);
 
     Store::Tx tx;
     const NodeId node_id = response->node_id;
@@ -124,8 +130,8 @@ TEST_CASE("Add a node to an opening service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
     CHECK(
-      response->network_info.network_secrets == network.secrets->get_current());
-    CHECK(response->network_info.version == 0);
+      response->network_info.ledger_secrets == *network.ledger_secrets.get());
+    CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->node_status == NodeStatus::TRUSTED);
   }
 
@@ -155,9 +161,14 @@ TEST_CASE("Add a node to an open service")
   gen.init_values();
 
   StubNodeState node;
+  node.set_is_public(true);
   NodeRpcFrontend frontend(network, node);
+  frontend.open();
 
-  network.secrets = std::make_unique<NetworkSecrets>("CN=The CA");
+  network.identity = std::make_unique<NetworkIdentity>();
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
+  network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
 
   gen.create_service({});
   gen.open_service();
@@ -231,9 +242,10 @@ TEST_CASE("Add a node to an open service")
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
 
     CHECK(
-      response->network_info.network_secrets == network.secrets->get_current());
-    CHECK(response->network_info.version == 0);
+      response->network_info.ledger_secrets == *network.ledger_secrets.get());
+    CHECK(response->network_info.identity == *network.identity.get());
     CHECK(response->node_status == NodeStatus::TRUSTED);
+    CHECK(response->public_only == true);
   }
 }
 

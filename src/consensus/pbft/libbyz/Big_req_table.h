@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Digest.h"
+#include "ds/thread_messaging.h"
 #include "types.h"
 
 #include <list>
@@ -28,6 +29,8 @@ class Big_req_table
 public:
   Big_req_table();
   // Effects: Creates an empty table.
+
+  Big_req_table(size_t num_of_replicas);
 
   ~Big_req_table();
   // Effects: Deletes table and any requests it references.
@@ -84,7 +87,7 @@ public:
 
 private:
   bool check_pcerts(BR_entry* bre);
-  // Requires: replica->has_complete_new_view()
+  // Requires: pbft::GlobalState::get_replica().has_complete_new_view()
   // Effects: Returns true iff there is some pre-prepare in
   // bre->waiting that has f matching prepares in its prepared
   // certificate.
@@ -112,6 +115,8 @@ private:
     Unmatched_requests() : num_requests(0) {}
     std::list<Request*> requests;
     int num_requests;
+    std::array<uint64_t, enclave::ThreadMessaging::max_num_threads>
+      last_value_seen = {0};
   };
 
   // Map from client id to lists of requests that have no waiting pre-prepares

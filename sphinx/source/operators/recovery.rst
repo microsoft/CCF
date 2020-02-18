@@ -11,7 +11,7 @@ However, one of the previous ledgers can be recovered and the execution of new b
 - The sealed network secret file (``sealed_secrets.<date>.<pid>``) associated with that CPU is available to a :term:`quorum` of members.
 - One of the ledgers (preferably the ledger of the previous primary as it is likely to be the longest) is available.
 
-The recovery protocol consists of two phases. First, the public transactions of the previous network are restored and the new network established. Then, after the members have agreed that the configuration of the new network is suitable, the sealed network secrets can be restored by a new set of trusted nodes and the previous private transactions recovered.
+The recovery protocol consists of two phases. First, the public transactions of the previous network are restored and the new network established. Then, after the members have agreed that the configuration of the new network is suitable, the sealed ledger secrets can be restored by a new set of trusted nodes and the previous private transactions recovered.
 
 .. note:: Before attempting to recover a network, it is recommended to make a copy of all available ledgers and sealed secrets files.
 
@@ -26,19 +26,20 @@ To initiate the first phase of the recovery protocol, one or several nodes shoul
     --enclave-file /path/to/enclave_library
     --enclave-type debug
     --node-address node_ip:node_port
-    --rpc-address rpc_ip:rpc_port
-    --public-rpc-address public_rpc_ip:public_rpc_port
+    --rpc-address <ccf-node-address>
+    --public-rpc-address <ccf-node-public-address>
+    [--domain domain]
     --ledger-file /path/to/ledger/to/recover
     --node-cert-file /path/to/node_certificate
     --quote-file /path/to/quote
     recover
     --network-cert-file /path/to/network_certificate
 
-Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by running the ``getSignedIndex`` JSON-RPC which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``getSignedIndex`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
-.. note:: If more than one node were started in ``recover`` mode, the node with the highest signed index (as per the response to the ``getSignedIndex`` JSON-RPC) should be preferred to start the new network. Other nodes should be shutdown and be restarted with the ``join`` option.
+.. note:: If more than one node were started in ``recover`` mode, the node with the highest signed index (as per the response to the ``getSignedIndex`` RPC) should be preferred to start the new network. Other nodes should be shutdown and be restarted with the ``join`` option.
 
-Similarly to the normal join protocol (see :ref:`Adding a New Node to the Network`), other nodes are then able to join the network.
+Similarly to the normal join protocol (see :ref:`operators/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
 
 .. mermaid::
 
@@ -65,7 +66,7 @@ Similarly to the normal join protocol (see :ref:`Adding a New Node to the Networ
 
         Note over Node 3: Part of Public Network
 
-Once operators have established a recovered public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network <Accepting Recovery>`.
+Once operators have established a recovered public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network <members/common_member_operations:Accepting Recovery>`.
 
 .. warning:: After recovery, the identity of the network has changed. The new network certificate ``networkcert.pem`` must be distributed to all existing and new users.
 

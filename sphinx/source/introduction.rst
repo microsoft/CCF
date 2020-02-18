@@ -54,4 +54,4 @@ in one or many cloud-hosted data centers, including :term:`Microsoft Azure`, or 
 
 Ledger providers can use CCF to enable higher throughput and higher confidentiality guarantees for distributed ledger applications.
 CCF developers can write application logic (also known as smart contracts) and enforce application-level access control in several languages by conﬁguring CCF
-to embed one of several language runtimes on top of its key-value store. Clients then communicate with a running CCF service using :term:`JSON-RPC` interfaces over :term:`TLS`.
+to embed one of several language runtimes on top of its key-value store. Clients then communicate with a running CCF service over :term:`TLS`.

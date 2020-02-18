@@ -10,8 +10,6 @@
 
 #include <stdlib.h>
 
-// TODO(#pbft) this enforces a shared allocator for each potential thread
-// when running inside the enclave
 #ifdef INSIDE_ENCLAVE
 std::unique_ptr<Log_allocator> thread_allocator = nullptr;
 #else
@@ -131,41 +129,6 @@ bool Message::convert(char* src, unsigned len, int t, int sz, Message& m)
 
   m = ret;
   return true;
-}
-
-bool Message::encode(FILE* o)
-{
-  int csize = size();
-
-  size_t sz = fwrite(&max_size, sizeof(int), 1, o);
-  sz += fwrite(&csize, sizeof(int), 1, o);
-  sz += fwrite(msg, 1, csize, o);
-
-  return sz == 2U + csize;
-}
-
-bool Message::decode(FILE* i)
-{
-  delete msg;
-
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  size_t sz = fread(&max_size, sizeof(int), 1, i);
-  msg = (Message_rep*)allocator->malloc(max_size);
-
-  int csize;
-  sz += fread(&csize, sizeof(int), 1, i);
-
-  if (msg == 0 || csize < 0 || csize > max_size)
-  {
-    return false;
-  }
-
-  sz += fread(msg, 1, csize, i);
-  return sz == 2U + csize;
-#else
-  return true;
-#endif
 }
 
 const char* Message::stag()

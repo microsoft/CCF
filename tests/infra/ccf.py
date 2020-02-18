@@ -15,10 +15,14 @@ import infra.consortium
 import infra.jsonrpc
 import ssl
 import random
+from math import ceil
 
 from loguru import logger as LOG
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
+
+# JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
+JOIN_TIMEOUT = 40
 
 
 class ServiceStatus(Enum):
@@ -39,7 +43,12 @@ class ParticipantsCurve(IntEnum):
         return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
 
 
+class PrimaryNotFound(Exception):
+    pass
+
+
 class Network:
+    KEY_GEN = "keygenerator.sh"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -52,15 +61,26 @@ class Network:
         "notify_server",
         "json_log_path",
         "gov_script",
+        "join_timer",
+        "worker_threads",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
     replication_delay = 30
 
-    def __init__(self, hosts, dbg_nodes=None, perf_nodes=None, existing_network=None):
+    def __init__(
+        self,
+        hosts,
+        binary_dir=".",
+        dbg_nodes=None,
+        perf_nodes=None,
+        existing_network=None,
+        txs=None,
+    ):
         if existing_network is None:
             self.consortium = []
             self.node_offset = 0
+            self.txs = txs
         else:
             self.consortium = existing_network.consortium
             # When creating a new network from an existing one (e.g. for recovery),
@@ -70,10 +90,17 @@ class Network:
             self.node_offset = (
                 len(existing_network.nodes) + existing_network.node_offset
             )
+            self.txs = existing_network.txs
 
         self.nodes = []
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
+        self.binary_dir = binary_dir
+        self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
+        if not os.path.isfile(self.key_generator):
+            raise FileNotFoundError(
+                f"Could not find key generator script at '{self.key_generator}' - is binary directory set correctly?"
+            )
         self.dbg_nodes = dbg_nodes
         self.perf_nodes = perf_nodes
 
@@ -93,7 +120,7 @@ class Network:
         perf = (
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
-        node = infra.node.Node(node_id, host, debug, perf)
+        node = infra.node.Node(node_id, host, self.binary_dir, debug, perf)
         self.nodes.append(node)
         return node
 
@@ -118,7 +145,7 @@ class Network:
         if self.status == ServiceStatus.OPENING:
             if args.consensus != "pbft":
                 try:
-                    node.wait_for_node_to_join()
+                    node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
                 except TimeoutError:
                     LOG.error(f"New node {node.node_id} failed to join the network")
                     raise
@@ -151,7 +178,7 @@ class Network:
                             lib_name=args.package,
                             workspace=args.workspace,
                             label=args.label,
-                            members_certs=self.consortium.get_members_certs(),
+                            members_info=self.consortium.get_members_info(),
                             **forwarded_args,
                         )
                     else:
@@ -181,17 +208,14 @@ class Network:
         :param args: command line arguments to configure the CCF nodes.
         :param open_network: If false, only the nodes are started.
         """
-        # TODO: The node that starts should not necessarily be node 0
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        self.consortium = infra.consortium.Consortium([0, 1, 2], args.default_curve)
+        self.consortium = infra.consortium.Consortium(
+            [0, 1, 2], args.default_curve, self.key_generator
+        )
         self.initial_users = [0, 1, 2]
         self.create_users(self.initial_users, args.default_curve)
-
-        if args.gov_script:
-            infra.proc.ccall("cp", args.gov_script, args.build_dir).check_returncode()
-        LOG.info("Lua scripts copied")
 
         primary = self._start_all_nodes(args)
 
@@ -200,16 +224,24 @@ class Network:
         LOG.success("All nodes joined network")
 
         if args.app_script:
-            infra.proc.ccall("cp", args.app_script, args.build_dir).check_returncode()
+            infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
             self.consortium.set_lua_app(
                 member_id=1, remote_node=primary, app_script=args.app_script
+            )
+
+        if args.js_app_script:
+            infra.proc.ccall(
+                "cp", args.js_app_script, args.binary_dir
+            ).check_returncode()
+            self.consortium.set_js_app(
+                member_id=1, remote_node=primary, app_script=args.js_app_script
             )
 
         self.consortium.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            member_id=1, remote_node=primary, pbft_open=args.consensus != "pbft"
+            member_id=1, remote_node=primary, pbft_open=args.consensus == "pbft"
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
@@ -238,19 +270,24 @@ class Network:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
                 new_node.node_id,
-                (
+                timeout=JOIN_TIMEOUT,
+                node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
                     else infra.node.NodeStatus.TRUSTED
                 ),
             )
-        except TimeoutError:
+        except TimeoutError as err:
             # The node can be safely discarded since it has not been
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
-            new_node.stop()
+            errors = new_node.stop()
+            if errors:
+                for error in errors:
+                    if "An error occurred while joining the network" in error:
+                        err.message = f"TimeoutError: {error.split('|', 1)[1]}"
             self.nodes.remove(new_node)
-            return None
+            raise
 
         return new_node
 
@@ -260,19 +297,20 @@ class Network:
         it so that it becomes part of the consensus protocol.
         """
         new_node = self.create_and_add_pending_node(lib_name, host, args, target_node)
-        if new_node is None:
-            return None
 
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(1, primary, new_node.node_id)
             if args.consensus != "pbft":
-                new_node.wait_for_node_to_join()
+                # Here, quote verification has already been run when the node
+                # was added as pending. Only wait for the join timer for the
+                # joining node to retrieve network secrets.
+                new_node.wait_for_node_to_join(timeout=ceil(args.join_timer * 2 / 1000))
         except (ValueError, TimeoutError):
             LOG.error(f"New trusted node {new_node.node_id} failed to join the network")
             new_node.stop()
-            return None
+            raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
         if args.consensus != "pbft":
@@ -284,7 +322,10 @@ class Network:
         users = ["user{}".format(u) for u in users]
         for u in users:
             infra.proc.ccall(
-                "./keygenerator.sh", f"{u}", curve.name, log_output=False
+                self.key_generator,
+                f"--name={u}",
+                f"--curve={curve.name}",
+                log_output=False,
             ).check_returncode()
 
     def get_members(self):
@@ -315,13 +356,13 @@ class Network:
         primary, term = self.find_primary()
         for n in self.nodes:
             self.consortium.wait_for_node_to_exist_in_store(
-                primary, n.node_id, infra.node.NodeStatus.TRUSTED
+                primary, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
             )
 
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3):
+    def find_primary(self, timeout=3, request_timeout=3):
         """
         Find the identity of the primary in the network and return its identity
         and the current term.
@@ -331,37 +372,38 @@ class Network:
 
         for _ in range(timeout):
             for node in self.get_joined_nodes():
-                with node.node_client() as c:
-                    id = c.request("getPrimaryInfo", {})
-                    res = c.response(id)
-                    if res is None:
+                with node.node_client(request_timeout=request_timeout) as c:
+                    try:
+                        res = c.do("getPrimaryInfo", {})
+                        if res.error is None:
+                            primary_id = res.result["primary_id"]
+                            term = res.term
+                            break
+                        else:
+                            assert (
+                                res.error["code"]
+                                == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
+                            ), "RPC error code is not TX_NOT_PRIMARY"
+                    except TimeoutError:
                         pass
-                    elif res.error is None:
-                        primary_id = res.result["primary_id"]
-                        term = res.term
-                        break
-                    else:
-                        assert (
-                            res.error["code"]
-                            == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
-                        ), "RPC error code is not TX_NOT_PRIMARY"
             if primary_id is not None:
                 break
             time.sleep(1)
 
-        assert primary_id is not None, "No primary found"
+        if primary_id is None:
+            raise PrimaryNotFound
         return (self._get_node_by_id(primary_id), term)
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
-            primary, term = self.find_primary(timeout)
+            primary, term = self.find_primary(timeout=timeout)
         return [n for n in self.get_joined_nodes() if n != primary]
 
     def find_any_backup(self, primary=None, timeout=3):
         return random.choice(self.find_backups(primary=primary, timeout=timeout))
 
     def find_nodes(self, timeout=3):
-        primary, term = self.find_primary(timeout)
+        primary, term = self.find_primary(timeout=timeout)
         backups = self.find_backups(primary=primary, timeout=timeout)
         return primary, backups
 
@@ -418,30 +460,57 @@ class Network:
             time.sleep(1)
         assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
 
+    def wait_for_sealed_secrets_at_version(self, version, timeout=5):
+        """
+        Wait for a sealed secret at a version larger than "version" to be sealed
+        on all nodes.
+        """
+        for _ in range(timeout):
+            rekeyed_nodes = []
+            for node in self.get_joined_nodes():
+                max_sealed_version = int(
+                    max(node.get_sealed_secrets(), key=lambda x: int(x))
+                )
+                if max_sealed_version >= version:
+                    rekeyed_nodes.append(node)
+            if len(rekeyed_nodes) == len(self.get_joined_nodes()):
+                break
+            time.sleep(1)
+        assert len(rekeyed_nodes) == len(
+            self.get_joined_nodes()
+        ), f"Only {len(rekeyed_nodes)} (out of {len(self.get_joined_nodes())}) nodes have been rekeyed"
+
 
 @contextmanager
 def network(
-    hosts, build_directory, dbg_nodes=[], perf_nodes=[], pdb=False,
+    hosts, binary_directory=".", dbg_nodes=[], perf_nodes=[], pdb=False, txs=None
 ):
     """
     Context manager for Network class.
     :param hosts: a list of hostnames (localhost or remote hostnames)
-    :param build_directory: the build directory
+    :param binary_directory: the directory where CCF's binaries are located
     :param dbg_nodes: default: []. List of node id's that will not start (user is prompted to start them manually)
     :param perf_nodes: default: []. List of node ids that will run under perf record
+    :param pdb: default: False. Debugger.
+    :param txs: default: None. Transactions committed on that network.
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
-    with infra.path.working_dir(build_directory):
-        net = Network(hosts=hosts, dbg_nodes=dbg_nodes, perf_nodes=perf_nodes)
-        try:
-            yield net
-        except Exception:
-            if pdb:
-                import pdb
+    net = Network(
+        hosts=hosts,
+        binary_dir=binary_directory,
+        dbg_nodes=dbg_nodes,
+        perf_nodes=perf_nodes,
+        txs=txs,
+    )
+    try:
+        yield net
+    except Exception:
+        if pdb:
+            import pdb
 
-                pdb.set_trace()
-            else:
-                raise
-        finally:
-            net.stop_all_nodes()
+            pdb.set_trace()
+        else:
+            raise
+    finally:
+        net.stop_all_nodes()

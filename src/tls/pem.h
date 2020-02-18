@@ -19,11 +19,12 @@ namespace tls
     std::string s;
 
   public:
-    Pem(){};
+    Pem() = default;
+
+    Pem(const std::string& s_) : s(s_) {}
 
     Pem(CBuffer b)
     {
-      // TODO: https://github.com/microsoft/CCF/issues/601
       if (b.n == 0)
         throw std::logic_error("Got PEM of size 0.");
 
@@ -49,6 +50,11 @@ namespace tls
     {
       // +1 for null termination
       return s.size() + 1;
+    }
+
+    std::vector<uint8_t> raw()
+    {
+      return {data(), data() + size()};
     }
   };
 }

@@ -10,7 +10,7 @@ namespace enclave
   class RPCMap
   {
   private:
-    std::unordered_map<uint8_t, std::shared_ptr<RpcHandler>> map;
+    std::unordered_map<ccf::ActorsType, std::shared_ptr<RpcHandler>> map;
     std::map<std::string, ccf::ActorsType> actors_map;
 
   public:

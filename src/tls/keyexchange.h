@@ -73,6 +73,28 @@ namespace tls
       own_public.resize(len);
     }
 
+    KeyExchangeContext(KeyPairPtr own_kp, PublicKeyPtr peer_pubk) :
+      entropy(create_entropy())
+    {
+      mbedtls_ecdh_init(&ctx);
+
+      int rc = mbedtls_ecdh_get_params(
+        &ctx, mbedtls_pk_ec(*own_kp->get_raw_context()), MBEDTLS_ECDH_OURS);
+      if (rc != 0)
+      {
+        throw std::logic_error(error_string(rc));
+      }
+
+      rc = mbedtls_ecdh_get_params(
+        &ctx,
+        mbedtls_pk_ec(*peer_pubk->get_raw_context()),
+        MBEDTLS_ECDH_THEIRS);
+      if (rc != 0)
+      {
+        throw std::logic_error(error_string(rc));
+      }
+    }
+
     void free_ctx()
     {
       // Should only be called when shared secret has been computed.
@@ -87,7 +109,7 @@ namespace tls
     std::vector<uint8_t> get_own_public()
     {
       // Note that this function returns a vector of bytes size
-      // MBEDTLS_X25519_KEY_SIZE_BYTES + 1 with the first byte represents the
+      // MBEDTLS_X25519_KEY_SIZE_BYTES + 1 where the first byte represents the
       // size of the public key
       return own_public;
     }

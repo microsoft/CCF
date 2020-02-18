@@ -8,6 +8,8 @@
 #  include "entities.h"
 #  include "networktables.h"
 
+#  include <openenclave/bits/report.h>
+#  include <openenclave/bits/result.h>
 #  include <vector>
 
 namespace ccf
@@ -90,29 +92,29 @@ namespace ccf
       return verify_enclave_measurement(tx, network, cert, parsed_quote);
     }
 
-    static std::pair<bool, nlohmann::json> quote_verification_error_to_json(
+    static std::pair<int, std::string> quote_verification_error(
       QuoteVerificationResult result)
     {
       switch (result)
       {
         case FAIL_VERIFY_OE:
-          return jsonrpc::error(
+          return std::make_pair(
             jsonrpc::CCFErrorCodes::QUOTE_NOT_VERIFIED,
             "Quote could not be verified");
         case FAIL_VERIFY_CODE_ID_RETIRED:
-          return jsonrpc::error(
+          return std::make_pair(
             jsonrpc::CCFErrorCodes::CODE_ID_RETIRED,
             "Quote does not contain valid enclave measurement");
         case FAIL_VERIFY_CODE_ID_NOT_FOUND:
-          return jsonrpc::error(
+          return std::make_pair(
             jsonrpc::CCFErrorCodes::CODE_ID_NOT_FOUND,
             "Quote does not contain known enclave measurement");
         case FAIL_VERIFY_INVALID_HASH:
-          return jsonrpc::error(
+          return std::make_pair(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
             "Quote does not contain joining node certificate hash");
         default:
-          return jsonrpc::error(
+          return std::make_pair(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR, "Unknown error");
       }
     }

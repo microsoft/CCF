@@ -5,6 +5,7 @@
 #include "certs.h"
 #include "clientsignatures.h"
 #include "codeid.h"
+#include "consensus/pbft/pbftpreprepares.h"
 #include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttables.h"
 #include "consensus/raft/rafttables.h"
@@ -15,6 +16,7 @@
 #include "scripts.h"
 #include "secrets.h"
 #include "service.h"
+#include "shares.h"
 #include "signatures.h"
 #include "users.h"
 #include "values.h"
@@ -44,6 +46,7 @@ namespace ccf
     MemberAcks& member_acks;
     VotingHistoryTable& voting_history;
     ClientSignatures& member_client_signatures;
+    Shares& shares;
 
     //
     // User tables
@@ -69,13 +72,14 @@ namespace ccf
     //
     Service& service;
     Values& values;
-    Secrets& secrets_table;
+    Secrets& secrets;
     Signatures& signatures;
 
     //
     // Pbft related tables
     //
-    pbft::PbftRequests& pbft_requests;
+    pbft::RequestsMap& pbft_requests_map;
+    pbft::PrePreparesMap& pbft_pre_prepares_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::Raft) :
       tables(
@@ -102,6 +106,8 @@ namespace ccf
         Tables::VOTING_HISTORY, kv::SecurityDomain::PUBLIC)),
       member_client_signatures(
         tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
+      shares(
+        tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<Certs>(Tables::USER_CERTS)),
       user_client_signatures(
@@ -113,12 +119,14 @@ namespace ccf
         tables->create<Service>(Tables::SERVICE, kv::SecurityDomain::PUBLIC)),
       values(
         tables->create<Values>(Tables::VALUES, kv::SecurityDomain::PUBLIC)),
-      secrets_table(
+      secrets(
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       signatures(tables->create<Signatures>(
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
-      pbft_requests(
-        tables->create<pbft::PbftRequests>(pbft::Tables::PBFT_REQUESTS))
+      pbft_requests_map(
+        tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
+      pbft_pre_prepares_map(
+        tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

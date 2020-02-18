@@ -9,13 +9,13 @@ from loguru import logger as LOG
 benchmark_specs = {
     "kv_bench.csv": [
         {
-            "_name": "KV Serialise",
+            "_name": "KV ser (/s)^",
             "Suite": "serialise",
             "Benchmark": "serialise<SD::PUBLIC>",
             "D": "10",
         },
         {
-            "_name": "KV Deserialise",
+            "_name": "KV deser (/s)^",
             "Suite": "deserialise",
             "Benchmark": "deserialise<SD::PUBLIC>",
             "D": "10",
@@ -23,13 +23,13 @@ benchmark_specs = {
     ],
     "map_bench.csv": [
         {
-            "_name": "Champ map put",
+            "_name": "CHAMP put (/s)^",
             "Suite": "put",
             "Benchmark": "bench_champ_map_put",
             "D": "2048",
         },
         {
-            "_name": "Champ map get",
+            "_name": "CHAMP get (/s)^",
             "Suite": "get",
             "Benchmark": "bench_champ_map_get",
             "D": "2048",
@@ -37,13 +37,13 @@ benchmark_specs = {
     ],
     "tls_bench.csv": [
         {
-            "_name": "secp256k1 verify",
+            "_name": "secp256k1 verify (/s)^",
             "Suite": "verify",
             "Benchmark": "verify_256k1_bitc_1k",
             "D": "1",
         },
         {
-            "_name": "secp256k1 sign",
+            "_name": "secp256k1 sign (/s)^",
             "Suite": "sign",
             "Benchmark": "sign_256k1_bitc_1k",
             "D": "1",

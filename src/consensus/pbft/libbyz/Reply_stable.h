@@ -26,7 +26,8 @@ struct Reply_stable_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(Reply_stable_rep) + max_sig_size < Max_message_size, "Invalid size");
+  sizeof(Reply_stable_rep) + pbft_max_signature_size < Max_message_size,
+  "Invalid size");
 
 class Reply_stable : public Message
 {
@@ -34,6 +35,8 @@ class Reply_stable : public Message
   //  Reply_stable messages
   //
 public:
+  Reply_stable(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Reply_stable(Seqno lc, Seqno lp, int n, Principal* p);
   // Effects: Creates a new authenticated Reply_stable message with
   // last checkpoint "lc", last prepared request "lp", for a

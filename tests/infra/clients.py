@@ -115,7 +115,7 @@ def human_readable_size(n):
 
 
 class FramedTLSClient:
-    def __init__(self, host, port, cert=None, key=None, ca=None):
+    def __init__(self, host, port, cert=None, key=None, ca=None, request_timeout=3):
         self.host = host
         self.port = port
         self.cert = cert
@@ -124,6 +124,7 @@ class FramedTLSClient:
         self.context = None
         self.sock = None
         self.conn = None
+        self.request_timeout = request_timeout
 
     def connect(self):
         if self.ca:
@@ -162,12 +163,13 @@ class FramedTLSClient:
         return data
 
     def read(self):
-        for _ in range(5000):
+        for _ in range(self.request_timeout * 100):
             r, _, _ = select.select([self.conn], [], [], 0)
             if r:
                 return self._read()
             else:
                 time.sleep(0.01)
+        raise TimeoutError
 
     def disconnect(self):
         self.conn.close()
@@ -242,6 +244,10 @@ class RPCFileLogger(RPCLogger):
             f.write(os.linesep)
 
 
+class CCFConnectionException(Exception):
+    pass
+
+
 class FramedTLSJSONRPCClient:
     def __init__(
         self,
@@ -253,21 +259,22 @@ class FramedTLSJSONRPCClient:
         version="2.0",
         format="msgpack",
         connection_timeout=3,
+        request_timeout=3,
         *args,
         **kwargs,
     ):
-        self.client = FramedTLSClient(host, int(port), cert, key, ca)
+        self.client = FramedTLSClient(host, int(port), cert, key, ca, request_timeout)
         self.stream = Stream(version, format=format)
         self.format = format
 
         while connection_timeout >= 0:
+            connection_timeout -= 0.1
             try:
                 self.connect()
                 break
-            except ssl.SSLError:
+            except (ssl.SSLError, ssl.SSLCertVerificationError):
                 if connection_timeout < 0:
-                    raise
-            connection_timeout -= 0.1
+                    raise CCFConnectionException
             time.sleep(0.1)
 
     def connect(self):
@@ -291,8 +298,6 @@ class FramedTLSJSONRPCClient:
 
 # We keep this around in a limited fashion still, because
 # the resulting logs nicely illustrate manual usage in a way using requests doesn't
-class CurlClientSSLException(Exception):
-    pass
 
 
 class CurlClient:
@@ -305,7 +310,9 @@ class CurlClient:
         ca,
         version,
         format,
+        binary_dir,
         connection_timeout,
+        request_timeout,
         *args,
         **kwargs,
     ):
@@ -315,7 +322,9 @@ class CurlClient:
         self.key = key
         self.ca = ca
         self.format = "json"
+        self.binary_dir = binary_dir
         self.connection_timeout = connection_timeout
+        self.request_timeout = request_timeout
         self.stream = Stream(version, "json")
 
     def _just_request(self, request, is_signed=False):
@@ -325,7 +334,7 @@ class CurlClient:
             nf.write(msg)
             nf.flush()
             if is_signed:
-                cmd = ["./scurl.sh"]
+                cmd = [os.path.join(self.binary_dir, "scurl.sh")]
             else:
                 cmd = ["curl"]
 
@@ -336,6 +345,7 @@ class CurlClient:
                 "--data-binary",
                 f"@{nf.name}",
                 "-w \\n%{http_code}",
+                f"-m {self.request_timeout}",
             ]
 
             if self.ca:
@@ -348,8 +358,10 @@ class CurlClient:
             rc = subprocess.run(cmd, capture_output=True)
 
             if rc.returncode != 0:
-                if rc.returncode == 60:
-                    raise CurlClientSSLException
+                if rc.returncode == 60:  # PEER_FAILED_VERIFICATION
+                    raise CCFConnectionException
+                if rc.returncode == 28:  # OPERATION_TIMEDOUT
+                    raise TimeoutError
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
@@ -365,14 +377,15 @@ class CurlClient:
 
     def _request(self, request, is_signed=False):
         while self.connection_timeout >= 0:
+            self.connection_timeout -= 0.1
             try:
                 rid = self._just_request(request, is_signed)
                 self._request = self._just_request
                 return rid
-            except CurlClientSSLException:
+            except CCFConnectionException:
                 if self.connection_timeout < 0:
                     raise
-            self.connection_timeout -= 0.1
+            time.sleep(0.1)
 
     def request(self, request):
         return self._request(request, is_signed=False)
@@ -399,6 +412,8 @@ class RequestClient:
         format,
         connection_timeout,
         request_timeout,
+        *args,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -416,21 +431,24 @@ class RequestClient:
             json=request.to_dict(),
             cert=(self.cert, self.key),
             verify=self.ca,
-            timeout=self.request_timeout,
+            timeout=(self.connection_timeout, self.request_timeout),
         )
         self.stream.update(rep.content)
         return request.id
 
     def request(self, request):
         while self.connection_timeout >= 0:
+            self.connection_timeout -= 0.1
             try:
                 rid = self._just_request(request)
                 self.request = self._just_request
                 return rid
             except requests.exceptions.SSLError:
                 if self.connection_timeout < 0:
-                    raise
-            self.connection_timeout -= 0.1
+                    raise CCFConnectionException
+            except requests.exceptions.ReadTimeout:
+                raise TimeoutError
+            time.sleep(0.1)
 
     def signed_request(self, request):
         with open(self.key, "rb") as k:
@@ -470,6 +488,8 @@ class WSClient:
         format,
         connection_timeout,
         request_timeout,
+        *args,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -485,11 +505,6 @@ class WSClient:
             f"wss://{self.host}:{self.port}",
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
         )
-        # TODO: Support sending data over websocket
-        # ws.send(request.to_json())
-        # res = ws.recv()
-        # ws.close()
-        # self.stream.update(rep.content)
         return request.id
 
     def signed_request(self, request):
@@ -509,15 +524,12 @@ class CCFClient:
         self.rpc_loggers = (RPCLogger(),)
         self.name = "[{}:{}]".format(kwargs.get("host"), kwargs.get("port"))
 
-        if os.getenv("HTTP"):
-            if os.getenv("CURL_CLIENT"):
-                self.client_impl = CurlClient(*args, **kwargs)
-            elif os.getenv("WEBSOCKETS_CLIENT"):
-                self.client_impl = WSClient(*args, **kwargs)
-            else:
-                self.client_impl = RequestClient(*args, **kwargs)
+        if os.getenv("CURL_CLIENT"):
+            self.client_impl = CurlClient(*args, **kwargs)
+        elif os.getenv("WEBSOCKETS_CLIENT"):
+            self.client_impl = WSClient(*args, **kwargs)
         else:
-            self.client_impl = FramedTLSJSONRPCClient(*args, **kwargs)
+            self.client_impl = RequestClient(*args, **kwargs)
 
     def disconnect(self):
         self.client_impl.disconnect()
@@ -585,10 +597,11 @@ def client(
     key=None,
     ca=None,
     version="2.0",
-    format="json" if os.getenv("HTTP") else "msgpack",
+    format="json",
     description=None,
     log_file=None,
     prefix="users",
+    binary_dir=".",
     connection_timeout=3,
     request_timeout=3,
 ):
@@ -602,6 +615,7 @@ def client(
         format=format,
         description=description,
         prefix=prefix,
+        binary_dir=binary_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,
     )

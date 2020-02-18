@@ -52,47 +52,40 @@ namespace jsonrpc
 
   using ErrorBaseType = int;
 
-  enum class StandardErrorCodes : ErrorBaseType
+  enum StandardErrorCodes : ErrorBaseType
   {
 #define XX(Name, Value) Name = Value,
     XX_STANDARD_ERROR_CODES
 #undef XX
   };
 
-  enum class CCFErrorCodes : ErrorBaseType
+  enum CCFErrorCodes : ErrorBaseType
   {
 #define XX(Name, Value) Name = Value,
     XX_CCF_ERROR_CODES
 #undef XX
   };
 
-  inline std::string get_error_prefix(StandardErrorCodes ec)
-  {
-#define XX(Name, Value) \
-  case (StandardErrorCodes::Name): \
-    return "[" #Name "]: ";
-
-    switch (ec)
-    {
-      XX_STANDARD_ERROR_CODES
-    }
-
-#undef XX
-
-    return "";
-  }
-
-  inline std::string get_error_prefix(CCFErrorCodes ec)
+  inline std::string get_error_prefix(ErrorBaseType ec)
   {
 #define XX(Name, Value) \
   case (CCFErrorCodes::Name): \
     return "[" #Name "]: ";
 
-    switch (ec)
+    switch (CCFErrorCodes(ec))
     {
       XX_CCF_ERROR_CODES
     }
+#undef XX
 
+#define XX(Name, Value) \
+  case (StandardErrorCodes::Name): \
+    return "[" #Name "]: ";
+
+    switch (StandardErrorCodes(ec))
+    {
+      XX_STANDARD_ERROR_CODES
+    }
 #undef XX
 
     return "";
@@ -262,7 +255,7 @@ namespace jsonrpc
     template <typename ErrorEnum>
     Error(ErrorEnum error_code, const std::string& msg = "") :
       code(static_cast<ErrorBaseType>(error_code)),
-      message(get_error_prefix(error_code) + msg)
+      message(get_error_prefix(code) + msg)
     {}
   };
   DECLARE_JSON_TYPE(Error)

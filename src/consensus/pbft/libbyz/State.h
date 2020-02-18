@@ -92,7 +92,6 @@ public:
   class Iter
   {
   public:
-    // TODO figure out how this is done properly
     Iter(Checkpoint_rec* r) : it(r->parts.begin()), end(r->parts.end()) {}
     // Effects: Return an iterator for the partitions in r.
 
@@ -120,7 +119,12 @@ private:
 class State
 {
 public:
-  State(Replica* replica, char* memory, size_t num_bytes);
+  State(
+    Replica* replica,
+    char* memory,
+    size_t num_bytes,
+    size_t num_of_replicas,
+    size_t f);
   // Requires: mem is Block aligned and contains an integral number of
   // Blocks.
   // Effects: Creates an object that handles state digesting and
@@ -192,12 +196,6 @@ public:
   void check_state();
   // Effects: checks if state is correct.
 
-  bool shutdown(FILE* o, Seqno ls);
-  // Effects: Shuts down state writing value to "o"
-
-  bool restart(FILE* i, Replica* rep, Seqno ls, Seqno le, bool corrupt);
-  // Effects: Restarts the state object from value in "i"
-
   bool enforce_bound(Seqno b, Seqno ks, bool corrupt);
   // Effects: Enforces that there is no information above bound
   // "b". "ks" is the maximum sequence number that I know is stable.
@@ -213,9 +211,6 @@ public:
 
   void mark_stale();
   // Effects: Discards incomplete certificate.
-
-  void simulate_reboot();
-  // Effects: Simulates a reboot by invalidating state
 
   bool retrans_fetch(Time cur) const;
   // Effects: Returns true iff fetch should be retransmitted

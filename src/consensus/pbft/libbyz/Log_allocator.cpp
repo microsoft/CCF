@@ -3,11 +3,8 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#ifndef INSIDE_ENCLAVE
-#  include <sys/mman.h>
-#endif
-
 #include "Log_allocator.h"
+
 #include "ds/logger.h"
 
 #ifndef MAP_VARIABLE
@@ -21,16 +18,25 @@ Log_allocator::Log_allocator(int csz, int nc)
   num_chunks = nc;
   free_chunks = 0;
   chunks = 0;
-#ifndef USE_STD_MALLOC
   cur = alloc_chunk();
-#endif
 }
+
+void Log_allocator::should_use_malloc(bool _use_malloc)
+{
+  use_malloc = _use_malloc;
+}
+
+bool Log_allocator::use_malloc =
+#ifdef USE_STD_MALLOC
+  true
+#else
+  false
+#endif
+  ;
 
 Log_allocator::~Log_allocator()
 {
-#ifndef USE_STD_MALLOC
   ::free(chunks);
-#endif
 }
 
 Log_allocator::Chunk* Log_allocator::alloc_chunk()

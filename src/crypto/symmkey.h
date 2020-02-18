@@ -3,18 +3,21 @@
 #pragma once
 #include "../ds/buffer.h"
 #include "../ds/serialized.h"
+#include "ds/thread_messaging.h"
+
+struct mbedtls_gcm_context;
 
 namespace crypto
 {
+  constexpr size_t GCM_SIZE_KEY = 32;
   constexpr size_t GCM_SIZE_TAG = 16;
-  constexpr size_t GCM_SIZE_KEY = 16;
   constexpr size_t GCM_SIZE_IV = 12;
 
   template <size_t SIZE_IV = GCM_SIZE_IV>
   struct GcmHeader
   {
-    uint8_t tag[GCM_SIZE_TAG];
-    uint8_t iv[SIZE_IV];
+    uint8_t tag[GCM_SIZE_TAG] = {};
+    uint8_t iv[SIZE_IV] = {};
 
     // 12 bytes IV with 8 LSB are unique sequence number
     // and 4 MSB are 4 LSB of NodeId
@@ -31,20 +34,25 @@ namespace crypto
       memcpy(iv, data.data() + sizeof(tag), sizeof(iv));
     }
 
-    void setIvId(uint64_t id)
+    void set_iv_id(uint64_t id)
     {
       *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
         static_cast<uint32_t>(id);
     }
 
-    void setIvSeq(uint64_t seq)
+    void set_iv_seq(uint64_t seq)
     {
       *reinterpret_cast<uint64_t*>(iv) = seq;
     }
 
-    CBuffer getIv() const
+    CBuffer get_iv() const
     {
       return {iv, SIZE_IV};
+    }
+
+    uint64_t get_iv_int() const
+    {
+      return *reinterpret_cast<const uint64_t*>(iv);
     }
 
     std::vector<uint8_t> serialise()
@@ -105,7 +113,9 @@ namespace crypto
   class KeyAesGcm
   {
   private:
-    mutable void* ctx;
+    mutable std::
+      array<mbedtls_gcm_context*, enclave::ThreadMessaging::max_num_threads>
+        ctxs;
 
   public:
     KeyAesGcm(CBuffer rawKey);

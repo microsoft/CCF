@@ -34,6 +34,7 @@ auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
 auto user_cert = kp -> self_sign("CN=name_user");
+std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
@@ -125,7 +126,7 @@ json frontend_process(
 
   const enclave::SessionContext session(
     0, tls::make_verifier(caller)->der_cert_data());
-  const auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
+  auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 
   CHECK(serialized_response.has_value());
@@ -164,7 +165,7 @@ auto init_frontend(
   for (uint8_t i = 0; i < n_members; i++)
   {
     member_certs.push_back(get_cert_data(i, kp));
-    gen.add_member(member_certs.back(), MemberStatus::ACTIVE);
+    gen.add_member(member_certs.back(), {}, MemberStatus::ACTIVE);
   }
 
   set_whitelists(gen);
@@ -183,7 +184,9 @@ TEST_CASE("Member query/read")
   gen.init_values();
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
-  const auto member_id = gen.add_member(member_cert, MemberStatus::ACCEPTED);
+  frontend.open();
+  const auto member_id =
+    gen.add_member(member_cert, {}, MemberStatus::ACCEPTED);
   gen.finalize();
 
   const enclave::SessionContext member_session(
@@ -285,9 +288,10 @@ TEST_CASE("Proposer ballot")
   gen.init_values();
 
   const auto proposer_cert = get_cert_data(0, kp);
-  const auto proposer_id = gen.add_member(proposer_cert, MemberStatus::ACTIVE);
+  const auto proposer_id =
+    gen.add_member(proposer_cert, {}, MemberStatus::ACTIVE);
   const auto voter_cert = get_cert_data(1, kp);
-  const auto voter_id = gen.add_member(voter_cert, MemberStatus::ACTIVE);
+  const auto voter_id = gen.add_member(voter_cert, {}, MemberStatus::ACTIVE);
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -295,6 +299,7 @@ TEST_CASE("Proposer ballot")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   size_t proposal_id;
 
@@ -305,12 +310,15 @@ TEST_CASE("Proposer ballot")
 
     const auto proposed_member = get_cert_data(2, kp);
 
-    Script proposal(R"xxx(
-      tables, member_cert = ...
-      return Calls:call("new_member", member_cert)
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      tables, member_info = ...
+      return Calls:call("new_member", member_info)
     )xxx");
-    const auto proposej = create_json_req(
-      Propose::In{proposal, proposed_member, vote_against}, "propose");
+    proposal.parameter["cert"] = proposed_member;
+    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.ballot = vote_against;
+    const auto proposej = create_json_req(proposal, "propose");
     Response<Propose::Out> r =
       frontend_process(frontend, proposej, proposer_cert);
 
@@ -383,18 +391,19 @@ TEST_CASE("Add new members until there are 7 then reject")
   StubNodeState node;
   // add three initial active members
   // the proposer
-  auto proposer_id = gen.add_member(member_cert, MemberStatus::ACTIVE);
+  auto proposer_id = gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
 
   // the voters
   const auto voter_a_cert = get_cert_data(1, kp);
-  auto voter_a = gen.add_member(voter_a_cert, MemberStatus::ACTIVE);
+  auto voter_a = gen.add_member(voter_a_cert, {}, MemberStatus::ACTIVE);
   const auto voter_b_cert = get_cert_data(2, kp);
-  auto voter_b = gen.add_member(voter_b_cert, MemberStatus::ACTIVE);
+  auto voter_b = gen.add_member(voter_b_cert, {}, MemberStatus::ACTIVE);
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   vector<NewMember> new_members(n_new_members);
 
@@ -407,6 +416,7 @@ TEST_CASE("Add new members until there are 7 then reject")
     // new member certificate
     auto cert_pem =
       new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
+    auto keyshare = dummy_key_share;
     auto v = tls::make_verifier(cert_pem);
     const auto _cert = v->raw();
     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
@@ -418,13 +428,15 @@ TEST_CASE("Add new members until there are 7 then reject")
     check_error(r, CCFErrorCodes::INVALID_CALLER_ID);
 
     // propose new member, as proposer
-    Script proposal(R"xxx(
-      local tables, member_cert = ...
-      return Calls:call("new_member", member_cert)
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      tables, member_info = ...
+      return Calls:call("new_member", member_info)
     )xxx");
+    proposal.parameter["cert"] = cert_pem;
+    proposal.parameter["keyshare"] = keyshare;
 
-    const auto proposej =
-      create_json_req(Propose::In{proposal, cert_pem}, "propose");
+    const auto proposej = create_json_req(proposal, "propose");
 
     {
       Response<Propose::Out> r =
@@ -439,8 +451,8 @@ TEST_CASE("Add new members until there are 7 then reject")
     const Response<Proposal> initial_read =
       get_proposal(frontend, proposal_id, voter_a_cert);
     CHECK(initial_read.result.proposer == proposer_id);
-    CHECK(initial_read.result.script == proposal);
-    CHECK(initial_read.result.parameter == cert_pem);
+    CHECK(initial_read.result.script == proposal.script);
+    CHECK(initial_read.result.parameter == proposal.parameter);
 
     // vote as second member
     Script vote_ballot(fmt::format(
@@ -488,8 +500,8 @@ TEST_CASE("Add new members until there are 7 then reject")
         const Response<Proposal> final_read =
           get_proposal(frontend, proposal_id, voter_a_cert);
         CHECK(final_read.result.proposer == proposer_id);
-        CHECK(final_read.result.script == proposal);
-        CHECK(final_read.result.parameter == cert_pem);
+        CHECK(final_read.result.script == proposal.script);
+        CHECK(final_read.result.parameter == proposal.parameter);
 
         const auto my_vote = final_read.result.votes.find(voter_a);
         CHECK(my_vote != final_read.result.votes.end());
@@ -563,8 +575,8 @@ TEST_CASE("Accept node")
 
   const auto member_0_cert = get_cert_data(0, new_kp);
   const auto member_1_cert = get_cert_data(1, kp);
-  const auto member_0 = gen.add_member(member_0_cert, MemberStatus::ACTIVE);
-  const auto member_1 = gen.add_member(member_1_cert, MemberStatus::ACTIVE);
+  const auto member_0 = gen.add_member(member_0_cert, {}, MemberStatus::ACTIVE);
+  const auto member_1 = gen.add_member(member_1_cert, {}, MemberStatus::ACTIVE);
 
   // node to be tested
   // new node certificate
@@ -576,6 +588,7 @@ TEST_CASE("Accept node")
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
   auto node_id = 0;
 
   // check node exists with status pending
@@ -621,6 +634,70 @@ TEST_CASE("Accept node")
       frontend_process(frontend, read_values_j, member_0_cert);
     CHECK(r.result.status == NodeStatus::TRUSTED);
   }
+
+  // m0 proposes retire node
+  {
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("retire_node", node_id)
+    )xxx");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_0_cert);
+
+    CHECK(!r.result.completed);
+    CHECK(r.result.id == 1);
+  }
+
+  // m1 votes for retiring node
+  {
+    const Script vote_ballot("return true");
+    json votej = create_json_req_signed(Vote{1, vote_ballot}, "vote", kp);
+    check_success(frontend_process(frontend, votej, member_1_cert));
+  }
+
+  // check that node exists with status retired
+  {
+    auto read_values_j =
+      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    Response<NodeInfo> r =
+      frontend_process(frontend, read_values_j, member_0_cert);
+    CHECK(r.result.status == NodeStatus::RETIRED);
+  }
+
+  // check that retired node cannot be trusted
+  {
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("trust_node", node_id)
+    )xxx");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_0_cert);
+
+    const Script vote_ballot("return true");
+    json votej = create_json_req_signed(Vote{2, vote_ballot}, "vote", kp);
+    check_error(
+      frontend_process(frontend, votej, member_1_cert),
+      StandardErrorCodes::INTERNAL_ERROR);
+  }
+
+  // check that retired node cannot be retired again
+  {
+    Script proposal(R"xxx(
+      local tables, node_id = ...
+      return Calls:call("retire_node", node_id)
+    )xxx");
+    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    Response<Propose::Out> r =
+      frontend_process(frontend, proposej, member_0_cert);
+
+    const Script vote_ballot("return true");
+    json votej = create_json_req_signed(Vote{3, vote_ballot}, "vote", kp);
+    check_error(
+      frontend_process(frontend, votej, member_1_cert),
+      StandardErrorCodes::INTERNAL_ERROR);
+  }
 }
 
 bool test_raw_writes(
@@ -634,6 +711,7 @@ bool test_raw_writes(
 {
   std::vector<std::vector<uint8_t>> member_certs;
   auto frontend = init_frontend(network, gen, node, n_members, member_certs);
+  frontend.open();
 
   // check values before
   {
@@ -706,26 +784,29 @@ TEST_CASE("Propose raw writes")
       StubNodeState node;
       // manually add a member in state active (not recommended)
       const Cert member_cert = {1, 2, 3};
+      nlohmann::json params;
+      params["cert"] = member_cert;
+      params["keyshare"] = dummy_key_share;
       CHECK(
         test_raw_writes(
           network,
           gen,
           node,
           {R"xxx(
-        local tables, cert = ...
-        local STATE_ACTIVE = 1
+        local tables, param = ...
+        local STATE_ACTIVE = "ACTIVE"
         local NEXT_MEMBER_ID_VALUE = 0
         local p = Puts:new()
         -- get id
         local member_id = tables["ccf.values"]:get(NEXT_MEMBER_ID_VALUE)
         -- increment id
         p:put("ccf.values", NEXT_MEMBER_ID_VALUE, member_id + 1)
-        -- write member cert and status
-        p:put("ccf.members", member_id, {cert = cert, status = STATE_ACTIVE})
-        p:put("ccf.member_certs", cert, member_id)
+        -- write member info and status
+        p:put("ccf.members", member_id, {cert = param.cert, keyshare = param.keyshare, status = STATE_ACTIVE})
+        p:put("ccf.member_certs", param.cert, member_id)
         return Calls:call("raw_puts", p)
       )xxx"s,
-           member_cert},
+           params},
           n_members,
           pro_votes) == should_succeed);
       if (!should_succeed)
@@ -799,12 +880,13 @@ TEST_CASE("Remove proposal")
   gen.init_values();
 
   StubNodeState node;
-  gen.add_member(member_cert, MemberStatus::ACTIVE);
-  gen.add_member(cert, MemberStatus::ACTIVE);
+  gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
+  gen.add_member(cert, {}, MemberStatus::ACTIVE);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
   auto proposal_id = 0;
   auto wrong_proposal_id = 1;
   ccf::Script proposal_script(R"xxx(
@@ -887,6 +969,7 @@ TEST_CASE("Complete proposal after initial rejection")
   StubNodeState node;
   std::vector<std::vector<uint8_t>> member_certs;
   auto frontend = init_frontend(network, gen, node, 3, member_certs);
+  frontend.open();
 
   {
     INFO("Propose");
@@ -944,11 +1027,12 @@ TEST_CASE("Add user via proposed call")
   gen.init_values();
   StubNodeState node;
   const auto member_cert = get_cert_data(0, kp);
-  gen.add_member(member_cert, MemberStatus::ACTIVE);
+  gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   Script proposal(R"xxx(
     tables, user_cert = ...
@@ -985,14 +1069,15 @@ TEST_CASE("Passing members ballot with operator")
 
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, MemberStatus::ACTIVE);
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+    members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
   }
 
   set_whitelists(gen);
@@ -1002,6 +1087,7 @@ TEST_CASE("Passing members ballot with operator")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   size_t proposal_id;
   size_t proposer_id = 1;
@@ -1014,12 +1100,16 @@ TEST_CASE("Passing members ballot with operator")
 
     const auto proposed_member = get_cert_data(4, kp);
 
-    Script proposal(R"xxx(
-      tables, member_cert = ...
-      return Calls:call("new_member", member_cert)
+    Propose::In proposal;
+    proposal.script = std::string(R"xxx(
+      tables, member_info = ...
+      return Calls:call("new_member", member_info)
     )xxx");
-    const auto proposej = create_json_req(
-      Propose::In{proposal, proposed_member, vote_for}, "propose");
+    proposal.parameter["cert"] = proposed_member;
+    proposal.parameter["keyshare"] = dummy_key_share;
+    proposal.ballot = vote_for;
+
+    const auto proposej = create_json_req(proposal, "propose");
     Response<Propose::Out> r = frontend_process(
       frontend,
       proposej,
@@ -1093,14 +1183,15 @@ TEST_CASE("Passing operator vote")
 
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, MemberStatus::ACTIVE);
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+    members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
   }
 
   set_whitelists(gen);
@@ -1110,6 +1201,7 @@ TEST_CASE("Passing operator vote")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   size_t proposal_id;
 
@@ -1178,14 +1270,15 @@ TEST_CASE("Members passing an operator vote")
 
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
-  const auto operator_id = gen.add_member(operator_cert, MemberStatus::ACTIVE);
+  const auto operator_id =
+    gen.add_member(operator_cert, {}, MemberStatus::ACTIVE);
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, MemberStatus::ACTIVE)] = cert;
+    members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
   }
 
   set_whitelists(gen);
@@ -1195,6 +1288,7 @@ TEST_CASE("Members passing an operator vote")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   size_t proposal_id;
 
@@ -1285,7 +1379,7 @@ TEST_CASE("User data")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
-  const auto member_id = gen.add_member(member_cert, MemberStatus::ACTIVE);
+  const auto member_id = gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
   const auto user_id = gen.add_user(user_cert);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -1293,6 +1387,7 @@ TEST_CASE("User data")
 
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
+  frontend.open();
 
   const auto read_user_info =
     create_json_req(read_params(user_id, Tables::USERS), "read");

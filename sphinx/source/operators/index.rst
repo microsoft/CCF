@@ -11,3 +11,4 @@ This section describes how :term:`operators` manage the different nodes constitu
     recovery
     node_output
     operator_rpc_api
+    resource_usage

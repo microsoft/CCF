@@ -31,8 +31,6 @@ struct PP_info
   BR_map breqs; // Bitmap with missing big reqs
 };
 
-// TODO: these messages should have some kind of sequence number
-// to prevent replays to be used to cause denial of service.
 struct Status_rep : public Message_rep
 {
   View v; // Replica's current view
@@ -58,12 +56,12 @@ struct Status_rep : public Message_rep
 
 static_assert(
   sizeof(Status_rep) + 2 * (max_out + 7) / 8 + sizeof(BR_info) * max_out +
-      max_sig_size <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 static_assert(
   sizeof(Status_rep) + Status_rep::vcs_size + sizeof(PP_info) * max_out +
-      max_sig_size <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 
@@ -73,6 +71,8 @@ class Status : public Message
   //  Status messages
   //
 public:
+  Status(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Status(View v, Seqno ls, Seqno le, bool hnvi, bool hnvm);
   // Effects: Creates a new unauthenticated Status message.  "v"
   // should be the sending replica's current view, "ls" should be the

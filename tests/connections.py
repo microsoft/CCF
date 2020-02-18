@@ -4,7 +4,7 @@ import sys
 import os
 import infra.proc
 
-import e2e_args
+import infra.e2e_args
 import getpass
 import os
 import time
@@ -26,7 +26,7 @@ def run(args):
     hosts = ["localhost"]
 
     with infra.ccf.network(
-        hosts, args.build_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = infra.checker.Checker()
         network.start_and_join(args)
@@ -94,9 +94,9 @@ if __name__ == "__main__":
         parser.add_argument(
             "-p",
             "--package",
-            help="The enclave package to load (e.g., libloggingenc)",
-            default="libloggingenc",
+            help="The enclave package to load (e.g., liblogging)",
+            default="liblogging",
         )
 
-    args = e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args(add)
     run(args)

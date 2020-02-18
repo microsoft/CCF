@@ -56,7 +56,8 @@ namespace kv
   {
     FAILED = 0,
     PASS = 1,
-    PASS_SIGNATURE = 2
+    PASS_SIGNATURE = 2,
+    PASS_PRE_PREPARE = 3
   };
 
   enum ReplicateType
@@ -80,13 +81,20 @@ namespace kv
     }
   };
 
-  class TxHistory
+  class Syncable
+  {
+  public:
+    virtual void rollback(Version v) = 0;
+    virtual void compact(Version v) = 0;
+  };
+
+  class TxHistory : public Syncable
   {
   public:
     using RequestID = std::tuple<
       size_t /* Caller ID */,
       size_t /* Client Session ID */,
-      size_t /* JSON-RPC sequence number */>;
+      size_t /* Request sequence number */>;
 
     struct RequestCallbackArgs
     {
@@ -124,8 +132,6 @@ namespace kv
       const uint8_t* all_data,
       size_t all_data_size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
-    virtual void rollback(Version v) = 0;
-    virtual void compact(Version v) = 0;
     virtual void emit_signature() = 0;
     virtual bool add_request(
       kv::TxHistory::RequestID id,
@@ -184,6 +190,7 @@ namespace kv
       NodeId node_id;
       std::string host_name;
       std::string port;
+      std::vector<uint8_t> cert;
     };
 
     Consensus(NodeId id) : local_id(id), state(Backup){};
@@ -301,7 +308,7 @@ namespace kv
     }
   };
 
-  class AbstractTxEncryptor
+  class AbstractTxEncryptor : public Syncable
   {
   public:
     virtual ~AbstractTxEncryptor() {}
@@ -318,6 +325,8 @@ namespace kv
       std::vector<uint8_t>& plain,
       kv::Version version) = 0;
     virtual size_t get_header_length() = 0;
+    virtual void update_encryption_key(
+      Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
   };
 
   class AbstractStore
@@ -336,7 +345,6 @@ namespace kv
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v) = 0;
-    // TODO (#api): split out?
     virtual CommitSuccess commit(
       Version v, PendingTx pt, bool globally_committable) = 0;
     virtual size_t commit_gap() = 0;

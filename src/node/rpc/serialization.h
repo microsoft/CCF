@@ -22,29 +22,37 @@ namespace ccf
   DECLARE_JSON_TYPE(GetQuotes::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Out, quotes)
 
-  DECLARE_JSON_TYPE(Secret)
-  DECLARE_JSON_REQUIRED_FIELDS(Secret, cert, priv_key, master)
-  DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::Out::NetworkInfo, network_secrets, version)
-
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::In, raw_fresh_key, node_info_network, quote)
+    JoinNetworkNodeToNode::In, node_info_network, quote, public_encryption_key)
+
+  DECLARE_JSON_TYPE(NetworkIdentity)
+  DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
+
+  DECLARE_JSON_TYPE(LedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecret, master)
+  DECLARE_JSON_TYPE(LedgerSecrets)
+  DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_map)
+  DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JoinNetworkNodeToNode::Out::NetworkInfo, ledger_secrets, identity)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    JoinNetworkNodeToNode::Out, node_status, node_id, public_only)
   DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
 
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
     CreateNetworkNodeToNode::In,
-    member_cert,
+    members_info,
     gov_script,
     node_cert,
     network_cert,
     quote,
+    public_encryption_key,
     code_digest,
-    node_info_network)
+    node_info_network,
+    genesis_key_share_info)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::In)

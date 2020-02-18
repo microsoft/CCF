@@ -8,7 +8,7 @@
 #include "Digest.h"
 #include "Message.h"
 #include "Prepare.h"
-#include "keypair.h"
+#include "tls/keypair.h"
 #include "types.h"
 
 class Principal;
@@ -24,28 +24,29 @@ struct Pre_prepare_rep : public Message_rep
 {
   View view;
   Seqno seqno;
-  std::array<uint8_t, MERKLE_ROOT_SIZE> full_state_merkle_root;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   int64_t ctx; // a context provided when a the batch is executed
                // the contents are opaque
   Digest digest; // digest of request set concatenated with
                  // big reqs and non-deterministic choices
   int rset_size; // size in bytes of request set
-  short n_big_reqs; // number of big requests
-  short non_det_size; // size in bytes of non-deterministic choices
+  int n_big_reqs; // number of big requests
 
 #ifdef SIGN_BATCH
-  KeyPair::Signature batch_digest_signature;
+  size_t sig_size;
+  PbftSignature batch_digest_signature;
+  static constexpr size_t padding_size =
+    ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
+  std::array<uint8_t, padding_size> padding;
 #endif
 
   // Followed by "rset_size" bytes of the request set, "n_big_reqs"
-  // Digest's, "non_det_size" bytes of non-deterministic choices, and
-  // a variable length signature in the above order.
+  // Digest's variable length signature in the above order.
 };
 #pragma pack(pop)
 static_assert(
   sizeof(Pre_prepare_rep) + sizeof(Digest) * Max_requests_in_batch +
-      max_sig_size <
+      pbft_max_signature_size <
     Max_message_size,
   "Invalid size");
 
@@ -57,6 +58,8 @@ class Pre_prepare : public Message
   // Pre_prepare messages
   //
 public:
+  Pre_prepare(uint32_t msg_size = 0) : Message(msg_size) {}
+
   Pre_prepare(View v, Seqno s, Req_queue& reqs, size_t& requests_in_batch);
   // Effects: Creates a new signed Pre_prepare message with view
   // number "v", sequence number "s", the requests in "reqs" (up to a
@@ -92,12 +95,9 @@ public:
   // Effects: Fetches the digest from the message.
 
   void set_merkle_roots_and_ctx(
-    const std::array<uint8_t, MERKLE_ROOT_SIZE>& full_state_merkle_root,
     const std::array<uint8_t, MERKLE_ROOT_SIZE>& replicated_state_merkle_root,
     int64_t ctx);
 
-  const std::array<uint8_t, MERKLE_ROOT_SIZE>& get_full_state_merkle_root()
-    const;
   const std::array<uint8_t, MERKLE_ROOT_SIZE>&
   get_replicated_state_merkle_root() const;
 
@@ -130,6 +130,9 @@ public:
     // requests, it returns false. If the request has not arrived yet
     // is_request_present is set to false
 
+    bool has_more_requests();
+    // Effects: Returns true if the time get is called a Request can be returned
+
   private:
     Pre_prepare* msg;
     char* next_req;
@@ -138,14 +141,9 @@ public:
   friend class Requests_iter;
 
 #ifdef SIGN_BATCH
-  KeyPair::Signature& get_digest_sig() const
+  PbftSignature& get_digest_sig() const
   {
     return rep().batch_digest_signature;
-  }
-
-  static constexpr uint16_t get_digest_sig_size()
-  {
-    return sizeof(sizeof(uint8_t) * signature_size);
   }
 #endif
 
@@ -197,10 +195,6 @@ private:
   Digest* big_reqs();
   // Effects: Returns a pointer to the first digest of a big request
   // in this.
-
-  char* non_det_choices();
-  // Effects: Returns a pointer to the buffer with non-deterministic
-  // choices.
 };
 
 inline Pre_prepare_rep& Pre_prepare::rep() const
@@ -221,19 +215,6 @@ inline Digest* Pre_prepare::big_reqs()
   char* ret = requests() + rep().rset_size;
   PBFT_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
   return (Digest*)ret;
-}
-
-inline char* Pre_prepare::non_det_choices()
-{
-  char* ret = ((char*)big_reqs()) + rep().n_big_reqs * sizeof(Digest);
-  PBFT_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
-  return ret;
-}
-
-inline char* Pre_prepare::choices(int& len)
-{
-  len = rep().non_det_size;
-  return non_det_choices();
 }
 
 inline View Pre_prepare::view() const

@@ -19,6 +19,7 @@ extern "C"
 #include "Statistics.h"
 #include "Timer.h"
 #include "ds/files.h"
+#include "ds/thread_messaging.h"
 #include "libbyz.h"
 #include "network_impl.h"
 #include "nodeinfo.h"
@@ -27,6 +28,9 @@ extern "C"
 #include "test_message.h"
 
 static const int Simple_size = 4096;
+
+enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 enum class MeasureState : int
 {
@@ -108,13 +112,21 @@ int main(int argc, char** argv)
   }
 
   GeneralInfo general_info = files::slurp_json(config_file);
-  std::string privk = files::slurp_string(privk_file);
+  PrivateKey privk_j = files::slurp_json(privk_file);
   NodeInfo node_info;
+  tls::KeyPairPtr kp = tls::make_key_pair(privk_j.privk);
+  auto node_cert = kp->self_sign("CN=CCF node");
+
+  for (auto& pi : general_info.principal_info)
+  {
+    pi.cert = node_cert;
+  }
+
   for (auto& pi : general_info.principal_info)
   {
     if (pi.id == id)
     {
-      node_info = {pi, privk, general_info};
+      node_info = {pi, privk_j.privk, general_info};
       break;
     }
   }

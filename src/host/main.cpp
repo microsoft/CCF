@@ -3,6 +3,7 @@
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
+#include "ds/net.h"
 #include "ds/nonblocking.h"
 #include "ds/oversized.h"
 #include "enclave.h"
@@ -53,6 +54,13 @@ int main(int argc, char** argv)
   std::string consensus = "raft";
   app.add_set("-c,--consensus", consensus, {"raft", "pbft"}, "Consensus", true)
     ->required();
+
+  size_t num_worker_threads = 0;
+  app.add_option(
+    "-w,--worker_threads",
+    num_worker_threads,
+    "number of worker threads inside the enclave",
+    true);
 
   cli::ParsedAddress node_address;
   cli::add_address_option(
@@ -216,14 +224,12 @@ int main(int argc, char** argv)
     ->check(CLI::ExistingFile)
     ->required();
 
-  std::vector<std::string> member_cert_files;
-  start
-    ->add_option(
-      "--member-cert",
-      member_cert_files,
-      "Certificate files of the initial consortium members",
-      true)
-    ->check(CLI::ExistingFile)
+  std::vector<cli::ParsedMemberInfo> members_info;
+  cli::add_member_info_option(
+    *start,
+    members_info,
+    "--member-info",
+    "Initial consortium members information (public identity,public key share)")
     ->required();
 
   auto join = app.add_subcommand("join", "Join existing network");
@@ -234,6 +240,14 @@ int main(int argc, char** argv)
       "Path to certificate of existing network to join",
       true)
     ->check(CLI::ExistingFile);
+
+  size_t join_timer = 1000;
+  join->add_option(
+    "--join-timer",
+    join_timer,
+    "Duration after which the joining node will resend join requests to "
+    "existing network (ms)",
+    true);
 
   cli::ParsedAddress target_rpc_address;
   cli::add_address_option(
@@ -257,6 +271,14 @@ int main(int argc, char** argv)
   if (!(*public_rpc_address_option))
   {
     public_rpc_address = rpc_address;
+  }
+
+  if (domain.empty() && !ds::is_valid_ip(rpc_address.hostname.c_str()))
+  {
+    throw std::logic_error(fmt::format(
+      "--rpc-address ({}) does not appear to specify valid IP address. "
+      "Please specify a domain name via the --domain option.",
+      rpc_address.hostname));
   }
 
   uint32_t oe_flags = 0;
@@ -351,14 +373,15 @@ int main(int argc, char** argv)
   {
     start_type = StartType::New;
 
-    for (auto const& cert_file : member_cert_files)
+    for (auto const& m_info : members_info)
     {
-      ccf_config.genesis.member_certs.emplace_back(files::slurp(cert_file));
+      ccf_config.genesis.members_info.emplace_back(
+        files::slurp(m_info.cert_file), files::slurp(m_info.keyshare_pub_file));
     }
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
     LOG_INFO_FMT(
       "Creating new node: new network (with {} initial member(s))",
-      ccf_config.genesis.member_certs.size());
+      ccf_config.genesis.members_info.size());
   }
   else if (*join)
   {
@@ -371,6 +394,7 @@ int main(int argc, char** argv)
     ccf_config.joining.target_host = target_rpc_address.hostname;
     ccf_config.joining.target_port = target_rpc_address.port;
     ccf_config.joining.network_cert = files::slurp(network_cert_file);
+    ccf_config.joining.join_timer = join_timer;
   }
   else if (*recover)
   {
@@ -385,7 +409,8 @@ int main(int argc, char** argv)
     quote,
     network_cert,
     start_type,
-    consensus_type);
+    consensus_type,
+    num_worker_threads);
 
   LOG_INFO_FMT("Created new node");
 
@@ -415,13 +440,9 @@ int main(int argc, char** argv)
 
 #ifdef GET_QUOTE
   files::dump(quote, quote_file);
-
-  if (!enclave.verify_quote(quote, node_cert))
-    LOG_FATAL_FMT("Verification of local node quote failed");
 #endif
 
-  // Start a thread which will ECall and process messages inside the enclave
-  auto enclave_thread = std::thread([&]() {
+  auto enclave_thread_start = [&]() {
 #ifndef VIRTUAL_ENCLAVE
     try
 #endif
@@ -441,10 +462,20 @@ int main(int argc, char** argv)
       throw;
     }
 #endif
-  });
+  };
+
+  // Start threads which will ECall and process messages inside the enclave
+  std::vector<std::thread> threads;
+  for (uint32_t i = 0; i < (num_worker_threads + 1); ++i)
+  {
+    threads.emplace_back(std::thread(enclave_thread_start));
+  }
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-  enclave_thread.join();
+  for (auto& t : threads)
+  {
+    t.join();
+  }
 
   return 0;
 }

@@ -3,19 +3,8 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#ifndef INSIDE_ENCLAVE
-#  include <stdio.h>
-#  include <stdlib.h>
-#  include <string.h>
-#endif
-
-#ifndef INSIDE_ENCLAVE
-#  include <sys/time.h>
-#  include <sys/types.h>
-#  include <unistd.h>
-#endif
-
 #include "Client.h"
+
 #include "ITimer.h"
 #include "Message.h"
 #include "Reply.h"
@@ -26,8 +15,18 @@
 
 Client::Client(const NodeInfo& node_info, INetwork* network) :
   Node(node_info),
-  t_reps([this]() { return 2 * f() + 1; }),
-  c_reps([this]() { return f() + 1; })
+  t_reps(
+    node_info.general_info.max_faulty,
+    node_info.general_info.max_faulty == 0 ?
+      1 :
+      node_info.general_info.num_replicas - node_info.general_info.max_faulty,
+    [this]() { return 2 * f() + 1; }),
+  c_reps(
+    node_info.general_info.max_faulty,
+    node_info.general_info.max_faulty == 0 ?
+      1 :
+      node_info.general_info.num_replicas - node_info.general_info.max_faulty,
+    [this]() { return f() + 1; })
 {
   // Fail if node is a replica.
   LOG_INFO << "my id " << id() << std::endl;
@@ -144,9 +143,7 @@ Reply* Client::recv_reply()
       t_reps.clear();
       c_reps.clear();
 
-      // Choose view in returned rep. TODO: could make performance
-      // more robust to attacks by picking the median view in the
-      // certificate.
+      // Choose view in returned rep
       v = rep->view();
       cur_primary = v % num_replicas;
 

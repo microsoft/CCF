@@ -3,8 +3,8 @@ Starting a New Network
 
 .. note:: Before creating a new network:
 
-    - The :ref:`identity of the initial members of the consortium must be created <Member Governance>`.
-    - The :ref:`constitution should have been agreed by the initial members <Constitution>`.
+    - The :ref:`identity of the initial members of the consortium must be created <members/index:Member Governance>`.
+    - The :ref:`constitution should have been agreed by the initial members <members/constitution:Constitution>`.
 
 Starting the First Node
 -----------------------
@@ -17,30 +17,33 @@ To create a new CCF network, the first node of the network should be started wit
     --enclave-file /path/to/enclave_library
     --enclave-type debug
     --node-address node_ip:node_port
-    --rpc-address rpc_ip:rpc_port
-    --public-rpc-address public_rpc_ip:public_rpc_port
+    --rpc-address <ccf-node-address>
+    --public-rpc-address <ccf-node-public-address>
+    [--domain domain]
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
     --quote-file /path/to/quote
     start
     --network-cert-file /path/to/network_certificate
-    --member-cert /path/to/member1_cert
-    [--member-cert /path/to/member2_cert ...]
+    --member-info /path/to/member1_cert,/path/to/member1_kshare_pub
+    [--member-info /path/to/member2_cert,/path/to/member2_kshare_pub ...]
     --gov-script /path/to/lua/governance_script
+
+CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying domain names. If domain names are to be used then ``--domain`` should be passed to the node at startup. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
 .. note:: To start a CCF node in `virtual` mode, operators should run ``$ cchost.virtual --enclave-file /path/to/virtual_enclave_library ...``
 
 When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. A quote file, required for remote attestation, is also output at the location specified by ``--quote-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
-.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. For the ``client`` and ``memberclient`` utilities, ``--ca /path/to/network_certificate`` should always be specified.
+.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
 
-The certificates of initial members of the consortium are specified via ``--member-cert``. For example, if 3 members (``member1_cert.pem``, ``member2_cert.pem`` and ``member3_cert.pem``) should be added to CCF, operators should specify ``--member-cert member1_cert.pem --member-cert member2_cert.pem --member-cert member3_cert.pem``.
+The certificates and key-share public keys of initial members of the consortium are specified via ``--member-info``. For example, if 3 members should be added to CCF, operators should specify ``--member-info member1_cert.pem,member1_kshare_pub.pem``, ``--member-info member2_cert.pem,member2_kshare_pub.pem``, ``--member-info member3_cert.pem,member3_kshare_pub.pem``.
 
 The :term:`constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
 
 The network is now in its opening state and any new nodes can join the network without being trusted by members.
 
-.. note:: Once a CCF network is started, :ref:`members can add other members and users via governance <Opening a Network>`.
+.. note:: Once a CCF network is started, :ref:`members can add other members and users via governance <members/open_network:Opening a Network>`.
 
 Adding a New Node to the Network
 --------------------------------
@@ -53,35 +56,34 @@ To add a new node to an existing opening network, other nodes should be started 
     --enclave-file /path/to/enclave_library
     --enclave-type debug
     --node-address node_ip:node_port
-    --rpc-address rpc_ip:rpc_port
-    --public-rpc-address public_rpc_ip:public_rpc_port
+    --rpc-address <ccf-node-address>
+    --public-rpc-address <ccf-node-public-address>
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
     --quote-file /path/to/quote
     join
     --network-cert-file /path/to/existing/network_certificate
-    --target-rpc-address target_rpc_ip:target_rpc_port
+    --target-rpc-address <another-ccf-node-address>
 
 The joining node takes the certificate of the existing network to join via ``--network-cert-file`` and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``--target-rpc-address``.
 
-If the network has not yet been opened by members (see :ref:`Opening the Network`), the joining node becomes part of the network immediately [#remote_attestation]_.
+If the network has not yet been opened by members (see :ref:`members/open_network:Opening the Network`), the joining node becomes part of the network immediately [#remote_attestation]_.
 
-If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`Trusting a New Node`).
+If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`members/common_member_operations:Trusting a New Node`).
 
-.. note:: When starting up the network or when joining an existing network, the network secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`Catastrophic Recovery` for more details on how to recover a crashed network.
-.. note:: CCF nodes can be started by using IP Addresses (both IPv4 and IPV6 are supported) or by specifying domain names. If domain names are to be used then ``--domain=<node domain name>`` should be passed to the node at startup. Once a DNS has been setup it will then be possible to connect to the node over TLS by using the node's domain name.
+.. note:: When starting up the network or when joining an existing network, the secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`operators/recovery:Catastrophic Recovery` for more details on how to recover a crashed network.
 
 Opening a Network to Users
 --------------------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <Opening a Network>` to :term:`users` via governance.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <members/open_network:Opening a Network>` to :term:`users` via governance.
 
 Summary diagram
 ---------------
 
-Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :ref:`Opening a Network`). Only then are users authorised to issue JSON-RPC transactions to CCF.
+Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :ref:`members/open_network:Opening a Network`). Only then are users authorised to issue commands to CCF.
 
-.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`Member Governance` for more information about member governance.
+.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`members/index:Member Governance` for more information about member governance.
 
 The following diagram summarises the steps required to bootstrap a CCF network:
 

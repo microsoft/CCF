@@ -1,7 +1,7 @@
 Operator RPC API
 ================
 
-As well as the following methods, :ref:`Common Methods` also available to operators.
+As well as the following methods, :ref:`users/rpc_api:Common Methods` also available to operators.
 
 getQuotes
 ~~~~~~~~~

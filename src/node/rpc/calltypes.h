@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
-#include "node/networksecrets.h"
+#include "node/identity.h"
+#include "node/ledgersecrets.h"
 #include "node/nodes.h"
 #include "nodecalltypes.h"
 

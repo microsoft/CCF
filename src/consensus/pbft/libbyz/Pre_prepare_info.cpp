@@ -19,7 +19,7 @@ void Pre_prepare_info::add(Pre_prepare* p)
   pp = p;
   mreqs = p->num_big_reqs();
   mrmap.reset();
-  Big_req_table* brt = replica->big_reqs();
+  Big_req_table* brt = pbft::GlobalState::get_replica().big_reqs();
 
   for (int i = 0; i < p->num_big_reqs(); i++)
   {
@@ -50,36 +50,6 @@ void Pre_prepare_info::dump_state(std::ostream& os)
   os << " mreqs: " << mreqs << " mrmap: " << mrmap << std::endl;
 }
 
-bool Pre_prepare_info::encode(FILE* o)
-{
-  bool hpp = pp != 0;
-  size_t sz = fwrite(&hpp, sizeof(bool), 1, o);
-  bool ret = true;
-  if (hpp)
-  {
-    ret = pp->encode(o);
-  }
-  return ret & (sz == 1);
-}
-
-bool Pre_prepare_info::decode(FILE* i)
-{
-// TODO(#pbft): stub out, INSIDE_ENCLAVE
-#ifndef INSIDE_ENCLAVE
-  bool hpp;
-  size_t sz = fread(&hpp, sizeof(bool), 1, i);
-  bool ret = true;
-  if (hpp)
-  {
-    pp = (Pre_prepare*)new Message;
-    ret &= pp->decode(i);
-  }
-  return ret & (sz == 1);
-#else
-  return true;
-#endif
-}
-
 Pre_prepare_info::BRS_iter::BRS_iter(Pre_prepare_info const* p, const BR_map& m)
 {
   ppi = p;
@@ -94,7 +64,8 @@ bool Pre_prepare_info::BRS_iter::get(Request*& r)
   {
     if (!mrmap.test(next) & ppi->mrmap.test(next))
     {
-      r = replica->big_reqs()->lookup(pp->big_req_digest(next));
+      r = pbft::GlobalState::get_replica().big_reqs()->lookup(
+        pp->big_req_digest(next));
       PBFT_ASSERT(r != 0, "Invalid state");
       next++;
       return true;

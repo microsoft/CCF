@@ -26,7 +26,7 @@ struct View_change_ack_rep : public Message_rep
 #pragma pack(pop)
 
 static_assert(
-  sizeof(View_change_ack_rep) + max_sig_size < Max_message_size,
+  sizeof(View_change_ack_rep) + pbft_max_signature_size < Max_message_size,
   "Invalid size");
 
 class View_change_ack : public Message
@@ -35,6 +35,8 @@ class View_change_ack : public Message
   // View_change_ack messages
   //
 public:
+  View_change_ack(uint32_t msg_size = 0) : Message(msg_size) {}
+
   View_change_ack(View v, int id, int vcid, Digest const& vcd);
   // Effects: Creates a new authenticated View_change_ack message for
   // replica "id" stating that replica "vcid" sent out a view-change

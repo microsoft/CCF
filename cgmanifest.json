@@ -5,7 +5,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nlohmann/json.git",
-          "commitHash": "53c3eefa2cf790a7130fed3e13a3be35c2f2ace2"
+          "commitHash": "e7b3b40b5a95bc74b9a7f662830a27c49ffc01b4"
         }
       }
     },
@@ -59,7 +59,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/msgpack/msgpack-c.git",
-          "commitHash": "29b9505cb76710802e130d5b8403ec1b40de1c8d"
+          "commitHash": "8085ab8721090a447cf98bb802d1406ad7afe420"
         }
       }
     },
@@ -104,8 +104,8 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/project-everest/evercrypt-msr",
-          "commitHash": "b407ad8aab77656cd6deb9b9bbfed70156638913"
+          "repositoryUrl": "https://github.com/project-everest/hacl-star",
+          "commitHash": "9f592178e2e8e4b884f5605a3747ece2bb42663d"
         }
       }
     },
@@ -117,7 +117,35 @@
           "commitHash": "bf9eb67ab9371755c6bcece13cadc7693bcbf264"
         }
       }
-    }
+    },
+    {
+      "Component": {
+        "Type": "other",
+        "Other": {
+          "Name": "QuickJS",
+          "Version": "2020-01-05",
+          "DownloadUrl": "https://bellard.org/quickjs/quickjs-2020-01-05.tar.xz"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/google/snmalloc",
+          "commitHash": "8304dedd175ac4637c77ac8e214cded2acc27502"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/dsprenkels/sss",
+          "commitHash": "dc8c3a9a1089e962b32ecdcc940ae11bd2b69e4b"
+        }
+      }
+    },
   ],
   "Version": 1
 }

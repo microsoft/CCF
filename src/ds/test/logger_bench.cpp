@@ -5,64 +5,152 @@
 
 #include <picobench/picobench.hpp>
 
+enum LoggerKind
+{
+  None = 0x0,
+
+  Console = 0x1,
+  JSON = 0x2,
+
+  All = 0xffff,
+};
+
+template <LoggerKind LK, bool Absorb = true>
+static void prepare_loggers()
+{
+  logger::config::loggers().clear();
+
+  if constexpr ((LK & LoggerKind::Console) != 0)
+  {
+    logger::config::loggers().emplace_back(
+      std::make_unique<logger::ConsoleLogger>());
+  }
+
+  if constexpr ((LK & LoggerKind::JSON) != 0)
+  {
+    logger::config::loggers().emplace_back(
+      std::make_unique<logger::JsonLogger>("./custom_json_logger"));
+  }
+
+  if constexpr (Absorb)
+  {
+    // Swallow all output for duration of benchmarks
+    for (auto& logger : logger::config::loggers())
+    {
+      logger->get_stream().setstate(std::ios_base::badbit);
+    }
+  }
+}
+
+static void reset_loggers()
+{
+  logger::config::loggers().clear();
+
+  logger::config::loggers().emplace_back(
+    std::make_unique<logger::ConsoleLogger>());
+
+  std::cout.clear();
+}
+
+template <LoggerKind LK, bool Absorb = true>
 static void log_accepted(picobench::state& s)
 {
-  // Swallow the output instead of printing to stdout.
-  std::cout.setstate(std::ios_base::badbit);
+  prepare_loggers<LK, Absorb>();
 
   logger::config::level() = logger::DBG;
-  picobench::scope scope(s);
-
-  for (size_t i = 0; i < s.iterations(); ++i)
   {
-    LOG_DEBUG << "test" << std::endl;
+    picobench::scope scope(s);
+
+    for (size_t i = 0; i < s.iterations(); ++i)
+    {
+      LOG_DEBUG << "test" << std::endl;
+    }
   }
 
-  std::cout.clear();
+  reset_loggers();
 }
 
+template <LoggerKind LK, bool Absorb = true>
 static void log_accepted_fmt(picobench::state& s)
 {
-  // Swallow the output instead of printing to stdout.
-  std::cout.setstate(std::ios_base::badbit);
+  prepare_loggers<LK, Absorb>();
 
   logger::config::level() = logger::DBG;
-  picobench::scope scope(s);
-
-  for (size_t i = 0; i < s.iterations(); ++i)
   {
-    LOG_DEBUG_FMT("test");
+    picobench::scope scope(s);
+
+    for (size_t i = 0; i < s.iterations(); ++i)
+    {
+      LOG_DEBUG_FMT("test");
+    }
   }
 
-  std::cout.clear();
+  reset_loggers();
 }
 
+template <LoggerKind LK, bool Absorb = true>
 static void log_rejected(picobench::state& s)
 {
-  logger::config::level() = logger::FAIL;
-  picobench::scope scope(s);
+  prepare_loggers<LK, Absorb>();
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  logger::config::level() = logger::FAIL;
   {
-    LOG_DEBUG << "test" << std::endl;
+    picobench::scope scope(s);
+
+    for (size_t i = 0; i < s.iterations(); ++i)
+    {
+      LOG_DEBUG << "test" << std::endl;
+    }
   }
+
+  reset_loggers();
 }
 
+template <LoggerKind LK, bool Absorb = true>
 static void log_rejected_fmt(picobench::state& s)
 {
-  logger::config::level() = logger::FAIL;
-  picobench::scope scope(s);
+  prepare_loggers<LK, Absorb>();
 
-  for (size_t i = 0; i < s.iterations(); ++i)
+  logger::config::level() = logger::FAIL;
   {
-    LOG_DEBUG_FMT("test");
+    picobench::scope scope(s);
+
+    for (size_t i = 0; i < s.iterations(); ++i)
+    {
+      LOG_DEBUG_FMT("test");
+    }
   }
+
+  reset_loggers();
 }
 
-const std::vector<int> sizes = {100000};
+const std::vector<int> sizes = {1000};
 
 PICOBENCH_SUITE("logger");
-PICOBENCH(log_accepted).iterations(sizes).samples(10);
-PICOBENCH(log_accepted_fmt).iterations(sizes).samples(10);
-PICOBENCH(log_rejected).iterations(sizes).samples(10);
-PICOBENCH(log_rejected_fmt).iterations(sizes).samples(10);
+auto console_accept = log_accepted<LoggerKind::Console>;
+PICOBENCH(console_accept).iterations(sizes).samples(10);
+auto console_accept_fmt = log_accepted_fmt<LoggerKind::Console>;
+PICOBENCH(console_accept_fmt).iterations(sizes).samples(10);
+auto console_reject = log_rejected<LoggerKind::Console>;
+PICOBENCH(console_reject).iterations(sizes).samples(10);
+auto console_reject_fmt = log_rejected_fmt<LoggerKind::Console>;
+PICOBENCH(console_reject_fmt).iterations(sizes).samples(10);
+
+auto json_accept = log_accepted<LoggerKind::JSON>;
+PICOBENCH(json_accept).iterations(sizes).samples(10);
+auto json_accept_fmt = log_accepted_fmt<LoggerKind::JSON>;
+PICOBENCH(json_accept_fmt).iterations(sizes).samples(10);
+auto json_reject = log_rejected<LoggerKind::JSON>;
+PICOBENCH(json_reject).iterations(sizes).samples(10);
+auto json_reject_fmt = log_rejected_fmt<LoggerKind::JSON>;
+PICOBENCH(json_reject_fmt).iterations(sizes).samples(10);
+
+// The enabled benchmarks are artifically cheap since they talk to a broken
+// stream, skipping the cost of _actually writing something_. To compare this,
+// uncomment the lines below (~3x slower)
+// auto console_loud = log_accepted<LoggerKind::Console, false>;
+// PICOBENCH(console_loud).iterations(sizes).samples(10);
+// auto json_loud = log_accepted<LoggerKind::JSON, false>;
+// PICOBENCH(json_loud).iterations(sizes).samples(10);
+// auto all_loud = log_accepted<LoggerKind::All, false>;
+// PICOBENCH(all_loud).iterations(sizes).samples(10);

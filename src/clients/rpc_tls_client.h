@@ -192,8 +192,4 @@ public:
   }
 };
 
-#ifdef HTTP
 using RpcTlsClient = HttpRpcTlsClient;
-#else
-using RpcTlsClient = JsonRpcTlsClient;
-#endif

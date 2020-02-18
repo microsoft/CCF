@@ -8,6 +8,7 @@ import infra.net
 import infra.path
 import infra.clients
 import time
+import json
 
 from loguru import logger as LOG
 
@@ -25,8 +26,9 @@ class NodeStatus(Enum):
 
 
 class Node:
-    def __init__(self, node_id, host, debug=False, perf=False):
+    def __init__(self, node_id, host, binary_dir=".", debug=False, perf=False):
         self.node_id = node_id
+        self.binary_dir = binary_dir
         self.debug = debug
         self.perf = perf
         self.remote = None
@@ -60,7 +62,7 @@ class Node:
         else:
             self.node_port = probably_free_function(self.host)
 
-    def start(self, lib_name, enclave_type, workspace, label, members_certs, **kwargs):
+    def start(self, lib_name, enclave_type, workspace, label, members_info, **kwargs):
         self._start(
             infra.remote.StartType.new,
             lib_name,
@@ -68,13 +70,13 @@ class Node:
             workspace,
             label,
             None,
-            members_certs,
+            members_info,
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
 
     def join(
-        self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs
+        self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs,
     ):
         self._start(
             infra.remote.StartType.join,
@@ -105,7 +107,7 @@ class Node:
         workspace,
         label,
         target_rpc_address=None,
-        members_certs=None,
+        members_info=None,
         **kwargs,
     ):
         """
@@ -133,7 +135,8 @@ class Node:
             workspace,
             label,
             target_rpc_address,
-            members_certs,
+            members_info,
+            binary_dir=self.binary_dir,
             **kwargs,
         )
         self.remote.setup()
@@ -159,8 +162,9 @@ class Node:
 
     def stop(self):
         if self.remote:
-            self.remote.stop()
+            errors = self.remote.stop()
             self.network_state = NodeNetworkState.stopped
+            return errors
 
     def is_stopped(self):
         return self.network_state == NodeNetworkState.stopped
@@ -173,19 +177,20 @@ class Node:
         This function can be used to check that a node has successfully
         joined a network and that it is part of the consensus.
         """
-        for _ in range(timeout):
-            with self.node_client() as mc:
-                try:
-                    rep = mc.do("getCommit", {})
-                    if rep.error == None and rep.result is not None:
-                        return
-                except:
-                    pass
-            time.sleep(1)
-        raise TimeoutError(f"Node {self.node_id} failed to join the network")
+        # Until the node has joined, the SSL handshake will fail as the node
+        # is not yet endorsed by the network certificate
+        try:
+            with self.node_client(connection_timeout=timeout) as nc:
+                rep = nc.do("getCommit", {})
+                assert (
+                    rep.error is None and rep.result is not None
+                ), f"An error occured after node {self.node_id} joined the network"
+        except infra.clients.CCFConnectionException as e:
+            raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_sealed_secrets(self):
-        return self.remote.get_sealed_secrets()
+        with open(self.remote.get_sealed_secrets()) as s:
+            return json.load(s)
 
     def user_client(self, format="msgpack", user_id=1, **kwargs):
         return infra.clients.client(
@@ -197,6 +202,7 @@ class Node:
             description="node {} (user)".format(self.node_id),
             format=format,
             prefix="users",
+            binary_dir=self.binary_dir,
             **kwargs,
         )
 
@@ -210,6 +216,7 @@ class Node:
             description="node {} (node)".format(self.node_id),
             format=format,
             prefix="nodes",
+            binary_dir=self.binary_dir,
             **kwargs,
         )
 
@@ -223,31 +230,39 @@ class Node:
             description="node {} (member)".format(self.node_id),
             format=format,
             prefix="members",
+            binary_dir=self.binary_dir,
             **kwargs,
         )
 
+    def suspend(self):
+        self.remote.suspend()
+
+    def resume(self):
+        self.remote.resume()
+
 
 @contextmanager
-def node(node_id, host, build_directory, debug=False, perf=False, pdb=False):
+def node(node_id, host, binary_directory, debug=False, perf=False, pdb=False):
     """
     Context manager for Node class.
     :param node_id: unique ID of node
-    :param build_directory: the build directory
+    :param binary_directory: the directory where CCF's binaries are located
     :param host: node's hostname
     :param debug: default: False. If set, node will not start (user is prompted to start them manually)
     :param perf: default: False. If set, node will run under perf record
     :return: a Node instance that can be used to build a CCF network
     """
-    with infra.path.working_dir(build_directory):
-        node = Node(node_id=node_id, host=host, debug=debug, perf=perf)
-        try:
-            yield node
-        except Exception:
-            if pdb:
-                import pdb
+    node = Node(
+        node_id=node_id, host=host, binary_dir=binary_directory, debug=debug, perf=perf
+    )
+    try:
+        yield node
+    except Exception:
+        if pdb:
+            import pdb
 
-                pdb.set_trace()
-            else:
-                raise
-        finally:
-            node.stop()
+            pdb.set_trace()
+        else:
+            raise
+    finally:
+        node.stop()

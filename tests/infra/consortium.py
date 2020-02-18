@@ -15,30 +15,23 @@ from loguru import logger as LOG
 
 
 class Consortium:
-    def __init__(self, members, curve):
+    def __init__(self, members, curve, key_generator):
         self.members = members
         members = [f"member{m}" for m in members]
         for m in members:
             infra.proc.ccall(
-                "./keygenerator.sh", f"{m}", curve.name, log_output=False
+                key_generator,
+                f"--name={m}",
+                f"--curve={curve.name}",
+                "--gen-key-share",
+                log_output=False,
             ).check_returncode()
         self.status = infra.ccf.ServiceStatus.OPEN
 
-    def get_members_certs(self):
+    def get_members_info(self):
         members_certs = [f"member{m}_cert.pem" for m in self.members]
-        return members_certs
-
-    def _member_client_rpc_as_json(self, member_id, remote_node, *args):
-        result = infra.proc.ccall(
-            "./memberclient",
-            f"--cert=member{member_id}_cert.pem",
-            f"--privk=member{member_id}_privk.pem",
-            f"--rpc-address={remote_node.host}:{remote_node.rpc_port}",
-            "--ca=networkcert.pem",
-            *args,
-        )
-        j_result = json.loads(result.stdout)
-        return j_result
+        members_kshare_pub = [f"member{m}_kshare_pub.pem" for m in self.members]
+        return list(zip(members_certs, members_kshare_pub))
 
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(format="json", member_id=member_id) as mc:
@@ -54,28 +47,17 @@ class Consortium:
         force_unsigned=False,
         should_wait_for_global_commit=True,
     ):
-        if os.getenv("HTTP"):
-            script = """
-            tables, changes = ...
-            return true
-            """
-            with remote_node.member_client(format="json", member_id=member_id) as mc:
-                res = mc.rpc(
-                    "vote",
-                    {"ballot": {"text": script}, "id": proposal_id},
-                    signed=not force_unsigned,
-                )
-                j_result = res.to_dict()
-
-        else:
-            j_result = self._member_client_rpc_as_json(
-                member_id,
-                remote_node,
+        script = """
+        tables, changes = ...
+        return true
+        """
+        with remote_node.member_client(format="json", member_id=member_id) as mc:
+            res = mc.rpc(
                 "vote",
-                f"--proposal-id={proposal_id}",
-                "--accept" if accept else "--reject",
-                "--force-unsigned" if force_unsigned else "",
+                {"ballot": {"text": script}, "id": proposal_id},
+                signed=not force_unsigned,
             )
+            j_result = res.to_dict()
 
         if "error" in j_result:
             return (False, j_result["error"])
@@ -121,8 +103,7 @@ class Consortium:
             return c.do("withdraw", {"id": proposal_id})
 
     def ack(self, member_id, remote_node):
-        # TODO: Produce signed ack here
-        return self._member_client_rpc_as_json(member_id, remote_node, "ack")
+        pass
 
     def get_proposals(self, member_id, remote_node):
         script = """
@@ -179,14 +160,21 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
-    def propose_add_member(self, member_id, remote_node, new_member_cert):
+    def propose_add_member(self, member_id, remote_node, new_member_cert, new_keyshare):
         script = """
-        tables, member_cert = ...
-        return Calls:call("new_member", member_cert)
+        tables, member_info = ...
+        return Calls:call("new_member", member_info)
         """
         with open(new_member_cert) as cert:
             new_member_cert_pem = [ord(c) for c in cert.read()]
-        return self.propose(member_id, remote_node, script, new_member_cert_pem)
+        with open(new_keyshare) as keyshare:
+            new_member_keyshare = [ord(k) for k in keyshare.read()]
+        return self.propose(
+            member_id,
+            remote_node,
+            script,
+            {"cert": new_member_cert_pem, "keyshare": new_member_keyshare,},
+        )
 
     def open_network(self, member_id, remote_node, pbft_open=False):
         """
@@ -199,8 +187,20 @@ class Consortium:
         return Calls:call("open_network")
         """
         result, error = self.propose(member_id, remote_node, script)
-        self.vote_using_majority(remote_node, result["id"], pbft_open)
-        self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN)
+        self.vote_using_majority(remote_node, result["id"], not pbft_open)
+        self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
+
+    def rekey_ledger(self, member_id, remote_node):
+        script = """
+        tables = ...
+        return Calls:call("rekey_ledger")
+        """
+        result, error = self.propose(member_id, remote_node, script)
+        # Wait for global commit since sealed secrets are disclosed only
+        # when the rekey transaction is globally committed.
+        self.vote_using_majority(
+            remote_node, result["id"], should_wait_for_global_commit=True
+        )
 
     def add_users(self, remote_node, users):
         for u in users:
@@ -224,15 +224,22 @@ class Consortium:
         result, error = self.propose(member_id, remote_node, script, new_lua_app)
         self.vote_using_majority(remote_node, result["id"])
 
+    def set_js_app(self, member_id, remote_node, app_script):
+        script = """
+        tables, app = ...
+        return Calls:call("set_js_app", app)
+        """
+        with open(app_script) as app:
+            new_js_app = app.read()
+        result, error = self.propose(member_id, remote_node, script, new_js_app)
+        self.vote_using_majority(remote_node, result["id"])
+
     def accept_recovery(self, member_id, remote_node, sealed_secrets):
         script = """
         tables, sealed_secrets = ...
         return Calls:call("accept_recovery", sealed_secrets)
         """
-        with open(sealed_secrets) as s:
-            sealed_json = json.load(s)
-
-        result, error = self.propose(member_id, remote_node, script, sealed_json)
+        result, error = self.propose(member_id, remote_node, script, sealed_secrets)
         self.vote_using_majority(remote_node, result["id"])
 
     def add_new_code(self, member_id, remote_node, new_code_id):
@@ -244,13 +251,17 @@ class Consortium:
         result, error = self.propose(member_id, remote_node, script, code_digest)
         self.vote_using_majority(remote_node, result["id"])
 
-    def check_for_service(self, remote_node, status):
+    def check_for_service(self, remote_node, status, pbft_open=False):
         """
         Check via the member frontend of the given node that the certificate
         associated with current CCF service signing key has been recorded in
         the KV store with the appropriate status.
         """
-        with remote_node.member_client(format="json") as c:
+        # When opening the service in PBFT, the first transaction to be
+        # completed when f = 1 takes a significant amount of time
+        with remote_node.member_client(
+            format="json", request_timeout=(30 if pbft_open else 3)
+        ) as c:
             rep = c.do(
                 "query",
                 {
@@ -281,7 +292,7 @@ class Consortium:
         return True
 
     def wait_for_node_to_exist_in_store(
-        self, remote_node, node_id, node_status=None, timeout=3
+        self, remote_node, node_id, timeout, node_status=None,
     ):
         exists = False
         for _ in range(timeout):

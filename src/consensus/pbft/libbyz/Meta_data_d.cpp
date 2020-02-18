@@ -21,7 +21,7 @@ Meta_data_d::Meta_data_d(Request_id r, int l, size_t i, Seqno ls) :
   rep().ls = ls;
   rep().l = l;
   rep().i = i;
-  rep().id = replica->id();
+  rep().id = pbft::GlobalState::get_replica().id();
 
   for (int k = 0; k < max_out / checkpoint_interval + 1; k++)
   {
@@ -32,7 +32,6 @@ Meta_data_d::Meta_data_d(Request_id r, int l, size_t i, Seqno ls) :
 
 void Meta_data_d::add_digest(Seqno n, Digest& digest)
 {
-  PBFT_ASSERT(n % checkpoint_interval == 0, "Invalid argument");
   PBFT_ASSERT(
     (last_stable() <= n) && (n <= last_stable() + max_out), "Invalid argument");
 
@@ -47,7 +46,7 @@ void Meta_data_d::add_digest(Seqno n, Digest& digest)
 
 bool Meta_data_d::digest(Seqno n, Digest& d)
 {
-  if (n % checkpoint_interval != 0 || last_stable() > n)
+  if (last_stable() > n)
   {
     return false;
   }
@@ -75,7 +74,9 @@ void Meta_data_d::authenticate(Principal* p)
 bool Meta_data_d::verify()
 {
   // Meta-data must be sent by replicas.
-  if (!node->is_replica(id()) || node->id() == id() || last_stable() < 0)
+  if (
+    !pbft::GlobalState::get_node().is_replica(id()) ||
+    pbft::GlobalState::get_node().id() == id() || last_stable() < 0)
   {
     return false;
   }
@@ -97,7 +98,8 @@ bool Meta_data_d::verify()
   }
 
   // Check principal exists
-  std::shared_ptr<Principal> p = node->get_principal(id());
+  std::shared_ptr<Principal> p =
+    pbft::GlobalState::get_node().get_principal(id());
   if (p)
   {
     return true;

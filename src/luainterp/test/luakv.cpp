@@ -3,12 +3,12 @@
 #include "../luakv.h"
 
 #include "../luainterp.h"
+#include "ds/hash.h"
+#include "ds/logger.h"
+#include "enclave/appinterface.h"
+#include "kv/kvserialiser.h"
 
 #include <doctest/doctest.h>
-#include <ds/hash.h>
-#include <ds/logger.h>
-#include <enclave/appinterface.h>
-#include <kv/kvserialiser.h>
 
 using namespace ccf;
 using namespace ccf::lua;

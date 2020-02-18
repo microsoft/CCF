@@ -30,7 +30,7 @@ namespace ccf
     static constexpr auto NODES = "nodes";
   };
 
-  enum ActorsType : uint64_t
+  enum class ActorsType : uint64_t
   {
     members = 0,
     users,
@@ -60,6 +60,7 @@ namespace ccf
     static constexpr auto CODE_IDS = "ccf.code_ids";
     static constexpr auto VOTING_HISTORY = "ccf.voting_history";
     static constexpr auto SERVICE = "ccf.service";
+    static constexpr auto SHARES = "ccf.shares";
   };
 
   using StoreSerialiser = kv::KvStoreSerialiser;

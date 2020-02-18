@@ -27,7 +27,23 @@ namespace enclave
       p(parser_type, *this)
     {}
 
+    static void recv_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
+    {
+      reinterpret_cast<HTTPEndpoint*>(msg->data.self.get())
+        ->recv_(msg->data.data.data(), msg->data.data.size());
+    }
+
     void recv(const uint8_t* data, size_t size) override
+    {
+      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&recv_cb);
+      msg->data.self = this->shared_from_this();
+      msg->data.data.assign(data, data + size);
+
+      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+        execution_thread, std::move(msg));
+    }
+
+    void recv_(const uint8_t* data, size_t size)
     {
       recv_buffered(data, size);
 
@@ -65,8 +81,6 @@ namespace enclave
       }
       else
       {
-        // TODO: For now, close the connection if it has been upgraded to
-        // websocket
         LOG_FAIL_FMT(
           "Receiving data after endpoint has been upgraded to websocket.");
         LOG_FAIL_FMT("Closing connection.");
@@ -82,6 +96,8 @@ namespace enclave
     std::shared_ptr<RpcHandler> handler;
     size_t session_id;
 
+    size_t request_index = 0;
+
   public:
     HTTPServerEndpoint(
       std::shared_ptr<RPCMap> rpc_map,
@@ -93,7 +109,23 @@ namespace enclave
       session_id(session_id)
     {}
 
+    static void send_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
+    {
+      reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())
+        ->send_(msg->data.data);
+    }
+
     void send(const std::vector<uint8_t>& data) override
+    {
+      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&send_cb);
+      msg->data.self = this->shared_from_this();
+      msg->data.data = data;
+
+      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+        execution_thread, std::move(msg));
+    }
+
+    void send_(const std::vector<uint8_t>& data)
     {
       // This should be called with raw body of response - we will wrap it with
       // header then transmit
@@ -131,6 +163,33 @@ namespace enclave
       flush();
     }
 
+    void handle_message_main_thread(
+      std::shared_ptr<JsonRpcContext>& rpc_ctx,
+      std::shared_ptr<RpcHandler>& search)
+    {
+      try
+      {
+        auto response = search->process(rpc_ctx);
+
+        if (!response.has_value())
+        {
+          // If the RPC is pending, hold the connection.
+          LOG_TRACE_FMT("Pending");
+          return;
+        }
+        else
+        {
+          // Otherwise, reply to the client synchronously.
+          send_response(response.value());
+        }
+      }
+      catch (const std::exception& e)
+      {
+        std::string err_msg = fmt::format("Exception:\n{}\n", e.what());
+        send_response(err_msg, HTTP_STATUS_INTERNAL_SERVER_ERROR);
+      }
+    }
+
     void handle_message(
       http_method verb,
       const std::string& path,
@@ -138,7 +197,7 @@ namespace enclave
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body) override
     {
-      LOG_INFO_FMT(
+      LOG_TRACE_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
         http_method_str(verb),
         path,
@@ -198,15 +257,15 @@ namespace enclave
         if (!search.value()->is_open())
         {
           send_response(
-            fmt::format("Session '{}' is not open.\n", actor),
+            fmt::format("Session '{}' is not open.\n", actor_s),
             HTTP_STATUS_NOT_FOUND);
           return;
         }
 
         const SessionContext session(session_id, peer_cert());
-        RPCContext rpc_ctx(session);
+        std::optional<jsonrpc::Pack> pack;
 
-        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, rpc_ctx.pack);
+        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, pack);
         if (!success)
         {
           send_response(
@@ -214,34 +273,32 @@ namespace enclave
           return;
         }
 
-        parse_rpc_context(rpc_ctx, json_rpc);
+        auto rpc_ctx =
+          std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
+        rpc_ctx->set_request_index(request_index++);
 
-        // TODO: For now, set this here as parse_rpc_context() resets
-        // rpc_ctx.signed_request for a HTTP endpoint.
         auto signed_req = http::HttpSignatureVerifier::parse(
           std::string(http_method_str(verb)), path, query, headers, body);
         if (signed_req.has_value())
         {
-          rpc_ctx.signed_request = signed_req;
+          rpc_ctx->signed_request = signed_req;
         }
 
-        // TODO: This is temporary; while we have a full RPC object inside the
-        // body, it should match the dispatch details specified in the URI
         const auto expected = fmt::format("{}/{}", actor_s, method_s);
-        if (rpc_ctx.method != expected)
+        if (rpc_ctx->method != expected)
         {
           send_response(
             fmt::format(
               "RPC method must match path ('{}' != '{}').\n",
               expected,
-              rpc_ctx.method),
+              rpc_ctx->method),
             HTTP_STATUS_BAD_REQUEST);
           return;
         }
 
-        rpc_ctx.raw = body; // TODO: This is insufficient, need entire request
-        rpc_ctx.method = method_s;
-        rpc_ctx.actor = actor;
+        rpc_ctx->raw = body;
+        rpc_ctx->method = method_s;
+        rpc_ctx->actor = actor;
 
         auto response = search.value()->process(rpc_ctx);
 
@@ -253,8 +310,6 @@ namespace enclave
         }
         else
         {
-          // Otherwise, reply to the client synchronously.
-          LOG_TRACE_FMT("Responding");
           send_response(response.value());
         }
       }
@@ -266,6 +321,7 @@ namespace enclave
 
         // On any exception, close the connection.
         close();
+        throw;
       }
     }
   };
@@ -291,7 +347,8 @@ namespace enclave
 
     void send(const std::vector<uint8_t>& data) override
     {
-      LOG_FATAL_FMT("send() should not be called directly on HTTPClient");
+      throw std::logic_error(
+        "send() should not be called directly on HTTPClient");
     }
 
     void handle_message(
