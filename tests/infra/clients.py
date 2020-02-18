@@ -438,7 +438,6 @@ class RequestClient:
 
     def request(self, request):
         while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
             try:
                 rid = self._just_request(request)
                 self.request = self._just_request
@@ -449,6 +448,7 @@ class RequestClient:
             except requests.exceptions.ReadTimeout:
                 raise TimeoutError
             time.sleep(0.1)
+            self.connection_timeout -= 0.1
 
     def signed_request(self, request):
         with open(self.key, "rb") as k:
