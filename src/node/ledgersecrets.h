@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/symmkey.h"
 #include "ds/logger.h"
 #include "kv/kvtypes.h"
 #include "tls/entropy.h"
@@ -34,7 +35,7 @@ namespace ccf
     {
       if (random)
       {
-        master = tls::create_entropy()->random(32);
+        master = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
       }
     }
 

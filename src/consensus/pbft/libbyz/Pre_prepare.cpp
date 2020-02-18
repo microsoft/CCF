@@ -19,7 +19,6 @@ Pre_prepare::Pre_prepare(
 {
   rep().view = v;
   rep().seqno = s;
-  rep().full_state_merkle_root.fill(0);
   rep().replicated_state_merkle_root.fill(0);
 
   START_CC(pp_digest_cycles);
@@ -32,9 +31,8 @@ Pre_prepare::Pre_prepare(
   int n_big_reqs = 0;
   char* next_req = requests();
 #ifndef USE_PKEY
-  char* max_req = next_req + msize() -
-    pbft::GlobalState::get_replica().max_nd_bytes() -
-    pbft::GlobalState::get_node().auth_size();
+  char* max_req =
+    next_req + msize() - pbft::GlobalState::get_node().auth_size();
 #else
   char* max_req = next_req + msize() -
     pbft::GlobalState::get_replica().max_nd_bytes() - pbft_max_signature_size;
@@ -94,21 +92,6 @@ Pre_prepare::Pre_prepare(
   }
   rep().n_big_reqs = n_big_reqs;
 
-  if (rep().rset_size > 0 || n_big_reqs > 0)
-  {
-    // Fill in the non-deterministic choices portion.
-    int non_det_size = pbft::GlobalState::get_replica().max_nd_bytes();
-    pbft::GlobalState::get_replica().compute_non_det(
-      s, non_det_choices(), &non_det_size);
-    PBFT_ASSERT(ALIGNED(non_det_size), "Invalid non-deterministic choice");
-    rep().non_det_size = non_det_size;
-  }
-  else
-  {
-    // Null request
-    rep().non_det_size = 0;
-  }
-
   STOP_CC(pp_digest_cycles);
   INCR_CNT(sum_batch_size, requests_in_batch);
   INCR_OP(batch_size_histogram[requests_in_batch]);
@@ -117,7 +100,7 @@ Pre_prepare::Pre_prepare(
 
   // Compute authenticator and update size.
   int old_size = sizeof(Pre_prepare_rep) + rep().rset_size +
-    rep().n_big_reqs * sizeof(Digest) + rep().non_det_size;
+    rep().n_big_reqs * sizeof(Digest);
 
 #ifndef USE_PKEY
   set_size(old_size + pbft::GlobalState::get_node().auth_size());
@@ -150,7 +133,6 @@ void Pre_prepare::re_authenticate(Principal* p)
 #ifndef USE_PKEY
   auth_type = Auth_type::out;
   auth_len = sizeof(Pre_prepare_rep);
-  auth_dst_offset = (non_det_choices() + rep().non_det_size) - contents();
   auth_src_offset = 0;
 #endif
 }
@@ -216,13 +198,12 @@ bool Pre_prepare::calculate_digest(Digest& d)
   // Check sizes
 #ifndef USE_PKEY
   int min_size = sizeof(Pre_prepare_rep) + rep().rset_size +
-    rep().n_big_reqs * sizeof(Digest) + rep().non_det_size +
+    rep().n_big_reqs * sizeof(Digest) +
     pbft::GlobalState::get_node().auth_size(
       pbft::GlobalState::get_replica().primary(view()));
 #else
   int min_size = sizeof(Pre_prepare_rep) + rep().rset_size +
-    rep().n_big_reqs * sizeof(Digest) + rep().non_det_size +
-    pbft_max_signature_size;
+    rep().n_big_reqs * sizeof(Digest) + pbft_max_signature_size;
 #endif
   if (size() >= min_size)
   {
@@ -234,10 +215,6 @@ bool Pre_prepare::calculate_digest(Digest& d)
 
     d.update_last(context, (char*)&(rep().view), sizeof(View));
     d.update_last(context, (char*)&(rep().seqno), sizeof(Seqno));
-    d.update_last(
-      context,
-      (const char*)rep().full_state_merkle_root.data(),
-      rep().full_state_merkle_root.size());
     d.update_last(
       context,
       (const char*)rep().replicated_state_merkle_root.data(),
@@ -261,9 +238,7 @@ bool Pre_prepare::calculate_digest(Digest& d)
 
     // Finalize digest of requests and non-det-choices.
     d.update_last(
-      context,
-      (char*)big_reqs(),
-      rep().n_big_reqs * sizeof(Digest) + rep().non_det_size);
+      context, (char*)big_reqs(), rep().n_big_reqs * sizeof(Digest));
     d.finalize(context);
 
     STOP_CC(pp_digest_cycles);
@@ -316,8 +291,7 @@ bool Pre_prepare::pre_verify()
     }
 #endif
 
-    int sz =
-      rep().rset_size + rep().n_big_reqs * sizeof(Digest) + rep().non_det_size;
+    int sz = rep().rset_size + rep().n_big_reqs * sizeof(Digest);
 #ifndef USE_PKEY
     return true;
 #else
@@ -428,25 +402,14 @@ bool Pre_prepare::convert(Message* m1, Pre_prepare*& m2)
 }
 
 void Pre_prepare::set_merkle_roots_and_ctx(
-  const std::array<uint8_t, MERKLE_ROOT_SIZE>& full_state_merkle_root,
   const std::array<uint8_t, MERKLE_ROOT_SIZE>& replicated_state_merkle_root,
   int64_t ctx)
 {
-  std::copy(
-    std::begin(full_state_merkle_root),
-    std::end(full_state_merkle_root),
-    std::begin(rep().full_state_merkle_root));
   std::copy(
     std::begin(replicated_state_merkle_root),
     std::end(replicated_state_merkle_root),
     std::begin(rep().replicated_state_merkle_root));
   rep().ctx = ctx;
-}
-
-const std::array<uint8_t, MERKLE_ROOT_SIZE>& Pre_prepare::
-  get_full_state_merkle_root() const
-{
-  return rep().full_state_merkle_root;
 }
 
 const std::array<uint8_t, MERKLE_ROOT_SIZE>& Pre_prepare::

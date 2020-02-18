@@ -99,8 +99,6 @@ int Byz_init_replica(
   char* mem,
   unsigned int size,
   ExecCommand exec,
-  void (*comp_ndet)(Seqno, Byz_buffer*),
-  int ndet_max_len,
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
