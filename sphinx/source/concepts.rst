@@ -25,6 +25,19 @@ The Key-Value Store is a collection of maps (associating a key to a value) that 
 
 .. note:: Since all nodes in the CCF network can read the content of private maps, it is up to the application logic to control the access to such maps. Since every application endpoint has access to the identity of the user triggering it, it is easy to restrict which maps (and entries in those maps) a user can read or write to.
 
+Consensus algorithms
+--------------------
+
+CCF by default has the Raft consensus algorithm enabled for replication across nodes providing crash fault tolerance. There is an option to enable the PBFT consensus algorithm providing byzantine fault tolerance.
+
+PBFT can be enabled by setting the build switch **PBFT** to ON. It is however still in experimental mode and does **not**:
+
+* provide full byzantine fault tolerance guarantees concerning network identity
+* fully support node configuration changes
+* guarantee that primary elections triggering view changes will be successful
+
+so it should be enabled with caution.
+
 Ledger
 ------
 
