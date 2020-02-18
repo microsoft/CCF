@@ -1242,7 +1242,6 @@ namespace ccf
       const auto response = frontend->process(ctx);
       if (!response.has_value())
       {
-        LOG_INFO_FMT("No response received from processing create request");
         return false;
       }
 
