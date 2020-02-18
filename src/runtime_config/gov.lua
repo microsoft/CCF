@@ -6,20 +6,15 @@ return {
   pass = [[
   tables, calls, votes = ...
 
-  function accept()
-    return 1
-  end
+  -- interface definitions
+  PASSED = 1
+  PENDING = 0
+  REJECTED = -1
+  STATE_ACTIVE = "ACTIVE"
 
-  function reject()
-    return -1
-  end
-
-  function wait()
-    return 0
-  end
-
+  -- count member votes
   member_votes = 0
-
+  
   for member, vote in pairs(votes) do
     if vote then
       member_votes = member_votes + 1
@@ -28,7 +23,6 @@ return {
 
   -- count active members
   members_active = 0
-  STATE_ACTIVE = "ACTIVE"
 
   tables["ccf.members"]:foreach(function(member, details)
     if details["status"] == STATE_ACTIVE then
@@ -44,9 +38,9 @@ return {
         if call.args[sensitive_table] then
           -- require unanimity
           if member_votes == members_active then
-            return accept()
+            return PASSED
           else
-            return wait()
+            return PENDING
           end
         end
       end
@@ -55,10 +49,10 @@ return {
 
   -- a majority of members can pass votes
   if member_votes > math.floor(members_active / 2) then
-    return accept()
+    return PASSED
   end
 
-  return wait()]],
+  return PENDING]],
 
   environment_proposal = [[
   __Puts = {}
