@@ -187,7 +187,6 @@ namespace ccf
     //
     // join protocol
     //
-    jsonrpc::SeqNo join_seq_no = 1;
     std::shared_ptr<Timer> join_timer;
 
     //
