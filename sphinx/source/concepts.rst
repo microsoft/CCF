@@ -28,15 +28,11 @@ The Key-Value Store is a collection of maps (associating a key to a value) that 
 Consensus algorithms
 --------------------
 
-CCF by default has the Raft consensus algorithm enabled for replication across nodes providing crash fault tolerance. There is an option to enable the PBFT consensus algorithm providing byzantine fault tolerance.
+CCF by default has a version of the Raft consensus algorithm enabled for replication across nodes providing crash fault tolerance. We are currently working on providing PBFT as an additional consensus option to provide byzantine fault tolerance.
 
-PBFT can be enabled by setting the build switch **PBFT** to ON. It is however still in experimental mode and does **not**:
+PBFT can be enabled by setting the build switch **PBFT** to ON.
 
-* provide full byzantine fault tolerance guarantees concerning network identity
-* fully support node configuration changes
-* guarantee that primary elections triggering view changes will be successful
-
-so it should be enabled with caution.
+Currently CCF with PBFT is in development and should not be used in a production environment. In providing an early release of CCF with PBFT we hope to get feedback from early adopters.
 
 Ledger
 ------
