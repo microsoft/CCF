@@ -61,6 +61,7 @@ namespace ccf
       std::vector<uint8_t> public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
+      KeyShareInfo genesis_key_share_info;
     };
   };
 
