@@ -74,10 +74,13 @@ namespace http
 
       body = b;
 
-      headers[CONTENT_LENGTH] = fmt::format("{}", body->size());
+      const auto size = b == nullptr ? 0 : body->size();
+      const auto data = b == nullptr ? nullptr : body->data();
+
+      headers[CONTENT_LENGTH] = fmt::format("{}", size);
 
       tls::HashBytes body_digest;
-      tls::do_hash(body->data(), body->size(), body_digest, MBEDTLS_MD_SHA256);
+      tls::do_hash(data, size, body_digest, MBEDTLS_MD_SHA256);
       headers[DIGEST] = fmt::format(
         "{}={}",
         "SHA-256",

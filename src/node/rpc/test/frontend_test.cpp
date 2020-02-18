@@ -300,10 +300,7 @@ std::pair<http::Request, ccf::SignedReq> create_signed_request(
 {
   http::Request s(r);
 
-  if (body != nullptr)
-  {
-    s.set_body(body);
-  }
+  s.set_body(body);
 
   http::SigningDetails details;
   http::sign_request(s, kp, &details);
@@ -565,7 +562,6 @@ TEST_CASE("MinimalHandleFunction")
 
       auto [signed_call, signed_req] =
         create_signed_request(echo_call, &serialized_body);
-      signed_call.set_body(&serialized_body);
       const auto serialized_call = signed_call.build_request();
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
