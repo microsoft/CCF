@@ -82,7 +82,11 @@ namespace serialized
         "Insufficient space (write block: " + std::to_string(size) + " < " +
         std::to_string(block_size) + ")");
 
-    std::memcpy(data, block, block_size);
+    if (block_size > 0)
+    {
+      std::memcpy(data, block, block_size);
+    }
+
     data += block_size;
     size -= block_size;
   }
