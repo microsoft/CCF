@@ -32,7 +32,7 @@ namespace http
     static constexpr auto SIGN_PARAMS_SIGNATURE = "signature";
     static constexpr auto SIGN_PARAMS_ALGORITHM = "algorithm";
     static constexpr auto SIGN_PARAMS_HEADERS = "headers";
-    static constexpr auto SIGN_ALGORITHM = "ecdsa-sha256";
+    static constexpr auto SIGN_ALGORITHM_SHA256 = "ecdsa-sha256";
 
     static constexpr auto SIGN_HEADER_REQUEST_TARGET = "(request-target)";
 

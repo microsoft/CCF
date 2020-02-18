@@ -122,8 +122,9 @@ namespace http
 
     auto auth_value = fmt::format(
       "Signature "
-      "keyId=\"ignored\",algorithm=\"ecdsa-sha256\",headers=\"{}\",signature="
+      "keyId=\"ignored\",algorithm=\"{}\",headers=\"{}\",signature="
       "\"{}\"",
+      auth::SIGN_ALGORITHM_SHA256,
       fmt::format("{}", fmt::join(headers_to_sign, " ")),
       tls::b64_from_raw(signature.data(), signature.size()));
 
@@ -271,7 +272,7 @@ namespace http
           else if (k == auth::SIGN_PARAMS_ALGORITHM)
           {
             sig_params.signature_algorithm = v;
-            if (v != auth::SIGN_ALGORITHM)
+            if (v != auth::SIGN_ALGORITHM_SHA256)
             {
               LOG_FAIL_FMT("Signature algorithm {} is not supported", v);
               return {};
