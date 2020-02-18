@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
--- This file defines the default initial contents (ie, Lua scripts) of the gov_scipts table.
+-- This file defines the default initial contents (ie, Lua scripts) of the gov_scripts table.
 return {
   pass = [[
   tables, calls, votes = ...
@@ -14,7 +14,7 @@ return {
 
   -- count member votes
   member_votes = 0
-  
+
   for member, vote in pairs(votes) do
     if vote then
       member_votes = member_votes + 1
