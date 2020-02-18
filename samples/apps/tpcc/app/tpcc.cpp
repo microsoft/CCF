@@ -25,9 +25,8 @@ namespace tpcc
     static constexpr auto TPCC_LOAD_NEW_ORDERS = "TPCC_load_new_orders";
   };
 
-  class Tpcc : public ccf::UserRpcFrontend
+  struct TpccTables
   {
-  private:
     Store::Map<WarehouseId, Warehouse>& warehouses;
     Store::Map<DistrictId, District>& districts;
     Store::Map<CustomerId, Customer>& customers;
@@ -37,20 +36,33 @@ namespace tpcc
     Store::Map<OrderLineId, OrderLine>& orderlines;
     Store::Map<ItemId, Item>& items;
     Store::Map<StockId, Stock>& stocks;
+  
+    TpccTables(Store& store) :
+      warehouses(store.create<WarehouseId, Warehouse>("warehouses")),
+      districts(store.create<DistrictId, District>("districts")),
+      customers(store.create<CustomerId, Customer>("customers")),
+      histories(store.create<HistoryId, History>("histories")),
+      neworders(store.create<NewOrderId, NewOrder>("neworders")),
+      orders(store.create<OrderId, Order>("orders")),
+      orderlines(store.create<OrderLineId, OrderLine>("orderlines")),
+      items(store.create<ItemId, Item>("items")),
+      stocks(store.create<StockId, Stock>("stocks"))
+    {}
+  };
+
+  class TpccHandlers: public UserHandlerRegistry
+  {
+  private:
+    TpccTables tables;
 
   public:
-    Tpcc(Store& tables) :
-      UserRpcFrontend(tables),
-      warehouses(tables.create<WarehouseId, Warehouse>("warehouses")),
-      districts(tables.create<DistrictId, District>("districts")),
-      customers(tables.create<CustomerId, Customer>("customers")),
-      histories(tables.create<HistoryId, History>("histories")),
-      neworders(tables.create<NewOrderId, NewOrder>("neworders")),
-      orders(tables.create<OrderId, Order>("orders")),
-      orderlines(tables.create<OrderLineId, OrderLine>("orderlines")),
-      items(tables.create<ItemId, Item>("items")),
-      stocks(tables.create<StockId, Stock>("stocks"))
+    TpccHandlers(Store& store) : UserHandlerRegistry(store), tables(store)
+    {}
+
+    void init_handlers(Store& store) override
     {
+      UserHandlerRegistry::init_handlers(store);
+
       auto newOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
         uint64_t w_id = params["w_id"];
         uint64_t d_id = params["d_id"];
@@ -68,7 +80,7 @@ namespace tpcc
         output_data.o_entry_d = o_entry_d;
 
         // Get district information
-        auto districts_view = tx.get_view(districts);
+        auto districts_view = tx.get_view(tables.districts);
 
         DistrictId district_key = {d_id, w_id};
         auto d_result = districts_view->get(district_key);
@@ -90,7 +102,7 @@ namespace tpcc
         districts_view->put(district_key, d);
       
         // Get warehouse information
-        auto warehouses_view = tx.get_view(warehouses);
+        auto warehouses_view = tx.get_view(tables.warehouses);
 
         WarehouseId warehouse_key = w_id;
         auto w_result = warehouses_view->get(warehouse_key);
@@ -106,7 +118,7 @@ namespace tpcc
         output_data.w_tax = w_tax;
 
         // Get customer information
-        auto customers_view = tx.get_view(customers);
+        auto customers_view = tx.get_view(tables.customers);
 
         CustomerId customer_key = {c_id, w_id, d_id};
         auto c_result = customers_view->get(customer_key);
@@ -126,14 +138,14 @@ namespace tpcc
         output_data.c_discount = c_discount;
 
         // Insert NewOrder entry
-        auto neworders_view = tx.get_view(neworders);
+        auto neworders_view = tx.get_view(tables.neworders);
 
         NewOrderId neworder_key = {d_next_o_id, w_id, d_id};
         NewOrder no = {0};
         neworders_view->put(neworder_key, no);
 
         // Insert Order entry
-        auto orders_view = tx.get_view(orders);
+        auto orders_view = tx.get_view(tables.orders);
 
         uint8_t all_local = 0; //TODO: set this appropriately
         uint64_t ol_cnt = i_ids.size();
@@ -152,9 +164,9 @@ namespace tpcc
         // TODO: order is inserted at the end, check this
 
         // Insert Order Line and Stock Information
-        auto items_view = tx.get_view(items);
-        auto stocks_view = tx.get_view(stocks);
-        auto orderlines_view = tx.get_view(orderlines);
+        auto items_view = tx.get_view(tables.items);
+        auto stocks_view = tx.get_view(tables.stocks);
+        auto orderlines_view = tx.get_view(tables.orderlines);
 
         uint64_t total = 0;
 
@@ -266,11 +278,11 @@ namespace tpcc
 
         // TODO: should OutputData be printed as per TPCC spec?
 
-        return jsonrpc::success(true);
+        return make_success(true);
       };
 
       auto loadItems = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto items_view = tx.get_view(items);
+        auto items_view = tx.get_view(tables.items);
         int load_count = 0;
 
         for (auto& element : params) {
@@ -286,11 +298,11 @@ namespace tpcc
           load_count++;
         }
 
-        return jsonrpc::success(load_count);
+        return make_success(load_count);
       };
       
       auto loadWarehouse = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto warehouses_view = tx.get_view(warehouses);
+        auto warehouses_view = tx.get_view(tables.warehouses);
         
         WarehouseId key = params["key"];
         Warehouse warehouse;
@@ -304,11 +316,11 @@ namespace tpcc
         warehouse.ytd = params["value"]["ytd"];
 
         warehouses_view->put(key, warehouse);
-        return jsonrpc::success(true);
+        return make_success(true);
       };
 
       auto loadStocks = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto stocks_view = tx.get_view(stocks);
+        auto stocks_view = tx.get_view(tables.stocks);
         int load_count = 0;
 
         for (auto& element : params) {
@@ -332,11 +344,11 @@ namespace tpcc
           load_count++;
         }
 
-        return jsonrpc::success(load_count);
+        return make_success(load_count);
       };
 
       auto loadDistrict = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto districts_view = tx.get_view(districts);
+        auto districts_view = tx.get_view(tables.districts);
 
         DistrictId key;
         key.id = params["key"]["id"];
@@ -354,11 +366,11 @@ namespace tpcc
         district.next_o_id = params["value"]["next_o_id"];
 
         districts_view->put(key, district);
-        return jsonrpc::success(true);
+        return make_success(true);
       };
 
       auto loadCustomer = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto customers_view = tx.get_view(customers);
+        auto customers_view = tx.get_view(tables.customers);
 
         CustomerId key;
         key.id = params["key"]["id"];
@@ -386,11 +398,11 @@ namespace tpcc
         customer.data = params["value"]["data"];
 
         customers_view->put(key, customer);
-        return jsonrpc::success(true);
+        return make_success(true);
       };
 
       auto loadHistory = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto histories_view = tx.get_view(histories);
+        auto histories_view = tx.get_view(tables.histories);
 
         HistoryId key = params["key"];
 
@@ -405,11 +417,11 @@ namespace tpcc
         history.data = params["value"]["data"];
 
         histories_view->put(key, history);
-        return jsonrpc::success(true);
+        return make_success(true);
       };
 
       auto loadOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto orders_view = tx.get_view(orders);
+        auto orders_view = tx.get_view(tables.orders);
 
         OrderId key;
         key.id = params["key"]["id"];
@@ -424,11 +436,11 @@ namespace tpcc
         order.all_local = params["value"]["all_local"];
 
         orders_view->put(key, order);
-        return jsonrpc::success(true);
+        return make_success(true);
       };
 
       auto loadOrderLines = [this](Store::Tx& tx, const nlohmann::json& params) {
-        auto order_lines_view = tx.get_view(orderlines);
+        auto order_lines_view = tx.get_view(tables.orderlines);
         int load_count = 0;
 
         for (auto& element : params)
@@ -451,12 +463,12 @@ namespace tpcc
           load_count++;
         }
 
-        return jsonrpc::success(load_count);
+        return make_success(load_count);
       };
 
       auto loadNewOrders = [this](Store::Tx& tx, const nlohmann::json& params)
       {
-        auto new_orders_view = tx.get_view(neworders);
+        auto new_orders_view = tx.get_view(tables.neworders);
         int load_count = 0;
 
         for (auto& element : params)
@@ -473,20 +485,34 @@ namespace tpcc
           load_count++;
         }
 
-        return jsonrpc::success(load_count);
+        return make_success(load_count);
       };
 
-      install(Procs::TPCC_NEW_ORDER, newOrder, Write);
-      install(Procs::TPCC_LOAD_ITEMS, loadItems, Write);
-      install(Procs::TPCC_LOAD_WAREHOUSE, loadWarehouse, Write);
-      install(Procs::TPCC_LOAD_STOCKS, loadStocks, Write);
-      install(Procs::TPCC_LOAD_DISTRICT, loadDistrict, Write);
-      install(Procs::TPCC_LOAD_CUSTOMER, loadCustomer, Write);
-      install(Procs::TPCC_LOAD_HISTORY, loadHistory, Write);
-      install(Procs::TPCC_LOAD_ORDER, loadOrder, Write);
-      install(Procs::TPCC_LOAD_ORDER_LINES, loadOrderLines, Write);
-      install(Procs::TPCC_LOAD_NEW_ORDERS, loadNewOrders, Write);
+      install(Procs::TPCC_NEW_ORDER, handler_adapter(newOrder), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_ITEMS, handler_adapter(loadItems), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_WAREHOUSE, handler_adapter(loadWarehouse), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_STOCKS, handler_adapter(loadStocks), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_DISTRICT, handler_adapter(loadDistrict), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_CUSTOMER, handler_adapter(loadCustomer), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_HISTORY, handler_adapter(loadHistory), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_ORDER, handler_adapter(loadOrder), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_ORDER_LINES, handler_adapter(loadOrderLines), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_NEW_ORDERS, handler_adapter(loadNewOrders), HandlerRegistry::Write);
     }
+  };
+
+  class Tpcc : public ccf::UserRpcFrontend
+  {
+    private:
+      TpccHandlers tpcc_handlers;
+
+    public:
+      Tpcc(Store& store) :
+        UserRpcFrontend(store, tpcc_handlers),
+        tpcc_handlers(store) 
+      {
+        disable_request_storing();
+      }
   };
 
   std::shared_ptr<enclave::RpcHandler> get_rpc_handler(

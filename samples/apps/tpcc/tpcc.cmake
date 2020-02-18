@@ -12,8 +12,8 @@ target_link_libraries(tpcc_client PRIVATE
 )
 
 # TPCC Application
-add_enclave_lib(tpccenc
-  ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
+add_ccf_app(tpcc SRCS ${CMAKE_CURRENT_LIST_DIR}/app/tpcc.cpp)
+sign_app_library(
+  tpcc.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
-  SRCS ${CMAKE_CURRENT_LIST_DIR}/app/tpcc.cpp
 )
