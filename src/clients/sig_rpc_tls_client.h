@@ -25,11 +25,11 @@ public:
     const std::string& method, const nlohmann::json& params) override
   {
     const auto body_j = json_rpc(method, params);
-    const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::Text);
+    const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::MsgPack);
 
     auto r = http::Request(body_j[jsonrpc::METHOD].get<std::string>());
     r.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::MSGPACK);
 
     r.set_body(&body_v);
     http::sign_request(r, key_pair);

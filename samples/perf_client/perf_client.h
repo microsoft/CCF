@@ -79,7 +79,7 @@ namespace client
     // check_response for derived-overridable validation
     void process_reply(const std::vector<uint8_t>& reply)
     {
-      auto j = jsonrpc::unpack(reply, jsonrpc::Pack::Text);
+      auto j = jsonrpc::unpack(reply, jsonrpc::Pack::MsgPack);
       if (!j.is_object())
       {
         throw std::logic_error(j.dump());

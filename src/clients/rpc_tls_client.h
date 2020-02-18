@@ -38,7 +38,7 @@ public:
   PreparedRpc gen_rpc_raw(
     const nlohmann::json& j, const std::optional<size_t>& explicit_id = {})
   {
-    auto m = jsonrpc::pack(j, jsonrpc::Pack::Text);
+    auto m = jsonrpc::pack(j, jsonrpc::Pack::MsgPack);
     auto len = static_cast<const uint32_t>(m.size());
     std::vector<uint8_t> r(len + sizeof(len));
     std::copy(m.cbegin(), m.cend(), r.begin() + sizeof(len));
@@ -98,7 +98,7 @@ public:
   nlohmann::json call(const std::string& method, const nlohmann::json& params)
   {
     return jsonrpc::unpack(
-      call_raw(gen_rpc(method, params).encoded), jsonrpc::Pack::Text);
+      call_raw(gen_rpc(method, params).encoded), jsonrpc::Pack::MsgPack);
   }
 
   /** Call method
@@ -160,10 +160,10 @@ public:
     const nlohmann::json& params = nlohmann::json::array()) override
   {
     const auto body_j = json_rpc(method, params);
-    const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::Text);
+    const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::MsgPack);
     auto r = http::Request(body_j["method"].get<std::string>());
     r.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::MSGPACK);
 
     r.set_body(&body_v);
 
