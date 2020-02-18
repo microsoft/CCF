@@ -567,6 +567,8 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
+        g.add_key_share_info(in.genesis_key_share_info);
+
         args.rpc_ctx->set_response_result(true);
         return;
       };

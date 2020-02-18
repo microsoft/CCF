@@ -251,5 +251,30 @@ namespace ccf
       auto codeid_view = tx.get_view(tables.code_ids);
       codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
     }
+
+    auto get_active_members_keyshare()
+    {
+      auto members_view = tx.get_view(tables.members);
+      std::map<MemberId, std::vector<uint8_t>> active_members_info;
+
+      members_view->foreach(
+        [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
+          if (mi.status != MemberStatus::ACTIVE)
+          {
+            active_members_info[mid] = mi.keyshare;
+          }
+          return true;
+        });
+      return active_members_info;
+    }
+
+    void add_key_share_info(const KeyShareInfo& key_share_info)
+    {
+      auto [shares_view, values_view] =
+        tx.get_view(tables.shares, tables.values);
+      auto keyshare_id = get_next_id(values_view, ValueIds::NEXT_KEYSHARE_ID);
+
+      shares_view->put(keyshare_id, key_share_info);
+    }
   };
 }
