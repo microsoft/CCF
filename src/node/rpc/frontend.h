@@ -343,7 +343,6 @@ namespace ccf
       bool playback,
       bool include_merkle_roots) override
     {
-      crypto::Sha256Hash full_state_merkle_root;
       crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
 
@@ -368,14 +367,10 @@ namespace ccf
       version = tx.get_version();
       if (include_merkle_roots)
       {
-        full_state_merkle_root = history->get_full_state_root();
         replicated_state_merkle_root = history->get_replicated_state_root();
       }
 
-      return {rep.value(),
-              full_state_merkle_root,
-              replicated_state_merkle_root,
-              version};
+      return {rep.value(), replicated_state_merkle_root, version};
     }
 
     /** Process a serialised input forwarded from another node
