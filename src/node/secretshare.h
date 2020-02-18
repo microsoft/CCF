@@ -52,7 +52,10 @@ namespace ccf
       std::vector<Share> shares(n);
 
       sss_create_shares(
-        (sss_Share*)shares.data(), secret_to_share.data(), n, k);
+        reinterpret_cast<sss_Share*>(shares.data()),
+        secret_to_share.data(),
+        n,
+        k);
 
       return shares;
     }

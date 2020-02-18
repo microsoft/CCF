@@ -1119,17 +1119,18 @@ namespace ccf
 
       auto active_members = members_info.size();
 
-      // For now, the secret sharing threashold is set to the number of initial
+      // For now, the secret sharing threshold is set to the number of initial
       // members
-      size_t k = active_members;
+      size_t threshold = active_members;
 
       // For now, since members key shares are not yet encrypted, create
       // share of dummy empty secret
       SecretSharing::SecretToSplit secret_to_split = {};
 
-      auto shares = SecretSharing::split(secret_to_split, active_members, k);
+      auto shares =
+        SecretSharing::split(secret_to_split, active_members, threshold);
 
-      assert(SecretSharing::combine(shares, k) == secret_to_split);
+      assert(SecretSharing::combine(shares, threshold) == secret_to_split);
 
       // For now, shares are recorded in plain text. Instead, they should be
       // encrypted with each member's public encryption key
@@ -1164,7 +1165,7 @@ namespace ccf
       create_rpc.params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
       create_rpc.params.code_digest =
-        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
+        std::vector<uint8_t>(node_code_id.begin(), node_code_id.end());
       create_rpc.params.node_info_network = args.config.node_info_network;
       create_rpc.params.genesis_key_share_info = genesis_key_share_info;
 
