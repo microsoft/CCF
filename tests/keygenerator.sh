@@ -6,6 +6,7 @@ set -e
 
 DEFAULT_CURVE="secp384r1"
 EDWARDS_CURVE="ed25519"
+ENCRYPTION_CURVE="x25519"
 FAST_CURVE="secp256k1"
 SUPPORTED_CURVES="$DEFAULT_CURVE|$EDWARDS_CURVE|$FAST_CURVE"
 
@@ -94,7 +95,7 @@ if "$generate_encryption_key"; then
     keyshare_priv="$name"_kshare_priv.pem
     keyshare_pub="$name"_kshare_pub.pem
 
-    openssl genpkey -out "$keyshare_priv" -algorithm "$EDWARDS_CURVE"
+    openssl genpkey -out "$keyshare_priv" -algorithm "$ENCRYPTION_CURVE"
     openssl pkey -in "$keyshare_priv" -pubout -out "$keyshare_pub"
 
     echo "Key share public key generated at:   $keyshare_pub (to be registered in CCF)"

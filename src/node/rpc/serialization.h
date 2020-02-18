@@ -51,8 +51,7 @@ namespace ccf
     quote,
     public_encryption_key,
     code_digest,
-    node_info_network,
-    genesis_key_share_info)
+    node_info_network)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::In)
