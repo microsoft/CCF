@@ -49,7 +49,7 @@ namespace http
     Message() = default;
 
   public:
-    HeaderMap get_headers() const
+    const HeaderMap& get_headers() const
     {
       return headers;
     }
@@ -68,23 +68,36 @@ namespace http
       headers.clear();
     }
 
+    size_t get_content_length() const
+    {
+      if (body == nullptr)
+      {
+        return 0;
+      }
+      else
+      {
+        return body->size();
+      }
+    }
+
+    const uint8_t* get_content_data() const
+    {
+      if (body == nullptr)
+      {
+        return nullptr;
+      }
+      else
+      {
+        return body->data();
+      }
+    }
+
     void set_body(const std::vector<uint8_t>* b)
     {
-      using namespace http::headers;
-
       body = b;
 
-      const auto size = b == nullptr ? 0 : body->size();
-      const auto data = b == nullptr ? nullptr : body->data();
-
-      headers[CONTENT_LENGTH] = fmt::format("{}", size);
-
-      tls::HashBytes body_digest;
-      tls::do_hash(data, size, body_digest, MBEDTLS_MD_SHA256);
-      headers[DIGEST] = fmt::format(
-        "{}={}",
-        "SHA-256",
-        tls::b64_from_raw(body_digest.data(), body_digest.size()));
+      headers[headers::CONTENT_LENGTH] =
+        fmt::format("{}", get_content_length());
     }
   };
 

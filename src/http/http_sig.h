@@ -93,24 +93,39 @@ namespace http
     tls::KeyPairPtr& kp,
     SigningDetails* details = nullptr)
   {
-    const auto headers = request.get_headers();
     std::vector<std::string_view> headers_to_sign;
     headers_to_sign.emplace_back(auth::SIGN_HEADER_REQUEST_TARGET);
     headers_to_sign.emplace_back(headers::DIGEST);
-    if (headers.find(headers::CONTENT_TYPE) != headers.end())
+    headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
+
     {
-      headers_to_sign.emplace_back(headers::CONTENT_TYPE);
-    }
-    if (headers.find(headers::CONTENT_LENGTH) != headers.end())
-    {
-      headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
+      // Ensure digest present and up-to-date
+      const auto& headers = request.get_headers();
+
+      tls::HashBytes body_digest;
+      tls::do_hash(
+        request.get_content_data(),
+        request.get_content_length(),
+        body_digest,
+        MBEDTLS_MD_SHA256);
+      request.set_header(
+        headers::DIGEST,
+        fmt::format(
+          "{}={}",
+          "SHA-256",
+          tls::b64_from_raw(body_digest.data(), body_digest.size())));
+
+      if (headers.find(headers::CONTENT_TYPE) != headers.end())
+      {
+        headers_to_sign.emplace_back(headers::CONTENT_TYPE);
+      }
     }
 
     const auto to_sign = construct_raw_signed_string(
       http_method_str(request.get_method()),
       request.get_path(),
       request.get_formatted_query(),
-      headers,
+      request.get_headers(),
       headers_to_sign);
 
     if (!to_sign.has_value())
