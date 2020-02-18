@@ -17,10 +17,17 @@ sign_app_library(
 if(BUILD_TESTS)
   # Small Bank end to end and performance test
   if(PBFT)
-    set(SMALL_BANK_VERIFICATION_FILE
-        ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
-    )
-    set(SMALL_BANK_ITERATIONS 50000)
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+      set(SMALL_BANK_VERIFICATION_FILE
+          ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
+      )
+      set(SMALL_BANK_ITERATIONS 50000)
+    else()
+      set(SMALL_BANK_VERIFICATION_FILE
+          ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
+      )
+      set(SMALL_BANK_ITERATIONS 2000)
+    endif()
   else()
     set(SMALL_BANK_VERIFICATION_FILE
         ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json

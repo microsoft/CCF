@@ -287,8 +287,6 @@ namespace pbft
         mem,
         mem_size,
         pbft_config->get_exec_command(),
-        0,
-        0,
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,

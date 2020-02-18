@@ -154,13 +154,6 @@ if("virtual" IN_LIST TARGET)
   endfunction()
 
   add_executable(
-    simple-server
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_main.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp
-  )
-  pbft_add_executable(simple-server)
-
-  add_executable(
     replica-test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_test.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp

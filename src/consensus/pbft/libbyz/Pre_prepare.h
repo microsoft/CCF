@@ -24,15 +24,13 @@ struct Pre_prepare_rep : public Message_rep
 {
   View view;
   Seqno seqno;
-  std::array<uint8_t, MERKLE_ROOT_SIZE> full_state_merkle_root;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   int64_t ctx; // a context provided when a the batch is executed
                // the contents are opaque
   Digest digest; // digest of request set concatenated with
                  // big reqs and non-deterministic choices
   int rset_size; // size in bytes of request set
-  short n_big_reqs; // number of big requests
-  short non_det_size; // size in bytes of non-deterministic choices
+  int n_big_reqs; // number of big requests
 
 #ifdef SIGN_BATCH
   size_t sig_size;
@@ -43,8 +41,7 @@ struct Pre_prepare_rep : public Message_rep
 #endif
 
   // Followed by "rset_size" bytes of the request set, "n_big_reqs"
-  // Digest's, "non_det_size" bytes of non-deterministic choices, and
-  // a variable length signature in the above order.
+  // Digest's variable length signature in the above order.
 };
 #pragma pack(pop)
 static_assert(
@@ -98,12 +95,9 @@ public:
   // Effects: Fetches the digest from the message.
 
   void set_merkle_roots_and_ctx(
-    const std::array<uint8_t, MERKLE_ROOT_SIZE>& full_state_merkle_root,
     const std::array<uint8_t, MERKLE_ROOT_SIZE>& replicated_state_merkle_root,
     int64_t ctx);
 
-  const std::array<uint8_t, MERKLE_ROOT_SIZE>& get_full_state_merkle_root()
-    const;
   const std::array<uint8_t, MERKLE_ROOT_SIZE>&
   get_replicated_state_merkle_root() const;
 
@@ -201,10 +195,6 @@ private:
   Digest* big_reqs();
   // Effects: Returns a pointer to the first digest of a big request
   // in this.
-
-  char* non_det_choices();
-  // Effects: Returns a pointer to the buffer with non-deterministic
-  // choices.
 };
 
 inline Pre_prepare_rep& Pre_prepare::rep() const
@@ -225,19 +215,6 @@ inline Digest* Pre_prepare::big_reqs()
   char* ret = requests() + rep().rset_size;
   PBFT_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
   return (Digest*)ret;
-}
-
-inline char* Pre_prepare::non_det_choices()
-{
-  char* ret = ((char*)big_reqs()) + rep().n_big_reqs * sizeof(Digest);
-  PBFT_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
-  return ret;
-}
-
-inline char* Pre_prepare::choices(int& len)
-{
-  len = rep().non_det_size;
-  return non_det_choices();
 }
 
 inline View Pre_prepare::view() const
