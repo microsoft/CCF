@@ -34,11 +34,11 @@ def test(network, args, notifications_queue=None, verify=True):
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
-    with primary.node_client(format="json") as nc:
+    with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
         check = infra.checker.Checker()
 
-        with primary.user_client(format="json") as c:
+        with primary.user_client() as c:
             id = 44
             for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
@@ -57,11 +57,11 @@ def test_large_messages(network, args):
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
-    with primary.node_client(format="json") as nc:
+    with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
-        with backup.node_client(format="json") as c:
+        with backup.node_client() as c:
             check_commit(c.do("mkSign", params={}), result=True)
-        with backup.member_client(format="json") as c:
+        with backup.member_client() as c:
             check_commit(c.do("mkSign", params={}), result=True)
 
     return network
@@ -92,7 +92,7 @@ def test_update_lua(network, args):
         network.consortium.set_lua_app(
             member_id=1, remote_node=primary, app_script=new_app_file
         )
-        with primary.user_client(format="json") as c:
+        with primary.user_client() as c:
             check(c.rpc("ping", params={}), result="pong")
 
             LOG.debug("Check that former endpoints no longer exists")

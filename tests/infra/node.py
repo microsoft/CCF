@@ -192,7 +192,7 @@ class Node:
         with open(self.remote.get_sealed_secrets()) as s:
             return json.load(s)
 
-    def user_client(self, format="msgpack", user_id=1, **kwargs):
+    def user_client(self, user_id=1, **kwargs):
         return infra.clients.client(
             self.host,
             self.rpc_port,
@@ -200,13 +200,12 @@ class Node:
             key="user{}_privk.pem".format(user_id),
             ca="networkcert.pem",
             description="node {} (user)".format(self.node_id),
-            format=format,
             prefix="users",
             binary_dir=self.binary_dir,
             **kwargs,
         )
 
-    def node_client(self, format="msgpack", timeout=3, **kwargs):
+    def node_client(self, timeout=3, **kwargs):
         return infra.clients.client(
             self.host,
             self.rpc_port,
@@ -214,13 +213,12 @@ class Node:
             key=None,
             ca="networkcert.pem",
             description="node {} (node)".format(self.node_id),
-            format=format,
             prefix="nodes",
             binary_dir=self.binary_dir,
             **kwargs,
         )
 
-    def member_client(self, format="msgpack", member_id=1, **kwargs):
+    def member_client(self, member_id=1, **kwargs):
         return infra.clients.client(
             self.host,
             self.rpc_port,
@@ -228,7 +226,6 @@ class Node:
             key="member{}_privk.pem".format(member_id),
             ca="networkcert.pem",
             description="node {} (member)".format(self.node_id),
-            format=format,
             prefix="members",
             binary_dir=self.binary_dir,
             **kwargs,
