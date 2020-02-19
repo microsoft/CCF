@@ -337,10 +337,9 @@ class Network:
     def wait_for_state(self, node, state, timeout=3):
         for _ in range(timeout):
             try:
-                with node.node_client(format="json") as c:
-                    id = c.request("getSignedIndex", {})
-                    r = c.response(id).result
-                    if r["state"] == state:
+                with node.node_client() as c:
+                    r = c.request("getSignedIndex", {})
+                    if r.result["state"] == state:
                         break
             except ConnectionRefusedError:
                 pass
@@ -427,8 +426,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    id = c.request("getCommit", {})
-                    resp = c.response(id)
+                    resp = c.request("getCommit", {})
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -453,8 +451,8 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    id = c.request("getCommit", {})
-                    commits.append(c.response(id).commit)
+                    r = c.request("getCommit", {})
+                    commits.append(r.commit)
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(1)

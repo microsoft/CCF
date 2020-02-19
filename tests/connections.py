@@ -46,7 +46,7 @@ def run(args):
         with contextlib.ExitStack() as es:
             for i in range(nb_conn):
                 try:
-                    clients.append(es.enter_context(primary.user_client(format="json")))
+                    clients.append(es.enter_context(primary.user_client()))
                     LOG.info(f"Connected client {i}")
                 except OSError:
                     LOG.error(f"Failed to connect client {i}")
@@ -69,7 +69,7 @@ def run(args):
         clients = []
         with contextlib.ExitStack() as es:
             for i in range(max_fds - num_fds):
-                clients.append(es.enter_context(primary.user_client(format="json")))
+                clients.append(es.enter_context(primary.user_client()))
                 LOG.info(f"Connected client {i}")
 
             c = clients[int(random.random() * len(clients))]
