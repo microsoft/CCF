@@ -1057,8 +1057,6 @@ namespace kv
         }
         catch (const std::exception& e)
         {
-          committed = false;
-
           LOG_FAIL_FMT("Error during serialisation: {}", e.what());
 
           // Discard original exception type, throw as now fatal
@@ -1997,58 +1995,3 @@ namespace kv
     }
   };
 }
-
-for (auto& [name, lhs, rhs] : entries)
-{
-  lhs->swap(rhs);
-}
-
-for (auto& [name, lhs, rhs] : entries)
-{
-  lhs->unlock();
-  rhs->unlock();
-}
-}
-}
-;
-
-for (auto& [name, lhs, rhs] : entries)
-{
-  lhs->swap(rhs);
-}
-
-for (auto& [name, lhs, rhs] : entries)
-{
-  lhs->unlock();
-  rhs->unlock();
-}
-}
-}
-;
-
-for (auto& [name, lhs, rhs] : entries)
-{
-  lhs->swap(rhs);
-}
-
-for (auto& [name, lhs, rhs] : entries)
-{
-  lhs->unlock();
-  rhs->unlock();
-}
-}
-}
-;
-for (auto& [name, lhs, rhs] : entries)
-{
-  lhs->swap(rhs);
-}
-
-for (auto& [name, lhs, rhs] : entries)
-{
-  lhs->unlock();
-  rhs->unlock();
-}
-}
-}
-;
