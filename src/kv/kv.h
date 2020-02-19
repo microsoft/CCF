@@ -1057,6 +1057,8 @@ namespace kv
         }
         catch (const std::exception& e)
         {
+          committed = false;
+
           LOG_FAIL_FMT("Error during serialisation: {}", e.what());
 
           // Discard original exception type, throw as now fatal
