@@ -242,15 +242,15 @@ namespace kv
   {
     CommitSuccess success;
     TxHistory::RequestID reqid;
-    std::vector<uint8_t> raw_data;
+    std::vector<uint8_t> data;
 
     PendingTxInfo(
       CommitSuccess success_,
       TxHistory::RequestID reqid_,
-      std::vector<uint8_t>&& raw_data_) :
+      std::vector<uint8_t>&& data_) :
       success(success_),
       reqid(std::move(reqid_)),
-      raw_data(std::move(raw_data_))
+      data(std::move(data_))
     {}
   };
 

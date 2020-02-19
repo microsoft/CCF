@@ -1749,30 +1749,24 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto p_tx_ = pending_tx_();
+          auto [success_, reqid, data_] = pending_tx_();
 
           // NB: this cannot happen currently. Regular Tx only make it here if
           // they did succeed, and signatures cannot conflict because they
           // execute in order with a read_version that's version - 1, so even
           // two contiguous signatures are fine
-          if (p_tx_.success != CommitSuccess::OK)
+          if (success_ != CommitSuccess::OK)
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
 
           if (h)
           {
-            h->add_result(
-              p_tx_.reqid,
-              version,
-              p_tx_.raw_data.data(),
-              p_tx_.raw_data.size());
+            h->add_result(reqid, version, data_.data(), data_.size());
           }
 
           LOG_DEBUG_FMT(
-            "Batching {} ({})",
-            last_replicated + offset,
-            p_tx_.raw_data.size());
+            "Batching {} ({})", last_replicated + offset, data_.size());
           batch.emplace_back(
-            last_replicated + offset, std::move(p_tx_.raw_data), committable_);
+            last_replicated + offset, std::move(data_), committable_);
           pending_txs.erase(search);
         }
 
