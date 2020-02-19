@@ -122,16 +122,6 @@ endif()
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-
-add_custom_command(
-  OUTPUT ${CCF_GENERATED_DIR}/frame_generated.h
-  COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${CCF_DIR}/src/kv/frame.fbs
-  COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${CCF_DIR}/src/kv/frame.fbs
-  DEPENDS ${CCF_DIR}/src/kv/frame.fbs
-)
-
-install(FILES ${CCF_GENERATED_DIR}/frame_generated.h DESTINATION generated)
-
 include_directories(${CCF_DIR}/src ${CCF_GENERATED_DIR})
 
 include_directories(
