@@ -5,7 +5,6 @@
 #include "consensus/consensustypes.h"
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
-#include "flatbufferwrapper.h"
 
 #include <array>
 #include <chrono>
@@ -30,9 +29,6 @@ namespace kv
 
   using BatchVector =
     std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>;
-  using BatchDetachedBuffer = std::vector<
-    std::
-      tuple<kv::Version, std::unique_ptr<flatbuffers::DetachedBuffer>, bool>>;
 
   enum CommitSuccess
   {
@@ -214,7 +210,6 @@ namespace kv
       state = Primary;
     }
 
-    virtual bool replicate(const BatchDetachedBuffer& entries) = 0;
     virtual bool replicate(const BatchVector& entries) = 0;
     virtual View get_view() = 0;
 

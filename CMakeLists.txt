@@ -66,8 +66,6 @@ if("sgx" IN_LIST TARGET)
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/generated>
   )
 
-  add_dependencies(ccf.enclave flatbuffers)
-
   if(PBFT)
     target_link_libraries(ccf.enclave PUBLIC libbyz.enclave)
   endif()
@@ -122,8 +120,6 @@ if("virtual" IN_LIST TARGET)
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/generated>
   )
-
-  add_dependencies(ccf.virtual flatbuffers)
 
   if(PBFT)
     target_link_libraries(ccf.virtual PUBLIC libbyz.host)
@@ -425,7 +421,6 @@ if(BUILD_TESTS)
   )
   use_client_mbedtls(merkle_mem)
   target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
-  add_dependencies(merkle_mem flatbuffers)
 
   if(NOT PBFT)
     # Raft driver and scenario test
@@ -435,7 +430,7 @@ if(BUILD_TESTS)
     )
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE src/raft)
-    add_dependencies(raft_driver flatbuffers)
+
     add_test(
       NAME raft_scenario_test
       COMMAND

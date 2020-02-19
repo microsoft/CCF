@@ -37,19 +37,6 @@ public:
     return true;
   }
 
-  bool replicate(const kv::BatchDetachedBuffer& entries) override
-  {
-    if (store)
-    {
-      REQUIRE(entries.size() == 1);
-      auto& buffer = std::get<1>(entries[0]);
-      std::vector<uint8_t> datavec(
-        buffer->data(), buffer->data() + buffer->size());
-      return store->deserialise(datavec);
-    }
-    return true;
-  }
-
   View get_view() override
   {
     return 2;
@@ -245,17 +232,6 @@ public:
     return true;
   }
 
-  bool replicate(const kv::BatchDetachedBuffer& entries) override
-  {
-    for (auto& [version, data, committable] : entries)
-    {
-      count++;
-      if (committable)
-        store->compact(version);
-    }
-    return true;
-  }
-
   View get_view() override
   {
     return 2;
@@ -353,17 +329,6 @@ public:
   {}
 
   bool replicate(const kv::BatchVector& entries) override
-  {
-    for (auto& [version, data, committable] : entries)
-    {
-      count++;
-      if (version == rollback_at)
-        store->rollback(rollback_to);
-    }
-    return true;
-  }
-
-  bool replicate(const kv::BatchDetachedBuffer& entries) override
   {
     for (auto& [version, data, committable] : entries)
     {

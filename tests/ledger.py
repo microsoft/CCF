@@ -3,8 +3,6 @@
 import io
 import msgpack
 import struct
-import flatbuffers
-import kv.Frame
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -99,8 +97,6 @@ class Transaction:
     _next_offset = 0
     _public_domain = None
     _file_size = 0
-    _fb_replicated = []
-    _fb_derived = []
     gcm_header = None
 
     def __init__(self, filename):
@@ -112,40 +108,24 @@ class Transaction:
     def __del__(self):
         self._file.close()
 
-    def unpack_flatbuffer(self, data):
-        frame = kv.Frame.Frame.GetRootAsFrame(data, 0)
-        self._fb_replicated = frame.ReplicatedAsNumpy()
-        self._fb_derived = frame.DerivedAsNumpy()
-
-    def _byte_read_fb_replicated(self, num_of_bytes):
-        ret = self._fb_replicated[:num_of_bytes]
-        if len(ret) != num_of_bytes:
-            raise ValueError(
-                "Failed to read precise number of bytes: %u" % num_of_bytes
-            )
-        self._fb_replicated = self._fb_replicated[num_of_bytes:]
-        return ret
-
     def _read_header(self):
         # read the size of the transaction
         buffer = _byte_read_safe(self._file, LEDGER_TRANSACTION_SIZE)
         self._total_size = to_uint_32(buffer)
         self._next_offset += self._total_size
         self._next_offset += LEDGER_TRANSACTION_SIZE
-        transaction_data = _byte_read_safe(self._file, self._total_size)
-        self.unpack_flatbuffer(transaction_data)
 
         # read the AES GCM header
-        buffer = self._byte_read_fb_replicated(GcmHeader.size())
+        buffer = _byte_read_safe(self._file, GcmHeader.size())
         self.gcm_header = GcmHeader(buffer)
 
         # read the size of the public domain
-        buffer = self._byte_read_fb_replicated(LEDGER_DOMAIN_SIZE)
+        buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
 
     def get_public_domain(self):
         if self._public_domain == None:
-            buffer = io.BytesIO(self._byte_read_fb_replicated(self._public_domain_size))
+            buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
             self._public_domain = LedgerDomain(buffer)
         return self._public_domain
 

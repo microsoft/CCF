@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "kv/flatbufferwrapper.h"
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
 #include "node/encryptor.h"
@@ -532,21 +531,4 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
 
     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
   }
-}
-
-TEST_CASE("Test flatbuffers")
-{
-  std::vector<uint8_t> derived_data(10, 1);
-  std::vector<uint8_t> replicated_data(11, 0);
-
-  kv::frame::FlatbufferSerialiser fb_serialiser(replicated_data, derived_data);
-
-  auto buffer = fb_serialiser.get_detached_buffer();
-
-  kv::frame::FlatbufferDeserialiser db_deserialiser(buffer->data());
-
-  auto replicated = kv::frame::replicated(buffer->data());
-  CHECK(replicated.n == replicated_data.size());
-
-  CHECK(db_deserialiser.replicated_size() == replicated_data.size());
 }
