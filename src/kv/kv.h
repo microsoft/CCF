@@ -1516,8 +1516,6 @@ namespace kv
       // Processing transactions locally and also deserialising to the
       // same store will result in a store version mismatch and
       // deserialisation will then fail.
-      Version v;
-      OrderedViews<S, D> views;
       auto e = get_encryptor();
 
       // create the first deserialiser
@@ -1532,7 +1530,7 @@ namespace kv
         return DeserialiseSuccess::FAILED;
       }
 
-      v = d->template deserialise_version<Version>();
+      Version v = d->template deserialise_version<Version>();
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback(v - 1);
@@ -1545,11 +1543,13 @@ namespace kv
           "Tried to deserialise {} but current_version is {}", v, cv);
         return DeserialiseSuccess::FAILED;
       }
+
       // Deserialised transactions express read dependencies as versions,
       // rather than with the actual value read. As a result, they don't
       // need snapshot isolation on the map state, and so do not need to
       // lock all the maps before creating the transaction.
       std::lock_guard<SpinLock> mguard(maps_lock);
+      OrderedViews<S, D> views;
 
       for (auto r = d->start_map(); r.has_value(); r = d->start_map())
       {

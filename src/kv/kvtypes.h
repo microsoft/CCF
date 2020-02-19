@@ -259,13 +259,13 @@ namespace kv
   class MovePendingTx
   {
   private:
-    std::vector<uint8_t> raw_data;
+    std::vector<uint8_t> data;
     kv::TxHistory::RequestID req_id;
 
   public:
     MovePendingTx(
-      std::vector<uint8_t>&& raw_data_, kv::TxHistory::RequestID req_id_) :
-      raw_data(std::move(raw_data_)),
+      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID req_id_) :
+      data(std::move(data_)),
       req_id(std::move(req_id_))
     {}
 
@@ -287,7 +287,7 @@ namespace kv
     PendingTxInfo operator()()
     {
       return PendingTxInfo(
-        CommitSuccess::OK, std::move(req_id), std::move(raw_data));
+        CommitSuccess::OK, std::move(req_id), std::move(data));
     }
   };
 
