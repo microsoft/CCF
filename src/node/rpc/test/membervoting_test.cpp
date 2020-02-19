@@ -49,6 +49,8 @@ string get_script_path(string name)
   return ss.str();
 }
 const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
+const auto gov_veto_script_file =
+  files::slurp_string(get_script_path("gov_veto.lua"));
 const auto operator_gov_script_file =
   files::slurp_string(get_script_path("operator_gov.lua"));
 
@@ -1015,6 +1017,57 @@ TEST_CASE("Complete proposal after initial rejection")
     const auto completej = create_json_req(ProposalAction{0}, "complete");
 
     check_success(frontend_process(frontend, completej, member_certs[1]));
+  }
+}
+
+TEST_CASE("Vetoed proposal gets rejected")
+{
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  StubNodeState node;
+  const auto voter_a_cert = get_cert_data(1, kp);
+  auto voter_a = gen.add_member(voter_a_cert, {}, MemberStatus::ACTIVE);
+  const auto voter_b_cert = get_cert_data(2, kp);
+  auto voter_b = gen.add_member(voter_b_cert, {}, MemberStatus::ACTIVE);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_veto_script_file));
+  gen.finalize();
+  MemberRpcFrontend frontend(network, node);
+  frontend.open();
+
+  Script proposal(R"xxx(
+    tables, user_cert = ...
+      return Calls:call("new_user", user_cert)
+    )xxx");
+
+  const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
+  json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
+  ccf::SignedReq sr(proposej);
+
+  Response<Propose::Out> r = frontend_process(frontend, proposej, voter_a_cert);
+  CHECK(r.result.completed == false);
+  CHECK(r.result.id == 0);
+
+  const ccf::Script vote_against("return false");
+  {
+    INFO("Member vetoes proposal");
+
+    const auto votej =
+      create_json_req_signed(Vote{0, vote_against}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, votej, voter_b_cert);
+
+    CHECK(r.result == false);
+  }
+
+  {
+    INFO("Check proposal was rejected");
+
+    const Response<Proposal> proposal = get_proposal(frontend, 0, voter_a_cert);
+
+    CHECK(proposal.result.state == ProposalState::REJECTED);
   }
 }
 
