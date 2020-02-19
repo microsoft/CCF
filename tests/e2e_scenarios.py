@@ -40,14 +40,14 @@ def run(args):
 
             check = infra.checker.Checker()
             check_commit = infra.checker.Checker(mc)
-            with primary.user_client(format="json") as uc:
+            with primary.user_client() as uc:
                 check_commit(uc.do("mkSign", params={}), result=True)
 
             for connection in scenario["connections"]:
                 with (
-                    primary.user_client(format="json")
+                    primary.user_client()
                     if not connection.get("on_backup")
-                    else random.choice(backups).user_client(format="json")
+                    else random.choice(backups).user_client()
                 ) as client:
                     txs = connection.get("transactions", [])
 
