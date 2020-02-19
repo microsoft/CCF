@@ -998,10 +998,9 @@ namespace kv
       if (committed)
         throw std::logic_error("Transaction already committed");
 
-      committed = true;
-
       if (view_list.empty())
       {
+        committed = true;
         success = true;
         return CommitSuccess::OK;
       }
@@ -1024,6 +1023,7 @@ namespace kv
         // recover.
         try
         {
+          committed = true;
           auto data = serialise();
 
           if (data->size() == 0)
@@ -1047,6 +1047,7 @@ namespace kv
 
           // Discard original exception type, throw as now fatal
           // KvSerialiserException
+          committed = false;
           throw KvSerialiserException(e.what());
         }
       }
@@ -1201,8 +1202,6 @@ namespace kv
       if (committed)
         throw std::logic_error("Transaction already committed");
 
-      committed = true;
-
       if (view_list.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
 
@@ -1212,6 +1211,7 @@ namespace kv
       if (!success)
         throw std::logic_error("Failed to commit reserved transaction");
 
+      committed = true;
       return {CommitSuccess::OK, {0, 0, 0}, std::move(serialise())};
     }
 
