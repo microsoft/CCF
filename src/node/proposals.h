@@ -79,12 +79,14 @@ namespace ccf
     OPEN,
     ACCEPTED,
     WITHDRAWN,
+    REJECTED
   };
   DECLARE_JSON_ENUM(
     ProposalState,
     {{ProposalState::OPEN, "OPEN"},
      {ProposalState::ACCEPTED, "ACCEPTED"},
-     {ProposalState::WITHDRAWN, "WITHDRAWN"}});
+     {ProposalState::WITHDRAWN, "WITHDRAWN"},
+     {ProposalState::REJECTED, "REJECTED"}});
 
   struct Proposal
   {
@@ -160,6 +162,13 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(KVRead::In)
   DECLARE_JSON_REQUIRED_FIELDS(KVRead::In, table, key);
+
+  enum CompletionResult
+  {
+    PASSED = 1,
+    PENDING = 0,
+    REJECTED = -1
+  };
 }
 
 MSGPACK_ADD_ENUM(ccf::ProposalState);
@@ -191,6 +200,14 @@ struct formatter<ccf::ProposalState>
       case (ccf::ProposalState::WITHDRAWN):
       {
         return format_to(ctx.out(), "withdrawn");
+      }
+      case (ccf::ProposalState::REJECTED):
+      {
+        return format_to(ctx.out(), "reject");
+      }
+      default:
+      {
+        return format_to(ctx.out(), "UNKNOWN");
       }
     }
   }
