@@ -28,26 +28,10 @@ def truncate(string, max_len=256):
 
 
 class Request:
-    def __init__(self, id, method, params, readonly_hint=None, jsonrpc="2.0"):
-        self.id = id
+    def __init__(self, method, params, readonly_hint=None):
         self.method = method
         self.params = params
-        self.jsonrpc = jsonrpc
         self.readonly_hint = readonly_hint
-
-    def to_dict(self):
-        rpc = {
-            "id": self.id,
-            "method": self.method,
-            "jsonrpc": self.jsonrpc,
-            "params": self.params,
-        }
-        if self.readonly_hint is not None:
-            rpc["readonly"] = self.readonly_hint
-        return rpc
-
-    def to_json(self):
-        return json.dumps(self.to_dict()).encode()
 
 
 class Response:
@@ -91,10 +75,6 @@ class Response:
         for attr, value in parsed.items():
             setattr(self, attr, value)
 
-    def from_msgpack(self, data):
-        parsed = msgpack.unpackb(data, raw=False)
-        self._from_parsed(parsed)
-
     def from_json(self, data):
         parsed = json.loads(data.decode())
         self._from_parsed(parsed)
@@ -113,7 +93,7 @@ class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
             truncate(
-                f"{name} #{request.id} {request.method} {request.params}"
+                f"{name} {request.method} {request.params}"
                 + (
                     f" (RO hint: {request.readonly_hint})"
                     if request.readonly_hint is not None
@@ -146,8 +126,8 @@ class RPCFileLogger(RPCLogger):
 
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
-            f.write(">> Request:" + os.linesep)
-            json.dump(request.to_dict(), f, indent=2)
+            f.write(f">> Request: {request.method}" + os.linesep)
+            f.write(json.dump(request.params, f, indent=2))
             f.write(os.linesep)
 
     def log_response(self, id, response):
@@ -192,8 +172,8 @@ class CurlClient:
 
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = request.to_json()
-            LOG.debug(f"Going to send {msg}")
+            msg = json.dumps(request.params).encode()
+            LOG.debug(f"Going to call {request.method} with {msg}")
             nf.write(msg)
             nf.flush()
             if is_signed:
@@ -284,7 +264,7 @@ class RequestClient:
     def _just_request(self, request):
         rep = requests.post(
             f"https://{self.host}:{self.port}/{request.method}",
-            json=request.to_dict(),
+            json=request.params,
             cert=(self.cert, self.key),
             verify=self.ca,
             timeout=(self.connection_timeout, self.request_timeout),
@@ -312,7 +292,7 @@ class RequestClient:
         with open(self.key, "rb") as k:
             rep = requests.post(
                 f"https://{self.host}:{self.port}/{request.method}",
-                json=request.to_dict(),
+                json=request.params,
                 cert=(self.cert, self.key),
                 verify=self.ca,
                 timeout=self.request_timeout,
@@ -369,7 +349,6 @@ class CCFClient:
         self.description = kwargs.pop("description")
         self.rpc_loggers = (RPCLogger(),)
         self.name = "[{}:{}]".format(kwargs.get("host"), kwargs.get("port"))
-        self.seqno = 0
 
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(*args, **kwargs)
@@ -377,11 +356,6 @@ class CCFClient:
             self.client_impl = WSClient(*args, **kwargs)
         else:
             self.client_impl = RequestClient(*args, **kwargs)
-
-    def _next_req(self, method, params, readonly_hint=None):
-        r = Request(self.seqno, method, params, readonly_hint)
-        self.seqno += 1
-        return r
 
     def _response(self, msg):
         r = Response(0)
@@ -391,7 +365,7 @@ class CCFClient:
         return r
 
     def request(self, method, params, *args, **kwargs):
-        r = self._next_req(f"{self.prefix}/{method}", params, *args, **kwargs)
+        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
         if self.description:
             description = f" ({self.description})"
         for logger in self.rpc_loggers:
@@ -400,7 +374,7 @@ class CCFClient:
         return self._response(self.client_impl.request(r))
 
     def signed_request(self, method, params, *args, **kwargs):
-        r = self._next_req(f"{self.prefix}/{method}", params, *args, **kwargs)
+        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
 
         if self.description:
             description = f" ({self.description}) [signed]"
