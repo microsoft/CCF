@@ -275,8 +275,8 @@ namespace ccf
         }
         default:
         {
-          throw std::logic_error(
-            fmt::format("Invalid completion result: {}", pass));
+          throw std::logic_error(fmt::format(
+            "Invalid completion result ({}) for proposal {}", pass, id));
         }
       };
 
