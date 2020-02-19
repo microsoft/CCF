@@ -74,8 +74,7 @@ public:
       auto j = params;
       return make_success(std::move(j));
     };
-    install(
-      "echo_function", handler_adapter(echo_function), HandlerRegistry::Read);
+    install("echo", handler_adapter(echo_function), HandlerRegistry::Read);
 
     auto get_caller_function =
       [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
@@ -85,6 +84,22 @@ public:
       "get_caller",
       handler_adapter(get_caller_function),
       HandlerRegistry::Read);
+
+    auto failable_function =
+      [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+        const auto it = params.find("error");
+        if (it != params.end())
+        {
+          const size_t error_code = (*it)["code"];
+          const std::string error_msg = (*it)["message"];
+
+          return make_error(error_code, error_msg);
+        }
+
+        return make_success(true);
+      };
+    install(
+      "failable", handler_adapter(failable_function), HandlerRegistry::Read);
   }
 };
 
@@ -516,7 +531,7 @@ TEST_CASE("MinimalHandleFunction")
   TestMinimalHandleFunction frontend(*network.tables);
   {
     auto echo_call = create_simple_json();
-    echo_call[jsonrpc::METHOD] = "echo_function";
+    echo_call[jsonrpc::METHOD] = "echo";
     echo_call[jsonrpc::PARAMS] = {{"data", {"nested", "Some string"}},
                                   {"other", "Another string"}};
 
@@ -540,6 +555,46 @@ TEST_CASE("MinimalHandleFunction")
     auto response =
       jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
     CHECK(response[jsonrpc::RESULT] == user_id);
+  }
+
+  {
+    auto dont_fail = create_simple_json();
+    dont_fail[jsonrpc::METHOD] = "failable";
+
+    const auto signed_call = create_signed_json(dont_fail);
+    const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
+
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto response =
+      jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
+    CHECK(response[jsonrpc::RESULT] == true);
+  }
+
+  {
+    for (const size_t err :
+         {(size_t)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          (size_t)jsonrpc::CCFErrorCodes::SCRIPT_ERROR,
+          (size_t)42u})
+    {
+      const auto msg = fmt::format("An error message about {}", err);
+      auto fail = create_simple_json();
+      fail[jsonrpc::METHOD] = "failable";
+      fail[jsonrpc::PARAMS] = {{"error", {{"code", err}, {"message", msg}}}};
+
+      const auto signed_call = create_signed_json(fail);
+      const auto serialized_call = jsonrpc::pack(signed_call, default_pack);
+
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto response =
+        jsonrpc::unpack(frontend.process(rpc_ctx).value(), default_pack);
+
+      const auto err_it = response.find(jsonrpc::ERR);
+      REQUIRE(err_it != response.end());
+      const auto error = *err_it;
+      CHECK(error[jsonrpc::CODE] == err);
+      const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
+      CHECK(error_msg.find(msg) != std::string::npos);
+    }
   }
 }
 
