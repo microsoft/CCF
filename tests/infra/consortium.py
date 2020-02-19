@@ -34,7 +34,7 @@ class Consortium:
         return list(zip(members_certs, members_kshare_pub))
 
     def propose(self, member_id, remote_node, script=None, params=None):
-        with remote_node.member_client(format="json", member_id=member_id) as mc:
+        with remote_node.member_client(member_id=member_id) as mc:
             r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
             return r.result, r.error
 
@@ -51,7 +51,7 @@ class Consortium:
         tables, changes = ...
         return true
         """
-        with remote_node.member_client(format="json", member_id=member_id) as mc:
+        with remote_node.member_client(member_id=member_id) as mc:
             res = mc.rpc(
                 "vote",
                 {"ballot": {"text": script}, "id": proposal_id},
@@ -115,7 +115,7 @@ class Consortium:
         return proposals;
         """
 
-        with remote_node.member_client(format="json", member_id=member_id) as c:
+        with remote_node.member_client(member_id=member_id) as c:
             rep = c.do("query", {"text": script})
             return rep.result
 
@@ -133,11 +133,9 @@ class Consortium:
         )
         self.vote_using_majority(remote_node, result["id"])
 
-        with remote_node.member_client(format="json") as c:
-            id = c.request(
-                "read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
-            )
-            assert c.response(id).result["status"] == infra.node.NodeStatus.RETIRED.name
+        with remote_node.member_client() as c:
+            r = c.request("read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
+            assert r.result["status"] == infra.node.NodeStatus.RETIRED.name
 
     def propose_trust_node(self, member_id, remote_node, node_id):
         script = """
@@ -259,9 +257,7 @@ class Consortium:
         """
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
-        with remote_node.member_client(
-            format="json", request_timeout=(30 if pbft_open else 3)
-        ) as c:
+        with remote_node.member_client(request_timeout=(30 if pbft_open else 3)) as c:
             rep = c.do(
                 "query",
                 {
@@ -281,7 +277,7 @@ class Consortium:
             ), f"Service status {current_status} (expected {status.name})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
-        with remote_node.member_client(format="json") as c:
+        with remote_node.member_client() as c:
             rep = c.do("read", {"table": "ccf.nodes", "key": node_id})
 
             if rep.error is not None or (

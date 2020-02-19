@@ -54,7 +54,7 @@ class TxRates:
             json.dump(self.all_metrics, mfile)
 
     def process_next(self):
-        with self.primary.user_client(format="json") as client:
+        with self.primary.user_client() as client:
             rv = client.rpc("getCommit", {})
             result = rv.to_dict()
             next_commit = result["result"]["commit"]
@@ -64,7 +64,7 @@ class TxRates:
             return more_to_process
 
     def get_metrics(self):
-        with self.primary.user_client(format="json") as client:
+        with self.primary.user_client() as client:
             rv = client.rpc("getMetrics", {})
             result = rv.to_dict()
             result = result["result"]

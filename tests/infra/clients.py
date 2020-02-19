@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import socket
 import ssl
-import msgpack
 import struct
 import select
 import contextlib
@@ -18,7 +17,6 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import asymmetric
 from websocket import create_connection
-
 from loguru import logger as LOG
 
 
@@ -47,9 +45,6 @@ class Request:
         if self.readonly_hint is not None:
             rpc["readonly"] = self.readonly_hint
         return rpc
-
-    def to_msgpack(self):
-        return msgpack.packb(self.to_dict(), use_bin_type=True)
 
     def to_json(self):
         return json.dumps(self.to_dict()).encode()
@@ -114,88 +109,6 @@ def human_readable_size(n):
     return f"{n:,.2f} {suffixes[i]}"
 
 
-class FramedTLSClient:
-    def __init__(self, host, port, cert=None, key=None, ca=None, request_timeout=3):
-        self.host = host
-        self.port = port
-        self.cert = cert
-        self.key = key
-        self.ca = ca
-        self.context = None
-        self.sock = None
-        self.conn = None
-        self.request_timeout = request_timeout
-
-    def connect(self):
-        if self.ca:
-            self.context = ssl.create_default_context(cafile=self.ca)
-
-            # Auto detect EC curve to use based on server CA
-            ca_bytes = open(self.ca, "rb").read()
-            ca_curve = (
-                x509.load_pem_x509_certificate(ca_bytes, default_backend())
-                .public_key()
-                .curve
-            )
-            if isinstance(ca_curve, asymmetric.ec.SECP256K1):
-                self.context.set_ecdh_curve("secp256k1")
-        else:
-            self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        if self.cert and self.key:
-            self.context.load_cert_chain(certfile=self.cert, keyfile=self.key)
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.conn = self.context.wrap_socket(
-            self.sock, server_side=False, server_hostname=self.host
-        )
-        self.conn.connect((self.host, self.port))
-
-    def send(self, msg):
-        LOG.trace(f"Sending {human_readable_size(len(msg))} message")
-        frame = struct.pack("<I", len(msg)) + msg
-        self.conn.sendall(frame)
-
-    def _read(self):
-        (size,) = struct.unpack("<I", self.conn.recv(4))
-        LOG.trace(f"Reading {human_readable_size(size)} response")
-        data = self.conn.recv(size)
-        while len(data) < size:
-            data += self.conn.recv(size - len(data))
-        return data
-
-    def read(self):
-        for _ in range(self.request_timeout * 100):
-            r, _, _ = select.select([self.conn], [], [], 0)
-            if r:
-                return self._read()
-            else:
-                time.sleep(0.01)
-        raise TimeoutError
-
-    def disconnect(self):
-        self.conn.close()
-
-
-class Stream:
-    def __init__(self, jsonrpc="2.0", format="msgpack"):
-        self.jsonrpc = jsonrpc
-        self.seqno = 0
-        self.pending = {}
-        self.format = format
-
-    def request(self, method, params, readonly_hint=None):
-        r = Request(self.seqno, method, params, readonly_hint, self.jsonrpc)
-        self.seqno += 1
-        return r
-
-    def response(self, id):
-        return self.pending.pop(id, None)
-
-    def update(self, msg):
-        r = Response(0)
-        getattr(r, f"from_{self.format}")(msg)
-        self.pending[r.id] = r
-
-
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
@@ -248,11 +161,12 @@ class CCFConnectionException(Exception):
     pass
 
 
-# We keep this around in a limited fashion still, because
-# the resulting logs nicely illustrate manual usage in a way using requests doesn't
-
-
 class CurlClient:
+    """
+    We keep this around in a limited fashion still, because
+    the resulting logs nicely illustrate manual usage in a way using the requests API doesn't
+    """
+
     def __init__(
         self,
         host,
@@ -261,7 +175,6 @@ class CurlClient:
         key,
         ca,
         version,
-        format,
         binary_dir,
         connection_timeout,
         request_timeout,
@@ -273,15 +186,13 @@ class CurlClient:
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.format = "json"
         self.binary_dir = binary_dir
         self.connection_timeout = connection_timeout
         self.request_timeout = request_timeout
-        self.stream = Stream(version, "json")
 
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = getattr(request, f"to_{self.format}")()
+            msg = request.to_json()
             LOG.debug(f"Going to send {msg}")
             nf.write(msg)
             nf.flush()
@@ -324,32 +235,28 @@ class CurlClient:
                 LOG.error(rep)
                 raise RuntimeError(f"Curl failed with status code {status_code}")
 
-            self.stream.update(rep.encode())
-        return request.id
+            return rep.encode()
 
     def _request(self, request, is_signed=False):
         while self.connection_timeout >= 0:
+            self.connection_timeout -= 0.1
+            if self.connection_timeout < 0:
+                self.connection_timeout = 0
             try:
                 rid = self._just_request(request, is_signed)
                 self._request = self._just_request
                 return rid
             except CCFConnectionException:
-                self.connection_timeout -= 0.1
-                if self.connection_timeout < 0:
+                if self.connection_timeout == 0:
                     raise
             time.sleep(0.1)
+        raise CCFConnectionException
 
     def request(self, request):
         return self._request(request, is_signed=False)
 
     def signed_request(self, request):
         return self._request(request, is_signed=True)
-
-    def response(self, id):
-        return self.stream.response(id)
-
-    def disconnect(self):
-        pass
 
 
 class RequestClient:
@@ -361,7 +268,6 @@ class RequestClient:
         key,
         ca,
         version,
-        format,
         connection_timeout,
         request_timeout,
         *args,
@@ -372,8 +278,6 @@ class RequestClient:
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.format = "json"
-        self.stream = Stream(version, "json")
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
 
@@ -385,22 +289,24 @@ class RequestClient:
             verify=self.ca,
             timeout=(self.connection_timeout, self.request_timeout),
         )
-        self.stream.update(rep.content)
-        return request.id
+        return rep.content
 
     def request(self, request):
         while self.connection_timeout >= 0:
+            self.connection_timeout -= 0.1
+            if self.connection_timeout < 0:
+                self.connection_timeout = 0
             try:
                 rid = self._just_request(request)
                 self.request = self._just_request
                 return rid
             except requests.exceptions.SSLError:
-                self.connection_timeout -= 0.1
-                if self.connection_timeout < 0:
+                if self.connection_timeout == 0:
                     raise CCFConnectionException
             except requests.exceptions.ReadTimeout:
                 raise TimeoutError
             time.sleep(0.1)
+        raise CCFConnectionException
 
     def signed_request(self, request):
         with open(self.key, "rb") as k:
@@ -423,14 +329,7 @@ class RequestClient:
                     ],
                 ),
             )
-            self.stream.update(rep.content)
-        return request.id
-
-    def response(self, id):
-        return self.stream.response(id)
-
-    def disconnect(self):
-        pass
+            return rep.content
 
 
 class WSClient:
@@ -442,7 +341,6 @@ class WSClient:
         key,
         ca,
         version,
-        format,
         connection_timeout,
         request_timeout,
         *args,
@@ -453,8 +351,6 @@ class WSClient:
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.format = "json"
-        self.stream = Stream(version, "json")
         self.request_timeout = request_timeout
 
     def request(self, request):
@@ -462,16 +358,9 @@ class WSClient:
             f"wss://{self.host}:{self.port}",
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
         )
-        return request.id
 
     def signed_request(self, request):
         raise NotImplementedError("Signed requests not yet implemented over WebSockets")
-
-    def response(self, id):
-        return self.stream.response(id)
-
-    def disconnect(self):
-        pass
 
 
 class CCFClient:
@@ -480,6 +369,7 @@ class CCFClient:
         self.description = kwargs.pop("description")
         self.rpc_loggers = (RPCLogger(),)
         self.name = "[{}:{}]".format(kwargs.get("host"), kwargs.get("port"))
+        self.seqno = 0
 
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(*args, **kwargs)
@@ -488,37 +378,36 @@ class CCFClient:
         else:
             self.client_impl = RequestClient(*args, **kwargs)
 
-    def disconnect(self):
-        self.client_impl.disconnect()
+    def _next_req(self, method, params, readonly_hint=None):
+        r = Request(self.seqno, method, params, readonly_hint)
+        self.seqno += 1
+        return r
+
+    def _response(self, msg):
+        r = Response(0)
+        r.from_json(msg)
+        for logger in self.rpc_loggers:
+            logger.log_response(r.id, r)
+        return r
 
     def request(self, method, params, *args, **kwargs):
-        r = self.client_impl.stream.request(
-            f"{self.prefix}/{method}", params, *args, **kwargs
-        )
+        r = self._next_req(f"{self.prefix}/{method}", params, *args, **kwargs)
         if self.description:
             description = f" ({self.description})"
         for logger in self.rpc_loggers:
             logger.log_request(r, self.name, description)
 
-        self.client_impl.request(r)
-        return r.id
+        return self._response(self.client_impl.request(r))
 
     def signed_request(self, method, params, *args, **kwargs):
-        r = self.client_impl.stream.request(
-            f"{self.prefix}/{method}", params, *args, **kwargs
-        )
+        r = self._next_req(f"{self.prefix}/{method}", params, *args, **kwargs)
+
         if self.description:
             description = f" ({self.description}) [signed]"
         for logger in self.rpc_loggers:
             logger.log_request(r, self.name, description)
 
-        return self.client_impl.signed_request(r)
-
-    def response(self, id):
-        r = self.client_impl.response(id)
-        for logger in self.rpc_loggers:
-            logger.log_response(id, r)
-        return r
+        return self._response(self.client_impl.signed_request(r))
 
     def do(self, *args, **kwargs):
         expected_result = None
@@ -528,8 +417,7 @@ class CCFClient:
         if "expected_error_code" in kwargs:
             expected_error_code = kwargs.pop("expected_error_code")
 
-        id = self.request(*args, **kwargs)
-        r = self.response(id)
+        r = self.request(*args, **kwargs)
 
         if expected_result is not None:
             assert expected_result == r.result
@@ -540,10 +428,9 @@ class CCFClient:
 
     def rpc(self, *args, **kwargs):
         if "signed" in kwargs and kwargs.pop("signed"):
-            id = self.signed_request(*args, **kwargs)
+            return self.signed_request(*args, **kwargs)
         else:
-            id = self.request(*args, **kwargs)
-        return self.response(id)
+            return self.request(*args, **kwargs)
 
 
 @contextlib.contextmanager
@@ -554,7 +441,6 @@ def client(
     key=None,
     ca=None,
     version="2.0",
-    format="json",
     description=None,
     log_file=None,
     prefix="users",
@@ -569,7 +455,6 @@ def client(
         key=key,
         ca=ca,
         version=version,
-        format=format,
         description=description,
         prefix=prefix,
         binary_dir=binary_dir,
@@ -580,7 +465,4 @@ def client(
     if log_file is not None:
         c.rpc_loggers += (RPCFileLogger(log_file),)
 
-    try:
-        yield c
-    finally:
-        c.disconnect()
+    yield c
