@@ -41,9 +41,7 @@ class PostQueueServer(http.server.HTTPServer):
         self.queue = queue.Queue()
         self.error_queue = queue.Queue()
         self.checker = checker
-        super(PostQueueServer, self).__init__(
-            server_address, PostQueueRequestHandler
-        )
+        super(PostQueueServer, self).__init__(server_address, PostQueueRequestHandler)
 
     def get_queue(self):
         return self.queue
