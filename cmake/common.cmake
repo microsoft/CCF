@@ -391,7 +391,10 @@ if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT SAN)
 else()
   set(DEFAULT_WORKER_THREADS 0)
 endif()
-set(WORKER_THREADS "${DEFAULT_WORKER_THREADS}" CACHE STRING "Number of worker threads to start on each CCF node")
+set(WORKER_THREADS
+    "${DEFAULT_WORKER_THREADS}"
+    CACHE STRING "Number of worker threads to start on each CCF node"
+)
 
 set(CCF_NETWORK_TEST_ARGS
     ${TEST_IGNORE_QUOTE}
