@@ -1060,10 +1060,10 @@ TEST_CASE("Vetoed proposal gets rejected")
     )xxx");
 
   const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
-  json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
-  ccf::SignedReq sr(proposej);
+  const auto propose =
+    create_request(Propose::In{proposal, user_cert}, "propose");
 
-  Response<Propose::Out> r = frontend_process(frontend, proposej, voter_a_cert);
+  Response<Propose::Out> r = frontend_process(frontend, propose, voter_a_cert);
   CHECK(r.result.completed == false);
   CHECK(r.result.id == 0);
 
@@ -1071,9 +1071,8 @@ TEST_CASE("Vetoed proposal gets rejected")
   {
     INFO("Member vetoes proposal");
 
-    const auto votej =
-      create_json_req_signed(Vote{0, vote_against}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, voter_b_cert);
+    const auto vote = create_signed_request(Vote{0, vote_against}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, voter_b_cert);
 
     CHECK(r.result == false);
   }
