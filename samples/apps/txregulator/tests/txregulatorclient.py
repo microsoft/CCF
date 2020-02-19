@@ -121,7 +121,7 @@ def run(args):
         with primary.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
 
-            with primary.user_client(format="msgpack", user_id=manager.name) as c:
+            with primary.user_client(user_id=manager.name) as c:
                 check(
                     c.rpc(
                         "REG_register",
@@ -179,7 +179,7 @@ def run(args):
         flagged_amt = 200000
 
         for i, bank in enumerate(banks):
-            with primary.user_client(format="msgpack", user_id=bank.name) as c:
+            with primary.user_client(user_id=bank.name) as c:
                 # Destination account is the next one in the list of banks
                 for transaction in transactions:
                     print(transaction)
@@ -230,7 +230,7 @@ def run(args):
         LOG.success(f"{tx_id} transactions have been successfully issued")
 
         # bank that issued first flagged transaction
-        with primary.user_client(format="msgpack", user_id=bank.name) as c:
+        with primary.user_client(user_id=bank.name) as c:
             # try to poll flagged but fail as you are not a regulator
             check(
                 c.rpc("REG_poll_flagged", {}),
@@ -254,7 +254,7 @@ def run(args):
 
         # regulator poll for transactions that are flagged
         with primary.node_client() as mc:
-            with primary.user_client(format="msgpack", user_id=regulator.name) as c:
+            with primary.user_client(user_id=regulator.name) as c:
                 # assert that the flagged txs that we poll for are correct
                 resp = c.rpc("REG_poll_flagged", {})
                 poll_flagged_ids = []
