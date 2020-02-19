@@ -8,6 +8,7 @@ Votes for the proposal are evaluated by the constitution's ``pass`` function. If
 Examples of constitution include (see :ref:`members/constitution:Models` for further details):
 
 - Strict majority (`simple constitution`_) that implements a "one-member, one-vote" constitution, with a majority rule. Votes on so-called sensitive tables, such as the one containing the constitution itself, require unanimity.
+- Strict majority with member veto (`simple constitution with veto`_) similar to the Strict majority constitution, but where each member is allow to veto any proposal.
 - Operating member + strict majority (`operating member constitution`_) that extends the "strict majority" constitution by defining an operating member allowed to add new nodes to the network, retire existing ones and allow new versions of the code.
 
 Once the initial set of members have agreed on a constitution, the corresponding Lua file can be given to operators to create a new network (see :ref:`operators/start_network:Starting a New Network`).
@@ -62,3 +63,5 @@ This `operating member constitution`_ shows how some members can be made operato
 .. _simple constitution: https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov.lua
 
 .. _operating member constitution: https://github.com/microsoft/CCF/blob/master/src/runtime_config/operator_gov.lua
+
+.. _simple constitution with veto: https://github.com/microsoft/CCF/blob/master/src/runtime_config/gov_veto.lua
