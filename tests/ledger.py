@@ -47,7 +47,7 @@ class LedgerDomain:
     def __init__(self, buffer):
         self._buffer = buffer
         self._buffer_size = buffer.getbuffer().nbytes
-        self._unpacker = msgpack.Unpacker(self._buffer)
+        self._unpacker = msgpack.Unpacker(self._buffer, raw=True, strict_map_key=False)
         self._version = self._read_next()
         self._read()
 
@@ -58,7 +58,6 @@ class LedgerDomain:
         return self._unpacker.unpack().decode()
 
     def _read(self):
-
         while self._buffer_size > self._unpacker.tell():
             map_start_indicator = self._read_next()
             map_name = self._read_next_string()

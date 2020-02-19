@@ -1,10 +1,16 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
--- This file defines the default initial contents (ie, Lua scripts) of the gov_scipts table.
+-- This file defines the default initial contents (ie, Lua scripts) of the gov_scripts table.
 return {
   pass = [[
   tables, calls, votes = ...
+
+  -- interface definitions
+  PASSED = 1
+  PENDING = 0
+  REJECTED = -1
+  STATE_ACTIVE = "ACTIVE"
 
   -- defines which of the members are operators
   function is_operator(member)
@@ -18,6 +24,7 @@ return {
     new_code=true
   }
 
+  -- count member votes
   operator_votes = 0
   member_votes = 0
 
@@ -33,7 +40,6 @@ return {
 
   -- count active members, excluding operators
   members_active = 0
-  STATE_ACTIVE = "ACTIVE"
 
   tables["ccf.members"]:foreach(function(member, details)
     if details["status"] == STATE_ACTIVE and not is_operator(tostring(member)) then
@@ -48,7 +54,11 @@ return {
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do
         if call.args[sensitive_table] then
           -- require unanimity of non-operating members
-          return member_votes == members_active
+          if member_votes == members_active then
+            return PASSED
+          else
+            return PENDING
+          end
         end
       end
     end
@@ -65,15 +75,15 @@ return {
 
   -- a majority of members can always pass votes
   if member_votes > math.floor(members_active / 2) then
-    return true
+    return PASSED
   end
 
   -- a single operator can pass an operator vote
-  if operator_vote then
-    return operator_votes > 0
+  if operator_vote and operator_votes > 0 then
+    return PASSED
   end
 
-  return false]],
+  return PENDING]],
 
   environment_proposal = [[
   __Puts = {}

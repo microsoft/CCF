@@ -14,10 +14,14 @@ return {
 
   -- count member votes
   member_votes = 0
-
+  
   for member, vote in pairs(votes) do
     if vote then
       member_votes = member_votes + 1
+    else
+      -- every member has the ability to veto a proposal
+      -- if they vote against it, it is rejected
+      return REJECTED
     end
   end
 
