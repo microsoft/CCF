@@ -94,10 +94,6 @@ if(NOT CCF_GENERATED_DIR)
   set(CCF_GENERATED_DIR ${CCF_DIR}/generated)
 endif()
 
-add_custom_target(
-  flatbuffers ALL DEPENDS ${CCF_GENERATED_DIR}/frame_generated.h
-)
-
 # Enclave library wrapper
 function(add_ccf_app name)
 
