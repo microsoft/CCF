@@ -1011,9 +1011,6 @@ namespace ccf
       GenesisGenerator g(network, tx);
       auto active_members = g.get_active_members_keyshare();
 
-      std::cout << "That many active members: " << active_members.size()
-                << std::endl;
-
       SecretSharing::SecretToSplit secret_to_split = {};
       std::copy_n(
         share_wrapping_key_raw.begin(),
@@ -1032,7 +1029,6 @@ namespace ccf
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_members)
       {
-        std::cout << "Encrypting shares " << std::endl;
         auto share_raw = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
 
