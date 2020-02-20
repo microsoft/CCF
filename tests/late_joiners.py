@@ -66,7 +66,7 @@ def timeout(node, suspend, election_timeout):
 
 
 def assert_node_up_to_date(check, node, final_msg, final_msg_id):
-    with node.user_client(format="json") as c:
+    with node.user_client() as c:
         try:
             check(
                 c.rpc("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
@@ -80,7 +80,7 @@ def wait_for_nodes(nodes, final_msg, final_msg_id):
         check_commit = infra.checker.Checker(mc)
         check = infra.checker.Checker()
         for i, node in enumerate(nodes):
-            with node.user_client(format="json") as c:
+            with node.user_client() as c:
                 check_commit(
                     c.rpc("LOG_record", {"id": final_msg_id + i, "msg": final_msg}),
                     result=True,
@@ -100,7 +100,7 @@ def run_requests(
         clients = []
         with contextlib.ExitStack() as es:
             for node in nodes:
-                clients.append(es.enter_context(node.user_client(format="json")))
+                clients.append(es.enter_context(node.user_client()))
             node_id = 0
             long_msg = "X" * (2 ** 14)
             for id in range(start_id, (start_id + total_requests)):

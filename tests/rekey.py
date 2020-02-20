@@ -31,10 +31,10 @@ def test(network, args):
 
 # Run some write transactions against the logging app
 def record_transactions(primary, txs_count=1):
-    with primary.node_client(format="json") as nc:
+    with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
 
-        with primary.user_client(format="json") as c:
+        with primary.user_client() as c:
             for i in range(1, txs_count):
                 check_commit(
                     c.rpc("LOG_record", {"id": i, "msg": f"entry #{i}"}), result=True

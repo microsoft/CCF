@@ -33,7 +33,7 @@ class PostQueueRequestHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
-class ThreadingPostQueueServer(http.server.ThreadingHTTPServer):
+class PostQueueServer(http.server.HTTPServer):
     def __init__(self, server_address, RequestHandlerClass, checker=None):
         assert (
             RequestHandlerClass is PostQueueRequestHandler
@@ -41,9 +41,7 @@ class ThreadingPostQueueServer(http.server.ThreadingHTTPServer):
         self.queue = queue.Queue()
         self.error_queue = queue.Queue()
         self.checker = checker
-        super(ThreadingPostQueueServer, self).__init__(
-            server_address, PostQueueRequestHandler
-        )
+        super(PostQueueServer, self).__init__(server_address, PostQueueRequestHandler)
 
     def get_queue(self):
         return self.queue
@@ -54,21 +52,18 @@ class ThreadingPostQueueServer(http.server.ThreadingHTTPServer):
 
 @contextmanager
 def notification_server(server_info, checker=None):
-
     host = None
     port = []
     if server_info is not None:
         host, *port = server_info.split(":")
-
         if not host or not (port and port[0]):
             raise ValueError("Notification server host:port configuration is invalid")
     else:
         raise ValueError("Notification server host:port configuration is invalid")
 
-    with ThreadingPostQueueServer(
+    with PostQueueServer(
         (host, int(port[0])), PostQueueRequestHandler, checker
     ) as server:
-
         server_thread = threading.Thread(target=server.serve_forever)
         server_thread.daemon = True
         server_thread.start()

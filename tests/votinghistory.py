@@ -6,7 +6,6 @@ import infra.proc
 import infra.remote
 import json
 import ledger
-import msgpack
 import coincurve
 from coincurve._libsecp256k1 import ffi, lib
 from coincurve.context import GLOBAL_CONTEXT

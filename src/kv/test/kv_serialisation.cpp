@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "kv/flatbufferwrapper.h"
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
 #include "node/encryptor.h"
@@ -273,13 +272,11 @@ TEST_CASE(
     view->put(k, v1);
     view->put(k2, v2);
 
-    auto [success, reqid, buffer] = tx.commit_reserved();
+    auto [success, reqid, data] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
     kv_store.compact(view->end_order());
 
-    std::vector<uint8_t> data_vec(
-      buffer->data(), buffer->data() + buffer->size());
-    REQUIRE(kv_store2.deserialise(data_vec) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(kv_store2.deserialise(data) == kv::DeserialiseSuccess::PASS);
     Store::Tx tx2;
     auto view2 = tx2.get_view(map2);
     auto va = view2->get(k);
@@ -415,57 +412,29 @@ TEST_CASE("replicated and derived table serialisation")
   Store store(kv::ReplicateType::SOME, replicated_tables);
   store.set_encryptor(encryptor);
 
+  Store second_store(kv::ReplicateType::SOME, replicated_tables);
+  second_store.set_encryptor(encryptor);
+
   auto& data_replicated =
     store.create<size_t, size_t>("data_replicated", kv::SecurityDomain::PUBLIC);
+  auto& second_data_replicated = second_store.create<size_t, size_t>(
+    "data_replicated", kv::SecurityDomain::PUBLIC);
   auto& data_derived =
     store.create<size_t, size_t>("data_derived", kv::SecurityDomain::PUBLIC);
+  auto& second_data_derived = second_store.create<size_t, size_t>(
+    "data_derived", kv::SecurityDomain::PUBLIC);
   auto& data_replicated_private =
     store.create<size_t, size_t>("data_replicated_private");
+  auto& second_data_replicated_private =
+    second_store.create<size_t, size_t>("data_replicated_private");
   auto& data_derived_private =
     store.create<size_t, size_t>("data_derived_private");
+  auto& second_data_derived_private =
+    second_store.create<size_t, size_t>("data_derived_private");
 
   {
     Store::Tx tx(store.next_version());
-    auto [data_view, data_view_private] =
-      tx.get_view(data_replicated, data_replicated_private);
-    data_view->put(42, 42);
-    data_view_private->put(43, 43);
-    auto [success, reqid, buffer] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
 
-    std::vector<uint8_t> data_vec(
-      buffer->data(), buffer->data() + buffer->size());
-
-    REQUIRE(store.deserialise(data_vec) == kv::DeserialiseSuccess::PASS);
-
-    auto replicated = kv::frame::replicated(buffer->data());
-    auto derived = kv::frame::derived(buffer->data());
-    REQUIRE(replicated.n > 0);
-    REQUIRE(derived.n == 0);
-  }
-
-  {
-    Store::Tx tx(store.next_version());
-    auto [data_view, data_view_private] =
-      tx.get_view(data_derived, data_derived_private);
-    data_view->put(42, 42);
-    data_view_private->put(43, 43);
-    auto [success, reqid, buffer] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
-
-    std::vector<uint8_t> data_vec(
-      buffer->data(), buffer->data() + buffer->size());
-
-    REQUIRE(store.deserialise(data_vec) == kv::DeserialiseSuccess::PASS);
-
-    auto replicated = kv::frame::replicated(buffer->data());
-    auto derived = kv::frame::derived(buffer->data());
-    REQUIRE(replicated.n == 0);
-    REQUIRE(derived.n > 0);
-  }
-
-  {
-    Store::Tx tx(store.next_version());
     auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] = tx.get_view(
       data_replicated,
       data_replicated_private,
@@ -475,46 +444,34 @@ TEST_CASE("replicated and derived table serialisation")
     data_view_r_p->put(45, 45);
     data_view_d->put(46, 46);
     data_view_d_p->put(47, 47);
-    auto [success, reqid, buffer] = tx.commit_reserved();
+
+    auto [success, reqid, data] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
+    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS);
 
-    std::vector<uint8_t> data_vec(
-      buffer->data(), buffer->data() + buffer->size());
+    INFO("check that second store derived data is not populated");
+    {
+      REQUIRE(second_store.deserialise(data) == kv::DeserialiseSuccess::PASS);
+      Store::Tx tx;
+      auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
+        tx.get_view(
+          second_data_replicated,
+          second_data_replicated_private,
+          second_data_derived,
+          second_data_derived_private);
+      auto dvr = data_view_r->get(44);
+      REQUIRE(dvr.has_value());
+      REQUIRE(dvr.value() == 44);
 
-    REQUIRE(store.deserialise(data_vec) == kv::DeserialiseSuccess::PASS);
+      auto dvrp = data_view_r_p->get(45);
+      REQUIRE(dvrp.has_value());
+      REQUIRE(dvrp.value() == 45);
 
-    auto replicated = kv::frame::replicated(buffer->data());
-    auto derived = kv::frame::derived(buffer->data());
-    REQUIRE(replicated.n > 0);
-    REQUIRE(derived.n > 0);
-  }
-
-  INFO("check that everything got deserialised correctly");
-  {
-    Store::Tx tx;
-    auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] = tx.get_view(
-      data_replicated,
-      data_replicated_private,
-      data_derived,
-      data_derived_private);
-
-    // replicated
-    auto replicated_pub = data_view_r->get(44);
-    REQUIRE(replicated_pub.has_value());
-    REQUIRE(replicated_pub.value() == 44);
-
-    auto replicated_priv = data_view_r_p->get(45);
-    REQUIRE(replicated_priv.has_value());
-    REQUIRE(replicated_priv.value() == 45);
-
-    // derived
-    auto derived_pub = data_view_d->get(46);
-    REQUIRE(derived_pub.has_value());
-    REQUIRE(derived_pub.value() == 46);
-
-    auto derived_priv = data_view_d_p->get(47);
-    REQUIRE(derived_priv.has_value());
-    REQUIRE(derived_priv.value() == 47);
+      auto dvd = data_view_d->get(46);
+      REQUIRE(!dvd.has_value());
+      auto dvdp = data_view_d_p->get(47);
+      REQUIRE(!dvdp.has_value());
+    }
   }
 }
 
@@ -574,21 +531,4 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
 
     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
   }
-}
-
-TEST_CASE("Test flatbuffers")
-{
-  std::vector<uint8_t> derived_data(10, 1);
-  std::vector<uint8_t> replicated_data(11, 0);
-
-  kv::frame::FlatbufferSerialiser fb_serialiser(replicated_data, derived_data);
-
-  auto buffer = fb_serialiser.get_detached_buffer();
-
-  kv::frame::FlatbufferDeserialiser db_deserialiser(buffer->data());
-
-  auto replicated = kv::frame::replicated(buffer->data());
-  CHECK(replicated.n == replicated_data.size());
-
-  CHECK(db_deserialiser.replicated_size() == replicated_data.size());
 }

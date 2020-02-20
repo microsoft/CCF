@@ -244,7 +244,7 @@ namespace ccf
           proposed_calls);
       }
 
-      const auto pass = tsr.run<bool>(
+      const auto pass = tsr.run<int>(
         tx,
         {get_script(tx, GovScriptIds::PASS),
          {}, // can't write
@@ -254,8 +254,31 @@ namespace ccf
         proposed_calls,
         votes);
 
-      if (!pass)
-        return false;
+      switch (pass)
+      {
+        case CompletionResult::PASSED:
+        {
+          // vote passed, go on to update the state
+          break;
+        }
+        case CompletionResult::PENDING:
+        {
+          // vote is pending, return false but do not update state
+          return false;
+        }
+        case CompletionResult::REJECTED:
+        {
+          // vote unsuccessful, update the proposal's state
+          proposal->state = ProposalState::REJECTED;
+          proposals->put(id, *proposal);
+          return false;
+        }
+        default:
+        {
+          throw std::logic_error(fmt::format(
+            "Invalid completion result ({}) for proposal {}", pass, id));
+        }
+      };
 
       // execute proposed calls
       ProposedCalls pc = proposed_calls;

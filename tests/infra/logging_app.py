@@ -19,11 +19,11 @@ class LoggingTxs:
         primary, backup = network.find_primary_and_any_backup()
         remote_node = backup if on_backup else primary
 
-        with remote_node.node_client(format="json") as mc:
+        with remote_node.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
             check_commit_n = infra.checker.Checker(mc, self.notifications_queue)
 
-            with remote_node.user_client(format="json") as uc:
+            with remote_node.user_client() as uc:
                 for _ in range(number_txs):
                     priv_msg = f"Private message at index {self.next_priv_index}"
                     pub_msg = f"Public message at index {self.next_pub_index}"
@@ -48,10 +48,10 @@ class LoggingTxs:
         LOG.success(f"Verifying all logging txs")
         primary, term = network.find_primary()
 
-        with primary.node_client(format="json") as mc:
+        with primary.node_client() as mc:
             check = infra.checker.Checker()
 
-            with primary.user_client(format="json") as uc:
+            with primary.user_client() as uc:
 
                 for pub_tx_index in self.pub:
                     check(
