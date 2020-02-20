@@ -65,7 +65,7 @@ namespace enclave
   class RpcContext
   {
   protected:
-    mutable size_t request_index = 0;
+    size_t request_index = 0;
 
     std::unordered_map<std::string, nlohmann::json> response_headers;
     RpcResponse response;
@@ -75,8 +75,6 @@ namespace enclave
 
     // raw pbft Request
     std::vector<uint8_t> pbft_raw = {};
-
-    std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     bool is_create_request = false;
 
@@ -109,6 +107,7 @@ namespace enclave
     virtual void set_method(const std::string_view& method) = 0;
 
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
+    virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
 
     /// Response details
     void set_response_error(int code, const std::string& msg = "")

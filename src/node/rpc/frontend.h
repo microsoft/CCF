@@ -226,14 +226,15 @@ namespace ccf
           invalid_caller_error_message());
       }
 
-      if (ctx->signed_request.has_value())
+      const auto signed_request = ctx->get_signed_request();
+      if (signed_request.has_value())
       {
         if (
           !ctx->is_create_request &&
           !verify_client_signature(
             ctx->session.caller_cert,
             caller_id.value(),
-            ctx->signed_request.value()))
+            signed_request.value()))
         {
           return ctx->error_response(
             jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
@@ -246,7 +247,7 @@ namespace ccf
           ctx->is_create_request)
         {
           record_client_signature(
-            tx, caller_id.value(), ctx->signed_request.value());
+            tx, caller_id.value(), signed_request.value());
         }
       }
 
@@ -400,10 +401,11 @@ namespace ccf
 
       // Store client signature. It is assumed that the forwarder node has
       // already verified the client signature.
-      if (ctx->signed_request.has_value())
+      const auto signed_request = ctx->get_signed_request();
+      if (signed_request.has_value())
       {
         record_client_signature(
-          tx, ctx->session.fwd->caller_id, ctx->signed_request.value());
+          tx, ctx->session.fwd->caller_id, signed_request.value());
       }
 
       auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);

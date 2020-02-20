@@ -496,7 +496,8 @@ namespace ccf
           return;
         }
 
-        if (!args.rpc_ctx->signed_request.has_value())
+        const auto signed_request = args.rpc_ctx->get_signed_request();
+        if (!signed_request.has_value())
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
@@ -532,8 +533,7 @@ namespace ccf
         proposals->put(vote.id, *proposal);
 
         auto voting_history = args.tx.get_view(this->network.voting_history);
-        voting_history->put(
-          args.caller_id, {args.rpc_ctx->signed_request.value()});
+        voting_history->put(args.caller_id, {signed_request.value()});
 
         args.rpc_ctx->set_response_result(complete_proposal(args.tx, vote.id));
         return;

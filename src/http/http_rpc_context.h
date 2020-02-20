@@ -38,6 +38,7 @@ namespace http
   {
   private:
     http_method verb;
+    std::string whole_path = {};
     std::string path = {};
     std::string query = {};
 
@@ -46,6 +47,7 @@ namespace http
     std::vector<uint8_t> request_body = {};
 
     std::vector<uint8_t> serialised_request = {};
+    std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
     mutable std::optional<jsonrpc::Pack> body_packing = std::nullopt;
 
@@ -113,7 +115,7 @@ namespace http
           "{}"
           "\r\n",
           http_method_str(verb),
-          fmt::format("{}{}", path, query),
+          fmt::format("{}{}", whole_path, query),
           http::get_header_string(request_headers));
 
         serialised_request.resize(
@@ -128,17 +130,6 @@ namespace http
             serialised_request.data() + canonical_request_header.size(),
             request_body.data(),
             request_body.size());
-        }
-
-        auto signed_req = http::HttpSignatureVerifier::parse(
-          std::string(http_method_str(verb)),
-          path,
-          query,
-          request_headers,
-          request_body);
-        if (signed_req.has_value())
-        {
-          signed_request = signed_req;
         }
       }
 
@@ -205,9 +196,12 @@ namespace http
       request_body(body_),
       serialised_request(raw_request_)
     {
+      whole_path = path;
+
       if (!serialised_request.empty())
       {
         canonicalised = true;
+        get_signed_request();
       }
       else
       {
@@ -262,6 +256,22 @@ namespace http
     {
       canonicalise();
       return serialised_request;
+    }
+
+    virtual std::optional<ccf::SignedReq> get_signed_request() override
+    {
+      canonicalise();
+      if (!signed_request.has_value())
+      {
+        signed_request = http::HttpSignatureVerifier::parse(
+          std::string(http_method_str(verb)),
+          whole_path,
+          query,
+          request_headers,
+          request_body);
+      }
+
+      return signed_request;
     }
 
     virtual std::string get_method() const override
