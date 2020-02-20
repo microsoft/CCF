@@ -38,125 +38,114 @@ namespace http
   {
   private:
     http_method verb;
-    std::vector<uint8_t> request_body;
     std::string path = {};
+    std::string query = {};
 
     http::HeaderMap request_headers;
 
-    mutable jsonrpc::Pack body_packing = jsonrpc::Pack::Text;
+    std::vector<uint8_t> request_body;
 
-  public:
-    HttpRpcContext(
-      const enclave::SessionContext& s,
-      http_method verb_,
-      const std::string_view& path_,
-      const std::string_view& query_,
-      const http::HeaderMap& headers_,
-      const std::vector<uint8_t>& body_,
-      const std::vector<uint8_t>& raw_request_ = {},
-      const std::vector<uint8_t>& raw_pbft_ = {}) :
-      RpcContext(s, raw_request_, raw_pbft_),
-      verb(verb_),
-      path(path_),
-      request_body(body_)
+    mutable std::optional<jsonrpc::Pack> body_packing = std::nullopt;
+
+    bool canonicalised = false;
+
+    void canonicalise()
     {
-      // Build a canonical serialization of this request. If the request is
-      // signed, then all unsigned headers must be removed
-      request_headers = headers_;
-
-      const auto auth_it = request_headers.find(http::headers::AUTHORIZATION);
-      if (auth_it != request_headers.end())
+      if (!canonicalised)
       {
-        std::string_view authz_header = auth_it->second;
-
-        auto parsed_sign_params =
-          http::HttpSignatureVerifier::parse_signature_params(authz_header);
-
-        if (!parsed_sign_params.has_value())
+        // Build a canonical serialization of this request. If the request is
+        // signed, then all unsigned headers must be removed
+        const auto auth_it = request_headers.find(http::headers::AUTHORIZATION);
+        if (auth_it != request_headers.end())
         {
-          throw std::logic_error(fmt::format(
-            "Unable to parse signature params from: {}", authz_header));
-        }
+          std::string_view authz_header = auth_it->second;
 
-        // Keep all signed headers, and the auth header containing the signature
-        // itself
-        auto& signed_headers = parsed_sign_params->signed_headers;
-        signed_headers.emplace_back(http::headers::AUTHORIZATION);
+          auto parsed_sign_params =
+            http::HttpSignatureVerifier::parse_signature_params(authz_header);
 
-        for (const auto& required_header :
-             {http::headers::DIGEST, http::headers::CONTENT_LENGTH})
-        {
-          if (
-            std::find(
-              signed_headers.begin(), signed_headers.end(), required_header) ==
-            signed_headers.end())
+          if (!parsed_sign_params.has_value())
           {
             throw std::logic_error(fmt::format(
-              "HTTP authorization header must sign header '{}'",
-              required_header));
+              "Unable to parse signature params from: {}", authz_header));
+          }
+
+          // Keep all signed headers, and the auth header containing the
+          // signature itself
+          auto& signed_headers = parsed_sign_params->signed_headers;
+          signed_headers.emplace_back(http::headers::AUTHORIZATION);
+
+          for (const auto& required_header :
+               {http::headers::DIGEST, http::headers::CONTENT_LENGTH})
+          {
+            if (
+              std::find(
+                signed_headers.begin(),
+                signed_headers.end(),
+                required_header) == signed_headers.end())
+            {
+              throw std::logic_error(fmt::format(
+                "HTTP authorization header must sign header '{}'",
+                required_header));
+            }
+          }
+
+          auto it = request_headers.begin();
+          while (it != request_headers.end())
+          {
+            if (
+              std::find(
+                signed_headers.begin(), signed_headers.end(), it->first) ==
+              signed_headers.end())
+            {
+              it = request_headers.erase(it);
+            }
+            else
+            {
+              ++it;
+            }
           }
         }
 
-        auto it = request_headers.begin();
-        while (it != request_headers.end())
-        {
-          if (
-            std::find(
-              signed_headers.begin(), signed_headers.end(), it->first) ==
-            signed_headers.end())
-          {
-            it = request_headers.erase(it);
-          }
-          else
-          {
-            ++it;
-          }
-        }
-      }
+        const auto canonical_request_header = fmt::format(
+          "{} {} HTTP/1.1\r\n"
+          "{}"
+          "\r\n",
+          http_method_str(verb),
+          fmt::format("{}{}", path, query),
+          http::get_header_string(request_headers));
 
-      const auto canonical_request_header = fmt::format(
-        "{} {} HTTP/1.1\r\n"
-        "{}"
-        "\r\n",
-        http_method_str(verb),
-        fmt::format("{}{}", path_, query_),
-        http::get_header_string(request_headers));
-
-      raw_request.resize(canonical_request_header.size() + request_body.size());
-      ::memcpy(
-        raw_request.data(),
-        canonical_request_header.data(),
-        canonical_request_header.size());
-      if (!request_body.empty())
-      {
+        raw_request.resize(
+          canonical_request_header.size() + request_body.size());
         ::memcpy(
-          raw_request.data() + canonical_request_header.size(),
-          request_body.data(),
-          request_body.size());
+          raw_request.data(),
+          canonical_request_header.data(),
+          canonical_request_header.size());
+        if (!request_body.empty())
+        {
+          ::memcpy(
+            raw_request.data() + canonical_request_header.size(),
+            request_body.data(),
+            request_body.size());
+        }
+
+        auto signed_req = http::HttpSignatureVerifier::parse(
+          std::string(http_method_str(verb)),
+          path,
+          query,
+          request_headers,
+          request_body);
+        if (signed_req.has_value())
+        {
+          signed_request = signed_req;
+        }
       }
 
-      auto signed_req = http::HttpSignatureVerifier::parse(
-        std::string(http_method_str(verb)),
-        path_,
-        query_,
-        request_headers,
-        request_body);
-      if (signed_req.has_value())
-      {
-        signed_request = signed_req;
-      }
+      canonicalised = true;
     }
 
-    virtual const std::vector<uint8_t>& get_request_body() const override
+    jsonrpc::Pack get_content_type() const
     {
-      return request_body;
-    }
-
-    virtual nlohmann::json get_params() const override
-    {
-      nlohmann::json params;
-
-      if (verb == HTTP_POST)
+      if (!body_packing.has_value())
       {
         const auto content_type_it =
           request_headers.find(http::headers::CONTENT_TYPE);
@@ -183,21 +172,58 @@ namespace http
         }
         else
         {
-          const auto pack = jsonrpc::detect_pack(request_body);
-
-          if (pack.has_value())
-          {
-            body_packing = pack.value();
-          }
+          body_packing = jsonrpc::detect_pack(request_body);
         }
 
+        // If we can't auto-detect a format, fallback to assuming text
+        if (!body_packing.has_value())
+        {
+          body_packing = jsonrpc::Pack::Text;
+        }
+      }
+
+      return body_packing.value();
+    }
+
+  public:
+    HttpRpcContext(
+      const enclave::SessionContext& s,
+      http_method verb_,
+      const std::string_view& path_,
+      const std::string_view& query_,
+      const http::HeaderMap& headers_,
+      const std::vector<uint8_t>& body_,
+      const std::vector<uint8_t>& raw_request_ = {},
+      const std::vector<uint8_t>& raw_pbft_ = {}) :
+      RpcContext(s, raw_request_, raw_pbft_),
+      verb(verb_),
+      path(path_),
+      query(query_),
+      request_headers(headers_),
+      request_body(body_)
+    {
+      canonicalise();
+    }
+
+    virtual const std::vector<uint8_t>& get_request_body() const override
+    {
+      return request_body;
+    }
+
+    virtual nlohmann::json get_params() const override
+    {
+      nlohmann::json params;
+
+      if (verb == HTTP_POST)
+      {
         if (request_body.empty())
         {
           params = nullptr;
         }
         else
         {
-          const auto contents = jsonrpc::unpack(request_body, body_packing);
+          const auto contents =
+            jsonrpc::unpack(request_body, get_content_type());
 
           // Currently contents must either be a naked json payload, or a
           // JSON-RPC object. We don't check the latter object for validity, we
@@ -265,7 +291,7 @@ namespace http
         }
       }
 
-      const auto body = jsonrpc::pack(full_response, body_packing);
+      const auto body = jsonrpc::pack(full_response, get_content_type());
 
       // We return status 200 regardless of whether the body contains a JSON-RPC
       // success or a JSON-RPC error
@@ -279,7 +305,8 @@ namespace http
     {
       auto http_response = http::Response(HTTP_STATUS_OK);
       const auto body = jsonrpc::pack(
-        jsonrpc::result_response(get_request_index(), result), body_packing);
+        jsonrpc::result_response(get_request_index(), result),
+        get_content_type());
       http_response.set_body(&body);
       return http_response.build_response();
     }
@@ -291,7 +318,7 @@ namespace http
       auto http_response = http::Response(HTTP_STATUS_OK);
       const auto body = jsonrpc::pack(
         jsonrpc::error_response(get_request_index(), error_element),
-        body_packing);
+        get_content_type());
       http_response.set_body(&body);
       return http_response.build_response();
     }
