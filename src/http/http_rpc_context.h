@@ -145,11 +145,6 @@ namespace http
       {
         signed_request = signed_req;
       }
-
-      // As an artifact of https://github.com/microsoft/CCF/issues/845 we need
-      // to call this to ensure request_index is set for every request we parse.
-      // This should be removed soon.
-      get_params();
     }
 
     virtual const std::vector<uint8_t>& get_request_body() const override
@@ -215,14 +210,6 @@ namespace http
           else
           {
             params = contents;
-          }
-
-          // When https://github.com/microsoft/CCF/issues/845 is resolved, this
-          // can be removed
-          const auto id_it = contents.find(jsonrpc::ID);
-          if (id_it != contents.end())
-          {
-            request_index = *id_it;
           }
         }
       }

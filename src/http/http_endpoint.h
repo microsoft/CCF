@@ -217,10 +217,7 @@ namespace http
           send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
         }
 
-        // When https://github.com/microsoft/CCF/issues/845 is resolved, we
-        // should uncomment this - request_index should be determined by receive
-        // order here.
-        // rpc_ctx->set_request_index(request_index++);
+        rpc_ctx->set_request_index(request_index++);
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
