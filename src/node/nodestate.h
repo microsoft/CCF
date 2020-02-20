@@ -1014,7 +1014,7 @@ namespace ccf
       SecretSharing::SecretToSplit secret_to_split = {};
       std::copy_n(
         share_wrapping_key_raw.begin(),
-        SecretSharing::SECRET_TO_SPLIT_LENGTH,
+        share_wrapping_key_raw.size(),
         secret_to_split.begin());
 
       // For now, the secret sharing threshold is set to the number of initial
