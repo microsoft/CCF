@@ -565,6 +565,8 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
+  include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/tpcc/tpcc.cmake)
+
   add_e2e_test(
     NAME end_to_end_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
