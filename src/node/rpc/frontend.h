@@ -268,7 +268,7 @@ namespace ccf
               reqid,
               caller_id.value(),
               ctx->session.caller_cert,
-              ctx->raw_request))
+              ctx->get_serialised_request()))
         {
           LOG_FAIL_FMT(
             "Adding request failed: {}, {}, {}",
@@ -356,7 +356,7 @@ namespace ccf
           0,
           {ctx->session.fwd.value().caller_id,
            ctx->session.caller_cert,
-           ctx->raw_request,
+           ctx->get_serialised_request(),
            ctx->pbft_raw});
       }
 

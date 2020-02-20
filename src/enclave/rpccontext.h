@@ -73,8 +73,6 @@ namespace enclave
   public:
     SessionContext session;
 
-    std::vector<uint8_t> raw_request = {};
-
     // raw pbft Request
     std::vector<uint8_t> pbft_raw = {};
 
@@ -86,12 +84,8 @@ namespace enclave
 
     RpcContext(const SessionContext& s) : session(s) {}
 
-    RpcContext(
-      const SessionContext& s,
-      const std::vector<uint8_t>& raw_request_,
-      const std::vector<uint8_t>& pbft_raw_) :
+    RpcContext(const SessionContext& s, const std::vector<uint8_t>& pbft_raw_) :
       session(s),
-      raw_request(raw_request_),
       pbft_raw(pbft_raw_)
     {}
 
@@ -113,6 +107,8 @@ namespace enclave
 
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
+
+    virtual const std::vector<uint8_t>& get_serialised_request() = 0;
 
     /// Response details
     void set_response_error(int code, const std::string& msg = "")

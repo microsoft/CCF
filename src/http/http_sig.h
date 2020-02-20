@@ -373,7 +373,7 @@ namespace http
       }
 
       // The request does not contain the Authorization header
-      return {};
+      return std::nullopt;
     }
   };
 }

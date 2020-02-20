@@ -41,9 +41,11 @@ namespace http
     std::string path = {};
     std::string query = {};
 
-    http::HeaderMap request_headers;
+    http::HeaderMap request_headers = {};
 
-    std::vector<uint8_t> request_body;
+    std::vector<uint8_t> request_body = {};
+
+    std::vector<uint8_t> serialised_request = {};
 
     mutable std::optional<jsonrpc::Pack> body_packing = std::nullopt;
 
@@ -114,16 +116,16 @@ namespace http
           fmt::format("{}{}", path, query),
           http::get_header_string(request_headers));
 
-        raw_request.resize(
+        serialised_request.resize(
           canonical_request_header.size() + request_body.size());
         ::memcpy(
-          raw_request.data(),
+          serialised_request.data(),
           canonical_request_header.data(),
           canonical_request_header.size());
         if (!request_body.empty())
         {
           ::memcpy(
-            raw_request.data() + canonical_request_header.size(),
+            serialised_request.data() + canonical_request_header.size(),
             request_body.data(),
             request_body.size());
         }
@@ -195,12 +197,13 @@ namespace http
       const std::vector<uint8_t>& body_,
       const std::vector<uint8_t>& raw_request_ = {},
       const std::vector<uint8_t>& raw_pbft_ = {}) :
-      RpcContext(s, raw_request_, raw_pbft_),
+      RpcContext(s, raw_pbft_),
       verb(verb_),
       path(path_),
       query(query_),
       request_headers(headers_),
-      request_body(body_)
+      request_body(body_),
+      serialised_request(raw_request_)
     {
       canonicalise();
     }
@@ -246,6 +249,12 @@ namespace http
       }
 
       return params;
+    }
+
+    virtual const std::vector<uint8_t>& get_serialised_request() override
+    {
+      canonicalise();
+      return serialised_request;
     }
 
     virtual std::string get_method() const override

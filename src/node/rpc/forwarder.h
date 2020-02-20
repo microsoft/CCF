@@ -52,9 +52,10 @@ namespace ccf
     {
       IsCallerCertForwarded include_caller = false;
       const auto method = rpc_ctx->get_method();
+      const auto& raw_request = rpc_ctx->get_serialised_request();
       size_t size = sizeof(caller_id) +
         sizeof(rpc_ctx->session.client_session_id) +
-        sizeof(IsCallerCertForwarded) + rpc_ctx->raw_request.size();
+        sizeof(IsCallerCertForwarded) + raw_request.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -72,8 +73,7 @@ namespace ccf
         serialized::write(data_, size_, caller_cert.size());
         serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
       }
-      serialized::write(
-        data_, size_, rpc_ctx->raw_request.data(), rpc_ctx->raw_request.size());
+      serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
 
