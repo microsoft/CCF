@@ -367,9 +367,8 @@ namespace http
         }
 
         auto sig_raw = tls::raw_from_b64(parsed_sign_params->signature);
-        auto raw_req = std::vector<uint8_t>({body.begin(), body.end()});
         ccf::SignedReq ret = {
-          sig_raw, signed_raw.value(), raw_req, MBEDTLS_MD_SHA256};
+          sig_raw, signed_raw.value(), body, MBEDTLS_MD_SHA256};
         return ret;
       }
 
