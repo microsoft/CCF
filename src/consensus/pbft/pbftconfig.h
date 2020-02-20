@@ -88,8 +88,6 @@ namespace pbft
 
           LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", actor_s);
 
-          ctx->signed_request = ccf::SignedReq();
-
           enclave::RpcHandler::ProcessPbftResp rep;
           if (tx != nullptr)
           {
