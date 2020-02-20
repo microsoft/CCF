@@ -921,6 +921,15 @@ namespace kv
       return std::tuple_cat(get_tuple(m), get_tuple(ms...));
     }
 
+    void reset()
+    {
+      view_list.clear();
+      committed = false;
+      success = false;
+      read_version = NoVersion;
+      version = NoVersion;
+    }
+
   public:
     Tx() :
       view_list(),
@@ -998,10 +1007,9 @@ namespace kv
       if (committed)
         throw std::logic_error("Transaction already committed");
 
-      committed = true;
-
       if (view_list.empty())
       {
+        committed = true;
         success = true;
         return CommitSuccess::OK;
       }
@@ -1012,11 +1020,17 @@ namespace kv
 
       if (!success)
       {
+        // Conflicting views (and contained writes) and all version tracking are
+        // discarded. They must be reconstructed at updated, non-conflicting
+        // versions
+        reset();
+
         LOG_TRACE_FMT("Could not commit transaction due to conflict");
         return CommitSuccess::CONFLICT;
       }
       else
       {
+        committed = true;
         version = c.value();
 
         // From here, we have received a unique commit version and made
@@ -1043,6 +1057,8 @@ namespace kv
         }
         catch (const std::exception& e)
         {
+          committed = false;
+
           LOG_FAIL_FMT("Error during serialisation: {}", e.what());
 
           // Discard original exception type, throw as now fatal
