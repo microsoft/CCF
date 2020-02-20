@@ -23,8 +23,8 @@ namespace crypto
     {
       if (private_key.size() != KEY_SIZE)
       {
-        throw std::logic_error(
-          fmt::format("Private key size is not {}", KEY_SIZE));
+        throw std::logic_error(fmt::format(
+          "Private key size {} is not {}", private_key.size(), KEY_SIZE));
       }
 
       std::vector<uint8_t> public_key(KEY_SIZE);

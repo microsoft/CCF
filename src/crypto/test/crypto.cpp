@@ -8,6 +8,7 @@
 #include "tls/entropy.h"
 
 #include <doctest/doctest.h>
+#include <mbedtls/pem.h>
 #include <vector>
 
 using namespace crypto;
@@ -123,5 +124,13 @@ TEST_CASE("Public key encryption")
     REQUIRE_THROWS_AS(
       crypto::Box::open({}, nonce, sender_pk_raw, recipient_sk_raw),
       std::logic_error);
+  }
+
+  INFO("Let's experiment");
+  {
+    auto pem_str = std::string(
+      "-----BEGIN PUBLIC KEY-----\n"
+      "MCowBQYDK2VwAyEAiaGfOr3cEe+sS67LGoW+tv0AtD+bDYFKeDzxwBIxHhQ=\n"
+      "-----END PUBLIC KEY-----");
   }
 }
