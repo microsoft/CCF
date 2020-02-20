@@ -67,7 +67,6 @@ if("sgx" IN_LIST TARGET)
                            ${PARSED_ARGS_INCLUDE_DIRS} ${EVERCRYPT_INC}
   )
   use_oe_mbedtls(libbyz.enclave)
-  add_dependencies(libbyz.enclave flatbuffers)
   install(
     TARGETS libbyz.enclave
     EXPORT ccf
@@ -85,7 +84,6 @@ if("virtual" IN_LIST TARGET)
   target_include_directories(libbyz.host PRIVATE SYSTEM ${EVERCRYPT_INC})
   target_link_libraries(libbyz.host PRIVATE secp256k1.host)
   use_client_mbedtls(libbyz.host)
-  add_dependencies(libbyz.host flatbuffers)
   install(
     TARGETS libbyz.host
     EXPORT ccf
@@ -101,7 +99,6 @@ if("virtual" IN_LIST TARGET)
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/Statistics.cpp
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
-  add_dependencies(libcommontest flatbuffers)
 
   target_include_directories(
     libcommontest PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
@@ -119,7 +116,6 @@ if("virtual" IN_LIST TARGET)
             ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test ${EVERCRYPT_INC}
   )
 
-  add_dependencies(libcommontest.mock flatbuffers)
   target_compile_options(libcommontest.mock PRIVATE -stdlib=libc++)
 
   function(use_libbyz name)

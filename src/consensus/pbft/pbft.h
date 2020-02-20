@@ -474,15 +474,6 @@ namespace pbft
       return data.size();
     }
 
-    bool replicate(const kv::BatchDetachedBuffer& entries) override
-    {
-      for (auto& [index, data, globally_committable] : entries)
-      {
-        write_to_ledger(data);
-      }
-      return true;
-    }
-
     bool replicate(const kv::BatchVector& entries) override
     {
       for (auto& [index, data, globally_committable] : entries)

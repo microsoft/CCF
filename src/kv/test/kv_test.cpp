@@ -451,16 +451,14 @@ TEST_CASE("Clone schema")
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
   view2->put(14, "alligator");
-  auto [success, reqid, buffer] = tx1.commit_reserved();
+  auto [success, reqid, data] = tx1.commit_reserved();
   REQUIRE(success == kv::CommitSuccess::OK);
 
   Store clone;
   clone.clone_schema(store);
   clone.set_encryptor(encryptor);
 
-  auto serialised_ws =
-    std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
-  REQUIRE(clone.deserialise(serialised_ws) == kv::DeserialiseSuccess::PASS);
+  REQUIRE(clone.deserialise(data) == kv::DeserialiseSuccess::PASS);
 }
 
 TEST_CASE("Deserialise return status")
@@ -483,12 +481,10 @@ TEST_CASE("Deserialise return status")
     Store::Tx tx(store.next_version());
     auto data_view = tx.get_view(data);
     data_view->put(42, 42);
-    auto [success, reqid, buffer] = tx.commit_reserved();
+    auto [success, reqid, data] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    auto serialised_ws =
-      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
-    REQUIRE(store.deserialise(serialised_ws) == kv::DeserialiseSuccess::PASS);
+    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS);
   }
 
   {
@@ -496,14 +492,10 @@ TEST_CASE("Deserialise return status")
     auto sig_view = tx.get_view(signatures);
     ccf::Signature sigv(0, 2);
     sig_view->put(0, sigv);
-    auto [success, reqid, buffer] = tx.commit_reserved();
+    auto [success, reqid, data] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    auto serialised_ws =
-      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
-    REQUIRE(
-      store.deserialise(serialised_ws) ==
-      kv::DeserialiseSuccess::PASS_SIGNATURE);
+    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -513,12 +505,10 @@ TEST_CASE("Deserialise return status")
     ccf::Signature sigv(0, 2);
     sig_view->put(0, sigv);
     data_view->put(43, 43);
-    auto [success, reqid, buffer] = tx.commit_reserved();
+    auto [success, reqid, data] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
 
-    auto serialised_ws =
-      std::vector<uint8_t>(buffer->data(), buffer->data() + buffer->size());
-    REQUIRE(store.deserialise(serialised_ws) == kv::DeserialiseSuccess::FAILED);
+    REQUIRE(store.deserialise(data) == kv::DeserialiseSuccess::FAILED);
   }
 }
 
@@ -751,4 +741,74 @@ TEST_CASE("private recovery map swap")
       // impossible during recovery.
     }
   }
+}
+
+TEST_CASE("Conflict resolution")
+{
+  Store kv_store;
+  auto& map = kv_store.create<std::string, std::string>(
+    "map", kv::SecurityDomain::PUBLIC);
+
+  auto try_write = [&](Store::Tx& tx, const std::string& s) {
+    auto view = tx.get_view(map);
+
+    // Introduce read-dependency
+    view->get("foo");
+    view->put("foo", s);
+
+    view->put(s, s);
+  };
+
+  auto confirm_state = [&](
+                         const std::vector<std::string>& present,
+                         const std::vector<std::string>& missing) {
+    Store::Tx tx;
+    auto view = tx.get_view(map);
+
+    for (const auto& s : present)
+    {
+      const auto it = view->get(s);
+      REQUIRE(it.has_value());
+      REQUIRE(it.value() == s);
+    }
+
+    for (const auto& s : missing)
+    {
+      const auto it = view->get(s);
+      REQUIRE(!it.has_value());
+    }
+  };
+
+  // Simulate parallel execution by interleaving tx steps
+  Store::Tx tx1;
+  Store::Tx tx2;
+
+  // First transaction tries to write a value, depending on initial version
+  try_write(tx1, "bar");
+
+  {
+    // A second transaction is committed, conflicting with the first
+    try_write(tx2, "baz");
+    const auto res2 = tx2.commit();
+    REQUIRE(res2 == kv::CommitSuccess::OK);
+
+    confirm_state({"baz"}, {"bar"});
+  }
+
+  // Trying to commit first transaction produces a conflict
+  auto res1 = tx1.commit();
+  REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
+  confirm_state({"baz"}, {"bar"});
+
+  // First transaction is rerun with same object, producing different result
+  try_write(tx1, "buzz");
+
+  // Expected results are committed
+  res1 = tx1.commit();
+  REQUIRE(res1 == kv::CommitSuccess::OK);
+  confirm_state({"baz", "buzz"}, {"bar"});
+
+  // Re-running a _committed_ transaction is exceptionally bad
+  REQUIRE_THROWS(tx1.commit());
+  REQUIRE_THROWS(tx2.commit());
 }
