@@ -742,3 +742,73 @@ TEST_CASE("private recovery map swap")
     }
   }
 }
+
+TEST_CASE("Conflict resolution")
+{
+  Store kv_store;
+  auto& map = kv_store.create<std::string, std::string>(
+    "map", kv::SecurityDomain::PUBLIC);
+
+  auto try_write = [&](Store::Tx& tx, const std::string& s) {
+    auto view = tx.get_view(map);
+
+    // Introduce read-dependency
+    view->get("foo");
+    view->put("foo", s);
+
+    view->put(s, s);
+  };
+
+  auto confirm_state = [&](
+                         const std::vector<std::string>& present,
+                         const std::vector<std::string>& missing) {
+    Store::Tx tx;
+    auto view = tx.get_view(map);
+
+    for (const auto& s : present)
+    {
+      const auto it = view->get(s);
+      REQUIRE(it.has_value());
+      REQUIRE(it.value() == s);
+    }
+
+    for (const auto& s : missing)
+    {
+      const auto it = view->get(s);
+      REQUIRE(!it.has_value());
+    }
+  };
+
+  // Simulate parallel execution by interleaving tx steps
+  Store::Tx tx1;
+  Store::Tx tx2;
+
+  // First transaction tries to write a value, depending on initial version
+  try_write(tx1, "bar");
+
+  {
+    // A second transaction is committed, conflicting with the first
+    try_write(tx2, "baz");
+    const auto res2 = tx2.commit();
+    REQUIRE(res2 == kv::CommitSuccess::OK);
+
+    confirm_state({"baz"}, {"bar"});
+  }
+
+  // Trying to commit first transaction produces a conflict
+  auto res1 = tx1.commit();
+  REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
+  confirm_state({"baz"}, {"bar"});
+
+  // First transaction is rerun with same object, producing different result
+  try_write(tx1, "buzz");
+
+  // Expected results are committed
+  res1 = tx1.commit();
+  REQUIRE(res1 == kv::CommitSuccess::OK);
+  confirm_state({"baz", "buzz"}, {"bar"});
+
+  // Re-running a _committed_ transaction is exceptionally bad
+  REQUIRE_THROWS(tx1.commit());
+  REQUIRE_THROWS(tx2.commit());
+}
