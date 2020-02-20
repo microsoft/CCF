@@ -69,15 +69,15 @@ def run(args):
 
         check = infra.checker.Checker()
 
-        with primary.user_client(format="json") as user_client:
+        with primary.user_client() as user_client:
             LOG.info("user frontend")
             fetch_schema(user_client)
 
-        with primary.node_client(format="json") as node_client:
+        with primary.node_client() as node_client:
             LOG.info("node frontend")
             fetch_schema(node_client)
 
-        with primary.member_client(format="json") as member_client:
+        with primary.member_client() as member_client:
             LOG.info("member frontend")
             fetch_schema(member_client)
 
