@@ -13,7 +13,7 @@ Raft Consensus Protocol
 -----------------------
 
 We have implemented a version of Raft that provides Crash Fault Tolerance. This means that if we can tolerate up to ``f`` nodes crashing (or being un-responsive) then we need ``2*f + 1`` nodes in total to guarantee liveness. The majority of nodes that need to agree on a change is then ``f + 1``.
-Raft does not make any confidentiality or integrity claims if more than ``f`` nodes have been compromised.
+Raft does not make any confidentiality or integrity claims if nodes have been compromised.
 
 When running CCF with Raft any requests that require the key-value store to be altered go via the Primary node. The Primary node executes the request and then serialises and encrypts the write set resulting from that execution.
 The resulting write set will be persisted to the ledger and replicated to the other (Backup) nodes. Backup nodes will in turn persist the change to their ledger, decrypt and deserialise the write set, and apply it to their key-value store. This results in a consistent state across nodes and ledgers.
