@@ -201,11 +201,6 @@ namespace http
       if (!serialised_request.empty())
       {
         canonicalised = true;
-        get_signed_request();
-      }
-      else
-      {
-        canonicalise();
       }
     }
 
