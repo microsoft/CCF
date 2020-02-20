@@ -1,13 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "../cryptobox.h"
 #include "../hash.h"
 #include "../symmkey.h"
-<<<<<<< HEAD
-=======
-#include "../tls/base64.h"
-#include "../tls/entropy.h"
->>>>>>> 491da84... Encrypt share with members' public keys
+#include "tls/base64.h"
+#include "tls/entropy.h"
 
 #include <doctest/doctest.h>
 #include <vector>

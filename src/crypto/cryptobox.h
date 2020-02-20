@@ -79,7 +79,7 @@ namespace crypto
       if (cipher.size() < CIPHER_EXTRA_SIZE)
       {
         throw std::logic_error(fmt::format(
-          "Box open(): cipher to open should be of size > {}",
+          "Box open(): cipher to open should be of size >= {}",
           CIPHER_EXTRA_SIZE));
       }
 

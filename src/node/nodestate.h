@@ -275,13 +275,8 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
-          // TODO: This key should be passed to all nodes when they join
           network.encryption_priv_key =
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
-
-          // TODO: Remove
-          // auto key_share_info =
-          //   generate_key_share_info(args.config.genesis.members_info);
 
           self = 0; // The first node id is always 0
 
@@ -399,6 +394,8 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               std::move(resp->network_info.ledger_secrets), seal);
+            network.encryption_priv_key =
+              resp->network_info.encryption_priv_key;
 
             self = resp->node_id;
 #ifdef PBFT
