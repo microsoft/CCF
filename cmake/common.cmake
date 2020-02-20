@@ -122,16 +122,6 @@ endif()
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-
-add_custom_command(
-  OUTPUT ${CCF_GENERATED_DIR}/frame_generated.h
-  COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${CCF_DIR}/src/kv/frame.fbs
-  COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${CCF_DIR}/src/kv/frame.fbs
-  DEPENDS ${CCF_DIR}/src/kv/frame.fbs
-)
-
-install(FILES ${CCF_GENERATED_DIR}/frame_generated.h DESTINATION generated)
-
 include_directories(${CCF_DIR}/src ${CCF_GENERATED_DIR})
 
 include_directories(
@@ -268,7 +258,6 @@ function(add_unit_test name)
   target_link_libraries(
     ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi ccfcrypto.host
   )
-  add_dependencies(${name} flatbuffers)
   use_client_mbedtls(${name})
   add_san(${name})
 
@@ -297,7 +286,6 @@ if("sgx" IN_LIST TARGET)
             evercrypt.host
             CURL::libcurl
   )
-  add_dependencies(cchost flatbuffers)
   enable_quote_code(cchost)
 
   install(TARGETS cchost DESTINATION bin)
@@ -327,7 +315,6 @@ if("virtual" IN_LIST TARGET)
             evercrypt.host
             CURL::libcurl
   )
-  add_dependencies(cchost.virtual flatbuffers)
 
   install(TARGETS cchost.virtual DESTINATION bin)
 endif()
@@ -341,7 +328,6 @@ target_link_libraries(
   scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
                                http_parser.host
 )
-add_dependencies(scenario_perf_client flatbuffers)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
@@ -440,7 +426,6 @@ function(add_client_exe name)
 
   target_link_libraries(${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
-  add_dependencies(${name} flatbuffers)
   target_include_directories(
     ${name} PRIVATE ${CCF_DIR}/samples/perf_client ${PARSED_ARGS_INCLUDE_DIRS}
   )
@@ -533,8 +518,6 @@ function(add_picobench name)
   add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
-
-  add_dependencies(${name} flatbuffers)
 
   target_link_libraries(
     ${name} PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${PARSED_ARGS_LINK_LIBS}

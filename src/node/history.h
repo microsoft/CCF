@@ -104,17 +104,9 @@ namespace ccf
       signatures(signatures_)
     {}
 
-    void append(
-      const std::vector<uint8_t>& replicated,
-      const std::vector<uint8_t>& all_data) override
-    {}
+    void append(const std::vector<uint8_t>& replicated) override {}
 
-    void append(
-      const uint8_t* replicated,
-      size_t replicated_size,
-      const uint8_t* all_data,
-      size_t all_data_size) override
-    {}
+    void append(const uint8_t* replicated, size_t replicated_size) override {}
 
     bool verify(kv::Term* term = nullptr) override
     {
@@ -154,17 +146,14 @@ namespace ccf
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
-      const std::vector<uint8_t>& replicated,
-      const std::vector<uint8_t>& all_data) override
+      const std::vector<uint8_t>& replicated) override
     {}
 
     virtual void add_result(
       RequestID id,
       kv::Version version,
       const uint8_t* replicated,
-      size_t replicated_size,
-      const uint8_t* all_data,
-      size_t all_data_size) override
+      size_t replicated_size) override
     {}
 
     void add_result(RequestID id, kv::Version version) override {}
@@ -181,11 +170,6 @@ namespace ccf
     void clear_on_result() override {}
 
     void clear_on_response() override {}
-
-    crypto::Sha256Hash get_full_state_root() override
-    {
-      return crypto::Sha256Hash();
-    }
 
     crypto::Sha256Hash get_replicated_state_root() override
     {
@@ -361,7 +345,6 @@ namespace ccf
   {
     Store& store;
     NodeId id;
-    T full_state_tree;
     T replicated_state_tree;
 
     tls::KeyPair& kp;
@@ -389,16 +372,6 @@ namespace ccf
       signatures(sig_),
       nodes(nodes_)
     {}
-
-    bool is_replicated_tree_enabled()
-    {
-      auto consensus = store.get_consensus();
-      if (!consensus || consensus->type() == ConsensusType::Pbft)
-      {
-        return true;
-      }
-      return false;
-    }
 
     void register_on_result(ResultCallbackHandler func) override
     {
@@ -429,40 +402,21 @@ namespace ccf
       id = id_;
     }
 
-    crypto::Sha256Hash get_full_state_root() override
-    {
-      return full_state_tree.get_root();
-    }
-
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return replicated_state_tree.get_root();
     }
 
-    void append(
-      const std::vector<uint8_t>& replicated,
-      const std::vector<uint8_t>& all_data) override
+    void append(const std::vector<uint8_t>& replicated) override
     {
-      append(
-        replicated.data(), replicated.size(), all_data.data(), all_data.size());
+      append(replicated.data(), replicated.size());
     }
 
-    void append(
-      const uint8_t* replicated,
-      size_t replicated_size,
-      const uint8_t* all_data,
-      size_t all_data_size) override
+    void append(const uint8_t* replicated, size_t replicated_size) override
     {
-      crypto::Sha256Hash h({{all_data, all_data_size}});
-      log_hash(h, APPEND);
-      full_state_tree.append(h);
-
-      if (is_replicated_tree_enabled())
-      {
-        crypto::Sha256Hash rh({{replicated, replicated_size}});
-        log_hash(rh, APPEND);
-        replicated_state_tree.append(rh);
-      }
+      crypto::Sha256Hash rh({{replicated, replicated_size}});
+      log_hash(rh, APPEND);
+      replicated_state_tree.append(rh);
     }
 
     bool verify(kv::Term* term = nullptr) override
@@ -487,7 +441,7 @@ namespace ccf
         return false;
       }
       tls::VerifierPtr from_cert = tls::make_verifier(ni.value().cert);
-      crypto::Sha256Hash root = full_state_tree.get_root();
+      crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);
       return from_cert->verify_hash(
         root.h, root.SIZE, sig_value.sig.data(), sig_value.sig.size());
@@ -495,28 +449,15 @@ namespace ccf
 
     void rollback(kv::Version v) override
     {
-      full_state_tree.retract(v);
-      log_hash(full_state_tree.get_root(), ROLLBACK);
-
-      if (is_replicated_tree_enabled())
-      {
-        replicated_state_tree.retract(v);
-        log_hash(replicated_state_tree.get_root(), ROLLBACK);
-      }
+      replicated_state_tree.retract(v);
+      log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 
     void compact(kv::Version v) override
     {
       if (v > MAX_HISTORY_LEN)
-        full_state_tree.flush(v - MAX_HISTORY_LEN);
-      log_hash(full_state_tree.get_root(), COMPACT);
-
-      if (is_replicated_tree_enabled())
-      {
-        if (v > MAX_HISTORY_LEN)
-          replicated_state_tree.flush(v - MAX_HISTORY_LEN);
-        log_hash(replicated_state_tree.get_root(), COMPACT);
-      }
+        replicated_state_tree.flush(v - MAX_HISTORY_LEN);
+      log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
     void emit_signature() override
@@ -539,14 +480,14 @@ namespace ccf
         [version, view, commit, this]() {
           Store::Tx sig(version);
           auto sig_view = sig.get_view(signatures);
-          crypto::Sha256Hash root = full_state_tree.get_root();
+          crypto::Sha256Hash root = replicated_state_tree.get_root();
           Signature sig_value(
             id,
             version,
             view,
             commit,
             kp.sign_hash(root.h, root.SIZE),
-            full_state_tree.serialise());
+            replicated_state_tree.serialise());
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -575,35 +516,25 @@ namespace ccf
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
-      const std::vector<uint8_t>& replicated,
-      const std::vector<uint8_t>& all_data) override
+      const std::vector<uint8_t>& replicated) override
     {
-      add_result(
-        id,
-        version,
-        replicated.data(),
-        replicated.size(),
-        all_data.data(),
-        all_data.size());
+      add_result(id, version, replicated.data(), replicated.size());
     }
 
     void add_result(
       RequestID id,
       kv::Version version,
       const uint8_t* replicated,
-      size_t replicated_size,
-      const uint8_t* all_data,
-      size_t all_data_size) override
+      size_t replicated_size) override
     {
-      append(replicated, replicated_size, all_data, all_data_size);
+      append(replicated, replicated_size);
 #ifdef PBFT
       if (on_result.has_value())
       {
-        auto root = get_full_state_root();
-        auto replicated_root = get_replicated_state_root();
+        auto root = get_replicated_state_root();
         LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
         results[id] = {version, root};
-        on_result.value()({id, version, root, replicated_root});
+        on_result.value()({id, version, root});
       }
 #endif
     }
@@ -613,11 +544,10 @@ namespace ccf
 #ifdef PBFT
       if (on_result.has_value())
       {
-        auto root = get_full_state_root();
-        auto replicated_root = get_replicated_state_root();
+        auto root = get_replicated_state_root();
         LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
         results[id] = {version, root};
-        on_result.value()({id, version, root, replicated_root});
+        on_result.value()({id, version, root});
       }
 #endif
     }
@@ -632,13 +562,13 @@ namespace ccf
 
     std::vector<uint8_t> get_receipt(kv::Version index) override
     {
-      return full_state_tree.get_receipt(index).to_v();
+      return replicated_state_tree.get_receipt(index).to_v();
     }
 
     bool verify_receipt(const std::vector<uint8_t>& v) override
     {
       auto r = Receipt::from_v(v);
-      return full_state_tree.verify(r);
+      return replicated_state_tree.verify(r);
     }
   };
 

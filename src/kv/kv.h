@@ -1026,7 +1026,7 @@ namespace kv
         {
           auto data = serialise();
 
-          if (data->size() == 0)
+          if (data.empty())
           {
             auto h = store->get_history();
             if (h != nullptr)
@@ -1121,8 +1121,7 @@ namespace kv
       return version;
     }
 
-    std::unique_ptr<flatbuffers::DetachedBuffer> serialise(
-      bool include_reads = false)
+    std::vector<uint8_t> serialise(bool include_reads = false)
     {
       if (!committed)
         throw std::logic_error("Transaction not yet committed");
@@ -1144,20 +1143,15 @@ namespace kv
 
       if (!changes)
       {
-        frame::FlatbufferSerialiser fbs({}, {});
-        return fbs.get_detached_buffer();
+        return {};
       }
       // Retrieve encryptor.
       auto map = view_list.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
       S replicated_serialiser(e, version);
-      S derived_serialiser(e, version);
       // flags that indicate if we have actually written any data in the
       // serializers
-      bool replicated = false;
-      bool derived = false;
-
       auto grouped_maps = get_maps_grouped_by_domain(view_list);
 
       for (auto domain_it : grouped_maps)
@@ -1166,24 +1160,13 @@ namespace kv
         {
           if (curr_map->is_replicated())
           {
-            replicated = true;
             curr_map->serialise(replicated_serialiser, include_reads);
-          }
-          else
-          {
-            derived = true;
-            curr_map->serialise(derived_serialiser, include_reads);
           }
         }
       }
 
       // Return serialised Tx.
-      frame::FlatbufferSerialiser fbs(
-        replicated ? std::move(replicated_serialiser.get_raw_data()) :
-                     std::move(std::vector<uint8_t>(0)),
-        derived ? std::move(derived_serialiser.get_raw_data()) :
-                  std::move(std::vector<uint8_t>(0)));
-      return std::move(fbs.get_detached_buffer());
+      return replicated_serialiser.get_raw_data();
     }
 
     // Used by frontend for reserved transactions
@@ -1533,14 +1516,6 @@ namespace kv
       // Processing transactions locally and also deserialising to the
       // same store will result in a store version mismatch and
       // deserialisation will then fail.
-
-      bool ignore_derived =
-        consensus ? (consensus->type() == ConsensusType::Pbft) : false;
-      frame::FlatbufferDeserialiser fbd(data.data(), ignore_derived);
-      auto frames = fbd.get_frames();
-      Version v;
-      OrderedViews<S, D> views;
-      bool first_serialiser = true;
       auto e = get_encryptor();
 
       // create the first deserialiser
@@ -1549,33 +1524,24 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      for (auto& [frame, size] : frames)
+      if (!d->init(data.data(), data.size()))
       {
-        // find the first buffer that has data to deserialise
-        if (size > 0)
-        {
-          if (!d->init(frame, size))
-          {
-            LOG_FAIL_FMT("Initialisation of deserialise object failed");
-            return DeserialiseSuccess::FAILED;
-          }
+        LOG_FAIL_FMT("Initialisation of deserialise object failed");
+        return DeserialiseSuccess::FAILED;
+      }
 
-          v = d->template deserialise_version<Version>();
-          // Throw away any local commits that have not propagated via the
-          // consensus.
-          rollback(v - 1);
+      Version v = d->template deserialise_version<Version>();
+      // Throw away any local commits that have not propagated via the
+      // consensus.
+      rollback(v - 1);
 
-          // Make sure this is the next transaction.
-          auto cv = current_version();
-          if (cv != (v - 1))
-          {
-            LOG_FAIL_FMT(
-              "Tried to deserialise {} but current_version is {}", v, cv);
-            return DeserialiseSuccess::FAILED;
-          }
-          // initialized first deserialiser
-          break;
-        }
+      // Make sure this is the next transaction.
+      auto cv = current_version();
+      if (cv != (v - 1))
+      {
+        LOG_FAIL_FMT(
+          "Tried to deserialise {} but current_version is {}", v, cv);
+        return DeserialiseSuccess::FAILED;
       }
 
       // Deserialised transactions express read dependencies as versions,
@@ -1583,80 +1549,48 @@ namespace kv
       // need snapshot isolation on the map state, and so do not need to
       // lock all the maps before creating the transaction.
       std::lock_guard<SpinLock> mguard(maps_lock);
+      OrderedViews<S, D> views;
 
-      for (auto& [frame, size] : frames)
+      for (auto r = d->start_map(); r.has_value(); r = d->start_map())
       {
-        if (size > 0)
+        const auto map_name = r.value();
+
+        auto search = maps.find(map_name);
+        if (search == maps.end())
         {
-          if (first_serialiser)
-          {
-            first_serialiser = false;
-          }
-          else
-          {
-            // create next deserialiser
-            d = std::make_unique<D>(
-              e,
-              public_only ? kv::SecurityDomain::PUBLIC :
-                            std::optional<kv::SecurityDomain>());
-
-            if (!d->init(frame, size))
-            {
-              LOG_FAIL_FMT("Initialisation of deserialise object failed");
-              return DeserialiseSuccess::FAILED;
-            }
-
-            Version v_ = d->template deserialise_version<Version>();
-            LOG_DEBUG_FMT("Deserialising {}", v_);
-            if (v != v_)
-            {
-              LOG_FAIL_FMT("Deserialisers versions do not match {} {}", v, v_);
-              return DeserialiseSuccess::FAILED;
-            }
-          }
-
-          for (auto r = d->start_map(); r.has_value(); r = d->start_map())
-          {
-            const auto map_name = r.value();
-
-            auto search = maps.find(map_name);
-            if (search == maps.end())
-            {
-              LOG_FAIL_FMT("No such map {} at version {}", map_name, v);
-              return DeserialiseSuccess::FAILED;
-            }
-
-            auto view_search = views.find(map_name);
-            if (view_search != views.end())
-            {
-              LOG_FAIL_FMT("Multiple writes on {} at version {}", map_name, v);
-              return DeserialiseSuccess::FAILED;
-            }
-
-            auto view = search->second->create_view(v);
-            // if we are not committing now then use NoVersion to deserialise
-            // otherwise the view will be considered as having a committed
-            // version
-            auto deserialise_version = (commit ? v : NoVersion);
-            if (!view->deserialise(*d, deserialise_version))
-            {
-              LOG_FAIL_FMT(
-                "Could not deserialise Tx for map {} at version {}",
-                map_name,
-                deserialise_version);
-              return DeserialiseSuccess::FAILED;
-            }
-
-            views[map_name] = {search->second.get(),
-                               std::unique_ptr<AbstractTxView<S, D>>(view)};
-          }
-
-          if (!d->end())
-          {
-            LOG_FAIL_FMT("Unexpected content in Tx at version {}", v);
-            return DeserialiseSuccess::FAILED;
-          }
+          LOG_FAIL_FMT("No such map {} at version {}", map_name, v);
+          return DeserialiseSuccess::FAILED;
         }
+
+        auto view_search = views.find(map_name);
+        if (view_search != views.end())
+        {
+          LOG_FAIL_FMT("Multiple writes on {} at version {}", map_name, v);
+          return DeserialiseSuccess::FAILED;
+        }
+
+        auto view = search->second->create_view(v);
+        // if we are not committing now then use NoVersion to deserialise
+        // otherwise the view will be considered as having a committed
+        // version
+        auto deserialise_version = (commit ? v : NoVersion);
+        if (!view->deserialise(*d, deserialise_version))
+        {
+          LOG_FAIL_FMT(
+            "Could not deserialise Tx for map {} at version {}",
+            map_name,
+            deserialise_version);
+          return DeserialiseSuccess::FAILED;
+        }
+
+        views[map_name] = {search->second.get(),
+                           std::unique_ptr<AbstractTxView<S, D>>(view)};
+      }
+
+      if (!d->end())
+      {
+        LOG_FAIL_FMT("Unexpected content in Tx at version {}", v);
+        return DeserialiseSuccess::FAILED;
       }
 
       auto success = DeserialiseSuccess::PASS;
@@ -1690,8 +1624,8 @@ namespace kv
             }
             success = DeserialiseSuccess::PASS_SIGNATURE;
           }
-          auto rep = frame::replicated(data.data());
-          h->append(rep.p, rep.n, data.data(), data.size());
+
+          h->append(data.data(), data.size());
         }
       }
       else
@@ -1792,7 +1726,7 @@ namespace kv
         version,
         (globally_committable ? " globally_committable" : ""));
 
-      BatchDetachedBuffer batch;
+      BatchVector batch;
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
@@ -1815,32 +1749,24 @@ namespace kv
             break;
 
           auto& [pending_tx_, committable_] = search->second;
-          auto p_tx_ = pending_tx_();
+          auto [success_, reqid, data_] = pending_tx_();
 
           // NB: this cannot happen currently. Regular Tx only make it here if
           // they did succeed, and signatures cannot conflict because they
           // execute in order with a read_version that's version - 1, so even
           // two contiguous signatures are fine
-          if (p_tx_.success != CommitSuccess::OK)
+          if (success_ != CommitSuccess::OK)
             LOG_DEBUG_FMT("Failed Tx commit {}", last_replicated + offset);
 
           if (h)
           {
-            auto replicated = frame::replicated(p_tx_.buffer->data());
-
-            h->add_result(
-              p_tx_.reqid,
-              version,
-              replicated.p,
-              replicated.n,
-              p_tx_.buffer->data(),
-              p_tx_.buffer->size());
+            h->add_result(reqid, version, data_.data(), data_.size());
           }
 
           LOG_DEBUG_FMT(
-            "Batching {} ({})", last_replicated + offset, p_tx_.buffer->size());
+            "Batching {} ({})", last_replicated + offset, data_.size());
           batch.emplace_back(
-            last_replicated + offset, std::move(p_tx_.buffer), committable_);
+            last_replicated + offset, std::move(data_), committable_);
           pending_txs.erase(search);
         }
 

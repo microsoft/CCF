@@ -5,7 +5,6 @@
 #include "consensus/consensustypes.h"
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
-#include "flatbufferwrapper.h"
 
 #include <array>
 #include <chrono>
@@ -30,9 +29,6 @@ namespace kv
 
   using BatchVector =
     std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>;
-  using BatchDetachedBuffer = std::vector<
-    std::
-      tuple<kv::Version, std::unique_ptr<flatbuffers::DetachedBuffer>, bool>>;
 
   enum CommitSuccess
   {
@@ -109,7 +105,6 @@ namespace kv
     {
       RequestID rid;
       Version version;
-      crypto::Sha256Hash full_state_merkle_root;
       crypto::Sha256Hash replicated_state_merkle_root;
     };
 
@@ -123,14 +118,8 @@ namespace kv
     using ResponseCallbackHandler = std::function<bool(ResponseCallbackArgs)>;
 
     virtual ~TxHistory() {}
-    virtual void append(
-      const std::vector<uint8_t>& replicated,
-      const std::vector<uint8_t>& all_data) = 0;
-    virtual void append(
-      const uint8_t* replicated,
-      size_t replicated_size,
-      const uint8_t* all_data,
-      size_t all_data_size) = 0;
+    virtual void append(const std::vector<uint8_t>& replicated) = 0;
+    virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void emit_signature() = 0;
     virtual bool add_request(
@@ -142,15 +131,12 @@ namespace kv
     virtual void add_result(
       RequestID id,
       kv::Version version,
-      const std::vector<uint8_t>& replicated,
-      const std::vector<uint8_t>& all_data) = 0;
+      const std::vector<uint8_t>& replicated) = 0;
     virtual void add_result(
       RequestID id,
       kv::Version version,
       const uint8_t* replicated,
-      size_t replicated_size,
-      const uint8_t* all_data,
-      size_t all_data_size) = 0;
+      size_t replicated_size) = 0;
     virtual void add_result(RequestID id, kv::Version version) = 0;
     virtual void add_response(
       RequestID id, const std::vector<uint8_t>& response) = 0;
@@ -158,7 +144,6 @@ namespace kv
     virtual void register_on_response(ResponseCallbackHandler func) = 0;
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
-    virtual crypto::Sha256Hash get_full_state_root() = 0;
     virtual crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::vector<uint8_t> get_receipt(Version v) = 0;
     virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
@@ -225,7 +210,6 @@ namespace kv
       state = Primary;
     }
 
-    virtual bool replicate(const BatchDetachedBuffer& entries) = 0;
     virtual bool replicate(const BatchVector& entries) = 0;
     virtual View get_view() = 0;
 
@@ -258,15 +242,15 @@ namespace kv
   {
     CommitSuccess success;
     TxHistory::RequestID reqid;
-    std::unique_ptr<flatbuffers::DetachedBuffer> buffer;
+    std::vector<uint8_t> data;
 
     PendingTxInfo(
       CommitSuccess success_,
       TxHistory::RequestID reqid_,
-      std::unique_ptr<flatbuffers::DetachedBuffer> buffer_) :
+      std::vector<uint8_t>&& data_) :
       success(success_),
       reqid(std::move(reqid_)),
-      buffer(std::move(buffer_))
+      data(std::move(data_))
     {}
   };
 
@@ -275,14 +259,13 @@ namespace kv
   class MovePendingTx
   {
   private:
-    std::unique_ptr<flatbuffers::DetachedBuffer> buffer;
+    std::vector<uint8_t> data;
     kv::TxHistory::RequestID req_id;
 
   public:
     MovePendingTx(
-      std::unique_ptr<flatbuffers::DetachedBuffer> buffer_,
-      kv::TxHistory::RequestID req_id_) :
-      buffer(std::move(buffer_)),
+      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID req_id_) :
+      data(std::move(data_)),
       req_id(std::move(req_id_))
     {}
 
@@ -304,7 +287,7 @@ namespace kv
     PendingTxInfo operator()()
     {
       return PendingTxInfo(
-        CommitSuccess::OK, std::move(req_id), std::move(buffer));
+        CommitSuccess::OK, std::move(req_id), std::move(data));
     }
   };
 
