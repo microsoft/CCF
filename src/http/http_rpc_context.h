@@ -205,7 +205,14 @@ namespace http
       request_body(body_),
       serialised_request(raw_request_)
     {
-      canonicalise();
+      if (!serialised_request.empty())
+      {
+        canonicalised = true;
+      }
+      else
+      {
+        canonicalise();
+      }
     }
 
     virtual const std::vector<uint8_t>& get_request_body() const override
