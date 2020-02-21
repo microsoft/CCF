@@ -35,7 +35,10 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_map)
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::Out::NetworkInfo, ledger_secrets, identity)
+    JoinNetworkNodeToNode::Out::NetworkInfo,
+    ledger_secrets,
+    identity,
+    encryption_priv_key)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out, node_status, node_id, public_only)
@@ -51,8 +54,7 @@ namespace ccf
     quote,
     public_encryption_key,
     code_digest,
-    node_info_network,
-    genesis_key_share_info)
+    node_info_network)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::In)

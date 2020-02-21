@@ -4,6 +4,7 @@
 
 #include "entities.h"
 
+#include <map>
 #include <msgpack-c/msgpack.hpp>
 #include <vector>
 
@@ -11,17 +12,23 @@ namespace ccf
 {
   using KeyShareIndex = ObjectId;
 
+  struct EncryptedShare
+  {
+    std::vector<uint8_t> nonce;
+    std::vector<uint8_t> encrypted_share;
+
+    MSGPACK_DEFINE(nonce, encrypted_share);
+  };
+
+  using EncryptedSharesMap = std::map<MemberId, EncryptedShare>;
+
   struct KeyShareInfo
   {
     std::vector<uint8_t> encrypted_ledger_secret;
-    std::vector<std::vector<uint8_t>> encrypted_shares;
+    EncryptedSharesMap encrypted_shares;
 
     MSGPACK_DEFINE(encrypted_ledger_secret, encrypted_shares);
   };
-
-  DECLARE_JSON_TYPE(KeyShareInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    KeyShareInfo, encrypted_ledger_secret, encrypted_shares)
 
   using Shares = Store::Map<KeyShareIndex, KeyShareInfo>;
 }
