@@ -61,7 +61,6 @@ namespace ccf
       std::vector<uint8_t> public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
-      KeyShareInfo genesis_key_share_info;
     };
   };
 
@@ -84,11 +83,13 @@ namespace ccf
       {
         LedgerSecrets ledger_secrets;
         NetworkIdentity identity;
+        std::vector<uint8_t> encryption_priv_key;
 
         bool operator==(const NetworkInfo& other) const
         {
           return ledger_secrets == other.ledger_secrets &&
-            identity == other.identity;
+            identity == other.identity &&
+            encryption_priv_key == other.encryption_priv_key;
         }
 
         bool operator!=(const NetworkInfo& other) const

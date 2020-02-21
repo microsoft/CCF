@@ -119,7 +119,8 @@ namespace ccf
                                       joining_node_id,
                                       node.is_part_of_public_network(),
                                       {*this->network.ledger_secrets.get(),
-                                       *this->network.identity.get()}}));
+                                       *this->network.identity.get(),
+                                       this->network.encryption_priv_key}}));
       }
       else
       {
@@ -185,12 +186,13 @@ namespace ccf
             check_node_exists(args.tx, caller_pem_raw, joining_node_status);
           if (existing_node_id.has_value())
           {
-            args.rpc_ctx->set_response_result(
-              JoinNetworkNodeToNode::Out({joining_node_status,
-                                          existing_node_id.value(),
-                                          node.is_part_of_public_network(),
-                                          {*this->network.ledger_secrets.get(),
-                                           *this->network.identity.get()}}));
+            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
+              {joining_node_status,
+               existing_node_id.value(),
+               node.is_part_of_public_network(),
+               {*this->network.ledger_secrets.get(),
+                *this->network.identity.get(),
+                this->network.encryption_priv_key}}));
             return;
           }
 
@@ -212,12 +214,13 @@ namespace ccf
           auto node_status = nodes_view->get(existing_node_id.value())->status;
           if (node_status == NodeStatus::TRUSTED)
           {
-            args.rpc_ctx->set_response_result(
-              JoinNetworkNodeToNode::Out({node_status,
-                                          existing_node_id.value(),
-                                          node.is_part_of_public_network(),
-                                          {*this->network.ledger_secrets.get(),
-                                           *this->network.identity.get()}}));
+            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
+              {node_status,
+               existing_node_id.value(),
+               node.is_part_of_public_network(),
+               {*this->network.ledger_secrets.get(),
+                *this->network.identity.get(),
+                this->network.encryption_priv_key}}));
             return;
           }
           else if (node_status == NodeStatus::PENDING)

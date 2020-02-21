@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "crypto/cryptobox.h"
 #include "doctest/doctest.h"
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
@@ -20,6 +21,8 @@ extern "C"
 {
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
+
+auto dummy_encryption_priv_key = std::vector<uint8_t>(crypto::BoxKey::KEY_SIZE);
 
 json create_json_req(const json& params, const std::string& method_name)
 {
@@ -76,6 +79,7 @@ TEST_CASE("Add a node to an opening service")
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
   network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
+  network.encryption_priv_key = dummy_encryption_priv_key;
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -106,6 +110,8 @@ TEST_CASE("Add a node to an opening service")
     CHECK(
       response->network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response->network_info.identity == *network.identity.get());
+    CHECK(
+      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
     CHECK(response->node_status == NodeStatus::TRUSTED);
     CHECK(response->public_only == false);
 
@@ -132,6 +138,8 @@ TEST_CASE("Add a node to an opening service")
     CHECK(
       response->network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response->network_info.identity == *network.identity.get());
+    CHECK(
+      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
     CHECK(response->node_status == NodeStatus::TRUSTED);
   }
 
@@ -169,6 +177,7 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
   network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
+  network.encryption_priv_key = dummy_encryption_priv_key;
 
   gen.create_service({});
   gen.open_service();
@@ -244,6 +253,8 @@ TEST_CASE("Add a node to an open service")
     CHECK(
       response->network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response->network_info.identity == *network.identity.get());
+    CHECK(
+      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
     CHECK(response->node_status == NodeStatus::TRUSTED);
     CHECK(response->public_only == true);
   }
