@@ -62,10 +62,7 @@ namespace http
             return;
           }
 
-          LOG_TRACE_FMT(
-            "Going to parse {} bytes: \n[{}]",
-            size,
-            std::string((char const*)data, size));
+          LOG_TRACE_FMT("Going to parse {} bytes", size);
 
           try
           {
