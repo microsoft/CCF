@@ -53,7 +53,7 @@ namespace ccf
     }
 
     void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override {}
-
+    void split_ledger_secrets(Store::Tx& tx) override {}
     void set_is_public(bool is_public_)
     {
       is_public = is_public_;

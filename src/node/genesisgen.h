@@ -259,7 +259,7 @@ namespace ccf
 
       members_view->foreach(
         [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
-          if (mi.status != MemberStatus::ACTIVE)
+          if (mi.status == MemberStatus::ACTIVE)
           {
             active_members_info[mid] = mi.keyshare;
           }

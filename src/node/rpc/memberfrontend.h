@@ -560,6 +560,8 @@ namespace ccf
           g.add_member(cert, k_encryption_key);
         }
 
+        node.split_ledger_secrets(args.tx);
+
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
                                   in.quote,
@@ -568,7 +570,10 @@ namespace ccf
 
         if (self != 0)
         {
-          throw std::logic_error(fmt::format("My node was set to {}", self));
+          args.rpc_ctx->set_response_error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Starting node ID is not 0");
+          return;
         }
 
 #ifdef GET_QUOTE
@@ -589,8 +594,6 @@ namespace ccf
           lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
 
         g.create_service(in.network_cert);
-
-        g.add_key_share_info(in.genesis_key_share_info);
 
         args.rpc_ctx->set_response_result(true);
         return;

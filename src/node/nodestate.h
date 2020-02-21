@@ -5,6 +5,7 @@
 #include "calltypes.h"
 #include "consensus/ledgerenclave.h"
 #include "consensus/raft/raftconsensus.h"
+#include "crypto/cryptobox.h"
 #include "ds/logger.h"
 #include "enclave/rpcsessions.h"
 #include "encryptor.h"
@@ -21,6 +22,7 @@
 #include "seal.h"
 #include "secretshare.h"
 #include "timer.h"
+#include "tls/25519.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
 
@@ -273,9 +275,8 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
-
-          auto key_share_info =
-            generate_key_share_info(args.config.genesis.members_info);
+          network.encryption_priv_key =
+            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
 
           self = 0; // The first node id is always 0
 
@@ -294,7 +295,7 @@ namespace ccf
           // network
           open_member_frontend();
 
-          if (!create_and_send_request(args, quote, key_share_info))
+          if (!create_and_send_request(args, quote))
           {
             return Fail<CreateNew::Out>(
               "Genesis transaction could not be committed");
@@ -393,6 +394,8 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               std::move(resp->network_info.ledger_secrets), seal);
+            network.encryption_priv_key =
+              resp->network_info.encryption_priv_key;
 
             self = resp->node_id;
 #ifdef PBFT
@@ -987,6 +990,59 @@ namespace ccf
       });
     };
 
+    void split_ledger_secrets(Store::Tx& tx) override
+    {
+      auto share_wrapping_key_raw =
+        tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+      auto share_wrapping_key = crypto::KeyAesGcm(share_wrapping_key_raw);
+
+      // Once sealing is completely removed, this can be called from the
+      // LedgerSecrets class directly
+      crypto::GcmCipher encrypted_ls(
+        network.ledger_secrets->get_secret(1)->master.size());
+      share_wrapping_key.encrypt(
+        encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
+                                   // key is never re-used for encryption
+        network.ledger_secrets->get_secret(1)->master,
+        nullb,
+        encrypted_ls.cipher.data(),
+        encrypted_ls.hdr.tag);
+
+      GenesisGenerator g(network, tx);
+      auto active_members = g.get_active_members_keyshare();
+
+      SecretSharing::SecretToSplit secret_to_split = {};
+      std::copy_n(
+        share_wrapping_key_raw.begin(),
+        share_wrapping_key_raw.size(),
+        secret_to_split.begin());
+
+      // For now, the secret sharing threshold is set to the number of initial
+      // members
+      size_t threshold = active_members.size();
+      auto shares =
+        SecretSharing::split(secret_to_split, active_members.size(), threshold);
+
+      EncryptedSharesMap encrypted_shares;
+      auto nonce = tls::create_entropy()->random(crypto::Box::NONCE_SIZE);
+
+      size_t share_index = 0;
+      for (auto const& [member_id, enc_pub_key] : active_members)
+      {
+        auto share_raw = std::vector<uint8_t>(
+          shares[share_index].begin(), shares[share_index].end());
+
+        auto enc_pub_key_raw = tls::parse_25519_public(tls::Pem(enc_pub_key));
+        auto encrypted_share = crypto::Box::create(
+          share_raw, nonce, enc_pub_key_raw, network.encryption_priv_key);
+
+        encrypted_shares[member_id] = {nonce, encrypted_share};
+        share_index++;
+      }
+
+      g.add_key_share_info({encrypted_ls.serialise(), encrypted_shares});
+    }
+
   private:
     tls::SubjectAltName get_subject_alt_name(const CCFConfig& config)
     {
@@ -1096,57 +1152,8 @@ namespace ccf
       secrets_view->put(version, secret_set);
     }
 
-    KeyShareInfo generate_key_share_info(
-      const std::vector<ccf::MemberPubInfo>& members_info)
-    {
-      auto share_wrapping_key_raw =
-        tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-      auto share_wrapping_key = crypto::KeyAesGcm(share_wrapping_key_raw);
-
-      // Encrypt initial ledger secrets with k_z
-      // Once sealing is completely removed, this can be called to the
-      // LedgerSecrets class directly
-      crypto::GcmCipher encrypted_ls(
-        network.ledger_secrets->get_secret(1)->master.size());
-
-      share_wrapping_key.encrypt(
-        encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
-                                   // key is never re-used for encryption
-        network.ledger_secrets->get_secret(1)->master,
-        nullb,
-        encrypted_ls.cipher.data(),
-        encrypted_ls.hdr.tag);
-
-      auto active_members = members_info.size();
-
-      // For now, the secret sharing threshold is set to the number of initial
-      // members
-      size_t threshold = active_members;
-
-      // For now, since members key shares are not yet encrypted, create
-      // share of dummy empty secret
-      SecretSharing::SecretToSplit secret_to_split = {};
-
-      auto shares =
-        SecretSharing::split(secret_to_split, active_members, threshold);
-
-      assert(SecretSharing::combine(shares, threshold) == secret_to_split);
-
-      // For now, shares are recorded in plain text. Instead, they should be
-      // encrypted with each member's public encryption key
-      std::vector<std::vector<uint8_t>> encrypted_shares;
-      for (auto const& s : shares)
-      {
-        encrypted_shares.emplace_back(s.begin(), s.end());
-      }
-
-      return {encrypted_ls.serialise(), encrypted_shares};
-    }
-
     std::vector<uint8_t> serialize_create_request(
-      const CreateNew::In& args,
-      const std::vector<uint8_t>& quote,
-      const KeyShareInfo& genesis_key_share_info)
+      const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
       jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
 
@@ -1167,7 +1174,6 @@ namespace ccf
       create_rpc.params.code_digest =
         std::vector<uint8_t>(node_code_id.begin(), node_code_id.end());
       create_rpc.params.node_info_network = args.config.node_info_network;
-      create_rpc.params.genesis_key_share_info = genesis_key_share_info;
 
       nlohmann::json j = create_rpc;
       auto contents = nlohmann::json::to_msgpack(j);
@@ -1203,12 +1209,9 @@ namespace ccf
     }
 
     bool create_and_send_request(
-      const CreateNew::In& args,
-      const std::vector<uint8_t>& quote,
-      const KeyShareInfo& genesis_key_share_info)
+      const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
-      send_create_request(
-        serialize_create_request(args, quote, genesis_key_share_info));
+      send_create_request(serialize_create_request(args, quote));
       return true;
     }
 
@@ -1304,8 +1307,8 @@ namespace ccf
 
               if (is_part_of_public_network())
               {
-                // When recovering, set the past secret as a ledger secret to be
-                // sealed at the end of the recovery
+                // When recovering, set the past secret as a ledger secret to
+                // be sealed at the end of the recovery
                 if (!network.ledger_secrets->set_secret(
                       secret_version, plain_secret))
                 {
@@ -1316,9 +1319,9 @@ namespace ccf
               else
               {
                 // When rekeying, set the encryption key for the next version
-                // onward (for the backups to deserialise this transaction with
-                // the old key). The encryptor is in charge of updating the
-                // ledger secrets on global commit.
+                // onward (for the backups to deserialise this transaction
+                // with the old key). The encryptor is in charge of updating
+                // the ledger secrets on global commit.
                 encryptor->update_encryption_key(
                   secret_version + 1, plain_secret);
               }
