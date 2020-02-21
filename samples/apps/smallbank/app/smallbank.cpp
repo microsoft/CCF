@@ -21,7 +21,7 @@ namespace ccfapp
       "SmallBank_transact_savings";
     static constexpr auto SMALL_BANKING_AMALGAMATE = "SmallBank_amalgamate";
     static constexpr auto SMALL_BANKING_WRITE_CHECK = "SmallBank_write_check";
-     static constexpr auto SMALL_BANKING_SPIN = "SmallBank_spin";
+    static constexpr auto SMALL_BANKING_SPIN = "SmallBank_spin";
   };
 
   struct SmallBankTables
