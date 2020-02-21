@@ -21,6 +21,7 @@ namespace ccfapp
       "SmallBank_transact_savings";
     static constexpr auto SMALL_BANKING_AMALGAMATE = "SmallBank_amalgamate";
     static constexpr auto SMALL_BANKING_WRITE_CHECK = "SmallBank_write_check";
+     static constexpr auto SMALL_BANKING_SPIN = "SmallBank_spin";
   };
 
   struct SmallBankTables
@@ -337,6 +338,15 @@ namespace ccfapp
         return make_success(true);
       };
 
+      auto spin = [this](Store::Tx& tx, const nlohmann::json& params) {
+        uint64_t iterations = params["iterations"];
+
+        for (uint64_t i = 0; i < iterations; i++)
+          asm("");
+
+        return make_success(true);
+      };
+
       install(
         Procs::SMALL_BANKING_CREATE,
         handler_adapter(create),
@@ -365,6 +375,10 @@ namespace ccfapp
         Procs::SMALL_BANKING_WRITE_CHECK,
         handler_adapter(writeCheck),
         HandlerRegistry::Write);
+      install(
+        Procs::SMALL_BANKING_SPIN,
+        handler_adapter(spin),
+        HandlerRegistry::Read);
     }
   };
 

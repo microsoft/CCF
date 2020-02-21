@@ -45,6 +45,11 @@ if(BUILD_TESTS)
                     1000 --metrics-file small_bank_metrics.json
   )
 
+  # Spin end to end test
+  add_e2e_test(
+    NAME spin_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_spin.py
+  )
+
   if(PBFT)
     set(SMALL_BANK_SIGNED_VERIFICATION_FILE
         ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_20k.json
