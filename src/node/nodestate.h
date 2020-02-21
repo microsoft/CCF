@@ -455,6 +455,13 @@ namespace ccf
         throw std::logic_error("Quote could not be retrieved");
       }
       quote = quote_opt.value();
+#elif defined(VIRTUAL_ENCLAVE)
+      constexpr auto sleep_time = std::chrono::seconds(10);
+      LOG_INFO_FMT(
+        "Simulating slow quote recovery by sleeping for {}s",
+        sleep_time.count());
+      std::this_thread::sleep_for(sleep_time);
+      LOG_INFO_FMT("Waking up");
 #endif
       join_rpc.params.quote = quote;
 
