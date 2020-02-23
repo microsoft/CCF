@@ -4,9 +4,9 @@ Threading
 Consistency
 -----------
 
-CCF guarantees session consistency from the perspective of a :term:`TLS` client connection.
+If all commands are executed on the primary CCF guarantees session consistency from the perspective of a :term:`TLS` client connection.
 This means that within a single client connection a client is guaranteed to read its own writes.
-For example, if a client sends command (A) to a CCF service and then sends command (B), CCF guarantees that comamnd (A) will be executed before command (B).
+For example, if a client sends command (A) to the primary of a CCF service and then sends command (B), CCF guarantees that command (A) will be executed before command (B).
 
 Implementation
 --------------
