@@ -422,11 +422,174 @@ if(BUILD_TESTS)
   use_client_mbedtls(merkle_mem)
   target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
 
+  if(NOT PBFT)
+    # Raft driver and scenario test
+    add_executable(
+      raft_driver
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
+    )
+    use_client_mbedtls(raft_driver)
+    target_include_directories(raft_driver PRIVATE src/raft)
+
+    add_test(
+      NAME raft_scenario_test
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
+        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios
+        ${CMAKE_SOURCE_DIR}
+    )
+    set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
+
+    # Storing signed votes test
+    add_e2e_test(
+      NAME voting_history_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py
+    )
+
+    # Member client end to end tests
+    add_e2e_test(
+      NAME member_client_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+    )
+
+    # Lua sample app (tx regulator) end to end test
+    add_e2e_test(
+      NAME lua_txregulator_test
+      PYTHON_SCRIPT
+        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+      ADDITIONAL_ARGS
+        --app-script
+        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+        --datafile
+        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
+    )
+
+    # Receipts end to end test
+    add_e2e_test(
+      NAME receipts_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    )
+
+    if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME governance_tests
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+        ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
+      )
+    endif()
+
+    add_e2e_test(
+      NAME recovery_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+      ADDITIONAL_ARGS ${RECOVERY_ARGS}
+    )
+
+    add_e2e_test(
+      NAME test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      IS_SUITE TRUE
+      ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
+    )
+
+    add_e2e_test(
+      NAME lua_end_to_end_batched
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+      ADDITIONAL_ARGS --app-script
+                      ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
+    )
+
+    add_e2e_test(
+      NAME js_end_to_end_logging
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      ADDITIONAL_ARGS --js-app-script
+                      ${CMAKE_SOURCE_DIR}/src/apps/logging/loggingjs.lua
+    )
+
+    add_e2e_test(
+      NAME lua_end_to_end_logging
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      ADDITIONAL_ARGS --app-script
+                      ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+    )
+
+    add_e2e_test(
+      NAME end_to_end_scenario
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+      ADDITIONAL_ARGS --scenario
+                      ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+    )
+
+    if(NOT SAN)
+      add_e2e_test(
+        NAME connections PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+      )
+    endif()
+
+    add_e2e_test(
+      NAME schema_tests
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+      ADDITIONAL_ARGS -p liblogging --schema-dir
+                      ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+    )
+
+    if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME reconfiguration_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      )
+
+      add_e2e_test(
+        NAME code_update_test
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+        ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --election-timeout 10000
+      )
+    endif()
+
+  else()
+    message(STATUS "Using PBFT as consensus")
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
+
+    add_e2e_test(
+      NAME late_joiners
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
+      ADDITIONAL_ARGS --skip-suspension
+    )
+
+  endif()
+
+  if(BUILD_SMALLBANK)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+  endif()
+
+  add_e2e_test(
+    NAME end_to_end_logging
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    CURL_CLIENT TRUE
+  )
+
   add_e2e_test(
     NAME election_tests
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
     ADDITIONAL_ARGS --election-timeout 2000
   )
+
+  if(NOT PBFT)
+    # Logging scenario perf test
+    add_perf_test(
+      NAME logging_scenario_perf_test
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+      CLIENT_BIN ./scenario_perf_client
+      LABEL log_scenario
+      ADDITIONAL_ARGS
+        --package
+        liblogging
+        --scenario-file
+        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+        --max-writes-ahead
+        1000
+        --repetitions
+        1000
+    )
+  endif()
 
   if(EXTENSIVE_TESTS)
     set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
