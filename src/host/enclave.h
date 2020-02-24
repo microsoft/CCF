@@ -84,8 +84,6 @@ namespace host
       msgpack::sbuffer sbuf;
       msgpack::pack(sbuf, ccf_config);
 
-      std::cout << "Lala" << std::endl;
-
       auto err = enclave_create_node(
         e,
         &ret,

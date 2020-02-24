@@ -66,11 +66,9 @@ extern "C"
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
-    std::cout << "Creating enclave 2" << std::endl;
     auto enclave = new enclave::Enclave(
       ec, cc.signature_intervals, consensus_type, cc.raft_config);
 
-    std::cout << "Creating enclave" << std::endl;
     bool result = enclave->create_new_node(
       start_type,
       cc,

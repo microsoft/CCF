@@ -869,7 +869,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> get_quote()
     {
-      std::vector<uint8_t> quote;
+      std::vector<uint8_t> q;
 
 #ifdef GET_QUOTE
       // Quote is over the DER-encoded node certificate
@@ -892,12 +892,12 @@ namespace ccf
         return {};
       }
 
-      quote.assign(report, report + report_len);
+      q.assign(report, report + report_len);
       oe_free_report(report);
 
       // Set own code version
       oe_report_t parsed_quote = {0};
-      res = oe_parse_report(quote.data(), quote.size(), &parsed_quote);
+      res = oe_parse_report(q.data(), q.size(), &parsed_quote);
       if (res != OE_OK)
       {
         LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res));
@@ -911,7 +911,7 @@ namespace ccf
 #else
       throw std::logic_error("Quote retrieval is not yet implemented");
 #endif
-      return quote;
+      return q;
     }
 
     bool open_network(Store::Tx& tx) override
@@ -942,9 +942,9 @@ namespace ccf
       nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
-          GetQuotes::Quote quote;
-          quote.node_id = nid;
-          quote.raw = ni.quote;
+          GetQuotes::Quote q;
+          q.node_id = nid;
+          q.raw = ni.quote;
 
 #ifdef GET_QUOTE
           oe_report_t parsed_quote = {0};
@@ -952,16 +952,16 @@ namespace ccf
             oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
           if (res != OE_OK)
           {
-            quote.error =
+            q.error =
               fmt::format("Failed to parse quote: {}", oe_result_str(res));
           }
           else
           {
-            quote.mrenclave = fmt::format(
+            q.mrenclave = fmt::format(
               "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
           }
 #endif
-          result.quotes.push_back(quote);
+          result.quotes.push_back(q);
         }
         return true;
       });
