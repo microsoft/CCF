@@ -338,6 +338,9 @@ int main(int argc, char** argv)
   Log_allocator::should_use_malloc(true);
 
   GeneralInfo general_info = files::slurp_json(config_file);
+
+  general_info.max_requests_between_signatures = 10;
+
   // as to not add double escapes on newline when slurping from file
   PrivateKey privk_j = files::slurp_json(privk_file);
   NodeInfo node_info;
