@@ -226,7 +226,7 @@ class CurlClient:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
                 # call _just_request directly
-                self.request = self._just_request
+                self._request = self._just_request
                 return rid
             except CCFConnectionException:
                 # If the handshake fails to due to node certificate not yet
@@ -292,7 +292,7 @@ class RequestClient:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
                 # call _just_request directly
-                self.request = self._just_request
+                self._request = self._just_request
                 return rid
             except requests.exceptions.SSLError:
                 # If the handshake fails to due to node certificate not yet
