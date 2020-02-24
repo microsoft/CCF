@@ -114,4 +114,5 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
+    sys.exit(1)
     run(args)
