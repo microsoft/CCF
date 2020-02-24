@@ -28,24 +28,46 @@ namespace ccf
    * });
    */
 
-  using HandlerParamsOnly = std::function<enclave::RpcResponse(
+  using HandlerTxOnly = std::function<enclave::RpcResponse(Store::Tx& tx)>;
+
+  static HandleFunction handler_adapter(const HandlerTxOnly& f)
+  {
+    return [f](RequestArgs& args) { args.rpc_ctx->set_response(f(args.tx)); };
+  }
+
+  using HandlerJsonParamsOnly = std::function<enclave::RpcResponse(
     Store::Tx& tx, const nlohmann::json& params)>;
 
-  static HandleFunction handler_adapter(const HandlerParamsOnly& f)
+  static HandleFunction handler_adapter(const HandlerJsonParamsOnly& f)
   {
     return [f](RequestArgs& args) {
       args.rpc_ctx->set_response(f(args.tx, args.rpc_ctx->get_params()));
     };
   }
 
-  using HandlerParamsAndCaller = std::function<enclave::RpcResponse(
+  using HandlerJsonParamsAndCallerId = std::function<enclave::RpcResponse(
     Store::Tx& tx, CallerId caller_id, const nlohmann::json& params)>;
 
-  static HandleFunction handler_adapter(const HandlerParamsAndCaller& f)
+  static HandleFunction handler_adapter(const HandlerJsonParamsAndCallerId& f)
   {
     return [f](RequestArgs& args) {
       args.rpc_ctx->set_response(
         f(args.tx, args.caller_id, args.rpc_ctx->get_params()));
+    };
+  }
+
+  using HandlerJsonParamsAndCallerCert = std::function<enclave::RpcResponse(
+    Store::Tx& tx,
+    const std::vector<uint8_t>& caller_cert_der,
+    const nlohmann::json& params)>;
+
+  static HandleFunction handler_adapter(const HandlerJsonParamsAndCallerCert& f)
+  {
+    return [f](RequestArgs& args) {
+      args.rpc_ctx->set_response(
+        f(args.tx,
+          args.rpc_ctx->session.caller_cert,
+          args.rpc_ctx->get_params()));
     };
   }
 }
