@@ -13,7 +13,7 @@ steps:
 # If a test fails, crudely upload all nodes' logs for all tests
 - task: CopyFiles@2
   inputs:
-    contents: '$(Build.SourcesDirectory)/build/workspace/**/(out|err)'
+    contents: '$(Build.SourcesDirectory)/build/workspace/**'
     targetFolder: $(Build.ArtifactStagingDirectory)
   condition: failed()
   displayName: 'Copy logs (failure only)'
@@ -24,7 +24,6 @@ steps:
     artifactName: 'workspace ${{ parameters.suite_name_suffix }}'
     parallel: true
     parallelCount: 4
-  condition: failed()
   displayName: 'Upload logs (failure only)'
 
 - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
