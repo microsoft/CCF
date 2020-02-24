@@ -56,18 +56,13 @@ namespace ccf
     };
   }
 
-  using HandlerJsonParamsAndCallerCert = std::function<enclave::RpcResponse(
-    Store::Tx& tx,
-    const std::vector<uint8_t>& caller_cert_der,
-    const nlohmann::json& params)>;
+  using HandlerJsonParamsAndForward = std::function<enclave::RpcResponse(
+    RequestArgs& args, const nlohmann::json& params)>;
 
-  static HandleFunction handler_adapter(const HandlerJsonParamsAndCallerCert& f)
+  static HandleFunction handler_adapter(const HandlerJsonParamsAndForward& f)
   {
     return [f](RequestArgs& args) {
-      args.rpc_ctx->set_response(
-        f(args.tx,
-          args.rpc_ctx->session.caller_cert,
-          args.rpc_ctx->get_params()));
+      args.rpc_ctx->set_response(f(args, args.rpc_ctx->get_params()));
     };
   }
 }

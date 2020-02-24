@@ -142,10 +142,7 @@ namespace ccf
 
       signatures = tables->get<Signatures>(Tables::SIGNATURES);
 
-      auto accept = [this](
-                      Store::Tx& tx,
-                      const std::vector<uint8_t>& caller_cert_der,
-                      const nlohmann::json& params) {
+      auto accept = [this](RequestArgs& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
 
         if (
@@ -158,7 +155,7 @@ namespace ccf
         }
 
         auto [nodes_view, service_view] =
-          tx.get_view(this->network.nodes, this->network.service);
+          args.tx.get_view(this->network.nodes, this->network.service);
 
         auto active_service = service_view->get(0);
         if (!active_service.has_value())
@@ -170,7 +167,8 @@ namespace ccf
 
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
-        auto caller_pem = tls::make_verifier(caller_cert_der)->cert_pem();
+        auto caller_pem =
+          tls::make_verifier(args.rpc_ctx->session.caller_cert)->cert_pem();
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};
 
@@ -193,7 +191,7 @@ namespace ccf
                 this->network.encryption_priv_key}}));
           }
 
-          return add_node(tx, caller_pem_raw, in, joining_node_status);
+          return add_node(args.tx, caller_pem_raw, in, joining_node_status);
         }
 
         // If the service is open, new nodes are first added as pending and
