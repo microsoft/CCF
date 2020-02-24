@@ -16,7 +16,7 @@ steps:
     artifactName: 'workspace ${{ parameters.suite_name_suffix }}'
     parallel: true
     parallelCount: 4
-  # condition: failed()
+  condition: failed()
 
 - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
   displayName: XSLT
