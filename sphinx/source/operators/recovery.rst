@@ -31,7 +31,6 @@ To initiate the first phase of the recovery protocol, one or several nodes shoul
     [--domain domain]
     --ledger-file /path/to/ledger/to/recover
     --node-cert-file /path/to/node_certificate
-    --quote-file /path/to/quote
     recover
     --network-cert-file /path/to/network_certificate
 
