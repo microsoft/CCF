@@ -984,11 +984,15 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       // Send prepare to all replicas and log it.
       Pre_prepare* pp = pc.pre_prepare();
 
-      auto fn = [](Pre_prepare* pp, Replica* self, std::unique_ptr<ExecTentativeCbCtx> msg) {
+      auto fn = [](
+                  Pre_prepare* pp,
+                  Replica* self,
+                  std::unique_ptr<ExecTentativeCbCtx> msg) {
         if (!self->compare_execution_results(msg->info, pp))
         {
           LOG_INFO_FMT(
-            "Merkle roots don't match in send prepare for seqno {}", msg->seqno);
+            "Merkle roots don't match in send prepare for seqno {}",
+            msg->seqno);
           PBFT_ASSERT(false, "should not be here");
 
           self->try_send_prepare();
@@ -997,13 +1001,13 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
         if (self->ledger_writer && !self->is_primary())
         {
-          self->last_te_version =
-            self->ledger_writer->write_pre_prepare(pp);
+          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
         }
 
-        Prepare* p =
-          new Prepare(self->v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
-        int send_node_id = (msg->send_only_to_self ? self->node_id : All_replicas);
+        Prepare* p = new Prepare(
+          self->v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
+        int send_node_id =
+          (msg->send_only_to_self ? self->node_id : All_replicas);
         self->send(p, send_node_id);
         Prepared_cert& pc = self->plog.fetch(msg->seqno);
         pc.add_mine(p);
@@ -1017,7 +1021,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         }
 
         self->is_exec_pending = false;
-        self->send_prepare(msg->seqno+1, msg->orig_byzinfo);
+        self->send_prepare(msg->seqno + 1, msg->orig_byzinfo);
       };
 
       auto msg = std::make_unique<ExecTentativeCbCtx>();
