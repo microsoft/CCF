@@ -10,6 +10,12 @@ steps:
   displayName: CTest
   workingDirectory: build
 
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: $(Build.SourcesDirectory)/build
+    artifactName: 'workspace_${{ parameters.suite_name_suffix }}"'
+  # condition: failed()
+
 - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
   displayName: XSLT
   workingDirectory: build
