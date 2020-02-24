@@ -8,6 +8,7 @@ import math
 import infra.ccf
 import infra.proc
 import infra.e2e_args
+import sys
 
 from loguru import logger as LOG
 
@@ -47,6 +48,8 @@ def run(args):
 
         network.start_and_join(args)
         current_term = None
+
+        sys.exit(1)
 
         # Time before an election completes
         max_election_duration = args.election_timeout * 4 // 1000
@@ -114,5 +117,4 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
-    sys.exit(1)
     run(args)
