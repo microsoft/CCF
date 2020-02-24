@@ -265,8 +265,6 @@ namespace ccf
       if (!quote_opt.has_value())
         return Fail<CreateNew::Out>("Quote could not be retrieved");
       quote = quote_opt.value();
-#else
-      quote = {1};
 #endif
 
       switch (args.start_type)
@@ -871,7 +869,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> get_quote()
     {
-      std::vector<uint8_t> quote{1};
+      std::vector<uint8_t> quote;
 
 #ifdef GET_QUOTE
       // Quote is over the DER-encoded node certificate
