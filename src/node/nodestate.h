@@ -265,7 +265,7 @@ namespace ccf
       if (!quote_opt.has_value())
         return Fail<CreateNew::Out>("Quote could not be retrieved");
       quote = quote_opt.value();
-#elif
+#else
       quote = {1};
 #endif
 
