@@ -223,7 +223,7 @@ class CurlClient:
             if time.time() > end_time:
                 raise CCFConnectionException
             try:
-                rid = self._just_request(request)
+                rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
                 # call _just_request directly
                 self.request = self._just_request
@@ -289,7 +289,7 @@ class RequestClient:
             if time.time() > end_time:
                 raise CCFConnectionException
             try:
-                rid = self._just_request(request, is_signed)
+                rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
                 # call _just_request directly
                 self.request = self._just_request
