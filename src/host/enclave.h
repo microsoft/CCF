@@ -72,7 +72,6 @@ namespace host
       const EnclaveConfig& enclave_config,
       const CCFConfig& ccf_config,
       std::vector<uint8_t>& node_cert,
-      std::vector<uint8_t>& quote,
       std::vector<uint8_t>& network_cert,
       StartType start_type,
       ConsensusType consensus_type,
@@ -80,11 +79,12 @@ namespace host
     {
       bool ret;
       size_t node_cert_len = 0;
-      size_t quote_len = 0;
       size_t network_cert_len = 0;
 
       msgpack::sbuffer sbuf;
       msgpack::pack(sbuf, ccf_config);
+
+      std::cout << "Lala" << std::endl;
 
       auto err = enclave_create_node(
         e,
@@ -95,9 +95,6 @@ namespace host
         node_cert.data(),
         node_cert.size(),
         &node_cert_len,
-        quote.data(),
-        quote.size(),
-        &quote_len,
         network_cert.data(),
         network_cert.size(),
         &network_cert_len,
@@ -117,7 +114,6 @@ namespace host
       }
 
       node_cert.resize(node_cert_len);
-      quote.resize(quote_len);
       network_cert.resize(network_cert_len);
 
       return ret;

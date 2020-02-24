@@ -304,11 +304,10 @@ namespace ccf
 
           accept_network_tls_connections(args.config);
 
-          std::vector<uint8_t>().swap(quote);
+          reset_quote();
           sm.advance(State::partOfNetwork);
 
-          return Success<CreateNew::Out>(
-            {node_cert, quote, network.identity->cert});
+          return Success<CreateNew::Out>({node_cert, network.identity->cert});
         }
         case StartType::Join:
         {
@@ -318,7 +317,7 @@ namespace ccf
 
           sm.advance(State::pending);
 
-          return Success<CreateNew::Out>({node_cert, quote});
+          return Success<CreateNew::Out>({node_cert});
         }
         case StartType::Recover:
         {
@@ -340,8 +339,7 @@ namespace ccf
 
           sm.advance(State::readingPublicLedger);
 
-          return Success<CreateNew::Out>(
-            {node_cert, quote, network.identity->cert});
+          return Success<CreateNew::Out>({node_cert, network.identity->cert});
         }
         default:
         {
@@ -418,7 +416,7 @@ namespace ccf
             }
             else
             {
-              std::vector<uint8_t>().swap(quote);
+              reset_quote();
               sm.advance(State::partOfNetwork);
             }
 
@@ -689,7 +687,7 @@ namespace ccf
         }
       }
 
-      std::vector<uint8_t>().swap(quote);
+      reset_quote();
       sm.advance(State::partOfNetwork);
     }
 
@@ -1194,6 +1192,12 @@ namespace ccf
     {
       send_create_request(serialize_create_request(args, quote));
       return true;
+    }
+
+    void reset_quote()
+    {
+      quote.clear();
+      quote.shrink_to_fit();
     }
 
     void backup_finish_recovery()

@@ -32,9 +32,6 @@ extern "C"
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
-    uint8_t* quote,
-    size_t quote_size,
-    size_t* quote_len,
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
@@ -69,18 +66,17 @@ extern "C"
     reserved_memory = new uint8_t[ec->debug_config.memory_reserve_startup];
 #endif
 
+    std::cout << "Creating enclave 2" << std::endl;
     auto enclave = new enclave::Enclave(
       ec, cc.signature_intervals, consensus_type, cc.raft_config);
 
+    std::cout << "Creating enclave" << std::endl;
     bool result = enclave->create_new_node(
       start_type,
       cc,
       node_cert,
       node_cert_size,
       node_cert_len,
-      quote,
-      quote_size,
-      quote_len,
       network_cert,
       network_cert_size,
       network_cert_len);

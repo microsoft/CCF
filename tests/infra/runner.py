@@ -103,60 +103,60 @@ def run(get_command, args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        primary, backups = network.find_nodes()
+        # primary, backups = network.find_nodes()
 
-        command_args = get_command_args(args, get_command)
+        # command_args = get_command_args(args, get_command)
 
-        if args.network_only:
-            run_client(args, primary, command_args)
-        else:
-            nodes = filter_nodes(primary, backups, args.send_tx_to)
-            clients = []
-            client_hosts = args.client_nodes or ["localhost"]
-            for client_id, client_host in enumerate(client_hosts):
-                node = nodes[client_id % len(nodes)]
-                remote_client = configure_remote_client(
-                    args, client_id, client_host, node, command_args
-                )
-                clients.append(remote_client)
+        # if args.network_only:
+        #     run_client(args, primary, command_args)
+        # else:
+        #     nodes = filter_nodes(primary, backups, args.send_tx_to)
+        #     clients = []
+        #     client_hosts = args.client_nodes or ["localhost"]
+        #     for client_id, client_host in enumerate(client_hosts):
+        #         node = nodes[client_id % len(nodes)]
+        #         remote_client = configure_remote_client(
+        #             args, client_id, client_host, node, command_args
+        #         )
+        #         clients.append(remote_client)
 
-            for remote_client in clients:
-                remote_client.start()
+        #     for remote_client in clients:
+        #         remote_client.start()
 
-            hard_stop_timeout = 90
+        #     hard_stop_timeout = 90
 
-            try:
-                with cimetrics.upload.metrics() as metrics:
-                    tx_rates = infra.rates.TxRates(primary)
-                    start_time = time.time()
-                    while True:
-                        stop_waiting = True
-                        for i, remote_client in enumerate(clients):
-                            done = remote_client.check_done()
-                            # all the clients need to be done
-                            LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running"
-                            )
-                            stop_waiting = stop_waiting and done
-                        if stop_waiting:
-                            break
-                        if time.time() > start_time + hard_stop_timeout:
-                            raise TimeoutError(
-                                f"Client still running after {hard_stop_timeout}s"
-                            )
+        #     try:
+        #         with cimetrics.upload.metrics() as metrics:
+        #             tx_rates = infra.rates.TxRates(primary)
+        #             start_time = time.time()
+        #             while True:
+        #                 stop_waiting = True
+        #                 for i, remote_client in enumerate(clients):
+        #                     done = remote_client.check_done()
+        #                     # all the clients need to be done
+        #                     LOG.info(
+        #                         f"Client {i} has {'completed' if done else 'not completed'} running"
+        #                     )
+        #                     stop_waiting = stop_waiting and done
+        #                 if stop_waiting:
+        #                     break
+        #                 if time.time() > start_time + hard_stop_timeout:
+        #                     raise TimeoutError(
+        #                         f"Client still running after {hard_stop_timeout}s"
+        #                     )
 
-                        time.sleep(1)
+        #                 time.sleep(1)
 
-                    tx_rates.get_metrics()
-                    for remote_client in clients:
-                        remote_client.print_and_upload_result(args.label, metrics)
-                        remote_client.stop()
+        #             tx_rates.get_metrics()
+        #             for remote_client in clients:
+        #                 remote_client.print_and_upload_result(args.label, metrics)
+        #                 remote_client.stop()
 
-                    LOG.info(f"Rates:\n{tx_rates}")
-                    tx_rates.save_results(args.metrics_file)
+        #             LOG.info(f"Rates:\n{tx_rates}")
+        #             tx_rates.save_results(args.metrics_file)
 
-            except Exception:
-                LOG.error("Stopping clients due to exception")
-                for remote_client in clients:
-                    remote_client.stop()
-                raise
+        #     except Exception:
+        #         LOG.error("Stopping clients due to exception")
+        #         for remote_client in clients:
+        #             remote_client.stop()
+        #         raise
