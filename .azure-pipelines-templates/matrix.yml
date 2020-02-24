@@ -5,36 +5,29 @@ parameters:
   env:
     Checks:
       container: nosgx
-      options: -v /mnt/build:/__w/
       pool: Ubuntu-1804-D8s_v3
     NoSGX:
       container: nosgx
-      options: -v /mnt/build:/__w/
       pool: Ubuntu-1804-D8s_v3
       dependsOn: ['Formatting_and_License_Checks']
     SGX:
       container: sgx
-      options: -v /mnt/build:/__w/
       pool: Ubuntu-1804-DC8_v2
       dependsOn: ['Formatting_and_License_Checks']
     SAN:
       container: nosgx
-      options: -v /mnt/build:/__w/
       pool: Ubuntu-1804-D16s_v3
       dependsOn: ['Formatting_and_License_Checks']
     Release:
       container: sgx
-      options: -v /mnt/build:/__w/
       pool: Ubuntu-1804-DC4s
       dependsOn: ['BuildAndTest_NoSGX_CFT_Debug', 'BuildAndTest_SGX_CFT_Debug', 'BuildAndTest_NoSGX_CFT_SAN', 'BuildAndTest_NoSGX_BFT_Debug', 'BuildAndTest_SGX_BFT_Debug', 'BuildAndTest_NoSGX_BFT_SAN']
     Metrics:
       container: nosgx
-      options: -v /mnt/build:/__w/
       pool: Ubuntu-1804-D8s_v3
       dependsOn: ['BuildAndTest_SGX_CFT_Perf', 'BuildAndTest_SGX_BFT_Perf']
     Publish:
       container: nosgx
-      options: -v /mnt/build:/__w/
       pool: Ubuntu-1804-D8s_v3
       dependsOn: ['BuildAndTest_SGX_CFT_Release', 'BuildAndTest_SGX_BFT_Release']
     Perf:
