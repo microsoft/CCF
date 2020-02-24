@@ -16,11 +16,6 @@
 
 #define OE_REPORT_DATA_SIZE 64
 
-/**
- * Maximum quote size supported by OE. This is 10 KB.
- */
-#define OE_MAX_REPORT_SIZE (10 * 1024)
-
 #define OE_ENCLAVE_FLAG_DEBUG 0x00000001u
 
 static void* virtual_enclave_handle;
@@ -79,9 +74,6 @@ extern "C"
     uint8_t*,
     size_t,
     size_t*,
-    uint8_t*,
-    size_t,
-    size_t*,
     StartType,
     ConsensusType,
     size_t);
@@ -118,9 +110,6 @@ extern "C"
     uint8_t* node_cert,
     size_t node_cert_size,
     size_t* node_cert_len,
-    uint8_t* quote,
-    size_t quote_size,
-    size_t* quote_len,
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
@@ -138,9 +127,6 @@ extern "C"
       node_cert,
       node_cert_size,
       node_cert_len,
-      quote,
-      quote_size,
-      quote_len,
       network_cert,
       network_cert_size,
       network_cert_len,

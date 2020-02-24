@@ -16,7 +16,6 @@ namespace ccf
     struct Out
     {
       std::vector<uint8_t> node_cert;
-      std::vector<uint8_t> quote;
       std::vector<uint8_t> network_cert;
     };
   };
