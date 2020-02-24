@@ -22,7 +22,6 @@ To create a new CCF network, the first node of the network should be started wit
     [--domain domain]
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
-    --quote-file /path/to/quote
     start
     --network-cert-file /path/to/network_certificate
     --member-info /path/to/member1_cert,/path/to/member1_kshare_pub
@@ -33,7 +32,7 @@ CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported
 
 .. note:: To start a CCF node in `virtual` mode, operators should run ``$ cchost.virtual --enclave-file /path/to/virtual_enclave_library ...``
 
-When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. A quote file, required for remote attestation, is also output at the location specified by ``--quote-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
+When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
 .. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
 
@@ -60,7 +59,6 @@ To add a new node to an existing opening network, other nodes should be started 
     --public-rpc-address <ccf-node-public-address>
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
-    --quote-file /path/to/quote
     join
     --network-cert-file /path/to/existing/network_certificate
     --target-rpc-address <another-ccf-node-address>

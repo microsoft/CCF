@@ -162,6 +162,7 @@ namespace ccf
     tls::KeyPairPtr node_sign_kp;
     tls::KeyPairPtr node_encrypt_kp;
     std::vector<uint8_t> node_cert;
+    std::vector<uint8_t> quote;
     CodeDigest node_code_id;
 
     //
@@ -259,8 +260,6 @@ namespace ccf
       create_node_cert(args.config);
       open_node_frontend();
 
-      std::vector<uint8_t> quote{1};
-
 #ifdef GET_QUOTE
       auto quote_opt = get_quote();
       if (!quote_opt.has_value())
@@ -303,10 +302,10 @@ namespace ccf
 
           accept_network_tls_connections(args.config);
 
+          reset_quote();
           sm.advance(State::partOfNetwork);
 
-          return Success<CreateNew::Out>(
-            {node_cert, quote, network.identity->cert});
+          return Success<CreateNew::Out>({node_cert, network.identity->cert});
         }
         case StartType::Join:
         {
@@ -316,7 +315,7 @@ namespace ccf
 
           sm.advance(State::pending);
 
-          return Success<CreateNew::Out>({node_cert, quote});
+          return Success<CreateNew::Out>({node_cert});
         }
         case StartType::Recover:
         {
@@ -338,8 +337,7 @@ namespace ccf
 
           sm.advance(State::readingPublicLedger);
 
-          return Success<CreateNew::Out>(
-            {node_cert, quote, network.identity->cert});
+          return Success<CreateNew::Out>({node_cert, network.identity->cert});
         }
         default:
         {
@@ -416,6 +414,7 @@ namespace ccf
             }
             else
             {
+              reset_quote();
               sm.advance(State::partOfNetwork);
             }
 
@@ -445,17 +444,6 @@ namespace ccf
       join_rpc.params.node_info_network = args.config.node_info_network;
       join_rpc.params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
-
-      std::vector<uint8_t> quote{1};
-
-#ifdef GET_QUOTE
-      auto quote_opt = get_quote();
-      if (!quote_opt.has_value())
-      {
-        throw std::logic_error("Quote could not be retrieved");
-      }
-      quote = quote_opt.value();
-#endif
       join_rpc.params.quote = quote;
 
       LOG_DEBUG_FMT(
@@ -565,18 +553,6 @@ namespace ccf
       g.create_service(network.identity->cert, last_index + 1);
 
       g.retire_active_nodes();
-
-      // Quotes should be initialised and non-empty
-      std::vector<uint8_t> quote{1};
-
-#ifdef GET_QUOTE
-      auto quote_opt = get_quote();
-      if (!quote_opt.has_value())
-      {
-        throw std::logic_error("Quote could not be retrieved");
-      }
-      quote = quote_opt.value();
-#endif
 
       self = g.add_node({node_info_network,
                          node_cert,
@@ -709,6 +685,7 @@ namespace ccf
         }
       }
 
+      reset_quote();
       sm.advance(State::partOfNetwork);
     }
 
@@ -892,7 +869,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> get_quote()
     {
-      std::vector<uint8_t> quote{1};
+      std::vector<uint8_t> q;
 
 #ifdef GET_QUOTE
       // Quote is over the DER-encoded node certificate
@@ -915,12 +892,12 @@ namespace ccf
         return {};
       }
 
-      quote.assign(report, report + report_len);
+      q.assign(report, report + report_len);
       oe_free_report(report);
 
       // Set own code version
       oe_report_t parsed_quote = {0};
-      res = oe_parse_report(quote.data(), quote.size(), &parsed_quote);
+      res = oe_parse_report(q.data(), q.size(), &parsed_quote);
       if (res != OE_OK)
       {
         LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res));
@@ -934,7 +911,7 @@ namespace ccf
 #else
       throw std::logic_error("Quote retrieval is not yet implemented");
 #endif
-      return quote;
+      return q;
     }
 
     bool open_network(Store::Tx& tx) override
@@ -965,9 +942,9 @@ namespace ccf
       nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
         if (ni.status == ccf::NodeStatus::TRUSTED)
         {
-          GetQuotes::Quote quote;
-          quote.node_id = nid;
-          quote.raw = ni.quote;
+          GetQuotes::Quote q;
+          q.node_id = nid;
+          q.raw = ni.quote;
 
 #ifdef GET_QUOTE
           oe_report_t parsed_quote = {0};
@@ -975,16 +952,16 @@ namespace ccf
             oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
           if (res != OE_OK)
           {
-            quote.error =
+            q.error =
               fmt::format("Failed to parse quote: {}", oe_result_str(res));
           }
           else
           {
-            quote.mrenclave = fmt::format(
+            q.mrenclave = fmt::format(
               "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
           }
 #endif
-          result.quotes.push_back(quote);
+          result.quotes.push_back(q);
         }
         return true;
       });
@@ -1213,6 +1190,12 @@ namespace ccf
     {
       send_create_request(serialize_create_request(args, quote));
       return true;
+    }
+
+    void reset_quote()
+    {
+      quote.clear();
+      quote.shrink_to_fit();
     }
 
     void backup_finish_recovery()
