@@ -110,9 +110,6 @@ int main(int argc, char** argv)
     "Path to which the node certificate will be written",
     true);
 
-  std::string quote_file("quote.bin");
-  app.add_option("-q,--quote-file", quote_file, "SGX quote file", true);
-
   size_t sig_max_tx = 5000;
   app.add_option(
     "--sig-max-tx",
@@ -338,7 +335,6 @@ int main(int argc, char** argv)
   // Initialise the enclave and create a CCF node in it
   const size_t certificate_size = 4096;
   std::vector<uint8_t> node_cert(certificate_size);
-  std::vector<uint8_t> quote(OE_MAX_REPORT_SIZE);
   std::vector<uint8_t> network_cert(certificate_size);
 
   StartType start_type;
@@ -406,7 +402,6 @@ int main(int argc, char** argv)
     enclave_config,
     ccf_config,
     node_cert,
-    quote,
     network_cert,
     start_type,
     consensus_type,
@@ -431,16 +426,12 @@ int main(int argc, char** argv)
   rpc.register_message_handlers(bp.get_dispatcher());
   rpc.listen(0, rpc_address.hostname, rpc_address.port);
 
-  // Write the node and network certs and quote to disk.
+  // Write the node and network certs to disk.
   files::dump(node_cert, node_cert_file);
   if (*start || *recover)
   {
     files::dump(network_cert, network_cert_file);
   }
-
-#ifdef GET_QUOTE
-  files::dump(quote, quote_file);
-#endif
 
   auto enclave_thread_start = [&]() {
 #ifndef VIRTUAL_ENCLAVE

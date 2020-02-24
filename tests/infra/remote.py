@@ -510,7 +510,6 @@ class CCFRemote(object):
         members_info=None,
         join_timer=None,
         host_log_level="info",
-        ignore_quote=False,
         sig_max_tx=1000,
         sig_max_ms=1000,
         election_timeout=1000,
@@ -534,11 +533,6 @@ class CCFRemote(object):
         self.node_port = node_port
         self.rpc_port = rpc_port
         self.pem = "{}.pem".format(local_node_id)
-        self.quote = None
-        # Only expect a quote if the enclave is not virtual and quotes have
-        # not been explictly ignored
-        if enclave_type != "virtual" and not ignore_quote:
-            self.quote = f"quote{local_node_id}.bin"
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
@@ -596,9 +590,6 @@ class CCFRemote(object):
             cmd += [
                 f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
             ]
-
-        if self.quote:
-            cmd += [f"--quote-file={self.quote}"]
 
         if start_type == StartType.new:
             cmd += [
