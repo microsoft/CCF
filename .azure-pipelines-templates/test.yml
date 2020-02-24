@@ -12,8 +12,10 @@ steps:
 
 - task: PublishBuildArtifacts@1
   inputs:
-    pathToPublish: $(Build.SourcesDirectory)/build
-    artifactName: 'workspace_${{ parameters.suite_name_suffix }}"'
+    pathToPublish: $(Build.SourcesDirectory)/build/workspace
+    artifactName: 'workspace ${{ parameters.suite_name_suffix }}'
+    parallel: true
+    parallelCount: 4
   # condition: failed()
 
 - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
