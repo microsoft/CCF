@@ -127,7 +127,7 @@ class RPCFileLogger(RPCLogger):
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
             f.write(f">> Request: {request.method}" + os.linesep)
-            f.write(json.dump(request.params, f, indent=2))
+            json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
     def log_response(self, id, response):
