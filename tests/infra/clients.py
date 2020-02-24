@@ -231,6 +231,9 @@ class CurlClient:
             except CCFConnectionException:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
+                LOG.error(
+                    "Got CCFConnectionException exception - sleeping and retrying"
+                )
                 time.sleep(0.1)
 
     def request(self, request):
@@ -297,9 +300,11 @@ class RequestClient:
             except requests.exceptions.SSLError:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
+                LOG.error("Got SSLError exception - sleeping and retrying")
                 time.sleep(0.1)
             except requests.exceptions.ReadTimeout:
-                raise TimeoutError
+                LOG.error("Got ReadTimeout exception - sleeping and retrying")
+                time.sleep(0.1)
 
     def request(self, request):
         return self._request(request, is_signed=False)
