@@ -72,10 +72,10 @@ parameters:
       ctest_args: '-LE "benchmark|perf|suite"'
 
 jobs:
-  # - template: checks.yml
-  #   parameters:
-  #     env: ${{ parameters.env.Checks }}
-  #     job_name: 'Formatting_and_License_Checks'
+  - template: checks.yml
+    parameters:
+      env: ${{ parameters.env.Checks }}
+      job_name: 'Formatting_and_License_Checks'
 
   # Debug builds with code coverage
   - ${{ each target in parameters.target }}:
