@@ -162,6 +162,7 @@ namespace ccf
     tls::KeyPairPtr node_sign_kp;
     tls::KeyPairPtr node_encrypt_kp;
     std::vector<uint8_t> node_cert;
+    std::vector<uint8_t> quote;
     CodeDigest node_code_id;
 
     //
@@ -259,13 +260,13 @@ namespace ccf
       create_node_cert(args.config);
       open_node_frontend();
 
-      std::vector<uint8_t> quote{1};
-
 #ifdef GET_QUOTE
       auto quote_opt = get_quote();
       if (!quote_opt.has_value())
         return Fail<CreateNew::Out>("Quote could not be retrieved");
       quote = quote_opt.value();
+#elif
+      quote = {1};
 #endif
 
       switch (args.start_type)
@@ -303,6 +304,7 @@ namespace ccf
 
           accept_network_tls_connections(args.config);
 
+          std::vector<uint8_t>().swap(quote);
           sm.advance(State::partOfNetwork);
 
           return Success<CreateNew::Out>(
@@ -416,6 +418,7 @@ namespace ccf
             }
             else
             {
+              std::vector<uint8_t>().swap(quote);
               sm.advance(State::partOfNetwork);
             }
 
@@ -445,17 +448,6 @@ namespace ccf
       join_rpc.params.node_info_network = args.config.node_info_network;
       join_rpc.params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
-
-      std::vector<uint8_t> quote{1};
-
-#ifdef GET_QUOTE
-      auto quote_opt = get_quote();
-      if (!quote_opt.has_value())
-      {
-        throw std::logic_error("Quote could not be retrieved");
-      }
-      quote = quote_opt.value();
-#endif
       join_rpc.params.quote = quote;
 
       LOG_DEBUG_FMT(
@@ -565,18 +557,6 @@ namespace ccf
       g.create_service(network.identity->cert, last_index + 1);
 
       g.retire_active_nodes();
-
-      // Quotes should be initialised and non-empty
-      std::vector<uint8_t> quote{1};
-
-#ifdef GET_QUOTE
-      auto quote_opt = get_quote();
-      if (!quote_opt.has_value())
-      {
-        throw std::logic_error("Quote could not be retrieved");
-      }
-      quote = quote_opt.value();
-#endif
 
       self = g.add_node({node_info_network,
                          node_cert,
@@ -709,6 +689,7 @@ namespace ccf
         }
       }
 
+      std::vector<uint8_t>().swap(quote);
       sm.advance(State::partOfNetwork);
     }
 
