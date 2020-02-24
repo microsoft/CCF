@@ -24,7 +24,6 @@ steps:
     pathToPublish: $(Build.ArtifactStagingDirectory)
     artifactName: 'workspace ${{ parameters.suite_name_suffix }}'
   condition: succeeded()
-  dependsOn: 'Copy logs (only on failure)'
   displayName: 'Upload logs (only on failure)'
 
 - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
