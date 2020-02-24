@@ -90,6 +90,11 @@ ITimer::State ITimer::get_state() const
 
 void ITimer::handle_timeouts(std::chrono::milliseconds elapsed)
 {
+  if (Byz_execution_pending())
+  {
+    return;
+  }
+
   _relative_current_time += elapsed.count();
   _handle_timeouts(_relative_current_time);
 }
