@@ -218,19 +218,20 @@ class CurlClient:
             return rep.encode()
 
     def _request(self, request, is_signed=False):
-        while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
-            if self.connection_timeout < 0:
-                self.connection_timeout = 0
+        end_time = time.time() + self.connection_timeout
+        while True:
+            if time.time() > end_time:
+                raise CCFConnectionException
             try:
-                rid = self._just_request(request, is_signed)
-                self._request = self._just_request
+                rid = self._just_request(request)
+                # Only the first request gets this timeout logic - future calls
+                # call _just_request directly
+                self.request = self._just_request
                 return rid
             except CCFConnectionException:
-                if self.connection_timeout == 0:
-                    raise
-            time.sleep(0.1)
-        raise CCFConnectionException
+                # If the handshake fails to due to node certificate not yet
+                # being endorsed by the network, sleep briefly and try again
+                time.sleep(0.1)
 
     def request(self, request):
         return self._request(request, is_signed=False)
@@ -261,55 +262,50 @@ class RequestClient:
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
 
-    def _just_request(self, request):
+    def _just_request(self, request, is_signed=False):
+        auth_value = None
+        if is_signed:
+            auth_value = HTTPSignatureAuth(
+                algorithm="ecdsa-sha256",
+                key=open(self.key, "rb").read(),
+                # key_id needs to be specified but is unused
+                key_id="tls",
+                headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
+            )
+
         rep = requests.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
             cert=(self.cert, self.key),
             verify=self.ca,
-            timeout=(self.connection_timeout, self.request_timeout),
+            timeout=self.request_timeout,
+            auth=auth_value,
         )
         return rep.content
 
-    def request(self, request):
-        while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
-            if self.connection_timeout < 0:
-                self.connection_timeout = 0
+    def _request(self, request, is_signed=False):
+        end_time = time.time() + self.connection_timeout
+        while True:
+            if time.time() > end_time:
+                raise CCFConnectionException
             try:
-                rid = self._just_request(request)
+                rid = self._just_request(request, is_signed)
+                # Only the first request gets this timeout logic - future calls
+                # call _just_request directly
                 self.request = self._just_request
                 return rid
             except requests.exceptions.SSLError:
-                if self.connection_timeout == 0:
-                    raise CCFConnectionException
+                # If the handshake fails to due to node certificate not yet
+                # being endorsed by the network, sleep briefly and try again
+                time.sleep(0.1)
             except requests.exceptions.ReadTimeout:
                 raise TimeoutError
-            time.sleep(0.1)
-        raise CCFConnectionException
+
+    def request(self, request):
+        return self._request(request, is_signed=False)
 
     def signed_request(self, request):
-        with open(self.key, "rb") as k:
-            rep = requests.post(
-                f"https://{self.host}:{self.port}/{request.method}",
-                json=request.params,
-                cert=(self.cert, self.key),
-                verify=self.ca,
-                timeout=self.request_timeout,
-                # key_id needs to be specified but is unused
-                auth=HTTPSignatureAuth(
-                    algorithm="ecdsa-sha256",
-                    key=k.read(),
-                    key_id="tls",
-                    headers=[
-                        "(request-target)",
-                        "Date",
-                        "Content-Length",
-                        "Content-Type",
-                    ],
-                ),
-            )
-            return rep.content
+        return self._request(request, is_signed=True)
 
 
 class WSClient:
