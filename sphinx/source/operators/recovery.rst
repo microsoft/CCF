@@ -8,7 +8,7 @@ For unexpected reasons, a significant number [#crash]_ of CCF nodes may become u
 However, one of the previous ledgers can be recovered and the execution of new business transactions continue if the following three conditions are met:
 
 - At least one of the old nodes' CPU survived.
-- The sealed network secret file (``sealed_secrets.<date>.<pid>``) associated with that CPU is available to a :term:`quorum` of members.
+- The sealed network secret file (``sealed_secrets.<date>.<pid>``) associated with that CPU is available to enough members, where enough is a set of members that can pass a recovery proposal under the rules of the :term:`constitution`.
 - One of the ledgers (preferably the ledger of the previous primary as it is likely to be the longest) is available.
 
 The recovery protocol consists of two phases. First, the public transactions of the previous network are restored and the new network established. Then, after the members have agreed that the configuration of the new network is suitable, the sealed ledger secrets can be restored by a new set of trusted nodes and the previous private transactions recovered.
