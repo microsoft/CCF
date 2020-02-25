@@ -272,9 +272,7 @@ namespace ccf
     {
       auto [shares_view, values_view] =
         tx.get_view(tables.shares, tables.values);
-      auto keyshare_id = get_next_id(values_view, ValueIds::NEXT_KEYSHARE_ID);
-
-      shares_view->put(keyshare_id, key_share_info);
+      shares_view->put(0, key_share_info);
     }
   };
 }

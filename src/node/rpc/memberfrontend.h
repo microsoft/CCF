@@ -678,6 +678,61 @@ namespace ccf
       };
       install_with_auto_schema<void, bool>(
         MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
+
+      auto get_encrypted_recovery_share = [this](RequestArgs& args) {
+        // This check should depend on whether new shares are emitted when a new
+        // member is added (status = Accepted) or when the new member acks
+        // (status = Active). For now, the member should just be accepted.
+        if (!check_member_accepted(args.tx, args.caller_id))
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
+
+        std::optional<EncryptedShare> enc_s;
+        auto current_keyshare = args.tx.get_view(this->network.shares)->get(0);
+        for (auto const& s : current_keyshare->encrypted_shares)
+        {
+          LOG_FAIL_FMT("We've got a share for member {}", s.first);
+          if (s.first == args.caller_id)
+          {
+            LOG_FAIL_FMT("A share for me!");
+            enc_s = s.second;
+          }
+        }
+
+        if (!enc_s.has_value())
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::RECOVERY_SHARE_NOT_FOUND);
+        }
+
+        args.rpc_ctx->set_response_result(enc_s.value());
+        return;
+      };
+      install_with_auto_schema<void, EncryptedShare>(
+        MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
+        get_encrypted_recovery_share,
+        Read);
+
+      auto submit_recovery_share = [this](RequestArgs& args) {
+        // Only active members can submit their shares for recovery
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
+
+        // For now, we don't check if recovery has yet been approved. To be
+        // resilient to elections, we should store that the service is waiting
+        // for shares post recovery vote.
+
+        throw std::logic_error("Not implemented");
+      };
+      install_with_auto_schema<std::vector<uint8_t>, bool>(
+        MemberProcs::SUBMIT_RECOVERY_SHARE, submit_recovery_share, Write);
     }
   };
 
