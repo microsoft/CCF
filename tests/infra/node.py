@@ -218,7 +218,7 @@ class Node:
             **kwargs,
         )
 
-    def member_client(self, member_id=1, **kwargs):
+    def member_client(self, member_id=0, **kwargs):
         return infra.clients.client(
             self.host,
             self.rpc_port,
