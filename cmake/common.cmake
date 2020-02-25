@@ -181,11 +181,7 @@ if("sgx" IN_LIST TARGET)
 
     if(NOT DISABLE_QUOTE_VERIFICATION)
       set(QUOTES_ENABLED ON)
-    else()
-      set(TEST_IGNORE_QUOTE "--ignore-quote")
     endif()
-  else()
-    set(TEST_IGNORE_QUOTE "--ignore-quote")
   endif()
 else()
   set(TEST_ENCLAVE_TYPE -e virtual)
@@ -383,7 +379,6 @@ set(WORKER_THREADS
 )
 
 set(CCF_NETWORK_TEST_ARGS
-    ${TEST_IGNORE_QUOTE}
     ${TEST_ENCLAVE_TYPE}
     -l
     ${TEST_HOST_LOGGING_LEVEL}
