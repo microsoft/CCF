@@ -2,7 +2,7 @@ Threading
 =========
 
 CCF allows for commands to be executed on multiple threads.
-This is done to increase transaction throughput while attempting to limit the affect on transaction latency.
+This is done to increase transaction throughput while attempting to limit the effect on transaction latency.
 
 Consistency
 -----------
