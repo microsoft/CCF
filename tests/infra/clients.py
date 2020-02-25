@@ -220,7 +220,9 @@ class CurlClient:
         end_time = time.time() + self.connection_timeout
         while True:
             if time.time() > end_time:
-                raise CCFConnectionException(f"Connection timeout ({self.connection_timeout}) has expired")
+                raise CCFConnectionException(
+                    f"Connection timeout ({self.connection_timeout}) has expired"
+                )
             try:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
@@ -288,20 +290,22 @@ class RequestClient:
         end_time = time.time() + self.connection_timeout
         while True:
             if time.time() > end_time:
-                raise CCFConnectionException(f"Connection timeout ({self.connection_timeout}) has expired")
+                raise CCFConnectionException(
+                    f"Connection timeout ({self.connection_timeout}) has expired"
+                )
             try:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
                 # call _just_request directly
                 self._request = self._just_request
                 return rid
-            except requests.exceptions.SSLError:
+            except requests.exceptions.SSLError as e:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
-                LOG.error("Got SSLError exception - sleeping and retrying")
+                LOG.error(f"Got SSLError exception: {e}")
                 time.sleep(0.1)
-            except requests.exceptions.ReadTimeout:
-                LOG.error("Got ReadTimeout exception - sleeping and retrying")
+            except requests.exceptions.ReadTimeout as e:
+                LOG.error(f"Got ReadTimeout exception: {e}")
                 time.sleep(0.1)
 
     def request(self, request):
