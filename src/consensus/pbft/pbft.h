@@ -496,6 +496,13 @@ namespace pbft
         }
         case pbft_append_entries:
         {
+          if (message_receiver_base->IsExecutionPending())
+          {
+            LOG_FAIL << "Pending Execution, skipping append entries request"
+                     << std::endl;
+            return;
+          }
+
           AppendEntries r;
 
           auto append_entries_index = store->current_version();

@@ -43,12 +43,8 @@ char* Rep_info::new_reply(
   r->trim();
   char* ret = r->contents() + sizeof(Reply_rep);
   auto ret_insert = reps.insert({Key{(size_t)pid, rid, n}, std::move(r)});
-  if (ret_insert.second)
-  {
-    return ret;
-  }
-
-  return nullptr;
+  PBFT_ASSERT(ret_insert.second, "Response already exists");
+  return ret;
 }
 
 int Rep_info::new_reply_size() const
