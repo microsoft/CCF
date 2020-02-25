@@ -43,8 +43,7 @@ private:
 
         std::cout << fmt::format("Sending {}: {}", method, params.dump(2))
                   << std::endl;
-        const auto response =
-          nlohmann::json::from_msgpack(connection->call(method, params));
+        const auto response = connection->call(method, params);
         std::cout << fmt::format("Response: {}", response.dump(2)) << std::endl;
       }
     }

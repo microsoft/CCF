@@ -135,7 +135,6 @@ namespace ccf
 
     bool add_request(
       kv::TxHistory::RequestID id,
-      uint64_t actor,
       CallerId caller_id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) override
@@ -497,7 +496,6 @@ namespace ccf
 
     bool add_request(
       kv::TxHistory::RequestID id,
-      uint64_t actor,
       CallerId caller_id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) override
@@ -509,8 +507,7 @@ namespace ccf
       if (!consensus)
         return false;
 
-      return consensus->on_request(
-        {id, request, actor, caller_id, caller_cert});
+      return consensus->on_request({id, request, caller_id, caller_cert});
     }
 
     void add_result(

@@ -28,26 +28,10 @@ def truncate(string, max_len=256):
 
 
 class Request:
-    def __init__(self, id, method, params, readonly_hint=None, jsonrpc="2.0"):
-        self.id = id
+    def __init__(self, method, params, readonly_hint=None):
         self.method = method
         self.params = params
-        self.jsonrpc = jsonrpc
         self.readonly_hint = readonly_hint
-
-    def to_dict(self):
-        rpc = {
-            "id": self.id,
-            "method": self.method,
-            "jsonrpc": self.jsonrpc,
-            "params": self.params,
-        }
-        if self.readonly_hint is not None:
-            rpc["readonly"] = self.readonly_hint
-        return rpc
-
-    def to_json(self):
-        return json.dumps(self.to_dict()).encode()
 
 
 class Response:
@@ -91,10 +75,6 @@ class Response:
         for attr, value in parsed.items():
             setattr(self, attr, value)
 
-    def from_msgpack(self, data):
-        parsed = msgpack.unpackb(data, raw=False)
-        self._from_parsed(parsed)
-
     def from_json(self, data):
         parsed = json.loads(data.decode())
         self._from_parsed(parsed)
@@ -113,7 +93,7 @@ class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
             truncate(
-                f"{name} #{request.id} {request.method} {request.params}"
+                f"{name} {request.method} {request.params}"
                 + (
                     f" (RO hint: {request.readonly_hint})"
                     if request.readonly_hint is not None
@@ -146,8 +126,8 @@ class RPCFileLogger(RPCLogger):
 
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
-            f.write(">> Request:" + os.linesep)
-            json.dump(request.to_dict(), f, indent=2)
+            f.write(f">> Request: {request.method}" + os.linesep)
+            json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
     def log_response(self, id, response):
@@ -174,7 +154,6 @@ class CurlClient:
         cert,
         key,
         ca,
-        version,
         binary_dir,
         connection_timeout,
         request_timeout,
@@ -192,8 +171,8 @@ class CurlClient:
 
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = request.to_json()
-            LOG.debug(f"Going to send {msg}")
+            msg = json.dumps(request.params).encode()
+            LOG.debug(f"Going to call {request.method} with {msg}")
             nf.write(msg)
             nf.flush()
             if is_signed:
@@ -238,19 +217,23 @@ class CurlClient:
             return rep.encode()
 
     def _request(self, request, is_signed=False):
-        while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
-            if self.connection_timeout < 0:
-                self.connection_timeout = 0
+        end_time = time.time() + self.connection_timeout
+        while True:
             try:
-                rid = self._just_request(request, is_signed)
+                rid = self._just_request(request, is_signed=is_signed)
+                # Only the first request gets this timeout logic - future calls
+                # call _just_request directly
                 self._request = self._just_request
                 return rid
-            except CCFConnectionException:
-                if self.connection_timeout == 0:
-                    raise
-            time.sleep(0.1)
-        raise CCFConnectionException
+            except CCFConnectionException as e:
+                # If the handshake fails to due to node certificate not yet
+                # being endorsed by the network, sleep briefly and try again
+                if time.time() > end_time:
+                    raise CCFConnectionException(
+                        f"Connection still failing after {self.connection_timeout}s: {e}"
+                    )
+                LOG.error(f"Got SSLError exception: {e}")
+                time.sleep(0.1)
 
     def request(self, request):
         return self._request(request, is_signed=False)
@@ -267,7 +250,6 @@ class RequestClient:
         cert,
         key,
         ca,
-        version,
         connection_timeout,
         request_timeout,
         *args,
@@ -284,48 +266,53 @@ class RequestClient:
         self.session.verify = self.ca
         self.session.cert = (self.cert, self.key)
 
-    def _just_request(self, request):
+    def _just_request(self, request, is_signed=False):
+        auth_value = None
+        if is_signed:
+            auth_value = HTTPSignatureAuth(
+                algorithm="ecdsa-sha256",
+                key=open(self.key, "rb").read(),
+                # key_id needs to be specified but is unused
+                key_id="tls",
+                headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
+            )
+
         rep = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
-            json=request.to_dict(),
-            timeout=(self.connection_timeout, self.request_timeout),
+            json=request.params,
+            cert=(self.cert, self.key),
+            verify=self.ca,
+            timeout=self.request_timeout,
+            auth=auth_value,
         )
         return rep.content
 
-    def request(self, request):
-        while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
-            if self.connection_timeout < 0:
-                self.connection_timeout = 0
+    def _request(self, request, is_signed=False):
+        end_time = time.time() + self.connection_timeout
+        while True:
             try:
-                rid = self._just_request(request)
-                self.request = self._just_request
+                rid = self._just_request(request, is_signed=is_signed)
+                # Only the first request gets this timeout logic - future calls
+                # call _just_request directly
+                self._request = self._just_request
                 return rid
-            except requests.exceptions.SSLError:
-                if self.connection_timeout == 0:
-                    raise CCFConnectionException
-            except requests.exceptions.ReadTimeout:
+            except requests.exceptions.SSLError as e:
+                # If the handshake fails to due to node certificate not yet
+                # being endorsed by the network, sleep briefly and try again
+                if time.time() > end_time:
+                    raise CCFConnectionException(
+                        f"Connection still failing after {self.connection_timeout}s: {e}"
+                    )
+                LOG.error(f"Got SSLError exception: {e}")
+                time.sleep(0.1)
+            except requests.exceptions.ReadTimeout as e:
                 raise TimeoutError
-            time.sleep(0.1)
-        raise CCFConnectionException
+
+    def request(self, request):
+        return self._request(request, is_signed=False)
 
     def signed_request(self, request):
-        with open(self.key, "rb") as k:
-            rep = requests.post(
-                f"https://{self.host}:{self.port}/{request.method}",
-                json=request.to_dict(),
-                cert=(self.cert, self.key),
-                verify=self.ca,
-                timeout=self.request_timeout,
-                # key_id needs to be specified but is unused
-                auth=HTTPSignatureAuth(
-                    algorithm="ecdsa-sha256",
-                    key=k.read(),
-                    key_id="tls",
-                    headers=["(request-target)", "Date"],
-                ),
-            )
-            return rep.content
+        return self._request(request, is_signed=True)
 
 
 class WSClient:
@@ -336,7 +323,6 @@ class WSClient:
         cert,
         key,
         ca,
-        version,
         connection_timeout,
         request_timeout,
         *args,
@@ -365,7 +351,6 @@ class CCFClient:
         self.description = kwargs.pop("description")
         self.rpc_loggers = (RPCLogger(),)
         self.name = "[{}:{}]".format(kwargs.get("host"), kwargs.get("port"))
-        self.seqno = 0
 
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(*args, **kwargs)
@@ -373,11 +358,6 @@ class CCFClient:
             self.client_impl = WSClient(*args, **kwargs)
         else:
             self.client_impl = RequestClient(*args, **kwargs)
-
-    def _next_req(self, method, params, readonly_hint=None):
-        r = Request(self.seqno, method, params, readonly_hint)
-        self.seqno += 1
-        return r
 
     def _response(self, msg):
         r = Response(0)
@@ -387,7 +367,8 @@ class CCFClient:
         return r
 
     def request(self, method, params, *args, **kwargs):
-        r = self._next_req(f"{self.prefix}/{method}", params, *args, **kwargs)
+        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
+        description = ""
         if self.description:
             description = f" ({self.description})"
         for logger in self.rpc_loggers:
@@ -396,8 +377,9 @@ class CCFClient:
         return self._response(self.client_impl.request(r))
 
     def signed_request(self, method, params, *args, **kwargs):
-        r = self._next_req(f"{self.prefix}/{method}", params, *args, **kwargs)
+        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
 
+        description = ""
         if self.description:
             description = f" ({self.description}) [signed]"
         for logger in self.rpc_loggers:
@@ -436,7 +418,6 @@ def client(
     cert=None,
     key=None,
     ca=None,
-    version="2.0",
     description=None,
     log_file=None,
     prefix="users",
@@ -450,7 +431,6 @@ def client(
         cert=cert,
         key=key,
         ca=ca,
-        version=version,
         description=description,
         prefix=prefix,
         binary_dir=binary_dir,

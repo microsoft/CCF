@@ -83,7 +83,7 @@ def verify_recover_secp256k1_bc(
         raise RuntimeError("Failed to verify SECP256K1 bitcoin signature")
 
 
-def verify_sig(raw_cert, sig, req, raw_req, md):
+def verify_sig(raw_cert, sig, req, request_body, md):
     try:
         cert = cryptography.x509.load_der_x509_certificate(
             raw_cert, backend=default_backend()
@@ -97,7 +97,7 @@ def verify_sig(raw_cert, sig, req, raw_req, md):
 
         # verify that the digest matches the hash of the body
         h = hashes.Hash(digest, backend=default_backend())
-        h.update(raw_req)
+        h.update(request_body)
         raw_req_digest = h.finalize()
         header_digest = base64.b64decode(req.decode().split("SHA-256=")[1])
         assert (
@@ -183,9 +183,9 @@ def run(args):
                 cert = members[member_id]
                 sig = signed_request[0][0]
                 req = signed_request[0][1]
-                raw_req = signed_request[0][2]
+                request_body = signed_request[0][2]
                 digest = signed_request[0][3]
-                verify_sig(cert, sig, req, raw_req, digest)
+                verify_sig(cert, sig, req, request_body, digest)
                 verified_votes += 1
 
     assert verified_votes >= 2

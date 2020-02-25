@@ -48,10 +48,10 @@ Proposed diagram for creating a new network when running with CCF
         participant Backup Replica
 
         Client->>Frontend: JSON-RPC Request
-        Frontend->>History: add_request(RequestID, actor, caller_id, JSON-RPC Request)
+        Frontend->>History: add_request(RequestID, caller_id, JSON-RPC Request)
 
 
-        History->>Client Proxy: ON_REQUEST callback(RequestID, actor, caller_id, JSON-RPC Request)
+        History->>Client Proxy: ON_REQUEST callback(RequestID, caller_id, JSON-RPC Request)
 
         Client Proxy->>Client Proxy: Wrap JSON-RPC Request in PBFT command
 
