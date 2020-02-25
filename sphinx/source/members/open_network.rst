@@ -64,7 +64,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json
     {"commit":31,"global_commit":30,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
-The user is successfully added once a :term:`quorum` of members have accepted the proposal (``"result":true"``).
+The user is successfully added once a the proposal has received enough votes under the rules of the :term:`constitution` (``"result":true"``).
 
 The user can then make user RPCs, for example ``whoAmI`` to retrieve the unique caller ID assigned to them by CCF:
 
@@ -107,7 +107,7 @@ Registering the Lua Application
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``1``, as per ``"result":{"completed":false,"id":1}``).
 
-The Lua application is successfully registered once a :term:`quorum` of members have accepted the proposal.
+The Lua application is successfully registered once the proposal has received enough votes under the rules of the :term:`constitution`.
 
 Opening the Network
 -------------------
@@ -133,4 +133,4 @@ Once users are added to the opening network, members should decide to make a pro
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``2``, as per ``"result":{"completed":false,"id":2}``).
 
-Once a quorum of members have approved the network opening (``"result":true``), the network is opened to users (see :ref:`developers/example:Example Application` for a simple business logic and transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once the proposal has received enough votes under the rules of the :term:`constitution` (``"result":true``), the network is opened to users (see :ref:`developers/example:Example Application` for a simple business logic and transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).

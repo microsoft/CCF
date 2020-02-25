@@ -28,6 +28,8 @@ std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 template <kv::SecurityDomain SD>
 static void serialise(picobench::state& s)
 {
+  logger::config::level() = logger::INFO;
+
   Store kv_store;
   auto secrets = create_ledger_secrets();
   auto encryptor = std::make_shared<ccf::TxEncryptor>(0x1, secrets);
@@ -55,6 +57,8 @@ static void serialise(picobench::state& s)
 template <kv::SecurityDomain SD>
 static void deserialise(picobench::state& s)
 {
+  logger::config::level() = logger::INFO;
+
   auto consensus = std::make_shared<kv::StubConsensus>();
   Store kv_store(consensus);
   Store kv_store2;
