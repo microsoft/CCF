@@ -5,6 +5,8 @@
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
 
+#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
+
 #include <atomic>
 #include <chrono>
 #include <doctest/doctest.h>
@@ -14,8 +16,10 @@
 
 using namespace ccf;
 
-TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
+DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 {
+  logger::config::level() = logger::INFO;
+
   // Multiple threads write random entries into random tables, and attempt to
   // commit them. A single thread continually compacts the kv to the latest
   // entry. The goal is for these commits and compactions to avoid deadlock
@@ -176,17 +180,17 @@ TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   while (compact_state.load() == Running)
   {
     const auto elapsed = Clock::now() - start;
-    REQUIRE(elapsed < timeout);
+    DOCTEST_REQUIRE(elapsed < timeout);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
-  REQUIRE(compact_state.load() == Done);
+  DOCTEST_REQUIRE(compact_state.load() == Done);
 
   // Sanity check that all transactions were compacted
   const auto now_compacted = kv_store.commit_version();
-  REQUIRE(now_compacted > initial_version);
+  DOCTEST_REQUIRE(now_compacted > initial_version);
   const auto expected = initial_version + (tx_count * thread_count);
-  REQUIRE(now_compacted == expected);
+  DOCTEST_REQUIRE(now_compacted == expected);
 
   // Wait for tx threads to complete
   for (size_t i = 0u; i < thread_count; ++i)
