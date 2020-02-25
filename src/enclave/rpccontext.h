@@ -67,44 +67,29 @@ namespace enclave
   protected:
     size_t request_index = 0;
 
-    std::unordered_map<std::string, nlohmann::json> headers;
+    std::unordered_map<std::string, nlohmann::json> response_headers;
     RpcResponse response;
 
   public:
     SessionContext session;
 
-    std::vector<uint8_t> raw = {};
-
     // raw pbft Request
     std::vector<uint8_t> pbft_raw = {};
 
-    nlohmann::json unpacked_rpc = {};
-
-    std::optional<ccf::SignedReq> signed_request = std::nullopt;
-
-    // Actor type to dispatch to appropriate frontend
-    ccf::ActorsType actor = ccf::ActorsType::unknown;
-
-    // Method indicates specific handler for this request
-    std::string method = {};
-
-    nlohmann::json params = {};
-
     bool is_create_request = false;
+
+    bool read_only_hint = true;
 
     RpcContext(const SessionContext& s) : session(s) {}
 
-    RpcContext(
-      const SessionContext& s,
-      const std::vector<uint8_t>& raw_,
-      const std::vector<uint8_t>& pbft_raw_) :
+    RpcContext(const SessionContext& s, const std::vector<uint8_t>& pbft_raw_) :
       session(s),
-      raw(raw_),
       pbft_raw(pbft_raw_)
     {}
 
     virtual ~RpcContext() {}
 
+    /// Request details
     void set_request_index(size_t ri)
     {
       request_index = ri;
@@ -115,6 +100,16 @@ namespace enclave
       return request_index;
     }
 
+    virtual const std::vector<uint8_t>& get_request_body() const = 0;
+    virtual nlohmann::json get_params() const = 0;
+
+    virtual std::string get_method() const = 0;
+    virtual void set_method(const std::string_view& method) = 0;
+
+    virtual const std::vector<uint8_t>& get_serialised_request() = 0;
+    virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
+
+    /// Response details
     void set_response_error(int code, const std::string& msg = "")
     {
       response.result = ErrorDetails{code, msg};
@@ -166,139 +161,7 @@ namespace enclave
     virtual void set_response_headers(
       const std::string& name, const nlohmann::json& value)
     {
-      headers[name] = value;
+      response_headers[name] = value;
     }
   };
-
-  class JsonRpcContext : public RpcContext
-  {
-    uint64_t seq_no = {};
-
-    void init(jsonrpc::Pack p, const nlohmann::json& rpc)
-    {
-      pack_format = p;
-
-      const auto sig_it = rpc.find(jsonrpc::SIG);
-      if (sig_it != rpc.end())
-      {
-        unpacked_rpc = rpc.at(jsonrpc::REQ);
-        ccf::SignedReq signed_req;
-        signed_req.sig = sig_it->get<decltype(signed_req.sig)>();
-        signed_req.req = nlohmann::json::to_msgpack(unpacked_rpc);
-        signed_request = signed_req;
-      }
-      else
-      {
-        unpacked_rpc = rpc;
-        signed_request = std::nullopt;
-      }
-
-      const auto method_it = unpacked_rpc.find(jsonrpc::METHOD);
-      if (method_it != unpacked_rpc.end())
-      {
-        method = method_it->get<std::string>();
-      }
-
-      const auto seq_it = unpacked_rpc.find(jsonrpc::ID);
-      if (seq_it != unpacked_rpc.end())
-      {
-        seq_no = seq_it->get<uint64_t>();
-      }
-
-      const auto params_it = unpacked_rpc.find(jsonrpc::PARAMS);
-      if (params_it != unpacked_rpc.end())
-      {
-        params = *params_it;
-      }
-    }
-
-    std::vector<uint8_t> pack(const nlohmann::json& j) const
-    {
-      return jsonrpc::pack(j, pack_format.value());
-    }
-
-  public:
-    // Packing format of original request, should be used to pack response
-    std::optional<jsonrpc::Pack> pack_format = std::nullopt;
-
-    JsonRpcContext(
-      const SessionContext& s,
-      const std::vector<uint8_t>& packed,
-      const std::vector<uint8_t>& pbft_raw = {}) :
-      RpcContext(s, packed, pbft_raw)
-    {
-      std::optional<jsonrpc::Pack> p;
-
-      auto [success, rpc] = jsonrpc::unpack_rpc(packed, p);
-      if (!success)
-      {
-        throw std::logic_error(fmt::format("Failed to unpack: {}", rpc.dump()));
-      }
-
-      init(p.value(), rpc);
-    }
-
-    JsonRpcContext(
-      const SessionContext& s, jsonrpc::Pack p, const nlohmann::json& rpc) :
-      RpcContext(s)
-    {
-      init(p, rpc);
-    }
-
-    virtual std::vector<uint8_t> serialise_response() const override
-    {
-      nlohmann::json full_response;
-
-      if (response_is_error())
-      {
-        const auto error = get_response_error();
-        full_response = jsonrpc::error_response(
-          seq_no, jsonrpc::Error(error->code, error->msg));
-      }
-      else
-      {
-        const auto payload = get_response_result();
-        full_response = jsonrpc::result_response(seq_no, *payload);
-      }
-
-      for (const auto& [k, v] : headers)
-      {
-        const auto it = full_response.find(k);
-        if (it == full_response.end())
-        {
-          full_response[k] = v;
-        }
-        else
-        {
-          LOG_DEBUG_FMT(
-            "Ignoring response headers with key '{}' - already present in "
-            "response object",
-            k);
-        }
-      }
-
-      return pack(full_response);
-    }
-
-    virtual std::vector<uint8_t> result_response(
-      const nlohmann::json& result) const override
-    {
-      return pack(jsonrpc::result_response(seq_no, result));
-    }
-
-    std::vector<uint8_t> error_response(
-      int error, const std::string& msg) const override
-    {
-      nlohmann::json error_element = jsonrpc::Error(error, msg);
-      return pack(jsonrpc::error_response(seq_no, error_element));
-    }
-  };
-
-  inline std::shared_ptr<RpcContext> make_rpc_context(
-    const SessionContext& s,
-    const std::vector<uint8_t>& packed,
-    const std::vector<uint8_t>& raw_pbft = {})
-  {
-    return std::make_shared<JsonRpcContext>(s, packed, raw_pbft);
-  }
 }

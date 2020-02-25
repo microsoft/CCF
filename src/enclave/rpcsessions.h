@@ -5,7 +5,7 @@
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "forwardertypes.h"
-#include "httpendpoint.h"
+#include "http/http_endpoint.h"
 #include "rpchandler.h"
 #include "tls/cert.h"
 #include "tls/client.h"
@@ -17,8 +17,8 @@
 
 namespace enclave
 {
-  using ServerEndpointImpl = HTTPServerEndpoint;
-  using ClientEndpointImpl = HTTPClientEndpoint;
+  using ServerEndpointImpl = http::HTTPServerEndpoint;
+  using ClientEndpointImpl = http::HTTPClientEndpoint;
 
   class RPCSessions : public AbstractRPCResponder
   {

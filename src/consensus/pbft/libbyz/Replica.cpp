@@ -1402,7 +1402,7 @@ void Replica::handle(Status* m)
       if (m->has_nv_info())
       {
         min = std::max(last_stable + 1, m->last_executed() + 1);
-        LOG_TRACE_FMT("Rentransmitting from min {} to max {}", min, max);
+        LOG_TRACE_FMT("Retransmitting from min {} to max {}", min, max);
         if (
           last_stable > m->last_stable() &&
           last_executed > m->last_executed() + 1)
