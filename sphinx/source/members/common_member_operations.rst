@@ -4,7 +4,7 @@ Common Governance Operations
 Trusting a New Node
 -------------------
 
-As opposed to an opening network in which nodes are trusted automatically, new nodes added to an open network must be trusted by a quorum of members before becoming part of the network.
+As opposed to an opening network in which nodes are trusted automatically, new nodes added to an open network must become trusted through a governance proposal and vote before becoming part of the network.
 
 When an operator starts a new node with the ``join`` option (see :ref:`operators/start_network:Adding a New Node to the Network`), the joining node is assigned a unique node id and is recorded in state `PENDING`. Then, members can vote to accept the new node, using the unique assigned node id (see :ref:`members/proposals:Proposing and Voting for a Proposal` for more detail).
 
@@ -75,7 +75,7 @@ The first member proposes to recover the network, passing the sealed ledger secr
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":true,"term":2}
 
-Once a :term:`quorum` of members have agreed to recover the network, the ledger secrets are unsealed and each node begins recovery of the private ledger entries.
+Once the proposal to recover the network has passed under the rules of the :term:`constitution`, the ledger secrets are unsealed and each node begins recovery of the private ledger entries.
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
@@ -89,7 +89,7 @@ Once a :term:`quorum` of members have agreed to recover the network, the ledger 
 
         Members->>+Node 2: Propose recovery + sealed ledger secrets
         Node 2-->>Members: Proposal ID
-        loop Wait until quorum
+        loop Wait constitution rule is met
             Members->>+Node 2: Vote(s) for Proposal ID
         end
         Note over Node 2: Proposal completes successfully

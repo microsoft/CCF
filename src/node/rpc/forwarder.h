@@ -4,6 +4,7 @@
 
 #include "enclave/forwardertypes.h"
 #include "enclave/rpcmap.h"
+#include "http/http_rpc_context.h"
 #include "node/nodetonode.h"
 
 namespace ccf
@@ -50,10 +51,11 @@ namespace ccf
       const std::vector<uint8_t>& caller_cert)
     {
       IsCallerCertForwarded include_caller = false;
+      const auto method = rpc_ctx->get_method();
+      const auto& raw_request = rpc_ctx->get_serialised_request();
       size_t size = sizeof(caller_id) +
-        sizeof(rpc_ctx->session.client_session_id) + sizeof(rpc_ctx->actor) +
-        sizeof(rpc_ctx->method.size()) + rpc_ctx->method.size() +
-        sizeof(IsCallerCertForwarded) + rpc_ctx->raw.size();
+        sizeof(rpc_ctx->session.client_session_id) +
+        sizeof(IsCallerCertForwarded) + raw_request.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -65,15 +67,13 @@ namespace ccf
       auto size_ = plain.size();
       serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, rpc_ctx->session.client_session_id);
-      serialized::write(data_, size_, rpc_ctx->actor);
-      serialized::write(data_, size_, rpc_ctx->method);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
       {
         serialized::write(data_, size_, caller_cert.size());
         serialized::write(data_, size_, caller_cert.data(), caller_cert.size());
       }
-      serialized::write(data_, size_, rpc_ctx->raw.data(), rpc_ctx->raw.size());
+      serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
 
@@ -100,8 +100,6 @@ namespace ccf
       auto size_ = plain_.size();
       auto caller_id = serialized::read<CallerId>(data_, size_);
       auto client_session_id = serialized::read<size_t>(data_, size_);
-      auto actor = serialized::read<ActorsType>(data_, size_);
-      auto method = serialized::read<std::string>(data_, size_);
       auto includes_caller =
         serialized::read<IsCallerCertForwarded>(data_, size_);
       if (includes_caller)
@@ -109,14 +107,12 @@ namespace ccf
         auto caller_size = serialized::read<size_t>(data_, size_);
         caller_cert = serialized::read(data_, size_, caller_size);
       }
-      std::vector<uint8_t> rpc = serialized::read(data_, size_, size_);
+      std::vector<uint8_t> raw_request = serialized::read(data_, size_, size_);
 
       const enclave::SessionContext session(
         client_session_id, caller_id, caller_cert);
 
-      auto context = enclave::make_rpc_context(session, rpc);
-      context->actor = actor;
-      context->method = method;
+      auto context = enclave::make_rpc_context(session, raw_request);
 
       return std::make_tuple(context, r.first.from_node);
     }
@@ -181,12 +177,23 @@ namespace ccf
 
             auto [ctx, from_node] = std::move(r.value());
 
-            auto handler = rpc_map->find(ctx->actor);
-            if (!handler.has_value())
+            const auto actor_opt = http::extract_actor(*ctx);
+            if (!actor_opt.has_value())
             {
               LOG_FAIL_FMT(
-                "Failed to process forwarded command: no handler for actor {}",
-                (int)ctx->actor);
+                "Failed to extract actor from forwarded context. Method is "
+                "'{}'",
+                ctx->get_method());
+            }
+
+            const auto& actor_s = actor_opt.value();
+            auto actor = rpc_map->resolve(actor_s);
+            auto handler = rpc_map->find(actor);
+            if (actor == ccf::ActorsType::unknown || !handler.has_value())
+            {
+              LOG_FAIL_FMT(
+                "Failed to process forwarded command: unknown actor {}",
+                actor_s);
               return;
             }
 
@@ -196,8 +203,7 @@ namespace ccf
             {
               LOG_FAIL_FMT(
                 "Failed to process forwarded command: handler is not a "
-                "ForwardedRpcHandler",
-                (int)ctx->actor);
+                "ForwardedRpcHandler");
               return;
             }
 

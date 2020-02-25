@@ -12,19 +12,18 @@ namespace pbft
 {
   struct Request
   {
-    uint64_t actor;
     uint64_t caller_id;
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
     std::vector<uint8_t> pbft_raw;
 
-    MSGPACK_DEFINE(actor, caller_id, caller_cert, raw, pbft_raw);
+    MSGPACK_DEFINE(caller_id, caller_cert, raw, pbft_raw);
 
     std::vector<uint8_t> serialise()
     {
       bool include_caller = false;
-      size_t size = sizeof(actor) + sizeof(caller_id) + sizeof(bool) +
-        sizeof(size_t) + raw.size() + sizeof(size_t) + pbft_raw.size();
+      size_t size = sizeof(caller_id) + sizeof(bool) + sizeof(size_t) +
+        raw.size() + sizeof(size_t) + pbft_raw.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -34,7 +33,6 @@ namespace pbft
       std::vector<uint8_t> serialized_req(size);
       auto data_ = serialized_req.data();
       auto size_ = serialized_req.size();
-      serialized::write(data_, size_, actor);
       serialized::write(data_, size_, caller_id);
       serialized::write(data_, size_, include_caller);
       if (include_caller)
@@ -45,10 +43,7 @@ namespace pbft
       serialized::write(data_, size_, raw.size());
       serialized::write(data_, size_, raw.data(), raw.size());
       serialized::write(data_, size_, pbft_raw.size());
-      if (!pbft_raw.empty())
-      {
-        serialized::write(data_, size_, pbft_raw.data(), pbft_raw.size());
-      }
+      serialized::write(data_, size_, pbft_raw.data(), pbft_raw.size());
       return serialized_req;
     }
 
@@ -57,7 +52,6 @@ namespace pbft
       auto data_ = serialized_req.data();
       auto size_ = serialized_req.size();
 
-      actor = serialized::read<uint64_t>(data_, size_);
       caller_id = serialized::read<uint64_t>(data_, size_);
       auto includes_caller = serialized::read<bool>(data_, size_);
       if (includes_caller)
@@ -68,20 +62,12 @@ namespace pbft
       auto raw_size = serialized::read<size_t>(data_, size_);
       raw = serialized::read(data_, size_, raw_size);
       auto pbft_raw_size = serialized::read<size_t>(data_, size_);
-      if (pbft_raw_size > 0)
-      {
-        pbft_raw = serialized::read(data_, size_, pbft_raw_size);
-      }
-      else
-      {
-        pbft_raw = {};
-      }
+      pbft_raw = serialized::read(data_, size_, pbft_raw_size);
     }
   };
 
   DECLARE_JSON_TYPE(Request);
-  DECLARE_JSON_REQUIRED_FIELDS(
-    Request, actor, caller_id, caller_cert, raw, pbft_raw);
+  DECLARE_JSON_REQUIRED_FIELDS(Request, caller_id, caller_cert, raw, pbft_raw);
 
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get

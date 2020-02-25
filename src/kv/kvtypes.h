@@ -96,7 +96,6 @@ namespace kv
     {
       RequestID rid;
       std::vector<uint8_t> request;
-      uint64_t actor;
       uint64_t caller_id;
       std::vector<uint8_t> caller_cert;
     };
@@ -124,7 +123,6 @@ namespace kv
     virtual void emit_signature() = 0;
     virtual bool add_request(
       kv::TxHistory::RequestID id,
-      uint64_t actor,
       uint64_t caller_id,
       const std::vector<uint8_t>& caller_cert,
       const std::vector<uint8_t>& request) = 0;

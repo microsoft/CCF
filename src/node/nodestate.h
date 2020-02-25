@@ -190,7 +190,6 @@ namespace ccf
     //
     // join protocol
     //
-    jsonrpc::SeqNo join_seq_no = 1;
     std::shared_ptr<Timer> join_timer;
 
     //
@@ -436,23 +435,27 @@ namespace ccf
         });
 
       // Send RPC request to remote node to join the network.
-      jsonrpc::ProcedureCall<JoinNetworkNodeToNode::In> join_rpc;
-      join_rpc.id = join_seq_no++;
-      std::stringstream ss;
-      ss << "nodes/" << ccf::NodeProcs::JOIN;
-      join_rpc.method = ss.str();
-      join_rpc.params.node_info_network = args.config.node_info_network;
-      join_rpc.params.public_encryption_key =
+      JoinNetworkNodeToNode::In join_params;
+
+      join_params.node_info_network = args.config.node_info_network;
+      join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
-      join_rpc.params.quote = quote;
+      join_params.quote = quote;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
         args.config.joining.target_host,
         args.config.joining.target_port);
 
-      join_client->send_request(
-        join_rpc.method, jsonrpc::pack(join_rpc, jsonrpc::Pack::Text));
+      const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
+
+      http::Request r(
+        fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN));
+      r.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      r.set_body(&body);
+
+      join_client->send_request(r.build_request());
     }
 
     void join(const Join::In& args)
@@ -1132,42 +1135,86 @@ namespace ccf
     std::vector<uint8_t> serialize_create_request(
       const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
-      jsonrpc::ProcedureCall<CreateNetworkNodeToNode::In> create_rpc;
-
-      create_rpc.id = 0;
-      create_rpc.method = ccf::MemberProcs::CREATE;
+      CreateNetworkNodeToNode::In create_params;
 
       for (auto& m_info : args.config.genesis.members_info)
       {
-        create_rpc.params.members_info.push_back(m_info);
+        create_params.members_info.push_back(m_info);
       }
 
-      create_rpc.params.gov_script = args.config.genesis.gov_script;
-      create_rpc.params.node_cert = node_cert;
-      create_rpc.params.network_cert = network.identity->cert;
-      create_rpc.params.quote = quote;
-      create_rpc.params.public_encryption_key =
+      create_params.gov_script = args.config.genesis.gov_script;
+      create_params.node_cert = node_cert;
+      create_params.network_cert = network.identity->cert;
+      create_params.quote = quote;
+      create_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
-      create_rpc.params.code_digest =
-        std::vector<uint8_t>(node_code_id.begin(), node_code_id.end());
-      create_rpc.params.node_info_network = args.config.node_info_network;
+      create_params.code_digest =
+        std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
+      create_params.node_info_network = args.config.node_info_network;
 
-      nlohmann::json j = create_rpc;
-      auto contents = nlohmann::json::to_msgpack(j);
+      const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
-      auto sig_contents = node_sign_kp->sign(contents);
+      http::Request request(
+        fmt::format("/{}/{}", ccf::Actors::MEMBERS, ccf::MemberProcs::CREATE));
+      request.set_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
-      nlohmann::json sj;
-      sj["req"] = j;
-      sj["sig"] = sig_contents;
+      request.set_body(&body);
+      http::sign_request(request, node_sign_kp);
 
-      return jsonrpc::pack(sj, jsonrpc::Pack::Text);
+      return request.build_request();
     }
 
-    void send_create_request(const std::vector<uint8_t>& packed)
+    bool parse_create_response(const std::vector<uint8_t>& response)
     {
-      constexpr auto actor = ccf::ActorsType::members;
+      http::SimpleMsgProcessor processor;
+      http::Parser parser(HTTP_RESPONSE, processor);
 
+      const auto parsed_count =
+        parser.execute(response.data(), response.size());
+      if (parsed_count != response.size())
+      {
+        LOG_FAIL_FMT(
+          "Tried to parse {} response bytes, actually parsed {}",
+          response.size(),
+          parsed_count);
+        return false;
+      }
+
+      if (processor.received.size() != 1)
+      {
+        LOG_FAIL_FMT(
+          "Expected single message, found {}", processor.received.size());
+        return false;
+      }
+
+      const auto body =
+        jsonrpc::unpack(processor.received.front().body, jsonrpc::Pack::Text);
+      const auto result_it = body.find(jsonrpc::RESULT);
+      if (result_it == body.end())
+      {
+        LOG_FAIL_FMT("Create response is error: {}", body.dump());
+        return false;
+      }
+
+      return *result_it;
+    }
+
+    bool send_create_request(const std::vector<uint8_t>& packed)
+    {
+      const enclave::SessionContext node_session(
+        enclave::InvalidSessionId, node_cert);
+      auto ctx = enclave::make_rpc_context(node_session, packed);
+
+      ctx->is_create_request = true;
+
+      const auto actor_opt = http::extract_actor(*ctx);
+      if (!actor_opt.has_value())
+      {
+        throw std::logic_error("Unable to get actor for create request");
+      }
+
+      const auto actor = rpc_map->resolve(actor_opt.value());
       auto handler = this->rpc_map->find(actor);
       if (!handler.has_value())
       {
@@ -1175,21 +1222,26 @@ namespace ccf
       }
       auto frontend = handler.value();
 
-      const enclave::SessionContext node_session(
-        enclave::InvalidSessionId, node_cert);
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      const auto response = frontend->process(ctx);
+      if (!response.has_value())
+      {
+        return false;
+      }
 
-      ctx->is_create_request = true;
-      ctx->actor = actor;
-
-      frontend->process(ctx);
+      return parse_create_response(response.value());
     }
 
     bool create_and_send_request(
       const CreateNew::In& args, const std::vector<uint8_t>& quote)
     {
-      send_create_request(serialize_create_request(args, quote));
+      const auto create_success =
+        send_create_request(serialize_create_request(args, quote));
+
+#ifdef PBFT
       return true;
+#else
+      return create_success;
+#endif
     }
 
     void reset_quote()

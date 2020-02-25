@@ -143,7 +143,8 @@ namespace ccf
       signatures = tables->get<Signatures>(Tables::SIGNATURES);
 
       auto accept = [this](RequestArgs& args) {
-        const auto in = args.params.get<JoinNetworkNodeToNode::In>();
+        const auto in =
+          args.rpc_ctx->get_params().get<JoinNetworkNodeToNode::In>();
 
         if (
           !this->node.is_part_of_network() &&

@@ -5,6 +5,7 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
+#include "http/http_rpc_context.h"
 #include "luainterp/luainterp.h"
 #include "node/encryptor.h"
 #include "node/genesisgen.h"
@@ -34,10 +35,29 @@ namespace ccf
   }
 }
 
+constexpr auto default_format = jsonrpc::Pack::MsgPack;
+constexpr auto content_type = default_format == jsonrpc::Pack::Text ?
+  http::headervalues::contenttype::JSON :
+  (default_format == jsonrpc::Pack::MsgPack ?
+     http::headervalues::contenttype::MSGPACK :
+     "unknown");
+
+nlohmann::json parse_response(const vector<uint8_t>& v)
+{
+  http::SimpleMsgProcessor processor;
+  http::Parser parser(HTTP_RESPONSE, processor);
+
+  const auto parsed_count = parser.execute(v.data(), v.size());
+  REQUIRE(parsed_count == v.size());
+  REQUIRE(processor.received.size() == 1);
+
+  return jsonrpc::unpack(processor.received.front().body, default_format);
+}
+
 template <typename E>
 nlohmann::json check_error(const vector<uint8_t>& v, const E expected)
 {
-  const auto j_error = json::from_msgpack(v);
+  const auto j_error = parse_response(v);
   CHECK(
     j_error[ERR][CODE].get<jsonrpc::ErrorBaseType>() ==
     static_cast<jsonrpc::ErrorBaseType>(expected));
@@ -47,7 +67,7 @@ nlohmann::json check_error(const vector<uint8_t>& v, const E expected)
 template <typename T>
 void check_success(const vector<uint8_t>& v, const T& expected)
 {
-  const Response<json> r = json::from_msgpack(v);
+  const Response<json> r = parse_response(v);
   CHECK(T(r.result) == expected);
 }
 
@@ -125,9 +145,13 @@ void set_handler(NetworkTables& network, const string& method, const Script& h)
 
 using Params = map<string, json>;
 
-auto make_pc(const string& method, const Params& params)
+std::vector<uint8_t> make_pc(const string& method, const Params& params)
 {
-  return json::to_msgpack(ProcedureCall<Params>{method, 0, params});
+  auto request = http::Request(method);
+  request.set_header(http::headers::CONTENT_TYPE, content_type);
+  const auto body = jsonrpc::pack(params, default_format);
+  request.set_body(&body);
+  return request.build_request();
 }
 
 template <typename F, typename K, typename V>
@@ -557,7 +581,7 @@ TEST_CASE("pre-populated environment")
       const auto packed = make_pc(invalid_params_method, {});
       auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       const Response<std::vector<EBT>> r =
-        json::from_msgpack(frontend->process(rpc_ctx).value());
+        parse_response(frontend->process(rpc_ctx).value());
 
       std::vector<EBT> expected;
       expected.push_back(EBT(StdEC::PARSE_ERROR));

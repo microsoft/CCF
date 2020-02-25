@@ -5,6 +5,8 @@
 #include "ds/logger.h"
 #include "logging_stub.h"
 
+#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
+
 #include <chrono>
 #include <doctest/doctest.h>
 #include <string>
@@ -17,7 +19,7 @@ using Store = raft::LoggingStubStore;
 using StoreSig = raft::LoggingStubStoreSig;
 using Adaptor = raft::Adaptor<Store, kv::DeserialiseSuccess>;
 
-TEST_CASE("Single node startup" * doctest::test_suite("single"))
+DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
 {
   auto kv_store = std::make_shared<Store>(0);
   raft::NodeId node_id(0);
@@ -34,24 +36,25 @@ TEST_CASE("Single node startup" * doctest::test_suite("single"))
   std::unordered_set<raft::NodeId> config = {node_id};
   r0.add_configuration(0, config);
 
-  INFO("REQUIRE Initial State");
+  DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
 
-  REQUIRE(!r0.is_leader());
-  REQUIRE(r0.leader() == raft::NoNode);
-  REQUIRE(r0.get_term() == 0);
-  REQUIRE(r0.get_commit_idx() == 0);
+  DOCTEST_REQUIRE(!r0.is_leader());
+  DOCTEST_REQUIRE(r0.leader() == raft::NoNode);
+  DOCTEST_REQUIRE(r0.get_term() == 0);
+  DOCTEST_REQUIRE(r0.get_commit_idx() == 0);
 
-  INFO("In the absence of other nodes, become leader after election timeout");
+  DOCTEST_INFO(
+    "In the absence of other nodes, become leader after election timeout");
 
   r0.periodic(ms(0));
-  REQUIRE(!r0.is_leader());
+  DOCTEST_REQUIRE(!r0.is_leader());
 
   r0.periodic(election_timeout * 2);
-  REQUIRE(r0.is_leader());
-  REQUIRE(r0.leader() == node_id);
+  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.leader() == node_id);
 }
 
-TEST_CASE("Single node commit" * doctest::test_suite("single"))
+DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 {
   auto kv_store = std::make_shared<Store>(0);
   raft::NodeId node_id(0);
@@ -68,22 +71,22 @@ TEST_CASE("Single node commit" * doctest::test_suite("single"))
   std::unordered_set<raft::NodeId> config = {node_id};
   r0.add_configuration(0, config);
 
-  INFO("Become leader after election timeout");
+  DOCTEST_INFO("Become leader after election timeout");
 
   r0.periodic(election_timeout * 2);
-  REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.is_leader());
 
-  INFO("Observe that data is committed on replicate immediately");
+  DOCTEST_INFO("Observe that data is committed on replicate immediately");
 
   for (size_t i = 1; i <= 5; ++i)
   {
     r0.replicate(kv::BatchVector{{i, {1, 2, 3}, true}});
-    REQUIRE(r0.get_last_idx() == i);
-    REQUIRE(r0.get_commit_idx() == i);
+    DOCTEST_REQUIRE(r0.get_last_idx() == i);
+    DOCTEST_REQUIRE(r0.get_commit_idx() == i);
   }
 }
 
-TEST_CASE(
+DOCTEST_TEST_CASE(
   "Multiple nodes startup and election" * doctest::test_suite("multiple"))
 {
   auto kv_store0 = std::make_shared<Store>(0);
@@ -127,87 +130,88 @@ TEST_CASE(
     return get<0>(lhs) < get<0>(rhs);
   };
 
-  INFO("Node 0 exceeds its election timeout and starts an election");
+  DOCTEST_INFO("Node 0 exceeds its election timeout and starts an election");
 
   r0.periodic(std::chrono::milliseconds(200));
-  REQUIRE(r0.channels->sent_request_vote.size() == 2);
+  DOCTEST_REQUIRE(r0.channels->sent_request_vote.size() == 2);
   r0.channels->sent_request_vote.sort(by_0);
 
-  INFO("Node 1 receives the request");
+  DOCTEST_INFO("Node 1 receives the request");
 
   auto rv = r0.channels->sent_request_vote.front();
   r0.channels->sent_request_vote.pop_front();
-  REQUIRE(get<0>(rv) == node_id1);
+  DOCTEST_REQUIRE(get<0>(rv) == node_id1);
   auto rvc = get<1>(rv);
-  REQUIRE(rvc.term == 1);
-  REQUIRE(rvc.last_commit_idx == 0);
-  REQUIRE(rvc.last_commit_term == 0);
+  DOCTEST_REQUIRE(rvc.term == 1);
+  DOCTEST_REQUIRE(rvc.last_commit_idx == 0);
+  DOCTEST_REQUIRE(rvc.last_commit_term == 0);
 
   r1.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
-  INFO("Node 2 receives the request");
+  DOCTEST_INFO("Node 2 receives the request");
 
   rv = r0.channels->sent_request_vote.front();
   r0.channels->sent_request_vote.pop_front();
-  REQUIRE(get<0>(rv) == node_id2);
+  DOCTEST_REQUIRE(get<0>(rv) == node_id2);
   rvc = get<1>(rv);
-  REQUIRE(rvc.term == 1);
-  REQUIRE(rvc.last_commit_idx == 0);
-  REQUIRE(rvc.last_commit_term == 0);
+  DOCTEST_REQUIRE(rvc.term == 1);
+  DOCTEST_REQUIRE(rvc.last_commit_idx == 0);
+  DOCTEST_REQUIRE(rvc.last_commit_term == 0);
 
   r2.recv_message(reinterpret_cast<uint8_t*>(&rvc), sizeof(rvc));
 
-  INFO("Node 1 votes for Node 0");
+  DOCTEST_INFO("Node 1 votes for Node 0");
 
-  REQUIRE(r1.channels->sent_request_vote_response.size() == 1);
+  DOCTEST_REQUIRE(r1.channels->sent_request_vote_response.size() == 1);
   auto rvr = r1.channels->sent_request_vote_response.front();
   r1.channels->sent_request_vote_response.pop_front();
 
-  REQUIRE(get<0>(rvr) == node_id0);
+  DOCTEST_REQUIRE(get<0>(rvr) == node_id0);
   auto rvrc = get<1>(rvr);
-  REQUIRE(rvrc.term == 1);
-  REQUIRE(rvrc.vote_granted);
+  DOCTEST_REQUIRE(rvrc.term == 1);
+  DOCTEST_REQUIRE(rvrc.vote_granted);
 
   r0.recv_message(reinterpret_cast<uint8_t*>(&rvrc), sizeof(rvrc));
 
-  INFO("Node 2 votes for Node 0");
+  DOCTEST_INFO("Node 2 votes for Node 0");
 
-  REQUIRE(r2.channels->sent_request_vote_response.size() == 1);
+  DOCTEST_REQUIRE(r2.channels->sent_request_vote_response.size() == 1);
   rvr = r2.channels->sent_request_vote_response.front();
   r2.channels->sent_request_vote_response.pop_front();
 
-  REQUIRE(get<0>(rvr) == node_id0);
+  DOCTEST_REQUIRE(get<0>(rvr) == node_id0);
   rvrc = get<1>(rvr);
-  REQUIRE(rvrc.term == 1);
-  REQUIRE(rvrc.vote_granted);
+  DOCTEST_REQUIRE(rvrc.term == 1);
+  DOCTEST_REQUIRE(rvrc.vote_granted);
 
   r0.recv_message(reinterpret_cast<uint8_t*>(&rvrc), sizeof(rvrc));
 
-  INFO("Node 0 is now leader, and sends empty append entries to other nodes");
+  DOCTEST_INFO(
+    "Node 0 is now leader, and sends empty append entries to other nodes");
 
-  REQUIRE(r0.is_leader());
-  REQUIRE(r0.channels->sent_append_entries.size() == 2);
+  DOCTEST_REQUIRE(r0.is_leader());
+  DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 2);
   r0.channels->sent_append_entries.sort(by_0);
 
   auto ae = r0.channels->sent_append_entries.front();
   r0.channels->sent_append_entries.pop_front();
-  REQUIRE(get<0>(ae) == node_id1);
+  DOCTEST_REQUIRE(get<0>(ae) == node_id1);
   auto aec = get<1>(ae);
-  REQUIRE(aec.idx == 0);
-  REQUIRE(aec.term == 1);
-  REQUIRE(aec.prev_idx == 0);
-  REQUIRE(aec.prev_term == 0);
-  REQUIRE(aec.leader_commit_idx == 0);
+  DOCTEST_REQUIRE(aec.idx == 0);
+  DOCTEST_REQUIRE(aec.term == 1);
+  DOCTEST_REQUIRE(aec.prev_idx == 0);
+  DOCTEST_REQUIRE(aec.prev_term == 0);
+  DOCTEST_REQUIRE(aec.leader_commit_idx == 0);
 
   ae = r0.channels->sent_append_entries.front();
   r0.channels->sent_append_entries.pop_front();
-  REQUIRE(get<0>(ae) == node_id2);
+  DOCTEST_REQUIRE(get<0>(ae) == node_id2);
   aec = get<1>(ae);
-  REQUIRE(aec.idx == 0);
-  REQUIRE(aec.term == 1);
-  REQUIRE(aec.prev_idx == 0);
-  REQUIRE(aec.prev_term == 0);
-  REQUIRE(aec.leader_commit_idx == 0);
+  DOCTEST_REQUIRE(aec.idx == 0);
+  DOCTEST_REQUIRE(aec.term == 1);
+  DOCTEST_REQUIRE(aec.prev_idx == 0);
+  DOCTEST_REQUIRE(aec.prev_term == 0);
+  DOCTEST_REQUIRE(aec.leader_commit_idx == 0);
 }
 
 template <class NodeMap, class Messages>
@@ -228,7 +232,7 @@ static size_t dispatch_all(NodeMap& nodes, Messages& messages)
 }
 
 template <class NodeMap, class Messages, class Assertion>
-static size_t dispatch_all_and_check(
+static size_t dispatch_all_and_DOCTEST_CHECK(
   NodeMap& nodes, Messages& messages, const Assertion& assertion)
 {
   size_t count = 0;
@@ -246,7 +250,8 @@ static size_t dispatch_all_and_check(
   return count;
 }
 
-TEST_CASE("Multiple nodes append entries" * doctest::test_suite("multiple"))
+DOCTEST_TEST_CASE(
+  "Multiple nodes append entries" * doctest::test_suite("multiple"))
 {
   auto kv_store0 = std::make_shared<Store>(0);
   auto kv_store1 = std::make_shared<Store>(1);
@@ -292,80 +297,82 @@ TEST_CASE("Multiple nodes append entries" * doctest::test_suite("multiple"))
 
   r0.periodic(std::chrono::milliseconds(200));
 
-  INFO("Send request_votes to other nodes");
-  REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_request_vote));
+  DOCTEST_INFO("Send request_votes to other nodes");
+  DOCTEST_REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_request_vote));
 
-  INFO("Send request_vote_reponses back");
-  REQUIRE(1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
-  REQUIRE(1 == dispatch_all(nodes, r2.channels->sent_request_vote_response));
+  DOCTEST_INFO("Send request_vote_reponses back");
+  DOCTEST_REQUIRE(
+    1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
+  DOCTEST_REQUIRE(
+    1 == dispatch_all(nodes, r2.channels->sent_request_vote_response));
 
-  INFO("Send empty append_entries to other nodes");
-  REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
+  DOCTEST_INFO("Send empty append_entries to other nodes");
+  DOCTEST_REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
 
-  INFO("Send append_entries_reponses back");
-  REQUIRE(
+  DOCTEST_INFO("Send append_entries_reponses back");
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r1.channels->sent_append_entries_response, [](const auto& msg) {
-        REQUIRE(msg.last_log_idx == 0);
-        REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.last_log_idx == 0);
+        DOCTEST_REQUIRE(msg.success);
       }));
-  REQUIRE(
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r2.channels->sent_append_entries_response, [](const auto& msg) {
-        REQUIRE(msg.last_log_idx == 0);
-        REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.last_log_idx == 0);
+        DOCTEST_REQUIRE(msg.success);
       }));
 
-  INFO("There ought to be no messages pending anywhere now");
-  REQUIRE(r0.channels->sent_msg_count() == 0);
-  REQUIRE(r1.channels->sent_msg_count() == 0);
-  REQUIRE(r2.channels->sent_msg_count() == 0);
+  DOCTEST_INFO("There ought to be no messages pending anywhere now");
+  DOCTEST_REQUIRE(r0.channels->sent_msg_count() == 0);
+  DOCTEST_REQUIRE(r1.channels->sent_msg_count() == 0);
+  DOCTEST_REQUIRE(r2.channels->sent_msg_count() == 0);
 
-  INFO("Try to replicate on a follower, and fail");
+  DOCTEST_INFO("Try to replicate on a follower, and fail");
   std::vector<uint8_t> entry = {1, 2, 3};
-  REQUIRE_FALSE(r1.replicate(kv::BatchVector{{1, entry, true}}));
+  DOCTEST_REQUIRE_FALSE(r1.replicate(kv::BatchVector{{1, entry, true}}));
 
-  INFO("Tell the leader to replicate a message");
-  REQUIRE(r0.replicate(kv::BatchVector{{1, entry, true}}));
-  REQUIRE(r0.ledger->ledger.size() == 1);
-  REQUIRE(*r0.ledger->ledger.front() == entry);
-  INFO("The other nodes are not told about this yet");
-  REQUIRE(r0.channels->sent_msg_count() == 0);
+  DOCTEST_INFO("Tell the leader to replicate a message");
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, entry, true}}));
+  DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
+  DOCTEST_REQUIRE(*r0.ledger->ledger.front() == entry);
+  DOCTEST_INFO("The other nodes are not told about this yet");
+  DOCTEST_REQUIRE(r0.channels->sent_msg_count() == 0);
 
   r0.periodic(ms(10));
 
-  INFO("Now the other nodes are sent append_entries");
-  REQUIRE(
+  DOCTEST_INFO("Now the other nodes are sent append_entries");
+  DOCTEST_REQUIRE(
     2 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r0.channels->sent_append_entries, [](const auto& msg) {
-        REQUIRE(msg.idx == 1);
-        REQUIRE(msg.term == 1);
-        REQUIRE(msg.prev_idx == 0);
-        REQUIRE(msg.prev_term == 0);
-        REQUIRE(msg.leader_commit_idx == 0);
+        DOCTEST_REQUIRE(msg.idx == 1);
+        DOCTEST_REQUIRE(msg.term == 1);
+        DOCTEST_REQUIRE(msg.prev_idx == 0);
+        DOCTEST_REQUIRE(msg.prev_term == 0);
+        DOCTEST_REQUIRE(msg.leader_commit_idx == 0);
       }));
 
-  INFO("Which they acknowledge correctly");
-  REQUIRE(
+  DOCTEST_INFO("Which they acknowledge correctly");
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r1.channels->sent_append_entries_response, [](const auto& msg) {
-        REQUIRE(msg.last_log_idx == 1);
-        REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.last_log_idx == 1);
+        DOCTEST_REQUIRE(msg.success);
       }));
-  REQUIRE(
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r2.channels->sent_append_entries_response, [](const auto& msg) {
-        REQUIRE(msg.last_log_idx == 1);
-        REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.last_log_idx == 1);
+        DOCTEST_REQUIRE(msg.success);
       }));
 }
 
-TEST_CASE("Multiple nodes, late join" * doctest::test_suite("multiple"))
+DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 {
   auto kv_store0 = std::make_shared<Store>(0);
   auto kv_store1 = std::make_shared<Store>(1);
@@ -409,44 +416,45 @@ TEST_CASE("Multiple nodes, late join" * doctest::test_suite("multiple"))
 
   r0.periodic(std::chrono::milliseconds(200));
 
-  REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_request_vote));
-  REQUIRE(1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
-  REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_request_vote));
+  DOCTEST_REQUIRE(
+    1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
 
-  REQUIRE(
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r1.channels->sent_append_entries_response, [](const auto& msg) {
-        REQUIRE(msg.last_log_idx == 0);
-        REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.last_log_idx == 0);
+        DOCTEST_REQUIRE(msg.success);
       }));
 
-  REQUIRE(r0.channels->sent_msg_count() == 0);
-  REQUIRE(r1.channels->sent_msg_count() == 0);
+  DOCTEST_REQUIRE(r0.channels->sent_msg_count() == 0);
+  DOCTEST_REQUIRE(r1.channels->sent_msg_count() == 0);
 
-  REQUIRE(r0.replicate(kv::BatchVector{{1, {1, 2, 3}, true}}));
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, {1, 2, 3}, true}}));
   r0.periodic(ms(10));
 
-  REQUIRE(
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r0.channels->sent_append_entries, [](const auto& msg) {
-        REQUIRE(msg.idx == 1);
-        REQUIRE(msg.term == 1);
-        REQUIRE(msg.prev_idx == 0);
-        REQUIRE(msg.prev_term == 0);
-        REQUIRE(msg.leader_commit_idx == 0);
+        DOCTEST_REQUIRE(msg.idx == 1);
+        DOCTEST_REQUIRE(msg.term == 1);
+        DOCTEST_REQUIRE(msg.prev_idx == 0);
+        DOCTEST_REQUIRE(msg.prev_term == 0);
+        DOCTEST_REQUIRE(msg.leader_commit_idx == 0);
       }));
 
-  REQUIRE(
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r1.channels->sent_append_entries_response, [](const auto& msg) {
-        REQUIRE(msg.last_log_idx == 1);
-        REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.last_log_idx == 1);
+        DOCTEST_REQUIRE(msg.success);
       }));
 
-  INFO("Node 2 joins the ensemble");
+  DOCTEST_INFO("Node 2 joins the ensemble");
 
   std::unordered_set<raft::NodeId> config1 = {node_id0, node_id1, node_id2};
   r0.add_configuration(1, config1);
@@ -455,23 +463,23 @@ TEST_CASE("Multiple nodes, late join" * doctest::test_suite("multiple"))
 
   nodes[node_id2] = &r2;
 
-  INFO("Node 0 sends Node 2 what it's missed by joining late");
-  REQUIRE(r2.channels->sent_msg_count() == 0);
-  REQUIRE(r1.channels->sent_msg_count() == 0);
+  DOCTEST_INFO("Node 0 sends Node 2 what it's missed by joining late");
+  DOCTEST_REQUIRE(r2.channels->sent_msg_count() == 0);
+  DOCTEST_REQUIRE(r1.channels->sent_msg_count() == 0);
 
-  REQUIRE(
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r0.channels->sent_append_entries, [](const auto& msg) {
-        REQUIRE(msg.idx == 1);
-        REQUIRE(msg.term == 1);
-        REQUIRE(msg.prev_idx == 1);
-        REQUIRE(msg.prev_term == 1);
-        REQUIRE(msg.leader_commit_idx == 1);
+        DOCTEST_REQUIRE(msg.idx == 1);
+        DOCTEST_REQUIRE(msg.term == 1);
+        DOCTEST_REQUIRE(msg.prev_idx == 1);
+        DOCTEST_REQUIRE(msg.prev_term == 1);
+        DOCTEST_REQUIRE(msg.leader_commit_idx == 1);
       }));
 }
 
-TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
+DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 {
   auto kv_store0 = std::make_shared<Store>(0);
   auto kv_store1 = std::make_shared<Store>(1);
@@ -506,47 +514,48 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 
   r0.periodic(std::chrono::milliseconds(200));
 
-  INFO("Initial election");
+  DOCTEST_INFO("Initial election");
   {
-    REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_request_vote));
-    REQUIRE(1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_request_vote));
+    DOCTEST_REQUIRE(
+      1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
 
-    REQUIRE(r0.is_leader());
-    REQUIRE(r0.channels->sent_append_entries.size() == 1);
-    REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
-    REQUIRE(r0.channels->sent_append_entries.size() == 0);
+    DOCTEST_REQUIRE(r0.is_leader());
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 0);
   }
 
   raft::AppendEntries ae_idx_2; // To save for later use
 
-  INFO("Replicate two entries");
+  DOCTEST_INFO("Replicate two entries");
   {
     std::vector<uint8_t> first_entry = {1, 1, 1};
     std::vector<uint8_t> second_entry = {2, 2, 2};
 
-    REQUIRE(r0.replicate(kv::BatchVector{{1, first_entry, true}}));
-    REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}));
-    REQUIRE(r0.ledger->ledger.size() == 2);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, first_entry, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(ms(10));
-    REQUIRE(r0.channels->sent_append_entries.size() == 1);
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
 
     // Receive append entries (idx: 2, prev_idx: 0)
     ae_idx_2 = r0.channels->sent_append_entries.front().second;
     r1.recv_message(reinterpret_cast<uint8_t*>(&ae_idx_2), sizeof(ae_idx_2));
-    REQUIRE(r1.ledger->ledger.size() == 2);
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
   }
 
-  INFO("Receiving same append entries has no effect");
+  DOCTEST_INFO("Receiving same append entries has no effect");
   {
-    REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
-    REQUIRE(r1.ledger->ledger.size() == 2);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
   }
 
-  INFO("Replicate one more entry but send AE all entries");
+  DOCTEST_INFO("Replicate one more entry but send AE all entries");
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
-    REQUIRE(r0.replicate(kv::BatchVector{{3, third_entry, true}}));
-    REQUIRE(r0.ledger->ledger.size() == 3);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, third_entry, true}}));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
     // Simulate that the append entries was not deserialised successfully
     // This ensures that r0 re-sends an AE with prev_idx = 0 next time
@@ -554,40 +563,41 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     r1.channels->sent_append_entries_response.pop_front();
     aer.success = false;
     r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
-    REQUIRE(r0.channels->sent_append_entries.size() == 1);
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
 
     // Only the third entry is deserialised
     r1.ledger->reset_skip_count();
-    REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
-    REQUIRE(r0.ledger->ledger.size() == 3);
-    REQUIRE(r1.ledger->skip_count == 2);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
+    DOCTEST_REQUIRE(r1.ledger->skip_count == 2);
     r1.ledger->reset_skip_count();
   }
 
-  INFO("Receiving stale append entries has no effect");
+  DOCTEST_INFO("Receiving stale append entries has no effect");
   {
     r1.recv_message(reinterpret_cast<uint8_t*>(&ae_idx_2), sizeof(ae_idx_2));
-    REQUIRE(r1.ledger->ledger.size() == 3);
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
   }
 
-  INFO("Replicate one more entry (normal behaviour)");
+  DOCTEST_INFO("Replicate one more entry (normal behaviour)");
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
-    REQUIRE(r0.replicate(kv::BatchVector{{4, fourth_entry, true}}));
-    REQUIRE(r0.ledger->ledger.size() == 4);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, fourth_entry, true}}));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(ms(10));
-    REQUIRE(r0.channels->sent_append_entries.size() == 1);
-    REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
-    REQUIRE(r1.ledger->ledger.size() == 4);
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 4);
   }
 
-  INFO("Replicate one more entry without AE response from previous entry");
+  DOCTEST_INFO(
+    "Replicate one more entry without AE response from previous entry");
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
-    REQUIRE(r0.replicate(kv::BatchVector{{5, fifth_entry, true}}));
-    REQUIRE(r0.ledger->ledger.size() == 5);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, fifth_entry, true}}));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(ms(10));
-    REQUIRE(r0.channels->sent_append_entries.size() == 1);
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
     r0.channels->sent_append_entries.pop_front();
 
     // Simulate that the append entries was not deserialised successfully
@@ -596,18 +606,20 @@ TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     r1.channels->sent_append_entries_response.pop_front();
     aer.success = false;
     r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
-    REQUIRE(r0.channels->sent_append_entries.size() == 1);
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
 
     // Receive append entries (idx: 5, prev_idx: 3)
     r1.ledger->reset_skip_count();
-    REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
-    REQUIRE(r1.ledger->ledger.size() == 5);
-    REQUIRE(r1.ledger->skip_count == 2);
+    DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 5);
+    DOCTEST_REQUIRE(r1.ledger->skip_count == 2);
   }
 }
 
-TEST_CASE("Exceed append entries limit")
+DOCTEST_TEST_CASE("Exceed append entries limit")
 {
+  logger::config::level() = logger::INFO;
+
   auto kv_store0 = std::make_shared<Store>(0);
   auto kv_store1 = std::make_shared<Store>(1);
   auto kv_store2 = std::make_shared<Store>(2);
@@ -650,20 +662,21 @@ TEST_CASE("Exceed append entries limit")
 
   r0.periodic(std::chrono::milliseconds(200));
 
-  REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_request_vote));
-  REQUIRE(1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
-  REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_request_vote));
+  DOCTEST_REQUIRE(
+    1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
+  DOCTEST_REQUIRE(1 == dispatch_all(nodes, r0.channels->sent_append_entries));
 
-  REQUIRE(
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes, r1.channels->sent_append_entries_response, [](const auto& msg) {
-        REQUIRE(msg.last_log_idx == 0);
-        REQUIRE(msg.success);
+        DOCTEST_REQUIRE(msg.last_log_idx == 0);
+        DOCTEST_REQUIRE(msg.success);
       }));
 
-  REQUIRE(r0.channels->sent_msg_count() == 0);
-  REQUIRE(r1.channels->sent_msg_count() == 0);
+  DOCTEST_REQUIRE(r0.channels->sent_msg_count() == 0);
+  DOCTEST_REQUIRE(r1.channels->sent_msg_count() == 0);
 
   // large entries of size (append_entries_size_limit / 2), so 2nd and 4th entry
   // will exceed append entries limit size which means that 2nd and 4th entries
@@ -679,14 +692,14 @@ TEST_CASE("Exceed append entries limit")
 
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
-    REQUIRE(r0.replicate(kv::BatchVector{{i, data, true}}));
-    REQUIRE(
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true}}));
+    DOCTEST_REQUIRE(
       msg_response ==
-      dispatch_all_and_check(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes, r0.channels->sent_append_entries, [&i](const auto& msg) {
-          REQUIRE(msg.idx == i);
-          REQUIRE(msg.term == 1);
-          REQUIRE(msg.prev_idx == ((i <= 2) ? 0 : 2));
+          DOCTEST_REQUIRE(msg.idx == i);
+          DOCTEST_REQUIRE(msg.term == 1);
+          DOCTEST_REQUIRE(msg.prev_idx == ((i <= 2) ? 0 : 2));
         }));
     msg_response = !msg_response;
   }
@@ -696,11 +709,11 @@ TEST_CASE("Exceed append entries limit")
   std::vector<uint8_t> smaller_data(data_size, 1);
   for (size_t i = num_big_entries + 1; i <= individual_entries; ++i)
   {
-    REQUIRE(r0.replicate(kv::BatchVector{{i, smaller_data, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, smaller_data, true}}));
     dispatch_all(nodes, r0.channels->sent_append_entries);
   }
 
-  INFO("Node 2 joins the ensemble");
+  DOCTEST_INFO("Node 2 joins the ensemble");
 
   std::unordered_set<raft::NodeId> config1 = {node_id0, node_id1, node_id2};
   r0.add_configuration(1, config1);
@@ -709,44 +722,44 @@ TEST_CASE("Exceed append entries limit")
 
   nodes[node_id2] = &r2;
 
-  INFO("Node 0 sends Node 2 what it's missed by joining late");
-  REQUIRE(r2.channels->sent_msg_count() == 0);
+  DOCTEST_INFO("Node 0 sends Node 2 what it's missed by joining late");
+  DOCTEST_REQUIRE(r2.channels->sent_msg_count() == 0);
 
-  REQUIRE(
+  DOCTEST_REQUIRE(
     1 ==
-    dispatch_all_and_check(
+    dispatch_all_and_DOCTEST_CHECK(
       nodes,
       r0.channels->sent_append_entries,
       [&individual_entries](const auto& msg) {
-        REQUIRE(msg.idx == individual_entries);
-        REQUIRE(msg.term == 1);
-        REQUIRE(msg.prev_idx == individual_entries);
+        DOCTEST_REQUIRE(msg.idx == individual_entries);
+        DOCTEST_REQUIRE(msg.term == 1);
+        DOCTEST_REQUIRE(msg.prev_idx == individual_entries);
       }));
 
-  REQUIRE(r2.ledger->ledger.size() == 0);
-  REQUIRE(r0.ledger->ledger.size() == individual_entries);
+  DOCTEST_REQUIRE(r2.ledger->ledger.size() == 0);
+  DOCTEST_REQUIRE(r0.ledger->ledger.size() == individual_entries);
 
-  INFO("Node 2 asks for Node 0 to send all the data up to now");
-  REQUIRE(r2.channels->sent_append_entries_response.size() == 1);
+  DOCTEST_INFO("Node 2 asks for Node 0 to send all the data up to now");
+  DOCTEST_REQUIRE(r2.channels->sent_append_entries_response.size() == 1);
   auto aer = r2.channels->sent_append_entries_response.front().second;
   r2.channels->sent_append_entries_response.pop_front();
   r0.recv_message(reinterpret_cast<uint8_t*>(&aer), sizeof(aer));
 
-  REQUIRE(
+  DOCTEST_REQUIRE(
     (r0.channels->sent_append_entries.size() > num_small_entries_sent &&
      r0.channels->sent_append_entries.size() <=
        num_small_entries_sent + num_big_entries));
   auto sent_entries = dispatch_all(nodes, r0.channels->sent_append_entries);
-  REQUIRE(
+  DOCTEST_REQUIRE(
     (sent_entries > num_small_entries_sent &&
      sent_entries <= num_small_entries_sent + num_big_entries));
-  REQUIRE(r2.ledger->ledger.size() == individual_entries);
+  DOCTEST_REQUIRE(r2.ledger->ledger.size() == individual_entries);
 }
 
 // Reproduces issue described here: https://github.com/microsoft/CCF/issues/521
-// Once this is fixed test will need to be modified since right now it checks
-// that the issue stands
-TEST_CASE(
+// Once this is fixed test will need to be modified since right now it
+// DOCTEST_CHECKs that the issue stands
+DOCTEST_TEST_CASE(
   "Primary gets invalidated if it compacts right before a term change that it "
   "doesn't participate in")
 {
@@ -794,15 +807,16 @@ TEST_CASE(
 
   r0.periodic(std::chrono::milliseconds(200));
 
-  INFO("Initial election for Node 0");
+  DOCTEST_INFO("Initial election for Node 0");
   {
-    REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_request_vote));
-    REQUIRE(1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_request_vote));
+    DOCTEST_REQUIRE(
+      1 == dispatch_all(nodes, r1.channels->sent_request_vote_response));
 
-    REQUIRE(r0.is_leader());
-    REQUIRE(r0.channels->sent_append_entries.size() == 2);
-    REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
-    REQUIRE(r0.channels->sent_append_entries.size() == 0);
+    DOCTEST_REQUIRE(r0.is_leader());
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 2);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 0);
   }
 
   r1.channels->sent_append_entries_response.clear();
@@ -812,161 +826,161 @@ TEST_CASE(
   std::vector<uint8_t> second_entry = {2, 2, 2};
   std::vector<uint8_t> third_entry = {3, 3, 3};
 
-  INFO("Node 0 compacts twice but Nodes 1 and 2 only once");
+  DOCTEST_INFO("Node 0 compacts twice but Nodes 1 and 2 only once");
   {
-    REQUIRE(r0.replicate(kv::BatchVector{{1, first_entry, true}}));
-    REQUIRE(r0.ledger->ledger.size() == 1);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, first_entry, true}}));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
     r0.periodic(ms(10));
-    REQUIRE(r0.channels->sent_append_entries.size() == 2);
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 2);
 
     // Nodes 1 and 2 receive append entries and respond
-    REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
-    REQUIRE(r0.channels->sent_append_entries.size() == 0);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 0);
 
-    REQUIRE(
+    DOCTEST_REQUIRE(
       1 == dispatch_all(nodes, r1.channels->sent_append_entries_response));
-    REQUIRE(
+    DOCTEST_REQUIRE(
       1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
 
-    REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}));
-    REQUIRE(r0.ledger->ledger.size() == 2);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}));
+    DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(ms(10));
-    REQUIRE(r0.channels->sent_append_entries.size() == 2);
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 2);
 
     // Nodes 1 and 2 receive append entries and respond
     // Node 0 will compact again and be ahead of Node 1 and 2
-    REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
-    REQUIRE(r0.channels->sent_append_entries.size() == 0);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, r0.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 0);
 
-    REQUIRE(
+    DOCTEST_REQUIRE(
       1 == dispatch_all(nodes, r1.channels->sent_append_entries_response));
-    REQUIRE(
+    DOCTEST_REQUIRE(
       1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
 
-    CHECK(r0.get_term() == 1);
-    CHECK(r0.get_commit_idx() == 2);
-    CHECK(r0.get_last_idx() == 2);
+    DOCTEST_CHECK(r0.get_term() == 1);
+    DOCTEST_CHECK(r0.get_commit_idx() == 2);
+    DOCTEST_CHECK(r0.get_last_idx() == 2);
 
-    CHECK(r1.get_term() == 1);
-    CHECK(r1.get_commit_idx() == 1);
-    CHECK(r1.get_last_idx() == 2);
+    DOCTEST_CHECK(r1.get_term() == 1);
+    DOCTEST_CHECK(r1.get_commit_idx() == 1);
+    DOCTEST_CHECK(r1.get_last_idx() == 2);
 
-    CHECK(r2.get_term() == 1);
-    CHECK(r2.get_commit_idx() == 1);
-    CHECK(r2.get_last_idx() == 2);
+    DOCTEST_CHECK(r2.get_term() == 1);
+    DOCTEST_CHECK(r2.get_commit_idx() == 1);
+    DOCTEST_CHECK(r2.get_last_idx() == 2);
 
     // clean up
     r2.channels->sent_request_vote_response.clear();
 
-    REQUIRE(r0.channels->sent_msg_count() == 0);
-    REQUIRE(r1.channels->sent_msg_count() == 0);
-    REQUIRE(r2.channels->sent_msg_count() == 0);
+    DOCTEST_REQUIRE(r0.channels->sent_msg_count() == 0);
+    DOCTEST_REQUIRE(r1.channels->sent_msg_count() == 0);
+    DOCTEST_REQUIRE(r2.channels->sent_msg_count() == 0);
   }
 
-  INFO("Node 1 exceeds its election timeout and starts an election");
+  DOCTEST_INFO("Node 1 exceeds its election timeout and starts an election");
   {
     auto by_0 = [](auto const& lhs, auto const& rhs) -> bool {
       return get<0>(lhs) < get<0>(rhs);
     };
 
     r1.periodic(std::chrono::milliseconds(200));
-    REQUIRE(r1.channels->sent_request_vote.size() == 2);
+    DOCTEST_REQUIRE(r1.channels->sent_request_vote.size() == 2);
     r1.channels->sent_request_vote.sort(by_0);
 
-    INFO("Node 2 receives the vote request");
+    DOCTEST_INFO("Node 2 receives the vote request");
     // pop for first node (node 0) so that it doesn't participate in the
     // election
     auto vote_req_from_1_to_0 = r1.channels->sent_request_vote.front();
     r1.channels->sent_request_vote.pop_front();
 
-    REQUIRE(
+    DOCTEST_REQUIRE(
       1 ==
-      dispatch_all_and_check(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes, r1.channels->sent_request_vote, [](const auto& msg) {
-          REQUIRE(msg.term == 2);
-          REQUIRE(msg.last_commit_idx == 1);
-          REQUIRE(msg.last_commit_term == 1);
+          DOCTEST_REQUIRE(msg.term == 2);
+          DOCTEST_REQUIRE(msg.last_commit_idx == 1);
+          DOCTEST_REQUIRE(msg.last_commit_term == 1);
         }));
 
-    INFO("Node 2 votes for Node 1, Node 0 is suspended");
-    REQUIRE(
+    DOCTEST_INFO("Node 2 votes for Node 1, Node 0 is suspended");
+    DOCTEST_REQUIRE(
       1 ==
-      dispatch_all_and_check(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes, r2.channels->sent_request_vote_response, [](const auto& msg) {
-          REQUIRE(msg.term == 2);
-          REQUIRE(msg.vote_granted);
+          DOCTEST_REQUIRE(msg.term == 2);
+          DOCTEST_REQUIRE(msg.vote_granted);
         }));
 
-    INFO("Node 1 is now leader");
-    REQUIRE(r1.is_leader());
+    DOCTEST_INFO("Node 1 is now leader");
+    DOCTEST_REQUIRE(r1.is_leader());
     // pop Node 0's append entries
     r1.channels->sent_append_entries.pop_front();
-    REQUIRE(
+    DOCTEST_REQUIRE(
       1 ==
-      dispatch_all_and_check(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes, r1.channels->sent_append_entries, [](const auto& msg) {
-          REQUIRE(msg.idx == 1);
-          REQUIRE(msg.term == 2);
-          REQUIRE(msg.prev_idx == 1);
-          REQUIRE(msg.prev_term == 1);
-          REQUIRE(msg.leader_commit_idx == 1);
+          DOCTEST_REQUIRE(msg.idx == 1);
+          DOCTEST_REQUIRE(msg.term == 2);
+          DOCTEST_REQUIRE(msg.prev_idx == 1);
+          DOCTEST_REQUIRE(msg.prev_term == 1);
+          DOCTEST_REQUIRE(msg.leader_commit_idx == 1);
         }));
-    REQUIRE(r1.channels->sent_append_entries.size() == 0);
+    DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 0);
 
-    REQUIRE(
+    DOCTEST_REQUIRE(
       1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
   }
 
-  INFO(
+  DOCTEST_INFO(
     "Node 1 and Node 2 proceed to compact at idx 2, where Node 0 has "
     "compacted for a previous term");
   {
-    REQUIRE(r1.replicate(kv::BatchVector{{2, second_entry, true}}));
-    REQUIRE(r1.ledger->ledger.size() == 2);
+    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{2, second_entry, true}}));
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
     r1.periodic(ms(10));
-    REQUIRE(r1.channels->sent_append_entries.size() == 2);
+    DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 2);
 
     // Nodes 0 and 2 receive append entries and respond
-    REQUIRE(2 == dispatch_all(nodes, r1.channels->sent_append_entries));
-    REQUIRE(r1.channels->sent_append_entries.size() == 0);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, r1.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 0);
 
-    REQUIRE(
+    DOCTEST_REQUIRE(
       1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
 
     // Node 0 will not respond here since it received an append entries it can
     // not process [prev_idex (1) < commit_idx (2)]
-    REQUIRE(r0.channels->sent_append_entries_response.size() == 0);
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries_response.size() == 0);
 
-    INFO("Another entry from Node 1 so that Node 2 can also compact");
-    REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}));
-    REQUIRE(r1.ledger->ledger.size() == 3);
+    DOCTEST_INFO("Another entry from Node 1 so that Node 2 can also compact");
+    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}));
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
     r1.periodic(ms(10));
-    REQUIRE(r1.channels->sent_append_entries.size() == 2);
+    DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 2);
 
     // Nodes 0 and 2 receive append entries
-    REQUIRE(2 == dispatch_all(nodes, r1.channels->sent_append_entries));
-    REQUIRE(r1.channels->sent_append_entries.size() == 0);
+    DOCTEST_REQUIRE(2 == dispatch_all(nodes, r1.channels->sent_append_entries));
+    DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 0);
 
     // Node 0 will now have an ae response which will return false because
     // its log for index 2 has the wrong term (ours: 1, theirs: 2)
-    REQUIRE(r0.channels->sent_append_entries_response.size() == 1);
-    REQUIRE(
+    DOCTEST_REQUIRE(r0.channels->sent_append_entries_response.size() == 1);
+    DOCTEST_REQUIRE(
       1 ==
-      dispatch_all_and_check(
+      dispatch_all_and_DOCTEST_CHECK(
         nodes, r0.channels->sent_append_entries_response, [](const auto& msg) {
-          REQUIRE(msg.last_log_idx == 2);
-          REQUIRE(!msg.success);
+          DOCTEST_REQUIRE(msg.last_log_idx == 2);
+          DOCTEST_REQUIRE(!msg.success);
         }));
 
-    REQUIRE(r1.ledger->ledger.size() == 3);
-    REQUIRE(r2.ledger->ledger.size() == 3);
+    DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
+    DOCTEST_REQUIRE(r2.ledger->ledger.size() == 3);
 
-    CHECK(r1.get_term() == 2);
-    CHECK(r1.get_commit_idx() == 2);
-    CHECK(r1.get_last_idx() == 3);
+    DOCTEST_CHECK(r1.get_term() == 2);
+    DOCTEST_CHECK(r1.get_commit_idx() == 2);
+    DOCTEST_CHECK(r1.get_last_idx() == 3);
 
-    CHECK(r2.get_term() == 2);
-    CHECK(r2.get_commit_idx() == 2);
-    CHECK(r2.get_last_idx() == 3);
+    DOCTEST_CHECK(r2.get_term() == 2);
+    DOCTEST_CHECK(r2.get_commit_idx() == 2);
+    DOCTEST_CHECK(r2.get_last_idx() == 3);
   }
 }
