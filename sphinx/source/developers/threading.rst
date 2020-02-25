@@ -1,6 +1,9 @@
 Threading
 =========
 
+CCF allows for commands to be executed on multiple threads.
+This is done to increase transaction throughput while attempting to limit the affect on transaction latency.
+
 Consistency
 -----------
 
@@ -22,9 +25,9 @@ Programming Model
 ~~~~~~~~~~~~~~~~~
 
 To ensure session consistency all commands that originate from the same connection are executed on the same thread.
-It is strongly advised that during the execution of a command the applications does not mutate any global state outside of the key-value store.
-Any inter-command communication should be performed via they key-value store.
-This ensures that CCF can rollback commands or change primaries as required.
+It is strongly advised that during the execution of a command the application does not mutate any global state outside of the key-value store.
+Any inter-command communication should be performed via the key-value store.
+This ensures that CCF can rollback commands or change the primary as required.
 
-If an application has global state that exists outside the key-value store CCF offers several concurrency control primitives (via OpenEnclave) to protect memory that could be accessed concurrently by multiple threads.
+If an application has global state that exists outside the key-value store CCF offers several concurrency control primitives (via Open Enclave) to protect memory that could be accessed concurrently by multiple threads.
 It is recommended that these primitives are used rather than other primitives, such as mutexes, which many result in an OCALL.
