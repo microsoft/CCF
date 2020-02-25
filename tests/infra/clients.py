@@ -219,10 +219,6 @@ class CurlClient:
     def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
         while True:
-            if time.time() > end_time:
-                raise CCFConnectionException(
-                    f"Connection timeout ({self.connection_timeout}) has expired"
-                )
             try:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
@@ -232,9 +228,11 @@ class CurlClient:
             except CCFConnectionException:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
-                LOG.error(
-                    "Got CCFConnectionException exception - sleeping and retrying"
-                )
+                if time.time() > end_time:
+                    raise CCFConnectionException(
+                        f"Connection still failing after {self.connection_timeout}s: {e}"
+                    )
+                LOG.error(f"Got SSLError exception: {e}")
                 time.sleep(0.1)
 
     def request(self, request):
@@ -292,10 +290,6 @@ class RequestClient:
     def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
         while True:
-            if time.time() > end_time:
-                raise CCFConnectionException(
-                    f"Connection timeout ({self.connection_timeout}) has expired"
-                )
             try:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
@@ -305,11 +299,14 @@ class RequestClient:
             except requests.exceptions.SSLError as e:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
+                if time.time() > end_time:
+                    raise CCFConnectionException(
+                        f"Connection still failing after {self.connection_timeout}s: {e}"
+                    )
                 LOG.error(f"Got SSLError exception: {e}")
                 time.sleep(0.1)
             except requests.exceptions.ReadTimeout as e:
-                LOG.error(f"Got ReadTimeout exception: {e}")
-                time.sleep(0.1)
+                raise TimeoutError
 
     def request(self, request):
         return self._request(request, is_signed=False)
