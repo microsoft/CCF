@@ -264,6 +264,9 @@ class RequestClient:
         self.ca = ca
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
+        self.session = requests.Session()
+        self.session.verify = self.ca
+        self.session.cert = (self.cert, self.key)
 
     def _just_request(self, request, is_signed=False):
         auth_value = None
@@ -276,7 +279,7 @@ class RequestClient:
                 headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
             )
 
-        rep = requests.post(
+        rep = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
             cert=(self.cert, self.key),
