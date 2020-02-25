@@ -179,7 +179,7 @@ namespace ccf
 
           // If the node is already trusted, return network secrets
           auto existing_node_id =
-            check_node_exists(tx, caller_pem_raw, joining_node_status);
+            check_node_exists(args.tx, caller_pem_raw, joining_node_status);
           if (existing_node_id.has_value())
           {
             return make_success(JoinNetworkNodeToNode::Out(
@@ -199,7 +199,7 @@ namespace ccf
         // node polls the network to retrieve the network secrets until it is
         // trusted
 
-        auto existing_node_id = check_node_exists(tx, caller_pem_raw);
+        auto existing_node_id = check_node_exists(args.tx, caller_pem_raw);
         if (existing_node_id.has_value())
         {
           // If the node already exists, return network secrets if is already
@@ -230,7 +230,7 @@ namespace ccf
         else
         {
           // If the node does not exist, add it to the KV in state pending
-          return add_node(tx, caller_pem_raw, in, NodeStatus::PENDING);
+          return add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING);
         }
       };
 
