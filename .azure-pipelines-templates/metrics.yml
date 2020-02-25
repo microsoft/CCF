@@ -11,6 +11,12 @@ jobs:
       clean: true
       condition: eq(variables['Build.Reason'], 'PullRequest')
 
+    - script: ./cimetrics_env.sh python -m cimetrics.upload_complete
+      env:
+        METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+      workingDirectory: tests
+      displayName: 'Mark metrics upload as complete'
+  
     - script: ./cimetrics_env.sh python -m cimetrics.plot
       env:
         METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
