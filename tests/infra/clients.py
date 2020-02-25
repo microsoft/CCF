@@ -225,7 +225,7 @@ class CurlClient:
                 # call _just_request directly
                 self._request = self._just_request
                 return rid
-            except CCFConnectionException:
+            except CCFConnectionException as e:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
                 if time.time() > end_time:
