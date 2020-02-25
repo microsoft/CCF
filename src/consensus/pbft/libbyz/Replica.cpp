@@ -2001,12 +2001,13 @@ void Replica::rollback_to_globally_comitted()
       "Roll back done, last tentative execute and last executed are {} {}",
       last_tentative_execute,
       last_executed);
+    pbft::GlobalState::get_replica().set_next_expected_sig_offset();
   }
 }
 
 void Replica::global_commit(Pre_prepare* pp)
 {
-  if (global_commit_cb != nullptr && pp->is_signed())
+  if (pp->is_signed())
   {
     LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
     LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
@@ -2014,8 +2015,10 @@ void Replica::global_commit(Pre_prepare* pp)
     state.checkpoint(pp->seqno());
     last_gb_version = pp->get_ctx();
     last_gb_seqno = pp->seqno();
-
-    global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+    if (global_commit_cb != nullptr)
+    {
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+    }
     signed_version = 0;
   }
 }

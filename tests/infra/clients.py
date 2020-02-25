@@ -280,13 +280,14 @@ class RequestClient:
         self.ca = ca
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
+        self.session = requests.Session()
+        self.session.verify = self.ca
+        self.session.cert = (self.cert, self.key)
 
     def _just_request(self, request):
-        rep = requests.post(
+        rep = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.to_dict(),
-            cert=(self.cert, self.key),
-            verify=self.ca,
             timeout=(self.connection_timeout, self.request_timeout),
         )
         return rep.content
