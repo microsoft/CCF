@@ -2801,7 +2801,7 @@ void Replica::send_status(bool send_now)
         {
           // Ask for missing big requests
           if (
-            !pc.is_pp_complete() && pc.pre_prepare() && pc.num_correct() >= f())
+            !pc.is_pp_complete() && pc.pre_prepare())
           {
             s.add_breqs(n, pc.missing_reqs());
           }
