@@ -221,7 +221,7 @@ class CurlClient:
         end_time = time.time() + self.connection_timeout
         while True:
             if time.time() > end_time:
-                raise CCFConnectionException
+                raise CCFConnectionException(f"Connection timeout ({self.connection_timeout}) has expired")
             try:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
@@ -290,7 +290,7 @@ class RequestClient:
         end_time = time.time() + self.connection_timeout
         while True:
             if time.time() > end_time:
-                raise CCFConnectionException
+                raise CCFConnectionException(f"Connection timeout ({self.connection_timeout}) has expired")
             try:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
