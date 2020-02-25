@@ -24,17 +24,6 @@ extern "C"
 
 auto dummy_encryption_priv_key = std::vector<uint8_t>(crypto::BoxKey::KEY_SIZE);
 
-json create_json_req(const json& params, const std::string& method_name)
-{
-  json j;
-  j[JSON_RPC] = RPC_VERSION;
-  j[ID] = 1;
-  j[METHOD] = method_name;
-  if (!params.is_null())
-    j[PARAMS] = params;
-  return j;
-}
-
 template <typename E>
 void check_error(const nlohmann::json& j, const E expected)
 {
@@ -54,14 +43,28 @@ const json frontend_process(
   const std::string& method,
   const Cert& caller)
 {
-  auto req = create_json_req(json_params, method);
-  auto serialise_request = pack(req, Pack::Text);
+  http::Request r(method);
+  const auto body = json_params.is_null() ?
+    std::vector<uint8_t>() :
+    jsonrpc::pack(json_params, Pack::Text);
+  r.set_body(&body);
+  auto serialise_request = r.build_request();
 
   const enclave::SessionContext session(0, caller);
   auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 
-  return unpack(serialised_response.value(), Pack::Text);
+  CHECK(serialised_response.has_value());
+
+  http::SimpleMsgProcessor processor;
+  http::Parser parser(HTTP_RESPONSE, processor);
+
+  const auto parsed_count =
+    parser.execute(serialised_response->data(), serialised_response->size());
+  REQUIRE(parsed_count == serialised_response->size());
+  REQUIRE(processor.received.size() == 1);
+
+  return jsonrpc::unpack(processor.received.front().body, Pack::Text);
 }
 
 TEST_CASE("Add a node to an opening service")

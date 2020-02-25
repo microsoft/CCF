@@ -145,7 +145,7 @@ namespace timing
         record_send("getCommit", client->id, false);
       }
 
-      const auto j = nlohmann::json::from_msgpack(client->call("getCommit"));
+      const auto j = client->call("getCommit");
 
       if (!j.is_object())
         return false;
