@@ -87,16 +87,13 @@ namespace enclave
       uint8_t* node_cert,
       size_t node_cert_size,
       size_t* node_cert_len,
-      uint8_t* quote,
-      size_t quote_size,
-      size_t* quote_len,
       uint8_t* network_cert,
       size_t network_cert_size,
       size_t* network_cert_len)
     {
-      // node_cert_size, quote_size and network_cert_size are ignored here, but
-      // we pass them in because it allows us to set EDL an annotation so that
-      // quote_len <= quote_size is checked by the EDL-generated wrapper
+      // node_cert_size and network_cert_size are ignored here, but we pass them
+      // in because it allows us to set EDL an annotation so that node_cert_len
+      // <= node_cert_size is checked by the EDL-generated wrapper
 
       start_type = start_type_;
       ccf_config = ccf_config_;
@@ -105,7 +102,7 @@ namespace enclave
       if (!r.second)
         return false;
 
-      // Copy node, quote and network certs out
+      // Copy node and network certs out
       if (r.first.node_cert.size() > node_cert_size)
       {
         LOG_FAIL_FMT(
@@ -116,17 +113,6 @@ namespace enclave
       }
       ::memcpy(node_cert, r.first.node_cert.data(), r.first.node_cert.size());
       *node_cert_len = r.first.node_cert.size();
-
-      if (r.first.quote.size() > quote_size)
-      {
-        LOG_FAIL_FMT(
-          "Insufficient space ({}) to copy quote out ({})",
-          quote_size,
-          r.first.quote.size());
-        return false;
-      }
-      ::memcpy(quote, r.first.quote.data(), r.first.quote.size());
-      *quote_len = r.first.quote.size();
 
       if (start_type == StartType::New || start_type == StartType::Recover)
       {

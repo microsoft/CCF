@@ -54,4 +54,4 @@ jobs:
     - script: rm deploy_key || true
       displayName: 'Make sure key is removed'
       workingDirectory: sphinx/build/html
-      condition: succeededOrFailed()
+      condition: always()

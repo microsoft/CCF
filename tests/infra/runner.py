@@ -126,7 +126,7 @@ def run(get_command, args):
             hard_stop_timeout = 90
 
             try:
-                with cimetrics.upload.metrics() as metrics:
+                with cimetrics.upload.metrics(complete=False) as metrics:
                     tx_rates = infra.rates.TxRates(primary)
                     start_time = time.time()
                     while True:

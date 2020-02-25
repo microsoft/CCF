@@ -82,7 +82,7 @@ if __name__ == "__main__":
                             )
 
     if found_metrics:
-        with cimetrics.upload.metrics() as metrics:
+        with cimetrics.upload.metrics(complete=False) as metrics:
             for name, results in found_metrics.items():
                 many_results = len(results) > 1
                 for i, result in enumerate(results):

@@ -1,39 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../httpbuilder.h"
-#include "../httpparser.h"
+#include "../http_builder.h"
+#include "../http_parser.h"
 
 #include <doctest/doctest.h>
 #include <queue>
 #include <string>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-
-class StubProc : public enclave::http::MsgProcessor
-{
-public:
-  struct Msg
-  {
-    http_method method;
-    std::string path;
-    std::string query;
-    enclave::http::HeaderMap headers;
-    std::vector<uint8_t> body;
-  };
-
-  std::queue<Msg> received;
-
-  virtual void handle_message(
-    http_method method,
-    const std::string& path,
-    const std::string& query,
-    const enclave::http::HeaderMap& headers,
-    const std::vector<uint8_t>& body) override
-  {
-    received.emplace(Msg{method, path, query, headers, body});
-  }
-};
 
 constexpr auto request_0 = "{\"a_json_key\": \"a_json_value\"}";
 constexpr auto request_1 = "{\"another_json_key\": \"another_json_value\"}";
@@ -52,16 +27,14 @@ std::string to_lowercase(std::string s)
   return s;
 }
 
-using namespace enclave::http;
-
 TEST_CASE("Complete request")
 {
   std::vector<uint8_t> r;
 
-  StubProc sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
-  auto req = build_post_request(r);
+  auto req = http::build_post_request(r);
   auto parsed = p.execute(req.data(), req.size());
 
   CHECK(!sp.received.empty());
@@ -74,26 +47,33 @@ TEST_CASE("Parsing error")
 {
   std::vector<uint8_t> r;
 
-  StubProc sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
-  auto req = build_post_request(r);
+  auto req = http::build_post_request(r);
   req[6] = '\n';
-  CHECK_THROWS_WITH(
-    p.execute(req.data(), req.size()),
-    "HTTP parsing failed: HPE_INVALID_HEADER_TOKEN: invalid character in "
-    "header");
 
+  bool threw_with = false;
+  try
+  {
+    p.execute(req.data(), req.size());
+  }
+  catch (std::exception& e)
+  {
+    threw_with = strstr(e.what(), "HPE_INVALID_HEADER_TOKEN") != nullptr;
+  }
+
+  CHECK(threw_with);
   CHECK(sp.received.empty());
 }
 
 TEST_CASE("Partial request")
 {
-  StubProc sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
-  auto req = build_post_request(r0);
+  auto req = http::build_post_request(r0);
   size_t offset = 10;
 
   auto parsed = p.execute(req.data(), req.size() - offset);
@@ -109,12 +89,12 @@ TEST_CASE("Partial request")
 
 TEST_CASE("Partial body")
 {
-  StubProc sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
-  auto req = build_post_request(r0);
-  size_t offset = build_post_header(r0).size() + 4;
+  auto req = http::build_post_request(r0);
+  size_t offset = http::build_post_header(r0).size() + 4;
 
   auto parsed = p.execute(req.data(), req.size() - offset);
   CHECK(parsed == req.size() - offset);
@@ -129,13 +109,13 @@ TEST_CASE("Partial body")
 
 TEST_CASE("Multiple requests")
 {
-  StubProc sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   const auto r0 = s_to_v(request_0);
-  auto req = build_post_request(r0);
+  auto req = http::build_post_request(r0);
   const auto r1 = s_to_v(request_1);
-  auto req1 = build_post_request(r1);
+  auto req1 = http::build_post_request(r1);
   std::copy(req1.begin(), req1.end(), std::back_inserter(req));
 
   auto parsed = p.execute(req.data(), req.size());
@@ -160,14 +140,14 @@ TEST_CASE("Multiple requests")
 
 TEST_CASE("Method parsing")
 {
-  StubProc sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   bool choice = false;
   for (const auto method : {HTTP_DELETE, HTTP_GET, HTTP_POST, HTTP_PUT})
   {
     const auto r = s_to_v(choice ? request_0 : request_1);
-    auto req = build_request(method, r);
+    auto req = http::build_request(method, r);
     auto parsed = p.execute(req.data(), req.size());
 
     CHECK(!sp.received.empty());
@@ -182,18 +162,18 @@ TEST_CASE("Method parsing")
 
 TEST_CASE("URL parsing")
 {
-  StubProc sp;
-  enclave::http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
 
   const auto path = "/foo/123";
 
-  Request r;
-  r.set_path(path);
+  http::Request r(path);
   r.set_query_param("balance", "42");
   r.set_query_param("id", "100");
 
   const auto body = s_to_v(request_0);
-  auto req = r.build_request(body);
+  r.set_body(&body);
+  auto req = r.build_request();
 
   auto parsed = p.execute(req.data(), req.size());
   CHECK(parsed == req.size());
@@ -210,27 +190,35 @@ TEST_CASE("URL parsing")
 
 TEST_CASE("Pessimal transport")
 {
-  const enclave::http::HeaderMap h = {{"foo", "bar"}, {"baz", "42"}};
-  for (const auto& headers : {enclave::http::default_headers(), {}, h})
-  {
-    StubProc sp;
-    enclave::http::Parser p(HTTP_REQUEST, sp);
+  const http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
+  const http::HeaderMap h2 = {{"foo", "barbar"},
+                              {"content-type", "application/json"},
+                              {"x-custom-header", "custom user data"},
+                              {"x-MixedCASE", "DontCARE"}};
 
-    auto builder = enclave::http::Request(HTTP_POST);
-    builder.clear_headers();
+  http::SimpleMsgProcessor sp;
+  http::Parser p(HTTP_REQUEST, sp);
+
+  // Use the same processor and test repeatedly to make sure headers are for
+  // only the current request
+  for (const auto& headers : {{}, h1, h2, h1, h2, h2, h1})
+  {
+    auto builder =
+      http::Request("/path/which/will/be/spliced/during/transport", HTTP_POST);
     for (const auto& it : headers)
     {
       builder.set_header(it.first, it.second);
     }
 
     const auto r0 = s_to_v(request_0);
-    auto req = builder.build_request(r0);
+    builder.set_body(&r0);
+    auto req = builder.build_request();
 
     size_t done = 0;
     while (done < req.size())
     {
-      // Simulate dreadful transport - send between 1 and 8 bytes at a time
-      size_t next = (rand() % 8) + 1;
+      // Simulate dreadful transport - send 1 byte at a time
+      size_t next = 1;
       next = std::min(next, req.size() - done);
       auto parsed = p.execute(req.data() + done, next);
       CHECK(parsed == next);
@@ -250,5 +238,7 @@ TEST_CASE("Pessimal transport")
       CHECK(found != m.headers.end());
       CHECK(found->second == it.second);
     }
+
+    sp.received.pop();
   }
 }

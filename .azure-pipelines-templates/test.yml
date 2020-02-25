@@ -10,6 +10,22 @@ steps:
   displayName: CTest
   workingDirectory: build
 
+# If a test fails, crudely upload nodes' logs for all tests
+- task: CopyFiles@2
+  inputs:
+    contents: '**/?(out|err)'
+    sourceFolder: $(Build.SourcesDirectory)/build/workspace
+    targetFolder: $(Build.ArtifactStagingDirectory)
+  condition: failed()
+  displayName: 'Copy logs (only on failure)'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    pathToPublish: $(Build.ArtifactStagingDirectory)
+    artifactName: 'workspace ${{ parameters.suite_name_suffix }}'
+  condition: failed()
+  displayName: 'Upload logs (only on failure)'
+
 - script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
   displayName: XSLT
   workingDirectory: build

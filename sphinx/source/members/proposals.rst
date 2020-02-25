@@ -5,7 +5,7 @@ This page explains how members can submit and vote for proposals before they get
 
 Any member (proposer) can submit a new proposal. Other members can then vote on this proposal using its unique proposal id.
 
-Once a :term:`quorum` of members (as defined by the :term:`constitution`) has accepted the proposal, the proposal gets executed and its effects recorded in the ledger.
+Once a proposal is accepted under the rules of the :term:`constitution`, it is executed and its effects are recorded in the ledger.
 
 For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.
 
