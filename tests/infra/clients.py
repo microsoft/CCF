@@ -364,6 +364,7 @@ class CCFClient:
 
     def request(self, method, params, *args, **kwargs):
         r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
+        description = ""
         if self.description:
             description = f" ({self.description})"
         for logger in self.rpc_loggers:
@@ -374,6 +375,7 @@ class CCFClient:
     def signed_request(self, method, params, *args, **kwargs):
         r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
 
+        description = ""
         if self.description:
             description = f" ({self.description}) [signed]"
         for logger in self.rpc_loggers:
