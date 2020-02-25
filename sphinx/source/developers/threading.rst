@@ -30,4 +30,4 @@ Any inter-command communication should be performed via the key-value store.
 This ensures that CCF can rollback commands or change the primary as required.
 
 If an application has global state that exists outside the key-value store CCF offers several concurrency control primitives (via Open Enclave) to protect memory that could be accessed concurrently by multiple threads.
-It is recommended that these primitives are used rather than other primitives, such as mutexes, which many result in an OCALL.
+It is recommended that these primitives are used rather than other primitives, such as mutexes, which may result in an OCALL.
