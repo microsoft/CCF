@@ -43,9 +43,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
-    };
+    auto empty_function = [this](RequestArgs& args) {};
     install("empty_function", empty_function, HandlerRegistry::Read);
   }
 };
@@ -57,9 +55,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
-    };
+    auto empty_function = [this](RequestArgs& args) {};
     install("empty_function", empty_function, HandlerRegistry::Read);
     disable_request_storing();
   }
@@ -73,8 +69,7 @@ public:
     open();
 
     auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
-      auto j = params;
-      return make_success(std::move(j));
+      return make_success(std::move(params));
     };
     install("echo", handler_adapter(echo_function), HandlerRegistry::Read);
 
@@ -113,9 +108,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
-    };
+    auto empty_function = [this](RequestArgs& args) {};
     member_handlers.install(
       "empty_function", empty_function, HandlerRegistry::Read);
   }
@@ -132,9 +125,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
-    };
+    auto empty_function = [this](RequestArgs& args) {};
     handlers.install("empty_function", empty_function, HandlerRegistry::Read);
   }
 };
@@ -166,7 +157,6 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      args.rpc_ctx->set_response_result(true);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -186,7 +176,6 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      args.rpc_ctx->set_response_result(true);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -206,7 +195,6 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      args.rpc_ctx->set_response_result(true);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -224,7 +212,6 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      args.rpc_ctx->set_response_result(true);
     };
     // Note that this is a Write function that cannot be forwarded
     install(
@@ -232,39 +219,6 @@ public:
       empty_function,
       HandlerRegistry::Write,
       HandlerRegistry::Forwardable::DoNotForward);
-  }
-};
-
-namespace userapp
-{
-  enum AppError : jsonrpc::ErrorBaseType
-  {
-    Foo = static_cast<jsonrpc::ErrorBaseType>(
-      jsonrpc::CCFErrorCodes::APP_ERROR_START),
-    Bar = Foo - 1
-  };
-}
-
-class TestAppErrorFrontEnd : public RpcFrontend
-{
-  HandlerRegistry handlers;
-
-public:
-  static constexpr auto bar_msg = "Bar is broken";
-
-  TestAppErrorFrontEnd(Store& tables) :
-    RpcFrontend(tables, handlers),
-    handlers(tables)
-  {
-    auto foo = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_error(userapp::AppError::Foo);
-    };
-    handlers.install("foo", foo, HandlerRegistry::Read);
-
-    auto bar = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_error(userapp::AppError::Bar, bar_msg);
-    };
-    handlers.install("bar", bar, HandlerRegistry::Read);
   }
 };
 
@@ -1008,49 +962,6 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 
   CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
   CHECK(member_frontend_primary.last_caller_id == 0);
-}
-
-TEST_CASE("App-defined errors")
-{
-  prepare_callers();
-
-  TestAppErrorFrontEnd frontend(*network.tables);
-  {
-    auto foo_call = create_simple_request("foo");
-    auto serialized_foo = foo_call.build_request();
-
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_foo);
-    std::vector<uint8_t> serialized_foo_response =
-      frontend.process(rpc_ctx).value();
-    auto foo_response = parse_response(serialized_foo_response);
-
-    CHECK(foo_response[jsonrpc::ERR] != nullptr);
-    CHECK(
-      foo_response[jsonrpc::ERR][jsonrpc::CODE].get<userapp::AppError>() ==
-      userapp::AppError::Foo);
-
-    const auto msg =
-      foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-  }
-
-  {
-    auto bar_call = create_simple_request("bar");
-    auto serialized_bar = bar_call.build_request();
-
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_bar);
-    std::vector<uint8_t> serialized_bar_response =
-      frontend.process(rpc_ctx).value();
-    auto bar_response = parse_response(serialized_bar_response);
-
-    CHECK(bar_response[jsonrpc::ERR] != nullptr);
-    CHECK(
-      bar_response[jsonrpc::ERR][jsonrpc::CODE].get<userapp::AppError>() ==
-      userapp::AppError::Bar);
-
-    const auto msg =
-      bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-    CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
-  }
 }
 
 #endif

@@ -51,24 +51,12 @@ namespace enclave
     {}
   };
 
-  struct ErrorDetails
-  {
-    int code;
-    std::string msg;
-  };
-
-  struct RpcResponse
-  {
-    std::variant<ErrorDetails, nlohmann::json> result;
-  };
-
   class RpcContext
   {
   protected:
     size_t request_index = 0;
 
     std::unordered_map<std::string, nlohmann::json> response_headers;
-    RpcResponse response;
 
   public:
     SessionContext session;
@@ -110,58 +98,25 @@ namespace enclave
     virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
 
     /// Response details
-    void set_response_error(int code, const std::string& msg = "")
-    {
-      response.result = ErrorDetails{code, msg};
-    }
+    virtual void set_response_body(const std::vector<uint8_t>& body) = 0;
+    virtual void set_response_body(std::vector<uint8_t>&& body) = 0;
+    virtual void set_response_body(std::string&& body) = 0;
 
-    const ErrorDetails* get_response_error() const
-    {
-      return std::get_if<ErrorDetails>(&response.result);
-    }
+    virtual void set_response_status(int status) = 0;
 
-    ErrorDetails* get_response_error()
-    {
-      return std::get_if<ErrorDetails>(&response.result);
-    }
-
-    bool response_is_error() const
-    {
-      return get_response_error() != nullptr;
-    }
-
-    void set_response_result(nlohmann::json&& j)
-    {
-      response.result = std::move(j);
-    }
-
-    const nlohmann::json* get_response_result() const
-    {
-      return std::get_if<nlohmann::json>(&response.result);
-    }
-
-    nlohmann::json* get_response_result()
-    {
-      return std::get_if<nlohmann::json>(&response.result);
-    }
-
-    void set_response(RpcResponse&& r)
-    {
-      response = std::move(r);
-    }
+    virtual bool response_is_error() const = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
 
-    virtual std::vector<uint8_t> result_response(
-      const nlohmann::json& result) const = 0;
-
-    virtual std::vector<uint8_t> error_response(
-      int error, const std::string& msg = "") const = 0;
-
-    virtual void set_response_headers(
-      const std::string& name, const nlohmann::json& value)
+    virtual void set_response_header(
+      const std::string& name, const std::string& value)
     {
       response_headers[name] = value;
+    }
+
+    virtual void set_response_header(const std::string& name, size_t n)
+    {
+      set_response_header(name, fmt::format("{}", n));
     }
   };
 }

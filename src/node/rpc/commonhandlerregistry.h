@@ -47,7 +47,7 @@ namespace ccf
         }
 
         return make_error(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
           "Failed to get commit info from Consensus");
       };
 
@@ -76,8 +76,7 @@ namespace ccf
           }
 
           return make_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Failed to trigger signature");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to trigger signature");
         };
 
       auto who_am_i =
@@ -86,7 +85,7 @@ namespace ccf
           if (certs == nullptr)
           {
             return make_error(
-              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              HTTP_STATUS_NOT_FOUND,
               fmt::format(
                 "This frontend does not support {}", GeneralProcs::WHO_AM_I));
           }
@@ -100,7 +99,7 @@ namespace ccf
         if (certs == nullptr)
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            HTTP_STATUS_NOT_FOUND,
             fmt::format(
               "This frontend does not support {}", GeneralProcs::WHO_IS));
         }
@@ -110,8 +109,7 @@ namespace ccf
         if (!caller_id.has_value())
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Certificate not recognised");
+            HTTP_STATUS_BAD_REQUEST, "Certificate not recognised");
         }
 
         return make_success(WhoIs::Out{caller_id.value()});
@@ -137,7 +135,7 @@ namespace ccf
           }
 
           return make_error(
-            jsonrpc::CCFErrorCodes::TX_PRIMARY_UNKNOWN, "Primary unknown.");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
         };
 
       auto get_network_info =
@@ -178,7 +176,7 @@ namespace ccf
         if (it == handlers.end())
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format("Method {} not recognised", in.method));
         }
 
@@ -203,7 +201,7 @@ namespace ccf
           catch (const std::exception& e)
           {
             return make_error(
-              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
               fmt::format(
                 "Unable to produce receipt for commit {} : {}",
                 in.commit,
@@ -212,8 +210,7 @@ namespace ccf
         }
 
         return make_error(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "Unable to produce receipt");
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to produce receipt");
       };
 
       auto verify_receipt =
@@ -232,14 +229,13 @@ namespace ccf
             catch (const std::exception& e)
             {
               return make_error(
-                jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 fmt::format("Unable to verify receipt: {}", e.what()));
             }
           }
 
           return make_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Unable to verify receipt");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
         };
 
       install_with_auto_schema<GetCommit>(

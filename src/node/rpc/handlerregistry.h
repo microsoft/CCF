@@ -21,23 +21,6 @@ namespace ccf
 
   using HandleFunction = std::function<void(RequestArgs& args)>;
 
-  static enclave::RpcResponse make_success(nlohmann::json&& result_payload)
-  {
-    return enclave::RpcResponse{std::move(result_payload)};
-  }
-
-  static enclave::RpcResponse make_success(const nlohmann::json& result_payload)
-  {
-    return enclave::RpcResponse{result_payload};
-  }
-
-  template <typename ErrorCode>
-  static enclave::RpcResponse make_error(
-    ErrorCode code, const std::string& msg = "")
-  {
-    return enclave::RpcResponse{enclave::ErrorDetails{(int)code, msg}};
-  }
-
   class HandlerRegistry
   {
   public:

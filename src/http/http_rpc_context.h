@@ -51,6 +51,9 @@ namespace http
 
     mutable std::optional<jsonrpc::Pack> body_packing = std::nullopt;
 
+    std::vector<uint8_t> response_body = {};
+    http_status response_status = HTTP_STATUS_OK;
+
     bool canonicalised = false;
 
     void canonicalise()
@@ -279,68 +282,45 @@ namespace http
       path = p;
     }
 
-    // https://github.com/microsoft/CCF/issues/843
+    virtual void set_response_body(const std::vector<uint8_t>& body) override
+    {
+      response_body = body;
+    }
+
+    virtual void set_response_body(std::vector<uint8_t>&& body) override
+    {
+      response_body = std::move(body);
+    }
+
+    virtual void set_response_body(std::string&& body) override
+    {
+      response_body = std::vector<uint8_t>(body.begin(), body.end());
+      set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+    }
+
+    virtual bool response_is_error() const override
+    {
+      // TODO: Is this correct, or should we consider CREATED etc as valid
+      // non-errors?
+      return response_status != HTTP_STATUS_OK;
+    }
+
+    virtual void set_response_status(int status) override
+    {
+      response_status = status;
+    }
+
     virtual std::vector<uint8_t> serialise_response() const override
     {
-      nlohmann::json full_response;
-
-      if (response_is_error())
-      {
-        const auto error = get_response_error();
-        full_response = jsonrpc::error_response(
-          get_request_index(), jsonrpc::Error(error->code, error->msg));
-      }
-      else
-      {
-        const auto payload = get_response_result();
-        full_response = jsonrpc::result_response(get_request_index(), *payload);
-      }
+      auto http_response = http::Response(response_status);
 
       for (const auto& [k, v] : response_headers)
       {
-        const auto it = full_response.find(k);
-        if (it == full_response.end())
-        {
-          full_response[k] = v;
-        }
-        else
-        {
-          LOG_DEBUG_FMT(
-            "Ignoring response headers with key '{}' - already present in "
-            "response object",
-            k);
-        }
+        http_response.set_header(k, v);
       }
 
-      const auto body = jsonrpc::pack(full_response, get_content_type());
-
-      // We return status 200 regardless of whether the body contains a JSON-RPC
-      // success or a JSON-RPC error
-      auto http_response = http::Response(HTTP_STATUS_OK);
-      http_response.set_body(&body);
-      return http_response.build_response();
-    }
-
-    virtual std::vector<uint8_t> result_response(
-      const nlohmann::json& result) const override
-    {
-      auto http_response = http::Response(HTTP_STATUS_OK);
-      const auto body = jsonrpc::pack(
-        jsonrpc::result_response(get_request_index(), result),
-        get_content_type());
-      http_response.set_body(&body);
-      return http_response.build_response();
-    }
-
-    std::vector<uint8_t> error_response(
-      int error, const std::string& msg) const override
-    {
-      nlohmann::json error_element = jsonrpc::Error(error, msg);
-      auto http_response = http::Response(HTTP_STATUS_OK);
-      const auto body = jsonrpc::pack(
-        jsonrpc::error_response(get_request_index(), error_element),
-        get_content_type());
-      http_response.set_body(&body);
+      http_response.set_body(&response_body);
       return http_response.build_response();
     }
   };
