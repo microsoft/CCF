@@ -110,23 +110,25 @@ namespace ccfapp
       auto& tables = *network.tables;
 
       auto default_handler = [this](RequestArgs& args) {
-        if (args.method == UserScriptIds::ENV_HANDLER)
+        const auto method = args.rpc_ctx->get_method();
+        const auto local_method = method.substr(method.find_first_not_of('/'));
+        if (local_method == UserScriptIds::ENV_HANDLER)
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            fmt::format("Cannot call environment script ('{}')", args.method));
+            fmt::format("Cannot call environment script ('{}')", local_method));
           return;
         }
 
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
-        auto handler_script = scripts->get(args.method);
+        auto handler_script = scripts->get(local_method);
         if (!handler_script)
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
             fmt::format(
-              "No handler script found for method '{}'", args.method));
+              "No handler script found for method '{}'", local_method));
           return;
         }
 
@@ -165,8 +167,9 @@ namespace ccfapp
         JS_SetPropertyStr(ctx, tables_, "log", log);
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
+        const auto& request_body = args.rpc_ctx->get_request_body();
         auto args_str = JS_NewStringLen(
-          ctx, (const char*)args.rpc_ctx->raw.data(), args.rpc_ctx->raw.size());
+          ctx, (const char*)request_body.data(), request_body.size());
         JS_SetPropertyStr(ctx, global_obj, "args", args_str);
         JS_FreeValue(ctx, global_obj);
 
@@ -176,7 +179,7 @@ namespace ccfapp
         }
 
         std::string code = handler_script.value().text.value();
-        auto path = fmt::format("app_scripts::{}", args.method);
+        auto path = fmt::format("app_scripts::{}", local_method);
         JSValue val = JS_Eval(
           ctx, code.c_str(), code.size(), path.c_str(), JS_EVAL_TYPE_GLOBAL);
 

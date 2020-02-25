@@ -33,9 +33,6 @@ Glossary
   Open Enclave Engine
     `Open Enclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
 
-  Quorum
-    A quorum of members is defined as the minimum number of members required to accept governance proposals. It is defined by the governance as a Lua script set when a CCF network is created.
-
   SGX
     `Intel Software Guard Extensions <https://software.intel.com/en-us/sgx>`_ is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.
 
