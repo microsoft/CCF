@@ -7,7 +7,7 @@ This is done to increase transaction throughput while attempting to limit the ef
 Consistency
 -----------
 
-If all commands are executed on the primary CCF guarantees session consistency from the perspective of a :term:`TLS` client connection.
+If all commands are executed on the primary, CCF guarantees session consistency from the perspective of a :term:`TLS` client connection.
 This means that within a single client connection a client is guaranteed to read its own writes.
 For example, if a client sends command (A) to the primary of a CCF service and then sends command (B), CCF guarantees that command (A) will be executed before command (B).
 
@@ -17,9 +17,9 @@ Implementation
 Configuration
 ~~~~~~~~~~~~~
 
-To enable multiple worker threads pass the ```--worker_threads=``` flag along with the number of desired threads to cchost when starting a CCF node.
+To enable multiple worker threads, pass the ``--worker_threads=`` flag along with the number of desired threads to ``cchost`` when starting a CCF node.
 It is strongly recommended that all CCF nodes run the same number of worker threads.
-The number of worker threads must be at least 1 less than the value of ```NumTCS``` in the oe_sign.conf file.
+The number of worker threads must be at least 1 less than the value of ``NumTCS`` in the oe_sign.conf file.
 
 Programming Model
 ~~~~~~~~~~~~~~~~~
