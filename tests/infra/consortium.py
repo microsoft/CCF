@@ -204,7 +204,7 @@ class Consortium:
     def add_users(self, remote_node, users):
         for u in users:
             user_cert = []
-            with open(f"user{u}_cert.pem") as cert:
+            with open(os.path.join(self.common_dir, f"user{u}_cert.pem")) as cert:
                 user_cert = [ord(c) for c in cert.read()]
             script = """
             tables, user_cert = ...

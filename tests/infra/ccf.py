@@ -137,7 +137,7 @@ class Network:
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
-            common_dir=args.common_dir,
+            common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             **forwarded_args,
         )
@@ -205,25 +205,33 @@ class Network:
 
         return primary
 
+    def _setup_common_folder(self, args):
+        self.common_dir = os.path.join(
+            args.workspace, f"{args.label}_{self.COMMON_FOLDER}"
+        )
+        LOG.info(f"Creating common folder: {self.common_dir}")
+        cmd = ["rm", "-rf", self.common_dir]
+        infra.proc.ccall(*cmd)
+        cmd = ["mkdir", "-p", self.common_dir]
+        infra.proc.ccall(*cmd)
+        # It is more convenient to create a symlink in the common directory than generate
+        # certs and keys in the top directory and move them across
+        cmd = [
+            "ln",
+            "-s",
+            os.path.join(os.getcwd(), self.KEY_GEN),
+            os.path.join(self.common_dir, self.KEY_GEN),
+        ]
+        infra.proc.ccall(*cmd)
+
     def start_and_join(self, args):
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
         :param open_network: If false, only the nodes are started.
         """
-        self.common_dir = os.path.join(
-            args.workspace, f"{args.label}_{self.COMMON_FOLDER}"
-        )
-        LOG.info(f"Creating common subfolder: {self.common_dir}")
-        cmd = ["rm", "-rf", self.common_dir]
-        infra.proc.ccall(*cmd)
-        cmd = ["mkdir", "-p", self.common_dir]
-        infra.proc.ccall(*cmd)
 
-        # TODO: Do not copy this
-        cmd = ["cp", "keygenerator.sh", self.common_dir]
-        infra.proc.ccall(*cmd)
-
+        self._setup_common_folder(args)
         self.consortium = infra.consortium.Consortium(
             [0, 1, 2], args.default_curve, self.key_generator, self.common_dir
         )
@@ -338,6 +346,7 @@ class Network:
                 self.key_generator,
                 f"--name={u}",
                 f"--curve={curve.name}",
+                path=self.common_dir,
                 log_output=False,
             ).check_returncode()
 

@@ -405,7 +405,6 @@ class LocalRemote(CmdMixin):
         else:
             raise ValueError(path)
         target_name = target_name or file_name
-        LOG.error(target_name)
         assert (
             self._rc("cp {} {}".format(path, os.path.join(dst_path, target_name))) == 0
         )
