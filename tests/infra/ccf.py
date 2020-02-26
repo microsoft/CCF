@@ -210,10 +210,11 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
+        initial_members = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
-            [0, 1, 2], args.default_curve, self.key_generator
+            initial_members, args.default_curve, self.key_generator
         )
-        self.initial_users = [0, 1, 2]
+        self.initial_users = list(range(max(0, args.initial_user_count)))
         self.create_users(self.initial_users, args.default_curve)
 
         primary = self._start_all_nodes(args)
@@ -225,7 +226,7 @@ class Network:
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
             self.consortium.set_lua_app(
-                member_id=1, remote_node=primary, app_script=args.app_script
+                member_id=0, remote_node=primary, app_script=args.app_script
             )
 
         if args.js_app_script:
@@ -233,14 +234,14 @@ class Network:
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                member_id=1, remote_node=primary, app_script=args.js_app_script
+                member_id=0, remote_node=primary, app_script=args.js_app_script
             )
 
         self.consortium.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            member_id=1, remote_node=primary, pbft_open=args.consensus == "pbft"
+            member_id=0, remote_node=primary, pbft_open=args.consensus == "pbft"
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
