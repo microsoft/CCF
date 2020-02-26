@@ -386,7 +386,7 @@ bool Certificate<T>::add(T* m)
   {
     // "m" was sent by a replica that does not have a message in
     // the certificate
-    if ((c == 0 || (c->count < complete && c->m->match(m))))
+    if (c == 0 || (c->m != nullptr && c->count < complete && c->m->match(m)))
     {
       // add "m" to the certificate
       PBFT_ASSERT(
