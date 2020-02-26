@@ -107,6 +107,9 @@ class CmdMixin(object):
 
 
 class SSHRemote(CmdMixin):
+    # Workspace subfolder where remote nodes' logs are copied to on shutdown
+    LOGS_SUBFOLDER = "common"
+
     def __init__(
         self,
         name,
@@ -114,8 +117,9 @@ class SSHRemote(CmdMixin):
         exe_files,
         data_files,
         cmd,
-        workspace,
+        workspace,  # TODO: Still need this?
         label,
+        common_dir,
         env=None,
         json_log_path=None,
     ):
@@ -143,6 +147,7 @@ class SSHRemote(CmdMixin):
         self.proc_client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.local_logs_subfolder = os.path.join(workspace, self.LOGS_SUBFOLDER)
         self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
         self.env = env or {}
@@ -174,13 +179,13 @@ class SSHRemote(CmdMixin):
             executable = executable[2:]
         assert self._rc("chmod +x {}".format(os.path.join(self.root, executable))) == 0
 
-    def get(self, filename, timeout=60, targetname=None):
+    def get(self, file_name, dst_path, timeout=60, target_name=None):
         """
-        Get file called `filename` under the root of the remote. If the
+        Get file called `file_name` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
 
         If the file is present, it is copied to the CWD on the caller's
-        host, as `targetname` if it is set.
+        host, as `target_name` if it is set.
 
         This call spins up a separate client because we don't want to interrupt
         the main cmd that may be running.
@@ -188,18 +193,21 @@ class SSHRemote(CmdMixin):
         with sftp_session(self.hostname) as session:
             for seconds in range(timeout):
                 try:
-                    targetname = targetname or filename
-                    session.get(os.path.join(self.root, filename), targetname)
+                    target_name = target_name or file_name
+                    session.get(
+                        os.path.join(self.root, file_name),
+                        os.path(dst_path, target_name),
+                    )
                     LOG.debug(
                         "[{}] found {} after {}s".format(
-                            self.hostname, filename, seconds
+                            self.hostname, file_name, seconds
                         )
                     )
                     break
                 except Exception:
                     time.sleep(1)
             else:
-                raise ValueError(filename)
+                raise ValueError(file_name)
 
     def list_files(self, timeout=60):
         files = []
@@ -223,8 +231,9 @@ class SSHRemote(CmdMixin):
                     local_filepath = "{}_{}_{}".format(
                         self.hostname, os.path.basename(filepath), self.name
                     )
+                    dst_path = os.path.join(self.workspace, local_filepath)
                     session.get(filepath, local_filepath)
-                    LOG.info("Downloaded {}".format(local_filepath))
+                    LOG.info("Downloaded {}".format(dst_path))
                 except Exception:
                     LOG.warning(
                         "Failed to download {} from {}".format(filepath, self.hostname)
@@ -350,6 +359,7 @@ class LocalRemote(CmdMixin):
         cmd,
         workspace,
         label,
+        common_dir,
         env=None,
         json_log_path=None,
     ):
@@ -361,6 +371,7 @@ class LocalRemote(CmdMixin):
         self.data_files = data_files
         self.cmd = cmd
         self.root = os.path.join(workspace, label + "_" + name)
+        self.common = common_dir
         self.proc = None
         self.stdout = None
         self.stderr = None
@@ -377,24 +388,27 @@ class LocalRemote(CmdMixin):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.exe_files:
-            dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
+            dst_path = os.path.normpath(os.path.join(self.root, path))
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = self.root
-            src_path = os.path.join(os.getcwd(), path)
+            src_path = os.path.join(self.common, path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
-    def get(self, filename, timeout=60, targetname=None):
-        path = os.path.join(self.root, filename)
+    def get(self, file_name, dst_path, timeout=60, target_name=None):
+        path = os.path.join(self.root, file_name)
         for _ in range(timeout):
             if os.path.exists(path):
                 break
             time.sleep(1)
         else:
             raise ValueError(path)
-        targetname = targetname or filename
-        assert self._rc("cp {} {}".format(path, targetname)) == 0
+        target_name = target_name or file_name
+        LOG.error(target_name)
+        assert (
+            self._rc("cp {} {}".format(path, os.path.join(dst_path, target_name))) == 0
+        )
 
     def list_files(self):
         return os.listdir(self.root)
@@ -506,6 +520,7 @@ class CCFRemote(object):
         enclave_type,
         workspace,
         label,
+        common_dir,
         target_rpc_address=None,
         members_info=None,
         join_timer=None,
@@ -642,6 +657,7 @@ class CCFRemote(object):
             cmd,
             workspace,
             label,
+            common_dir,
             env,
             json_log_path,
         )
@@ -658,10 +674,10 @@ class CCFRemote(object):
     def resume(self):
         self.remote.resume()
 
-    def get_startup_files(self):
-        self.remote.get(self.pem)
+    def get_startup_files(self, dst_path):
+        self.remote.get(self.pem, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
-            self.remote.get("networkcert.pem")
+            self.remote.get("networkcert.pem", dst_path)
 
     def debug_node_cmd(self):
         return self.remote._dbg()

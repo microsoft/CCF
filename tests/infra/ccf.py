@@ -49,6 +49,7 @@ class PrimaryNotFound(Exception):
 
 class Network:
     KEY_GEN = "keygenerator.sh"
+    COMMON_FOLDER = "common"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -136,6 +137,7 @@ class Network:
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
+            common_dir=args.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             **forwarded_args,
         )
@@ -177,6 +179,7 @@ class Network:
                             lib_name=args.package,
                             workspace=args.workspace,
                             label=args.label,
+                            common_dir=self.common_dir,
                             members_info=self.consortium.get_members_info(),
                             **forwarded_args,
                         )
@@ -187,6 +190,7 @@ class Network:
                             sealed_secrets=sealed_secrets,
                             workspace=args.workspace,
                             label=args.label,
+                            common_dir=self.common_dir,
                             **forwarded_args,
                         )
                 else:
@@ -207,11 +211,21 @@ class Network:
         :param args: command line arguments to configure the CCF nodes.
         :param open_network: If false, only the nodes are started.
         """
-        cmd = ["rm", "-f"] + glob("member*.pem")
+        self.common_dir = os.path.join(
+            args.workspace, f"{args.label}_{self.COMMON_FOLDER}"
+        )
+        LOG.info(f"Creating common subfolder: {self.common_dir}")
+        cmd = ["rm", "-rf", self.common_dir]
+        infra.proc.ccall(*cmd)
+        cmd = ["mkdir", "-p", self.common_dir]
+        infra.proc.ccall(*cmd)
+
+        # TODO: Do not copy this
+        cmd = ["cp", "keygenerator.sh", self.common_dir]
         infra.proc.ccall(*cmd)
 
         self.consortium = infra.consortium.Consortium(
-            [0, 1, 2], args.default_curve, self.key_generator
+            [0, 1, 2], args.default_curve, self.key_generator, self.common_dir
         )
         self.initial_users = [0, 1, 2]
         self.create_users(self.initial_users, args.default_curve)

@@ -15,7 +15,7 @@ from loguru import logger as LOG
 
 
 class Consortium:
-    def __init__(self, members, curve, key_generator):
+    def __init__(self, members, curve, key_generator, common_dir):
         self.members = members
         members = [f"member{m}" for m in members]
         for m in members:
@@ -24,9 +24,10 @@ class Consortium:
                 f"--name={m}",
                 f"--curve={curve.name}",
                 "--gen-key-share",
+                path=common_dir,
                 log_output=False,
             ).check_returncode()
-        self.status = infra.ccf.ServiceStatus.OPEN
+        self.common_dir = common_dir
 
     def get_members_info(self):
         members_certs = [f"member{m}_cert.pem" for m in self.members]
@@ -268,7 +269,9 @@ class Consortium:
             current_status = rep.result["status"]
             current_cert = array.array("B", rep.result["cert"]).tobytes()
 
-            expected_cert = open("networkcert.pem", "rb").read()
+            expected_cert = open(
+                os.path.join(self.common_dir, "networkcert.pem"), "rb"
+            ).read()
             assert (
                 current_cert == expected_cert
             ), "Current service certificate did not match with networkcert.pem"

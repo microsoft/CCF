@@ -62,13 +62,23 @@ class Node:
         else:
             self.node_port = probably_free_function(self.host)
 
-    def start(self, lib_name, enclave_type, workspace, label, members_info, **kwargs):
+    def start(
+        self,
+        lib_name,
+        enclave_type,
+        workspace,
+        label,
+        common_dir,
+        members_info,
+        **kwargs,
+    ):
         self._start(
             infra.remote.StartType.new,
             lib_name,
             enclave_type,
             workspace,
             label,
+            common_dir,
             None,
             members_info,
             **kwargs,
@@ -76,7 +86,14 @@ class Node:
         self.network_state = NodeNetworkState.joined
 
     def join(
-        self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs,
+        self,
+        lib_name,
+        enclave_type,
+        workspace,
+        label,
+        common_dir,
+        target_rpc_address,
+        **kwargs,
     ):
         self._start(
             infra.remote.StartType.join,
@@ -84,17 +101,19 @@ class Node:
             enclave_type,
             workspace,
             label,
+            common_dir,
             target_rpc_address,
             **kwargs,
         )
 
-    def recover(self, lib_name, enclave_type, workspace, label, **kwargs):
+    def recover(self, lib_name, enclave_type, workspace, label, common_dir, **kwargs):
         self._start(
             infra.remote.StartType.recover,
             lib_name,
             enclave_type,
             workspace,
             label,
+            common_dir,
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
@@ -106,6 +125,7 @@ class Node:
         enclave_type,
         workspace,
         label,
+        common_dir,
         target_rpc_address=None,
         members_info=None,
         **kwargs,
@@ -122,6 +142,7 @@ class Node:
         :return: void
         """
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
+        self.common_dir = common_dir
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
@@ -134,6 +155,7 @@ class Node:
             enclave_type,
             workspace,
             label,
+            common_dir,
             target_rpc_address,
             members_info,
             binary_dir=self.binary_dir,
@@ -157,7 +179,7 @@ class Node:
             if self.perf:
                 self.remote.set_perf()
             self.remote.start()
-        self.remote.get_startup_files()
+        self.remote.get_startup_files(self.common_dir)
         LOG.info("Remote {} started".format(self.node_id))
 
     def stop(self):
@@ -202,6 +224,7 @@ class Node:
             description="node {} (user)".format(self.node_id),
             prefix="users",
             binary_dir=self.binary_dir,
+            common_dir=self.common_dir,
             **kwargs,
         )
 
@@ -215,6 +238,7 @@ class Node:
             description="node {} (node)".format(self.node_id),
             prefix="nodes",
             binary_dir=self.binary_dir,
+            common_dir=self.common_dir,
             **kwargs,
         )
 
@@ -228,6 +252,7 @@ class Node:
             description="node {} (member)".format(self.node_id),
             prefix="members",
             binary_dir=self.binary_dir,
+            common_dir=self.common_dir,
             **kwargs,
         )
 

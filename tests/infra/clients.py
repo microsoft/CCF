@@ -155,6 +155,7 @@ class CurlClient:
         key,
         ca,
         binary_dir,
+        common_dir,
         connection_timeout,
         request_timeout,
         *args,
@@ -162,9 +163,9 @@ class CurlClient:
     ):
         self.host = host
         self.port = port
-        self.cert = cert
-        self.key = key
-        self.ca = ca
+        self.key = os.path.join(common_dir, key) if key else None
+        self.cert = os.path.join(common_dir, cert) if cert else None
+        self.ca = os.path.join(common_dir, ca) if ca else None
         self.binary_dir = binary_dir
         self.connection_timeout = connection_timeout
         self.request_timeout = request_timeout
@@ -250,6 +251,7 @@ class RequestClient:
         cert,
         key,
         ca,
+        common_dir,
         connection_timeout,
         request_timeout,
         *args,
@@ -257,14 +259,15 @@ class RequestClient:
     ):
         self.host = host
         self.port = port
-        self.cert = cert
-        self.key = key
-        self.ca = ca
+        self.key = os.path.join(common_dir, key) if key else None
+        self.cert = os.path.join(common_dir, cert) if cert else None
+        self.ca = os.path.join(common_dir, ca) if ca else None
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
         self.session = requests.Session()
         self.session.verify = self.ca
-        self.session.cert = (self.cert, self.key)
+        if None not in (self.key, self.cert):
+            self.session.cert = (self.cert, self.key)
 
     def _just_request(self, request, is_signed=False):
         auth_value = None
@@ -280,8 +283,6 @@ class RequestClient:
         rep = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
-            cert=(self.cert, self.key),
-            verify=self.ca,
             timeout=self.request_timeout,
             auth=auth_value,
         )
@@ -330,10 +331,11 @@ class WSClient:
     ):
         self.host = host
         self.port = port
-        self.cert = cert
-        self.key = key
         self.ca = ca
         self.request_timeout = request_timeout
+        if None not in (key, cert):
+            self.key = os.path.join(self.common_dir, key)
+            self.cert = os.path.join(self.common_dir, cert)
 
     def request(self, request):
         ws = create_connection(
@@ -422,6 +424,7 @@ def client(
     log_file=None,
     prefix="users",
     binary_dir=".",
+    common_dir=".",
     connection_timeout=3,
     request_timeout=3,
 ):
@@ -434,6 +437,7 @@ def client(
         description=description,
         prefix=prefix,
         binary_dir=binary_dir,
+        common_dir=common_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,
     )
