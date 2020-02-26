@@ -210,7 +210,7 @@ class Network:
         cmd = ["rm", "-f"] + glob("member*.pem")
         infra.proc.ccall(*cmd)
 
-        initial_members = list(range(max(1, args.initial_member_count))) 
+        initial_members = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
             initial_members, args.default_curve, self.key_generator
         )
