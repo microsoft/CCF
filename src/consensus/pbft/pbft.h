@@ -262,6 +262,7 @@ namespace pbft
       general_info.recovery_timeout = 9999250000;
       general_info.max_requests_between_signatures =
         sig_max_tx / Max_requests_in_batch;
+      general_info.support_threading = true;
 
       // Adding myself
       PrincipalInfo my_info;
@@ -495,6 +496,13 @@ namespace pbft
         }
         case pbft_append_entries:
         {
+          if (message_receiver_base->IsExecutionPending())
+          {
+            LOG_FAIL << "Pending Execution, skipping append entries request"
+                     << std::endl;
+            return;
+          }
+
           AppendEntries r;
 
           auto append_entries_index = store->current_version();

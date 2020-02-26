@@ -27,6 +27,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
 
 struct GeneralInfo
 {
+  bool support_threading;
   int num_replicas;
   int num_clients;
   int max_faulty;
@@ -42,6 +43,7 @@ struct GeneralInfo
 DECLARE_JSON_TYPE(GeneralInfo);
 DECLARE_JSON_REQUIRED_FIELDS(
   GeneralInfo,
+  support_threading,
   num_replicas,
   num_clients,
   max_faulty,
