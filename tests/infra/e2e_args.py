@@ -136,6 +136,19 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
         default=4000,
     )
+    parser.add_argument(
+        "--initial-member-count",
+        help="Number of members when intializing the network",
+        type=int,
+        default=3,
+    )
+    parser.add_argument(
+        "--initial-user-count",
+        help="Number of users when intializing the network",
+        type=int,
+        default=3,
+    )
+
     add(parser)
 
     if accept_unknown:
