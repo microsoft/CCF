@@ -24,7 +24,7 @@ namespace ccf
    * };
    *
    * it is possible to write the shorter, clearer, return-based lambda:
-   * auto foo = handler_adapter([](Store::Tx& tx, const nlohmann::json& params)
+   * auto foo = handler_adapter([](Store::Tx& tx, nlohmann::json&& params)
    * {
    *   auto x = tx.get_view...;
    *   auto y = params[...];
@@ -86,9 +86,42 @@ namespace ccf
   static std::pair<jsonrpc::Pack, nlohmann::json> get_json_params(
     const std::shared_ptr<enclave::RpcContext>& ctx)
   {
-    const auto packing = detect_json_packing(ctx);
-    return std::make_pair(
-      packing, jsonrpc::unpack(ctx->get_request_body(), packing));
+    std::optional<jsonrpc::Pack> packing = std::nullopt;
+    const auto content_type_it =
+      ctx->get_request_header(http::headers::CONTENT_TYPE);
+    if (content_type_it.has_value())
+    {
+      const auto& content_type = content_type_it.value();
+      if (content_type == http::headervalues::contenttype::JSON)
+      {
+        packing = jsonrpc::Pack::Text;
+      }
+      else if (content_type == http::headervalues::contenttype::MSGPACK)
+      {
+        packing = jsonrpc::Pack::MsgPack;
+      }
+      else
+      {
+        throw std::logic_error(fmt::format(
+          "Unsupported content type {}. Only {} and {} are currently supported",
+          content_type,
+          http::headervalues::contenttype::JSON,
+          http::headervalues::contenttype::MSGPACK));
+      }
+    }
+    else
+    {
+      packing = jsonrpc::detect_pack(ctx->get_request_body());
+    }
+
+    const auto pack = packing.value_or(jsonrpc::Pack::Text);
+    nlohmann::json params = nullptr;
+    if (!ctx->get_request_body().empty())
+    {
+      params = jsonrpc::unpack(ctx->get_request_body(), pack);
+    }
+
+    return std::make_pair(pack, params);
   }
 
   static void set_response(
@@ -116,7 +149,7 @@ namespace ccf
 
   static HandleFunction handler_adapter(const HandlerTxOnly& f)
   {
-    return [&f](RequestArgs& args) {
+    return [f](RequestArgs& args) {
       const auto [packing, params] = get_json_params(args.rpc_ctx);
       set_response(f(args.tx), args.rpc_ctx, packing);
     };
@@ -127,7 +160,7 @@ namespace ccf
 
   static HandleFunction handler_adapter(const HandlerJsonParamsOnly& f)
   {
-    return [&f](RequestArgs& args) {
+    return [f](RequestArgs& args) {
       auto [packing, params] = get_json_params(args.rpc_ctx);
       set_response(f(args.tx, std::move(params)), args.rpc_ctx, packing);
     };
@@ -138,7 +171,7 @@ namespace ccf
 
   static HandleFunction handler_adapter(const HandlerJsonParamsAndCallerId& f)
   {
-    return [&f](RequestArgs& args) {
+    return [f](RequestArgs& args) {
       auto [packing, params] = get_json_params(args.rpc_ctx);
       set_response(
         f(args.tx, args.caller_id, std::move(params)), args.rpc_ctx, packing);
@@ -150,7 +183,7 @@ namespace ccf
 
   static HandleFunction handler_adapter(const HandlerJsonParamsAndForward& f)
   {
-    return [&f](RequestArgs& args) {
+    return [f](RequestArgs& args) {
       auto [packing, params] = get_json_params(args.rpc_ctx);
       set_response(f(args, std::move(params)), args.rpc_ctx, packing);
     };

@@ -49,7 +49,7 @@ namespace ccfapp
     {
       UserHandlerRegistry::init_handlers(store);
 
-      auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto create = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Create an account with a balance from thin air.
         std::string name = params["name"];
         uint64_t acc_id = params["id"];
@@ -94,7 +94,7 @@ namespace ccfapp
         return make_success(true);
       };
 
-      auto create_batch = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto create_batch = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Create N accounts with identical balances from thin air.
         uint64_t from = params["from"];
         uint64_t to = params["to"];
@@ -140,7 +140,7 @@ namespace ccfapp
         return make_success(true);
       };
 
-      auto balance = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto balance = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Check the combined balance of an account
         std::string name = params["name"];
         auto account_view = tx.get_view(tables.accounts);
@@ -172,7 +172,7 @@ namespace ccfapp
       };
 
       auto transact_savings =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
+        [this](Store::Tx& tx, nlohmann::json&& params) {
           // Add or remove money to the savings account
           std::string name = params["name"];
           int value = params["value"];
@@ -211,7 +211,7 @@ namespace ccfapp
         };
 
       auto deposit_checking =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
+        [this](Store::Tx& tx, nlohmann::json&& params) {
           // Desposit money into the checking account out of thin air
           std::string name = params["name"];
           int64_t value = params["value"];
@@ -246,7 +246,7 @@ namespace ccfapp
           return make_success(true);
         };
 
-      auto amalgamate = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto amalgamate = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Move the contents of one users account to another users account
         std::string name_1 = params["name_src"];
         std::string name_2 = params["name_dest"];
@@ -299,7 +299,7 @@ namespace ccfapp
         return make_success(true);
       };
 
-      auto writeCheck = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto writeCheck = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Write a check, if not enough funds then also charge an extra 1 money
         std::string name = params["name"];
         uint32_t amount = params["value"];

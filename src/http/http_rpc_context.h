@@ -51,6 +51,7 @@ namespace http
 
     mutable std::optional<jsonrpc::Pack> body_packing = std::nullopt;
 
+    http::HeaderMap response_headers;
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;
 
@@ -282,6 +283,18 @@ namespace http
       path = p;
     }
 
+    virtual std::optional<std::string> get_request_header(
+      const std::string_view& name) override
+    {
+      const auto it = request_headers.find(name);
+      if (it != request_headers.end())
+      {
+        return it->second;
+      }
+
+      return std::nullopt;
+    }
+
     virtual void set_response_body(const std::vector<uint8_t>& body) override
     {
       response_body = body;
@@ -299,16 +312,22 @@ namespace http
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
     }
 
+    virtual void set_response_status(int status) override
+    {
+      response_status = (http_status)status;
+    }
+
+    virtual void set_response_header(
+      const std::string_view& name, const std::string_view& value) override
+    {
+      response_headers[std::string(name)] = value;
+    }
+
     virtual bool response_is_error() const override
     {
       // TODO: Is this correct, or should we consider CREATED etc as valid
       // non-errors?
       return response_status != HTTP_STATUS_OK;
-    }
-
-    virtual void set_response_status(int status) override
-    {
-      response_status = (http_status)status;
     }
 
     virtual std::vector<uint8_t> serialise_response() const override
@@ -334,8 +353,8 @@ namespace enclave
     const std::vector<uint8_t>& packed,
     const std::vector<uint8_t>& raw_pbft = {})
   {
-    http::SimpleMsgProcessor processor;
-    http::Parser parser(HTTP_REQUEST, processor);
+    http::SimpleRequestProcessor processor;
+    http::RequestParser parser(processor);
 
     const auto parsed_count = parser.execute(packed.data(), packed.size());
     if (parsed_count != packed.size())

@@ -184,7 +184,7 @@ public:
     return message_body;
   }
 
-  virtual void handle_message(
+  virtual void handle_request(
     http_method method,
     const std::string_view& path,
     const std::string_view& query,

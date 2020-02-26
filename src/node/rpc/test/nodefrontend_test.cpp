@@ -56,8 +56,8 @@ const json frontend_process(
 
   CHECK(serialised_response.has_value());
 
-  http::SimpleMsgProcessor processor;
-  http::Parser parser(HTTP_RESPONSE, processor);
+      http::SimpleResponseProcessor processor;
+      http::ResponseParser parser(processor);
 
   const auto parsed_count =
     parser.execute(serialised_response->data(), serialised_response->size());

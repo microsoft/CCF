@@ -35,7 +35,7 @@ namespace ccf
     {
       HandlerRegistry::init_handlers(t);
 
-      auto get_commit = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto get_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetCommit::In>();
 
         kv::Version commit = in.commit.value_or(tables->commit_version());
@@ -51,33 +51,32 @@ namespace ccf
           "Failed to get commit info from Consensus");
       };
 
-      auto get_metrics = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto get_metrics = [this](Store::Tx& tx, nlohmann::json&& params) {
         auto result = metrics.get_metrics();
         return make_success(result);
       };
 
-      auto make_signature =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          if (consensus != nullptr)
+      auto make_signature = [this](Store::Tx& tx, nlohmann::json&& params) {
+        if (consensus != nullptr)
+        {
+          if (consensus->type() == ConsensusType::Raft)
           {
-            if (consensus->type() == ConsensusType::Raft)
+            if (history != nullptr)
             {
-              if (history != nullptr)
-              {
-                history->emit_signature();
-                return make_success(true);
-              }
-            }
-            else if (consensus->type() == ConsensusType::Pbft)
-            {
-              consensus->emit_signature();
+              history->emit_signature();
               return make_success(true);
             }
           }
+          else if (consensus->type() == ConsensusType::Pbft)
+          {
+            consensus->emit_signature();
+            return make_success(true);
+          }
+        }
 
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to trigger signature");
-        };
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to trigger signature");
+      };
 
       auto who_am_i =
         [this](
@@ -93,7 +92,7 @@ namespace ccf
           return make_success(WhoAmI::Out{caller_id});
         };
 
-      auto who_is = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto who_is = [this](Store::Tx& tx, nlohmann::json&& params) {
         const WhoIs::In in = params;
 
         if (certs == nullptr)
@@ -115,61 +114,58 @@ namespace ccf
         return make_success(WhoIs::Out{caller_id.value()});
       };
 
-      auto get_primary_info =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          if ((nodes != nullptr) && (consensus != nullptr))
-          {
-            NodeId primary_id = consensus->primary();
-
-            auto nodes_view = tx.get_view(*nodes);
-            auto info = nodes_view->get(primary_id);
-
-            if (info)
-            {
-              GetPrimaryInfo::Out out;
-              out.primary_id = primary_id;
-              out.primary_host = info->pubhost;
-              out.primary_port = info->rpcport;
-              return make_success(out);
-            }
-          }
-
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
-        };
-
-      auto get_network_info =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          GetNetworkInfo::Out out;
-          if (consensus != nullptr)
-          {
-            out.primary_id = consensus->primary();
-          }
+      auto get_primary_info = [this](Store::Tx& tx, nlohmann::json&& params) {
+        if ((nodes != nullptr) && (consensus != nullptr))
+        {
+          NodeId primary_id = consensus->primary();
 
           auto nodes_view = tx.get_view(*nodes);
-          nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
-            if (ni.status == ccf::NodeStatus::TRUSTED)
-            {
-              out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
-            }
-            return true;
-          });
+          auto info = nodes_view->get(primary_id);
 
-          return make_success(out);
-        };
+          if (info)
+          {
+            GetPrimaryInfo::Out out;
+            out.primary_id = primary_id;
+            out.primary_host = info->pubhost;
+            out.primary_port = info->rpcport;
+            return make_success(out);
+          }
+        }
 
-      auto list_methods_fn =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          ListMethods::Out out;
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
+      };
 
-          list_methods(tx, out);
+      auto get_network_info = [this](Store::Tx& tx, nlohmann::json&& params) {
+        GetNetworkInfo::Out out;
+        if (consensus != nullptr)
+        {
+          out.primary_id = consensus->primary();
+        }
 
-          std::sort(out.methods.begin(), out.methods.end());
+        auto nodes_view = tx.get_view(*nodes);
+        nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.status == ccf::NodeStatus::TRUSTED)
+          {
+            out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
+          }
+          return true;
+        });
 
-          return make_success(out);
-        };
+        return make_success(out);
+      };
 
-      auto get_schema = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto list_methods_fn = [this](Store::Tx& tx, nlohmann::json&& params) {
+        ListMethods::Out out;
+
+        list_methods(tx, out);
+
+        std::sort(out.methods.begin(), out.methods.end());
+
+        return make_success(out);
+      };
+
+      auto get_schema = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
         const auto it = handlers.find(in.method);
@@ -186,7 +182,7 @@ namespace ccf
         return make_success(out);
       };
 
-      auto get_receipt = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto get_receipt = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
         if (history != nullptr)
@@ -213,30 +209,29 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to produce receipt");
       };
 
-      auto verify_receipt =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          const auto in = params.get<VerifyReceipt::In>();
+      auto verify_receipt = [this](Store::Tx& tx, nlohmann::json&& params) {
+        const auto in = params.get<VerifyReceipt::In>();
 
-          if (history != nullptr)
+        if (history != nullptr)
+        {
+          try
           {
-            try
-            {
-              bool v = history->verify_receipt(in.receipt);
-              const VerifyReceipt::Out out{v};
+            bool v = history->verify_receipt(in.receipt);
+            const VerifyReceipt::Out out{v};
 
-              return make_success(out);
-            }
-            catch (const std::exception& e)
-            {
-              return make_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                fmt::format("Unable to verify receipt: {}", e.what()));
-            }
+            return make_success(out);
           }
+          catch (const std::exception& e)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              fmt::format("Unable to verify receipt: {}", e.what()));
+          }
+        }
 
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
-        };
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
+      };
 
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, handler_adapter(get_commit), Read);

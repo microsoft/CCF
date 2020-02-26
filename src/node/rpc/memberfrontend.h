@@ -526,7 +526,7 @@ namespace ccf
       install_with_auto_schema<Vote, bool>(
         MemberProcs::VOTE, handler_adapter(vote), Write);
 
-      auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto create = [this](Store::Tx& tx, nlohmann::json&& params) {
         LOG_INFO_FMT("Processing create RPC");
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 

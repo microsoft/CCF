@@ -1167,8 +1167,8 @@ namespace ccf
 
     bool parse_create_response(const std::vector<uint8_t>& response)
     {
-      http::SimpleMsgProcessor processor;
-      http::Parser parser(HTTP_RESPONSE, processor);
+      http::SimpleResponseProcessor processor;
+      http::ResponseParser parser(processor);
 
       const auto parsed_count =
         parser.execute(response.data(), response.size());

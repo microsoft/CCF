@@ -44,8 +44,8 @@ constexpr auto content_type = default_format == jsonrpc::Pack::Text ?
 
 nlohmann::json parse_response(const vector<uint8_t>& v)
 {
-  http::SimpleMsgProcessor processor;
-  http::Parser parser(HTTP_RESPONSE, processor);
+  http::SimpleResponseProcessor processor;
+  http::ResponseParser parser(processor);
 
   const auto parsed_count = parser.execute(v.data(), v.size());
   REQUIRE(parsed_count == v.size());

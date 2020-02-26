@@ -56,8 +56,6 @@ namespace enclave
   protected:
     size_t request_index = 0;
 
-    std::unordered_map<std::string, nlohmann::json> response_headers;
-
   public:
     SessionContext session;
 
@@ -94,6 +92,9 @@ namespace enclave
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
 
+    virtual std::optional<std::string> get_request_header(
+      const std::string_view& name) = 0;
+
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
     virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
 
@@ -104,19 +105,15 @@ namespace enclave
 
     virtual void set_response_status(int status) = 0;
 
-    virtual bool response_is_error() const = 0;
-
-    virtual std::vector<uint8_t> serialise_response() const = 0;
-
     virtual void set_response_header(
-      const std::string& name, const std::string& value)
-    {
-      response_headers[name] = value;
-    }
-
-    virtual void set_response_header(const std::string& name, size_t n)
+      const std::string_view& name, const std::string_view& value) = 0;
+    virtual void set_response_header(const std::string_view& name, size_t n)
     {
       set_response_header(name, fmt::format("{}", n));
     }
+
+    virtual bool response_is_error() const = 0;
+
+    virtual std::vector<uint8_t> serialise_response() const = 0;
   };
 }

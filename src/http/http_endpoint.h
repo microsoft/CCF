@@ -173,7 +173,7 @@ namespace http
       send_raw(data);
     }
 
-    void handle_message(
+    void handle_request(
       http_method verb,
       const std::string_view& path,
       const std::string_view& query,
@@ -295,7 +295,7 @@ namespace http
         "send() should not be called directly on HTTPClient");
     }
 
-    void handle_message(
+    void handle_request(
       http_method method,
       const std::string_view& path,
       const std::string_view& query,

@@ -148,7 +148,7 @@ namespace ccfapp
     {
       // SNIPPET_START: record
       // SNIPPET_START: macro_validation_record
-      auto record = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto record = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
 
@@ -165,7 +165,7 @@ namespace ccfapp
       // SNIPPET_END: record
 
       // SNIPPET_START: get
-      auto get = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto get = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingGet::In>();
         auto view = tx.get_view(records);
         auto r = view->get(in.id);
@@ -180,7 +180,7 @@ namespace ccfapp
 
       // SNIPPET_START: record_public
       // SNIPPET_START: valijson_record_public
-      auto record_public = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto record_public = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto validation_error =
           validate(params, record_public_params_schema);
 
@@ -205,7 +205,7 @@ namespace ccfapp
       // SNIPPET_END: record_public
 
       // SNIPPET_START: get_public
-      auto get_public = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto get_public = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto validation_error =
           validate(params, get_public_params_schema);
 
