@@ -92,7 +92,7 @@ private:
   };
   std::unordered_map<Request_id, std::unique_ptr<RequestContext>> out_reqs;
   std::atomic<uint64_t> current_outstanding = 0;
-  static const int Max_outstanding = 1000 * 10;
+  static const int Max_outstanding = 10'000;
   SpinLock lock;
 
   struct ReplyCbMsg
