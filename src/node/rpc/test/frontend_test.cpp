@@ -34,7 +34,7 @@ using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
-static constexpr auto default_pack = jsonrpc::Pack::Text;
+static constexpr auto default_pack = jsonrpc::Pack::MsgPack;
 
 class TestUserFrontend : public SimpleUserRpcFrontend
 {
