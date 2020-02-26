@@ -24,6 +24,8 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
 
+COMMON_FOLDER = "common"
+
 
 class ServiceStatus(Enum):
     OPENING = 1
@@ -47,9 +49,12 @@ class PrimaryNotFound(Exception):
     pass
 
 
+def get_common_folder_name(workspace, label):
+    return os.path.join(workspace, f"{label}_{COMMON_FOLDER}")
+
+
 class Network:
     KEY_GEN = "keygenerator.sh"
-    COMMON_FOLDER = "common"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -205,11 +210,6 @@ class Network:
 
         return primary
 
-    def _set_common_folder(self, args):
-        self.common_dir = os.path.join(
-            args.workspace, f"{args.label}_{self.COMMON_FOLDER}"
-        )
-
     def _setup_common_folder(self):
         LOG.info(f"Creating common folder: {self.common_dir}")
         cmd = ["rm", "-rf", self.common_dir]
@@ -232,7 +232,7 @@ class Network:
         :param args: command line arguments to configure the CCF nodes.
         :param open_network: If false, only the nodes are started.
         """
-        self._set_common_folder(args)
+        self.common_dir = get_common_folder_name(args.workspace, args.label)
         self._setup_common_folder()
         self.consortium = infra.consortium.Consortium(
             [0, 1, 2], args.default_curve, self.key_generator, self.common_dir
@@ -270,7 +270,7 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
-        self._set_common_folder(args)
+        self.common_dir = get_common_folder_name(args.workspace, args.label)
         primary = self._start_all_nodes(
             args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets
         )

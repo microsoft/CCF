@@ -107,9 +107,6 @@ class CmdMixin(object):
 
 
 class SSHRemote(CmdMixin):
-    # Workspace subfolder where remote nodes' logs are copied to on shutdown
-    LOGS_SUBFOLDER = "common"
-
     def __init__(
         self,
         name,
@@ -117,7 +114,7 @@ class SSHRemote(CmdMixin):
         exe_files,
         data_files,
         cmd,
-        workspace,  # TODO: Still need this?
+        workspace,
         label,
         common_dir,
         env=None,
@@ -145,9 +142,6 @@ class SSHRemote(CmdMixin):
         self.proc_client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.local_logs_subfolder = os.path.join(
-            workspace, self.LOGS_SUBFOLDER
-        )  # TODO: Delete this
         self.common_dir = common_dir
         self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
