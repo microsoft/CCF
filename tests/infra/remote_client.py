@@ -79,7 +79,7 @@ class CCFRemoteClient(object):
         return self.remote._dbg()
 
     def stop(self):
-        sys.exit(1) # Fail on purpose
+        sys.exit(1)  # Fail on purpose
         try:
             self.remote.stop()
             remote_files = self.remote.list_files()
