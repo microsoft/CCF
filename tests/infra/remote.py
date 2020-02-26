@@ -137,17 +137,18 @@ class SSHRemote(CmdMixin):
         stop()  disconnects, which shuts down the command via SIGHUP
         """
         self.hostname = hostname
-        # For SSHRemote, both executable files (host and enclave) and data
-        # files (ledger, secrets) are copied to the remote
-        self.files = exe_files
-        self.files += data_files
+        self.exe_files = exe_files
+        self.data_files = data_files
         self.cmd = cmd
         self.client = paramiko.SSHClient()
         # this client (proc_client) is used to execute commands on the remote host since the main client uses pty
         self.proc_client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.local_logs_subfolder = os.path.join(workspace, self.LOGS_SUBFOLDER)
+        self.local_logs_subfolder = os.path.join(
+            workspace, self.LOGS_SUBFOLDER
+        )  # TODO: Delete this
+        self.common_dir = common_dir
         self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
         self.env = env or {}
@@ -169,10 +170,16 @@ class SSHRemote(CmdMixin):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         session = self.client.open_sftp()
-        for path in self.files:
+        for path in self.exe_files:
+            src_path = path
             tgt_path = os.path.join(self.root, os.path.basename(path))
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
             session.put(path, tgt_path)
+        for path in self.data_files:
+            src_path = os.path.join(self.common_dir, path)
+            tgt_path = os.path.join(self.root, os.path.basename(src_path))
+            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, src_path))
+            session.put(src_path, tgt_path)
         session.close()
         executable = self.cmd[0]
         if executable.startswith("./"):
@@ -196,7 +203,7 @@ class SSHRemote(CmdMixin):
                     target_name = target_name or file_name
                     session.get(
                         os.path.join(self.root, file_name),
-                        os.path(dst_path, target_name),
+                        os.path.join(dst_path, target_name),
                     )
                     LOG.debug(
                         "[{}] found {} after {}s".format(
@@ -204,7 +211,7 @@ class SSHRemote(CmdMixin):
                         )
                     )
                     break
-                except Exception:
+                except FileNotFoundError:
                     time.sleep(1)
             else:
                 raise ValueError(file_name)
@@ -228,15 +235,17 @@ class SSHRemote(CmdMixin):
         with sftp_session(self.hostname) as session:
             for filepath in (self.err, self.out):
                 try:
-                    local_filepath = "{}_{}_{}".format(
+                    local_file_name = "{}_{}_{}".format(
                         self.hostname, os.path.basename(filepath), self.name
                     )
-                    dst_path = os.path.join(self.workspace, local_filepath)
-                    session.get(filepath, local_filepath)
+                    dst_path = os.path.join(self.common_dir, local_file_name)
+                    session.get(filepath, dst_path)
                     LOG.info("Downloaded {}".format(dst_path))
-                except Exception:
+                except FileNotFoundError:
                     LOG.warning(
-                        "Failed to download {} from {}".format(filepath, self.hostname)
+                        "Failed to download {} to {} (host: {})".format(
+                            filepath, dst_path, self.hostname
+                        )
                     )
 
     def start(self):
@@ -272,8 +281,8 @@ class SSHRemote(CmdMixin):
         LOG.info("[{}] closing".format(self.hostname))
         self.get_logs()
         errors = log_errors(
-            "{}_out_{}".format(self.hostname, self.name),
-            "{}_err_{}".format(self.hostname, self.name),
+            os.path.join(self.common_dir, "{}_out_{}".format(self.hostname, self.name)),
+            os.path.join(self.common_dir, "{}_err_{}".format(self.hostname, self.name)),
         )
         self.client.close()
         self.proc_client.close()
@@ -371,7 +380,7 @@ class LocalRemote(CmdMixin):
         self.data_files = data_files
         self.cmd = cmd
         self.root = os.path.join(workspace, label + "_" + name)
-        self.common = common_dir
+        self.common_dir = common_dir
         self.proc = None
         self.stdout = None
         self.stderr = None
@@ -393,7 +402,7 @@ class LocalRemote(CmdMixin):
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = self.root
-            src_path = os.path.join(self.common, path)
+            src_path = os.path.join(self.common_dir, path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
     def get(self, file_name, dst_path, timeout=60, target_name=None):
@@ -554,7 +563,7 @@ class CCFRemote(object):
         self.ledger_file_name = (
             os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
-        self.common_dir = common_dir
+        self.common_dir_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_file] if self.ledger_file else []
@@ -712,12 +721,12 @@ class CCFRemote(object):
                 sealed_secrets_files.append(f)
 
         latest_sealed_secrets = sorted(sealed_secrets_files, reverse=True)[0]
-        self.remote.get(latest_sealed_secrets, self.common_dir)
+        self.remote.get(latest_sealed_secrets, self.common_dir_dir)
 
-        return os.path.join(self.common_dir, latest_sealed_secrets)
+        return os.path.join(self.common_dir_dir, latest_sealed_secrets)
 
     def get_ledger(self):
-        self.remote.get(self.ledger_file_name, self.common_dir)
+        self.remote.get(self.ledger_file_name, self.common_dir_dir)
         return self.ledger_file_name
 
     def ledger_path(self):

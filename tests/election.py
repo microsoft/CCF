@@ -42,8 +42,8 @@ def run(args):
     # hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
     # hosts = ["10.0.0.4", "10.0.0.10"]
     # hosts = ["10.0.0.10"]
-    # hosts = ["10.0.0.4"]
-    hosts = ["localhost"]
+    hosts = ["10.0.0.4"]
+    # hosts = ["localhost"]
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
