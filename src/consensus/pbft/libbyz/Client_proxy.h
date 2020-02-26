@@ -92,7 +92,7 @@ private:
   };
   std::unordered_map<Request_id, std::unique_ptr<RequestContext>> out_reqs;
   std::atomic<uint64_t> current_outstanding = 0;
-  static const int Max_outstanding = 1000;
+  static const int Max_outstanding = 10'000;
   SpinLock lock;
 
   struct ReplyCbMsg
@@ -288,7 +288,7 @@ void ClientProxy<T, C>::execute_request(Request* request)
     my_replica.send(request, Node::All_replicas);
   }
 
-  my_replica.handle(request);
+  my_replica.process_message(request);
 }
 
 template <class T, class C>

@@ -159,3 +159,8 @@ void Byz_print_stats()
 {
   stats.print_stats();
 }
+
+bool Byz_execution_pending()
+{
+  return pbft::GlobalState::get_replica().IsExecutionPending();
+}
