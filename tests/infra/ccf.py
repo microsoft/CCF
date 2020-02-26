@@ -205,10 +205,12 @@ class Network:
 
         return primary
 
-    def _setup_common_folder(self, args):
+    def _set_common_folder(self, args):
         self.common_dir = os.path.join(
             args.workspace, f"{args.label}_{self.COMMON_FOLDER}"
         )
+
+    def _setup_common_folder(self):
         LOG.info(f"Creating common folder: {self.common_dir}")
         cmd = ["rm", "-rf", self.common_dir]
         infra.proc.ccall(*cmd)
@@ -230,8 +232,8 @@ class Network:
         :param args: command line arguments to configure the CCF nodes.
         :param open_network: If false, only the nodes are started.
         """
-
-        self._setup_common_folder(args)
+        self._set_common_folder(args)
+        self._setup_common_folder()
         self.consortium = infra.consortium.Consortium(
             [0, 1, 2], args.default_curve, self.key_generator, self.common_dir
         )
@@ -268,6 +270,7 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
+        self._set_common_folder(args)
         primary = self._start_all_nodes(
             args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets
         )

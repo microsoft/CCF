@@ -210,6 +210,9 @@ class Node:
         except infra.clients.CCFConnectionException as e:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
+    def get_ledger(self):
+        return self.remote.get_ledger()
+
     def get_sealed_secrets(self):
         with open(self.remote.get_sealed_secrets()) as s:
             return json.load(s)

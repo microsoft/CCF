@@ -554,6 +554,7 @@ class CCFRemote(object):
         self.ledger_file_name = (
             os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
+        self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_file] if self.ledger_file else []
@@ -711,12 +712,12 @@ class CCFRemote(object):
                 sealed_secrets_files.append(f)
 
         latest_sealed_secrets = sorted(sealed_secrets_files, reverse=True)[0]
-        self.remote.get(latest_sealed_secrets)
+        self.remote.get(latest_sealed_secrets, self.common_dir)
 
-        return latest_sealed_secrets
+        return os.path.join(self.common_dir, latest_sealed_secrets)
 
     def get_ledger(self):
-        self.remote.get(self.ledger_file_name)
+        self.remote.get(self.ledger_file_name, self.common_dir)
         return self.ledger_file_name
 
     def ledger_path(self):
