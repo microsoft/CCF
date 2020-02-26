@@ -186,8 +186,7 @@ namespace ccfapp
 
         if (validation_error.has_value())
         {
-          return make_error(
-            jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
+          return make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
         // SNIPPET_END: valijson_record_public
 
@@ -211,8 +210,7 @@ namespace ccfapp
 
         if (validation_error.has_value())
         {
-          return make_error(
-            jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
+          return make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
 
         auto view = tx.get_view(public_records);
