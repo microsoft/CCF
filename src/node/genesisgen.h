@@ -270,8 +270,7 @@ namespace ccf
 
     void add_key_share_info(const KeyShareInfo& key_share_info)
     {
-      auto [shares_view, values_view] =
-        tx.get_view(tables.shares, tables.values);
+      auto shares_view = tx.get_view(tables.shares);
       shares_view->put(0, key_share_info);
     }
   };

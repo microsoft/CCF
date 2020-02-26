@@ -41,6 +41,9 @@ def test(network, args, txs=None):
     LOG.info("Members verify that the new nodes have joined the network")
     recovered_network.wait_for_all_nodes_to_be_trusted()
 
+    if args.use_shares:
+        recovered_network.consortium.get_and_decrypt_shares(remote_node=primary)
+
     LOG.info("Members vote to complete the recovery")
     recovered_network.consortium.accept_recovery(
         member_id=1, remote_node=primary, sealed_secrets=sealed_secrets
@@ -96,7 +99,16 @@ checked. Note that the key for each logging message is unique (per table).
             type=int,
             default=5,
         )
+        parser.add_argument(
+            "--use-shares",
+            help="Use member key shares (experimental)",
+            action="store_true",
+        )
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
+
+    if args.use_shares:
+        LOG.warning("Using member key shares for recovery (experimental)")
+
     run(args)
