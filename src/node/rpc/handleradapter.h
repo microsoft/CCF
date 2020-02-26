@@ -83,25 +83,31 @@ namespace ccf
     }
   }
 
-  template <typename G>
-  static void call_with_json(RequestArgs& args, G&& g)
+  static std::pair<jsonrpc::Pack, nlohmann::json> get_json_params(
+    const std::shared_ptr<enclave::RpcContext>& ctx)
   {
-    const auto packing = detect_json_packing(args.rpc_ctx);
-    const auto params =
-      jsonrpc::unpack(args.rpc_ctx->get_request_body(), packing);
-    const auto res = g(std::move(params));
-    const auto error = std::get_if<ErrorDetails>(&res);
+    const auto packing = detect_json_packing(ctx);
+    return std::make_pair(
+      packing, jsonrpc::unpack(ctx->get_request_body(), packing));
+  }
+
+  static void set_response(
+    HandlerAdapterResponse&& res,
+    std::shared_ptr<enclave::RpcContext>& ctx,
+    jsonrpc::Pack packing)
+  {
+    auto error = std::get_if<ErrorDetails>(&res);
     if (error != nullptr)
     {
-      args.rpc_ctx->set_response_status(error->status);
-      args.rpc_ctx->set_response_body(error->msg);
+      ctx->set_response_status(error->status);
+      ctx->set_response_body(std::move(error->msg));
     }
     else
     {
       const auto body = std::get_if<nlohmann::json>(&res);
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      args.rpc_ctx->set_response_body(jsonrpc::pack(*body, packing));
-      args.rpc_ctx->set_response_header(
+      ctx->set_response_status(HTTP_STATUS_OK);
+      ctx->set_response_body(jsonrpc::pack(*body, packing));
+      ctx->set_response_header(
         http::headers::CONTENT_TYPE, pack_to_content_type(packing));
     }
   }
@@ -110,9 +116,9 @@ namespace ccf
 
   static HandleFunction handler_adapter(const HandlerTxOnly& f)
   {
-    return [&, f](RequestArgs& args) {
-      call_with_json(
-        args, [&, f, args](nlohmann::json&&) { return f(args.tx); });
+    return [&f](RequestArgs& args) {
+      const auto [packing, params] = get_json_params(args.rpc_ctx);
+      set_response(f(args.tx), args.rpc_ctx, packing);
     };
   }
 
@@ -121,10 +127,9 @@ namespace ccf
 
   static HandleFunction handler_adapter(const HandlerJsonParamsOnly& f)
   {
-    return [&, f](RequestArgs& args) {
-      call_with_json(args, [&, f, args](nlohmann::json&& j) {
-        return f(args.tx, std::move(j));
-      });
+    return [&f](RequestArgs& args) {
+      auto [packing, params] = get_json_params(args.rpc_ctx);
+      set_response(f(args.tx, std::move(params)), args.rpc_ctx, packing);
     };
   }
 
@@ -133,10 +138,10 @@ namespace ccf
 
   static HandleFunction handler_adapter(const HandlerJsonParamsAndCallerId& f)
   {
-    return [&, f](RequestArgs& args) {
-      call_with_json(args, [&, f, args](nlohmann::json&& j) {
-        return f(args.tx, args.caller_id, std::move(j));
-      });
+    return [&f](RequestArgs& args) {
+      auto [packing, params] = get_json_params(args.rpc_ctx);
+      set_response(
+        f(args.tx, args.caller_id, std::move(params)), args.rpc_ctx, packing);
     };
   }
 
@@ -145,10 +150,9 @@ namespace ccf
 
   static HandleFunction handler_adapter(const HandlerJsonParamsAndForward& f)
   {
-    return [&, f](RequestArgs& args) {
-      call_with_json(args, [&, f, args](nlohmann::json&& j) {
-        return f(args, std::move(j));
-      });
+    return [&f](RequestArgs& args) {
+      auto [packing, params] = get_json_params(args.rpc_ctx);
+      set_response(f(args, std::move(params)), args.rpc_ctx, packing);
     };
   }
 }

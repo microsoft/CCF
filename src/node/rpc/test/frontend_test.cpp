@@ -87,10 +87,10 @@ public:
         const auto it = params.find("error");
         if (it != params.end())
         {
-          const size_t error_code = (*it)["code"];
+          const http_status error_code = (*it)["code"];
           const std::string error_msg = (*it)["message"];
 
-          return make_error(error_code, error_msg);
+          return make_error((http_status)error_code, error_msg);
         }
 
         return make_success(true);
@@ -155,9 +155,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
-      record_ctx(args);
-    };
+    auto empty_function = [this](RequestArgs& args) { record_ctx(args); };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     install("empty_function", empty_function, HandlerRegistry::Write);
@@ -174,9 +172,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
-      record_ctx(args);
-    };
+    auto empty_function = [this](RequestArgs& args) { record_ctx(args); };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     handlers.install("empty_function", empty_function, HandlerRegistry::Write);
@@ -193,9 +189,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
-      record_ctx(args);
-    };
+    auto empty_function = [this](RequestArgs& args) { record_ctx(args); };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     handlers.install("empty_function", empty_function, HandlerRegistry::Write);
@@ -210,9 +204,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
-      record_ctx(args);
-    };
+    auto empty_function = [this](RequestArgs& args) { record_ctx(args); };
     // Note that this is a Write function that cannot be forwarded
     install(
       "empty_function",
@@ -565,10 +557,11 @@ TEST_CASE("MinimalHandleFunction")
   }
 
   {
-    for (const size_t err :
-         {(size_t)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          (size_t)jsonrpc::CCFErrorCodes::SCRIPT_ERROR,
-          (size_t)42u})
+    for (const auto err : {
+           HTTP_STATUS_INTERNAL_SERVER_ERROR,
+           HTTP_STATUS_BAD_REQUEST,
+           (http_status)418 // Teapot
+         })
     {
       const auto msg = fmt::format("An error message about {}", err);
       auto fail = create_simple_request("failable");

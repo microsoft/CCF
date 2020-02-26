@@ -76,7 +76,7 @@ namespace ccf
       if (conflicting_node_id.has_value())
       {
         return make_error(
-          jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          HTTP_STATUS_BAD_REQUEST,
           fmt::format(
             "A node with the same node host {} and port {} already exists "
             "(node id: {})",
@@ -150,7 +150,7 @@ namespace ccf
           !this->node.is_part_of_public_network())
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "Target node should be part of network to accept new nodes");
         }
 
@@ -161,7 +161,7 @@ namespace ccf
         if (!active_service.has_value())
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "No service is available to accept new node");
         }
 
@@ -223,8 +223,7 @@ namespace ccf
           else
           {
             return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-              "Joining node is not in expected state");
+              HTTP_STATUS_BAD_REQUEST, "Joining node is not in expected state");
           }
         }
         else
@@ -255,8 +254,7 @@ namespace ccf
         else
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Network is not in recovery mode");
+            HTTP_STATUS_BAD_REQUEST, "Network is not in recovery mode");
         }
 
         auto sig_view = tx.get_view(*signatures);

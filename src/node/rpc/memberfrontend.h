@@ -363,7 +363,8 @@ namespace ccf
         if (!check_member_status(
               tx, caller_id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {
-          return make_error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return make_error(
+            HTTP_STATUS_FORBIDDEN, "Member is not active or accepted");
         }
 
         const auto in = params.get<KVRead::In>();
@@ -378,7 +379,7 @@ namespace ccf
         if (value.empty())
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format(
               "Key {} does not exist in table {}", in.key.dump(), in.table));
         }
@@ -393,7 +394,8 @@ namespace ccf
           Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
           if (!check_member_accepted(tx, caller_id))
           {
-            return make_error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return make_error(
+            HTTP_STATUS_FORBIDDEN, "Member is not accepted");
           }
 
           const auto script = params.get<ccf::Script>();
@@ -408,7 +410,8 @@ namespace ccf
           Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
           if (!check_member_active(tx, caller_id))
           {
-            return make_error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return make_error(
+            HTTP_STATUS_FORBIDDEN, "Member is not active");
           }
 
           const auto in = params.get<Propose::In>();
@@ -428,9 +431,10 @@ namespace ccf
                         Store::Tx& tx,
                         CallerId caller_id,
                         const nlohmann::json& params) {
-        if (!check_member_status(tx, caller_id, {MemberStatus::ACTIVE}))
+        if (!check_member_active(tx, caller_id))
         {
-          return make_error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return make_error(
+            HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
         const auto proposal_action = params.get<ProposalAction>();
@@ -441,14 +445,14 @@ namespace ccf
         if (!proposal)
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format("Proposal {} does not exist", proposal_id));
         }
 
         if (proposal->proposer != caller_id)
         {
           return make_error(
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+            HTTP_STATUS_FORBIDDEN,
             fmt::format(
               "Proposal {} can only be withdrawn by proposer {}, not caller {}",
               proposal_id,
@@ -459,7 +463,7 @@ namespace ccf
         if (proposal->state != ProposalState::OPEN)
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can be "
               "withdrawn",
@@ -472,7 +476,6 @@ namespace ccf
         proposals->put(proposal_id, *proposal);
 
         return make_success(true);
-        ;
       };
       install_with_auto_schema<ProposalAction, bool>(
         MemberProcs::WITHDRAW, handler_adapter(withdraw), Write);
@@ -480,14 +483,13 @@ namespace ccf
       auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
-          return make_error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
         const auto signed_request = args.rpc_ctx->get_signed_request();
         if (!signed_request.has_value())
         {
-          return make_error(
-            jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Votes must be signed");
         }
 
         const auto vote = params.get<Vote>();
@@ -496,14 +498,14 @@ namespace ccf
         if (!proposal)
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format("Proposal {} does not exist", vote.id));
         }
 
         if (proposal->state != ProposalState::OPEN)
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can "
               "receive votes",
@@ -535,8 +537,7 @@ namespace ccf
         if (g.is_service_created())
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Service is already created");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Service is already created");
         }
 
         g.init_values();
@@ -557,8 +558,7 @@ namespace ccf
         if (self != 0)
         {
           return make_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Starting node ID is not 0");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Starting node ID is not 0");
         }
 
 #ifdef GET_QUOTE
@@ -590,7 +590,7 @@ namespace ccf
           Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
           if (!check_member_active(tx, caller_id))
           {
-            return make_error(jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
           }
 
           const auto proposal_action = params.get<ProposalAction>();
@@ -608,7 +608,7 @@ namespace ccf
         if (!last_ma)
         {
           return make_error(
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+            HTTP_STATUS_FORBIDDEN,
             fmt::format("No ACK record exists for caller {}", args.caller_id));
         }
 
@@ -617,9 +617,7 @@ namespace ccf
         const auto rs = params.get<RawSignature>();
         if (!verifier->verify(last_ma->next_nonce, rs.sig))
         {
-          return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Signature is not valid");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Signature is not valid");
         }
 
         MemberAck next_ma{rs.sig, rng->random(SIZE_NONCE)};
@@ -652,7 +650,7 @@ namespace ccf
           if (!ma)
           {
             return make_error(
-              jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+              HTTP_STATUS_FORBIDDEN,
               fmt::format("No ACK record exists for caller {}", caller_id));
           }
           ma->next_nonce = rng->random(SIZE_NONCE);

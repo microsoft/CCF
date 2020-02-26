@@ -308,7 +308,7 @@ namespace http
 
     virtual void set_response_status(int status) override
     {
-      response_status = status;
+      response_status = (http_status)status;
     }
 
     virtual std::vector<uint8_t> serialise_response() const override
