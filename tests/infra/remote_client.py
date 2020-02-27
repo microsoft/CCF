@@ -9,7 +9,6 @@ import infra.ccf
 from contextlib import contextmanager
 import infra.remote
 from glob import glob
-import sys
 
 from loguru import logger as LOG
 
@@ -79,7 +78,6 @@ class CCFRemoteClient(object):
         return self.remote._dbg()
 
     def stop(self):
-        sys.exit(1)  # Fail on purpose
         try:
             self.remote.stop()
             remote_files = self.remote.list_files()
