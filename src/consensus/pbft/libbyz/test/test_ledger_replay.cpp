@@ -88,8 +88,17 @@ NodeInfo get_node_info()
   PrincipalInfo pi = {0, (short)(3000), "ip", node_cert, "name-1", true};
   principal_info.emplace_back(pi);
 
-  GeneralInfo gi = {
-    2, 0, 0, "generic", 1800000, 5000, 100, 9999250000, 50, principal_info};
+  GeneralInfo gi = {false,
+                    2,
+                    0,
+                    0,
+                    "generic",
+                    1800000,
+                    5000,
+                    100,
+                    9999250000,
+                    50,
+                    principal_info};
 
   NodeInfo node_info = {gi.principal_info[0], kp->private_key_pem().str(), gi};
 

@@ -79,6 +79,8 @@ class Consortium:
         # There is no need to stop after n / 2 + 1 members have voted,
         # but this could prove to be useful in detecting errors
         # related to the voting mechanism
+        if len(self.members) == 1:
+            return True
         majority_count = int(len(self.members) / 2 + 1)
         for i, member in enumerate(self.members):
             if i >= majority_count:
@@ -209,7 +211,7 @@ class Consortium:
             tables, user_cert = ...
             return Calls:call("new_user", user_cert)
             """
-            result, error = self.propose(1, remote_node, script, user_cert)
+            result, error = self.propose(0, remote_node, script, user_cert)
             self.vote_using_majority(remote_node, result["id"])
 
     def set_lua_app(self, member_id, remote_node, app_script):
