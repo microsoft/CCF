@@ -54,24 +54,24 @@ public:
   ~Certificate();
   // Effects: Deletes certificate and all the messages it contains.
 
-  bool add(T* m);
-  // Effects: Adds "m" to the certificate and returns true provided
-  // "m" satisfies:
-  // 1. there is no message from "m.id()" in the certificate
-  // 2. "m->verify() == true"
-  // 3. if "cvalue() != 0", "cvalue()->match(m)";
+  bool add(T* msg);
+  // Effects: Adds "msg" to the certificate and returns true provided
+  // "msg" satisfies:
+  // 1. there is no message from "msg.id()" in the certificate
+  // 2. "msg->verify() == true"
+  // 3. if "cvalue() != 0", "cvalue()->match(msg)";
   // otherwise, it has no effect on this and returns false.  This
-  // becomes the owner of "m" (i.e., no other code should delete "m"
-  // or retain pointers to "m".)
+  // becomes the owner of "msg" (i.e., no other code should delete "msg"
+  // or retain pointers to "msg".)
 
   bool has_message_from_replica(int id) const;
 
-  bool add_mine(T* m);
-  // Requires: The identifier of the calling principal is "m->id()"
-  // and "mine()==0" and m is full.
-  // Effects: If "cvalue() != 0" and "!cvalue()->match(m)", it has no
-  // effect and returns false. Otherwise, adds "m" to the certificate
-  // and returns. This becomes the owner of "m"
+  bool add_mine(T* msg);
+  // Requires: The identifier of the calling principal is "msg->id()"
+  // and "mine()==0" and msg is full.
+  // Effects: If "cvalue() != 0" and "!cvalue()->match(msg)", it has no
+  // effect and returns false. Otherwise, adds "msg" to the certificate
+  // and returns. This becomes the owner of "msg"
 
   T* mine();
   T* mine(Time& t);
@@ -123,8 +123,8 @@ public:
     Val_iter(Certificate<T>* c);
     // Effects: Return an iterator for the values in "c"
 
-    bool get(T*& m, int& count);
-    // Effects: Updates "m" to point to the next value in the
+    bool get(T*& msg, int& count);
+    // Effects: Updates "msg" to point to the next value in the
     // certificate and count to contain the number of messages
     // matching this value and returns true. If there are no more
     // values, it returns false.
@@ -145,18 +145,18 @@ private:
   class Message_val
   {
   public:
-    T* m;
+    T* msg;
     int count;
 
     inline Message_val()
     {
-      m = 0;
+      msg = 0;
       count = 0;
     }
     inline void clear()
     {
-      delete m;
-      m = 0;
+      delete msg;
+      msg = 0;
       count = 0;
     }
     inline ~Message_val()
@@ -210,7 +210,7 @@ inline T* Certificate<T>::mine()
 template <class T>
 inline T* Certificate<T>::cvalue() const
 {
-  return (c) ? c->m : 0;
+  return (c) ? c->msg : 0;
 }
 
 template <class T>
@@ -281,11 +281,11 @@ inline Certificate<T>::Val_iter::Val_iter(Certificate<T>* c)
 }
 
 template <class T>
-inline bool Certificate<T>::Val_iter::get(T*& m, int& count)
+inline bool Certificate<T>::Val_iter::get(T*& msg, int& count)
 {
   if (next < cert->cur_size)
   {
-    m = cert->vals[next].m;
+    msg = cert->vals[next].msg;
     count = cert->vals[next].count;
     next++;
     return true;
@@ -350,15 +350,15 @@ void Certificate<T>::reset_f()
 }
 
 template <class T>
-bool Certificate<T>::add(T* m)
+bool Certificate<T>::add(T* msg)
 {
-  auto principal = pbft::GlobalState::get_node().get_principal(m->id());
+  auto principal = pbft::GlobalState::get_node().get_principal(msg->id());
   if (!principal)
   {
     LOG_INFO_FMT(
       "Principal with id {} has not been configured yet, rejecting the message",
-      m->id());
-    delete m;
+      msg->id());
+    delete msg;
     return false;
   }
 
@@ -367,7 +367,7 @@ bool Certificate<T>::add(T* m)
     reset_f();
   }
 
-  const int id = m->id();
+  const int id = msg->id();
 
   if (f == 0)
   {
@@ -375,20 +375,22 @@ bool Certificate<T>::add(T* m)
     Message_val& val = vals[0];
     val.count++;
     c = vals;
-    delete c->m;
-    c->m = m;
-    mym = m;
+    delete c->msg;
+    c->msg = msg;
+    mym = msg;
     c->count++;
     return true;
   }
 
   if (pbft::GlobalState::get_node().is_replica(id) && !bmap.test(id))
   {
-    // "m" was sent by a replica that does not have a message in
+    // "msg" was sent by a replica that does not have a message in
     // the certificate
-    if ((c == 0 || (c->count < complete && c->m->match(m))))
+    if (
+      c == 0 ||
+      (c->msg != nullptr && c->count < complete && c->msg->match(msg)))
     {
-      // add "m" to the certificate
+      // add "msg" to the certificate
       PBFT_ASSERT(
         id != pbft::GlobalState::get_node().id(),
         "verify should return false for messages from self");
@@ -397,49 +399,49 @@ bool Certificate<T>::add(T* m)
       if (c)
       {
         c->count++;
-        if (!c->m->full() && m->full())
+        if (!c->msg->full() && msg->full())
         {
-          // if c->m is not full and m is, replace c->m
-          delete c->m;
-          c->m = m;
+          // if c->msg is not full and msg is, replace c->msg
+          delete c->msg;
+          c->msg = msg;
         }
         else
         {
-          delete m;
+          delete msg;
         }
         return true;
       }
 
-      // Check if there is a value that matches "m"
+      // Check if there is a value that matches "msg"
       int i;
       for (i = 0; i < cur_size; i++)
       {
         Message_val& val = vals[i];
-        if (val.m->match(m))
+        if (val.msg->match(msg))
         {
           val.count++;
           if (val.count >= correct)
           {
             c = vals + i;
           }
-          if (!val.m->full() && m->full())
+          if (!val.msg->full() && msg->full())
           {
-            // if val.m is not full and m is, replace val.m
-            delete val.m;
-            val.m = m;
+            // if val.msg is not full and msg is, replace val.msg
+            delete val.msg;
+            val.msg = msg;
           }
           else
           {
-            delete m;
+            delete msg;
           }
           return true;
         }
       }
 
-      // "m" has a new value.
+      // "msg" has a new value.
       if (cur_size < max_size)
       {
-        vals[cur_size].m = m;
+        vals[cur_size].msg = msg;
         vals[cur_size++].count = 1;
         return true;
       }
@@ -456,40 +458,40 @@ bool Certificate<T>::add(T* m)
     }
   }
 
-  delete m;
+  delete msg;
   return false;
 }
 
 template <class T>
-bool Certificate<T>::add_mine(T* m)
+bool Certificate<T>::add_mine(T* msg)
 {
   PBFT_ASSERT(
-    m->id() == pbft::GlobalState::get_node().id(), "Invalid argument");
-  PBFT_ASSERT(m->full(), "Invalid argument");
+    msg->id() == pbft::GlobalState::get_node().id(), "Invalid argument");
+  PBFT_ASSERT(msg->full(), "Invalid argument");
 
   if (bmap.none() && f != pbft::GlobalState::get_node().f())
   {
     reset_f();
   }
 
-  if (c != 0 && !c->m->match(m))
+  if (c != 0 && !c->msg->match(msg))
   {
     PBFT_ASSERT(
       false, "Node is faulty, more than f faulty replicas or faulty primary ");
     LOG_FATAL
       << "Node is faulty, more than f faulty replicas or faulty primary "
-      << m->stag() << std::endl;
-    delete m;
+      << msg->stag() << std::endl;
+    delete msg;
     return false;
   }
 
   if (c == 0)
   {
-    // Set m to be the correct value.
+    // Set msg to be the correct value.
     int i;
     for (i = 0; i < cur_size; i++)
     {
-      if (vals[i].m->match(m))
+      if (vals[i].msg->match(msg))
       {
         c = vals + i;
         break;
@@ -503,16 +505,16 @@ bool Certificate<T>::add_mine(T* m)
     }
   }
 
-  if (c->m == 0)
+  if (c->msg == 0)
   {
     PBFT_ASSERT(cur_size == 0, "Invalid state");
     cur_size = 1;
   }
 
-  delete c->m;
-  c->m = m;
+  delete c->msg;
+  c->msg = msg;
   c->count++;
-  mym = m;
+  mym = msg;
   t_sent = ITimer::current_time();
   return true;
 }
@@ -526,11 +528,11 @@ void Certificate<T>::mark_stale()
     int old_cur_size = cur_size;
     if (mym)
     {
-      PBFT_ASSERT(mym == c->m, "Broken invariant");
-      c->m = 0;
+      PBFT_ASSERT(mym == c->msg, "Broken invariant");
+      c->msg = 0;
       c->count = 0;
       c = vals;
-      c->m = mym;
+      c->msg = mym;
       c->count = 1;
       i = 1;
     }
@@ -554,12 +556,12 @@ T* Certificate<T>::cvalue_clear()
     return 0;
   }
 
-  T* ret = c->m;
-  c->m = 0;
+  T* ret = c->msg;
+  c->msg = 0;
   for (int i = 0; i < cur_size; i++)
   {
-    if (vals[i].m == ret)
-      vals[i].m = 0;
+    if (vals[i].msg == ret)
+      vals[i].msg = 0;
   }
   clear();
 
