@@ -116,6 +116,7 @@ class SSHRemote(CmdMixin):
         cmd,
         workspace,
         label,
+        common_dir,
         env=None,
         json_log_path=None,
     ):
@@ -133,16 +134,15 @@ class SSHRemote(CmdMixin):
         stop()  disconnects, which shuts down the command via SIGHUP
         """
         self.hostname = hostname
-        # For SSHRemote, both executable files (host and enclave) and data
-        # files (ledger, secrets) are copied to the remote
-        self.files = exe_files
-        self.files += data_files
+        self.exe_files = exe_files
+        self.data_files = data_files
         self.cmd = cmd
         self.client = paramiko.SSHClient()
         # this client (proc_client) is used to execute commands on the remote host since the main client uses pty
         self.proc_client = paramiko.SSHClient()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.proc_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.common_dir = common_dir
         self.root = os.path.join(workspace, label + "_" + name)
         self.name = name
         self.env = env or {}
@@ -163,24 +163,32 @@ class SSHRemote(CmdMixin):
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
+        # For SSHRemote, both executable files (host and enclave) and data
+        # files (ledger, secrets) are copied to the remote
         session = self.client.open_sftp()
-        for path in self.files:
+        for path in self.exe_files:
+            src_path = path
             tgt_path = os.path.join(self.root, os.path.basename(path))
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
             session.put(path, tgt_path)
+        for path in self.data_files:
+            src_path = os.path.join(self.common_dir, path)
+            tgt_path = os.path.join(self.root, os.path.basename(src_path))
+            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, src_path))
+            session.put(src_path, tgt_path)
         session.close()
         executable = self.cmd[0]
         if executable.startswith("./"):
             executable = executable[2:]
         assert self._rc("chmod +x {}".format(os.path.join(self.root, executable))) == 0
 
-    def get(self, filename, timeout=60, targetname=None):
+    def get(self, file_name, dst_path, timeout=60, target_name=None):
         """
-        Get file called `filename` under the root of the remote. If the
+        Get file called `file_name` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
 
         If the file is present, it is copied to the CWD on the caller's
-        host, as `targetname` if it is set.
+        host, as `target_name` if it is set.
 
         This call spins up a separate client because we don't want to interrupt
         the main cmd that may be running.
@@ -188,18 +196,21 @@ class SSHRemote(CmdMixin):
         with sftp_session(self.hostname) as session:
             for seconds in range(timeout):
                 try:
-                    targetname = targetname or filename
-                    session.get(os.path.join(self.root, filename), targetname)
+                    target_name = target_name or file_name
+                    session.get(
+                        os.path.join(self.root, file_name),
+                        os.path.join(dst_path, target_name),
+                    )
                     LOG.debug(
                         "[{}] found {} after {}s".format(
-                            self.hostname, filename, seconds
+                            self.hostname, file_name, seconds
                         )
                     )
                     break
-                except Exception:
+                except FileNotFoundError:
                     time.sleep(1)
             else:
-                raise ValueError(filename)
+                raise ValueError(file_name)
 
     def list_files(self, timeout=60):
         files = []
@@ -220,14 +231,17 @@ class SSHRemote(CmdMixin):
         with sftp_session(self.hostname) as session:
             for filepath in (self.err, self.out):
                 try:
-                    local_filepath = "{}_{}_{}".format(
-                        self.hostname, os.path.basename(filepath), self.name
+                    local_file_name = "{}_{}_{}".format(
+                        self.hostname, self.name, os.path.basename(filepath),
                     )
-                    session.get(filepath, local_filepath)
-                    LOG.info("Downloaded {}".format(local_filepath))
-                except Exception:
+                    dst_path = os.path.join(self.common_dir, local_file_name)
+                    session.get(filepath, dst_path)
+                    LOG.info("Downloaded {}".format(dst_path))
+                except FileNotFoundError:
                     LOG.warning(
-                        "Failed to download {} from {}".format(filepath, self.hostname)
+                        "Failed to download {} to {} (host: {})".format(
+                            filepath, dst_path, self.hostname
+                        )
                     )
 
     def start(self):
@@ -263,8 +277,8 @@ class SSHRemote(CmdMixin):
         LOG.info("[{}] closing".format(self.hostname))
         self.get_logs()
         errors = log_errors(
-            "{}_out_{}".format(self.hostname, self.name),
-            "{}_err_{}".format(self.hostname, self.name),
+            os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
+            os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
         )
         self.client.close()
         self.proc_client.close()
@@ -350,6 +364,7 @@ class LocalRemote(CmdMixin):
         cmd,
         workspace,
         label,
+        common_dir,
         env=None,
         json_log_path=None,
     ):
@@ -361,6 +376,7 @@ class LocalRemote(CmdMixin):
         self.data_files = data_files
         self.cmd = cmd
         self.root = os.path.join(workspace, label + "_" + name)
+        self.common_dir = common_dir
         self.proc = None
         self.stdout = None
         self.stderr = None
@@ -377,24 +393,26 @@ class LocalRemote(CmdMixin):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.exe_files:
-            dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
+            dst_path = os.path.normpath(os.path.join(self.root, path))
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = self.root
-            src_path = os.path.join(os.getcwd(), path)
+            src_path = os.path.join(self.common_dir, path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
-    def get(self, filename, timeout=60, targetname=None):
-        path = os.path.join(self.root, filename)
+    def get(self, file_name, dst_path, timeout=60, target_name=None):
+        path = os.path.join(self.root, file_name)
         for _ in range(timeout):
             if os.path.exists(path):
                 break
             time.sleep(1)
         else:
             raise ValueError(path)
-        targetname = targetname or filename
-        assert self._rc("cp {} {}".format(path, targetname)) == 0
+        target_name = target_name or file_name
+        assert (
+            self._rc("cp {} {}".format(path, os.path.join(dst_path, target_name))) == 0
+        )
 
     def list_files(self):
         return os.listdir(self.root)
@@ -506,6 +524,7 @@ class CCFRemote(object):
         enclave_type,
         workspace,
         label,
+        common_dir,
         target_rpc_address=None,
         members_info=None,
         join_timer=None,
@@ -540,6 +559,7 @@ class CCFRemote(object):
         self.ledger_file_name = (
             os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
+        self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_file] if self.ledger_file else []
@@ -642,6 +662,7 @@ class CCFRemote(object):
             cmd,
             workspace,
             label,
+            common_dir,
             env,
             json_log_path,
         )
@@ -658,10 +679,10 @@ class CCFRemote(object):
     def resume(self):
         self.remote.resume()
 
-    def get_startup_files(self):
-        self.remote.get(self.pem)
+    def get_startup_files(self, dst_path):
+        self.remote.get(self.pem, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
-            self.remote.get("networkcert.pem")
+            self.remote.get("networkcert.pem", dst_path)
 
     def debug_node_cmd(self):
         return self.remote._dbg()
@@ -674,7 +695,7 @@ class CCFRemote(object):
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
         if self.profraw:
             try:
-                self.remote.get(self.profraw)
+                self.remote.get(self.profraw, self.common_dir)
             except Exception:
                 LOG.info(f"Could not retrieve {self.profraw}")
         return errors
@@ -696,12 +717,12 @@ class CCFRemote(object):
                 sealed_secrets_files.append(f)
 
         latest_sealed_secrets = sorted(sealed_secrets_files, reverse=True)[0]
-        self.remote.get(latest_sealed_secrets)
+        self.remote.get(latest_sealed_secrets, self.common_dir)
 
-        return latest_sealed_secrets
+        return os.path.join(self.common_dir, latest_sealed_secrets)
 
     def get_ledger(self):
-        self.remote.get(self.ledger_file_name)
+        self.remote.get(self.ledger_file_name, self.common_dir)
         return self.ledger_file_name
 
     def ledger_path(self):

@@ -24,6 +24,8 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
 
+COMMON_FOLDER = "common"
+
 
 class ServiceStatus(Enum):
     OPENING = 1
@@ -45,6 +47,10 @@ class ParticipantsCurve(IntEnum):
 
 class PrimaryNotFound(Exception):
     pass
+
+
+def get_common_folder_name(workspace, label):
+    return os.path.join(workspace, f"{label}_{COMMON_FOLDER}")
 
 
 class Network:
@@ -136,6 +142,7 @@ class Network:
             lib_name=lib_name,
             workspace=args.workspace,
             label=args.label,
+            common_dir=self.common_dir,
             target_rpc_address=f"{target_node.host}:{target_node.rpc_port}",
             **forwarded_args,
         )
@@ -177,6 +184,7 @@ class Network:
                             lib_name=args.package,
                             workspace=args.workspace,
                             label=args.label,
+                            common_dir=self.common_dir,
                             members_info=self.consortium.get_members_info(),
                             **forwarded_args,
                         )
@@ -187,6 +195,7 @@ class Network:
                             sealed_secrets=sealed_secrets,
                             workspace=args.workspace,
                             label=args.label,
+                            common_dir=self.common_dir,
                             **forwarded_args,
                         )
                 else:
@@ -201,18 +210,34 @@ class Network:
 
         return primary
 
+    def _setup_common_folder(self):
+        LOG.info(f"Creating common folder: {self.common_dir}")
+        cmd = ["rm", "-rf", self.common_dir]
+        infra.proc.ccall(*cmd)
+        cmd = ["mkdir", "-p", self.common_dir]
+        infra.proc.ccall(*cmd)
+        # It is more convenient to create a symlink in the common directory than generate
+        # certs and keys in the top directory and move them across
+        cmd = [
+            "ln",
+            "-s",
+            os.path.join(os.getcwd(), self.KEY_GEN),
+            os.path.join(self.common_dir, self.KEY_GEN),
+        ]
+        infra.proc.ccall(*cmd)
+
     def start_and_join(self, args):
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
         :param open_network: If false, only the nodes are started.
         """
-        cmd = ["rm", "-f"] + glob("member*.pem")
-        infra.proc.ccall(*cmd)
+        self.common_dir = get_common_folder_name(args.workspace, args.label)
+        self._setup_common_folder()
 
         initial_members = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
-            initial_members, args.default_curve, self.key_generator
+            initial_members, args.default_curve, self.key_generator, self.common_dir
         )
         self.initial_users = list(range(max(0, args.initial_user_count)))
         self.create_users(self.initial_users, args.default_curve)
@@ -247,6 +272,7 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(self, args, ledger_file, sealed_secrets):
+        self.common_dir = get_common_folder_name(args.workspace, args.label)
         primary = self._start_all_nodes(
             args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets
         )
@@ -325,6 +351,7 @@ class Network:
                 self.key_generator,
                 f"--name={u}",
                 f"--curve={curve.name}",
+                path=self.common_dir,
                 log_output=False,
             ).check_returncode()
 

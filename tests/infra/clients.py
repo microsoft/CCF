@@ -280,8 +280,6 @@ class RequestClient:
         rep = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
-            cert=(self.cert, self.key),
-            verify=self.ca,
             timeout=self.request_timeout,
             auth=auth_value,
         )
