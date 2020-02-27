@@ -40,6 +40,32 @@ In this case, a new proposal with id ``1`` has successfully been created and the
 
     // Proposal 1 is already created by member 1 (votes: 1/3)
 
+    $ cat vote_reject.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/vote",
+        "params": {
+            "ballot": {
+                "text": "return false"
+            },
+            "id": 0
+        }
+    }
+
+    $ cat vote_accept.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/vote",
+        "params": {
+            "ballot": {
+                "text": "return true"
+            },
+            "id": 0
+        }
+    }
+
     // Member 2 rejects the proposal (votes: 1/3)
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json
     {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":false,"term":2}

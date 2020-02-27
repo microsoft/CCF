@@ -107,7 +107,7 @@ Once the proposal to recover the network has passed under the rules of the :term
             Node 3-->>Users: Response
         end
 
-Once the recovery of the private ledger on all the nodes that have joined the new network is complete, the ledger is fully recovered and users are able to continue issuing business transactions.
+Once the recovery of the private ledger is complete on a consensus quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.
 
 Rekeying Ledger
 ---------------
