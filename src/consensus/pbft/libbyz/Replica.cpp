@@ -1896,6 +1896,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
   next_pp_seqno = max - 1;
 
+  pbft::GlobalState::get_replica().set_next_expected_sig_offset();
+
   // Call mark_stable to ensure there is space for the pre-prepares
   // and prepares that are inserted in the log below.
   mark_stable(last_executed, last_executed >= ms);
@@ -2046,7 +2048,6 @@ void Replica::rollback_to_globally_comitted()
       "Roll back done, last tentative execute and last executed are {} {}",
       last_tentative_execute,
       last_executed);
-    pbft::GlobalState::get_replica().set_next_expected_sig_offset();
   }
 }
 
