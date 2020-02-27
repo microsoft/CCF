@@ -34,30 +34,28 @@ class Request:
         self.readonly_hint = readonly_hint
 
 
+def int_header(r, h):
+    v = r.headers.get(h)
+    if v is None:
+        return v
+    return int(v)
+
+
 class Response:
-    def __init__(
-        self,
-        id,
-        result=None,
-        error=None,
-        commit=None,
-        term=None,
-        global_commit=None,
-        jsonrpc="2.0",
-    ):
-        self.id = id
-        self.result = result
-        self.error = error
-        self.jsonrpc = jsonrpc
-        self.commit = commit
-        self.term = term
-        self.global_commit = global_commit
-        self._attrs = set(locals()) - {"self"}
+    def __init__(self, requests_response):
+        self.status = requests_response.status_code
+        if requests_response.ok:
+            self.result = requests_response.json()
+            self.error = None
+        else:
+            self.result = None
+            self.error = requests_response.text
+        self.commit = int_header(requests_response, "x-ccf-commit")
+        self.term = int_header(requests_response, "x-ccf-term")
+        self.global_commit = int_header(requests_response, "x-ccf-global-commit")
 
     def to_dict(self):
         d = {
-            "id": self.id,
-            "jsonrpc": self.jsonrpc,
             "commit": self.commit,
             "global_commit": self.global_commit,
             "term": self.term,
@@ -67,17 +65,6 @@ class Response:
         else:
             d["error"] = self.error
         return d
-
-    def _from_parsed(self, parsed):
-        unexpected = parsed.keys() - self._attrs
-        if unexpected:
-            raise ValueError(f"Unexpected keys in response: {unexpected}")
-        for attr, value in parsed.items():
-            setattr(self, attr, value)
-
-    def from_json(self, data):
-        parsed = json.loads(data.decode())
-        self._from_parsed(parsed)
 
 
 def human_readable_size(n):
@@ -103,11 +90,10 @@ class RPCLogger:
             )
         )
 
-    def log_response(self, id, response):
+    def log_response(self, response):
         LOG.debug(
             truncate(
-                "#{} {}".format(
-                    id,
+                "{}".format(
                     {
                         k: v
                         for k, v in (response.__dict__ or {}).items()
@@ -130,9 +116,9 @@ class RPCFileLogger(RPCLogger):
             json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
-    def log_response(self, id, response):
+    def log_response(self, response):
         with open(self.path, "a") as f:
-            f.write(f"<< Response {id} :" + os.linesep)
+            f.write(f"<< Response:" + os.linesep)
             json.dump(response.to_dict() if response else "None", f, indent=2)
             f.write(os.linesep)
 
@@ -277,7 +263,7 @@ class RequestClient:
                 headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
             )
 
-        rep = self.session.post(
+        response = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
             cert=(self.cert, self.key),
@@ -285,17 +271,17 @@ class RequestClient:
             timeout=self.request_timeout,
             auth=auth_value,
         )
-        return rep.content
+        return response
 
     def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
         while True:
             try:
-                rid = self._just_request(request, is_signed=is_signed)
+                response = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
                 # call _just_request directly
                 self._request = self._just_request
-                return rid
+                return response
             except requests.exceptions.SSLError as e:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
@@ -359,11 +345,10 @@ class CCFClient:
         else:
             self.client_impl = RequestClient(*args, **kwargs)
 
-    def _response(self, msg):
-        r = Response(0)
-        r.from_json(msg)
+    def _response(self, response):
+        r = Response(response)
         for logger in self.rpc_loggers:
-            logger.log_response(r.id, r)
+            logger.log_response(r)
         return r
 
     def request(self, method, params, *args, **kwargs):
