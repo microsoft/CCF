@@ -234,7 +234,7 @@ class Network:
         """
         self.common_dir = get_common_folder_name(args.workspace, args.label)
         self._setup_common_folder()
-    
+
         initial_members = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
             initial_members, args.default_curve, self.key_generator, self.common_dir
