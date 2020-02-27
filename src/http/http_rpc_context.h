@@ -213,44 +213,6 @@ namespace http
       return request_body;
     }
 
-    virtual nlohmann::json get_params() const override
-    {
-      nlohmann::json params;
-
-      if (verb == HTTP_POST)
-      {
-        if (request_body.empty())
-        {
-          params = nullptr;
-        }
-        else
-        {
-          const auto contents =
-            jsonrpc::unpack(request_body, get_content_type());
-
-          // Currently contents must either be a naked json payload, or a
-          // JSON-RPC object. We don't check the latter object for validity, we
-          // just extract its params field
-          const auto params_it = contents.find(jsonrpc::PARAMS);
-          if (params_it != contents.end())
-          {
-            params = *params_it;
-          }
-          else
-          {
-            params = contents;
-          }
-        }
-      }
-      else
-      {
-        throw std::logic_error(
-          "The only HTTP verb currently supported is POST");
-      }
-
-      return params;
-    }
-
     virtual const std::vector<uint8_t>& get_serialised_request() override
     {
       canonicalise();

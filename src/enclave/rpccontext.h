@@ -87,7 +87,6 @@ namespace enclave
     }
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
-    virtual nlohmann::json get_params() const = 0;
 
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
