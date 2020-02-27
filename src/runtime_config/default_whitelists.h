@@ -26,14 +26,7 @@ namespace ccf
       Tables::SERVICE}},
 
     {MEMBER_CAN_PROPOSE,
-     {Tables::MEMBERS,
-      Tables::MEMBER_CERTS,
-      Tables::USERS,
-      Tables::USER_CERTS,
-      Tables::VALUES,
-      Tables::WHITELISTS,
-      Tables::GOV_SCRIPTS,
-      Tables::APP_SCRIPTS}},
+     {Tables::WHITELISTS, Tables::GOV_SCRIPTS, Tables::APP_SCRIPTS}},
 
     {USER_APP_CAN_READ_ONLY,
      {Tables::MEMBERS,

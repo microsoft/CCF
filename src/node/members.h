@@ -76,11 +76,11 @@ namespace ccf
   struct MemberAck : public RawSignature
   {
     //! the next nonce the member is supposed to sign
-    std::vector<uint8_t> next_nonce;
+    crypto::Sha256Hash next_state_digest;
 
-    MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), next_nonce);
+    MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), next_state_digest);
   };
   DECLARE_JSON_TYPE_WITH_BASE(MemberAck, RawSignature)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberAck, next_nonce)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberAck, next_state_digest)
   using MemberAcks = Store::Map<MemberId, MemberAck>;
 }
