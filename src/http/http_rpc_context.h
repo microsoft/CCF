@@ -49,8 +49,6 @@ namespace http
     std::vector<uint8_t> serialised_request = {};
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
-    mutable std::optional<jsonrpc::Pack> body_packing = std::nullopt;
-
     http::HeaderMap response_headers;
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;
@@ -138,48 +136,6 @@ namespace http
       }
 
       canonicalised = true;
-    }
-
-    jsonrpc::Pack get_content_type() const
-    {
-      if (!body_packing.has_value())
-      {
-        const auto content_type_it =
-          request_headers.find(http::headers::CONTENT_TYPE);
-        if (content_type_it != request_headers.end())
-        {
-          const auto& content_type = content_type_it->second;
-          if (content_type == http::headervalues::contenttype::JSON)
-          {
-            body_packing = jsonrpc::Pack::Text;
-          }
-          else if (content_type == http::headervalues::contenttype::MSGPACK)
-          {
-            body_packing = jsonrpc::Pack::MsgPack;
-          }
-          else
-          {
-            throw std::logic_error(fmt::format(
-              "Unsupported content type {}. Only {} and {} are currently "
-              "supported",
-              content_type,
-              http::headervalues::contenttype::JSON,
-              http::headervalues::contenttype::MSGPACK));
-          }
-        }
-        else
-        {
-          body_packing = jsonrpc::detect_pack(request_body);
-        }
-
-        // If we can't auto-detect a format, fallback to assuming text
-        if (!body_packing.has_value())
-        {
-          body_packing = jsonrpc::Pack::Text;
-        }
-      }
-
-      return body_packing.value();
     }
 
   public:
