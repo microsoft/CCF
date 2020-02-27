@@ -275,8 +275,8 @@ class SSHRemote(CmdMixin):
         LOG.info("[{}] closing".format(self.hostname))
         self.get_logs()
         errors = log_errors(
-            os.path.join(self.common_dir, "{}_out_{}".format(self.hostname, self.name)),
-            os.path.join(self.common_dir, "{}_err_{}".format(self.hostname, self.name)),
+            os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
+            os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
         )
         self.client.close()
         self.proc_client.close()
