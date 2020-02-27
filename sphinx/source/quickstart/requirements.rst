@@ -97,7 +97,7 @@ To quickly set up the dependencies necessary to build CCF, simply run:
 
 Once this is complete, you can proceed to :ref:`quickstart/build:Building CCF`.
 
-On a machine without SGX, you can instead use:
+On a machine without SGX, you can instead run:
 
 .. code-block:: bash
 
