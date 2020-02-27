@@ -81,7 +81,7 @@ public:
   void dump_state(std::ostream& os);
   // Effects: logs state for debugging
 
-  static const int Max_unmatched_requests_per_client = 1024;
+  static const int Max_unmatched_requests_per_client = 1024 * 100;
   // Effect: The maximum number of requests we will store per client.
   // This functions as a LRU cache.
 
