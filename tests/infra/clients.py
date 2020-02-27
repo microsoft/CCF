@@ -162,8 +162,8 @@ class CurlClient:
     ):
         self.host = host
         self.port = port
-        self.key = key
         self.cert = cert
+        self.key = key
         self.ca = ca
         self.binary_dir = binary_dir
         self.connection_timeout = connection_timeout
@@ -257,15 +257,14 @@ class RequestClient:
     ):
         self.host = host
         self.port = port
-        self.key = key
         self.cert = cert
+        self.key = key
         self.ca = ca
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
         self.session = requests.Session()
         self.session.verify = self.ca
-        if None not in (self.key, self.cert):
-            self.session.cert = (self.cert, self.key)
+        self.session.cert = (self.cert, self.key)
 
     def _just_request(self, request, is_signed=False):
         auth_value = None
@@ -329,8 +328,8 @@ class WSClient:
     ):
         self.host = host
         self.port = port
-        self.key - key
         self.cert = cert
+        self.key = key
         self.ca = ca
         self.request_timeout = request_timeout
 
