@@ -37,6 +37,6 @@ Governance
 
 A CCF network is governed by a consortium of :term:`members`. The :term:`constitution`, recorded in the ledger itself, defines a set of rules that members must follow.
 
-Members can submit proposals to modify the state of the Key-Value Store. For example, members can decide to allow a new trusted user to issue requests to the application or to add a new member to the consortium.
+Members can submit proposals to modify the state of the Key-Value Store. For example, members can vote to allow a new trusted user to issue requests to the application or to add a new member to the consortium.
 
 Proposals are executed only when the conditions defined in the constitution are met (e.g. a majority of members have voted favourably for that proposal).
