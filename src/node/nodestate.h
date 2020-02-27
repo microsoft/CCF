@@ -388,10 +388,10 @@ namespace ccf
 
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
-          jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
+          JoinNetworkNodeToNode::Out resp;
           try
           {
-            resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
+            resp = j.get<JoinNetworkNodeToNode::Out>();
           }
           catch (const std::exception& e)
           {
@@ -402,20 +402,19 @@ namespace ccf
           }
 
           // Set network secrets, node id and become part of network.
-          if (resp->node_status == NodeStatus::TRUSTED)
+          if (resp.node_status == NodeStatus::TRUSTED)
           {
             network.identity =
-              std::make_unique<NetworkIdentity>(resp->network_info.identity);
+              std::make_unique<NetworkIdentity>(resp.network_info.identity);
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
-              std::move(resp->network_info.ledger_secrets), seal);
-            network.encryption_priv_key =
-              resp->network_info.encryption_priv_key;
+              std::move(resp.network_info.ledger_secrets), seal);
+            network.encryption_priv_key = resp.network_info.encryption_priv_key;
 
-            self = resp->node_id;
+            self = resp.node_id;
 #ifdef PBFT
             setup_pbft(args.config);
 #else
-            setup_raft(resp->public_only);
+            setup_raft(resp.public_only);
 #endif
             setup_history();
             setup_encryptor();
@@ -424,7 +423,7 @@ namespace ccf
 
             accept_network_tls_connections(args.config);
 
-            if (resp->public_only)
+            if (resp.public_only)
             {
               sm.advance(State::partOfPublicNetwork);
             }
@@ -439,13 +438,13 @@ namespace ccf
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (resp->public_only ? "public only" : "all domains"));
+              (resp.public_only ? "public only" : "all domains"));
           }
-          else if (resp->node_status == NodeStatus::PENDING)
+          else if (resp.node_status == NodeStatus::PENDING)
           {
             LOG_INFO_FMT(
               "Node {} is waiting for votes of members to be trusted",
-              resp->node_id);
+              resp.node_id);
           }
 
           return true;
