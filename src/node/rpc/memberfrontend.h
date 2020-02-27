@@ -340,7 +340,7 @@ namespace ccf
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
 
-    tls::EntropyPtr rng;
+    tls::EntropyPtr rng; // TODO: Remove this
     static constexpr auto SIZE_NONCE = 16;
 
   public:
