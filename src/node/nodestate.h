@@ -376,13 +376,12 @@ namespace ccf
           if (status != HTTP_STATUS_OK)
           {
             LOG_FAIL_FMT(
-              "An error occurred while joining the network: {} {}",
+              "An error occurred while joining the network: {} {}{}",
               status,
-              http_status_str(status));
-            if (!data.empty())
-            {
-              LOG_FAIL_FMT("  {}", std::string(data.begin(), data.end()));
-            }
+              http_status_str(status),
+              data.empty() ?
+                "" :
+                fmt::format("  '{}'", std::string(data.begin(), data.end())));
             return false;
           }
 

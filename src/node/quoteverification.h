@@ -99,16 +99,17 @@ namespace ccf
       {
         case FAIL_VERIFY_OE:
           return std::make_pair(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Quote could not be verified");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
         case FAIL_VERIFY_CODE_ID_RETIRED:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Quote does not contain valid enclave measurement");
+            "CODE_ID_RETIRED: Quote does not contain valid enclave "
+            "measurement");
         case FAIL_VERIFY_CODE_ID_NOT_FOUND:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Quote does not contain known enclave measurement");
+            "CODE_ID_NOT_FOUND: Quote does not contain known enclave "
+            "measurement");
         case FAIL_VERIFY_INVALID_HASH:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,

@@ -105,7 +105,7 @@ def test_update_lua(network, args):
             ]:
                 check(
                     c.rpc(endpoint, params={}),
-                    error=lambda statis, msg: status == http.HTTPStatus.NOT_FOUND.value,
+                    error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value,
                 )
     else:
         LOG.warning("Skipping Lua app update as application is not Lua")

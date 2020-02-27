@@ -379,9 +379,8 @@ class Network:
                             break
                         else:
                             assert (
-                                res.error["code"]
-                                == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
-                            ), "RPC error code is not TX_NOT_PRIMARY"
+                                res.status == http.HTTPStatus.TEMPORARY_REDIRECT
+                            ), f"Unexpected response status: {res.status}"
                     except TimeoutError:
                         pass
             if primary_id is not None:
