@@ -52,26 +52,25 @@ class Consortium:
         return true
         """
         with remote_node.member_client(member_id=member_id) as mc:
-            res = mc.rpc(
+            response = mc.rpc(
                 "vote",
                 {"ballot": {"text": script}, "id": proposal_id},
                 signed=not force_unsigned,
             )
-            j_result = res.to_dict()
 
-        if "error" in j_result:
-            return (False, j_result["error"])
+        if response.error is not None:
+            return (False, response)
 
         # If the proposal was accepted, wait for it to be globally committed
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
-        if j_result["result"] and should_wait_for_global_commit:
+        if response.result and should_wait_for_global_commit:
             with remote_node.node_client() as mc:
                 infra.checker.wait_for_global_commit(
-                    mc, j_result["commit"], j_result["term"], True
+                    mc, response.commit, response.term, True
                 )
 
-        return (True, j_result["result"])
+        return (True, response)
 
     def vote_using_majority(
         self, remote_node, proposal_id, should_wait_for_global_commit=True

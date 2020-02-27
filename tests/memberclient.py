@@ -82,38 +82,38 @@ def run(args):
         LOG.debug(
             "Further vote requests fail as the proposal has already been accepted"
         )
-        params_error = infra.jsonrpc.ErrorCode.INVALID_PARAMS.value
+        params_error = http.HTTPStatus.BAD_REQUEST.value
         assert (
-            network.consortium.vote(0, primary, proposal_id, True)[1]["code"]
+            network.consortium.vote(0, primary, proposal_id, True)[1].status
             == params_error
         )
         assert (
-            network.consortium.vote(0, primary, proposal_id, False)[1]["code"]
+            network.consortium.vote(0, primary, proposal_id, False)[1].status
             == params_error
         )
         assert (
-            network.consortium.vote(1, primary, proposal_id, True)[1]["code"]
+            network.consortium.vote(1, primary, proposal_id, True)[1].status
             == params_error
         )
         assert (
-            network.consortium.vote(1, primary, proposal_id, False)[1]["code"]
+            network.consortium.vote(1, primary, proposal_id, False)[1].status
             == params_error
         )
         assert (
-            network.consortium.vote(2, primary, proposal_id, True)[1]["code"]
+            network.consortium.vote(2, primary, proposal_id, True)[1].status
             == params_error
         )
         assert (
-            network.consortium.vote(2, primary, proposal_id, False)[1]["code"]
+            network.consortium.vote(2, primary, proposal_id, False)[1].status
             == params_error
         )
 
         LOG.debug("Accepted proposal cannot be withdrawn")
         result = network.consortium.withdraw(0, primary, proposal_id)
-        assert result.error["code"] == params_error
+        assert result.status == params_error
 
         result = network.consortium.withdraw(1, primary, proposal_id)
-        assert result.error["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
+        assert result.status == http.HTTPStatus.FORBIDDEN.value
 
         LOG.info("New non-active member should get insufficient rights response")
         script = """
@@ -121,7 +121,7 @@ def run(args):
         return Calls:call("trust_node", node_id)
         """
         result, error = network.consortium.propose(3, primary, script, 0)
-        assert error["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
+        assert error.status == http.HTTPStatus.FORBIDDEN.value
 
         return
 
@@ -148,7 +148,7 @@ def run(args):
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
         result = network.consortium.withdraw(1, primary, proposal_id)
-        assert result.error["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value
+        assert result.status == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("Proposer withdraws their proposal")
         result = network.consortium.withdraw(3, primary, proposal_id)
@@ -161,7 +161,7 @@ def run(args):
 
         LOG.debug("Further withdraw proposals fail")
         result = network.consortium.withdraw(3, primary, proposal_id)
-        assert result.error["code"] == params_error
+        assert result.status == params_error
 
         LOG.debug("Further votes fail")
         result = network.consortium.vote(3, primary, proposal_id, True)

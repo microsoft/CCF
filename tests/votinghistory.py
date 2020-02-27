@@ -7,6 +7,7 @@ import infra.remote
 import json
 import ledger
 import coincurve
+import http
 from coincurve._libsecp256k1 import ffi, lib
 from coincurve.context import GLOBAL_CONTEXT
 from enum import IntEnum
@@ -147,17 +148,14 @@ def run(args):
         # that member can send its own proposals
         LOG.debug("2/3 members accept the proposal")
         result = network.consortium.vote(1, primary, proposal_id, True)
-        assert result[0] and not result[1]
+        assert result[0] and not result[1].result
 
         LOG.debug("Failed vote as unsigned")
         result = network.consortium.vote(2, primary, proposal_id, True, True)
-        assert (
-            not result[0]
-            and result[1]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
-        )
+        assert not result[0] and result[1].status == http.HTTPStatus.BAD_REQUEST.value
 
         result = network.consortium.vote(2, primary, proposal_id, True)
-        assert result[0] and result[1]
+        assert result[0] and result[1].result
 
         ledger_filename = network.find_primary()[0].remote.ledger_path()
 
