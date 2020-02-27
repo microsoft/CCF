@@ -61,9 +61,8 @@ def run(args):
                         if tx.get("expected_error") is not None:
                             check(
                                 r,
-                                error=lambda e: e is not None
-                                and e["code"]
-                                == infra.jsonrpc.ErrorCode(tx.get("expected_error")),
+                                error=lambda status, msg: status
+                                == http.HTTPStatus(tx.get("expected_error")).value,
                             )
 
                         elif tx.get("expected_result") is not None:

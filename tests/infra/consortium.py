@@ -5,6 +5,7 @@ import array
 import os
 import json
 import time
+import http
 from enum import Enum
 import infra.ccf
 import infra.proc
@@ -36,7 +37,7 @@ class Consortium:
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(member_id=member_id) as mc:
             r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
-            return r.result, r.error
+            return r
 
     def vote(
         self,
@@ -91,7 +92,7 @@ class Consortium:
                 should_wait_for_global_commit,
             )
             assert res[0]
-            if res[1]:
+            if res[1].result:
                 break
 
         assert res
@@ -127,10 +128,11 @@ class Consortium:
 
     def retire_node(self, remote_node, node_to_retire):
         member_id = 1
-        result, error = self.propose_retire_node(
+        response = self.propose_retire_node(
             member_id, remote_node, node_to_retire.node_id
         )
-        self.vote_using_majority(remote_node, result["id"])
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["id"])
 
         with remote_node.member_client() as c:
             r = c.request("read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
@@ -149,8 +151,9 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        result, error = self.propose_trust_node(member_id, remote_node, node_id)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose_trust_node(member_id, remote_node, node_id)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["id"])
 
         if not self._check_node_exists(
             remote_node, node_id, infra.node.NodeStatus.TRUSTED
@@ -183,8 +186,9 @@ class Consortium:
         tables = ...
         return Calls:call("open_network")
         """
-        result, error = self.propose(member_id, remote_node, script)
-        self.vote_using_majority(remote_node, result["id"], not pbft_open)
+        response = self.propose(member_id, remote_node, script)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["id"], not pbft_open)
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, member_id, remote_node):
@@ -192,11 +196,12 @@ class Consortium:
         tables = ...
         return Calls:call("rekey_ledger")
         """
-        result, error = self.propose(member_id, remote_node, script)
+        response = self.propose(member_id, remote_node, script)
+        assert response.status == http.HTTPStatus.OK.value
         # Wait for global commit since sealed secrets are disclosed only
         # when the rekey transaction is globally committed.
         self.vote_using_majority(
-            remote_node, result["id"], should_wait_for_global_commit=True
+            remote_node, response.result["id"], should_wait_for_global_commit=True
         )
 
     def add_users(self, remote_node, users):
@@ -208,8 +213,9 @@ class Consortium:
             tables, user_cert = ...
             return Calls:call("new_user", user_cert)
             """
-            result, error = self.propose(1, remote_node, script, user_cert)
-            self.vote_using_majority(remote_node, result["id"])
+            response = self.propose(1, remote_node, script, user_cert)
+            assert response.status == http.HTTPStatus.OK.value
+            self.vote_using_majority(remote_node, response.result["id"])
 
     def set_lua_app(self, member_id, remote_node, app_script):
         script = """
@@ -218,8 +224,9 @@ class Consortium:
         """
         with open(app_script) as app:
             new_lua_app = app.read()
-        result, error = self.propose(member_id, remote_node, script, new_lua_app)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose(member_id, remote_node, script, new_lua_app)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["id"])
 
     def set_js_app(self, member_id, remote_node, app_script):
         script = """
@@ -228,16 +235,17 @@ class Consortium:
         """
         with open(app_script) as app:
             new_js_app = app.read()
-        result, error = self.propose(member_id, remote_node, script, new_js_app)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose(member_id, remote_node, script, new_js_app)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["id"])
 
     def accept_recovery(self, member_id, remote_node, sealed_secrets):
         script = """
         tables, sealed_secrets = ...
         return Calls:call("accept_recovery", sealed_secrets)
         """
-        result, error = self.propose(member_id, remote_node, script, sealed_secrets)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose(member_id, remote_node, script, sealed_secrets)
+        self.vote_using_majority(remote_node, response.result["id"])
 
     def add_new_code(self, member_id, remote_node, new_code_id):
         script = """
@@ -245,8 +253,9 @@ class Consortium:
         return Calls:call("new_code", code_digest)
         """
         code_digest = list(bytearray.fromhex(new_code_id))
-        result, error = self.propose(member_id, remote_node, script, code_digest)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose(member_id, remote_node, script, code_digest)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["id"])
 
     def check_for_service(self, remote_node, status, pbft_open=False):
         """

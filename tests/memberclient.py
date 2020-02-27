@@ -13,8 +13,8 @@ import multiprocessing
 from random import seed
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
 import json
+import http
 
 from loguru import logger as LOG
 
@@ -33,10 +33,11 @@ def run(args):
         tables = ...
         return Calls:call("open_network")
         """
-        result, _ = network.consortium.propose(0, primary, script)
+        response = network.consortium.propose(0, primary, script)
+        assert response.status == http.HTTPStatus.OK.value
         assert not network.consortium.vote_using_majority(
-            primary, result["id"]
-        ), "Network should not be opened twice"
+            primary, response.result["id"]
+        ).result, "Network should not be opened twice"
 
         # Create a lua query file to change a member state to accepted
         query = """local tables, param = ...
@@ -56,13 +57,14 @@ def run(args):
             f"--curve={infra.ccf.ParticipantsCurve(args.default_curve).next().name}",
         )
 
-        result, _ = network.consortium.propose_add_member(
+        response = network.consortium.propose_add_member(
             0, primary, "member3_cert.pem", "member3_kshare_pub.pem"
         )
+        assert response.status == http.HTTPStatus.OK.value
 
         # When proposal is added the proposal id and the result of running complete proposal are returned
-        proposal_id = result["id"]
-        assert not result["completed"]
+        proposal_id = response.result["id"]
+        assert not response.result["completed"]
 
         # Display all proposals
         proposals = network.consortium.get_proposals(0, primary)
@@ -74,10 +76,10 @@ def run(args):
 
         LOG.debug("2/3 members vote to accept the new member")
         result = network.consortium.vote(0, primary, proposal_id, True)
-        assert result[0] and not result[1]
+        assert result[0] and not result[1].result
 
         result = network.consortium.vote(1, primary, proposal_id, True)
-        assert result[0] and result[1]
+        assert result[0] and result[1].result
 
         LOG.debug(
             "Further vote requests fail as the proposal has already been accepted"
@@ -120,8 +122,8 @@ def run(args):
         tables, node_id = ...
         return Calls:call("trust_node", node_id)
         """
-        result, error = network.consortium.propose(3, primary, script, 0)
-        assert error.status == http.HTTPStatus.FORBIDDEN.value
+        response = network.consortium.propose(3, primary, script, 0)
+        assert response.status == http.HTTPStatus.FORBIDDEN.value
 
         return
 
@@ -129,9 +131,10 @@ def run(args):
         result = network.consortium.ack(3, primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        result, _ = network.consortium.propose(3, primary, script, 0)
-        assert not result["completed"]
-        proposal_id = result["id"]
+        response = network.consortium.propose(3, primary, script, 0)
+        assert response.status == http.HTTPStatus.OK.value
+        assert not response.result["completed"]
+        proposal_id = response.result["id"]
 
         LOG.debug("Members vote to accept the accept node proposal")
         result = network.consortium.vote(0, primary, proposal_id, True)
@@ -142,9 +145,10 @@ def run(args):
         assert result[0] and result[1]
 
         LOG.info("New member makes a new proposal")
-        result, _ = network.consortium.propose(3, primary, script, 1)
-        proposal_id = result["id"]
-        assert not result["completed"]
+        response = network.consortium.propose(3, primary, script, 1)
+        assert response.status == http.HTTPStatus.OK.value
+        proposal_id = response.result["id"]
+        assert not response.result["completed"]
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
         result = network.consortium.withdraw(1, primary, proposal_id)
@@ -173,9 +177,10 @@ def run(args):
         assert result[1]["code"] == params_error
 
         LOG.debug("New member proposes to deactivate member 0")
-        result, _ = network.consortium.propose(3, primary, query, 0)
-        assert not result["completed"]
-        proposal_id = result["id"]
+        response = network.consortium.propose(3, primary, query, 0)
+        assert response.status == http.HTTPStatus.OK.value
+        assert not response.result["completed"]
+        proposal_id = response.result["id"]
 
         LOG.debug("Other members accept the proposal")
         result = network.consortium.vote(2, primary, proposal_id, True)
@@ -185,12 +190,12 @@ def run(args):
         assert result[0] and result[1]
 
         LOG.debug("Deactivated member cannot make a new proposal")
-        result, error = network.consortium.propose(0, primary, script, 0)
-        assert error["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
+        response = network.consortium.propose(0, primary, script, 0)
+        assert response.status == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("New member should still be able to make a new proposal")
-        result, _ = network.consortium.propose(3, primary, script, 0)
-        assert not result["completed"]
+        response = network.consortium.propose(3, primary, script, 0)
+        assert not response.result["completed"]
 
 
 if __name__ == "__main__":

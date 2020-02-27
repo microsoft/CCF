@@ -42,7 +42,9 @@ class Checker:
     def __call__(self, rpc_result, result=None, error=None, timeout=2):
         if error is not None:
             if callable(error):
-                assert error(rpc_result.error), rpc_result.error
+                assert error(
+                    rpc_result.status, rpc_result.error
+                ), f"{rpc_result.status}: {rpc_result.error}"
             else:
                 assert rpc_result.error == error, "Expected {}, got {}".format(
                     error, rpc_result.error
