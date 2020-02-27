@@ -22,10 +22,10 @@ PBFT Consensus Protocol
 
 There is an option of enabling CCF with PBFT as a consensus protocol providing Byzantine Fault Tolerance.
 
-For more information on the PBFT protocol plase see the original `PBFT paper <http://pmg.csail.mit.edu/papers/osdi99.pdf>`_.
+For more information on the PBFT protocol please see the original `PBFT paper <http://pmg.csail.mit.edu/papers/osdi99.pdf>`_.
 
-As mentioned above PBFT is still under development and should not be enabled in a production environment. Features to be completed and bugs are tracked under the `Complete ePBFT support in CCF <https://github.com/microsoft/CCF/milestone/4>`_ milestone.
+PBFT is still under development and should not be enabled in a production environment. Features to be completed and bugs are tracked under the `Complete ePBFT support in CCF <https://github.com/microsoft/CCF/milestone/4>`_ milestone.
 
-There is also the open research question of node identity with Byzantine nodes. The ledger and network keys are currently held in each node. As a result a single byzantine node may allow extraction of node and network secrets.
+There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
 By default CCF runs with Raft. To enable PBFT CCF must be built with the the build switch **PBFT** set to ON. The ``--consensus pbft`` CLI argument must also be provided when starting up the nodes (see :ref:`here <operators/start_network:Starting a New Network>` for starting up a newtork and nodes).
