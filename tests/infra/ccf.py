@@ -12,9 +12,9 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-import infra.jsonrpc
 import ssl
 import random
+import http
 from math import ceil
 
 from loguru import logger as LOG
@@ -378,9 +378,7 @@ class Network:
                             term = res.term
                             break
                         else:
-                            assert (
-                                res.status == http.HTTPStatus.TEMPORARY_REDIRECT
-                            ), f"Unexpected response status: {res.status}"
+                            assert "Primary unknown" in res.error, res.error
                     except TimeoutError:
                         pass
             if primary_id is not None:
