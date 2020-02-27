@@ -7,9 +7,11 @@ from subprocess import run
 from loguru import logger as LOG
 
 
-def ccall(*args, log_output=True):
-    LOG.info(" ".join(args))
-    result = run(args, capture_output=True)
+def ccall(*args, path=None, log_output=True):
+    suffix = f" [cwd: {path}]" if path else ""
+    cmd = " ".join(args)
+    LOG.info(f"{cmd}{suffix}")
+    result = run(args, capture_output=True, cwd=path)
     if result.stdout and log_output:
         LOG.debug("stdout: {}".format(result.stdout.decode().strip()))
     if result.stderr and log_output:

@@ -9,6 +9,7 @@ import infra.path
 import infra.clients
 import time
 import json
+import os
 
 from loguru import logger as LOG
 
@@ -62,13 +63,23 @@ class Node:
         else:
             self.node_port = probably_free_function(self.host)
 
-    def start(self, lib_name, enclave_type, workspace, label, members_info, **kwargs):
+    def start(
+        self,
+        lib_name,
+        enclave_type,
+        workspace,
+        label,
+        common_dir,
+        members_info,
+        **kwargs,
+    ):
         self._start(
             infra.remote.StartType.new,
             lib_name,
             enclave_type,
             workspace,
             label,
+            common_dir,
             None,
             members_info,
             **kwargs,
@@ -76,7 +87,14 @@ class Node:
         self.network_state = NodeNetworkState.joined
 
     def join(
-        self, lib_name, enclave_type, workspace, label, target_rpc_address, **kwargs,
+        self,
+        lib_name,
+        enclave_type,
+        workspace,
+        label,
+        common_dir,
+        target_rpc_address,
+        **kwargs,
     ):
         self._start(
             infra.remote.StartType.join,
@@ -84,17 +102,19 @@ class Node:
             enclave_type,
             workspace,
             label,
+            common_dir,
             target_rpc_address,
             **kwargs,
         )
 
-    def recover(self, lib_name, enclave_type, workspace, label, **kwargs):
+    def recover(self, lib_name, enclave_type, workspace, label, common_dir, **kwargs):
         self._start(
             infra.remote.StartType.recover,
             lib_name,
             enclave_type,
             workspace,
             label,
+            common_dir,
             **kwargs,
         )
         self.network_state = NodeNetworkState.joined
@@ -106,6 +126,7 @@ class Node:
         enclave_type,
         workspace,
         label,
+        common_dir,
         target_rpc_address=None,
         members_info=None,
         **kwargs,
@@ -122,6 +143,7 @@ class Node:
         :return: void
         """
         lib_path = infra.path.build_lib_path(lib_name, enclave_type)
+        self.common_dir = common_dir
         self.remote = infra.remote.CCFRemote(
             start_type,
             lib_path,
@@ -134,6 +156,7 @@ class Node:
             enclave_type,
             workspace,
             label,
+            common_dir,
             target_rpc_address,
             members_info,
             binary_dir=self.binary_dir,
@@ -157,7 +180,7 @@ class Node:
             if self.perf:
                 self.remote.set_perf()
             self.remote.start()
-        self.remote.get_startup_files()
+        self.remote.get_startup_files(self.common_dir)
         LOG.info("Remote {} started".format(self.node_id))
 
     def stop(self):
@@ -188,6 +211,9 @@ class Node:
         except infra.clients.CCFConnectionException as e:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
+    def get_ledger(self):
+        return self.remote.get_ledger()
+
     def get_sealed_secrets(self):
         with open(self.remote.get_sealed_secrets()) as s:
             return json.load(s)
@@ -196,9 +222,9 @@ class Node:
         return infra.clients.client(
             self.host,
             self.rpc_port,
-            cert="user{}_cert.pem".format(user_id),
-            key="user{}_privk.pem".format(user_id),
-            ca="networkcert.pem",
+            cert=os.path.join(self.common_dir, "user{}_cert.pem".format(user_id)),
+            key=os.path.join(self.common_dir, "user{}_privk.pem".format(user_id)),
+            ca=os.path.join(self.common_dir, "networkcert.pem"),
             description="node {} (user)".format(self.node_id),
             prefix="users",
             binary_dir=self.binary_dir,
@@ -211,7 +237,7 @@ class Node:
             self.rpc_port,
             cert=None,
             key=None,
-            ca="networkcert.pem",
+            ca=os.path.join(self.common_dir, "networkcert.pem"),
             description="node {} (node)".format(self.node_id),
             prefix="nodes",
             binary_dir=self.binary_dir,
@@ -222,9 +248,9 @@ class Node:
         return infra.clients.client(
             self.host,
             self.rpc_port,
-            cert="member{}_cert.pem".format(member_id),
-            key="member{}_privk.pem".format(member_id),
-            ca="networkcert.pem",
+            cert=os.path.join(self.common_dir, "member{}_cert.pem".format(member_id)),
+            key=os.path.join(self.common_dir, "member{}_privk.pem".format(member_id)),
+            ca=os.path.join(self.common_dir, "networkcert.pem"),
             description="node {} (member)".format(self.node_id),
             prefix="members",
             binary_dir=self.binary_dir,
