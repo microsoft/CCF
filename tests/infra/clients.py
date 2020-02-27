@@ -155,7 +155,6 @@ class CurlClient:
         key,
         ca,
         binary_dir,
-        common_dir,
         connection_timeout,
         request_timeout,
         *args,
@@ -163,9 +162,9 @@ class CurlClient:
     ):
         self.host = host
         self.port = port
-        self.key = os.path.join(common_dir, key) if key else None
-        self.cert = os.path.join(common_dir, cert) if cert else None
-        self.ca = os.path.join(common_dir, ca) if ca else None
+        self.key = key
+        self.cert = cert
+        self.ca = ca
         self.binary_dir = binary_dir
         self.connection_timeout = connection_timeout
         self.request_timeout = request_timeout
@@ -251,7 +250,6 @@ class RequestClient:
         cert,
         key,
         ca,
-        common_dir,
         connection_timeout,
         request_timeout,
         *args,
@@ -259,9 +257,9 @@ class RequestClient:
     ):
         self.host = host
         self.port = port
-        self.key = os.path.join(common_dir, key) if key else None
-        self.cert = os.path.join(common_dir, cert) if cert else None
-        self.ca = os.path.join(common_dir, ca) if ca else None
+        self.key = key
+        self.cert = cert
+        self.ca = ca
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
         self.session = requests.Session()
@@ -331,11 +329,10 @@ class WSClient:
     ):
         self.host = host
         self.port = port
+        self.key - key
+        self.cert = cert
         self.ca = ca
         self.request_timeout = request_timeout
-        if None not in (key, cert):
-            self.key = os.path.join(self.common_dir, key)
-            self.cert = os.path.join(self.common_dir, cert)
 
     def request(self, request):
         ws = create_connection(
@@ -424,7 +421,6 @@ def client(
     log_file=None,
     prefix="users",
     binary_dir=".",
-    common_dir=".",
     connection_timeout=3,
     request_timeout=3,
 ):
@@ -437,7 +433,6 @@ def client(
         description=description,
         prefix=prefix,
         binary_dir=binary_dir,
-        common_dir=common_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,
     )

@@ -9,6 +9,7 @@ import infra.path
 import infra.clients
 import time
 import json
+import os
 
 from loguru import logger as LOG
 
@@ -221,13 +222,12 @@ class Node:
         return infra.clients.client(
             self.host,
             self.rpc_port,
-            cert="user{}_cert.pem".format(user_id),
-            key="user{}_privk.pem".format(user_id),
-            ca="networkcert.pem",
+            cert=os.path.join(self.common_dir, "user{}_cert.pem".format(user_id)),
+            key=os.path.join(self.common_dir, "user{}_privk.pem".format(user_id)),
+            ca=os.path.join(self.common_dir, "networkcert.pem"),
             description="node {} (user)".format(self.node_id),
             prefix="users",
             binary_dir=self.binary_dir,
-            common_dir=self.common_dir,
             **kwargs,
         )
 
@@ -237,11 +237,10 @@ class Node:
             self.rpc_port,
             cert=None,
             key=None,
-            ca="networkcert.pem",
+            ca=os.path.join(self.common_dir, "networkcert.pem"),
             description="node {} (node)".format(self.node_id),
             prefix="nodes",
             binary_dir=self.binary_dir,
-            common_dir=self.common_dir,
             **kwargs,
         )
 
@@ -249,13 +248,12 @@ class Node:
         return infra.clients.client(
             self.host,
             self.rpc_port,
-            cert="member{}_cert.pem".format(member_id),
-            key="member{}_privk.pem".format(member_id),
-            ca="networkcert.pem",
+            cert=os.path.join(self.common_dir, "member{}_cert.pem".format(member_id)),
+            key=os.path.join(self.common_dir, "member{}_privk.pem".format(member_id)),
+            ca=os.path.join(self.common_dir, "networkcert.pem"),
             description="node {} (member)".format(self.node_id),
             prefix="members",
             binary_dir=self.binary_dir,
-            common_dir=self.common_dir,
             **kwargs,
         )
 

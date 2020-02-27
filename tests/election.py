@@ -39,7 +39,8 @@ def wait_for_index_globally_committed(index, term, nodes):
 def run(args):
     # Three nodes minimum to make sure that the raft network can still make progress
     # if one node stops
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
+    # hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
+    hosts = ["10.0.0.4"]
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -48,66 +49,66 @@ def run(args):
         network.start_and_join(args)
         current_term = None
 
-        # Time before an election completes
-        max_election_duration = args.election_timeout * 4 // 1000
+        # # Time before an election completes
+        # max_election_duration = args.election_timeout * 4 // 1000
 
-        # Number of nodes F to stop until network cannot make progress
-        nodes_to_stop = math.ceil(len(hosts) / 2)
-        if args.consensus == "pbft":
-            nodes_to_stop = math.ceil(len(hosts) / 3)
+        # # Number of nodes F to stop until network cannot make progress
+        # nodes_to_stop = math.ceil(len(hosts) / 2)
+        # if args.consensus == "pbft":
+        #     nodes_to_stop = math.ceil(len(hosts) / 3)
 
-        for _ in range(nodes_to_stop):
-            # Note that for the first iteration, the primary is known in advance anyway
-            LOG.debug("Find freshly elected primary")
-            # After a view change in pbft, finding the new primary takes longer
-            primary, current_term = network.find_primary(
-                request_timeout=(30 if args.consensus == "pbft" else 3)
-            )
+        # for _ in range(nodes_to_stop):
+        #     # Note that for the first iteration, the primary is known in advance anyway
+        #     LOG.debug("Find freshly elected primary")
+        #     # After a view change in pbft, finding the new primary takes longer
+        #     primary, current_term = network.find_primary(
+        #         request_timeout=(30 if args.consensus == "pbft" else 3)
+        #     )
 
-            LOG.debug(
-                "Commit new transactions, primary:{}, current_term:{}".format(
-                    primary.node_id, current_term
-                )
-            )
-            commit_index = None
-            with primary.user_client() as c:
-                res = c.do(
-                    "LOG_record",
-                    {
-                        "id": current_term,
-                        "msg": "This log is committed in term {}".format(current_term),
-                    },
-                    readonly_hint=None,
-                    expected_result=True,
-                )
-                commit_index = res.commit
+        #     LOG.debug(
+        #         "Commit new transactions, primary:{}, current_term:{}".format(
+        #             primary.node_id, current_term
+        #         )
+        #     )
+        #     commit_index = None
+        #     with primary.user_client() as c:
+        #         res = c.do(
+        #             "LOG_record",
+        #             {
+        #                 "id": current_term,
+        #                 "msg": "This log is committed in term {}".format(current_term),
+        #             },
+        #             readonly_hint=None,
+        #             expected_result=True,
+        #         )
+        #         commit_index = res.commit
 
-            LOG.debug("Waiting for transaction to be committed by all nodes")
-            wait_for_index_globally_committed(
-                commit_index, current_term, network.get_joined_nodes()
-            )
+        #     LOG.debug("Waiting for transaction to be committed by all nodes")
+        #     wait_for_index_globally_committed(
+        #         commit_index, current_term, network.get_joined_nodes()
+        #     )
 
-            LOG.debug("Stopping primary")
-            primary.stop()
+        #     LOG.debug("Stopping primary")
+        #     primary.stop()
 
-            LOG.debug("Waiting for a new primary to be elected...")
-            time.sleep(max_election_duration)
+        #     LOG.debug("Waiting for a new primary to be elected...")
+        #     time.sleep(max_election_duration)
 
-        # More than F nodes have been stopped, trying to commit any message
-        LOG.debug(
-            "No progress can be made as more than {} nodes have stopped".format(
-                nodes_to_stop
-            )
-        )
-        try:
-            primary, _ = network.find_primary()
-            assert False, "Primary should not be found"
-        except infra.ccf.PrimaryNotFound:
-            pass
+        # # More than F nodes have been stopped, trying to commit any message
+        # LOG.debug(
+        #     "No progress can be made as more than {} nodes have stopped".format(
+        #         nodes_to_stop
+        #     )
+        # )
+        # try:
+        #     primary, _ = network.find_primary()
+        #     assert False, "Primary should not be found"
+        # except infra.ccf.PrimaryNotFound:
+        #     pass
 
-        LOG.info(
-            "As expected, primary could not be found after election timeout. Test ended successfully."
-        )
+        # LOG.info(
+        #     "As expected, primary could not be found after election timeout. Test ended successfully."
+        # )
 
 
 if __name__ == "__main__":

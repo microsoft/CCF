@@ -163,6 +163,8 @@ class SSHRemote(CmdMixin):
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
+        # For SSHRemote, both executable files (host and enclave) and data
+        # files (ledger, secrets) are copied to the remote
         session = self.client.open_sftp()
         for path in self.exe_files:
             src_path = path
@@ -230,7 +232,7 @@ class SSHRemote(CmdMixin):
             for filepath in (self.err, self.out):
                 try:
                     local_file_name = "{}_{}_{}".format(
-                        self.hostname, os.path.basename(filepath), self.name
+                        self.hostname, self.name, os.path.basename(filepath),
                     )
                     dst_path = os.path.join(self.common_dir, local_file_name)
                     session.get(filepath, dst_path)
