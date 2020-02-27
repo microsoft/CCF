@@ -363,10 +363,26 @@ namespace ccf
       join_client->connect(
         args.config.joining.target_host,
         args.config.joining.target_port,
-        [this, args](const std::vector<uint8_t>& data) {
+        [this, args](
+          http_status status,
+          http::HeaderMap&& headers,
+          std::vector<uint8_t>&& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
           {
+            return false;
+          }
+
+          if (status != HTTP_STATUS_OK)
+          {
+            LOG_FAIL_FMT(
+              "An error occurred while joining the network: {} {}",
+              status,
+              http_status_str(status));
+            if (!data.empty())
+            {
+              LOG_FAIL_FMT("  {}", std::string(data.begin(), data.end()));
+            }
             return false;
           }
 
@@ -380,7 +396,8 @@ namespace ccf
           catch (const std::exception& e)
           {
             LOG_FAIL_FMT(
-              "An error occurred while joining the network {}", j.dump());
+              "An error occurred while parsing the join network response: {}",
+              j.dump());
             return false;
           }
 
@@ -1188,16 +1205,26 @@ namespace ccf
         return false;
       }
 
-      const auto body =
-        jsonrpc::unpack(processor.received.front().body, jsonrpc::Pack::Text);
-      const auto result_it = body.find(jsonrpc::RESULT);
-      if (result_it == body.end())
+      const auto& r = processor.received.front();
+
+      if (r.status != HTTP_STATUS_OK)
       {
-        LOG_FAIL_FMT("Create response is error: {}", body.dump());
+        LOG_FAIL_FMT(
+          "Create response is error: {} {}",
+          r.status,
+          http_status_str(r.status));
         return false;
       }
 
-      return *result_it;
+      const auto body = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+      if (!body.is_boolean())
+      {
+        LOG_FAIL_FMT(
+          "Expected boolean body in create response: {}", body.dump());
+        return false;
+      }
+
+      return body;
     }
 
     bool send_create_request(const std::vector<uint8_t>& packed)

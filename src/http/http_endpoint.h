@@ -306,10 +306,10 @@ namespace http
 
     void handle_response(
       http_status status,
-      HeaderMap&& headers,
+      http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
-      handle_data_cb(std::move(body));
+      handle_data_cb(status, std::move(headers), std::move(body));
 
       LOG_TRACE_FMT("Closing connection, message handled");
       close();
