@@ -57,13 +57,6 @@ namespace ccf
     return ErrorDetails{status, msg};
   }
 
-  // TODO: Implement
-  static jsonrpc::Pack detect_json_packing(
-    const std::shared_ptr<enclave::RpcContext>& ctx)
-  {
-    return jsonrpc::Pack::Text;
-  }
-
   static constexpr char const* pack_to_content_type(jsonrpc::Pack p)
   {
     switch (p)

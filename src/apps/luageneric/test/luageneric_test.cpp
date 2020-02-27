@@ -207,9 +207,12 @@ TEST_CASE("simple lua apps")
     // call "missing"
     const auto packed = make_pc("missing", {});
     auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
-    const auto response = check_error(
+    auto response = check_error(
       frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
-    const auto error_msg = parse_response_body<std::string>(response);
+    CHECK(
+      response.headers[http::headers::CONTENT_TYPE] ==
+      http::headervalues::contenttype::TEXT);
+    const std::string error_msg(response.body.begin(), response.body.end());
     CHECK(error_msg.find("THIS_KEY_DOESNT_EXIST") != string::npos);
   }
 
@@ -548,25 +551,17 @@ TEST_CASE("pre-populated environment")
     constexpr auto invalid_params = R"xxx(
       return env.succ(
         {
-          env.error_codes.PARSE_ERROR,
-          env.error_codes.INVALID_REQUEST,
-          env.error_codes.METHOD_NOT_FOUND,
-          env.error_codes.INVALID_PARAMS,
-          env.error_codes.INTERNAL_ERROR,
-          env.error_codes.METHOD_NOT_FOUND,
-
-          env.error_codes.TX_NOT_PRIMARY,
-          env.error_codes.TX_FAILED_TO_REPLICATE,
-          env.error_codes.SCRIPT_ERROR,
-          env.error_codes.INSUFFICIENT_RIGHTS,
-          env.error_codes.TX_PRIMARY_UNKNOWN,
-          env.error_codes.RPC_NOT_SIGNED,
-          env.error_codes.INVALID_CLIENT_SIGNATURE,
-          env.error_codes.INVALID_CALLER_ID,
-          env.error_codes.CODE_ID_NOT_FOUND,
-          env.error_codes.CODE_ID_RETIRED,
-          env.error_codes.RPC_NOT_FORWARDED,
-          env.error_codes.QUOTE_NOT_VERIFIED
+          env.error_codes.CONTINUE,
+          env.error_codes.OK,
+          env.error_codes.NO_CONTENT,
+          env.error_codes.MOVED_PERMANENTLY,
+          env.error_codes.TEMPORARY_REDIRECT,
+          env.error_codes.BAD_REQUEST,
+          env.error_codes.UNAUTHORIZED,
+          env.error_codes.FORBIDDEN,
+          env.error_codes.NOT_FOUND,
+          env.error_codes.INTERNAL_SERVER_ERROR,
+          env.error_codes.NOT_IMPLEMENTED,
         }
       )
     )xxx";
@@ -578,26 +573,18 @@ TEST_CASE("pre-populated environment")
       const auto r = parse_response_body<std::vector<http_status>>(
         parse_response(frontend->process(rpc_ctx).value()));
 
-      // std::vector<http_status> expected;
-      // expected.push_back(EBT(StdEC::PARSE_ERROR));
-      // expected.push_back(EBT(StdEC::INVALID_REQUEST));
-      // expected.push_back(EBT(StdEC::METHOD_NOT_FOUND));
-      // expected.push_back(EBT(StdEC::INVALID_PARAMS));
-      // expected.push_back(EBT(StdEC::INTERNAL_ERROR));
-      // expected.push_back(EBT(StdEC::METHOD_NOT_FOUND));
-
-      // expected.push_back(EBT(CCFEC::TX_NOT_PRIMARY));
-      // expected.push_back(EBT(CCFEC::TX_FAILED_TO_REPLICATE));
-      // expected.push_back(EBT(CCFEC::SCRIPT_ERROR));
-      // expected.push_back(EBT(CCFEC::INSUFFICIENT_RIGHTS));
-      // expected.push_back(EBT(CCFEC::TX_PRIMARY_UNKNOWN));
-      // expected.push_back(EBT(CCFEC::RPC_NOT_SIGNED));
-      // expected.push_back(EBT(CCFEC::INVALID_CLIENT_SIGNATURE));
-      // expected.push_back(EBT(CCFEC::INVALID_CALLER_ID));
-      // expected.push_back(EBT(CCFEC::CODE_ID_NOT_FOUND));
-      // expected.push_back(EBT(CCFEC::CODE_ID_RETIRED));
-      // expected.push_back(EBT(CCFEC::RPC_NOT_FORWARDED));
-      // expected.push_back(EBT(CCFEC::QUOTE_NOT_VERIFIED));
+      std::vector<http_status> expected;
+      expected.push_back(HTTP_STATUS_CONTINUE);
+      expected.push_back(HTTP_STATUS_OK);
+      expected.push_back(HTTP_STATUS_NO_CONTENT);
+      expected.push_back(HTTP_STATUS_MOVED_PERMANENTLY);
+      expected.push_back(HTTP_STATUS_TEMPORARY_REDIRECT);
+      expected.push_back(HTTP_STATUS_BAD_REQUEST);
+      expected.push_back(HTTP_STATUS_UNAUTHORIZED);
+      expected.push_back(HTTP_STATUS_FORBIDDEN);
+      expected.push_back(HTTP_STATUS_NOT_FOUND);
+      expected.push_back(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+      expected.push_back(HTTP_STATUS_NOT_IMPLEMENTED);
 
       CHECK(r == expected);
     }

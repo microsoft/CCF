@@ -61,41 +61,6 @@ namespace ccfapp
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
   };
 
-  // SNIPPET_START: errors
-  enum class LoggerErrors : jsonrpc::ErrorBaseType
-  {
-    UNKNOWN_ID =
-      (jsonrpc::ErrorBaseType)jsonrpc::CCFErrorCodes::APP_ERROR_START - 1,
-    MESSAGE_EMPTY = UNKNOWN_ID - 1,
-  };
-
-  std::string get_error_prefix(LoggerErrors ec)
-  {
-    std::stringstream ss;
-    ss << "[";
-    switch (ec)
-    {
-      case (LoggerErrors::UNKNOWN_ID):
-      {
-        ss << "UNKNOWN_ID";
-        break;
-      }
-      case (LoggerErrors::MESSAGE_EMPTY):
-      {
-        ss << "MESSAGE_EMPTY";
-        break;
-      }
-      default:
-      {
-        ss << "UNKNOWN LOGGER ERROR";
-        break;
-      }
-    }
-    ss << "]: ";
-    return ss.str();
-  }
-  // SNIPPET_END: errors
-
   // SNIPPET: table_definition
   using Table = Store::Map<size_t, string>;
 
@@ -155,7 +120,7 @@ namespace ccfapp
         if (in.msg.empty())
         {
           return make_error(
-            LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
+            HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(records);
@@ -174,7 +139,7 @@ namespace ccfapp
           return make_success(LoggingGet::Out{r.value()});
 
         return make_error(
-          LoggerErrors::UNKNOWN_ID, fmt::format("No such record: {}", in.id));
+          HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
       };
       // SNIPPET_END: get
 
@@ -194,7 +159,7 @@ namespace ccfapp
         if (msg.empty())
         {
           return make_error(
-            LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
+            HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(public_records);
@@ -225,7 +190,7 @@ namespace ccfapp
         }
 
         return make_error(
-          LoggerErrors::UNKNOWN_ID,
+          HTTP_STATUS_BAD_REQUEST,
           fmt::format("No such record: {}", id.dump()));
       };
       // SNIPPET_END: get_public

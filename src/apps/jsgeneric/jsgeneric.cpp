@@ -206,7 +206,8 @@ namespace ccfapp
         JS_FreeRuntime(rt);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        args.rpc_ctx->set_response_body(std::move(response));
+        args.rpc_ctx->set_response_body(
+          jsonrpc::pack(response, jsonrpc::Pack::Text));
         return;
       };
 

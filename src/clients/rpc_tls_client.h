@@ -140,10 +140,11 @@ public:
   }
 };
 
-class HttpRpcTlsClient : public JsonRpcTlsClient, public http::MsgProcessor
+class HttpRpcTlsClient : public JsonRpcTlsClient, public http::ResponseProcessor
 {
-  http::Parser parser;
+  http::ResponseParser parser;
   std::vector<uint8_t> message_body;
+  http_status status;
 
 public:
   HttpRpcTlsClient(
@@ -152,7 +153,7 @@ public:
     std::shared_ptr<tls::CA> node_ca = nullptr,
     std::shared_ptr<tls::Cert> cert = nullptr) :
     JsonRpcTlsClient(host, port, node_ca, cert),
-    parser(HTTP_RESPONSE, *this)
+    parser(*this)
   {}
 
   virtual PreparedRpc gen_rpc(
@@ -184,14 +185,13 @@ public:
     return message_body;
   }
 
-  virtual void handle_request(
-    http_method method,
-    const std::string_view& path,
-    const std::string_view& query,
-    const http::HeaderMap& headers,
-    const std::vector<uint8_t>& body) override
+  virtual void handle_response(
+    http_status status,
+    http::HeaderMap&& headers,
+    std::vector<uint8_t>&& body) override
   {
-    message_body = body;
+    status = status;
+    message_body = std::move(body);
   }
 };
 

@@ -11,22 +11,22 @@
 
 namespace http
 {
-  class HTTPEndpoint : public enclave::TLSEndpoint, public http::MsgProcessor
+  class HTTPEndpoint : public enclave::TLSEndpoint
   {
   protected:
-    http::Parser p;
+    http::Parser& p;
     bool is_websocket = false;
 
-  public:
     HTTPEndpoint(
-      http_parser_type parser_type,
+      http::Parser& p_,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(parser_type, *this)
+      p(p_)
     {}
 
+  public:
     static void recv_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<HTTPEndpoint*>(msg->data.self.get())
@@ -114,9 +114,11 @@ namespace http
     }
   };
 
-  class HTTPServerEndpoint : public HTTPEndpoint
+  class HTTPServerEndpoint : public HTTPEndpoint, public http::RequestProcessor
   {
   private:
+    http::RequestParser request_parser;
+
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
     size_t session_id;
@@ -129,7 +131,8 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(HTTP_REQUEST, session_id, writer_factory, std::move(ctx)),
+      HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
+      request_parser(*this),
       rpc_map(rpc_map),
       session_id(session_id)
     {}
@@ -177,8 +180,8 @@ namespace http
       http_method verb,
       const std::string_view& path,
       const std::string_view& query,
-      const http::HeaderMap& headers,
-      const std::vector<uint8_t>& body) override
+      http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
     {
       LOG_TRACE_FMT(
         "Processing msg({}, {}, {}, [{} bytes])",
@@ -207,7 +210,7 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session, verb, path, query, headers, body);
+            session, verb, path, query, std::move(headers), std::move(body));
         }
         catch (std::exception& e)
         {
@@ -273,15 +276,21 @@ namespace http
     }
   };
 
-  class HTTPClientEndpoint : public HTTPEndpoint, public enclave::ClientEndpoint
+  class HTTPClientEndpoint : public HTTPEndpoint,
+                             public enclave::ClientEndpoint,
+                             public http::ResponseProcessor
   {
+  private:
+    http::ResponseParser response_parser;
+
   public:
     HTTPClientEndpoint(
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(HTTP_RESPONSE, session_id, writer_factory, std::move(ctx)),
-      ClientEndpoint(session_id, writer_factory)
+      HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
+      ClientEndpoint(session_id, writer_factory),
+      response_parser(*this)
     {}
 
     void send_request(const std::vector<uint8_t>& data) override
@@ -295,14 +304,12 @@ namespace http
         "send() should not be called directly on HTTPClient");
     }
 
-    void handle_request(
-      http_method method,
-      const std::string_view& path,
-      const std::string_view& query,
-      const http::HeaderMap& headers,
-      const std::vector<uint8_t>& body) override
+    void handle_response(
+      http_status status,
+      HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
     {
-      handle_data_cb(body);
+      handle_data_cb(std::move(body));
 
       LOG_TRACE_FMT("Closing connection, message handled");
       close();
