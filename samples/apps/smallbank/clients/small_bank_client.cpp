@@ -48,7 +48,8 @@ private:
       const auto response = conn->call("SmallBank_balance", j);
 
       check_response(response);
-      accs.push_back({{"account", i}, {"balance", response["result"]}});
+      const auto result = conn->unpack_body(response);
+      accs.push_back({{"account", i}, {"balance", result}});
     }
 
     std::cout << accs.dump(4) << std::endl;
@@ -128,15 +129,14 @@ private:
     }
   }
 
-  bool check_response(const json& j) override
+  bool check_response(const RpcTlsClient::Response& r) override
   {
-    const auto error_it = j.find("error");
-    if (error_it != j.end())
+    if (r.status != HTTP_STATUS_OK)
     {
-      const auto dumped = j.dump();
-      if (dumped.find("Not enough money in savings account") == string::npos)
+      const std::string error_msg(r.body.begin(), r.body.end());
+      if (error_msg.find("Not enough money in savings account") == string::npos)
       {
-        throw logic_error(dumped);
+        throw logic_error(error_msg);
         return false;
       }
     }
@@ -221,16 +221,16 @@ private:
       json j;
       j["name"] = to_string(account_it->get<size_t>());
       const auto response = conn->call("SmallBank_balance", j);
+      const auto response_body = conn->unpack_body(response);
 
-      auto result_it = response.find("result");
-      if (result_it == response.end())
+      if (response.status != HTTP_STATUS_OK)
       {
-        throw std::runtime_error(
-          "No result in verification response: " + response.dump());
+        throw std::runtime_error(fmt::format(
+          "Error in verification response: {}", response_body.dump(2)));
       }
 
       auto expected_balance = balance_it->get<int64_t>();
-      auto actual_balance = result_it->get<int64_t>();
+      auto actual_balance = response_body.get<int64_t>();
       if (expected_balance != actual_balance)
       {
         throw std::runtime_error(

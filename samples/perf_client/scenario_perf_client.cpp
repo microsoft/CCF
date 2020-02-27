@@ -44,7 +44,12 @@ private:
         std::cout << fmt::format("Sending {}: {}", method, params.dump(2))
                   << std::endl;
         const auto response = connection->call(method, params);
-        std::cout << fmt::format("Response: {}", response.dump(2)) << std::endl;
+        const auto response_body = connection->unpack_body(response);
+        std::cout << fmt::format(
+                       "Response: {} {}",
+                       response.status,
+                       response_body.dump(2))
+                  << std::endl;
       }
     }
   }

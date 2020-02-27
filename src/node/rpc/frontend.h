@@ -559,7 +559,6 @@ namespace ccf
         }
         catch (JsonParseError& e)
         {
-          e.pointer_elements.push_back(jsonrpc::PARAMS);
           auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           ctx->set_response_body(std::move(err));
