@@ -16,6 +16,7 @@ def create_config_file(f, replicas, clients):
     nodes_json = [node.node_json() for node in replicas + clients]
 
     configuration = {
+        "support_threading": False,
         "num_replicas": len(replicas),
         "num_clients": len(clients),
         "max_faulty": f,

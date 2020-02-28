@@ -5,6 +5,7 @@ import time
 import paramiko
 import logging
 import getpass
+import infra.ccf
 from contextlib import contextmanager
 import infra.remote
 from glob import glob
@@ -39,8 +40,13 @@ class CCFRemoteClient(object):
         self.BIN = infra.path.build_bin_path(bin_path)
 
         # strip out the config from the path
+        self.common_dir = infra.ccf.get_common_folder_name(workspace, label)
 
-        self.DEPS = glob("*.pem") + [config]
+        self.DEPS = [
+            os.path.join(self.common_dir, "user1_cert.pem"),
+            os.path.join(self.common_dir, "user1_privk.pem"),
+            os.path.join(self.common_dir, "networkcert.pem"),
+        ] + [config]
         client_command_args = list(command_args)
 
         if "--verify" in client_command_args:
@@ -58,7 +64,7 @@ class CCFRemoteClient(object):
         ] + client_command_args
 
         self.remote = remote_class(
-            name, host, [self.BIN], self.DEPS, cmd, workspace, label
+            name, host, [self.BIN], self.DEPS, cmd, workspace, label, self.common_dir
         )
 
     def setup(self):
@@ -79,10 +85,12 @@ class CCFRemoteClient(object):
 
             for csv in remote_csvs:
                 remote_file_dst = f"{self.name}_{csv}"
-                self.remote.get(csv, 1, remote_file_dst)
+                self.remote.get(csv, self.common_dir, 1, remote_file_dst)
                 if csv == "perf_summary.csv":
                     with open("perf_summary.csv", "a") as l:
-                        with open(remote_file_dst, "r") as r:
+                        with open(
+                            os.path.join(self.common_dir, remote_file_dst), "r"
+                        ) as r:
                             for line in r.readlines():
                                 l.write(line)
 
