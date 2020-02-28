@@ -1844,6 +1844,7 @@ namespace kv
       for (auto& map : maps)
         map.second->unlock();
 
+      std::lock_guard<SpinLock> vguard(version_lock);
       version = 0;
       compacted = 0;
       last_replicated = 0;
