@@ -2,11 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "../ds/logger.h"
 #include "../ds/spinlock.h"
+#include "../src/consensus/pbft/pbftglobals.h"
 #include "enclave.h"
-
-#ifdef PBFT
-#  include "../src/consensus/pbft/pbftglobals.h"
-#endif
 
 #include <chrono>
 #include <msgpack.hpp>

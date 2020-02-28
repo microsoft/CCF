@@ -9,6 +9,8 @@
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/genesisgen.h"
+#include "node/history.h"
+#include "consensus/pbft/pbftrequests.h"
 #include "node/networkstate.h"
 #include "node/rpc/handleradapter.h"
 #include "node/rpc/jsonrpc.h"
@@ -18,10 +20,6 @@
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
-#ifdef PBFT
-#  include "consensus/pbft/pbftrequests.h"
-#  include "node/history.h"
-#endif
 #include <iostream>
 #include <string>
 
@@ -274,7 +272,6 @@ NetworkState network;
 NetworkState network2;
 auto encryptor = std::make_shared<NullTxEncryptor>();
 
-#ifdef PBFT
 NetworkState pbft_network(ConsensusType::Pbft);
 auto history_kp = tls::make_key_pair();
 
@@ -284,8 +281,6 @@ auto history = std::make_shared<NullTxHistory>(
   *history_kp,
   pbft_network.signatures,
   pbft_network.nodes);
-
-#endif
 
 StubNodeState stub_node;
 
@@ -417,8 +412,6 @@ void add_callers_primary_store()
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
-#ifdef PBFT
-
 void add_callers_pbft_store()
 {
   Store::Tx gen_tx;
@@ -461,7 +454,6 @@ TEST_CASE("process_pbft")
   REQUIRE(deserialised_req.caller_cert == user_caller_der);
   REQUIRE(deserialised_req.raw == serialized_call);
 }
-#else
 
 TEST_CASE("SignedReq to and from json")
 {
@@ -1052,8 +1044,6 @@ TEST_CASE("App-defined errors")
     CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
   }
 }
-
-#endif
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)

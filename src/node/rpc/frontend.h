@@ -251,45 +251,47 @@ namespace ccf
         }
       }
 
-#ifdef PBFT
-      auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
-      if (rep.has_value())
+      if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
       {
-        return rep.value();
-      }
-      kv::TxHistory::RequestID reqid;
-
-      update_history();
-      reqid = {caller_id.value(),
-               ctx->session.client_session_id,
-               ctx->get_request_index()};
-      if (history)
-      {
-        if (!history->add_request(
-              reqid,
-              caller_id.value(),
-              ctx->session.caller_cert,
-              ctx->get_serialised_request()))
+        auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
+        if (rep.has_value())
         {
-          LOG_FAIL_FMT(
-            "Adding request failed: {}, {}, {}",
-            std::get<0>(reqid),
-            std::get<1>(reqid),
-            std::get<2>(reqid));
+          return rep.value();
+        }
+        kv::TxHistory::RequestID reqid;
+
+        update_history();
+        reqid = {caller_id.value(),
+                 ctx->session.client_session_id,
+                 ctx->get_request_index()};
+        if (history)
+        {
+          if (!history->add_request(
+                reqid,
+                caller_id.value(),
+                ctx->session.caller_cert,
+                ctx->get_serialised_request()))
+          {
+            LOG_FAIL_FMT(
+              "Adding request failed: {}, {}, {}",
+              std::get<0>(reqid),
+              std::get<1>(reqid),
+              std::get<2>(reqid));
+            return ctx->error_response(
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              "PBFT could not process request.");
+          }
+          tx.set_req_id(reqid);
+          return std::nullopt;
+        }
+        else
+        {
           return ctx->error_response(
             jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "PBFT could not process request.");
+            "PBFT is not yet ready.");
         }
-        tx.set_req_id(reqid);
-        return std::nullopt;
       }
-      else
-      {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "PBFT is not yet ready.");
-      }
-#else
+
       auto rep = process_command(ctx, tx, caller_id.value());
 
       // If necessary, forward the RPC to the current primary
@@ -316,7 +318,6 @@ namespace ccf
       }
 
       return rep.value();
-#endif
     }
 
     virtual std::vector<uint8_t> get_cert_to_forward(

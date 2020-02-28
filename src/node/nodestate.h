@@ -4,6 +4,7 @@
 
 #include "calltypes.h"
 #include "consensus/ledgerenclave.h"
+#include "consensus/pbft/pbft.h"
 #include "consensus/raft/raftconsensus.h"
 #include "crypto/cryptobox.h"
 #include "ds/logger.h"
@@ -25,10 +26,6 @@
 #include "tls/25519.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
-
-#ifdef PBFT
-#  include "consensus/pbft/pbft.h"
-#endif
 
 #ifndef VIRTUAL_ENCLAVE
 #  include <ccf_t.h>
@@ -93,10 +90,7 @@ namespace ccf
   using RaftConsensusType =
     raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode>;
   using RaftType = raft::Raft<consensus::LedgerEnclave, NodeToNode>;
-
-#ifdef PBFT
   using PbftConsensusType = pbft::Pbft<consensus::LedgerEnclave, NodeToNode>;
-#endif
 
   template <typename T>
   class StateMachine
@@ -278,11 +272,20 @@ namespace ccf
 
           self = 0; // The first node id is always 0
 
-#ifdef PBFT
-          setup_pbft(args.config);
-#else
-          setup_raft();
-#endif
+          if (args.consensus_type == ConsensusType::Pbft)
+          {
+            setup_pbft(args.config);
+          }
+          else if (args.consensus_type == ConsensusType::Raft)
+          {
+            setup_raft();
+          }
+          else
+          {
+            throw std::logic_error(
+              "Unknown consensus type: {}", consensus_type);
+          }
+
           setup_history();
           setup_encryptor();
 
@@ -395,11 +398,16 @@ namespace ccf
               resp->network_info.encryption_priv_key;
 
             self = resp->node_id;
-#ifdef PBFT
-            setup_pbft(args.config);
-#else
-            setup_raft(resp->public_only);
-#endif
+
+            if (args.consensus_type = ConsensusType::Pbft)
+            {
+              setup_pbft(args.config);
+            }
+            else
+            {
+              setup_raft(resp->public_only);
+            }
+
             setup_history();
             setup_encryptor();
 
@@ -1236,12 +1244,14 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-
-#ifdef PBFT
-      return true;
-#else
-      return create_success;
-#endif
+      if (args.consensus_type == ConsensusType::Pbft)
+      {
+        return true;
+      }
+      else
+      {
+        return create_success;
+      }
     }
 
     void reset_quote()
@@ -1509,7 +1519,6 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
 
-#ifdef PBFT
     void setup_pbft(const CCFConfig& config)
     {
       setup_n2n_channels();
@@ -1552,6 +1561,5 @@ namespace ccf
 
       setup_basic_hooks();
     }
-#endif
   };
 }
