@@ -9,9 +9,11 @@
 #include "tls_client.h"
 
 #include <fmt/format_header_only.h>
+#include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <thread>
+#include <tls/keypair.h>
 
 class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
 {
@@ -37,8 +39,10 @@ protected:
   size_t next_send_id = 0;
   size_t next_recv_id = 0;
 
-  http::Request gen_request_internal(
-    const std::string& method, const nlohmann::json& params)
+  std::vector<uint8_t> gen_request_internal(
+    const std::string& method,
+    const nlohmann::json& params,
+    tls::KeyPairPtr kp = nullptr)
   {
     auto path = method;
     if (prefix.has_value())
@@ -53,7 +57,12 @@ protected:
     r.set_header(
       http::headers::CONTENT_TYPE, http::headervalues::contenttype::MSGPACK);
 
-    return r;
+    if (kp != nullptr)
+    {
+      http::sign_request(r, kp);
+    }
+
+    return r.build_request();
   }
 
   Response call_raw(const std::vector<uint8_t>& raw)
@@ -80,8 +89,7 @@ public:
   virtual PreparedRpc gen_request(
     const std::string& method, const nlohmann::json& params = nullptr)
   {
-    return {gen_request_internal(method, params).build_request(),
-            next_send_id++};
+    return {gen_request_internal(method, params, nullptr), next_send_id++};
   }
 
   Response call(
