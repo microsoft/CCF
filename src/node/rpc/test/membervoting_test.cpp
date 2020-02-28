@@ -529,39 +529,46 @@ TEST_CASE("Add new members until there are 7 then reject")
          new_member++)
     {
       // (1) read ack entry
-      const auto read_nonce_req = create_request(
+      const auto read_state_digest_req = create_request(
         read_params(new_member->id, Tables::MEMBER_ACKS), "read");
       const Response<MemberAck> ack0 =
-        frontend_process(frontend, read_nonce_req, new_member->cert);
+        frontend_process(frontend, read_state_digest_req, new_member->cert);
 
-      // (2) ask for a fresher nonce
-      const auto freshen_nonce_req = create_request(nullptr, "updateAckNonce");
-      check_success(
-        frontend_process(frontend, freshen_nonce_req, new_member->cert));
+      // (2) ask for a fresher digest of state
+      const auto freshen_state_digest_req =
+        create_request(nullptr, "updateAckStateDigest");
+      auto freshen_state_digest =
+        Response<std::vector<uint8_t>>(
+          frontend_process(
+            frontend, freshen_state_digest_req, new_member->cert))
+          .result;
 
-      // (3) read ack entry again and check that the nonce has changed
+      // (3) read ack entry again and check that that state digest has
+      // changed
       const Response<MemberAck> ack1 =
-        frontend_process(frontend, read_nonce_req, new_member->cert);
-      CHECK(ack0.result.next_nonce != ack1.result.next_nonce);
+        frontend_process(frontend, read_state_digest_req, new_member->cert);
+      CHECK(ack0.result.next_state_digest != ack1.result.next_state_digest);
 
-      // (4) sign old nonce and send it
-      const auto bad_sig =
-        RawSignature{new_member->kp->sign(ack0.result.next_nonce)};
+      // (4) sign old state digest and send it
+      const auto bad_sig = RawSignature{
+        new_member->kp->sign({ack0.result.next_state_digest.h.data(),
+                              ack0.result.next_state_digest.h.size()})};
       const auto send_bad_sig_req = create_request(bad_sig, "ack");
       check_error(
         frontend_process(frontend, send_bad_sig_req, new_member->cert),
         jsonrpc::StandardErrorCodes::INVALID_PARAMS);
 
-      // (5) sign new nonce and send it
-      const auto good_sig =
-        RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
+      // (5) sign new state digest and send it
+      const auto good_sig = RawSignature{
+        new_member->kp->sign({ack1.result.next_state_digest.h.data(),
+                              ack1.result.next_state_digest.h.size()})};
       const auto send_good_sig_req = create_request(good_sig, "ack");
       check_success(
         frontend_process(frontend, send_good_sig_req, new_member->cert));
 
       // (6) read ack entry again and check that the signature matches
       const Response<MemberAck> ack2 =
-        frontend_process(frontend, read_nonce_req, new_member->cert);
+        frontend_process(frontend, read_state_digest_req, new_member->cert);
       CHECK(ack2.result.sig == good_sig.sig);
 
       // (7) read own member status

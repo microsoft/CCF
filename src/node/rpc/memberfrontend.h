@@ -667,8 +667,7 @@ namespace ccf
               ma->next_state_digest.h.data(),
               ma->next_state_digest.h.size(),
               rs.sig.data(),
-              rs.sig.size(),
-              MBEDTLS_MD_SHA256))
+              rs.sig.size()))
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,

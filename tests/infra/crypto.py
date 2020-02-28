@@ -8,14 +8,35 @@ import coincurve
 from coincurve._libsecp256k1 import ffi, lib
 from coincurve.context import GLOBAL_CONTEXT
 
-import cryptography.x509
+from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
+class Cert:
+    def __init__(self, cert_path):
+        with open(cert_path, "rb") as cert:
+            self.cert = load_pem_x509_certificate(
+                cert.read(), backend=default_backend()
+            )
+
+    def get_hash_alg(self):
+        return self.cert.signature_hash_algorithm
+
+
+class PrivateKey:
+    def __init__(self, privk_path, password=None):
+        with open(privk_path, "rb") as privk:
+            self.privk = load_pem_private_key(
+                privk.read(), password=None, backend=default_backend()
+            )
+
+    def sign(self, bytes_to_sign, hash_alg):
+        return self.privk.sign(bytes_to_sign, ec.ECDSA(hash_alg))
+
 # As per mbedtls md_type_t
-class DigestType(IntEnum):
+class CCFDigestType(IntEnum):
     MD_NONE = 0
     MD_MD2 = 1
     MD_MD4 = 2
@@ -78,13 +99,11 @@ def verify_recover_secp256k1_bc(
 
 def verify_request_sig(raw_cert, sig, req, request_body, md):
     try:
-        cert = cryptography.x509.load_der_x509_certificate(
-            raw_cert, backend=default_backend()
-        )
+        cert = load_der_x509_certificate(raw_cert, backend=default_backend())
 
         digest = (
             hashes.SHA256()
-            if md == DigestType.MD_SHA256
+            if md == CCFDigestType.MD_SHA256
             else cert.signature_hash_algorithm
         )
 
@@ -107,15 +126,4 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
             raise e
 
         verify_recover_secp256k1_bc(sig, req)
-
-
-class PrivateKey:
-    def __init__(self, path, password=None):
-        with open(path, "rb") as privk:
-            self.privk = load_pem_private_key(
-                privk.read(), password=None, backend=default_backend()
-            )
-
-    def sign(self, bytes_to_sign):
-        return self.privk.sign(bytes_to_sign, ec.ECDSA(hashes.SHA256()))
 
