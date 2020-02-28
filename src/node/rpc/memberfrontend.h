@@ -107,7 +107,8 @@ namespace ccf
 
            auto [ma_view, sig_view] =
              tx.get_view(this->network.member_acks, this->network.signatures);
-           ma_view->put(new_member_id, {{}, sig_view->get(0)->root});
+
+           ma_view->put(new_member_id, MemberAck(sig_view->get(0)->root));
 
            return true;
          }},
@@ -663,11 +664,7 @@ namespace ccf
           std::vector<uint8_t>(args.rpc_ctx->session.caller_cert));
         const auto rs = args.rpc_ctx->get_params().get<RawSignature>();
 
-        if (!verifier->verify(
-              ma->next_state_digest.h.data(),
-              ma->next_state_digest.h.size(),
-              rs.sig.data(),
-              rs.sig.size()))
+        if (!verifier->verify(ma->next_state_digest, rs.sig))
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
@@ -675,8 +672,7 @@ namespace ccf
           return;
         }
 
-        MemberAck next_ma{rs.sig, sig_view->get(0)->root};
-        ma_view->put(args.caller_id, next_ma);
+        ma_view->put(args.caller_id, MemberAck(sig_view->get(0)->root, rs.sig));
 
         auto members = args.tx.get_view(this->network.members);
         auto member = members->get(args.caller_id);
@@ -706,13 +702,12 @@ namespace ccf
           return;
         }
 
-        ma->next_state_digest = sig_view->get(0)->root;
+        auto root = sig_view->get(0)->root;
+        ma->next_state_digest =
+          std::vector<uint8_t>(root.h.begin(), root.h.end());
         ma_view->put(args.caller_id, ma.value());
 
-        // Convert result to vector as json validation of std::array is
-        // non-trivial
-        auto rep = std::vector<uint8_t>(
-          ma->next_state_digest.h.begin(), ma->next_state_digest.h.end());
+        auto rep = ma->next_state_digest;
 
         args.rpc_ctx->set_response_result(rep);
         return;

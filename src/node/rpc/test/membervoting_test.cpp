@@ -550,18 +550,16 @@ TEST_CASE("Add new members until there are 7 then reject")
       CHECK(ack0.result.next_state_digest != ack1.result.next_state_digest);
 
       // (4) sign old state digest and send it
-      const auto bad_sig = RawSignature{
-        new_member->kp->sign({ack0.result.next_state_digest.h.data(),
-                              ack0.result.next_state_digest.h.size()})};
+      const auto bad_sig =
+        RawSignature{new_member->kp->sign(ack0.result.next_state_digest)};
       const auto send_bad_sig_req = create_request(bad_sig, "ack");
       check_error(
         frontend_process(frontend, send_bad_sig_req, new_member->cert),
         jsonrpc::StandardErrorCodes::INVALID_PARAMS);
 
       // (5) sign new state digest and send it
-      const auto good_sig = RawSignature{
-        new_member->kp->sign({ack1.result.next_state_digest.h.data(),
-                              ack1.result.next_state_digest.h.size()})};
+      const auto good_sig =
+        RawSignature{new_member->kp->sign(ack1.result.next_state_digest)};
       const auto send_good_sig_req = create_request(good_sig, "ack");
       check_success(
         frontend_process(frontend, send_good_sig_req, new_member->cert));

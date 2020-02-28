@@ -76,7 +76,18 @@ namespace ccf
   struct MemberAck : public RawSignature
   {
     //! the next nonce the member is supposed to sign
-    crypto::Sha256Hash next_state_digest;
+    std::vector<uint8_t> next_state_digest;
+
+    MemberAck() {}
+
+    MemberAck(const crypto::Sha256Hash& root) :
+      next_state_digest(root.h.begin(), root.h.end())
+    {}
+
+    MemberAck(const crypto::Sha256Hash& root, const std::vector<uint8_t>& sig) :
+      next_state_digest(root.h.begin(), root.h.end()),
+      RawSignature({sig})
+    {}
 
     MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), next_state_digest);
   };
