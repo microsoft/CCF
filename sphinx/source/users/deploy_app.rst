@@ -10,7 +10,7 @@ For example, deploying the ``liblogging`` example application:
 .. code-block:: bash
 
     $ cd CCF/build
-    $ ../start_test_network.sh ./liblogging.enclave.so.signed
+    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
     Setting up Python environment...
     Python environment successfully setup
     [2019-10-29 14:47:41.562] Starting 3 CCF nodes...
@@ -22,7 +22,7 @@ For example, deploying the ``liblogging`` example application:
     [2019-10-29 14:48:12.138] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
     [2019-10-29 14:48:12.138] Press Ctrl+C to shutdown the network.
 
-.. note:: To use CCF `virtual` mode, the same command can be run with ``TEST_ENCLAVE=virtual`` set as environment variable and the virtual version of the enclave application passed to the script. For example ``$ TEST_ENCLAVE=virtual ../start_test_network.sh ./liblogging.virtual.so``.
+.. note:: To use CCF `virtual` mode, the same command can be run with ``TEST_ENCLAVE=virtual`` set as environment variable and the virtual version of the enclave application passed to the script. For example ``$ TEST_ENCLAVE=virtual ../start_test_network.sh --package ./liblogging.virtual.so``.
 
 The log files (``out`` and ``err``) and ledger (``<node_id>.ledger``) for each CCF node can be found under ``CCF/build/workspace/test_network_<node_id>``.
 
