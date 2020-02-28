@@ -90,12 +90,10 @@ namespace ccf
       }
     }
 
-    static std::pair<jsonrpc::Pack, nlohmann::json> get_json_params(
+    static jsonrpc::Pack detect_json_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
       std::optional<jsonrpc::Pack> packing = std::nullopt;
-
-      const auto& body = ctx->get_request_body();
 
       const auto content_type_it =
         ctx->get_request_header(http::headers::CONTENT_TYPE);
@@ -122,53 +120,74 @@ namespace ccf
       }
       else
       {
-        packing = jsonrpc::detect_pack(body);
+        packing = jsonrpc::detect_pack(ctx->get_request_body());
       }
 
-      const auto pack = packing.value_or(jsonrpc::Pack::Text);
-      nlohmann::json params = nullptr;
-      if (!body.empty())
+      return packing.value_or(jsonrpc::Pack::Text);
+    }
+
+    static nlohmann::json get_params_from_body(
+      const std::shared_ptr<enclave::RpcContext>& ctx, jsonrpc::Pack pack)
+    {
+      return jsonrpc::unpack(ctx->get_request_body(), pack);
+    }
+
+    static nlohmann::json get_params_from_query(
+      const std::shared_ptr<enclave::RpcContext>& ctx)
+    {
+      std::string_view query = ctx->get_request_query();
+      auto params = nlohmann::json::object();
+
+      while (true)
       {
-        params = jsonrpc::unpack(body, pack);
+        const auto next_split = query.find('&');
+
+        const std::string_view this_entry = query.substr(0, next_split);
+        const auto field_split = this_entry.find('=');
+        if (field_split == std::string::npos)
+        {
+          throw std::runtime_error(
+            fmt::format("No k=v in URL query fragment: {}", query));
+        }
+
+        const std::string_view key = this_entry.substr(0, field_split);
+        const std::string_view value = this_entry.substr(field_split + 1);
+        try
+        {
+          params[std::string(key)] = nlohmann::json::parse(value);
+        }
+        catch (const std::exception& e)
+        {
+          throw std::runtime_error(fmt::format(
+            "Unable to parse URL query value: {} ({})", query, e.what()));
+        }
+
+        if (next_split == std::string::npos)
+        {
+          break;
+        }
+        else
+        {
+          query.remove_prefix(next_split + 1);
+        }
+      }
+
+      return params;
+    }
+
+    static std::pair<jsonrpc::Pack, nlohmann::json> get_json_params(
+      const std::shared_ptr<enclave::RpcContext>& ctx)
+    {
+      const auto pack = detect_json_pack(ctx);
+
+      nlohmann::json params = nullptr;
+      if (!ctx->get_request_body().empty())
+      {
+        params = get_params_from_body(ctx, pack);
       }
       else if (!ctx->get_request_query().empty())
       {
-        std::string_view query = ctx->get_request_query();
-        params = nlohmann::json::object();
-
-        while (true)
-        {
-          const auto next_split = query.find('&');
-
-          const std::string_view this_entry = query.substr(0, next_split);
-          const auto field_split = this_entry.find('=');
-          if (field_split == std::string::npos)
-          {
-            throw std::runtime_error(
-              fmt::format("No k=v in URL query fragment: {}", query));
-          }
-
-          const std::string_view key = this_entry.substr(0, field_split);
-          const std::string_view value = this_entry.substr(field_split + 1);
-          try
-          {
-            params[std::string(key)] = nlohmann::json::parse(value);
-          }
-          catch (const std::exception& e)
-          {
-            throw std::runtime_error(fmt::format(
-              "Unable to parse URL query value: {} ({})", query, e.what()));
-          }
-
-          if (next_split == std::string::npos)
-          {
-            break;
-          }
-          else
-          {
-            query.remove_prefix(next_split + 1);
-          }
-        }
+        params = get_params_from_query(ctx);
       }
 
       return std::make_pair(pack, params);

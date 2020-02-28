@@ -551,16 +551,12 @@ TEST_CASE("MinimalHandleFunction")
     {
       INFO("Calling echo, with params in query");
       auto echo_call = create_simple_request("echo", pack_type);
-      const nlohmann::json j_params = {
-        {"foo", "helloworld"}, {"bar", 1}, {"fooz", "2"}, {"baz", "baz"}};
-      for (auto it = j_params.begin(); it != j_params.end(); ++it)
-      {
-        echo_call.set_query_param(it.key(), it.value().dump());
-      }
+      const nlohmann::json j_params = {{"foo", "helloworld"},
+                                       {"bar", 1},
+                                       {"fooz", "2"},
+                                       {"baz", "\"awkward\"\"escapes"}};
+      echo_call.set_query_params(j_params);
       const auto serialized_call = echo_call.build_request();
-
-      std::cout << std::string(serialized_call.begin(), serialized_call.end())
-                << std::endl;
 
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
@@ -568,12 +564,6 @@ TEST_CASE("MinimalHandleFunction")
 
       const auto response_body = parse_response_body(response.body, pack_type);
       CHECK(response_body == j_params);
-      if (response_body != j_params)
-      {
-        std::cout << "--- DEBUG ---" << std::endl;
-        std::cout << response_body.dump(2) << std::endl;
-        std::cout << j_params.dump(2) << std::endl;
-      }
     }
 
     {
