@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Digest.h"
+#include "Req_queue.h"
 #include "ds/thread_messaging.h"
 #include "types.h"
 
@@ -68,10 +69,10 @@ public:
   void clear();
   // Effects: Discards (deletes) all stored entries
 
-  void mark_stable(Seqno ls);
+  void mark_stable(Seqno ls, Req_queue& req_queue);
   // Effects: Discards entries that were only referred to by
   // pre-prepares that were discarded due to checkpoint "ls" becoming
-  // stable.
+  // stable. If an entry is in the req_queue it will not be removed.
 
   void view_change(View v);
   // Effects: Discards entries that were only referred to by
