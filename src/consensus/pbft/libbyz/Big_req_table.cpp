@@ -339,13 +339,23 @@ void Big_req_table::clear()
   }
 }
 
-void Big_req_table::mark_stable(Seqno ls)
+void Big_req_table::mark_stable(Seqno ls, Req_queue& rqueue)
 {
   last_stable = ls;
 
   for (auto it = breqs.begin(); it != breqs.end();)
   {
     auto bre = it->second;
+    if (bre->r && rqueue.in_rqueue(bre->r))
+    {
+      LOG_TRACE_FMT(
+        "Request is in rqueue don't remove it from big req table {} {} {}",
+        bre->r->request_id(),
+        bre->r->client_id(),
+        bre->r->digest().hash());
+      it++;
+      continue;
+    }
     if (bre->maxn <= ls && bre->maxv >= 0)
     {
       remove_unmatched(bre);
