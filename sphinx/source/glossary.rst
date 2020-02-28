@@ -7,7 +7,7 @@ Glossary
     `Azure Confidential Compute <https://azure.microsoft.com/en-us/solutions/confidential-compute/>`_ protects the confidentiality and integrity of your data and code while it’s processed in the public cloud.
 
   Consensus Protocols
-    The term Consensus protocol refers to either Raft or PBFT. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`.
+    The term Consensus protocol refers to either :ref:`Raft <developers/consensus:Raft Consensus Protocol>` or :ref:`PBFT <developers/consensus:PBFT Consensus Protocol>`. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`. More information about consensus protocols can be found `here <https://en.wikipedia.org/wiki/Consensus_(computer_science)>`_.
 
   Constitution
     Set of rules written as a Lua script that define how members' proposals are accepted.
