@@ -156,7 +156,7 @@ TEST_CASE("MemberAck")
     INFO("Implausible ack");
     MemberAck ma;
     ma.sig.push_back(42);
-    ma.next_nonce.push_back(100);
+    ma.next_state_digest.h[0] = 100;
     const auto converted = msgpack_roundtrip(ma);
     CHECK(ma == converted);
   }
@@ -165,7 +165,11 @@ TEST_CASE("MemberAck")
     INFO("Plausible ack");
     MemberAck ma;
     fill_rand(ma.sig, 256);
-    fill_rand(ma.next_nonce, 16);
+
+    auto rand = std::vector<uint8_t>(ma.next_state_digest.SIZE);
+    fill_rand(rand, 16);
+    std::copy_n(
+      rand.begin(), ma.next_state_digest.SIZE, ma.next_state_digest.h.begin());
     const auto converted = msgpack_roundtrip(ma);
     CHECK(ma == converted);
   }

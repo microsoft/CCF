@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
+
 class Cert:
     def __init__(self, cert_path):
         with open(cert_path, "rb") as cert:
@@ -34,6 +35,7 @@ class PrivateKey:
 
     def sign(self, bytes_to_sign, hash_alg):
         return self.privk.sign(bytes_to_sign, ec.ECDSA(hash_alg))
+
 
 # As per mbedtls md_type_t
 class CCFDigestType(IntEnum):
@@ -126,4 +128,3 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
             raise e
 
         verify_recover_secp256k1_bc(sig, req)
-
