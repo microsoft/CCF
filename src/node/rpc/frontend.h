@@ -372,6 +372,11 @@ namespace ccf
       return {rep.value(), replicated_state_merkle_root, version};
     }
 
+    crypto::Sha256Hash GetMerkleRoot() override
+    {
+      return history->get_replicated_state_root();
+    }
+
     /** Process a serialised input forwarded from another node
      *
      * This function assumes that ctx contains the caller_id as read by the
