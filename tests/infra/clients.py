@@ -277,7 +277,6 @@ class RequestClient:
                 headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
             )
 
-        LOG.warning(request.params)
         rep = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
