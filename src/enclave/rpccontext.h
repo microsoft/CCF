@@ -53,9 +53,6 @@ namespace enclave
 
   class RpcContext
   {
-  protected:
-    size_t request_index = 0;
-
   public:
     SessionContext session;
 
@@ -76,17 +73,11 @@ namespace enclave
     virtual ~RpcContext() {}
 
     /// Request details
-    void set_request_index(size_t ri)
-    {
-      request_index = ri;
-    }
-
-    size_t get_request_index() const
-    {
-      return request_index;
-    }
+    virtual size_t get_request_index() const = 0;
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
+    virtual const std::string& get_request_query() const = 0;
+    virtual size_t get_request_verb() const = 0;
 
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;

@@ -87,8 +87,6 @@ namespace ccf
       {
         // If this frontend is not allowed to forward or the command has already
         // been forwarded, redirect to the current primary
-        // TODO: "server SHOULD generate a Location header field", is it ok that
-        // we sometimes don't?
         ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
         if ((nodes != nullptr) && (consensus != nullptr))
         {
@@ -238,7 +236,12 @@ namespace ccf
             signed_request.value()))
         {
           ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
-          // TODO: Server MUST set WWW-Authenticate
+          ctx->set_response_header(
+            http::headers::WWW_AUTHENTICATE,
+            fmt::format(
+              "Signature realm=\"Signed request access\", "
+              "headers=\"(request-target) {}",
+              http::headers::DIGEST));
           ctx->set_response_body("Failed to verify client signature");
           return ctx->serialise_response();
         }

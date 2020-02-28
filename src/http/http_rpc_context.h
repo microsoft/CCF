@@ -37,6 +37,8 @@ namespace http
   class HttpRpcContext : public enclave::RpcContext
   {
   private:
+    size_t request_index;
+
     http_method verb;
     std::string whole_path = {};
     std::string path = {};
@@ -140,6 +142,7 @@ namespace http
 
   public:
     HttpRpcContext(
+      size_t request_index_,
       const enclave::SessionContext& s,
       http_method verb_,
       const std::string_view& path_,
@@ -149,6 +152,7 @@ namespace http
       const std::vector<uint8_t>& raw_request_ = {},
       const std::vector<uint8_t>& raw_pbft_ = {}) :
       RpcContext(s, raw_pbft_),
+      request_index(request_index_),
       verb(verb_),
       path(path_),
       query(query_),
@@ -164,9 +168,24 @@ namespace http
       }
     }
 
+    virtual size_t get_request_index() const override
+    {
+      return request_index;
+    }
+
     virtual const std::vector<uint8_t>& get_request_body() const override
     {
       return request_body;
+    }
+
+    virtual const std::string& get_request_query() const override
+    {
+      return query;
+    }
+
+    virtual size_t get_request_verb() const override
+    {
+      return verb;
     }
 
     virtual const std::vector<uint8_t>& get_serialised_request() override
@@ -298,6 +317,7 @@ namespace enclave
     const auto& msg = processor.received.front();
 
     return std::make_shared<http::HttpRpcContext>(
+      0,
       s,
       msg.method,
       msg.path,

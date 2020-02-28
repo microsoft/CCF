@@ -12,6 +12,7 @@ namespace http
     static constexpr auto CONTENT_TYPE = "content-type";
     static constexpr auto CONTENT_LENGTH = "content-length";
     static constexpr auto LOCATION = "location";
+    static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
     static constexpr auto CCF_COMMIT = "x-ccf-commit";
     static constexpr auto CCF_TERM = "x-ccf-term";

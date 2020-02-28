@@ -210,14 +210,18 @@ namespace http
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
-            session, verb, path, query, std::move(headers), std::move(body));
+            request_index++,
+            session,
+            verb,
+            path,
+            query,
+            std::move(headers),
+            std::move(body));
         }
         catch (std::exception& e)
         {
           send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
         }
-
-        rpc_ctx->set_request_index(request_index++);
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
