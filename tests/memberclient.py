@@ -118,9 +118,6 @@ def run(args):
         result, error = network.consortium.propose(3, primary, script, 0)
         assert error["code"] == infra.jsonrpc.ErrorCode.INSUFFICIENT_RIGHTS.value
 
-        # TODO: Remove this
-        return
-
         LOG.debug("New member ACK")
         result = network.consortium.ack(3, primary)
 

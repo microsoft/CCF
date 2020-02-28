@@ -662,11 +662,13 @@ namespace ccf
         auto verifier = tls::make_verifier(
           std::vector<uint8_t>(args.rpc_ctx->session.caller_cert));
         const auto rs = args.rpc_ctx->get_params().get<RawSignature>();
+
         if (!verifier->verify(
               ma->next_state_digest.h.data(),
               ma->next_state_digest.h.size(),
               rs.sig.data(),
-              rs.sig.size()))
+              rs.sig.size(),
+              MBEDTLS_MD_SHA256))
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
@@ -677,7 +679,6 @@ namespace ccf
         MemberAck next_ma{rs.sig, sig_view->get(0)->root};
         ma_view->put(args.caller_id, next_ma);
 
-        // update member status to ACTIVE
         auto members = args.tx.get_view(this->network.members);
         auto member = members->get(args.caller_id);
         if (member->status == MemberStatus::ACCEPTED)
