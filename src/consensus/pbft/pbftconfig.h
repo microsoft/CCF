@@ -191,7 +191,7 @@ namespace pbft
           if (info.cb != nullptr)
           {
             uint16_t tid =
-              (enclave::ThreadMessaging::thread_count == 0) ? 0 : 1;
+              (enclave::ThreadMessaging::thread_count <= 1) ? 0 : 1;
             enclave::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
               tid, std::move(execution_ctx));
           }
