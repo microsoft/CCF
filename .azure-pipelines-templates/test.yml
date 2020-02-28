@@ -13,7 +13,7 @@ steps:
 # If a test fails, crudely upload nodes' logs for all tests
 - task: CopyFiles@2
   inputs:
-    contents: '**/?(out|err)'
+    contents: '**/?(*out|*err)'
     sourceFolder: $(Build.SourcesDirectory)/build/workspace
     targetFolder: $(Build.ArtifactStagingDirectory)
   condition: failed()

@@ -39,7 +39,7 @@ A trusted network of enclaves running on physical nodes is established without r
 
 .. image:: img/ccf.svg
 
-Microsoft has taken this approach in developing CCF: using :term:`TEE` technology, the enclave of each node in the network (where cryptographically protected data is executed)
+Microsoft has taken this approach in developing CCF: using :term:`TEE` technology, the enclave of each node in the network (where cryptographically protected data is processed)
 can decide whether it can trust the enclaves of other nodes based on mutual attestation exchange and mutual authentication, regardless of whether the parties involved
 trust each other or not. This enables a network of verifiable, remotely attestable enclaves on which to run a distributed ledger and execute confidential and secure
 transactions in highly performant and highly available fashion.
