@@ -1,7 +1,7 @@
 Consensus Protocols
 ===================
 
-In order to guarantee system reliability changes to the key-value store must be agreed by a number of nodes before being applied. The number of nodes that need to agree on a change before it is applied depends on the consensus protocol being run.
+CCF supports multiple consensus protocols.
 
 The default consensus protocol for CCF is Raft.
 
