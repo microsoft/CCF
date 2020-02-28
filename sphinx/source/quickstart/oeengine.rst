@@ -30,7 +30,7 @@ OE Engine Walkthrough
 
     $ oe-engine generate --api-model vm.json --ssh-public-key ~/.ssh/id_rsa.pub --output-directory vm
 
-4. Log in to Azure, set a default subscription and create a resource group
+4. Log in to Azure, set a default subscription, and create a resource group
 
 .. code-block:: bash
 
