@@ -9,7 +9,7 @@
 #include "luainterp/luainterp.h"
 #include "node/encryptor.h"
 #include "node/genesisgen.h"
-#include "node/rpc/handleradapter.h"
+#include "node/rpc/jsonhandler.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/test/node_stub.h"
 #include "runtime_config/default_whitelists.h"
@@ -37,7 +37,7 @@ namespace ccf
 }
 
 constexpr auto default_format = jsonrpc::Pack::MsgPack;
-constexpr auto content_type = pack_to_content_type(default_format);
+constexpr auto content_type = details::pack_to_content_type(default_format);
 
 using TResponse = http::SimpleResponseProcessor::Response;
 

@@ -274,11 +274,11 @@ namespace ccf
         return make_success(result);
       };
 
-      install(NodeProcs::JOIN, handler_adapter(accept), Write);
+      install(NodeProcs::JOIN, json_adapter(accept), Write);
       install_with_auto_schema<GetSignedIndex>(
-        NodeProcs::GET_SIGNED_INDEX, handler_adapter(get_signed_index), Read);
+        NodeProcs::GET_SIGNED_INDEX, json_adapter(get_signed_index), Read);
       install_with_auto_schema<GetQuotes>(
-        NodeProcs::GET_QUOTES, handler_adapter(get_quotes), Read);
+        NodeProcs::GET_QUOTES, json_adapter(get_quotes), Read);
     }
   };
 

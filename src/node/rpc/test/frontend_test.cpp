@@ -10,7 +10,7 @@
 #include "node/entities.h"
 #include "node/genesisgen.h"
 #include "node/networkstate.h"
-#include "node/rpc/handleradapter.h"
+#include "node/rpc/jsonhandler.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
@@ -75,16 +75,14 @@ public:
     auto echo_function = [this](Store::Tx& tx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
-    install("echo", handler_adapter(echo_function), HandlerRegistry::Read);
+    install("echo", json_adapter(echo_function), HandlerRegistry::Read);
 
     auto get_caller_function =
       [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         return make_success(caller_id);
       };
     install(
-      "get_caller",
-      handler_adapter(get_caller_function),
-      HandlerRegistry::Read);
+      "get_caller", json_adapter(get_caller_function), HandlerRegistry::Read);
 
     auto failable_function =
       [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
@@ -99,8 +97,7 @@ public:
 
         return make_success(true);
       };
-    install(
-      "failable", handler_adapter(failable_function), HandlerRegistry::Read);
+    install("failable", json_adapter(failable_function), HandlerRegistry::Read);
   }
 };
 
@@ -266,7 +263,8 @@ auto create_simple_request(
   jsonrpc::Pack pack = default_pack)
 {
   http::Request request(method);
-  request.set_header(http::headers::CONTENT_TYPE, pack_to_content_type(pack));
+  request.set_header(
+    http::headers::CONTENT_TYPE, details::pack_to_content_type(pack));
   return request;
 }
 

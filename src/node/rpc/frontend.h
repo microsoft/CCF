@@ -312,9 +312,7 @@ namespace ccf
           }
         }
 
-        // TODO: This is supposed to mean _they_ are a bad gateway, but here we
-        // mean _I'm_ a bad gateway
-        ctx->set_response_status(HTTP_STATUS_BAD_GATEWAY);
+        ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         ctx->set_response_body("RPC could not be forwarded to primary.");
         return ctx->serialise_response();
       }

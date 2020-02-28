@@ -5,7 +5,7 @@
 #include "luajson.h"
 #include "luautil.h"
 #include "node/rpc/frontend.h"
-#include "node/rpc/handleradapter.h"
+#include "node/rpc/jsonhandler.h"
 
 /**
  * @file luarpcargs.h
@@ -44,7 +44,7 @@ namespace ccf
       push_raw(l, args.rpc_ctx->get_method());
       lua_setfield(l, -2, "method");
 
-      const auto [pack, params] = get_json_params(args.rpc_ctx);
+      const auto [pack, params] = ccf::details::get_json_params(args.rpc_ctx);
       push_raw(l, params);
       lua_setfield(l, -2, "params");
 

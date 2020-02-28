@@ -196,20 +196,20 @@ namespace ccfapp
       // SNIPPET_END: get_public
 
       install_with_auto_schema<LoggingRecord::In, bool>(
-        Procs::LOG_RECORD, handler_adapter(record), Write);
+        Procs::LOG_RECORD, json_adapter(record), Write);
       // SNIPPET: install_get
       install_with_auto_schema<LoggingGet>(
-        Procs::LOG_GET, handler_adapter(get), Read);
+        Procs::LOG_GET, json_adapter(get), Read);
 
       install(
         Procs::LOG_RECORD_PUBLIC,
-        handler_adapter(record_public),
+        json_adapter(record_public),
         Write,
         record_public_params_schema,
         record_public_result_schema);
       install(
         Procs::LOG_GET_PUBLIC,
-        handler_adapter(get_public),
+        json_adapter(get_public),
         Read,
         get_public_params_schema,
         get_public_result_schema);

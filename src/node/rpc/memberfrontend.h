@@ -387,15 +387,14 @@ namespace ccf
         return make_success(value);
       };
       install_with_auto_schema<KVRead>(
-        MemberProcs::READ, handler_adapter(read), Read);
+        MemberProcs::READ, json_adapter(read), Read);
 
       auto query =
         [this](
           Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
           if (!check_member_accepted(tx, caller_id))
           {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN, "Member is not accepted");
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not accepted");
           }
 
           const auto script = params.get<ccf::Script>();
@@ -403,15 +402,14 @@ namespace ccf
             tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
         };
       install_with_auto_schema<Script, nlohmann::json>(
-        MemberProcs::QUERY, handler_adapter(query), Read);
+        MemberProcs::QUERY, json_adapter(query), Read);
 
       auto propose =
         [this](
           Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
           if (!check_member_active(tx, caller_id))
           {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN, "Member is not active");
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
           }
 
           const auto in = params.get<Propose::In>();
@@ -425,7 +423,7 @@ namespace ccf
           return make_success(Propose::Out({proposal_id, completed}));
         };
       install_with_auto_schema<Propose>(
-        MemberProcs::PROPOSE, handler_adapter(propose), Write);
+        MemberProcs::PROPOSE, json_adapter(propose), Write);
 
       auto withdraw = [this](
                         Store::Tx& tx,
@@ -433,8 +431,7 @@ namespace ccf
                         const nlohmann::json& params) {
         if (!check_member_active(tx, caller_id))
         {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN, "Member is not active");
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
         const auto proposal_action = params.get<ProposalAction>();
@@ -478,7 +475,7 @@ namespace ccf
         return make_success(true);
       };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::WITHDRAW, handler_adapter(withdraw), Write);
+        MemberProcs::WITHDRAW, json_adapter(withdraw), Write);
 
       auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -524,7 +521,7 @@ namespace ccf
         return make_success(complete_proposal(args.tx, vote.id));
       };
       install_with_auto_schema<Vote, bool>(
-        MemberProcs::VOTE, handler_adapter(vote), Write);
+        MemberProcs::VOTE, json_adapter(vote), Write);
 
       auto create = [this](Store::Tx& tx, nlohmann::json&& params) {
         LOG_INFO_FMT("Processing create RPC");
@@ -583,7 +580,7 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      install(MemberProcs::CREATE, handler_adapter(create), Write);
+      install(MemberProcs::CREATE, json_adapter(create), Write);
 
       auto complete =
         [this](
@@ -599,7 +596,7 @@ namespace ccf
           return make_success(complete_proposal(tx, proposal_id));
         };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::COMPLETE, handler_adapter(complete), Write);
+        MemberProcs::COMPLETE, json_adapter(complete), Write);
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args, const nlohmann::json& params) {
@@ -636,10 +633,7 @@ namespace ccf
       // ACK method cannot be forwarded and should be run on primary as it makes
       // explicit use of caller certificate
       install_with_auto_schema<RawSignature, bool>(
-        MemberProcs::ACK,
-        handler_adapter(ack),
-        Write,
-        Forwardable::DoNotForward);
+        MemberProcs::ACK, json_adapter(ack), Write, Forwardable::DoNotForward);
 
       //! A member asks for a fresher nonce
       auto update_ack_nonce =
@@ -658,9 +652,7 @@ namespace ccf
           return make_success(true);
         };
       install_with_auto_schema<void, bool>(
-        MemberProcs::UPDATE_ACK_NONCE,
-        handler_adapter(update_ack_nonce),
-        Write);
+        MemberProcs::UPDATE_ACK_NONCE, json_adapter(update_ack_nonce), Write);
     }
   };
 

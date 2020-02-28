@@ -309,31 +309,31 @@ namespace ccfapp
 
       install(
         Procs::SMALL_BANKING_CREATE,
-        handler_adapter(create),
+        json_adapter(create),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_CREATE_BATCH,
-        handler_adapter(create_batch),
+        json_adapter(create_batch),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_BALANCE,
-        handler_adapter(balance),
+        json_adapter(balance),
         HandlerRegistry::Read);
       install(
         Procs::SMALL_BANKING_TRANSACT_SAVINGS,
-        handler_adapter(transact_savings),
+        json_adapter(transact_savings),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_DEPOSIT_CHECKING,
-        handler_adapter(deposit_checking),
+        json_adapter(deposit_checking),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_AMALGAMATE,
-        handler_adapter(amalgamate),
+        json_adapter(amalgamate),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_WRITE_CHECK,
-        handler_adapter(writeCheck),
+        json_adapter(writeCheck),
         HandlerRegistry::Write);
     }
   };

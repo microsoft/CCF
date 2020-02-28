@@ -3,8 +3,8 @@
 #pragma once
 
 #include "consts.h"
-#include "handleradapter.h"
 #include "handlerregistry.h"
+#include "jsonhandler.h"
 #include "metrics.h"
 
 namespace ccf
@@ -234,35 +234,31 @@ namespace ccf
       };
 
       install_with_auto_schema<GetCommit>(
-        GeneralProcs::GET_COMMIT, handler_adapter(get_commit), Read);
+        GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read);
       install_with_auto_schema<void, GetMetrics::Out>(
         GeneralProcs::GET_METRICS,
-        handler_adapter(get_metrics),
+        json_adapter(get_metrics),
         Read,
         Forwardable::CanForward,
         true);
       install_with_auto_schema<void, bool>(
-        GeneralProcs::MK_SIGN, handler_adapter(make_signature), Write);
+        GeneralProcs::MK_SIGN, json_adapter(make_signature), Write);
       install_with_auto_schema<void, WhoAmI::Out>(
-        GeneralProcs::WHO_AM_I, handler_adapter(who_am_i), Read);
+        GeneralProcs::WHO_AM_I, json_adapter(who_am_i), Read);
       install_with_auto_schema<WhoIs::In, WhoIs::Out>(
-        GeneralProcs::WHO_IS, handler_adapter(who_is), Read);
+        GeneralProcs::WHO_IS, json_adapter(who_is), Read);
       install_with_auto_schema<void, GetPrimaryInfo::Out>(
-        GeneralProcs::GET_PRIMARY_INFO,
-        handler_adapter(get_primary_info),
-        Read);
+        GeneralProcs::GET_PRIMARY_INFO, json_adapter(get_primary_info), Read);
       install_with_auto_schema<void, GetNetworkInfo::Out>(
-        GeneralProcs::GET_NETWORK_INFO,
-        handler_adapter(get_network_info),
-        Read);
+        GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read);
       install_with_auto_schema<void, ListMethods::Out>(
-        GeneralProcs::LIST_METHODS, handler_adapter(list_methods_fn), Read);
+        GeneralProcs::LIST_METHODS, json_adapter(list_methods_fn), Read);
       install_with_auto_schema<GetSchema>(
-        GeneralProcs::GET_SCHEMA, handler_adapter(get_schema), Read);
+        GeneralProcs::GET_SCHEMA, json_adapter(get_schema), Read);
       install_with_auto_schema<GetReceipt>(
-        GeneralProcs::GET_RECEIPT, handler_adapter(get_receipt), Read);
+        GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read);
       install_with_auto_schema<VerifyReceipt>(
-        GeneralProcs::VERIFY_RECEIPT, handler_adapter(verify_receipt), Read);
+        GeneralProcs::VERIFY_RECEIPT, json_adapter(verify_receipt), Read);
     }
 
     void tick(std::chrono::milliseconds elapsed, size_t tx_count) override

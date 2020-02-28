@@ -11,8 +11,7 @@ namespace ccf
     const std::string msg;
     const int status;
 
-    RpcException(std::string msg, int status) : msg(msg), status(status)
-    {}
+    RpcException(std::string msg, int status) : msg(msg), status(status) {}
 
     const char* what() const throw() override
     {
