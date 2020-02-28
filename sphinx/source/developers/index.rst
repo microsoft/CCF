@@ -18,6 +18,7 @@ These endpoints mutate the state of a unique :ref:`developers/kv/index:Key-Value
   demo
   kv/index.rst
   ledger
+  consensus
   cryptography
   threading
   performance
