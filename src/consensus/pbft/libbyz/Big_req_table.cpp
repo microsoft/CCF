@@ -346,19 +346,19 @@ void Big_req_table::mark_stable(Seqno ls, Req_queue& rqueue)
   for (auto it = breqs.begin(); it != breqs.end();)
   {
     auto bre = it->second;
-    PBFT_ASSERT(bre->r != nullptr, "Invalid state");
-    if (rqueue.is_in_rqueue(bre->r))
-    {
-      LOG_TRACE_FMT(
-        "Request is in rqueue don't remove it from big req table {} {} {}",
-        bre->r->request_id(),
-        bre->r->client_id(),
-        bre->r->digest().hash());
-      it++;
-      continue;
-    }
     if (bre->maxn <= ls && bre->maxv >= 0)
     {
+      PBFT_ASSERT(bre->r != 0, "Invalid state");
+      if (rqueue.is_in_rqueue(bre->r))
+      {
+        LOG_TRACE_FMT(
+          "Request is in rqueue don't remove it from big req table {} {} {}",
+          bre->r->request_id(),
+          bre->r->client_id(),
+          bre->r->digest().hash());
+        it++;
+        continue;
+      }
       remove_unmatched(bre);
       delete bre;
       it = breqs.erase(it);
