@@ -346,7 +346,8 @@ void Big_req_table::mark_stable(Seqno ls, Req_queue& rqueue)
   for (auto it = breqs.begin(); it != breqs.end();)
   {
     auto bre = it->second;
-    if (bre->r && rqueue.in_rqueue(bre->r))
+    PBFT_ASSERT(bre->r != nullptr, "Invalid state");
+    if (rqueue.is_in_rqueue(bre->r))
     {
       LOG_TRACE_FMT(
         "Request is in rqueue don't remove it from big req table {} {} {}",

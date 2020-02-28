@@ -27,7 +27,7 @@ public:
   // other request from "r->client_id()" from the queue and returns
   // true. Otherwise, returns false.
 
-  bool in_rqueue(Request* r);
+  bool is_in_rqueue(Request* r);
   // Effects: returns true if the request is in the rqueue
 
   Request* remove();
