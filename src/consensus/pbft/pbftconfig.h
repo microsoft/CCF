@@ -112,11 +112,11 @@ namespace pbft
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)
       {
-        rep = frontend->process_pbft(ctx, *tx, true, false);
+        rep = frontend->process_pbft(ctx, *tx, true);
       }
       else
       {
-        rep = frontend->process_pbft(ctx, false);
+        rep = frontend->process_pbft(ctx);
       }
       info.ctx = rep.version;
 
