@@ -17,3 +17,16 @@ sign_app_library(
   tpcc.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
+
+# Tests
+set(TPCC_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_tpcc.json)
+set(TPCC_NUM_WAREHOUSES 3)
+
+add_perf_test(
+  NAME tpcc_client_test
+  PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc_client.py
+  CLIENT_BIN ./tpcc_client
+  VERIFICATION_FILE ${TPCC_VERIFICATION_FILE}
+  LABEL TPCC
+  ADDITIONAL_ARGS --warehouses ${TPCC_NUM_WAREHOUSES}
+)

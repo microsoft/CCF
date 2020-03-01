@@ -108,7 +108,7 @@ namespace tpcc
         uint64_t c_w_id;
         uint64_t d_id;
         uint64_t w_id;
-        uint64_t date;
+        std::string date;
         double amount;
         std::string data;
 
@@ -200,7 +200,7 @@ namespace tpcc
     struct Item
     {
         // Primary key: (id)
-        std::string im_id;
+        uint64_t im_id;
         std::string name;
         double price;
         std::string data;

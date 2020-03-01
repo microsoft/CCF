@@ -64,6 +64,8 @@ namespace tpcc
       UserHandlerRegistry::init_handlers(store);
 
       auto newOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing newOrder handler...";
+
         uint64_t w_id = params["w_id"];
         uint64_t d_id = params["d_id"];
         uint64_t c_id = params["c_id"];
@@ -278,10 +280,13 @@ namespace tpcc
 
         // TODO: should OutputData be printed as per TPCC spec?
 
+        std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadItems = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing loadItems handler...";
+
         auto items_view = tx.get_view(tables.items);
         int load_count = 0;
 
@@ -289,19 +294,21 @@ namespace tpcc
           ItemId key = element["key"];
 
           Item item;
-          item.im_id = element["value"]["im_id"];
           item.name = element["value"]["name"];
-          item.price = element["value"]["price"];
           item.data = element["value"]["data"];
+          item.price = element["value"]["price"];
+          item.im_id = element["value"]["im_id"];
 
           items_view->put(key, item);
           load_count++;
         }
 
-        return make_success(load_count);
+        std::cout << "done" << std::endl;
+        return make_success(true);
       };
       
       auto loadWarehouse = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing loadWarehouse handler...";
         auto warehouses_view = tx.get_view(tables.warehouses);
         
         WarehouseId key = params["key"];
@@ -316,10 +323,13 @@ namespace tpcc
         warehouse.ytd = params["value"]["ytd"];
 
         warehouses_view->put(key, warehouse);
+
+        std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadStocks = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing loadStocks handler...";
         auto stocks_view = tx.get_view(tables.stocks);
         int load_count = 0;
 
@@ -344,10 +354,12 @@ namespace tpcc
           load_count++;
         }
 
+        std::cout << "done" << std::endl;
         return make_success(load_count);
       };
 
       auto loadDistrict = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing loadDistrict handler...";
         auto districts_view = tx.get_view(tables.districts);
 
         DistrictId key;
@@ -366,10 +378,13 @@ namespace tpcc
         district.next_o_id = params["value"]["next_o_id"];
 
         districts_view->put(key, district);
+
+        std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadCustomer = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing loadCustomer handler...";
         auto customers_view = tx.get_view(tables.customers);
 
         CustomerId key;
@@ -398,10 +413,13 @@ namespace tpcc
         customer.data = params["value"]["data"];
 
         customers_view->put(key, customer);
+
+        std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadHistory = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing loadHistory handler...";
         auto histories_view = tx.get_view(tables.histories);
 
         HistoryId key = params["key"];
@@ -417,10 +435,13 @@ namespace tpcc
         history.data = params["value"]["data"];
 
         histories_view->put(key, history);
+
+        std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing loadOrder handler...";
         auto orders_view = tx.get_view(tables.orders);
 
         OrderId key;
@@ -436,10 +457,13 @@ namespace tpcc
         order.all_local = params["value"]["all_local"];
 
         orders_view->put(key, order);
+
+        std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadOrderLines = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Executing loadOrderLines handler...";
         auto order_lines_view = tx.get_view(tables.orderlines);
         int load_count = 0;
 
@@ -463,11 +487,14 @@ namespace tpcc
           load_count++;
         }
 
+        std::cout << "done" << std::endl;
         return make_success(load_count);
       };
 
       auto loadNewOrders = [this](Store::Tx& tx, const nlohmann::json& params)
       {
+        std::cout << "Executing loadNewOrders handler...";
+
         auto new_orders_view = tx.get_view(tables.neworders);
         int load_count = 0;
 
@@ -485,6 +512,7 @@ namespace tpcc
           load_count++;
         }
 
+        std::cout << "done" << std::endl;
         return make_success(load_count);
       };
 
@@ -514,12 +542,12 @@ namespace tpcc
         disable_request_storing();
       }
   };
+} // namespace tpcc
 
   std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
     NetworkTables& nwt, AbstractNotifier& notifier)
   {
-    return std::make_shared<Tpcc>(*nwt.tables);
+    return std::make_shared<tpcc::Tpcc>(*nwt.tables);
   }
 
-} // namespace tpcc
 } // namespace ccfapp

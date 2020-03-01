@@ -23,24 +23,39 @@ private:
 
   void send_creation_transactions(const ConnPtr& connection) override
   {
-    static const uint64_t num_districts = 10;
-    static const uint64_t num_customers = 3000;
-    static const uint64_t num_orders = 3000;
-    static const uint64_t num_new_orders = 900;
+    cout << "Sending Data Generation Transactions..." << endl;
+
+    static const uint64_t num_districts = 1; // 10
+    static const uint64_t num_customers = 100; // 3000
+    static const uint64_t num_orders = 100; // 3000
+    static const uint64_t num_new_orders = 100; // 900
 
     // Load the Items table
+    cout << "Loading <Items> Table...";
     load_items(connection);
+    cout << "done" << endl;
 
     // Load the Warehouses, for each warehouse, load districts and stocks
     for (uint64_t w_id = 1; w_id <= num_warehouses; w_id++)
     {
+      cout << "Warehouse: " << w_id << "/" << num_warehouses << endl;
+
+      cout << "\tLoading <Warehouse>...";
       load_warehouse(connection, w_id);
+      cout << "done" << endl;
+
+      cout << "\tLoading <Stocks>...";
       load_stocks(connection, w_id);
+      cout << "done" << endl;
 
       // Load districts, for each district, load customers and orders
       for (uint64_t d_id = 1; d_id <= num_districts; d_id++)
       {
+        cout << "\tDistrict: " << d_id << "/" << num_districts << endl;
+
+        cout << "\t\tLoading <District>...";
         load_district(connection, d_id, w_id);
+        cout << "done" << endl;
 
         // Find customer IDs with bad credit (10%)
         std::unordered_set<uint64_t> bad_credit_ids = select_n_unique(num_customers / 10, 1, num_customers);
@@ -48,25 +63,46 @@ private:
         // Load customers. For each customer, load history
         for (uint64_t c_id = 1; c_id <= num_customers; c_id++)
         {
+          cout << "\t\tFor Customer: " << c_id << "/" << num_customers << endl;
+
           bool bad_credit = bad_credit_ids.find(c_id) != bad_credit_ids.end();
 
+          cout << "\t\t\tLoading <Customer>...";
           load_customer(connection, c_id, d_id, w_id, bad_credit);
+          cout << "done" << endl;
+
+          cout << "\t\t\tLoading <History>...";
           load_history(connection, c_id, d_id, w_id);
+          cout << "done" << endl;
         }
 
+        cout << "\t\tCreating Customer ID permutations...";
         // Create random permutation for customer IDs
         int* c_id_perms = permutation(1, num_orders);
+        cout << "done" << endl;
+
+        // TODO: perms might be taking ages -> consider doing on the fly?
 
         // Load orders. For each order, load order line
         for (uint64_t o_id = 1; o_id <= num_orders; o_id++)
         {
+          cout << "\t\tFor Order: " << o_id << "/" << num_orders << endl;
+
           uint64_t o_ol_cnt = rand_range(5, 15);
+
+          cout << "\t\t\tLoading <Order>...";
           load_order(connection, o_id, o_ol_cnt, d_id, w_id, c_id_perms[o_id]);
+          cout << "done" << endl;
+
+          cout << "\t\t\tLoaded <OrderLine>...";
           load_order_lines(connection, o_id, o_ol_cnt, d_id, w_id);
+          cout << "done" << endl;
         }
 
         // Load new orders for the last 900 order Ids
+        cout << "\t\tLoading <NewOrder>...";
         load_new_orders(connection, num_orders - num_new_orders, num_orders, d_id, w_id);
+        cout << "done" << endl;
       }
     }
   }
@@ -155,7 +191,7 @@ private:
 
   void load_items(const ConnPtr& connection)
   {
-    static uint64_t num_items = 100000; // TODO: refactor constants
+    static uint64_t num_items = 1000;//100000 // TODO: refactor constants
     std::unordered_set<uint64_t> original_rows = select_n_unique(num_items / 10, 1, num_items);
 
     std::vector<json> items_array;
@@ -172,24 +208,24 @@ private:
     }
 
     auto response = json::from_msgpack(connection->call("TPCC_load_items", items_array));
-    // TODO: check response
+    handle_response(response, "TPCC_load_items");
   }
 
   void load_warehouse(const ConnPtr& connection, std::uint64_t w_id)
   {
-    // TODO: refactor constants
-    static uint64_t num_stocks = 100000;
-
     // Load the warehouse entry
     json warehouse;
     warehouse["key"] = w_id;
     warehouse["value"] = make_warehouse();
+
     auto response = json::from_msgpack(connection->call("TPCC_load_warehouse", warehouse));
+    handle_response(response, "TPCC_load_warehouse");
   }
 
   void load_stocks(const ConnPtr& connection, std::uint64_t w_id)
   {
-    static uint64_t num_stocks = 100000; // TODO: refactor constants
+    //TODO: refactor constants
+    static uint64_t num_stocks = 1000; //100000 
     std::unordered_set<uint64_t> original_rows = select_n_unique(num_stocks / 10, 1, num_stocks);
 
     std::vector<json> stocks_array;
@@ -210,7 +246,7 @@ private:
     }
 
     auto response = json::from_msgpack(connection->call("TPCC_load_stocks", stocks_array));
-    // TODO: check response
+    handle_response(response, "TPCC_load_stocks");
   }
 
   void load_district(const ConnPtr& connection, uint64_t d_id, uint64_t w_id)
@@ -222,8 +258,9 @@ private:
     json district;
     district["key"] = key;
     district["value"] = make_district();
+
     auto response = json::from_msgpack(connection->call("TPCC_load_district", district));
-    //TODO: check response
+    handle_response(response, "TPCC_load_district");
   }
   
   void load_customer(const ConnPtr& connection, uint64_t c_id, uint64_t d_id, uint64_t w_id, bool bad_credit)
@@ -236,8 +273,9 @@ private:
     json customer;
     customer["key"] = key;
     customer["value"] = make_customer(c_id, bad_credit);
+
     auto response = json::from_msgpack(connection->call("TPCC_load_customer", customer));
-    //TODO: check response
+    handle_response(response, "TPCC_load_customer");
   }
 
   void load_history(const ConnPtr& connection, uint64_t c_id, uint64_t d_id, uint64_t w_id)
@@ -245,7 +283,9 @@ private:
     json history;
     history["key"] = c_id; // Using c_id as an incrementing ID
     history["value"] = make_history(c_id, d_id, w_id);
+
     auto response = json::from_msgpack(connection->call("TPCC_load_history", history));
+    handle_response(response, "TPCC_load_history");
   }
 
   void load_order(const ConnPtr& connection, uint64_t o_id, uint64_t o_ol_cnt, uint64_t d_id, uint64_t w_id, uint64_t c_id)
@@ -258,7 +298,9 @@ private:
     json order;
     order["key"] = key;
     order["value"] = make_order(o_ol_cnt, c_id, o_id >= 2101);
-    auto response = json::from_msgpack(connection->call("TPCC_load_order"));
+
+    auto response = json::from_msgpack(connection->call("TPCC_load_order", order));
+    handle_response(response, "TPCC_load_order");
   }
 
   void load_order_lines(const ConnPtr& connection, uint64_t o_id, uint64_t o_ol_cnt, uint64_t d_id, uint64_t w_id)
@@ -280,7 +322,7 @@ private:
     }
 
     auto response = json::from_msgpack(connection->call("TPCC_load_order_lines", order_lines_array));
-      //TODO: check response
+    handle_response(response, "TPCC_load_order_lines");
   }
 
   void load_new_orders(const ConnPtr& connection, uint64_t start, uint64_t end, uint64_t d_id, uint64_t w_id)
@@ -307,7 +349,7 @@ private:
     }
 
     auto response = json::from_msgpack(connection->call("TPCC_load_new_orders", new_orders_array));
-    //TODO: check response
+    handle_response(response, "TPCC_load_new_orders");
   }
 
   /* Individual tuple generators */
@@ -334,6 +376,7 @@ private:
     warehouse["state"] = rand_astring(2, 2);
     warehouse["zip"] = make_zipcode();
     warehouse["tax"] = rand_range(0, 2000 + 1) / 1000;
+    warehouse["ytd"] = 0;
     return warehouse;
   }
 
@@ -367,7 +410,8 @@ private:
     district["city"] = rand_astring(10, 20);
     district["state"] = rand_astring(2, 2);
     district["zip"] = make_zipcode();
-    district["tax"] = rand_range(0, 2000) / 1000;
+    district["tax"] = (double) rand_range(0, 2000) / 1000;
+    district["ytd"] = 0;
     district["next_o_id"] = 3001;
     return district;
   }
@@ -395,7 +439,7 @@ private:
     customer["ytd_payment"] = 10.00;
     customer["payment_cnt"] = 1;
     customer["delivery_cnt"] = 0;
-    customer["c_data"] = rand_astring(300, 500);
+    customer["data"] = rand_astring(300, 500);
     return customer;
   }
 
@@ -406,13 +450,15 @@ private:
 
     uint64_t selection = c_id < 1000 ? c_id : nu_rand(255, 0, 999);
 
-    char buffer[4];
-    std::snprintf(buffer, sizeof(buffer), "%03lu", selection);
-    
+    std::stringstream ss;
+    ss << std::setw(4) << std::setfill('0') << selection;
+    std::string selection_str = ss.str();
+
     std::string result = "";
+
     for (int i = 0; i < 4; i++)
     {
-      result += syllables[buffer[i]];
+      result += syllables[(int)selection_str[i] - 48];
     }
 
     return result;
@@ -425,6 +471,8 @@ private:
 
     json history;
     history["c_id"] = c_id;
+    history["c_d_id"] = d_id;
+    history["c_w_id"] = w_id;
     history["d_id"] = d_id;
     history["w_id"] = w_id;
     history["date"] = ctime(&t);
@@ -465,6 +513,13 @@ private:
   std::string make_zipcode()
   {
     return rand_nstring(4, 4) + "11111";
+  }
+
+  void handle_response(json response, std::string rpc_endpoint) {
+    if (response.find("result") == response.end())
+    {
+      throw std::runtime_error("[" + rpc_endpoint + "] Response Error: " + response.dump());
+    }
   }
 
   /* ----- Random Utils ----- */
@@ -554,7 +609,7 @@ private:
   int* permutation(uint64_t min, uint64_t max)
   {
     int size = max - min + 1;
-    int* results = new int[size];
+    int* results = new int[size]{};
 
     for (int i = 0; i < size; i++)
     {
