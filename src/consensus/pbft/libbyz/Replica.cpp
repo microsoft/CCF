@@ -2634,7 +2634,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
   vi.mark_stable(last_stable);
   elog.truncate(last_stable);
   state.discard_checkpoints(last_stable, last_executed);
-  brt.mark_stable(last_stable);
+  brt.mark_stable(last_stable, rqueue);
 
   if (mark_stable_cb != nullptr)
   {
