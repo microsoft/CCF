@@ -66,6 +66,8 @@ namespace tpcc
       UserHandlerRegistry::init_handlers(store);
 
       auto queryOrderHistory = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::cout << "Processing history query..." << std::endl;
+
         std::string date_from_str = params["date_from"];
         std::string date_to_str = params["date_to"];
         
@@ -92,7 +94,8 @@ namespace tpcc
         std::time_t date_from = mktime(&date_from_tm);
         std::time_t date_to = mktime(&date_to_tm);
 
-        if (std::difftime(date_from, date_to) < 0) {
+        if (std::difftime(date_to, date_from) < 0) {
+          std::cout << "Error! From date:\n\t" << date_from_str << "must be before To date:\n\t" << date_to_str << std::endl;
           return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS,
             "From date must be before To date");
         }
@@ -101,7 +104,7 @@ namespace tpcc
 
         auto history_view = tx.get_view(tables.histories);
         history_view->foreach([&](const auto& key, const auto& val) {
-          
+
           // Parse date of History entry
           std::tm date_tm = {};
           std::istringstream ss_to(val.date);
@@ -110,18 +113,20 @@ namespace tpcc
           std::time_t date = mktime(&date_tm);
 
           // Check if date of History entry lies within range, if so add to results
-          if (std::difftime(date, date_from) >= 0 && std::difftime(date, date_to) <= 0) {
+          if (std::difftime(date, date_from) >= 0 && std::difftime(date_to, date) >= 0) {
             results.push_back(val.c_id);
           }
 
           return true;
         });
 
+        std::cout << "Query found " << results.size() << " entries" << std::endl;
+
         return make_success(true);
       };
 
       auto newOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
-        // std::cout << "Executing newOrder handler...\n";
+        // std::cout << "Executing newOrder handler...";
 
         uint64_t w_id = params["w_id"];
         uint64_t d_id = params["d_id"];
@@ -575,7 +580,7 @@ namespace tpcc
         return make_success(load_count);
       };
 
-      install(Procs::TPCC_QUERY_ORDER_HISTORY, handler_adapter(queryOrderHistory), HandlerRegistry::Write);
+      install(Procs::TPCC_QUERY_ORDER_HISTORY, handler_adapter(queryOrderHistory), HandlerRegistry::Read);
       install(Procs::TPCC_NEW_ORDER, handler_adapter(newOrder), HandlerRegistry::Write);
       install(Procs::TPCC_LOAD_ITEMS, handler_adapter(loadItems), HandlerRegistry::Write);
       install(Procs::TPCC_LOAD_WAREHOUSE, handler_adapter(loadWarehouse), HandlerRegistry::Write);

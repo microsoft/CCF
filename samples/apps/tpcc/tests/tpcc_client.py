@@ -7,9 +7,7 @@ import os
 if __name__ == "__main__":
 
     def add(parser):
-        parser.add_argument(
-            "-w", "--warehouses", help="Number of Warehouses", default=10, type=int
-        )
+        parser.add_argument("-w", "--warehouses", help="Number of Warehouses", default=10, type=int)
 
     args, unknown_args = perfclient.cli_args(add=add, accept_unknown=True)
 

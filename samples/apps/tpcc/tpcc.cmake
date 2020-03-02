@@ -21,7 +21,7 @@ sign_app_library(
 # Tests
 set(TPCC_VERIFICATION_FILE ${CMAKE_CURRENT_LIST_DIR}/tests/verify_tpcc.json)
 set(TPCC_NUM_WAREHOUSES 3)
-set(TPCC_ITERATIONS 1)
+set(TPCC_ITERATIONS 10)
 
 add_perf_test(
   NAME tpcc_client_test
@@ -29,5 +29,6 @@ add_perf_test(
   CLIENT_BIN ./tpcc_client
   VERIFICATION_FILE ${TPCC_VERIFICATION_FILE}
   LABEL TPCC
-  ADDITIONAL_ARGS --warehouses ${TPCC_NUM_WAREHOUSES} --transactions ${TPCC_ITERATIONS}
+  ADDITIONAL_ARGS --warehouses ${TPCC_NUM_WAREHOUSES}
+                  --transactions ${TPCC_ITERATIONS}
 )

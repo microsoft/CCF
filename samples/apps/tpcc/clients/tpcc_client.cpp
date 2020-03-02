@@ -19,14 +19,18 @@ private:
     NumberTransactions
   };
 
-  uint64_t num_warehouses = 3;  // tunable
+  // Tunable Arguments from Makefile
+  uint64_t num_warehouses = 3;    // Tunable number of warehouses
+
+  uint64_t rnd_time_range = 365;  // Range of days (in the past) to randomise History timestamp
   
-  const uint64_t num_districts = 3;   // 10 in spec
-  const uint64_t num_customers = 100; // 3000 in spec
-  const uint64_t num_orders = 100;    // 3000 in spec
-  const uint64_t num_new_orders = 50; // 900 in spec
-  const uint64_t num_items = 1000;    // 100000 in spec
-  const uint64_t num_stocks = 1000;   // 100000 in spec
+  // TPCC constants
+  const uint64_t num_districts = 10;   // 10 in spec
+  const uint64_t num_customers = 3000; // 3000 in spec
+  const uint64_t num_orders = 3000;    // 3000 in spec
+  const uint64_t num_new_orders = 900; // 900 in spec
+  const uint64_t num_items = 1000;     // 100000 in spec
+  const uint64_t num_stocks = 1000;    // 100000 in spec
 
   void send_creation_transactions(const ConnPtr& connection) override
   {
@@ -57,7 +61,6 @@ private:
         // Load customers. For each customer, load history
         for (uint64_t c_id = 1; c_id <= num_customers; c_id++)
         {
-
           bool bad_credit = bad_credit_ids.find(c_id) != bad_credit_ids.end();
 
           load_customer(connection, c_id, d_id, w_id, bad_credit);
@@ -89,15 +92,18 @@ private:
     // Reserve space for transactions
     prepared_txs.resize(num_transactions);
 
-    for (decltype(num_transactions) i = 0; i < num_transactions; i++)
+    for (decltype(num_transactions) i = 0; i < num_transactions - 1; i++)
     {
-      // For now we just do 'NewOrder' transactions, in future we should
-      // select each transaction using random sampling.
-
-      json params = generate_new_order_params();
-
-      add_prepared_tx("TPCC_new_order", params, true, i);
+      // Add new order transactions
+      // json params = generate_new_order_params();
+      // add_prepared_tx("TPCC_new_order", params, true, i);
+      json query_params = generate_query_history_params();
+      add_prepared_tx("TPCC_query_order_history", query_params, true, i);
     }
+
+    // Add History query transactions (after new orders)
+    // json query_params = generate_query_history_params();
+    // add_prepared_tx("TPCC_query_order_history", query_params, true, num_transactions - 1);
   }
 
   bool check_response(const json& j) override {
@@ -108,8 +114,6 @@ private:
 
   json generate_new_order_params()
   {
-    // TODO: refactor constants
-
     json params;
 
     // Warehouse ID
@@ -166,6 +170,21 @@ private:
       params["i_qtys"].push_back(rand_range(1, 11));
     }
 
+    return params;
+  }
+
+  json generate_query_history_params() {
+    json params;
+
+    // Generate earlier 'from' date
+    std::time_t date_from = rand_date(rnd_time_range);
+
+    // Generate later 'to' date
+    uint64_t days_since = gmtime(&date_from)->tm_mday;
+    std::time_t date_to = rand_date(days_since);
+
+    params["date_from"] = ctime(&date_from);
+    params["date_to"] = ctime(&date_to);
     return params;
   }
 
@@ -445,8 +464,10 @@ private:
 
   json make_history(uint64_t c_id, uint64_t d_id, uint64_t w_id)
   {
-    // Current time
-    std::time_t t = std::time(0);
+    // Generate time stamp for entry
+    std::time_t t = rnd_time_range == 0 
+      ? std::time(0) 
+      : rand_date(rnd_time_range);
 
     json history;
     history["c_id"] = c_id;
@@ -458,9 +479,6 @@ private:
     history["amount"] = 10.0;
     history["data"] = rand_astring(12, 24);
     return history;
-
-    // TODO: remove
-    cout << "!!! HISTORY !!! Date: " << history["date"] << endl;
   }
 
   json make_order(uint64_t o_ol_cnt, uint64_t c_id, bool null_carrier)
@@ -605,6 +623,20 @@ private:
     }
 
     return results;
+  }
+
+  /*
+    Returns a random date in the past, within a given number of days
+  */
+  std::time_t rand_date(uint64_t range_days) {
+    
+    // Current time
+    std::time_t t = std::time(0);
+    struct tm *tm = gmtime(&t);
+
+    // Offset time by random number in range
+    tm->tm_mday -= rand_range(0ul, range_days + 1);
+    return mktime(tm);
   }
 
 public:
