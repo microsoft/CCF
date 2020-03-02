@@ -5,7 +5,7 @@ This page explains how members can submit and vote for proposals before they get
 
 Any member (proposer) can submit a new proposal. Other members can then vote on this proposal using its unique proposal id.
 
-Once a :term:`quorum` of members (as defined by the :term:`constitution`) has accepted the proposal, the proposal gets executed and its effects recorded in the ledger.
+Once a proposal is accepted under the rules of the :term:`constitution`, it is executed and its effects are recorded in the ledger.
 
 For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.
 
@@ -39,6 +39,32 @@ In this case, a new proposal with id ``1`` has successfully been created and the
 .. code-block:: bash
 
     // Proposal 1 is already created by member 1 (votes: 1/3)
+
+    $ cat vote_reject.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/vote",
+        "params": {
+            "ballot": {
+                "text": "return false"
+            },
+            "id": 0
+        }
+    }
+
+    $ cat vote_accept.json
+    {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "members/vote",
+        "params": {
+            "ballot": {
+                "text": "return true"
+            },
+            "id": 0
+        }
+    }
 
     // Member 2 rejects the proposal (votes: 1/3)
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json

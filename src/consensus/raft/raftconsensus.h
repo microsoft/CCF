@@ -54,11 +54,6 @@ namespace raft
       return raft->replicate(entries);
     }
 
-    bool replicate(const kv::BatchDetachedBuffer& entries) override
-    {
-      return raft->replicate(entries);
-    }
-
     View get_view() override
     {
       return raft->get_term();

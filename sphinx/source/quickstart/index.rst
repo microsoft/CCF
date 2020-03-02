@@ -8,7 +8,7 @@ Once this is done, you can quickly spin up a CCF network and start :ref:`issuing
 .. code-block:: bash
 
     $ cd CCF/build
-    $ ../start_test_network.sh ./liblogging.enclave.so.signed
+    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
     Setting up Python environment...
     Python environment successfully setup
     [2019-10-29 14:47:41.562] Starting 3 CCF nodes...
@@ -20,7 +20,7 @@ Once this is done, you can quickly spin up a CCF network and start :ref:`issuing
     [2019-10-29 14:48:12.138] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
     [2019-10-29 14:48:12.138] Press Ctrl+C to shutdown the network.
 
-You should also get familiar with some of :ref:`concepts:CCF concepts`. You will then be able to:
+You should also get familiar with some of :ref:`concepts:CCF's concepts`. You will then be able to:
 
 1. :ref:`Create a consortium and agree on the constitution <members/index:Member Governance>`
 2. :ref:`Develop a CCF application, based on the example logging application <developers/example:Example Application>`

@@ -2,16 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "clientendpoint.h"
 #include "ds/logger.h"
-#include "httpparser.h"
-#include "httpsig.h"
-#include "rpcmap.h"
-#include "wsupgrade.h"
+#include "enclave/clientendpoint.h"
+#include "enclave/rpcmap.h"
+#include "http_parser.h"
+#include "http_rpc_context.h"
+#include "ws_upgrade.h"
 
-namespace enclave
+namespace http
 {
-  class HTTPEndpoint : public TLSEndpoint, public http::MsgProcessor
+  class HTTPEndpoint : public enclave::TLSEndpoint, public http::MsgProcessor
   {
   protected:
     http::Parser p;
@@ -51,25 +51,50 @@ namespace enclave
 
       if (!is_websocket)
       {
+        auto buf = read(4096, false);
+        auto data = buf.data();
+        auto size = buf.size();
+
         while (true)
         {
-          auto buf = read(4096, false);
-          if (buf.size() == 0)
+          if (size == 0)
           {
             return;
           }
 
-          LOG_TRACE_FMT(
-            "Going to parse {} bytes: \n[{}]",
-            buf.size(),
-            std::string(buf.begin(), buf.end()));
+          LOG_TRACE_FMT("Going to parse {} bytes", size);
 
           try
           {
-            if (p.execute(buf.data(), buf.size()) == 0)
+            const auto used = p.execute(data, size);
+            if (used == 0)
             {
+              // Parsing error
               LOG_FAIL_FMT("Failed to parse request");
               return;
+            }
+            else if (used > size)
+            {
+              // Something has gone very wrong
+              LOG_FAIL_FMT(
+                "Unexpected return result - tried to parse {} bytes, actually "
+                "parsed {}",
+                size,
+                used);
+              return;
+            }
+            else if (used == size)
+            {
+              // Used all provided bytes - check if more are available
+              buf = read(4096, false);
+              data = buf.data();
+              size = buf.size();
+            }
+            else
+            {
+              // Used some bytes - pass over these and retry with remainder
+              data += used;
+              size -= used;
             }
           }
           catch (const std::exception& e)
@@ -92,15 +117,15 @@ namespace enclave
   class HTTPServerEndpoint : public HTTPEndpoint
   {
   private:
-    std::shared_ptr<RPCMap> rpc_map;
-    std::shared_ptr<RpcHandler> handler;
+    std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<enclave::RpcHandler> handler;
     size_t session_id;
 
     size_t request_index = 0;
 
   public:
     HTTPServerEndpoint(
-      std::shared_ptr<RPCMap> rpc_map,
+      std::shared_ptr<enclave::RPCMap> rpc_map,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
@@ -109,33 +134,15 @@ namespace enclave
       session_id(session_id)
     {}
 
-    static void send_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
-    {
-      reinterpret_cast<HTTPServerEndpoint*>(msg->data.self.get())
-        ->send_(msg->data.data);
-    }
-
     void send(const std::vector<uint8_t>& data) override
     {
-      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&send_cb);
-      msg->data.self = this->shared_from_this();
-      msg->data.data = data;
-
-      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
-        execution_thread, std::move(msg));
-    }
-
-    void send_(const std::vector<uint8_t>& data)
-    {
-      // This should be called with raw body of response - we will wrap it with
-      // header then transmit
-      send_response(data);
+      send_raw(data);
     }
 
     void send_response(
       const std::string& data,
       http_status status = HTTP_STATUS_OK,
-      const std::string& content_type = "text/plain")
+      const std::string& content_type = http::headervalues::contenttype::TEXT)
     {
       send_response(
         std::vector<uint8_t>(data.begin(), data.end()), status, content_type);
@@ -144,56 +151,32 @@ namespace enclave
     void send_response(
       const std::vector<uint8_t>& data,
       http_status status = HTTP_STATUS_OK,
-      const std::string& content_type = "application/json")
+      const std::string& content_type = http::headervalues::contenttype::JSON)
     {
       if (data.empty() && status == HTTP_STATUS_OK)
       {
         status = HTTP_STATUS_NO_CONTENT;
       }
 
+      auto response = http::Response(status);
+
       if (status == HTTP_STATUS_NO_CONTENT)
       {
-        send_raw(http::Response(status).build_response_header());
+        send_raw(response.build_response(true));
         return;
       }
 
-      send_buffered(http::Response(status).build_response_header(
-        data.size(), content_type));
-      send_buffered(data);
-      flush();
-    }
+      response.set_header(http::headers::CONTENT_TYPE, content_type);
+      response.set_body(&data);
 
-    void handle_message_main_thread(
-      std::shared_ptr<JsonRpcContext>& rpc_ctx,
-      std::shared_ptr<RpcHandler>& search)
-    {
-      try
-      {
-        auto response = search->process(rpc_ctx);
-
-        if (!response.has_value())
-        {
-          // If the RPC is pending, hold the connection.
-          LOG_TRACE_FMT("Pending");
-          return;
-        }
-        else
-        {
-          // Otherwise, reply to the client synchronously.
-          send_response(response.value());
-        }
-      }
-      catch (const std::exception& e)
-      {
-        std::string err_msg = fmt::format("Exception:\n{}\n", e.what());
-        send_response(err_msg, HTTP_STATUS_INTERNAL_SERVER_ERROR);
-      }
+      send_raw(response.build_response(true));
+      send_raw(data);
     }
 
     void handle_message(
       http_method verb,
-      const std::string& path,
-      const std::string& query,
+      const std::string_view& path,
+      const std::string_view& query,
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body) override
     {
@@ -218,32 +201,32 @@ namespace enclave
           return;
         }
 
-        const auto first_slash = path.find_first_of('/');
-        const auto second_slash = path.find_first_of('/', first_slash + 1);
+        const enclave::SessionContext session(session_id, peer_cert());
 
-        constexpr auto path_parse_error =
-          "Request path must contain '/[actor]/[method]'. Unable to parse "
-          "'{}'.\n";
-
-        if (
-          first_slash != 0 || first_slash == std::string::npos ||
-          second_slash == std::string::npos)
+        std::shared_ptr<HttpRpcContext> rpc_ctx = nullptr;
+        try
         {
-          send_response(
-            fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
+          rpc_ctx = std::make_shared<HttpRpcContext>(
+            session, verb, path, query, headers, body);
+        }
+        catch (std::exception& e)
+        {
+          send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
+        }
+
+        rpc_ctx->set_request_index(request_index++);
+
+        const auto actor_opt = http::extract_actor(*rpc_ctx);
+        if (!actor_opt.has_value())
+        {
+          send_response(fmt::format(
+            "Request path must contain '/[actor]/[method]'. Unable to parse "
+            "'{}'.\n",
+            rpc_ctx->get_method()));
           return;
         }
 
-        const auto actor_s = path.substr(first_slash + 1, second_slash - 1);
-        const auto method_s = path.substr(second_slash + 1);
-
-        if (actor_s.empty() || method_s.empty())
-        {
-          send_response(
-            fmt::format(path_parse_error, path), HTTP_STATUS_BAD_REQUEST);
-          return;
-        }
-
+        const auto& actor_s = actor_opt.value();
         auto actor = rpc_map->resolve(actor_s);
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
@@ -262,44 +245,6 @@ namespace enclave
           return;
         }
 
-        const SessionContext session(session_id, peer_cert());
-        std::optional<jsonrpc::Pack> pack;
-
-        auto [success, json_rpc] = jsonrpc::unpack_rpc(body, pack);
-        if (!success)
-        {
-          send_response(
-            fmt::format("Unable to unpack body.\n"), HTTP_STATUS_BAD_REQUEST);
-          return;
-        }
-
-        auto rpc_ctx =
-          std::make_shared<JsonRpcContext>(session, pack.value(), json_rpc);
-        rpc_ctx->set_request_index(request_index++);
-
-        auto signed_req = http::HttpSignatureVerifier::parse(
-          std::string(http_method_str(verb)), path, query, headers, body);
-        if (signed_req.has_value())
-        {
-          rpc_ctx->signed_request = signed_req;
-        }
-
-        const auto expected = fmt::format("{}/{}", actor_s, method_s);
-        if (rpc_ctx->method != expected)
-        {
-          send_response(
-            fmt::format(
-              "RPC method must match path ('{}' != '{}').\n",
-              expected,
-              rpc_ctx->method),
-            HTTP_STATUS_BAD_REQUEST);
-          return;
-        }
-
-        rpc_ctx->raw = body;
-        rpc_ctx->method = method_s;
-        rpc_ctx->actor = actor;
-
         auto response = search.value()->process(rpc_ctx);
 
         if (!response.has_value())
@@ -310,7 +255,8 @@ namespace enclave
         }
         else
         {
-          send_response(response.value());
+          send_buffered(response.value());
+          flush();
         }
       }
       catch (const std::exception& e)
@@ -320,13 +266,14 @@ namespace enclave
           HTTP_STATUS_INTERNAL_SERVER_ERROR);
 
         // On any exception, close the connection.
+        LOG_TRACE_FMT("Closing connection due to exception: {}", e.what());
         close();
         throw;
       }
     }
   };
 
-  class HTTPClientEndpoint : public HTTPEndpoint, public ClientEndpoint
+  class HTTPClientEndpoint : public HTTPEndpoint, public enclave::ClientEndpoint
   {
   public:
     HTTPClientEndpoint(
@@ -337,12 +284,9 @@ namespace enclave
       ClientEndpoint(session_id, writer_factory)
     {}
 
-    void send_request(
-      const std::string& path, const std::vector<uint8_t>& data) override
+    void send_request(const std::vector<uint8_t>& data) override
     {
-      http::Request r(HTTP_POST);
-      r.set_path(path);
-      send_raw(r.build_request(data));
+      send_raw(data);
     }
 
     void send(const std::vector<uint8_t>& data) override
@@ -353,13 +297,14 @@ namespace enclave
 
     void handle_message(
       http_method method,
-      const std::string& path,
-      const std::string& query,
+      const std::string_view& path,
+      const std::string_view& query,
       const http::HeaderMap& headers,
       const std::vector<uint8_t>& body) override
     {
       handle_data_cb(body);
 
+      LOG_TRACE_FMT("Closing connection, message handled");
       close();
     }
   };

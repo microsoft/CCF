@@ -38,7 +38,7 @@ std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
-constexpr auto default_pack = jsonrpc::Pack::MsgPack;
+constexpr auto default_pack = jsonrpc::Pack::Text;
 
 string get_script_path(string name)
 {
@@ -49,6 +49,8 @@ string get_script_path(string name)
   return ss.str();
 }
 const auto gov_script_file = files::slurp_string(get_script_path("gov.lua"));
+const auto gov_veto_script_file =
+  files::slurp_string(get_script_path("gov_veto.lua"));
 const auto operator_gov_script_file =
   files::slurp_string(get_script_path("operator_gov.lua"));
 
@@ -77,26 +79,28 @@ std::vector<uint8_t> sign_json(nlohmann::json j, tls::KeyPairPtr& kp_)
   return kp_->sign(contents);
 }
 
-json create_json_req(const json& params, const string& method_name)
+std::vector<uint8_t> create_request(
+  const json& params, const string& method_name)
 {
-  json j;
-  j[JSON_RPC] = RPC_VERSION;
-  j[ID] = 1;
-  j[METHOD] = method_name;
-  if (!params.is_null())
-    j[PARAMS] = params;
-  return j;
+  http::Request r(method_name);
+  const auto body = params.is_null() ? std::vector<uint8_t>() :
+                                       jsonrpc::pack(params, default_pack);
+  r.set_body(&body);
+  return r.build_request();
 }
 
-json create_json_req_signed(
+std::vector<uint8_t> create_signed_request(
   const json& params, const string& method_name, tls::KeyPairPtr& kp_)
 {
-  auto j = create_json_req(params, method_name);
-  nlohmann::json sj;
-  sj["req"] = j;
-  auto sig = sign_json(j, kp_);
-  sj["sig"] = sig;
-  return sj;
+  http::Request r(method_name);
+
+  const auto body = params.is_null() ? std::vector<uint8_t>() :
+                                       jsonrpc::pack(params, default_pack);
+
+  r.set_body(&body);
+  http::sign_request(r, kp_);
+
+  return r.build_request();
 }
 
 template <typename T>
@@ -120,10 +124,10 @@ auto read_params(const T& key, const string& table_name)
 }
 
 json frontend_process(
-  MemberRpcFrontend& frontend, const json& j_request, const Cert& caller)
+  MemberRpcFrontend& frontend,
+  const std::vector<uint8_t>& serialized_request,
+  const Cert& caller)
 {
-  auto serialized_request = pack(j_request, default_pack);
-
   const enclave::SessionContext session(
     0, tls::make_verifier(caller)->der_cert_data());
   auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
@@ -131,7 +135,15 @@ json frontend_process(
 
   CHECK(serialized_response.has_value());
 
-  return unpack(serialized_response.value(), default_pack);
+  http::SimpleMsgProcessor processor;
+  http::Parser parser(HTTP_RESPONSE, processor);
+
+  const auto parsed_count =
+    parser.execute(serialized_response->data(), serialized_response->size());
+  REQUIRE(parsed_count == serialized_response->size());
+  REQUIRE(processor.received.size() == 1);
+
+  return jsonrpc::unpack(processor.received.front().body, default_pack);
 }
 
 nlohmann::json get_proposal(
@@ -144,9 +156,9 @@ nlohmann::json get_proposal(
     )xxx",
     proposal_id));
 
-  const auto readj = create_json_req(read_proposal, "query");
+  const auto read = create_request(read_proposal, "query");
 
-  return frontend_process(frontend, readj, caller);
+  return frontend_process(frontend, read, caller);
 }
 
 std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
@@ -215,7 +227,7 @@ TEST_CASE("Member query/read")
     bool compile = true;
     do
     {
-      const auto req = create_json_req(query_params(query, compile), "query");
+      const auto req = create_request(query_params(query, compile), "query");
       const Response<int> r = frontend_process(frontend, req, member_cert);
       CHECK(r.result == value);
       compile = !compile;
@@ -229,7 +241,7 @@ TEST_CASE("Member query/read")
     tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
     CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-    auto req = create_json_req(query_params(query, true), "query");
+    auto req = create_request(query_params(query, true), "query");
     const auto response = frontend_process(frontend, req, member_cert);
 
     check_error(response, CCFErrorCodes::SCRIPT_ERROR);
@@ -242,10 +254,9 @@ TEST_CASE("Member query/read")
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-    auto read_call_j =
-      create_json_req(read_params<int>(key, Tables::VALUES), "read");
-    const Response<int> r =
-      frontend_process(frontend, read_call_j, member_cert);
+    auto read_call =
+      create_request(read_params<int>(key, Tables::VALUES), "read");
+    const Response<int> r = frontend_process(frontend, read_call, member_cert);
 
     CHECK(r.result == value);
   }
@@ -258,9 +269,9 @@ TEST_CASE("Member query/read")
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-    auto read_call_j =
-      create_json_req(read_params<int>(wrong_key, Tables::VALUES), "read");
-    const auto response = frontend_process(frontend, read_call_j, member_cert);
+    auto read_call =
+      create_request(read_params<int>(wrong_key, Tables::VALUES), "read");
+    const auto response = frontend_process(frontend, read_call, member_cert);
 
     check_error(response, StandardErrorCodes::INVALID_PARAMS);
   }
@@ -271,9 +282,9 @@ TEST_CASE("Member query/read")
     tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
     CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-    auto read_call_j =
-      create_json_req(read_params<int>(key, Tables::VALUES), "read");
-    const auto response = frontend_process(frontend, read_call_j, member_cert);
+    auto read_call =
+      create_request(read_params<int>(key, Tables::VALUES), "read");
+    const auto response = frontend_process(frontend, read_call, member_cert);
 
     check_error(response, CCFErrorCodes::SCRIPT_ERROR);
   }
@@ -318,9 +329,9 @@ TEST_CASE("Proposer ballot")
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["keyshare"] = dummy_key_share;
     proposal.ballot = vote_against;
-    const auto proposej = create_json_req(proposal, "propose");
+    const auto propose = create_request(proposal, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, proposer_cert);
+      frontend_process(frontend, propose, proposer_cert);
 
     // the proposal should be accepted, but not succeed immediately
     CHECK(r.result.completed == false);
@@ -331,9 +342,9 @@ TEST_CASE("Proposer ballot")
   {
     INFO("Second member votes for proposal");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, voter_cert);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, voter_cert);
 
     // The vote should not yet succeed
     CHECK(r.result == false);
@@ -342,7 +353,7 @@ TEST_CASE("Proposer ballot")
   {
     INFO("Read current votes");
 
-    const auto readj = create_json_req_signed(
+    const auto read = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
     const Response<Proposal> proposal =
       get_proposal(frontend, proposal_id, proposer_cert);
@@ -362,9 +373,9 @@ TEST_CASE("Proposer ballot")
   {
     INFO("Proposer votes for");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, proposer_cert);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, proposer_cert);
 
     // The vote should now succeed
     CHECK(r.result == true);
@@ -422,7 +433,7 @@ TEST_CASE("Add new members until there are 7 then reject")
     new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
 
     // check new_member id does not work before member is added
-    const auto read_next_req = create_json_req(
+    const auto read_next_req = create_request(
       read_params<int>(ValueIds::NEXT_MEMBER_ID, Tables::VALUES), "read");
     const auto r = frontend_process(frontend, read_next_req, new_member.cert);
     check_error(r, CCFErrorCodes::INVALID_CALLER_ID);
@@ -436,11 +447,11 @@ TEST_CASE("Add new members until there are 7 then reject")
     proposal.parameter["cert"] = cert_pem;
     proposal.parameter["keyshare"] = keyshare;
 
-    const auto proposej = create_json_req(proposal, "propose");
+    const auto propose = create_request(proposal, "propose");
 
     {
       Response<Propose::Out> r =
-        frontend_process(frontend, proposej, member_cert);
+        frontend_process(frontend, propose, member_cert);
 
       // the proposal should be accepted, but not succeed immediately
       CHECK(r.result.id == proposal_id);
@@ -468,11 +479,11 @@ TEST_CASE("Add new members until there are 7 then reject")
       )xxx",
       max_members));
 
-    json votej =
-      create_json_req_signed(Vote{proposal_id, vote_ballot}, "vote", kp);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_ballot}, "vote", kp);
 
     {
-      Response<bool> r = frontend_process(frontend, votej, voter_a_cert);
+      Response<bool> r = frontend_process(frontend, vote, voter_a_cert);
 
       if (new_member.id < max_members)
       {
@@ -518,13 +529,13 @@ TEST_CASE("Add new members until there are 7 then reject")
          new_member++)
     {
       // (1) read ack entry
-      const auto read_nonce_req = create_json_req(
+      const auto read_nonce_req = create_request(
         read_params(new_member->id, Tables::MEMBER_ACKS), "read");
       const Response<MemberAck> ack0 =
         frontend_process(frontend, read_nonce_req, new_member->cert);
 
       // (2) ask for a fresher nonce
-      const auto freshen_nonce_req = create_json_req(nullptr, "updateAckNonce");
+      const auto freshen_nonce_req = create_request(nullptr, "updateAckNonce");
       check_success(
         frontend_process(frontend, freshen_nonce_req, new_member->cert));
 
@@ -536,7 +547,7 @@ TEST_CASE("Add new members until there are 7 then reject")
       // (4) sign old nonce and send it
       const auto bad_sig =
         RawSignature{new_member->kp->sign(ack0.result.next_nonce)};
-      const auto send_bad_sig_req = create_json_req(bad_sig, "ack");
+      const auto send_bad_sig_req = create_request(bad_sig, "ack");
       check_error(
         frontend_process(frontend, send_bad_sig_req, new_member->cert),
         jsonrpc::StandardErrorCodes::INVALID_PARAMS);
@@ -544,7 +555,7 @@ TEST_CASE("Add new members until there are 7 then reject")
       // (5) sign new nonce and send it
       const auto good_sig =
         RawSignature{new_member->kp->sign(ack1.result.next_nonce)};
-      const auto send_good_sig_req = create_json_req(good_sig, "ack");
+      const auto send_good_sig_req = create_request(good_sig, "ack");
       check_success(
         frontend_process(frontend, send_good_sig_req, new_member->cert));
 
@@ -555,7 +566,7 @@ TEST_CASE("Add new members until there are 7 then reject")
 
       // (7) read own member status
       const auto read_status_req =
-        create_json_req(read_params(new_member->id, Tables::MEMBERS), "read");
+        create_request(read_params(new_member->id, Tables::MEMBERS), "read");
       const Response<MemberInfo> mi =
         frontend_process(frontend, read_status_req, new_member->cert);
       CHECK(mi.result.status == MemberStatus::ACTIVE);
@@ -593,10 +604,10 @@ TEST_CASE("Accept node")
 
   // check node exists with status pending
   {
-    auto read_values_j =
-      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    auto read_values =
+      create_request(read_params<int>(node_id, Tables::NODES), "read");
     Response<NodeInfo> r =
-      frontend_process(frontend, read_values_j, member_0_cert);
+      frontend_process(frontend, read_values, member_0_cert);
 
     CHECK(r.result.status == NodeStatus::PENDING);
   }
@@ -607,9 +618,10 @@ TEST_CASE("Accept node")
       local tables, node_id = ...
       return Calls:call("trust_node", node_id)
     )xxx");
-    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    const auto propose =
+      create_request(Propose::In{proposal, node_id}, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_0_cert);
+      frontend_process(frontend, propose, member_0_cert);
 
     CHECK(!r.result.completed);
     CHECK(r.result.id == 0);
@@ -621,17 +633,17 @@ TEST_CASE("Accept node")
         local tables, calls = ...
         return #calls == 1 and calls[1].func == "trust_node"
        )xxx");
-    json votej = create_json_req_signed(Vote{0, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(Vote{0, vote_ballot}, "vote", kp);
 
-    check_success(frontend_process(frontend, votej, member_1_cert));
+    check_success(frontend_process(frontend, vote, member_1_cert));
   }
 
   // check node exists with status pending
   {
-    auto read_values_j =
-      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    const auto read_values =
+      create_request(read_params<int>(node_id, Tables::NODES), "read");
     Response<NodeInfo> r =
-      frontend_process(frontend, read_values_j, member_0_cert);
+      frontend_process(frontend, read_values, member_0_cert);
     CHECK(r.result.status == NodeStatus::TRUSTED);
   }
 
@@ -641,9 +653,10 @@ TEST_CASE("Accept node")
       local tables, node_id = ...
       return Calls:call("retire_node", node_id)
     )xxx");
-    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    const auto propose =
+      create_request(Propose::In{proposal, node_id}, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_0_cert);
+      frontend_process(frontend, propose, member_0_cert);
 
     CHECK(!r.result.completed);
     CHECK(r.result.id == 1);
@@ -652,16 +665,16 @@ TEST_CASE("Accept node")
   // m1 votes for retiring node
   {
     const Script vote_ballot("return true");
-    json votej = create_json_req_signed(Vote{1, vote_ballot}, "vote", kp);
-    check_success(frontend_process(frontend, votej, member_1_cert));
+    const auto vote = create_signed_request(Vote{1, vote_ballot}, "vote", kp);
+    check_success(frontend_process(frontend, vote, member_1_cert));
   }
 
   // check that node exists with status retired
   {
-    auto read_values_j =
-      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    auto read_values =
+      create_request(read_params<int>(node_id, Tables::NODES), "read");
     Response<NodeInfo> r =
-      frontend_process(frontend, read_values_j, member_0_cert);
+      frontend_process(frontend, read_values, member_0_cert);
     CHECK(r.result.status == NodeStatus::RETIRED);
   }
 
@@ -671,14 +684,15 @@ TEST_CASE("Accept node")
       local tables, node_id = ...
       return Calls:call("trust_node", node_id)
     )xxx");
-    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    const auto propose =
+      create_request(Propose::In{proposal, node_id}, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_0_cert);
+      frontend_process(frontend, propose, member_0_cert);
 
     const Script vote_ballot("return true");
-    json votej = create_json_req_signed(Vote{2, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(Vote{2, vote_ballot}, "vote", kp);
     check_error(
-      frontend_process(frontend, votej, member_1_cert),
+      frontend_process(frontend, vote, member_1_cert),
       StandardErrorCodes::INTERNAL_ERROR);
   }
 
@@ -688,14 +702,15 @@ TEST_CASE("Accept node")
       local tables, node_id = ...
       return Calls:call("retire_node", node_id)
     )xxx");
-    json proposej = create_json_req(Propose::In{proposal, node_id}, "propose");
+    const auto propose =
+      create_request(Propose::In{proposal, node_id}, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_0_cert);
+      frontend_process(frontend, propose, member_0_cert);
 
     const Script vote_ballot("return true");
-    json votej = create_json_req_signed(Vote{3, vote_ballot}, "vote", kp);
+    const auto vote = create_signed_request(Vote{3, vote_ballot}, "vote", kp);
     check_error(
-      frontend_process(frontend, votej, member_1_cert),
+      frontend_process(frontend, vote, member_1_cert),
       StandardErrorCodes::INTERNAL_ERROR);
   }
 }
@@ -726,9 +741,9 @@ bool test_raw_writes(
   const auto proposal_id = 0ul;
   {
     const uint8_t proposer_id = 0;
-    json proposej = create_json_req(proposal, "propose");
+    const auto propose = create_request(proposal, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_certs[0]);
+      frontend_process(frontend, propose, member_certs[0]);
 
     CHECK(r.result.completed == (n_members == 1));
     CHECK(r.result.id == proposal_id);
@@ -740,9 +755,11 @@ bool test_raw_writes(
   for (int i = n_members - 1; i >= pro_votes; i--)
   {
     const Script vote("return false");
-    json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
+    const auto vote_serialized =
+      create_signed_request(Vote{proposal_id, vote}, "vote", kp);
 
-    check_success(frontend_process(frontend, votej, member_certs[i]), false);
+    check_success(
+      frontend_process(frontend, vote_serialized, member_certs[i]), false);
   }
 
   // pro votes (proposer also votes)
@@ -750,18 +767,19 @@ bool test_raw_writes(
   for (uint8_t i = explicit_proposer_vote ? 0 : 1; i < pro_votes; i++)
   {
     const Script vote("return true");
-    json votej = create_json_req_signed(Vote{proposal_id, vote}, "vote", kp);
+    const auto vote_serialized =
+      create_signed_request(Vote{proposal_id, vote}, "vote", kp);
     if (!completed)
     {
-      completed =
-        Response<bool>(frontend_process(frontend, votej, member_certs[i]))
-          .result;
+      completed = Response<bool>(frontend_process(
+                                   frontend, vote_serialized, member_certs[i]))
+                    .result;
     }
     else
     {
       // proposal has been accepted - additional votes return an error
       check_error(
-        frontend_process(frontend, votej, member_certs[i]),
+        frontend_process(frontend, vote_serialized, member_certs[i]),
         StandardErrorCodes::INVALID_PARAMS);
     }
   }
@@ -902,9 +920,9 @@ TEST_CASE("Remove proposal")
   }
 
   {
-    json proposej = create_json_req(Propose::In{proposal_script, 0}, "propose");
-    Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_cert);
+    const auto propose =
+      create_request(Propose::In{proposal_script, 0}, "propose");
+    Response<Propose::Out> r = frontend_process(frontend, propose, member_cert);
 
     CHECK(r.result.id == proposal_id);
     CHECK(!r.result.completed);
@@ -923,10 +941,10 @@ TEST_CASE("Remove proposal")
   {
     json param;
     param["id"] = wrong_proposal_id;
-    json withdrawj = create_json_req(param, "withdraw");
+    const auto withdraw = create_request(param, "withdraw");
 
     check_error(
-      frontend_process(frontend, withdrawj, member_cert),
+      frontend_process(frontend, withdraw, member_cert),
       StandardErrorCodes::INVALID_PARAMS);
   }
 
@@ -934,10 +952,10 @@ TEST_CASE("Remove proposal")
   {
     json param;
     param["id"] = proposal_id;
-    json withdrawj = create_json_req(param, "withdraw");
+    const auto withdraw = create_request(param, "withdraw");
 
     check_error(
-      frontend_process(frontend, withdrawj, cert),
+      frontend_process(frontend, withdraw, cert),
       CCFErrorCodes::INVALID_CALLER_ID);
   }
 
@@ -945,9 +963,9 @@ TEST_CASE("Remove proposal")
   {
     json param;
     param["id"] = proposal_id;
-    json withdrawj = create_json_req(param, "withdraw");
+    const auto withdraw = create_request(param, "withdraw");
 
-    check_success(frontend_process(frontend, withdrawj, member_cert));
+    check_success(frontend_process(frontend, withdraw, member_cert));
 
     // check that the proposal is now withdrawn
     {
@@ -975,12 +993,11 @@ TEST_CASE("Complete proposal after initial rejection")
     INFO("Propose");
     const auto proposal =
       "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
-    const auto proposej = create_json_req(Propose::In{proposal}, "propose");
-    ccf::SignedReq sr(proposej);
+    const auto propose = create_request(Propose::In{proposal}, "propose");
 
     Store::Tx tx;
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, member_certs[0]);
+      frontend_process(frontend, propose, member_certs[0]);
     CHECK(r.result.completed == false);
   }
 
@@ -990,17 +1007,18 @@ TEST_CASE("Complete proposal after initial rejection")
     local tables = ...
     return tables["ccf.values"]:get(123) == 123
     )xxx");
-    const auto votej = create_json_req_signed(Vote{0, vote}, "vote", kp);
+    const auto vote_serialized =
+      create_signed_request(Vote{0, vote}, "vote", kp);
 
-    check_success(frontend_process(frontend, votej, member_certs[1]), false);
+    check_success(
+      frontend_process(frontend, vote_serialized, member_certs[1]), false);
   }
 
   {
     INFO("Try to complete");
-    const auto completej = create_json_req(ProposalAction{0}, "complete");
+    const auto complete = create_request(ProposalAction{0}, "complete");
 
-    check_success(
-      frontend_process(frontend, completej, member_certs[1]), false);
+    check_success(frontend_process(frontend, complete, member_certs[1]), false);
   }
 
   {
@@ -1012,9 +1030,59 @@ TEST_CASE("Complete proposal after initial rejection")
 
   {
     INFO("Try again to complete");
-    const auto completej = create_json_req(ProposalAction{0}, "complete");
+    const auto complete = create_request(ProposalAction{0}, "complete");
 
-    check_success(frontend_process(frontend, completej, member_certs[1]));
+    check_success(frontend_process(frontend, complete, member_certs[1]));
+  }
+}
+
+TEST_CASE("Vetoed proposal gets rejected")
+{
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  Store::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  StubNodeState node;
+  const auto voter_a_cert = get_cert_data(1, kp);
+  auto voter_a = gen.add_member(voter_a_cert, {}, MemberStatus::ACTIVE);
+  const auto voter_b_cert = get_cert_data(2, kp);
+  auto voter_b = gen.add_member(voter_b_cert, {}, MemberStatus::ACTIVE);
+  set_whitelists(gen);
+  gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_veto_script_file));
+  gen.finalize();
+  MemberRpcFrontend frontend(network, node);
+  frontend.open();
+
+  Script proposal(R"xxx(
+    tables, user_cert = ...
+      return Calls:call("new_user", user_cert)
+    )xxx");
+
+  const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
+  const auto propose =
+    create_request(Propose::In{proposal, user_cert}, "propose");
+
+  Response<Propose::Out> r = frontend_process(frontend, propose, voter_a_cert);
+  CHECK(r.result.completed == false);
+  CHECK(r.result.id == 0);
+
+  const ccf::Script vote_against("return false");
+  {
+    INFO("Member vetoes proposal");
+
+    const auto vote = create_signed_request(Vote{0, vote_against}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, voter_b_cert);
+
+    CHECK(r.result == false);
+  }
+
+  {
+    INFO("Check proposal was rejected");
+
+    const Response<Proposal> proposal = get_proposal(frontend, 0, voter_a_cert);
+
+    CHECK(proposal.result.state == ProposalState::REJECTED);
   }
 }
 
@@ -1040,10 +1108,10 @@ TEST_CASE("Add user via proposed call")
     )xxx");
 
   const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
-  json proposej = create_json_req(Propose::In{proposal, user_cert}, "propose");
-  ccf::SignedReq sr(proposej);
+  const auto propose =
+    create_request(Propose::In{proposal, user_cert}, "propose");
 
-  Response<Propose::Out> r = frontend_process(frontend, proposej, member_cert);
+  Response<Propose::Out> r = frontend_process(frontend, propose, member_cert);
   CHECK(r.result.completed);
   CHECK(r.result.id == 0);
 
@@ -1109,10 +1177,10 @@ TEST_CASE("Passing members ballot with operator")
     proposal.parameter["keyshare"] = dummy_key_share;
     proposal.ballot = vote_for;
 
-    const auto proposej = create_json_req(proposal, "propose");
+    const auto propose = create_request(proposal, "propose");
     Response<Propose::Out> r = frontend_process(
       frontend,
-      proposej,
+      propose,
       tls::make_verifier(members[proposer_id])->der_cert_data());
 
     CHECK(r.result.completed == false);
@@ -1123,9 +1191,9 @@ TEST_CASE("Passing members ballot with operator")
   {
     INFO("Operator votes, but without effect");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, operator_cert);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, operator_cert);
 
     CHECK(r.result == false);
   }
@@ -1133,9 +1201,9 @@ TEST_CASE("Passing members ballot with operator")
   {
     INFO("Second member votes for proposal, which passes");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
-    Response<bool> r = frontend_process(frontend, votej, members[voter_id]);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
+    Response<bool> r = frontend_process(frontend, vote, members[voter_id]);
 
     CHECK(r.result == true);
   }
@@ -1143,7 +1211,7 @@ TEST_CASE("Passing members ballot with operator")
   {
     INFO("Validate vote tally");
 
-    const auto readj = create_json_req_signed(
+    const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const Response<Proposal> proposal =
@@ -1211,10 +1279,10 @@ TEST_CASE("Passing operator vote")
   auto node_id = 0;
   {
     INFO("Check node exists with status pending");
-    auto read_values_j =
-      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    auto read_values =
+      create_request(read_params<int>(node_id, Tables::NODES), "read");
     Response<NodeInfo> r =
-      frontend_process(frontend, read_values_j, operator_cert);
+      frontend_process(frontend, read_values, operator_cert);
 
     CHECK(r.result.status == NodeStatus::PENDING);
   }
@@ -1226,10 +1294,10 @@ TEST_CASE("Passing operator vote")
       return Calls:call("trust_node", node_id)
     )xxx");
 
-    json proposej =
-      create_json_req(Propose::In{proposal, node_id, vote_for}, "propose");
+    const auto propose =
+      create_request(Propose::In{proposal, node_id, vote_for}, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, operator_cert);
+      frontend_process(frontend, propose, operator_cert);
 
     CHECK(r.result.completed);
     proposal_id = r.result.id;
@@ -1238,7 +1306,7 @@ TEST_CASE("Passing operator vote")
   {
     INFO("Validate vote tally");
 
-    const auto readj = create_json_req_signed(
+    const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const Response<Proposal> proposal =
@@ -1298,10 +1366,10 @@ TEST_CASE("Members passing an operator vote")
   auto node_id = 0;
   {
     INFO("Check node exists with status pending");
-    auto read_values_j =
-      create_json_req(read_params<int>(node_id, Tables::NODES), "read");
+    const auto read_values =
+      create_request(read_params<int>(node_id, Tables::NODES), "read");
     Response<NodeInfo> r =
-      frontend_process(frontend, read_values_j, operator_cert);
+      frontend_process(frontend, read_values, operator_cert);
     CHECK(r.result.status == NodeStatus::PENDING);
   }
 
@@ -1312,10 +1380,10 @@ TEST_CASE("Members passing an operator vote")
       return Calls:call("trust_node", node_id)
     )xxx");
 
-    json proposej =
-      create_json_req(Propose::In{proposal, node_id, vote_against}, "propose");
+    const auto propose =
+      create_request(Propose::In{proposal, node_id, vote_against}, "propose");
     Response<Propose::Out> r =
-      frontend_process(frontend, proposej, operator_cert);
+      frontend_process(frontend, propose, operator_cert);
 
     CHECK(!r.result.completed);
     proposal_id = r.result.id;
@@ -1327,10 +1395,10 @@ TEST_CASE("Members passing an operator vote")
   {
     INFO("First member votes for proposal");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
     Response<bool> r =
-      frontend_process(frontend, votej, members[first_voter_id]);
+      frontend_process(frontend, vote, members[first_voter_id]);
 
     CHECK(r.result == false);
   }
@@ -1338,10 +1406,10 @@ TEST_CASE("Members passing an operator vote")
   {
     INFO("Second member votes for proposal");
 
-    const auto votej =
-      create_json_req_signed(Vote{proposal_id, vote_for}, "vote", kp);
+    const auto vote =
+      create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
     Response<bool> r =
-      frontend_process(frontend, votej, members[second_voter_id]);
+      frontend_process(frontend, vote, members[second_voter_id]);
 
     CHECK(r.result == true);
   }
@@ -1349,7 +1417,7 @@ TEST_CASE("Members passing an operator vote")
   {
     INFO("Validate vote tally");
 
-    const auto readj = create_json_req_signed(
+    const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
 
     const Response<Proposal> proposal =
@@ -1390,7 +1458,7 @@ TEST_CASE("User data")
   frontend.open();
 
   const auto read_user_info =
-    create_json_req(read_params(user_id, Tables::USERS), "read");
+    create_request(read_params(user_id, Tables::USERS), "read");
 
   {
     INFO("user data is initially empty");
@@ -1415,9 +1483,9 @@ TEST_CASE("User data")
         return Calls:call("set_user_data", {{user_id = {}, user_data = proposed_user_data}})
       )xxx",
       user_id);
-    const auto j_proposal = create_json_req(proposal, "propose");
+    const auto proposal_serialized = create_request(proposal, "propose");
     Response<Propose::Out> propose_response =
-      frontend_process(frontend, j_proposal, member_cert);
+      frontend_process(frontend, proposal_serialized, member_cert);
     CHECK(propose_response.result.completed);
 
     INFO("user data object can be read");
@@ -1437,9 +1505,9 @@ TEST_CASE("User data")
     )xxx");
     proposal.parameter["id"] = user_id;
     proposal.parameter["data"] = user_data_string;
-    const auto j_proposal = create_json_req(proposal, "propose");
+    const auto proposal_serialized = create_request(proposal, "propose");
     Response<Propose::Out> propose_response =
-      frontend_process(frontend, j_proposal, member_cert);
+      frontend_process(frontend, proposal_serialized, member_cert);
     CHECK(propose_response.result.completed);
 
     INFO("user data object can be read");

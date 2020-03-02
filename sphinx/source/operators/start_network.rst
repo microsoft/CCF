@@ -22,7 +22,6 @@ To create a new CCF network, the first node of the network should be started wit
     [--domain domain]
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
-    --quote-file /path/to/quote
     start
     --network-cert-file /path/to/network_certificate
     --member-info /path/to/member1_cert,/path/to/member1_kshare_pub
@@ -33,7 +32,7 @@ CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported
 
 .. note:: To start a CCF node in `virtual` mode, operators should run ``$ cchost.virtual --enclave-file /path/to/virtual_enclave_library ...``
 
-When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. A quote file, required for remote attestation, is also output at the location specified by ``--quote-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
+When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
 
 .. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
 
@@ -44,6 +43,7 @@ The :term:`constitution`, as defined by the initial members, should be passed vi
 The network is now in its opening state and any new nodes can join the network without being trusted by members.
 
 .. note:: Once a CCF network is started, :ref:`members can add other members and users via governance <members/open_network:Opening a Network>`.
+.. note:: If starting up the network with PBFT enabled as the consensus protocol, be sure to add the ``--consensus pbft`` CLI argument  when starting up the node. For more info on the provided consensus protocols please see :ref:`here <developers/consensus:Consensus Protocols>`
 
 Adding a New Node to the Network
 --------------------------------
@@ -60,7 +60,6 @@ To add a new node to an existing opening network, other nodes should be started 
     --public-rpc-address <ccf-node-public-address>
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
-    --quote-file /path/to/quote
     join
     --network-cert-file /path/to/existing/network_certificate
     --target-rpc-address <another-ccf-node-address>
@@ -72,6 +71,7 @@ If the network has not yet been opened by members (see :ref:`members/open_networ
 If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`members/common_member_operations:Trusting a New Node`).
 
 .. note:: When starting up the network or when joining an existing network, the secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`operators/recovery:Catastrophic Recovery` for more details on how to recover a crashed network.
+.. note:: If starting up the network with PBFT enabled as the consensus protocol, be sure to add the ``--consensus pbft`` CLI argument when starting up the node. For more info on the provided consensus protocols please see :ref:`here <developers/consensus:Consensus Protocols>`
 
 Opening a Network to Users
 --------------------------

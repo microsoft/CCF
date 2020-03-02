@@ -244,7 +244,7 @@ namespace ccf
           proposed_calls);
       }
 
-      const auto pass = tsr.run<bool>(
+      const auto pass = tsr.run<int>(
         tx,
         {get_script(tx, GovScriptIds::PASS),
          {}, // can't write
@@ -254,8 +254,31 @@ namespace ccf
         proposed_calls,
         votes);
 
-      if (!pass)
-        return false;
+      switch (pass)
+      {
+        case CompletionResult::PASSED:
+        {
+          // vote passed, go on to update the state
+          break;
+        }
+        case CompletionResult::PENDING:
+        {
+          // vote is pending, return false but do not update state
+          return false;
+        }
+        case CompletionResult::REJECTED:
+        {
+          // vote unsuccessful, update the proposal's state
+          proposal->state = ProposalState::REJECTED;
+          proposals->put(id, *proposal);
+          return false;
+        }
+        default:
+        {
+          throw std::logic_error(fmt::format(
+            "Invalid completion result ({}) for proposal {}", pass, id));
+        }
+      };
 
       // execute proposed calls
       ProposedCalls pc = proposed_calls;
@@ -344,7 +367,7 @@ namespace ccf
           return;
         }
 
-        const auto in = args.params.get<KVRead::In>();
+        const auto in = args.rpc_ctx->get_params().get<KVRead::In>();
 
         const ccf::Script read_script(R"xxx(
         local tables, table_name, key = ...
@@ -378,7 +401,7 @@ namespace ccf
           return;
         }
 
-        const auto script = args.params.get<ccf::Script>();
+        const auto script = args.rpc_ctx->get_params().get<ccf::Script>();
         args.rpc_ctx->set_response_result(tsr.run<nlohmann::json>(
           args.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
         return;
@@ -394,7 +417,7 @@ namespace ccf
           return;
         }
 
-        const auto in = args.params.get<Propose::In>();
+        const auto in = args.rpc_ctx->get_params().get<Propose::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
         Proposal proposal(in.script, in.parameter, args.caller_id);
@@ -417,7 +440,8 @@ namespace ccf
           return;
         }
 
-        const auto proposal_action = args.params.get<ProposalAction>();
+        const auto proposal_action =
+          args.rpc_ctx->get_params().get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
@@ -472,14 +496,15 @@ namespace ccf
           return;
         }
 
-        if (!args.rpc_ctx->signed_request.has_value())
+        const auto signed_request = args.rpc_ctx->get_signed_request();
+        if (!signed_request.has_value())
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
           return;
         }
 
-        const auto vote = args.params.get<Vote>();
+        const auto vote = args.rpc_ctx->get_params().get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(vote.id);
         if (!proposal)
@@ -508,8 +533,7 @@ namespace ccf
         proposals->put(vote.id, *proposal);
 
         auto voting_history = args.tx.get_view(this->network.voting_history);
-        voting_history->put(
-          args.caller_id, {args.rpc_ctx->signed_request.value()});
+        voting_history->put(args.caller_id, {signed_request.value()});
 
         args.rpc_ctx->set_response_result(complete_proposal(args.tx, vote.id));
         return;
@@ -517,7 +541,9 @@ namespace ccf
       install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
 
       auto create = [this](RequestArgs& args) {
-        const auto in = args.params.get<CreateNetworkNodeToNode::In>();
+        LOG_INFO_FMT("Processing create RPC");
+        const auto in =
+          args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
 
         GenesisGenerator g(this->network, args.tx);
 
@@ -537,15 +563,21 @@ namespace ccf
           g.add_member(cert, k_encryption_key);
         }
 
+        node.split_ledger_secrets(args.tx);
+
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
                                   in.quote,
                                   in.public_encryption_key,
                                   NodeStatus::TRUSTED});
 
+        LOG_INFO_FMT("Got self = {}", self);
         if (self != 0)
         {
-          throw std::logic_error(fmt::format("My node was set to {}", self));
+          args.rpc_ctx->set_response_error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Starting node ID is not 0");
+          return;
         }
 
 #ifdef GET_QUOTE
@@ -567,9 +599,8 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
-        g.add_key_share_info(in.genesis_key_share_info);
-
         args.rpc_ctx->set_response_result(true);
+        LOG_INFO_FMT("Created service");
         return;
       };
       install(MemberProcs::CREATE, create, Write);
@@ -582,7 +613,8 @@ namespace ccf
           return;
         }
 
-        const auto proposal_action = args.params.get<ProposalAction>();
+        const auto proposal_action =
+          args.rpc_ctx->get_params().get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
 
         args.rpc_ctx->set_response_result(
@@ -606,7 +638,7 @@ namespace ccf
 
         auto verifier = tls::make_verifier(
           std::vector<uint8_t>(args.rpc_ctx->session.caller_cert));
-        const auto rs = args.params.get<RawSignature>();
+        const auto rs = args.rpc_ctx->get_params().get<RawSignature>();
         if (!verifier->verify(last_ma->next_nonce, rs.sig))
         {
           args.rpc_ctx->set_response_error(

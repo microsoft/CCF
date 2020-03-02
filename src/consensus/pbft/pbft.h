@@ -262,6 +262,7 @@ namespace pbft
       general_info.recovery_timeout = 9999250000;
       general_info.max_requests_between_signatures =
         sig_max_tx / Max_requests_in_batch;
+      general_info.support_threading = true;
 
       // Adding myself
       PrincipalInfo my_info;
@@ -368,7 +369,7 @@ namespace pbft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       pbft::Request request = {
-        args.actor, args.caller_id, args.caller_cert, args.request, {}};
+        args.caller_id, args.caller_cert, args.request, {}};
       auto serialized_req = request.serialise();
 
       auto rep_cb = [&](
@@ -474,15 +475,6 @@ namespace pbft
       return data.size();
     }
 
-    bool replicate(const kv::BatchDetachedBuffer& entries) override
-    {
-      for (auto& [index, data, globally_committable] : entries)
-      {
-        write_to_ledger(data);
-      }
-      return true;
-    }
-
     bool replicate(const kv::BatchVector& entries) override
     {
       for (auto& [index, data, globally_committable] : entries)
@@ -504,6 +496,13 @@ namespace pbft
         }
         case pbft_append_entries:
         {
+          if (message_receiver_base->IsExecutionPending())
+          {
+            LOG_FAIL << "Pending Execution, skipping append entries request"
+                     << std::endl;
+            return;
+          }
+
           AppendEntries r;
 
           auto append_entries_index = store->current_version();

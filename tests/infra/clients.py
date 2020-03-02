@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import socket
 import ssl
-import msgpack
 import struct
 import select
 import contextlib
@@ -18,7 +17,6 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import asymmetric
 from websocket import create_connection
-
 from loguru import logger as LOG
 
 
@@ -30,29 +28,10 @@ def truncate(string, max_len=256):
 
 
 class Request:
-    def __init__(self, id, method, params, readonly_hint=None, jsonrpc="2.0"):
-        self.id = id
+    def __init__(self, method, params, readonly_hint=None):
         self.method = method
         self.params = params
-        self.jsonrpc = jsonrpc
         self.readonly_hint = readonly_hint
-
-    def to_dict(self):
-        rpc = {
-            "id": self.id,
-            "method": self.method,
-            "jsonrpc": self.jsonrpc,
-            "params": self.params,
-        }
-        if self.readonly_hint is not None:
-            rpc["readonly"] = self.readonly_hint
-        return rpc
-
-    def to_msgpack(self):
-        return msgpack.packb(self.to_dict(), use_bin_type=True)
-
-    def to_json(self):
-        return json.dumps(self.to_dict()).encode()
 
 
 class Response:
@@ -96,10 +75,6 @@ class Response:
         for attr, value in parsed.items():
             setattr(self, attr, value)
 
-    def from_msgpack(self, data):
-        parsed = msgpack.unpackb(data, raw=False)
-        self._from_parsed(parsed)
-
     def from_json(self, data):
         parsed = json.loads(data.decode())
         self._from_parsed(parsed)
@@ -114,93 +89,11 @@ def human_readable_size(n):
     return f"{n:,.2f} {suffixes[i]}"
 
 
-class FramedTLSClient:
-    def __init__(self, host, port, cert=None, key=None, ca=None, request_timeout=3):
-        self.host = host
-        self.port = port
-        self.cert = cert
-        self.key = key
-        self.ca = ca
-        self.context = None
-        self.sock = None
-        self.conn = None
-        self.request_timeout = request_timeout
-
-    def connect(self):
-        if self.ca:
-            self.context = ssl.create_default_context(cafile=self.ca)
-
-            # Auto detect EC curve to use based on server CA
-            ca_bytes = open(self.ca, "rb").read()
-            ca_curve = (
-                x509.load_pem_x509_certificate(ca_bytes, default_backend())
-                .public_key()
-                .curve
-            )
-            if isinstance(ca_curve, asymmetric.ec.SECP256K1):
-                self.context.set_ecdh_curve("secp256k1")
-        else:
-            self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        if self.cert and self.key:
-            self.context.load_cert_chain(certfile=self.cert, keyfile=self.key)
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.conn = self.context.wrap_socket(
-            self.sock, server_side=False, server_hostname=self.host
-        )
-        self.conn.connect((self.host, self.port))
-
-    def send(self, msg):
-        LOG.trace(f"Sending {human_readable_size(len(msg))} message")
-        frame = struct.pack("<I", len(msg)) + msg
-        self.conn.sendall(frame)
-
-    def _read(self):
-        (size,) = struct.unpack("<I", self.conn.recv(4))
-        LOG.trace(f"Reading {human_readable_size(size)} response")
-        data = self.conn.recv(size)
-        while len(data) < size:
-            data += self.conn.recv(size - len(data))
-        return data
-
-    def read(self):
-        for _ in range(self.request_timeout * 100):
-            r, _, _ = select.select([self.conn], [], [], 0)
-            if r:
-                return self._read()
-            else:
-                time.sleep(0.01)
-        raise TimeoutError
-
-    def disconnect(self):
-        self.conn.close()
-
-
-class Stream:
-    def __init__(self, jsonrpc="2.0", format="msgpack"):
-        self.jsonrpc = jsonrpc
-        self.seqno = 0
-        self.pending = {}
-        self.format = format
-
-    def request(self, method, params, readonly_hint=None):
-        r = Request(self.seqno, method, params, readonly_hint, self.jsonrpc)
-        self.seqno += 1
-        return r
-
-    def response(self, id):
-        return self.pending.pop(id, None)
-
-    def update(self, msg):
-        r = Response(0)
-        getattr(r, f"from_{self.format}")(msg)
-        self.pending[r.id] = r
-
-
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
             truncate(
-                f"{name} #{request.id} {request.method} {request.params}"
+                f"{name} {request.method} {request.params}"
                 + (
                     f" (RO hint: {request.readonly_hint})"
                     if request.readonly_hint is not None
@@ -233,8 +126,8 @@ class RPCFileLogger(RPCLogger):
 
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
-            f.write(">> Request:" + os.linesep)
-            json.dump(request.to_dict(), f, indent=2)
+            f.write(f">> Request: {request.method}" + os.linesep)
+            json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
     def log_response(self, id, response):
@@ -248,59 +141,12 @@ class CCFConnectionException(Exception):
     pass
 
 
-class FramedTLSJSONRPCClient:
-    def __init__(
-        self,
-        host,
-        port,
-        cert=None,
-        key=None,
-        ca=None,
-        version="2.0",
-        format="msgpack",
-        connection_timeout=3,
-        request_timeout=3,
-        *args,
-        **kwargs,
-    ):
-        self.client = FramedTLSClient(host, int(port), cert, key, ca, request_timeout)
-        self.stream = Stream(version, format=format)
-        self.format = format
-
-        while connection_timeout >= 0:
-            connection_timeout -= 0.1
-            try:
-                self.connect()
-                break
-            except (ssl.SSLError, ssl.SSLCertVerificationError):
-                if connection_timeout < 0:
-                    raise CCFConnectionException
-            time.sleep(0.1)
-
-    def connect(self):
-        return self.client.connect()
-
-    def disconnect(self):
-        return self.client.disconnect()
-
-    def request(self, request):
-        self.client.send(getattr(request, f"to_{self.format}")())
-        return request.id
-
-    def tick(self):
-        msg = self.client.read()
-        self.stream.update(msg)
-
-    def response(self, id):
-        self.tick()
-        return self.stream.response(id)
-
-
-# We keep this around in a limited fashion still, because
-# the resulting logs nicely illustrate manual usage in a way using requests doesn't
-
-
 class CurlClient:
+    """
+    We keep this around in a limited fashion still, because
+    the resulting logs nicely illustrate manual usage in a way using the requests API doesn't
+    """
+
     def __init__(
         self,
         host,
@@ -308,8 +154,6 @@ class CurlClient:
         cert,
         key,
         ca,
-        version,
-        format,
         binary_dir,
         connection_timeout,
         request_timeout,
@@ -321,16 +165,14 @@ class CurlClient:
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.format = "json"
         self.binary_dir = binary_dir
         self.connection_timeout = connection_timeout
         self.request_timeout = request_timeout
-        self.stream = Stream(version, "json")
 
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = getattr(request, f"to_{self.format}")()
-            LOG.debug(f"Going to send {msg}")
+            msg = json.dumps(request.params).encode()
+            LOG.debug(f"Going to call {request.method} with {msg}")
             nf.write(msg)
             nf.flush()
             if is_signed:
@@ -372,32 +214,32 @@ class CurlClient:
                 LOG.error(rep)
                 raise RuntimeError(f"Curl failed with status code {status_code}")
 
-            self.stream.update(rep.encode())
-        return request.id
+            return rep.encode()
 
     def _request(self, request, is_signed=False):
-        while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
+        end_time = time.time() + self.connection_timeout
+        while True:
             try:
-                rid = self._just_request(request, is_signed)
+                rid = self._just_request(request, is_signed=is_signed)
+                # Only the first request gets this timeout logic - future calls
+                # call _just_request directly
                 self._request = self._just_request
                 return rid
-            except CCFConnectionException:
-                if self.connection_timeout < 0:
-                    raise
-            time.sleep(0.1)
+            except CCFConnectionException as e:
+                # If the handshake fails to due to node certificate not yet
+                # being endorsed by the network, sleep briefly and try again
+                if time.time() > end_time:
+                    raise CCFConnectionException(
+                        f"Connection still failing after {self.connection_timeout}s: {e}"
+                    )
+                LOG.error(f"Got SSLError exception: {e}")
+                time.sleep(0.1)
 
     def request(self, request):
         return self._request(request, is_signed=False)
 
     def signed_request(self, request):
         return self._request(request, is_signed=True)
-
-    def response(self, id):
-        return self.stream.response(id)
-
-    def disconnect(self):
-        pass
 
 
 class RequestClient:
@@ -408,8 +250,6 @@ class RequestClient:
         cert,
         key,
         ca,
-        version,
-        format,
         connection_timeout,
         request_timeout,
         *args,
@@ -420,60 +260,57 @@ class RequestClient:
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.format = "json"
-        self.stream = Stream(version, "json")
         self.request_timeout = request_timeout
         self.connection_timeout = connection_timeout
+        self.session = requests.Session()
+        self.session.verify = self.ca
+        self.session.cert = (self.cert, self.key)
 
-    def _just_request(self, request):
-        rep = requests.post(
+    def _just_request(self, request, is_signed=False):
+        auth_value = None
+        if is_signed:
+            auth_value = HTTPSignatureAuth(
+                algorithm="ecdsa-sha256",
+                key=open(self.key, "rb").read(),
+                # key_id needs to be specified but is unused
+                key_id="tls",
+                headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
+            )
+
+        rep = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
-            json=request.to_dict(),
-            cert=(self.cert, self.key),
-            verify=self.ca,
-            timeout=(self.connection_timeout, self.request_timeout),
+            json=request.params,
+            timeout=self.request_timeout,
+            auth=auth_value,
         )
-        self.stream.update(rep.content)
-        return request.id
+        return rep.content
+
+    def _request(self, request, is_signed=False):
+        end_time = time.time() + self.connection_timeout
+        while True:
+            try:
+                rid = self._just_request(request, is_signed=is_signed)
+                # Only the first request gets this timeout logic - future calls
+                # call _just_request directly
+                self._request = self._just_request
+                return rid
+            except requests.exceptions.SSLError as e:
+                # If the handshake fails to due to node certificate not yet
+                # being endorsed by the network, sleep briefly and try again
+                if time.time() > end_time:
+                    raise CCFConnectionException(
+                        f"Connection still failing after {self.connection_timeout}s: {e}"
+                    )
+                LOG.error(f"Got SSLError exception: {e}")
+                time.sleep(0.1)
+            except requests.exceptions.ReadTimeout as e:
+                raise TimeoutError
 
     def request(self, request):
-        while self.connection_timeout >= 0:
-            self.connection_timeout -= 0.1
-            try:
-                rid = self._just_request(request)
-                self.request = self._just_request
-                return rid
-            except requests.exceptions.SSLError:
-                if self.connection_timeout < 0:
-                    raise CCFConnectionException
-            except requests.exceptions.ReadTimeout:
-                raise TimeoutError
-            time.sleep(0.1)
+        return self._request(request, is_signed=False)
 
     def signed_request(self, request):
-        with open(self.key, "rb") as k:
-            rep = requests.post(
-                f"https://{self.host}:{self.port}/{request.method}",
-                json=request.to_dict(),
-                cert=(self.cert, self.key),
-                verify=self.ca,
-                timeout=self.request_timeout,
-                # key_id needs to be specified but is unused
-                auth=HTTPSignatureAuth(
-                    algorithm="ecdsa-sha256",
-                    key=k.read(),
-                    key_id="tls",
-                    headers=["(request-target)", "Date"],
-                ),
-            )
-            self.stream.update(rep.content)
-        return request.id
-
-    def response(self, id):
-        return self.stream.response(id)
-
-    def disconnect(self):
-        pass
+        return self._request(request, is_signed=True)
 
 
 class WSClient:
@@ -484,8 +321,6 @@ class WSClient:
         cert,
         key,
         ca,
-        version,
-        format,
         connection_timeout,
         request_timeout,
         *args,
@@ -496,8 +331,6 @@ class WSClient:
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.format = "json"
-        self.stream = Stream(version, "json")
         self.request_timeout = request_timeout
 
     def request(self, request):
@@ -505,16 +338,9 @@ class WSClient:
             f"wss://{self.host}:{self.port}",
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
         )
-        return request.id
 
     def signed_request(self, request):
         raise NotImplementedError("Signed requests not yet implemented over WebSockets")
-
-    def response(self, id):
-        return self.stream.response(id)
-
-    def disconnect(self):
-        pass
 
 
 class CCFClient:
@@ -531,37 +357,33 @@ class CCFClient:
         else:
             self.client_impl = RequestClient(*args, **kwargs)
 
-    def disconnect(self):
-        self.client_impl.disconnect()
+    def _response(self, msg):
+        r = Response(0)
+        r.from_json(msg)
+        for logger in self.rpc_loggers:
+            logger.log_response(r.id, r)
+        return r
 
     def request(self, method, params, *args, **kwargs):
-        r = self.client_impl.stream.request(
-            f"{self.prefix}/{method}", params, *args, **kwargs
-        )
+        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
+        description = ""
         if self.description:
             description = f" ({self.description})"
         for logger in self.rpc_loggers:
             logger.log_request(r, self.name, description)
 
-        self.client_impl.request(r)
-        return r.id
+        return self._response(self.client_impl.request(r))
 
     def signed_request(self, method, params, *args, **kwargs):
-        r = self.client_impl.stream.request(
-            f"{self.prefix}/{method}", params, *args, **kwargs
-        )
+        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
+
+        description = ""
         if self.description:
             description = f" ({self.description}) [signed]"
         for logger in self.rpc_loggers:
             logger.log_request(r, self.name, description)
 
-        return self.client_impl.signed_request(r)
-
-    def response(self, id):
-        r = self.client_impl.response(id)
-        for logger in self.rpc_loggers:
-            logger.log_response(id, r)
-        return r
+        return self._response(self.client_impl.signed_request(r))
 
     def do(self, *args, **kwargs):
         expected_result = None
@@ -571,8 +393,7 @@ class CCFClient:
         if "expected_error_code" in kwargs:
             expected_error_code = kwargs.pop("expected_error_code")
 
-        id = self.request(*args, **kwargs)
-        r = self.response(id)
+        r = self.request(*args, **kwargs)
 
         if expected_result is not None:
             assert expected_result == r.result
@@ -583,10 +404,9 @@ class CCFClient:
 
     def rpc(self, *args, **kwargs):
         if "signed" in kwargs and kwargs.pop("signed"):
-            id = self.signed_request(*args, **kwargs)
+            return self.signed_request(*args, **kwargs)
         else:
-            id = self.request(*args, **kwargs)
-        return self.response(id)
+            return self.request(*args, **kwargs)
 
 
 @contextlib.contextmanager
@@ -596,8 +416,6 @@ def client(
     cert=None,
     key=None,
     ca=None,
-    version="2.0",
-    format="json",
     description=None,
     log_file=None,
     prefix="users",
@@ -611,8 +429,6 @@ def client(
         cert=cert,
         key=key,
         ca=ca,
-        version=version,
-        format=format,
         description=description,
         prefix=prefix,
         binary_dir=binary_dir,
@@ -623,7 +439,4 @@ def client(
     if log_file is not None:
         c.rpc_loggers += (RPCFileLogger(log_file),)
 
-    try:
-        yield c
-    finally:
-        c.disconnect()
+    yield c

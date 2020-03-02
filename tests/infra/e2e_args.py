@@ -60,11 +60,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")
     parser.add_argument(
-        "--ignore-quote",
-        help="Ignore node quote (e.g. virtual enclave)",
-        action="store_true",
-    )
-    parser.add_argument(
         "-o",
         "--network-only",
         help="Only start the network, do not run the client, and wait.",
@@ -141,6 +136,19 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
         default=4000,
     )
+    parser.add_argument(
+        "--initial-member-count",
+        help="Number of members when intializing the network",
+        type=int,
+        default=3,
+    )
+    parser.add_argument(
+        "--initial-user-count",
+        help="Number of users when intializing the network",
+        type=int,
+        default=3,
+    )
+
     add(parser)
 
     if accept_unknown:

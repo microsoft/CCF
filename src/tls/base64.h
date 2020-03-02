@@ -69,4 +69,9 @@ namespace tls
 
     return b64_string;
   }
+
+  inline std::string b64_from_raw(const std::vector<uint8_t>& data)
+  {
+    return b64_from_raw(data.data(), data.size());
+  }
 }

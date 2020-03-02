@@ -133,6 +133,7 @@ int Byz_init_replica(
 
   // Register service-specific functions.
   pbft::GlobalState::get_replica().register_exec(exec);
+  pbft::GlobalState::get_replica().set_next_expected_sig_offset();
 
   auto used_bytes = pbft::GlobalState::get_replica().used_state_bytes();
   stats.zero_stats();
@@ -157,4 +158,9 @@ void Byz_reset_stats()
 void Byz_print_stats()
 {
   stats.print_stats();
+}
+
+bool Byz_execution_pending()
+{
+  return pbft::GlobalState::get_replica().IsExecutionPending();
 }

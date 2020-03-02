@@ -7,7 +7,7 @@ Glossary
     `Azure Confidential Compute <https://azure.microsoft.com/en-us/solutions/confidential-compute/>`_ protects the confidentiality and integrity of your data and code while it’s processed in the public cloud.
 
   Consensus Protocols
-    The term Consensus protocol refers to either Raft or PBFT. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`.
+    The term Consensus protocol refers to either :ref:`Raft <developers/consensus:Raft Consensus Protocol>` or :ref:`PBFT <developers/consensus:PBFT Consensus Protocol>`. Generic Consensus terminology will use `primary` node and `backup` node to indicate node responsibility in carrying out the protocol(s). These correspond in Raft to `leader` and `follower`. More information about consensus protocols can be found `here <https://en.wikipedia.org/wiki/Consensus_(computer_science)>`_.
 
   Constitution
     Set of rules written as a Lua script that define how members' proposals are accepted.
@@ -32,9 +32,6 @@ Glossary
 
   Open Enclave Engine
     `Open Enclave Engine <https://github.com/Microsoft/oe-engine>`_ is a template generation tool for :term:`Azure Confidential Compute`.
-
-  Quorum
-    A quorum of members is defined as the minimum number of members required to accept governance proposals. It is defined by the governance as a Lua script set when a CCF network is created.
 
   SGX
     `Intel Software Guard Extensions <https://software.intel.com/en-us/sgx>`_ is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.

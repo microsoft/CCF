@@ -49,15 +49,10 @@ def run(args):
         """
 
         LOG.info("Proposal to add a new member (with different curve)")
-        infra.proc.ccall(
-            network.key_generator,
-            f"--name=member3",
-            "--gen-key-share",
-            f"--curve={infra.ccf.ParticipantsCurve(args.default_curve).next().name}",
-        )
-
-        result, _ = network.consortium.propose_add_member(
-            0, primary, "member3_cert.pem", "member3_kshare_pub.pem"
+        result, _ = network.consortium.generate_and_propose_new_member(
+            primary,
+            member_id=3,
+            curve=infra.ccf.ParticipantsCurve(args.default_curve).next(),
         )
 
         # When proposal is added the proposal id and the result of running complete proposal are returned

@@ -21,7 +21,7 @@ namespace ccf
     std::vector<uint8_t> req = {};
 
     // the request body
-    std::vector<uint8_t> raw_req = {};
+    std::vector<uint8_t> request_body = {};
 
     // the hashing algorithm used
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
@@ -29,10 +29,10 @@ namespace ccf
     bool operator==(const SignedReq& other) const
     {
       return (sig == other.sig) && (req == other.req) && (md == other.md) &&
-        (raw_req == other.raw_req);
+        (request_body == other.request_body);
     }
 
-    MSGPACK_DEFINE(sig, req, raw_req, md);
+    MSGPACK_DEFINE(sig, req, request_body, md);
   };
   // this maps client-id to latest SignedReq
   using ClientSignatures = Store::Map<CallerId, SignedReq>;
@@ -47,9 +47,9 @@ namespace ccf
     {
       j["req"] = nlohmann::json::from_msgpack(sr.req);
     }
-    if (!sr.raw_req.empty())
+    if (!sr.request_body.empty())
     {
-      j["raw_req"] = sr.raw_req;
+      j["request_body"] = sr.request_body;
     }
   }
 
@@ -65,10 +65,10 @@ namespace ccf
     {
       assign_j(sr.req, nlohmann::json::to_msgpack(req_it.value()));
     }
-    auto raw_req_it = j.find("raw_req");
+    auto raw_req_it = j.find("request_body");
     if (raw_req_it != j.end())
     {
-      assign_j(sr.raw_req, j["raw_req"]);
+      assign_j(sr.request_body, j["request_body"]);
     }
   }
 

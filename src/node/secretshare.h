@@ -21,19 +21,19 @@ namespace ccf
 {
   // The SecretSharing class provides static functions to split a secret into
   // shares and (re-)combine those shares into the original secret.
-  // The size of the secret to share is fixed (SECRET_TO_SHARE_LENGTH, 64
+  // The size of the secret to share is fixed (SECRET_TO_SPLIT_LENGTH, 64
   // bytes). It is up to the caller to either shrink the secret if it is too
-  // long. If the secret to split is shorter than SECRET_TO_SHARE_LENGTH bytes,
+  // long. If the secret to split is shorter than SECRET_TO_SPLIT_LENGTH bytes,
   // the caller should ignore the extra bytes.
   class SecretSharing
   {
   public:
-    static constexpr size_t SECRET_TO_SHARE_LENGTH = sss_MLEN;
+    static constexpr size_t SECRET_TO_SPLIT_LENGTH = sss_MLEN;
     static constexpr size_t SHARE_LENGTH = sss_SHARE_LEN;
     static constexpr size_t MAX_NUMBER_SHARES = 255; // As per sss documentation
 
     using Share = std::array<uint8_t, SHARE_LENGTH>;
-    using SecretToSplit = std::array<uint8_t, SECRET_TO_SHARE_LENGTH>;
+    using SecretToSplit = std::array<uint8_t, SECRET_TO_SPLIT_LENGTH>;
 
     static std::vector<Share> split(
       const SecretToSplit& secret_to_share, size_t n, size_t k)

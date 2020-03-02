@@ -196,7 +196,6 @@ def replica_checks(
             assert process_view_change
     except AssertionError:
         logger.exception("Assertion failed")
-        [[logger.info(l) for l in lines] for lines in node_logs]
 
     err_file = f"err{node.port}.txt"
     log_errors(err_file)

@@ -172,29 +172,6 @@ namespace tls
       return Pem({data, len});
     }
 
-    /**
-     * Get the public key in ASN.1 format
-     */
-    std::vector<uint8_t> public_key_asn1()
-    {
-      static constexpr auto buf_size = 256u;
-      uint8_t buf[buf_size];
-
-      uint8_t* p = buf + buf_size;
-
-      const auto written = mbedtls_pk_write_pubkey(&p, buf, ctx.get());
-
-      if (written < 0)
-      {
-        throw std::logic_error(
-          "mbedtls_pk_write_pubkey: " + error_string(written));
-      }
-
-      // ASN.1 key is written to end of buffer
-      uint8_t* first = buf + buf_size - written;
-      return {first, buf + buf_size};
-    }
-
     mbedtls_pk_context* get_raw_context() const
     {
       return ctx.get();
@@ -528,10 +505,10 @@ namespace tls
      *
      * @return Signature as a vector
      */
-    std::vector<uint8_t> sign(CBuffer d) const
+    std::vector<uint8_t> sign(CBuffer d, mbedtls_md_type_t md_type = {}) const
     {
       HashBytes hash;
-      do_hash(*ctx, d.p, d.rawSize(), hash);
+      do_hash(*ctx, d.p, d.rawSize(), hash, md_type);
 
       return sign_hash(hash.data(), hash.size());
     }
@@ -551,10 +528,14 @@ namespace tls
      * @return 0 if successful, error code of mbedtls_pk_sign otherwise,
      *         or 0xf if the signature_size exceeds that of a uint8_t.
      */
-    int sign(CBuffer d, size_t* sig_size, uint8_t* sig) const
+    int sign(
+      CBuffer d,
+      size_t* sig_size,
+      uint8_t* sig,
+      mbedtls_md_type_t md_type = {}) const
     {
       HashBytes hash;
-      do_hash(*ctx, d.p, d.rawSize(), hash);
+      do_hash(*ctx, d.p, d.rawSize(), hash, md_type);
 
       return sign_hash(hash.data(), hash.size(), sig_size, sig);
     }

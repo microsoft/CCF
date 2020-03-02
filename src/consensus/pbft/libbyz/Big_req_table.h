@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Digest.h"
+#include "Req_queue.h"
 #include "ds/thread_messaging.h"
 #include "types.h"
 
@@ -68,10 +69,10 @@ public:
   void clear();
   // Effects: Discards (deletes) all stored entries
 
-  void mark_stable(Seqno ls);
+  void mark_stable(Seqno ls, Req_queue& req_queue);
   // Effects: Discards entries that were only referred to by
   // pre-prepares that were discarded due to checkpoint "ls" becoming
-  // stable.
+  // stable. If an entry is in the req_queue it will not be removed.
 
   void view_change(View v);
   // Effects: Discards entries that were only referred to by
@@ -81,7 +82,7 @@ public:
   void dump_state(std::ostream& os);
   // Effects: logs state for debugging
 
-  static const int Max_unmatched_requests_per_client = 1024;
+  static const int Max_unmatched_requests_per_client = 1024 * 100;
   // Effect: The maximum number of requests we will store per client.
   // This functions as a LRU cache.
 

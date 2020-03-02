@@ -12,7 +12,7 @@ parameters:
       dependsOn: ['Formatting_and_License_Checks']
     SGX:
       container: sgx
-      pool: Ubuntu-1804-DC4s
+      pool: Ubuntu-1804-DC8_v2
       dependsOn: ['Formatting_and_License_Checks']
     SAN:
       container: nosgx
@@ -46,15 +46,15 @@ parameters:
     CFT:
       cmake_args: ''
     debug:
-      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF'
+      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF'
     install:
       install_prefix: '/tmp/ccf-install'
       cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
     san:
       cmake_args: '-DSAN=ON'
     perf:
-      cmake_args: '-DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
-      
+      cmake_args: '-DVERBOSE_LOGGING=ON -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
+
 
   test:
     NoSGX:
