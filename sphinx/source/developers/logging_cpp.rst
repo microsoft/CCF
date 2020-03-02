@@ -75,7 +75,7 @@ For direct access to the request and response objects, the handler signature sho
     :end-before: SNIPPET_END: log_record_prefix_cert
     :dedent: 6
 
-This uses mbedtls to parse the caller's TLS certificate, and prefixes the logged message with the Subject field extrated from this certificate.
+This uses mbedtls to parse the caller's TLS certificate, and prefixes the logged message with the Subject field extracted from this certificate.
 
 A handler can either be installed as:
 
