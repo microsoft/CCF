@@ -17,9 +17,9 @@
 Pre_prepare::Pre_prepare(
   View v,
   Seqno s,
-  Prepared_cert* prepared_cert,
   Req_queue& reqs,
-  size_t& requests_in_batch) :
+  size_t& requests_in_batch,
+  Prepared_cert* prepared_cert) :
   Message(Pre_prepare_tag, Max_message_size)
 {
   rep().view = v;

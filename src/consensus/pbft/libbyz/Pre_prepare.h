@@ -74,9 +74,9 @@ public:
   Pre_prepare(
     View v,
     Seqno s,
-    Prepared_cert* prepared_cert,
     Req_queue& reqs,
-    size_t& requests_in_batch);
+    size_t& requests_in_batch,
+    Prepared_cert* prepared_cert = nullptr);
   // Effects: Creates a new signed Pre_prepare message with view
   // number "v", sequence number "s", the requests in "reqs" (up to a
   // maximum size) and appropriate non-deterministic choices.  It

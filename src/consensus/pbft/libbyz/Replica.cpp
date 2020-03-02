@@ -488,9 +488,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
     {
       Seqno stable_point = std::max(
         last_executed - checkpoint_interval / 2, seqno_at_last_f_change);
-      Seqno mark_stable_at =
-        std::max(last_executed - congestion_window, seqno_at_last_f_change);
-      mark_stable(mark_stable_at, true);
+      mark_stable(stable_point, true);
     }
 
     if (playback_before_f == 0 && f() != 0)
@@ -824,7 +822,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       ps = &plog.fetch(next_pp_seqno - congestion_window);
     }
     Pre_prepare* pp = new Pre_prepare(
-      view(), next_pp_seqno, ps, rqueue, ctx->requests_in_batch);
+      view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ps);
 
     auto fn = [](
                 Pre_prepare* pp,
@@ -2983,7 +2981,7 @@ void Replica::send_null()
       }
 
       Pre_prepare* pp =
-        new Pre_prepare(view(), next_pp_seqno, ps, empty, requests_in_batch);
+        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch, ps);
       pp->set_digest();
       send(pp, All_replicas);
       plog.fetch(next_pp_seqno).add_mine(pp);
