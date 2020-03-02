@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "consensus/pbft/pbftrequests.h"
 #include "doctest/doctest.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -10,7 +11,6 @@
 #include "node/entities.h"
 #include "node/genesisgen.h"
 #include "node/history.h"
-#include "consensus/pbft/pbftrequests.h"
 #include "node/networkstate.h"
 #include "node/rpc/handleradapter.h"
 #include "node/rpc/jsonrpc.h"

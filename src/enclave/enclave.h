@@ -221,7 +221,7 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node.join({ccf_config});
+          node.join({consensus_type, ccf_config});
         }
         else if (start_type == StartType::Recover)
         {

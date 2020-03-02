@@ -5,6 +5,7 @@
 #include "consensus/pbft/libbyz/pbft_assert.h"
 #include "enclave/rpchandler.h"
 #include "enclave/rpcmap.h"
+#include "http/http_rpc_context.h"
 #include "pbftdeps.h"
 
 namespace pbft

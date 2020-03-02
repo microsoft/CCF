@@ -452,36 +452,37 @@ namespace ccf
       update_history();
       update_consensus();
 
-#ifndef PBFT
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      if (!is_primary)
+      if (consensus == nullptr || consensus->type() == ConsensusType::Raft)
       {
-        switch (handler->rw)
+        if (!is_primary)
         {
-          case HandlerRegistry::Read:
+          switch (handler->rw)
           {
-            break;
-          }
+            case HandlerRegistry::Read:
+            {
+              break;
+            }
 
-          case HandlerRegistry::Write:
-          {
-            return forward_or_redirect_json(ctx, handler->forwardable);
-            break;
-          }
-
-          case HandlerRegistry::MayWrite:
-          {
-            if (!ctx->read_only_hint)
+            case HandlerRegistry::Write:
             {
               return forward_or_redirect_json(ctx, handler->forwardable);
+              break;
             }
-            break;
+
+            case HandlerRegistry::MayWrite:
+            {
+              if (!ctx->read_only_hint)
+              {
+                return forward_or_redirect_json(ctx, handler->forwardable);
+              }
+              break;
+            }
           }
         }
       }
-#endif
 
       auto func = handler->func;
       auto args = RequestArgs{ctx, tx, caller_id};

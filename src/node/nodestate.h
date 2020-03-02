@@ -282,8 +282,7 @@ namespace ccf
           }
           else
           {
-            throw std::logic_error(
-              "Unknown consensus type: {}", consensus_type);
+            throw std::logic_error("Unknown consensus type");
           }
 
           setup_history();
@@ -399,7 +398,7 @@ namespace ccf
 
             self = resp->node_id;
 
-            if (args.consensus_type = ConsensusType::Pbft)
+            if (args.consensus_type == ConsensusType::Pbft)
             {
               setup_pbft(args.config);
             }
@@ -742,14 +741,24 @@ namespace ccf
         *recovery_signature_map,
         *recovery_nodes_map);
 
-      recovery_encryptor =
+      recovery_encryptor = nullptr;
 #ifdef USE_NULL_ENCRYPTOR
-        std::make_shared<NullTxEncryptor>();
+      recovery_encryptor = std::make_shared<NullTxEncryptor>();
 #else
-        // Recovery encryptor should not seal ledger secrets on compaction.
-        // Since private ledger recovery is done in a temporary store, ledger
-        // secrets are only sealed once the recovery is successful.
-        std::make_shared<TxEncryptor>(self, network.ledger_secrets, true);
+      // Recovery encryptor should not seal ledger secrets on compaction.
+      // Since private ledger recovery is done in a temporary store, ledger
+      // secrets are only sealed once the recovery is successful.
+
+      // if consensus is pbft use null encryptor
+      if (consensus->type() == ConsensusType::Pbft)
+      {
+        recovery_encryptor = std::make_shared<NullTxEncryptor>();
+      }
+      else
+      {
+        recovery_encryptor =
+          std::make_shared<TxEncryptor>(self, network.ledger_secrets, true);
+      }
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -1481,11 +1490,19 @@ namespace ccf
       // This function makes use of network secrets and should be called once
       // the node has joined the service (either via start_network() or
       // join_network())
-      encryptor =
+      encryptor = nullptr;
 #ifdef USE_NULL_ENCRYPTOR
-        std::make_shared<NullTxEncryptor>();
+      encryptor = std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, network.ledger_secrets);
+
+      if (consensus->type() == ConsensusType::Pbft)
+      {
+        encryptor = std::make_shared<NullTxEncryptor>();
+      }
+      else
+      {
+        encryptor = std::make_shared<TxEncryptor>(self, network.ledger_secrets);
+      }
 #endif
 
       network.tables->set_encryptor(encryptor);

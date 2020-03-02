@@ -196,7 +196,8 @@ void populate_entries(
 TEST_CASE("Test Ledger Replay")
 {
   // initiate replica with stub consensus to be used on replay
-  auto write_consensus = std::make_shared<kv::StubConsensus>(ConsensusType::Pbft);
+  auto write_consensus =
+    std::make_shared<kv::StubConsensus>(ConsensusType::Pbft);
   INFO("Create dummy pre-prepares and write them to ledger");
   {
     auto write_store = std::make_shared<ccf::Store>(
@@ -236,7 +237,8 @@ TEST_CASE("Test Ledger Replay")
     pbft::GlobalState::get_replica().big_reqs()->clear();
   }
 
-  auto corrupt_consensus = std::make_shared<kv::StubConsensus>(ConsensusType::Pbft);
+  auto corrupt_consensus =
+    std::make_shared<kv::StubConsensus>(ConsensusType::Pbft);
   INFO("Create dummy corrupt pre-prepares and write them to ledger");
   {
     // initialise a corrupt store that will follow the write store but with
