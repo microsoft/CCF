@@ -317,9 +317,12 @@ class Consortium:
     ):
         exists = False
         for _ in range(timeout):
-            if self._check_node_exists(remote_node, node_id, node_status):
-                exists = True
-                break
+            try:
+                if self._check_node_exists(remote_node, node_id, node_status):
+                    exists = True
+                    break
+            except TimeoutError:
+                LOG.warning(f"Node {node_id} has not been recorded in the store yet")
             time.sleep(1)
         if not exists:
             raise TimeoutError(
