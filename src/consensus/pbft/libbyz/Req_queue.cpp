@@ -51,6 +51,19 @@ bool Req_queue::append(Request* r)
   return false;
 }
 
+bool Req_queue::is_in_rqueue(Request* r)
+{
+  size_t cid = r->client_id();
+  Request_id rid = r->request_id();
+
+  auto it = reqs.find({cid, rid});
+  if (it == reqs.end())
+  {
+    return false;
+  }
+  return true;
+}
+
 Request* Req_queue::remove()
 {
   if (head == nullptr)

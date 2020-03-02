@@ -210,21 +210,26 @@ class Network:
 
         return primary
 
-    def _setup_common_folder(self):
+    def _setup_common_folder(self, gov_script):
         LOG.info(f"Creating common folder: {self.common_dir}")
         cmd = ["rm", "-rf", self.common_dir]
-        infra.proc.ccall(*cmd)
+        assert (
+            infra.proc.ccall(*cmd).returncode == 0
+        ), f"Could not remove {self.common_dir} directory"
         cmd = ["mkdir", "-p", self.common_dir]
-        infra.proc.ccall(*cmd)
+        assert (
+            infra.proc.ccall(*cmd).returncode == 0
+        ), f"Could not create {self.common_dir} directory"
+        cmd = ["cp", gov_script, self.common_dir]
+        assert (
+            infra.proc.ccall(*cmd).returncode == 0
+        ), f"Could not copy governance {gov_script} to {self.common_dir}"
         # It is more convenient to create a symlink in the common directory than generate
         # certs and keys in the top directory and move them across
-        cmd = [
-            "ln",
-            "-s",
-            os.path.join(os.getcwd(), self.KEY_GEN),
-            os.path.join(self.common_dir, self.KEY_GEN),
-        ]
-        infra.proc.ccall(*cmd)
+        cmd = ["ln", "-s", os.path.join(os.getcwd(), self.KEY_GEN), self.common_dir]
+        assert (
+            infra.proc.ccall(*cmd).returncode == 0
+        ), f"Could not symlink {self.KEY_GEN} to {self.common_dir}"
 
     def start_and_join(self, args):
         """
@@ -233,7 +238,7 @@ class Network:
         :param open_network: If false, only the nodes are started.
         """
         self.common_dir = get_common_folder_name(args.workspace, args.label)
-        self._setup_common_folder()
+        self._setup_common_folder(args.gov_script)
 
         initial_members = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(

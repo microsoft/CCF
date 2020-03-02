@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "commonhandlerregistry.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/pbft/pbfttables.h"
 #include "consts.h"
 #include "ds/buffer.h"
 #include "ds/spinlock.h"
