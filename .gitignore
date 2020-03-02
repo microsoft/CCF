@@ -9,6 +9,7 @@ libuv/
 raft_tests.md
 tests/raft_scenarios
 *.pyc
+__pycache__/
 sphinx/build/
 tests/Testing/
 doxygen/
