@@ -9,7 +9,7 @@ Once a proposal is accepted under the rules of the :term:`constitution`, it is e
 
 For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.
 
-Submitting a new proposal
+Submitting a New Proposal
 -------------------------
 
 Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``members/propose`` and vote using ``members/vote``.
@@ -78,9 +78,9 @@ In this case, a new proposal with id ``1`` has successfully been created and the
 
 As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``.
 
-.. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a ``members/ack`` request, signing their current nonce.
+.. note:: Once a new member has been accepted to the consortium, the new member must acknowledge that it is active by sending a ``members/ack`` request, signing their current nonce. See :ref:`members/adding_member:Activating a New Member`.
 
-Displaying proposals
+Displaying Proposals
 --------------------
 
 The details of pending proposals, including the proposer member id, proposal script, parameters, and votes, can be queried from the service by calling ``members/query`` and reading the ``ccf.proposals`` table. For example:
@@ -124,7 +124,7 @@ The details of pending proposals, including the proposer member id, proposal scr
 
 In this case, there is one pending proposal (``id`` is 1), proposed by the first member (``member1``, ``id`` is 0) and which will call the ``new_member`` function with the new member's certificate as a parameter. Two votes have been cast: ``member1`` (proposer) has voted for the proposal, while ``member2`` (``id`` is 1) has voted against it.
 
-Withdrawing a proposal
+Withdrawing a Proposal
 ----------------------
 
 At any stage during the voting process and before the proposal is completed, the proposing member may decide to withdraw a pending proposal:

@@ -33,10 +33,10 @@ read
 .. jsonschema:: ../schemas/read_params.json
 .. jsonschema:: ../schemas/read_result.json
 
-updateAckNonce
---------------
+updateAckStateDigest
+--------------------
 
-.. jsonschema:: ../schemas/updateAckNonce_result.json
+.. jsonschema:: ../schemas/updateAckStateDigest_result.json
 
 vote
 ----
