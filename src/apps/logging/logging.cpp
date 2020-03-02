@@ -98,7 +98,7 @@ namespace ccfapp
     static constexpr auto LOG_RECORD_PUBLIC = "LOG_record_pub";
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
 
-    static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_cert_info";
+    static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
   };
 
   // SNIPPET_START: errors
