@@ -90,7 +90,7 @@ namespace http
 
   inline void sign_request(
     http::Request& request,
-    tls::KeyPairPtr& kp,
+    const tls::KeyPairPtr& kp,
     SigningDetails* details = nullptr)
   {
     std::vector<std::string_view> headers_to_sign;
