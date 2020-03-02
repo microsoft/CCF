@@ -278,7 +278,7 @@ namespace ccfapp
   };
 
   // SNIPPET_START: rpc_handler
-  std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
+  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
     NetworkTables& nwt, AbstractNotifier& notifier)
   {
     return make_shared<Logger>(nwt, notifier);
