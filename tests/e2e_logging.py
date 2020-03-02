@@ -54,16 +54,20 @@ def test_large_messages(network, args):
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
 def test_cert_prefix(network, args):
-    primary, _ = network.find_primary()
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
 
-    for user_id in network.initial_users:
-        with primary.user_client(user_id) as c:
-            log_id = 101
-            msg = "This message will be prefixed"
-            c.rpc("LOG_record_prefix_cert", {"id": log_id, "msg": msg})
-            r = c.rpc("LOG_get", {"id": log_id})
-            assert r.result is not None
-            assert f"CN=user{user_id}" in r.result["msg"]
+        for user_id in network.initial_users:
+            with primary.user_client(user_id) as c:
+                log_id = 101
+                msg = "This message will be prefixed"
+                c.rpc("LOG_record_prefix_cert", {"id": log_id, "msg": msg})
+                r = c.rpc("LOG_get", {"id": log_id})
+                assert r.result is not None
+                assert f"CN=user{user_id}" in r.result["msg"]
+
+    else:
+        LOG.warning("Skipping test_cert_prefix as application is not C++")
 
     return network
 
