@@ -214,27 +214,6 @@ public:
   }
 };
 
-class TestNoForwardingFrontEnd : public SimpleUserRpcFrontend,
-                                 public RpcContextRecorder
-{
-public:
-  TestNoForwardingFrontEnd(Store& tables) : SimpleUserRpcFrontend(tables)
-  {
-    open();
-
-    auto empty_function = [this](RequestArgs& args) {
-      record_ctx(args);
-      args.rpc_ctx->set_response_result(true);
-    };
-    // Note that this is a Write function that cannot be forwarded
-    install(
-      "empty_function",
-      empty_function,
-      HandlerRegistry::Write,
-      HandlerRegistry::Forwardable::DoNotForward);
-  }
-};
-
 namespace userapp
 {
   enum AppError : jsonrpc::ErrorBaseType
@@ -868,25 +847,6 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto client_sig = client_sig_view->get(user_id);
     REQUIRE(client_sig.has_value());
     REQUIRE(client_sig.value() == signed_req);
-  }
-
-  {
-    INFO(
-      "HandlerRegistry::Write command should not be forwarded if marked as "
-      "non-forwardable");
-    TestNoForwardingFrontEnd user_frontend_backup_no_forwarding(
-      *network.tables);
-
-    auto backup2_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-      nullptr, channel_stub, nullptr);
-    auto backup2_consensus = std::make_shared<kv::BackupStubConsensus>();
-    network.tables->set_consensus(backup_consensus);
-    user_frontend_backup_no_forwarding.set_cmd_forwarder(backup2_forwarder);
-
-    REQUIRE(channel_stub->is_empty());
-    const auto r = user_frontend_backup_no_forwarding.process(ctx);
-    REQUIRE(r.has_value());
-    REQUIRE(channel_stub->size() == 0);
   }
 }
 

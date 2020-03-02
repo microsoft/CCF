@@ -663,8 +663,7 @@ namespace ccf
       };
       // ACK method cannot be forwarded and should be run on primary as it makes
       // explicit use of caller certificate
-      install_with_auto_schema<RawSignature, bool>(
-        MemberProcs::ACK, ack, Write, Forwardable::DoNotForward);
+      install_with_auto_schema<StateDigest, bool>(MemberProcs::ACK, ack, Write);
 
       //! A member asks for a fresher nonce
       auto update_ack_nonce = [this](RequestArgs& args) {
