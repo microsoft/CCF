@@ -271,7 +271,8 @@ TEST_CASE("Test Ledger Replay")
       // request is compatible but pre-prepare root is different
       rqueue.append(request);
       size_t num_requests = 1;
-      auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests);
+      auto pp =
+        std::make_unique<Pre_prepare>(1, i, nullptr, rqueue, num_requests);
 
       // imitate exec command
       ByzInfo info;

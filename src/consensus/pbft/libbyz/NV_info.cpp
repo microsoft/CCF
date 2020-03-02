@@ -891,7 +891,7 @@ Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d)
     // Null request
     Req_queue empty;
     size_t requests_in_batch;
-    pp = new Pre_prepare(v, n, empty, requests_in_batch);
+    pp = new Pre_prepare(v, n, nullptr, empty, requests_in_batch);
     pp->set_digest();
     d = pp->digest();
   }
