@@ -207,11 +207,13 @@ namespace ccf
       size_t s = v.size();
       r.index = serialized::read<decltype(index)>(buf, s);
       r.max_index = serialized::read<decltype(max_index)>(buf, s);
-      std::copy(buf, buf + r.root.SIZE, r.root.h);
-      buf += r.root.SIZE;
-      s -= r.root.SIZE;
+      std::copy(buf, buf + r.root.h.size(), r.root.h.data());
+      buf += r.root.h.size();
+      s -= r.root.h.size();
       for (size_t i = 0; i < s; i += r.root.SIZE)
+      {
         path_insert(r.path, const_cast<uint8_t*>(buf + i));
+      }
       return r;
     }
 
@@ -220,21 +222,23 @@ namespace ccf
       index = index_;
       path = init_path();
 
-      if (!mt_get_path_pre(tree, index, path, root.h))
+      if (!mt_get_path_pre(tree, index, path, root.h.data()))
       {
         free_path(path);
         throw std::logic_error("Precondition to mt_get_path violated");
       }
 
-      max_index = mt_get_path(tree, index, path, root.h);
+      max_index = mt_get_path(tree, index, path, root.h.data());
     }
 
     bool verify(merkle_tree* tree) const
     {
-      if (!mt_verify_pre(tree, index, max_index, path, (uint8_t*)root.h))
+      if (!mt_verify_pre(tree, index, max_index, path, (uint8_t*)root.h.data()))
+      {
         throw std::logic_error("Precondition to mt_verify violated");
+      }
 
-      return mt_verify(tree, index, max_index, path, (uint8_t*)root.h);
+      return mt_verify(tree, index, max_index, path, (uint8_t*)root.h.data());
     }
 
     ~Receipt()
@@ -244,15 +248,17 @@ namespace ccf
 
     std::vector<uint8_t> to_v() const
     {
-      size_t vs =
-        sizeof(index) + sizeof(max_index) + root.SIZE + root.SIZE * path->sz;
+      size_t vs = sizeof(index) + sizeof(max_index) + root.h.size() +
+        (root.h.size() * path->sz);
       std::vector<uint8_t> v(vs);
       uint8_t* buf = v.data();
       serialized::write(buf, vs, index);
       serialized::write(buf, vs, max_index);
-      serialized::write(buf, vs, root.h, root.SIZE);
+      serialized::write(buf, vs, root.h.data(), root.h.size());
       for (size_t i = 0; i < path->sz; ++i)
-        serialized::write(buf, vs, *(path->vs + i), root.SIZE);
+      {
+        serialized::write(buf, vs, *(path->vs + i), root.h.size());
+      }
       return v;
     }
   };
@@ -283,18 +289,22 @@ namespace ccf
 
     void append(const crypto::Sha256Hash& hash)
     {
-      uint8_t* h = const_cast<uint8_t*>(hash.h);
+      uint8_t* h = const_cast<uint8_t*>(hash.h.data());
       if (!mt_insert_pre(tree, h))
+      {
         throw std::logic_error("Precondition to mt_insert violated");
+      }
       mt_insert(tree, h);
     }
 
     crypto::Sha256Hash get_root() const
     {
       crypto::Sha256Hash res;
-      if (!mt_get_root_pre(tree, res.h))
+      if (!mt_get_root_pre(tree, res.h.data()))
+      {
         throw std::logic_error("Precondition to mt_get_root violated");
-      mt_get_root(tree, res.h);
+      }
+      mt_get_root(tree, res.h.data());
       return res;
     }
 
@@ -302,13 +312,15 @@ namespace ccf
     {
       mt_free(tree);
       crypto::Sha256Hash root(rhs.get_root());
-      tree = mt_create(root.h);
+      tree = mt_create(root.h.data());
     }
 
     void flush(uint64_t index)
     {
       if (!mt_flush_to_pre(tree, index))
+      {
         throw std::logic_error("Precondition to mt_flush_to violated");
+      }
       LOG_TRACE_FMT("mt_flush_to index={}", index);
       mt_flush_to(tree, index);
     }
@@ -316,7 +328,9 @@ namespace ccf
     void retract(uint64_t index)
     {
       if (!mt_retract_to_pre(tree, index))
+      {
         throw std::logic_error("Precondition to mt_retract_to violated");
+      }
       mt_retract_to(tree, index);
     }
 
@@ -375,14 +389,18 @@ namespace ccf
     void register_on_result(ResultCallbackHandler func) override
     {
       if (on_result.has_value())
+      {
         throw std::logic_error("on_result has already been set");
+      }
       on_result = func;
     }
 
     void register_on_response(ResponseCallbackHandler func) override
     {
       if (on_response.has_value())
+      {
         throw std::logic_error("on_response has already been set");
+      }
       on_response = func;
     }
 
@@ -430,7 +448,9 @@ namespace ccf
       }
       auto sig_value = sig.value();
       if (term)
+      {
         *term = sig_value.term;
+      }
 
       auto ni = ni_tv->get(sig_value.node);
       if (!ni.has_value())
@@ -443,7 +463,10 @@ namespace ccf
       crypto::Sha256Hash root = replicated_state_tree.get_root();
       log_hash(root, VERIFY);
       return from_cert->verify_hash(
-        root.h, root.SIZE, sig_value.sig.data(), sig_value.sig.size());
+        root.h.data(),
+        root.h.size(),
+        sig_value.sig.data(),
+        sig_value.sig.size());
     }
 
     void rollback(kv::Version v) override
@@ -455,7 +478,9 @@ namespace ccf
     void compact(kv::Version v) override
     {
       if (v > MAX_HISTORY_LEN)
+      {
         replicated_state_tree.flush(v - MAX_HISTORY_LEN);
+      }
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
@@ -485,7 +510,8 @@ namespace ccf
             version,
             view,
             commit,
-            kp.sign_hash(root.h, root.SIZE),
+            root,
+            kp.sign_hash(root.h.data(), root.h.size()),
             replicated_state_tree.serialise());
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
@@ -505,7 +531,9 @@ namespace ccf
 
       auto consensus = store.get_consensus();
       if (!consensus)
+      {
         return false;
+      }
 
       return consensus->on_request({id, request, caller_id, caller_cert});
     }
