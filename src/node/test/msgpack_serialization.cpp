@@ -149,25 +149,23 @@ TEST_CASE("MemberAck")
     INFO("Empty ack");
     MemberAck ma;
     const auto converted = msgpack_roundtrip(ma);
-    CHECK(ma == converted);
+    CHECK(ma.state_digest == converted.state_digest);
   }
 
   {
     INFO("Implausible ack");
     MemberAck ma;
-    ma.sig.push_back(42);
-    ma.next_nonce.push_back(100);
+    ma.state_digest.push_back(42);
     const auto converted = msgpack_roundtrip(ma);
-    CHECK(ma == converted);
+    CHECK(ma.state_digest == converted.state_digest);
   }
 
   {
     INFO("Plausible ack");
     MemberAck ma;
-    fill_rand(ma.sig, 256);
-    fill_rand(ma.next_nonce, 16);
+    fill_rand(ma.state_digest, 16);
     const auto converted = msgpack_roundtrip(ma);
-    CHECK(ma == converted);
+    CHECK(ma.state_digest == converted.state_digest);
   }
 }
 

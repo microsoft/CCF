@@ -19,7 +19,9 @@ void crypto::Sha256Hash::mbedtls_sha256(
   mbedtls_sha256_starts_ret(&ctx, 0);
 
   for (auto data : il)
+  {
     mbedtls_sha256_update_ret(&ctx, data.p, data.rawSize());
+  }
 
   mbedtls_sha256_finish_ret(&ctx, h);
   mbedtls_sha256_free(&ctx);
@@ -48,5 +50,5 @@ crypto::Sha256Hash::Sha256Hash() : h{0} {}
 
 crypto::Sha256Hash::Sha256Hash(initializer_list<CBuffer> il) : h{0}
 {
-  evercrypt_sha256(il, h);
+  evercrypt_sha256(il, h.data());
 }
