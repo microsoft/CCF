@@ -649,6 +649,14 @@ namespace ccf
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args) {
+        const auto signed_request = args.rpc_ctx->get_signed_request();
+        if (!signed_request.has_value())
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "ACKs must be signed");
+          return;
+        }
+
         auto [ma_view, sig_view] =
           args.tx.get_view(this->network.member_acks, this->network.signatures);
         const auto ma = ma_view->get(args.caller_id);
@@ -660,19 +668,19 @@ namespace ccf
           return;
         }
 
-        auto verifier = tls::make_verifier(
-          std::vector<uint8_t>(args.rpc_ctx->session.caller_cert));
-        const auto rs = args.rpc_ctx->get_params().get<RawSignature>();
-
-        if (!verifier->verify(ma->next_state_digest, rs.sig))
+        if (
+          ma->state_digest !=
+          args.rpc_ctx->get_params().get<StateDigest>().state_digest)
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Signature is not valid");
+            "Submitted state digest is not valid");
           return;
         }
 
-        ma_view->put(args.caller_id, MemberAck(sig_view->get(0)->root, rs.sig));
+        ma_view->put(
+          args.caller_id,
+          MemberAck(sig_view->get(0)->root, signed_request.value()));
 
         auto members = args.tx.get_view(this->network.members);
         auto member = members->get(args.caller_id);
@@ -686,7 +694,7 @@ namespace ccf
       };
       // ACK method cannot be forwarded and should be run on primary as it makes
       // explicit use of caller certificate
-      install_with_auto_schema<RawSignature, bool>(
+      install_with_auto_schema<StateDigest, bool>(
         MemberProcs::ACK, ack, Write, Forwardable::DoNotForward);
 
       //! A member asks for a fresher state digest
@@ -703,16 +711,13 @@ namespace ccf
         }
 
         auto root = sig_view->get(0)->root;
-        ma->next_state_digest =
-          std::vector<uint8_t>(root.h.begin(), root.h.end());
+        ma->state_digest = std::vector<uint8_t>(root.h.begin(), root.h.end());
         ma_view->put(args.caller_id, ma.value());
 
-        auto rep = ma->next_state_digest;
-
-        args.rpc_ctx->set_response_result(rep);
+        args.rpc_ctx->set_response_result(ma->state_digest);
         return;
       };
-      install_with_auto_schema<void, std::vector<uint8_t>>(
+      install_with_auto_schema<void, StateDigest>(
         MemberProcs::UPDATE_ACK_STATE_DIGEST, update_state_digest, Write);
     }
   };

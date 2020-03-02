@@ -249,7 +249,7 @@ namespace ccf
     std::vector<uint8_t> to_v() const
     {
       size_t vs = sizeof(index) + sizeof(max_index) + root.h.size() +
-        root.h.size() * path->sz;
+        (root.h.size() * path->sz);
       std::vector<uint8_t> v(vs);
       uint8_t* buf = v.data();
       serialized::write(buf, vs, index);

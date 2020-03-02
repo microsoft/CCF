@@ -45,11 +45,11 @@ First, the new member should update and retrieve the latest state digest via the
     {"commit":57,"global_commit":56,"id":0,"jsonrpc":"2.0","result":[<state_digest>],"term":2}
 
 
-Then, the new member should sign the state digest returned by the ``members/updateAckStateDigest`` command with their private key and issue the signature via the ``members/ack`` command.
+Then, the new member should sign the state digest returned by the ``members/updateAckStateDigest`` via the ``members/ack`` command, using the ``scurl.sh`` utility:
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/members/ack  --cacert networkcert.pem --key new_member_privk.pem --cert new_member_cert.pem --header "Content-Type: application/json" --data '{"jsonrpc":"2.0", "id":0, "method":"members/updateAck", "params":{"sig":"[<signature_over_state_digest>]"}}'
+    $ ./scurl.sh https://<ccf-node-address>/members/ack  --cacert networkcert.pem --key new_member_privk.pem --cert new_member_cert.pem --header "Content-Type: application/json" --data '{"jsonrpc":"2.0", "id":0, "method":"members/updateAck", "params":{"state_digest":"[<state_digest>]"}}'
     {"commit":59,"global_commit":58,"id":0,"jsonrpc":"2.0","result":True,"term":2}
 
 Once the command completes, the new member becomes active and can take part in governance operations (e.g. creating a new proposal or voting for an existing one).

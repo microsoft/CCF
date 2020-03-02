@@ -15,16 +15,6 @@ import infra.crypto
 from loguru import logger as LOG
 
 
-class MemberKeyPair:
-    def __init__(self, member_id, pem_dir=os.getcwd()):
-        self.privk = infra.crypto.PrivateKey(
-            os.path.join(pem_dir, f"member{member_id}_privk.pem")
-        )
-        self.cert = infra.crypto.Cert(
-            os.path.join(pem_dir, f"member{member_id}_cert.pem")
-        )
-
-
 class Consortium:
     def __init__(self, members, curve, key_generator, common_dir):
         self.members = members
@@ -141,13 +131,10 @@ class Consortium:
 
     def ack(self, member_id, remote_node):
         state_digest = self.update_ack_state_digest(member_id, remote_node)
-        member_kp = MemberKeyPair(member_id, self.common_dir)
-        sig_state_digest = member_kp.privk.sign(
-            state_digest, member_kp.cert.get_hash_alg()
-        )
-
         with remote_node.member_client(member_id=member_id) as mc:
-            res = mc.rpc("ack", params={"sig": list(sig_state_digest)})
+            res = mc.rpc(
+                "ack", params={"state_digest": list(state_digest)}, signed=True
+            )
             assert res.error is None, f"Error ACK: {res.error}"
 
     def get_proposals(self, member_id, remote_node):
