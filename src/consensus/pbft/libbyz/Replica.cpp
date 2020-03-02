@@ -1903,10 +1903,6 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
   pbft::GlobalState::get_replica().set_next_expected_sig_offset();
 
-  // Call mark_stable to ensure there is space for the pre-prepares
-  // and prepares that are inserted in the log below.
-  mark_stable(last_executed - congestion_window, last_executed >= ms);
-
   if (last_stable > min)
   {
     min = last_stable;
