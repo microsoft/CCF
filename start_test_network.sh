@@ -4,14 +4,6 @@
 
 set -e
 
-if [ -z "$1" ]; then
-    echo "The application enclave file should be specified (e.g. liblogging)"
-    exit 1
-fi
-
-PACKAGE="$1"
-shift
-
 echo "Setting up Python environment..."
 if [ ! -f "env/bin/activate" ]
     then
@@ -24,4 +16,8 @@ PATH_HERE=$(dirname "$(realpath -s "$0")")
 pip install -q -U -r "${PATH_HERE}"/tests/requirements.txt
 echo "Python environment successfully setup"
 
-CURL_CLIENT=ON python "${PATH_HERE}"/tests/start_network.py --package "${PACKAGE}" --label test_network "$@"
+CURL_CLIENT=ON \
+    python "${PATH_HERE}"/tests/start_network.py \
+    --gov-script "${PATH_HERE}"/src/runtime_config/gov.lua \
+    --label test_network \
+    "$@"
