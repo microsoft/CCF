@@ -19,43 +19,37 @@ private:
     NumberTransactions
   };
 
-  uint64_t num_warehouses = 5;
+  uint64_t num_warehouses = 3;  // tunable
+  
+  const uint64_t num_districts = 3;   // 10 in spec
+  const uint64_t num_customers = 100; // 3000 in spec
+  const uint64_t num_orders = 100;    // 3000 in spec
+  const uint64_t num_new_orders = 50; // 900 in spec
+  const uint64_t num_items = 1000;    // 100000 in spec
+  const uint64_t num_stocks = 1000;   // 100000 in spec
 
   void send_creation_transactions(const ConnPtr& connection) override
   {
     cout << "Sending Data Generation Transactions..." << endl;
 
-    static const uint64_t num_districts = 1; // 10
-    static const uint64_t num_customers = 100; // 3000
-    static const uint64_t num_orders = 100; // 3000
-    static const uint64_t num_new_orders = 100; // 900
-
     // Load the Items table
-    cout << "Loading <Items> Table...";
+    cout << "Loading <Items>...";
     load_items(connection);
     cout << "done" << endl;
-
+    
+    cout << "Loading Warehouses..." << endl;
     // Load the Warehouses, for each warehouse, load districts and stocks
     for (uint64_t w_id = 1; w_id <= num_warehouses; w_id++)
     {
-      cout << "Warehouse: " << w_id << "/" << num_warehouses << endl;
+      cout << "Warehouse " << w_id << "/" << num_warehouses << "...";
 
-      cout << "\tLoading <Warehouse>...";
       load_warehouse(connection, w_id);
-      cout << "done" << endl;
-
-      cout << "\tLoading <Stocks>...";
       load_stocks(connection, w_id);
-      cout << "done" << endl;
 
       // Load districts, for each district, load customers and orders
       for (uint64_t d_id = 1; d_id <= num_districts; d_id++)
       {
-        cout << "\tDistrict: " << d_id << "/" << num_districts << endl;
-
-        cout << "\t\tLoading <District>...";
         load_district(connection, d_id, w_id);
-        cout << "done" << endl;
 
         // Find customer IDs with bad credit (10%)
         std::unordered_set<uint64_t> bad_credit_ids = select_n_unique(num_customers / 10, 1, num_customers);
@@ -63,47 +57,30 @@ private:
         // Load customers. For each customer, load history
         for (uint64_t c_id = 1; c_id <= num_customers; c_id++)
         {
-          cout << "\t\tFor Customer: " << c_id << "/" << num_customers << endl;
 
           bool bad_credit = bad_credit_ids.find(c_id) != bad_credit_ids.end();
 
-          cout << "\t\t\tLoading <Customer>...";
           load_customer(connection, c_id, d_id, w_id, bad_credit);
-          cout << "done" << endl;
-
-          cout << "\t\t\tLoading <History>...";
           load_history(connection, c_id, d_id, w_id);
-          cout << "done" << endl;
         }
 
-        cout << "\t\tCreating Customer ID permutations...";
         // Create random permutation for customer IDs
         int* c_id_perms = permutation(1, num_orders);
-        cout << "done" << endl;
-
-        // TODO: perms might be taking ages -> consider doing on the fly?
 
         // Load orders. For each order, load order line
         for (uint64_t o_id = 1; o_id <= num_orders; o_id++)
         {
-          cout << "\t\tFor Order: " << o_id << "/" << num_orders << endl;
-
           uint64_t o_ol_cnt = rand_range(5, 15);
 
-          cout << "\t\t\tLoading <Order>...";
           load_order(connection, o_id, o_ol_cnt, d_id, w_id, c_id_perms[o_id]);
-          cout << "done" << endl;
-
-          cout << "\t\t\tLoaded <OrderLine>...";
           load_order_lines(connection, o_id, o_ol_cnt, d_id, w_id);
-          cout << "done" << endl;
         }
 
         // Load new orders for the last 900 order Ids
-        cout << "\t\tLoading <NewOrder>...";
         load_new_orders(connection, num_orders - num_new_orders, num_orders, d_id, w_id);
-        cout << "done" << endl;
       }
+
+      cout << "done" << endl;
     }
   }
 
@@ -121,7 +98,12 @@ private:
 
       add_prepared_tx("TPCC_new_order", params, true, i);
     }
+  }
 
+  bool check_response(const json& j) override {
+    cout << "Response: " << j << endl;
+
+    return j.find("error") == j.end();
   }
 
   json generate_new_order_params()
@@ -135,10 +117,10 @@ private:
     params["w_id"] = w_id;
 
     // District ID: Rand[1, 10] from home warehouse
-    params["d_id"] = rand_range(1, 11);
+    params["d_id"] = rand_range(1, (int) num_districts + 1);
 
     // Customer ID: NURand[1023, 1, 3000] from district number
-    params["c_id"] = nu_rand(1023, 1, 3000);
+    params["c_id"] = nu_rand(35, 1, (int) num_customers + 1);
 
     // Entry Date: current date time
     std::time_t t = std::time(0);
@@ -158,11 +140,11 @@ private:
     for (size_t i = 1; i <= ol_cnt; i++)
     {
       // Item Id: NURand[8191, 1, 100000]
-      uint64_t i_id = nu_rand(8191, 1, 100000);
+      uint64_t i_id = nu_rand(82, 1, (int) num_items + 1);
 
       if (rollback && i == ol_cnt)
       {
-        i_id = 100001; // Unused value
+        i_id = num_items + 1; // Unused value
       }
 
       params["i_ids"].push_back(i_id);
@@ -191,7 +173,6 @@ private:
 
   void load_items(const ConnPtr& connection)
   {
-    static uint64_t num_items = 1000;//100000 // TODO: refactor constants
     std::unordered_set<uint64_t> original_rows = select_n_unique(num_items / 10, 1, num_items);
 
     std::vector<json> items_array;
@@ -224,8 +205,6 @@ private:
 
   void load_stocks(const ConnPtr& connection, std::uint64_t w_id)
   {
-    //TODO: refactor constants
-    static uint64_t num_stocks = 1000; //100000 
     std::unordered_set<uint64_t> original_rows = select_n_unique(num_stocks / 10, 1, num_stocks);
 
     std::vector<json> stocks_array;
@@ -479,6 +458,9 @@ private:
     history["amount"] = 10.0;
     history["data"] = rand_astring(12, 24);
     return history;
+
+    // TODO: remove
+    cout << "!!! HISTORY !!! Date: " << history["date"] << endl;
   }
 
   json make_order(uint64_t o_ol_cnt, uint64_t c_id, bool null_carrier)

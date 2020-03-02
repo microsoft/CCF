@@ -3,6 +3,7 @@
 #include "enclave/appinterface.h"
 #include "node/rpc/userfrontend.h"
 #include "tpcc_entities.h"
+#include <ctime>
 
 using namespace ccf;
 
@@ -13,6 +14,7 @@ namespace tpcc
 
   struct Procs {
     static constexpr auto TPCC_NEW_ORDER = "TPCC_new_order";
+    static constexpr auto TPCC_QUERY_ORDER_HISTORY = "TPCC_query_order_history";
     
     static constexpr auto TPCC_LOAD_ITEMS = "TPCC_load_items";
     static constexpr auto TPCC_LOAD_WAREHOUSE = "TPCC_load_warehouse";
@@ -63,8 +65,44 @@ namespace tpcc
     {
       UserHandlerRegistry::init_handlers(store);
 
+      auto queryOrderHistory = [this](Store::Tx& tx, const nlohmann::json& params) {
+        std::string date_from_str = params["date_from"];
+        std::string date_to_str = params["date_to"];
+        
+        struct tm tm;
+
+        strptime(date_from_str.c_str(), "%a %h %d %H:%M:%S %Y", &tm);
+        std::time_t date_from = mktime(&tm);
+        
+        strptime(date_to_str.c_str(), "%a %h %d %H:%M%S %Y", &tm);
+        std::time_t date_to = mktime(&tm);
+
+        if (std::difftime(date_from, date_to) < 0) {
+          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "From date must be before To date");
+        }
+
+        std::vector<uint64_t> results;
+
+        auto history_view = tx.get_view(tables.histories);
+        history_view->foreach([&](const auto& key, const auto& val) {
+          
+          // check if date lies within range, if so add to results
+          strptime(val.date.c_str(), "%a %h %d %H:%M:%S %Y", &tm);
+          std::time_t date = mktime(&tm);
+          
+          if (std::difftime(date, date_from) >= 0 && std::difftime(date, date_to) <= 0) {
+            results.push_back(val.c_id);
+          }
+
+          return true;
+        });
+
+        return make_success(true);
+      };
+
       auto newOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing newOrder handler...";
+        std::cout << "Executing newOrder handler...\n";
 
         uint64_t w_id = params["w_id"];
         uint64_t d_id = params["d_id"];
@@ -73,6 +111,8 @@ namespace tpcc
         std::vector<uint64_t> i_ids = params["i_ids"];
         std::vector<uint64_t> i_w_ids = params["i_w_ids"];
         std::vector<uint64_t> i_qtys = params["i_qtys"];
+
+        std::cout << "...newOrder handler...\n";
 
         // Output data defined as per TPCC 2.4.3.3
         OutputData output_data;
@@ -84,13 +124,20 @@ namespace tpcc
         // Get district information
         auto districts_view = tx.get_view(tables.districts);
 
+        std::cout << "...newOrder handler...\n";
+
         DistrictId district_key = {d_id, w_id};
         auto d_result = districts_view->get(district_key);
 
+        std::cout << "...newOrder handler...\n";
+
         if (!d_result.has_value())
         {
-          //TODO: Error
+          std::cout << "!!!Returning error!!!\n";
+          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "District Not Found");
         }
+
+        std::cout << "...newOrder handler...\n";
 
         District d = d_result.value();
         double d_tax = d.tax;
@@ -99,6 +146,8 @@ namespace tpcc
         output_data.d_tax = d_tax;
         output_data.o_id = d_next_o_id;
 
+        std::cout << "...newOrder handler...\n";
+
         // Update the district's next order number
         d.next_o_id += 1;
         districts_view->put(district_key, d);
@@ -106,13 +155,17 @@ namespace tpcc
         // Get warehouse information
         auto warehouses_view = tx.get_view(tables.warehouses);
 
+        std::cout << "...newOrder handler...\n";
+
         WarehouseId warehouse_key = w_id;
         auto w_result = warehouses_view->get(warehouse_key);
         
         if (!w_result.has_value())
         {
-          //TODO: Error
+          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Warehouse Not Found");
         }
+
+        std::cout << "...newOrder handler...\n";
 
         Warehouse w = w_result.value();
         double w_tax = w.tax;
@@ -122,13 +175,17 @@ namespace tpcc
         // Get customer information
         auto customers_view = tx.get_view(tables.customers);
 
+        std::cout << "...newOrder handler...\n";
+
         CustomerId customer_key = {c_id, w_id, d_id};
         auto c_result = customers_view->get(customer_key);
 
         if (!c_result.has_value())
         {
-          //TODO: Error
+          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Customer Not Found");
         }
+
+        std::cout << "...newOrder handler...\n";
 
         Customer c = c_result.value();
         double c_discount = c.discount;
@@ -142,6 +199,8 @@ namespace tpcc
         // Insert NewOrder entry
         auto neworders_view = tx.get_view(tables.neworders);
 
+        std::cout << "...newOrder handler...\n";
+
         NewOrderId neworder_key = {d_next_o_id, w_id, d_id};
         NewOrder no = {0};
         neworders_view->put(neworder_key, no);
@@ -154,6 +213,8 @@ namespace tpcc
 
         output_data.o_ol_cnt = ol_cnt;
 
+        std::cout << "...newOrder handler...\n";
+
         OrderId order_key = {d_next_o_id, w_id, d_id};
         Order order = {
           c_id,
@@ -163,17 +224,19 @@ namespace tpcc
           all_local
         };
 
-        // TODO: order is inserted at the end, check this
-
         // Insert Order Line and Stock Information
         auto items_view = tx.get_view(tables.items);
         auto stocks_view = tx.get_view(tables.stocks);
         auto orderlines_view = tx.get_view(tables.orderlines);
 
+        std::cout << "...newOrder handler...\n";
+
         uint64_t total = 0;
 
         std::vector<ItemOutputData> item_output_data;
         item_output_data.reserve(ol_cnt);
+
+        std::cout << "...newOrder handler...\n";
 
         for (size_t i = 1; i <= ol_cnt; i++)
         {
@@ -193,7 +256,8 @@ namespace tpcc
           if (!i_result.has_value())
           {
             // 'not-found' signal, item was not found in store
-            // TODO: rollback transaction
+            std::cout << "Error! Item not found. Key: " << i_id << std::endl;
+            return make_error(jsonrpc::StandardErrorCodes::INTERNAL_ERROR, "Item Not Found");
           }
 
           Item item = i_result.value();
@@ -210,7 +274,8 @@ namespace tpcc
 
           if (!s_result.has_value())
           {
-            //TODO: Error
+            std::cout << "Error! Stock not found. Key: (" << i_w_id << ", " << i_id << ")" << std::endl;
+            return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Stock Not Found");
           }
 
           Stock stock = s_result.value();
@@ -270,6 +335,8 @@ namespace tpcc
           item_output_data.push_back(item_data);
         }
 
+        std::cout << "...newOrder handler...\n";
+
         total *= (1 - c_discount) * (1 + w_tax + d_tax);
 
         orders_view->put(order_key, order);
@@ -285,7 +352,7 @@ namespace tpcc
       };
 
       auto loadItems = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing loadItems handler...";
+        //std::cout << "Executing loadItems handler...";
 
         auto items_view = tx.get_view(tables.items);
         int load_count = 0;
@@ -303,12 +370,12 @@ namespace tpcc
           load_count++;
         }
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(true);
       };
       
       auto loadWarehouse = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing loadWarehouse handler...";
+        //std::cout << "Executing loadWarehouse handler...";
         auto warehouses_view = tx.get_view(tables.warehouses);
         
         WarehouseId key = params["key"];
@@ -324,12 +391,12 @@ namespace tpcc
 
         warehouses_view->put(key, warehouse);
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadStocks = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing loadStocks handler...";
+        //std::cout << "Executing loadStocks handler...";
         auto stocks_view = tx.get_view(tables.stocks);
         int load_count = 0;
 
@@ -354,12 +421,12 @@ namespace tpcc
           load_count++;
         }
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(load_count);
       };
 
       auto loadDistrict = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing loadDistrict handler...";
+        //std::cout << "Executing loadDistrict handler...";
         auto districts_view = tx.get_view(tables.districts);
 
         DistrictId key;
@@ -379,12 +446,12 @@ namespace tpcc
 
         districts_view->put(key, district);
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadCustomer = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing loadCustomer handler...";
+        //std::cout << "Executing loadCustomer handler...";
         auto customers_view = tx.get_view(tables.customers);
 
         CustomerId key;
@@ -414,12 +481,12 @@ namespace tpcc
 
         customers_view->put(key, customer);
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadHistory = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing loadHistory handler...";
+        //std::cout << "Executing loadHistory handler...";
         auto histories_view = tx.get_view(tables.histories);
 
         HistoryId key = params["key"];
@@ -436,12 +503,12 @@ namespace tpcc
 
         histories_view->put(key, history);
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing loadOrder handler...";
+        //std::cout << "Executing loadOrder handler...";
         auto orders_view = tx.get_view(tables.orders);
 
         OrderId key;
@@ -458,12 +525,12 @@ namespace tpcc
 
         orders_view->put(key, order);
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(true);
       };
 
       auto loadOrderLines = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing loadOrderLines handler...";
+        //std::cout << "Executing loadOrderLines handler...";
         auto order_lines_view = tx.get_view(tables.orderlines);
         int load_count = 0;
 
@@ -487,13 +554,13 @@ namespace tpcc
           load_count++;
         }
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(load_count);
       };
 
       auto loadNewOrders = [this](Store::Tx& tx, const nlohmann::json& params)
       {
-        std::cout << "Executing loadNewOrders handler...";
+        //std::cout << "Executing loadNewOrders handler...";
 
         auto new_orders_view = tx.get_view(tables.neworders);
         int load_count = 0;
@@ -512,10 +579,11 @@ namespace tpcc
           load_count++;
         }
 
-        std::cout << "done" << std::endl;
+        //std::cout << "done" << std::endl;
         return make_success(load_count);
       };
 
+      install(Procs::TPCC_QUERY_ORDER_HISTORY, handler_adapter(queryOrderHistory), HandlerRegistry::Write);
       install(Procs::TPCC_NEW_ORDER, handler_adapter(newOrder), HandlerRegistry::Write);
       install(Procs::TPCC_LOAD_ITEMS, handler_adapter(loadItems), HandlerRegistry::Write);
       install(Procs::TPCC_LOAD_WAREHOUSE, handler_adapter(loadWarehouse), HandlerRegistry::Write);
