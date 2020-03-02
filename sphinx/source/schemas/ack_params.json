@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "sig": {
+    "state_digest": {
       "items": {
         "maximum": 255,
         "minimum": 0,
@@ -11,7 +11,7 @@
     }
   },
   "required": [
-    "sig"
+    "state_digest"
   ],
   "title": "ack/params",
   "type": "object"
