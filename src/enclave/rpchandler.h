@@ -41,6 +41,6 @@ namespace enclave
       std::shared_ptr<enclave::RpcContext>,
       ccf::Store::Tx& tx,
       bool playback) = 0;
-    virtual crypto::Sha256Hash GetMerkleRoot() = 0;
+    virtual crypto::Sha256Hash get_merkle_root() = 0;
   };
 }

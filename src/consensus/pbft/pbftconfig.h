@@ -84,7 +84,7 @@ namespace pbft
         static_assert(
           sizeof(info.replicated_state_merkle_root) ==
           sizeof(crypto::Sha256Hash));
-        crypto::Sha256Hash root = frontend->GetMerkleRoot();
+        crypto::Sha256Hash root = frontend->get_merkle_root();
         std::copy(
           std::begin(root.h),
           std::end(root.h),

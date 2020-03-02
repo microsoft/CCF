@@ -363,7 +363,7 @@ namespace ccf
       return {rep.value(), version};
     }
 
-    crypto::Sha256Hash GetMerkleRoot() override
+    crypto::Sha256Hash get_merkle_root() override
     {
       return history->get_replicated_state_root();
     }
