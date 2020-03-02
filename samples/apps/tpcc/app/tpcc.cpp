@@ -69,13 +69,28 @@ namespace tpcc
         std::string date_from_str = params["date_from"];
         std::string date_to_str = params["date_to"];
         
-        struct tm tm;
+        // Parse date_from input parameter
+        std::tm date_from_tm = {};
+        std::istringstream ss_from(date_from_str);
+        ss_from >> std::get_time(&date_from_tm, "%a %h %d %H:%M:%S %Y");
 
-        strptime(date_from_str.c_str(), "%a %h %d %H:%M:%S %Y", &tm);
-        std::time_t date_from = mktime(&tm);
+        // Parse date_to input parameter
+        std::tm date_to_tm = {};
+        std::istringstream ss_to(date_to_str);
+        ss_to >> std::get_time(&date_to_tm, "%a %h %d %H:%M:%S %Y");
+
+        // Check that both parameters were correctly parsed
+        if (ss_from.fail() || ss_to.fail()) {
+          std::cout << "Could not parse date input: From:" 
+                    << date_from_str
+                    << " To: " 
+                    << date_to_str 
+                    << std::endl;
+          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Could not parse date_from");
+        }
         
-        strptime(date_to_str.c_str(), "%a %h %d %H:%M%S %Y", &tm);
-        std::time_t date_to = mktime(&tm);
+        std::time_t date_from = mktime(&date_from_tm);
+        std::time_t date_to = mktime(&date_to_tm);
 
         if (std::difftime(date_from, date_to) < 0) {
           return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS,
@@ -87,10 +102,14 @@ namespace tpcc
         auto history_view = tx.get_view(tables.histories);
         history_view->foreach([&](const auto& key, const auto& val) {
           
-          // check if date lies within range, if so add to results
-          strptime(val.date.c_str(), "%a %h %d %H:%M:%S %Y", &tm);
-          std::time_t date = mktime(&tm);
-          
+          // Parse date of History entry
+          std::tm date_tm = {};
+          std::istringstream ss_to(val.date);
+          ss_to >> std::get_time(&date_tm, "%a %h %d %H:%M:%S %Y");
+
+          std::time_t date = mktime(&date_tm);
+
+          // Check if date of History entry lies within range, if so add to results
           if (std::difftime(date, date_from) >= 0 && std::difftime(date, date_to) <= 0) {
             results.push_back(val.c_id);
           }
@@ -102,7 +121,7 @@ namespace tpcc
       };
 
       auto newOrder = [this](Store::Tx& tx, const nlohmann::json& params) {
-        std::cout << "Executing newOrder handler...\n";
+        // std::cout << "Executing newOrder handler...\n";
 
         uint64_t w_id = params["w_id"];
         uint64_t d_id = params["d_id"];
@@ -111,8 +130,6 @@ namespace tpcc
         std::vector<uint64_t> i_ids = params["i_ids"];
         std::vector<uint64_t> i_w_ids = params["i_w_ids"];
         std::vector<uint64_t> i_qtys = params["i_qtys"];
-
-        std::cout << "...newOrder handler...\n";
 
         // Output data defined as per TPCC 2.4.3.3
         OutputData output_data;
@@ -124,20 +141,14 @@ namespace tpcc
         // Get district information
         auto districts_view = tx.get_view(tables.districts);
 
-        std::cout << "...newOrder handler...\n";
-
         DistrictId district_key = {d_id, w_id};
         auto d_result = districts_view->get(district_key);
 
-        std::cout << "...newOrder handler...\n";
-
         if (!d_result.has_value())
         {
-          std::cout << "!!!Returning error!!!\n";
+          std::cout << "Error! District not found" << std::endl;
           return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "District Not Found");
         }
-
-        std::cout << "...newOrder handler...\n";
 
         District d = d_result.value();
         double d_tax = d.tax;
@@ -146,16 +157,12 @@ namespace tpcc
         output_data.d_tax = d_tax;
         output_data.o_id = d_next_o_id;
 
-        std::cout << "...newOrder handler...\n";
-
         // Update the district's next order number
         d.next_o_id += 1;
         districts_view->put(district_key, d);
       
         // Get warehouse information
         auto warehouses_view = tx.get_view(tables.warehouses);
-
-        std::cout << "...newOrder handler...\n";
 
         WarehouseId warehouse_key = w_id;
         auto w_result = warehouses_view->get(warehouse_key);
@@ -165,8 +172,6 @@ namespace tpcc
           return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Warehouse Not Found");
         }
 
-        std::cout << "...newOrder handler...\n";
-
         Warehouse w = w_result.value();
         double w_tax = w.tax;
 
@@ -175,17 +180,14 @@ namespace tpcc
         // Get customer information
         auto customers_view = tx.get_view(tables.customers);
 
-        std::cout << "...newOrder handler...\n";
-
         CustomerId customer_key = {c_id, w_id, d_id};
         auto c_result = customers_view->get(customer_key);
 
         if (!c_result.has_value())
         {
+          std::cout << "Error! Customer not found" << std::endl;
           return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Customer Not Found");
         }
-
-        std::cout << "...newOrder handler...\n";
 
         Customer c = c_result.value();
         double c_discount = c.discount;
@@ -199,8 +201,6 @@ namespace tpcc
         // Insert NewOrder entry
         auto neworders_view = tx.get_view(tables.neworders);
 
-        std::cout << "...newOrder handler...\n";
-
         NewOrderId neworder_key = {d_next_o_id, w_id, d_id};
         NewOrder no = {0};
         neworders_view->put(neworder_key, no);
@@ -212,8 +212,6 @@ namespace tpcc
         uint64_t ol_cnt = i_ids.size();
 
         output_data.o_ol_cnt = ol_cnt;
-
-        std::cout << "...newOrder handler...\n";
 
         OrderId order_key = {d_next_o_id, w_id, d_id};
         Order order = {
@@ -229,16 +227,12 @@ namespace tpcc
         auto stocks_view = tx.get_view(tables.stocks);
         auto orderlines_view = tx.get_view(tables.orderlines);
 
-        std::cout << "...newOrder handler...\n";
-
         uint64_t total = 0;
 
         std::vector<ItemOutputData> item_output_data;
         item_output_data.reserve(ol_cnt);
 
-        std::cout << "...newOrder handler...\n";
-
-        for (size_t i = 1; i <= ol_cnt; i++)
+        for (size_t i = 0; i < ol_cnt; i++)
         {
           uint64_t i_id = i_ids.at(i);
           uint64_t i_w_id = i_w_ids.at(i);
@@ -335,8 +329,6 @@ namespace tpcc
           item_output_data.push_back(item_data);
         }
 
-        std::cout << "...newOrder handler...\n";
-
         total *= (1 - c_discount) * (1 + w_tax + d_tax);
 
         orders_view->put(order_key, order);
@@ -347,7 +339,7 @@ namespace tpcc
 
         // TODO: should OutputData be printed as per TPCC spec?
 
-        std::cout << "done" << std::endl;
+        // std::cout << "done" << std::endl;
         return make_success(true);
       };
 

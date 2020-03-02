@@ -188,7 +188,7 @@ private:
       items_array.push_back(item);
     }
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_items", items_array));
+    auto response = connection->call("TPCC_load_items", items_array);
     handle_response(response, "TPCC_load_items");
   }
 
@@ -199,7 +199,7 @@ private:
     warehouse["key"] = w_id;
     warehouse["value"] = make_warehouse();
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_warehouse", warehouse));
+    auto response = connection->call("TPCC_load_warehouse", warehouse);
     handle_response(response, "TPCC_load_warehouse");
   }
 
@@ -224,7 +224,7 @@ private:
       stocks_array.push_back(stock);
     }
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_stocks", stocks_array));
+    auto response = connection->call("TPCC_load_stocks", stocks_array);
     handle_response(response, "TPCC_load_stocks");
   }
 
@@ -238,7 +238,7 @@ private:
     district["key"] = key;
     district["value"] = make_district();
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_district", district));
+    auto response = connection->call("TPCC_load_district", district);
     handle_response(response, "TPCC_load_district");
   }
   
@@ -253,7 +253,7 @@ private:
     customer["key"] = key;
     customer["value"] = make_customer(c_id, bad_credit);
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_customer", customer));
+    auto response = connection->call("TPCC_load_customer", customer);
     handle_response(response, "TPCC_load_customer");
   }
 
@@ -263,7 +263,7 @@ private:
     history["key"] = c_id; // Using c_id as an incrementing ID
     history["value"] = make_history(c_id, d_id, w_id);
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_history", history));
+    auto response = connection->call("TPCC_load_history", history);
     handle_response(response, "TPCC_load_history");
   }
 
@@ -278,7 +278,7 @@ private:
     order["key"] = key;
     order["value"] = make_order(o_ol_cnt, c_id, o_id >= 2101);
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_order", order));
+    auto response = connection->call("TPCC_load_order", order);
     handle_response(response, "TPCC_load_order");
   }
 
@@ -300,7 +300,7 @@ private:
       order_lines_array.push_back(order_line);
     }
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_order_lines", order_lines_array));
+    auto response = connection->call("TPCC_load_order_lines", order_lines_array);
     handle_response(response, "TPCC_load_order_lines");
   }
 
@@ -327,7 +327,7 @@ private:
       new_orders_array.push_back(new_order);
     }
 
-    auto response = json::from_msgpack(connection->call("TPCC_load_new_orders", new_orders_array));
+    auto response = connection->call("TPCC_load_new_orders", new_orders_array);
     handle_response(response, "TPCC_load_new_orders");
   }
 
