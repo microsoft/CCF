@@ -332,25 +332,20 @@ namespace ccf
      * @param ctx Context for this RPC
      */
     ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      bool include_merkle_roots) override
+      std::shared_ptr<enclave::RpcContext> ctx) override
     {
       Store::Tx tx;
-      return process_pbft(ctx, tx, false, include_merkle_roots);
+      return process_pbft(ctx, tx, false);
     }
 
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      bool playback,
-      bool include_merkle_roots) override
+      bool playback) override
     {
-      crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
 
       update_consensus();
-
-      bool has_updated_merkle_roots = false;
 
       if (!playback)
       {
@@ -366,12 +361,13 @@ namespace ccf
       auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
 
       version = tx.get_version();
-      if (include_merkle_roots)
-      {
-        replicated_state_merkle_root = history->get_replicated_state_root();
-      }
 
-      return {rep.value(), replicated_state_merkle_root, version};
+      return {rep.value(), version};
+    }
+
+    crypto::Sha256Hash get_merkle_root() override
+    {
+      return history->get_replicated_state_root();
     }
 
     /** Process a serialised input forwarded from another node
