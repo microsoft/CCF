@@ -484,9 +484,11 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     global_commit(executable_pp.get());
 
-    if (executable_pp->is_signed() && f() > 0)
+    if (f() > 0 && (last_executed % checkpoint_interval == 0))
     {
-      mark_stable(last_executed, true);
+      Seqno stable_point = std::max(
+        last_executed - checkpoint_interval / 2, seqno_at_last_f_change);
+      mark_stable(stable_point, true);
     }
 
     if (playback_before_f == 0 && f() != 0)
@@ -813,8 +815,14 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
     auto ctx = std::make_unique<ExecTentativeCbCtx>();
-    Pre_prepare* pp =
-      new Pre_prepare(view(), next_pp_seqno, rqueue, ctx->requests_in_batch);
+
+    Prepared_cert* ps = nullptr;
+    if (next_pp_seqno > congestion_window)
+    {
+      ps = &plog.fetch(next_pp_seqno - congestion_window);
+    }
+    Pre_prepare* pp = new Pre_prepare(
+      view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ps);
 
     auto fn = [](
                 Pre_prepare* pp,
@@ -1099,11 +1107,6 @@ void Replica::handle(Prepare* m)
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
-      if (ledger_writer)
-      {
-        ledger_writer->write_prepare(ps, ms);
-      }
-
       send_commit(ms, f() == 0);
     }
     return;
@@ -1316,12 +1319,12 @@ void Replica::set_f(ccf::NodeId f)
     rqueue.clear();
   }
 
+  seqno_at_last_f_change = last_executed + 1;
   Node::set_f(f);
 }
 
 void Replica::emit_signature_on_next_pp(int64_t version)
 {
-  sign_next = true;
   signed_version = version;
 }
 
@@ -1898,10 +1901,6 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
   pbft::GlobalState::get_replica().set_next_expected_sig_offset();
 
-  // Call mark_stable to ensure there is space for the pre-prepares
-  // and prepares that are inserted in the log below.
-  mark_stable(last_executed, last_executed >= ms);
-
   if (last_stable > min)
   {
     min = last_stable;
@@ -2390,19 +2389,21 @@ void Replica::execute_committed(bool was_f_0)
         }
 
         // Send and log Checkpoint message for the new state if needed
-        if (pp->is_signed() && f() > 0)
+        if (f() > 0 && (last_executed % checkpoint_interval == 0))
         {
           Digest d_state;
-          state.digest(last_executed, d_state);
-          Checkpoint* e = new Checkpoint(last_executed, d_state);
-          Certificate<Checkpoint>& cc = elog.fetch(last_executed);
+          Seqno stable_point = std::max(
+            last_executed - checkpoint_interval / 2, seqno_at_last_f_change);
+          state.digest(stable_point, d_state);
+          Checkpoint* e = new Checkpoint(stable_point, d_state);
+          Certificate<Checkpoint>& cc = elog.fetch(stable_point);
           cc.add_mine(e);
 
           send(e, All_replicas);
 
           if (cc.is_complete())
           {
-            mark_stable(last_executed, true);
+            mark_stable(stable_point, true);
           }
         }
       }
@@ -2973,8 +2974,14 @@ void Replica::send_null()
       Req_queue empty;
       size_t requests_in_batch;
 
+      Prepared_cert* ps = nullptr;
+      if (next_pp_seqno != 0)
+      {
+        ps = &plog.fetch(next_pp_seqno - 1);
+      }
+
       Pre_prepare* pp =
-        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch);
+        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch, ps);
       pp->set_digest();
       send(pp, All_replicas);
       plog.fetch(next_pp_seqno).add_mine(pp);
