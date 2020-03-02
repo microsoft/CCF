@@ -625,7 +625,7 @@ class CCFRemote(object):
                 cmd += [f"--member-info={mc},{mk}"]
                 data_files.append(mc)
                 data_files.append(mk)
-            data_files += [gov_script]
+            data_files += [os.path.basename(gov_script)]
         elif start_type == StartType.join:
             cmd += [
                 "join",
