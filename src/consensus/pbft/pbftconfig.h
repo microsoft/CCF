@@ -161,7 +161,7 @@ namespace pbft
           pbft::Request request;
           request.deserialise({inb->contents, inb->contents + inb->size});
 
-          const enclave::SessionContext session(
+          auto session = std::make_shared<enclave::SessionContext>(
             enclave::InvalidSessionId, request.caller_id, request.caller_cert);
           auto ctx = enclave::make_rpc_context(
             session, request.raw, {req_start, req_start + req_size});
