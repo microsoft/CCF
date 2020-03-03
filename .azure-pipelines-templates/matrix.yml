@@ -88,7 +88,7 @@ jobs:
   - ${{ each build_target in parameters.build_target }}:
     - template: build.yml
       parameters:
-        target: '${{ target }}'
+        target: '${{ build_target }}'
         build_target: '${{ build_target }}'
         env: ${{ parameters.env[build_target] }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[build_target].cmake_args }}'
