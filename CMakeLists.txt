@@ -346,8 +346,8 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/membervoting_test.cpp
   )
   target_link_libraries(
-    membervoting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host
-                              lua.host secp256k1.host http_parser.host
+    membervoting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
+                              secp256k1.host http_parser.host
   )
   set_property(TEST membervoting_test APPEND PROPERTY LABELS raft)
 
@@ -356,15 +356,15 @@ if(BUILD_TESTS)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/nodefrontend_test.cpp
   )
   target_link_libraries(
-    nodefrontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host
-                              lua.host secp256k1.host http_parser.host
+    nodefrontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
+                              secp256k1.host http_parser.host
   )
 
   if(NOT ENV{RUNTIME_CONFIG_DIR})
     set_tests_properties(
       membervoting_test
       PROPERTIES ENVIRONMENT
-                  RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
+                 RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
     )
   endif()
 
@@ -433,8 +433,7 @@ if(BUILD_TESTS)
 
   # Raft driver and scenario test
   add_executable(
-    raft_driver
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
+    raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
   )
   use_client_mbedtls(raft_driver)
   target_include_directories(raft_driver PRIVATE src/raft)
@@ -477,7 +476,8 @@ if(BUILD_TESTS)
 
   # Receipts end to end test
   add_e2e_test(
-    NAME receipts_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+    NAME receipts_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
     CONSENSUS raft
   )
 
@@ -539,7 +539,8 @@ if(BUILD_TESTS)
 
   if(NOT SAN)
     add_e2e_test(
-      NAME connections PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+      NAME connections
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
       CONSENSUS raft
     )
   endif()
@@ -575,7 +576,6 @@ if(BUILD_TESTS)
     CONSENSUS pbft
     ADDITIONAL_ARGS --skip-suspension
   )
-
 
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)

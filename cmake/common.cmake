@@ -419,8 +419,8 @@ endfunction()
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS "" "NAME;PYTHON_SCRIPT;IS_SUITE;CURL_CLIENT;CONSENSUS;"
-    "ADDITIONAL_ARGS"
+    PARSE_ARGV 0 PARSED_ARGS ""
+    "NAME;PYTHON_SCRIPT;IS_SUITE;CURL_CLIENT;CONSENSUS;" "ADDITIONAL_ARGS"
   )
 
   if(BUILD_END_TO_END_TESTS)
@@ -428,7 +428,8 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_ADDITIONAL_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
+        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_ADDITIONAL_ARGS} --consensus
+        ${PARSED_ARGS_CONSENSUS}
     )
 
     # Make python test client framework importable
@@ -449,7 +450,9 @@ function(add_e2e_test)
         TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS})
+    set_property(
+      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    )
   endif()
 endfunction()
 
@@ -458,7 +461,8 @@ function(add_perf_test)
 
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS" "ADDITIONAL_ARGS"
+    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    "ADDITIONAL_ARGS"
   )
 
   if(PARSED_ARGS_VERIFICATION_FILE)
@@ -477,9 +481,9 @@ function(add_perf_test)
     NAME ${PARSED_ARGS_NAME}
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS} --write-tx-times ${VERIFICATION_ARG} --label
-      ${LABEL_ARG} ${PARSED_ARGS_ADDITIONAL_ARGS} ${RELAX_COMMIT_TARGET}
-      ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
+      --write-tx-times ${VERIFICATION_ARG} --label ${LABEL_ARG}
+      ${PARSED_ARGS_ADDITIONAL_ARGS} ${RELAX_COMMIT_TARGET} ${NODES}
   )
 
   # Make python test client framework importable
@@ -490,7 +494,9 @@ function(add_perf_test)
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
-  set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS})
+  set_property(
+    TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+  )
 endfunction()
 
 # Picobench wrapper
