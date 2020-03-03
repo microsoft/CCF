@@ -457,18 +457,25 @@ namespace ccf
         {
           switch (handler->rw)
           {
-            break;
-          }
+            case HandlerRegistry::Read:
+            {
+              break;
+            }
 
-          case HandlerRegistry::Write:
-          {
-            return forward_or_redirect_json(ctx);
-            break;
-          }
+            case HandlerRegistry::Write:
+            {
+              return forward_or_redirect_json(ctx);
+              break;
+            }
 
-          case HandlerRegistry::Write:
-          {
-            return forward_or_redirect_json(ctx);
+            case HandlerRegistry::MayWrite:
+            {
+              if (!ctx->read_only_hint)
+              {
+                return forward_or_redirect_json(ctx);
+              }
+              break;
+            }
           }
         }
       }
@@ -549,8 +556,8 @@ namespace ccf
         }
         catch (const kv::KvSerialiserException& e)
         {
-          // If serialising the committed transaction fails, there is no way to
-          // recover safely (https://github.com/microsoft/CCF/issues/338).
+          // If serialising the committed transaction fails, there is no way
+          // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
           LOG_FATAL_FMT("Failed to serialise: {}", e.what());
           abort();
