@@ -88,12 +88,12 @@ jobs:
     - template: build.yml
       parameters:
         target: 'Build_${{ target }}'
-        env: ${{ parameters.env[target] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
+        env: ${{ parameters.env[Build_target] }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[Build_target].cmake_args }}'
         suffix: 'Debug'
         artifact_name: '${{ target }}_Debug'
 
-  # Debug builds with code coverage
+  # Debug test runs with code coverage
   - ${{ each target in parameters.target }}:
     - ${{ each consensus in parameters.consensus }}:
       - template: common.yml
@@ -101,7 +101,6 @@ jobs:
           target: ${{ target }}
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
-          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
           ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
           suffix: 'Debug'
 
