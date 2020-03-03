@@ -69,7 +69,7 @@ parameters:
         ctest_args: '-LE "benchmark|perf|suite|raft|all"'
     SGX:
       CFT:
-        ctest_args: '-LE "benchmark|perf"|pbft'
+        ctest_args: '-LE "benchmark|perf|pbft"'
       BFT:
         ctest_args: '-LE "benchmark|perf|raft|all"'
     Release:

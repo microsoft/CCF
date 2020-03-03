@@ -266,7 +266,6 @@ if(BUILD_TESTS)
     raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
   )
   target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
-  set_property(TEST raft_test APPEND PROPERTY LABELS raft)
 
   add_unit_test(
     raft_enclave_test
@@ -276,7 +275,6 @@ if(BUILD_TESTS)
   target_link_libraries(
     raft_enclave_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
   )
-  set_property(TEST raft_enclave_test APPEND PROPERTY LABELS raft)
 
   add_unit_test(
     crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
@@ -349,7 +347,6 @@ if(BUILD_TESTS)
     membervoting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
                               secp256k1.host http_parser.host
   )
-  set_property(TEST membervoting_test APPEND PROPERTY LABELS raft)
 
   add_unit_test(
     nodefrontend_test
