@@ -48,19 +48,12 @@ namespace ccf
       MayWrite
     };
 
-    enum class Forwardable
-    {
-      CanForward,
-      DoNotForward
-    };
-
     struct Handler
     {
       HandleFunction func;
       ReadWrite rw;
       nlohmann::json params_schema;
       nlohmann::json result_schema;
-      Forwardable forwardable;
       bool execute_locally = false;
     };
 
@@ -94,7 +87,6 @@ namespace ccf
      * @param rw Flag if method will Read, Write, MayWrite
      * @param params_schema JSON schema for params object in requests
      * @param result_schema JSON schema for result object in responses
-     * @param forwardable Allow method to be forwarded to primary
      */
     void install(
       const std::string& method,
@@ -102,26 +94,9 @@ namespace ccf
       ReadWrite rw,
       const nlohmann::json& params_schema = nlohmann::json::object(),
       const nlohmann::json& result_schema = nlohmann::json::object(),
-      Forwardable forwardable = Forwardable::CanForward,
       bool execute_locally = false)
     {
-      handlers[method] = {
-        f, rw, params_schema, result_schema, forwardable, execute_locally};
-    }
-
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      Forwardable forwardable)
-    {
-      install(
-        method,
-        f,
-        rw,
-        nlohmann::json::object(),
-        nlohmann::json::object(),
-        forwardable);
+      handlers[method] = {f, rw, params_schema, result_schema, execute_locally};
     }
 
     template <typename In, typename Out, typename F>
@@ -129,7 +104,6 @@ namespace ccf
       const std::string& method,
       F&& f,
       ReadWrite rw,
-      Forwardable forwardable = Forwardable::CanForward,
       bool execute_locally = false)
     {
       auto params_schema = nlohmann::json::object();
@@ -150,7 +124,6 @@ namespace ccf
         rw,
         params_schema,
         result_schema,
-        forwardable,
         execute_locally);
     }
 

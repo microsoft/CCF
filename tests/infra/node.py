@@ -218,7 +218,7 @@ class Node:
         with open(self.remote.get_sealed_secrets()) as s:
             return json.load(s)
 
-    def user_client(self, user_id=1, **kwargs):
+    def user_client(self, user_id=0, **kwargs):
         return infra.clients.client(
             self.host,
             self.rpc_port,
