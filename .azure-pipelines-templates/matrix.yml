@@ -104,6 +104,7 @@ jobs:
           env: ${{ parameters.env[target] }}
           ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
           suffix: 'Debug'
+          artifact_name: 'Build_${{ target }}_Debug'
 
   # # SAN builds (ASAN & UBSAN)
   # - ${{ each consensus in parameters.consensus }}:
