@@ -47,6 +47,15 @@ public:
       args.rpc_ctx->set_response_result(true);
     };
     install("empty_function", empty_function, HandlerRegistry::Read);
+
+    auto empty_function_signed = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_result(true);
+    };
+    install(
+      "empty_function_signed",
+      empty_function_signed,
+      HandlerRegistry::Read,
+      true);
   }
 };
 
@@ -541,6 +550,23 @@ TEST_CASE("process")
     auto value = signed_resp.value();
     CHECK(value.req.empty());
     CHECK(value.sig == signed_req.sig);
+  }
+
+  SUBCASE("request without signature on sign-only handler")
+  {
+    const auto unsigned_req = create_simple_request("empty_function_signed");
+    const auto serialized_call = unsigned_req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    const auto serialized_response = frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+
+    const auto err_it = response.find(jsonrpc::ERR);
+    REQUIRE(err_it != response.end());
+    const auto error = *err_it;
+    CHECK(error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
+    const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
+    CHECK(error_msg.find("RPC must be signed") != std::string::npos);
   }
 }
 

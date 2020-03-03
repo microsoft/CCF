@@ -1,7 +1,7 @@
 -- Copyright (c) Microsoft Corporation. All rights reserved.
 -- Licensed under the Apache 2.0 License.
 
--- This file defines the default initial contents (ie, Lua scripts) of the gov_scripts table.
+-- This file defines the default initial contents (ie, Lua scripts) of the governance scripts table.
 return {
   pass = [[
   tables, calls, votes = ...
@@ -48,7 +48,7 @@ return {
   end)
 
   -- check for raw_puts to sensitive tables
-  SENSITIVE_TABLES = {"ccf.whitelists", "ccf.gov_scripts"}
+  SENSITIVE_TABLES = {"ccf.whitelists", "ccf.governance.scripts"}
   for _, call in pairs(calls) do
     if call.func == "raw_puts" then
       for _, sensitive_table in pairs(SENSITIVE_TABLES) do

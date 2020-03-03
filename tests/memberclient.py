@@ -50,8 +50,9 @@ def run(args):
 
         LOG.info("Proposal to add a new member (with different curve)")
         result, _ = network.consortium.generate_and_propose_new_member(
+            0,
             primary,
-            member_id=3,
+            new_member_id=3,
             curve=infra.ccf.ParticipantsCurve(args.default_curve).next(),
         )
 

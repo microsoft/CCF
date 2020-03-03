@@ -361,6 +361,13 @@ namespace ccf
       return false;
     }
 
+    void record_voting_history(
+      Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
+    {
+      auto governance_history = tx.get_view(network.governance_history);
+      governance_history->put(caller_id, {signed_request});
+    }
+
     NetworkTables& network;
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
@@ -444,15 +451,21 @@ namespace ccf
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
         Proposal proposal(in.script, in.parameter, args.caller_id);
+
         auto proposals = args.tx.get_view(this->network.proposals);
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
         const bool completed = complete_proposal(args.tx, proposal_id);
+
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
+
         args.rpc_ctx->set_response_result(
           Propose::Out({proposal_id, completed}));
         return;
       };
-      install_with_auto_schema<Propose>(MemberProcs::PROPOSE, propose, Write);
+      install_with_auto_schema<Propose>(
+        MemberProcs::PROPOSE, propose, Write, true);
 
       auto withdraw = [this](RequestArgs& args) {
         if (!check_member_status(
@@ -504,26 +517,20 @@ namespace ccf
 
         proposal->state = ProposalState::WITHDRAWN;
         proposals->put(proposal_id, proposal.value());
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         args.rpc_ctx->set_response_result(true);
         return;
       };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::WITHDRAW, withdraw, Write);
+        MemberProcs::WITHDRAW, withdraw, Write, true);
 
       auto vote = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
-        }
-
-        const auto signed_request = args.rpc_ctx->get_signed_request();
-        if (!signed_request.has_value())
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
           return;
         }
 
@@ -551,82 +558,17 @@ namespace ccf
           return;
         }
 
-        // record vote
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(vote.id, proposal.value());
 
-        auto voting_history = args.tx.get_view(this->network.voting_history);
-        voting_history->put(args.caller_id, {signed_request.value()});
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         args.rpc_ctx->set_response_result(complete_proposal(args.tx, vote.id));
         return;
       };
-      install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
-
-      auto create = [this](RequestArgs& args) {
-        LOG_INFO_FMT("Processing create RPC");
-        const auto in =
-          args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
-
-        GenesisGenerator g(this->network, args.tx);
-
-        // This endpoint can only be called once, directly from the starting
-        // node for the genesis transaction to initialise the service
-        if (g.is_service_created())
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Service is already created");
-          return;
-        }
-
-        g.init_values();
-        for (auto& [cert, k_encryption_key] : in.members_info)
-        {
-          g.add_member(cert, k_encryption_key);
-        }
-
-        node.split_ledger_secrets(args.tx);
-
-        size_t self = g.add_node({in.node_info_network,
-                                  in.node_cert,
-                                  in.quote,
-                                  in.public_encryption_key,
-                                  NodeStatus::TRUSTED});
-
-        LOG_INFO_FMT("Got self = {}", self);
-        if (self != 0)
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Starting node ID is not 0");
-          return;
-        }
-
-#ifdef GET_QUOTE
-        CodeDigest node_code_id;
-        std::copy_n(
-          std::begin(in.code_digest),
-          CODE_DIGEST_BYTES,
-          std::begin(node_code_id));
-        g.trust_code_id(node_code_id);
-#endif
-
-        for (const auto& wl : default_whitelists)
-        {
-          g.set_whitelist(wl.first, wl.second);
-        }
-
-        g.set_gov_scripts(
-          lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
-
-        g.create_service(in.network_cert);
-
-        args.rpc_ctx->set_response_result(true);
-        LOG_INFO_FMT("Created service");
-        return;
-      };
-      install(MemberProcs::CREATE, create, Write);
+      install_with_auto_schema<Vote, bool>(
+        MemberProcs::VOTE, vote, Write, true);
 
       auto complete = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -640,22 +582,19 @@ namespace ccf
           args.rpc_ctx->get_params().get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
 
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
+
         args.rpc_ctx->set_response_result(
           complete_proposal(args.tx, proposal_id));
         return;
       };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::COMPLETE, complete, Write);
+        MemberProcs::COMPLETE, complete, Write, true);
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args) {
         const auto signed_request = args.rpc_ctx->get_signed_request();
-        if (!signed_request.has_value())
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "ACKs must be signed");
-          return;
-        }
 
         auto [ma_view, sig_view] =
           args.tx.get_view(this->network.member_acks, this->network.signatures);
@@ -692,9 +631,9 @@ namespace ccf
         args.rpc_ctx->set_response_result(true);
         return;
       };
-      // ACK method cannot be forwarded and should be run on primary as it makes
-      // explicit use of caller certificate
-      install_with_auto_schema<StateDigest, bool>(MemberProcs::ACK, ack, Write);
+
+      install_with_auto_schema<StateDigest, bool>(
+        MemberProcs::ACK, ack, Write, true);
 
       //! A member asks for a fresher state digest
       auto update_state_digest = [this](RequestArgs& args) {
@@ -718,6 +657,71 @@ namespace ccf
       };
       install_with_auto_schema<void, StateDigest>(
         MemberProcs::UPDATE_ACK_STATE_DIGEST, update_state_digest, Write);
+
+      auto create = [this](RequestArgs& args) {
+        LOG_DEBUG_FMT("Processing create RPC");
+        const auto in =
+          args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
+
+        GenesisGenerator g(this->network, args.tx);
+
+        // This endpoint can only be called once, directly from the starting
+        // node for the genesis transaction to initialise the service
+        if (g.is_service_created())
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Service is already created");
+          return;
+        }
+
+        g.init_values();
+        for (auto& [cert, k_encryption_key] : in.members_info)
+        {
+          g.add_member(cert, k_encryption_key);
+        }
+
+        node.split_ledger_secrets(args.tx);
+
+        size_t self = g.add_node({in.node_info_network,
+                                  in.node_cert,
+                                  in.quote,
+                                  in.public_encryption_key,
+                                  NodeStatus::TRUSTED});
+
+        LOG_INFO_FMT("Create node id: {}", self);
+        if (self != 0)
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "Starting node ID is not 0");
+          return;
+        }
+
+#ifdef GET_QUOTE
+        CodeDigest node_code_id;
+        std::copy_n(
+          std::begin(in.code_digest),
+          CODE_DIGEST_BYTES,
+          std::begin(node_code_id));
+        g.trust_code_id(node_code_id);
+#endif
+
+        for (const auto& wl : default_whitelists)
+        {
+          g.set_whitelist(wl.first, wl.second);
+        }
+
+        g.set_gov_scripts(
+          lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
+
+        g.create_service(in.network_cert);
+
+        args.rpc_ctx->set_response_result(true);
+        LOG_INFO_FMT("Created service");
+        return;
+      };
+      install(MemberProcs::CREATE, create, Write);
     }
   };
 

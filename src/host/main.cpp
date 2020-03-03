@@ -216,7 +216,8 @@ int main(int argc, char** argv)
     ->add_option(
       "--gov-script",
       gov_script,
-      "Path to Lua file that defines the contents of the gov_scripts table",
+      "Path to Lua file that defines the contents of the "
+      "ccf.governance.scripts table",
       true)
     ->check(CLI::ExistingFile)
     ->required();
