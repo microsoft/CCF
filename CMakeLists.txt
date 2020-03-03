@@ -384,38 +384,30 @@ if(BUILD_TESTS)
 
   # Picobench benchmarks
   add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
-  set_property(TEST map_bench APPEND PROPERTY LABELS all)
   add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
-  set_property(TEST logger_bench APPEND PROPERTY LABELS all)
   add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
-  set_property(TEST json_bench APPEND PROPERTY LABELS all)
   add_picobench(ringbuffer_bench SRCS src/ds/test/ringbuffer_bench.cpp)
-  set_property(TEST ringbuffer_bench APPEND PROPERTY LABELS all)
   add_picobench(
     tls_bench
     SRCS src/tls/test/bench.cpp
     LINK_LIBS secp256k1.host
   )
-  set_property(TEST tls_bench APPEND PROPERTY LABELS all)
   add_picobench(
     merkle_bench
     SRCS src/node/test/merkle_bench.cpp
     LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
     INCLUDE_DIRS ${EVERCRYPT_INC}
   )
-  set_property(TEST merkle_bench APPEND PROPERTY LABELS all)
   add_picobench(
     history_bench
     SRCS src/node/test/history_bench.cpp
     LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
     INCLUDE_DIRS ${EVERCRYPT_INC}
   )
-  set_property(TEST history_bench APPEND PROPERTY LABELS all)
   add_picobench(
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp
                   src/enclave/thread_local.cpp
   )
-  set_property(TEST kv_bench APPEND PROPERTY LABELS all)
 
   # Merkle Tree memory test
   add_executable(merkle_mem src/node/test/merkle_mem.cpp)

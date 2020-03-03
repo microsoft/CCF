@@ -72,24 +72,24 @@ parameters:
       CFT:
         ctest_args: '-LE "benchmark|perf|suite|pbft"'
       BFT:
-        ctest_args: '-LE "benchmark|perf|suite|raft|all"'
+        ctest_args: '-LE "benchmark|perf|suite|raft|bench"'
     SGX:
       CFT:
         ctest_args: '-LE "benchmark|perf|pbft"'
       BFT:
-        ctest_args: '-LE "benchmark|perf|raft|all"'
+        ctest_args: '-LE "benchmark|perf|raft|bench"'
     Release:
       ctest_args: '-LE "benchmark|perf"'
     perf:
       CFT:
         ctest_args: '-L "benchmark|perf" -LE "pbft"'
       BFT:
-        ctest_args: '-L "perf" -LE "raft|all"'
+        ctest_args: '-L "perf" -LE "raft"'
     san:
       CFT:
         ctest_args: '-LE "benchmark|perf|suite|pbft"'
       BFT:
-        ctest_args: '-LE "benchmark|perf|suite|raft|all"'
+        ctest_args: '-LE "benchmark|perf|suite|raft|bench"'
 
 jobs:
   - template: checks.yml
@@ -134,7 +134,7 @@ jobs:
         target: NoSGX
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SAN }}
-        ctest_filter: '${{ parameters.test.san.ctest_args }}'
+        ctest_filter: '${{ parameters.test.san[consensus].ctest_args }}'
         suffix: 'SAN'
         artifact_name: 'Build_NoSGX_SAN'
 
