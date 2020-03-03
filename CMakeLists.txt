@@ -377,7 +377,6 @@ if(BUILD_TESTS)
   target_link_libraries(
     luageneric_test PRIVATE lua.host secp256k1.host http_parser.host
   )
-  set_property(TEST luageneric_test APPEND PROPERTY LABELS raft)
 
   add_unit_test(
     lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_test.cpp
