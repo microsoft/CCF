@@ -103,13 +103,13 @@ def run(args):
 
     assert (
         final_verified_propose == original_verified_propose + 2
-    ), "Unexpected number of propose operations recorded in the ledger"
+    ), f"Unexpected number of propose operations recorded in the ledger ({final_verified_propose})"
     assert (
         final_verified_votes >= original_verified_votes
-    ), "Unexpected number of vote operations recorded in the ledger"
+    ), f"Unexpected number of vote operations recorded in the ledger ({final_verified_votes})"
     assert (
         final_verified_withdraw == original_verified_withdraw + 1
-    ), "Unexpected number of withdraw operations recorded in the ledger"
+    ), f"Unexpected number of withdraw operations recorded in the ledger ({final_verified_withdraw})"
 
 
 if __name__ == "__main__":
