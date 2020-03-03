@@ -77,7 +77,7 @@ namespace ccf
     std::optional<nlohmann::json> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx)
     {
-      if (cmd_forwarder && !ctx->session.fwd.has_value())
+      if (cmd_forwarder && !ctx->session->fwd.has_value())
       {
         return std::nullopt;
       }
@@ -214,7 +214,7 @@ namespace ccf
       }
       else
       {
-        caller_id = handlers.valid_caller(tx, ctx->session.caller_cert);
+        caller_id = handlers.valid_caller(tx, ctx->session->caller_cert);
       }
 
       if (!caller_id.has_value())
@@ -230,7 +230,7 @@ namespace ccf
         if (
           !ctx->is_create_request &&
           !verify_client_signature(
-            ctx->session.caller_cert,
+            ctx->session->caller_cert,
             caller_id.value(),
             signed_request.value()))
         {
@@ -259,14 +259,14 @@ namespace ccf
 
       update_history();
       reqid = {caller_id.value(),
-               ctx->session.client_session_id,
+               ctx->session->client_session_id,
                ctx->get_request_index()};
       if (history)
       {
         if (!history->add_request(
               reqid,
               caller_id.value(),
-              ctx->session.caller_cert,
+              ctx->session->caller_cert,
               ctx->get_serialised_request()))
         {
           LOG_FAIL_FMT(
@@ -320,7 +320,7 @@ namespace ccf
     virtual std::vector<uint8_t> get_cert_to_forward(
       std::shared_ptr<enclave::RpcContext> ctx)
     {
-      return ctx->session.caller_cert;
+      return ctx->session->caller_cert;
     }
 
     /** Process a serialised command with the associated RPC context via PBFT
@@ -348,13 +348,13 @@ namespace ccf
         auto req_view = tx.get_view(*pbft_requests_map);
         req_view->put(
           0,
-          {ctx->session.fwd.value().caller_id,
-           ctx->session.caller_cert,
+          {ctx->session->fwd.value().caller_id,
+           ctx->session->caller_cert,
            ctx->get_serialised_request(),
            ctx->pbft_raw});
       }
 
-      auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
+      auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
 
       version = tx.get_version();
 
@@ -378,7 +378,7 @@ namespace ccf
     std::vector<uint8_t> process_forwarded(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      if (!ctx->session.fwd.has_value())
+      if (!ctx->session->fwd.has_value())
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
@@ -399,10 +399,10 @@ namespace ccf
       if (signed_request.has_value())
       {
         record_client_signature(
-          tx, ctx->session.fwd->caller_id, signed_request.value());
+          tx, ctx->session->fwd->caller_id, signed_request.value());
       }
 
-      auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
+      auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
       if (!rep.has_value())
       {
         // This should never be called when process_command is called with a
@@ -455,18 +455,27 @@ namespace ccf
         {
           case HandlerRegistry::Read:
           {
+            if (ctx->session->is_forwarded)
+            {
+              return forward_or_redirect_json(ctx);
+            }
             break;
           }
 
           case HandlerRegistry::Write:
           {
+            ctx->session->is_forwarded = true;
             return forward_or_redirect_json(ctx);
-            break;
           }
 
           case HandlerRegistry::MayWrite:
           {
             if (!ctx->read_only_hint)
+            {
+              ctx->session->is_forwarded = true;
+              return forward_or_redirect_json(ctx);
+            }
+            else if (ctx->session->is_forwarded)
             {
               return forward_or_redirect_json(ctx);
             }
