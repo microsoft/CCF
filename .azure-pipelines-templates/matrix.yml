@@ -88,8 +88,8 @@ jobs:
     - template: build.yml
       parameters:
         target: 'Build_${{ target }}'
-        env: ${{ parameters.env['Build_${{ target }}'] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build['Build_${{ target }}'].cmake_args }}'
+        env: ${{ parameters.env[Build_${{ target }}] }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[Build_${{ target }}].cmake_args }}'
         suffix: 'Debug'
         artifact_name: '${{ target }}_Debug'
 
