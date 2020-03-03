@@ -40,8 +40,9 @@ if(BUILD_TESTS)
     VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE_RAFT}
     LABEL SB
     CONSENSUS raft
-    ADDITIONAL_ARGS --transactions ${SMALL_BANK_ITERATIONS_RAFT} --max-writes-ahead
-                    1000 --metrics-file small_bank_metrics.json
+    ADDITIONAL_ARGS
+      --transactions ${SMALL_BANK_ITERATIONS_RAFT} --max-writes-ahead 1000
+      --metrics-file small_bank_metrics.json
   )
 
   add_perf_test(
@@ -51,8 +52,9 @@ if(BUILD_TESTS)
     VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE_PBFT}
     LABEL SB
     CONSENSUS pbft
-    ADDITIONAL_ARGS --transactions ${SMALL_BANK_ITERATIONS_PBFT} --max-writes-ahead
-                    1000 --metrics-file small_bank_metrics.json
+    ADDITIONAL_ARGS
+      --transactions ${SMALL_BANK_ITERATIONS_PBFT} --max-writes-ahead 1000
+      --metrics-file small_bank_metrics.json
   )
 
   if(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
@@ -60,11 +62,11 @@ if(BUILD_TESTS)
         ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
     )
     set(SMALL_BANK_SIGNED_ITERATIONS_RAFT 50000)
-  else()  
-  set(SMALL_BANK_SIGNED_VERIFICATION_FILE_RAFT
-      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
-  )
-  set(SMALL_BANK_SIGNED_ITERATIONS_RAFT 2000)
+  else()
+    set(SMALL_BANK_SIGNED_VERIFICATION_FILE_RAFT
+        ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
+    )
+    set(SMALL_BANK_SIGNED_ITERATIONS_RAFT 2000)
   endif()
 
   # These tests require client-signed signatures: - PBFT doesn't yet verify
@@ -86,8 +88,8 @@ if(BUILD_TESTS)
       small_bank_sigs_metrics.json
   )
 
-  # It is better to run performance tests with forwarding on different
-  # machines (i.e. nodes and clients)
+  # It is better to run performance tests with forwarding on different machines
+  # (i.e. nodes and clients)
   add_perf_test(
     NAME small_bank_sigs_forwarding
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
