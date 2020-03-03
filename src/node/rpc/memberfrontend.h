@@ -752,13 +752,13 @@ namespace ccf
     {
       // Lookup the caller member's certificate from the forwarded caller id
       auto members_view = tx.get_view(*members);
-      auto caller = members_view->get(ctx->session.fwd->caller_id);
+      auto caller = members_view->get(ctx->session->fwd->caller_id);
       if (!caller.has_value())
       {
         return false;
       }
 
-      ctx->session.caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert;
       return true;
     }
   };

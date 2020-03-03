@@ -17,6 +17,7 @@ namespace enclave
   {
     size_t client_session_id = InvalidSessionId;
     std::vector<uint8_t> caller_cert = {};
+    bool is_forwarded = false;
 
     //
     // Only set in the case of a forwarded RPC
@@ -71,7 +72,7 @@ namespace enclave
     RpcResponse response;
 
   public:
-    SessionContext session;
+    std::shared_ptr<SessionContext> session;
 
     // raw pbft Request
     std::vector<uint8_t> pbft_raw = {};
@@ -80,9 +81,11 @@ namespace enclave
 
     bool read_only_hint = true;
 
-    RpcContext(const SessionContext& s) : session(s) {}
+    RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
-    RpcContext(const SessionContext& s, const std::vector<uint8_t>& pbft_raw_) :
+    RpcContext(
+      std::shared_ptr<SessionContext> s,
+      const std::vector<uint8_t>& pbft_raw_) :
       session(s),
       pbft_raw(pbft_raw_)
     {}
