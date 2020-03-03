@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.7.1
+  VERSION 0.8
   LANGUAGES C CXX
 )
 

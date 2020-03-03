@@ -938,33 +938,40 @@ namespace ccf
       return true;
     }
 
-    void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override
+    void node_quotes(
+      Store::Tx& tx,
+      GetQuotes::Out& result,
+      const std::optional<std::set<NodeId>>& filter) override
     {
       auto nodes_view = tx.get_view(network.nodes);
 
-      nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
-        if (ni.status == ccf::NodeStatus::TRUSTED)
+      nodes_view->foreach([&result,
+                           &filter](const NodeId& nid, const NodeInfo& ni) {
+        if (!filter.has_value() || (filter->find(nid) != filter->end()))
         {
-          GetQuotes::Quote q;
-          q.node_id = nid;
-          q.raw = ni.quote;
+          if (ni.status == ccf::NodeStatus::TRUSTED)
+          {
+            GetQuotes::Quote q;
+            q.node_id = nid;
+            q.raw = ni.quote;
 
 #ifdef GET_QUOTE
-          oe_report_t parsed_quote = {0};
-          auto res =
-            oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
-          if (res != OE_OK)
-          {
-            q.error =
-              fmt::format("Failed to parse quote: {}", oe_result_str(res));
-          }
-          else
-          {
-            q.mrenclave = fmt::format(
-              "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
-          }
+            oe_report_t parsed_quote = {0};
+            auto res =
+              oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
+            if (res != OE_OK)
+            {
+              q.error =
+                fmt::format("Failed to parse quote: {}", oe_result_str(res));
+            }
+            else
+            {
+              q.mrenclave = fmt::format(
+                "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
+            }
 #endif
-          result.quotes.push_back(q);
+            result.quotes.push_back(q);
+          }
         }
         return true;
       });
@@ -1021,6 +1028,11 @@ namespace ccf
       }
 
       g.add_key_share_info({encrypted_ls.serialise(), encrypted_shares});
+    }
+
+    NodeId get_node_id() const override
+    {
+      return self;
     }
 
   private:

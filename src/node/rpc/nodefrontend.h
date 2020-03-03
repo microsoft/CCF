@@ -284,6 +284,16 @@ namespace ccf
         return;
       };
 
+      auto get_quote = [this](RequestArgs& args) {
+        GetQuotes::Out result;
+        std::set<NodeId> filter;
+        filter.insert(this->node.get_node_id());
+        this->node.node_quotes(args.tx, result, filter);
+
+        args.rpc_ctx->set_response_result(result);
+        return;
+      };
+
       auto get_quotes = [this](RequestArgs& args) {
         GetQuotes::Out result;
         this->node.node_quotes(args.tx, result);
@@ -295,6 +305,8 @@ namespace ccf
       install(NodeProcs::JOIN, accept, Write);
       install_with_auto_schema<GetSignedIndex>(
         NodeProcs::GET_SIGNED_INDEX, get_signed_index, Read);
+      install_with_auto_schema<GetQuotes>(
+        NodeProcs::GET_NODE_QUOTE, get_quote, Read);
       install_with_auto_schema<GetQuotes>(
         NodeProcs::GET_QUOTES, get_quotes, Read);
     }
