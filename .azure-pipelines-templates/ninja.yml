@@ -3,4 +3,4 @@ steps:
   displayName: Ninja
   workingDirectory: build
   env:
-    CCACHE_DIR: /ccache
+    CCACHE_DIR: /tmp/ccache
