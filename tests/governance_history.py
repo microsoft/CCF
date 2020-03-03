@@ -92,8 +92,8 @@ def run(args):
         assert not result["completed"]
         proposal_id = result["id"]
 
-        result, _ = network.consortium.withdraw(1, primary, proposal_id)
-        assert result
+        result = network.consortium.withdraw(1, primary, proposal_id)
+        assert result.result
 
     (
         final_verified_propose,

@@ -128,8 +128,7 @@ class Consortium:
 
     def withdraw(self, member_id, remote_node, proposal_id):
         with remote_node.member_client(member_id=member_id) as c:
-            r = c.rpc("withdraw", {"id": proposal_id}, signed=True)
-            return r.result, r.error
+            return c.rpc("withdraw", {"id": proposal_id}, signed=True)
 
     def update_ack_state_digest(self, member_id, remote_node):
         with remote_node.member_client(member_id=member_id) as mc:
