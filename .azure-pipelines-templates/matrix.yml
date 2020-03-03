@@ -23,14 +23,10 @@ parameters:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
       dependsOn: ['Formatting_and_License_Checks', 'Build_SGX_Debug']
-    Build_SAN:
-      container: nosgx
-      pool: Ubuntu-1804-D16s_v3
-      dependsOn: ['Formatting_and_License_Checks']
     SAN:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
-      dependsOn: ['Formatting_and_License_Checks', 'Build_SAN']
+      dependsOn: ['Formatting_and_License_Checks', 'Build_NoSGX_SAN']
     Release:
       container: sgx
       pool: Ubuntu-1804-DC4s
