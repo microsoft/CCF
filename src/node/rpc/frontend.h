@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "commonhandlerregistry.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/pbft/pbfttables.h"
 #include "consts.h"
 #include "ds/buffer.h"
 #include "ds/spinlock.h"
@@ -73,13 +75,9 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      HandlerRegistry::Forwardable forwardable)
+      std::shared_ptr<enclave::RpcContext> ctx)
     {
-      if (
-        cmd_forwarder &&
-        forwardable == HandlerRegistry::Forwardable::CanForward &&
-        !ctx->session.fwd.has_value())
+      if (cmd_forwarder && !ctx->session.fwd.has_value())
       {
         return std::nullopt;
       }
@@ -330,25 +328,20 @@ namespace ccf
      * @param ctx Context for this RPC
      */
     ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      bool include_merkle_roots) override
+      std::shared_ptr<enclave::RpcContext> ctx) override
     {
       Store::Tx tx;
-      return process_pbft(ctx, tx, false, include_merkle_roots);
+      return process_pbft(ctx, tx, false);
     }
 
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      bool playback,
-      bool include_merkle_roots) override
+      bool playback) override
     {
-      crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
 
       update_consensus();
-
-      bool has_updated_merkle_roots = false;
 
       if (!playback)
       {
@@ -364,12 +357,13 @@ namespace ccf
       auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
 
       version = tx.get_version();
-      if (include_merkle_roots)
-      {
-        replicated_state_merkle_root = history->get_replicated_state_root();
-      }
 
-      return {rep.value(), replicated_state_merkle_root, version};
+      return {rep.value(), version};
+    }
+
+    crypto::Sha256Hash get_merkle_root() override
+    {
+      return history->get_replicated_state_root();
     }
 
     /** Process a serialised input forwarded from another node
@@ -466,7 +460,7 @@ namespace ccf
 
           case HandlerRegistry::Write:
           {
-            return forward_or_redirect_json(ctx, handler->forwardable);
+            return forward_or_redirect_json(ctx);
             break;
           }
 
@@ -474,7 +468,7 @@ namespace ccf
           {
             if (!ctx->read_only_hint)
             {
-              return forward_or_redirect_json(ctx, handler->forwardable);
+              return forward_or_redirect_json(ctx);
             }
             break;
           }

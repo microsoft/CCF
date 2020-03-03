@@ -51,6 +51,27 @@ def test_large_messages(network, args):
     return network
 
 
+@reqs.description("Write/Read with cert prefix")
+@reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
+def test_cert_prefix(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        for user_id in network.initial_users:
+            with primary.user_client(user_id) as c:
+                log_id = 101
+                msg = "This message will be prefixed"
+                c.rpc("LOG_record_prefix_cert", {"id": log_id, "msg": msg})
+                r = c.rpc("LOG_get", {"id": log_id})
+                assert r.result is not None
+                assert f"CN=user{user_id}" in r.result["msg"]
+
+    else:
+        LOG.warning("Skipping test_cert_prefix as application is not C++")
+
+    return network
+
+
 @reqs.description("Testing forwarding on member and node frontends")
 @reqs.supports_methods("mkSign")
 @reqs.at_least_n_nodes(2)
@@ -138,6 +159,7 @@ def run(args):
             network = test_large_messages(network, args)
             network = test_forwarding_frontends(network, args)
             network = test_update_lua(network, args)
+            network = test_cert_prefix(network, args)
 
 
 if __name__ == "__main__":

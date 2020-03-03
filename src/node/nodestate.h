@@ -882,7 +882,7 @@ namespace ccf
 
       oe_result_t res = oe_get_report(
         OE_REPORT_FLAGS_REMOTE_ATTESTATION,
-        h.h,
+        h.h.data(),
         h.SIZE,
         nullptr,
         0,

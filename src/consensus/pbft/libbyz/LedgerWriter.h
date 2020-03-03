@@ -21,7 +21,6 @@ public:
   LedgerWriter(
     pbft::PbftStore& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_);
   virtual ~LedgerWriter() = default;
-  void write_prepare(const Prepared_cert& prepared_cert, Seqno seqno);
   kv::Version write_pre_prepare(Pre_prepare* pp);
   kv::Version write_pre_prepare(ccf::Store::Tx& tx);
   void write_view_change(View_change* vc);

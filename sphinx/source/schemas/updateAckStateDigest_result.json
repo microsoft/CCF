@@ -13,6 +13,6 @@
   "required": [
     "state_digest"
   ],
-  "title": "ack/params",
+  "title": "updateAckStateDigest/result",
   "type": "object"
 }

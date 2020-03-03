@@ -4,6 +4,7 @@
 
 #include "frontend.h"
 #include "node/clientsignatures.h"
+#include "node/networktables.h"
 
 namespace ccf
 {

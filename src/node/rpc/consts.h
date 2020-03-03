@@ -42,7 +42,7 @@ namespace ccf
     static constexpr auto WITHDRAW = "withdraw";
 
     static constexpr auto ACK = "ack";
-    static constexpr auto UPDATE_ACK_NONCE = "updateAckNonce";
+    static constexpr auto UPDATE_ACK_STATE_DIGEST = "updateAckStateDigest";
   };
 
   struct NodeProcs

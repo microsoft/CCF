@@ -65,6 +65,18 @@ Each function is installed as the handler for a specific RPC ``method``, optiona
     :lines: 1
     :dedent: 6
 
+These handlers use the simple signature provided by the ``handler_adapter`` wrapper function, which pre-parses a JSON params object from the HTTP request body.
+
+For direct access to the request and response objects, the handler signature should take a single ``RequestArgs&`` argument. An example of this is included in the logging app:
+
+.. literalinclude:: ../../../src/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: log_record_prefix_cert
+    :end-before: SNIPPET_END: log_record_prefix_cert
+    :dedent: 6
+
+This uses mbedtls to parse the caller's TLS certificate, and prefixes the logged message with the Subject field extracted from this certificate.
+
 A handler can either be installed as:
 
 - ``Write``: this handler can only be executed on the primary of the consensus network.
