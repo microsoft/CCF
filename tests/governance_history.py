@@ -63,13 +63,6 @@ def run(args):
             original_verified_votes,
             original_verified_withdraw,
         ) = count_governance_operations(ledger)
-        LOG.error(original_verified_propose)
-        LOG.error(original_verified_votes)
-        LOG.error(original_verified_withdraw)
-
-        import time
-
-        time.sleep(5)
 
         LOG.info("Add new member proposal")
         result, error = network.consortium.generate_and_propose_new_member(
@@ -107,9 +100,6 @@ def run(args):
         final_verified_votes,
         final_verified_withdraw,
     ) = count_governance_operations(ledger)
-    LOG.error(final_verified_propose)
-    LOG.error(final_verified_votes)
-    LOG.error(final_verified_withdraw)
 
     assert (
         final_verified_propose == original_verified_propose + 2
