@@ -92,15 +92,14 @@ def human_readable_size(n):
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
-            truncate(
-                f"{name} {request.method} {request.params}"
-                + (
-                    f" (RO hint: {request.readonly_hint})"
-                    if request.readonly_hint is not None
-                    else ""
-                )
-                + f"{description}"
+            f"{name} {request.method} "
+            + truncate(f"{request.params}")
+            + (
+                f" (RO hint: {request.readonly_hint})"
+                if request.readonly_hint is not None
+                else ""
             )
+            + f"{description}"
         )
 
     def log_response(self, id, response):

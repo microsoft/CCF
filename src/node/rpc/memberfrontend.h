@@ -558,7 +558,6 @@ namespace ccf
           return;
         }
 
-        // record vote
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(vote.id, proposal.value());
 
