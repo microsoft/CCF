@@ -49,6 +49,7 @@ namespace ccf
   {
     static constexpr auto JOIN = "join";
     static constexpr auto GET_SIGNED_INDEX = "getSignedIndex";
+    static constexpr auto GET_NODE_QUOTE = "getQuote";
     static constexpr auto GET_QUOTES = "getQuotes";
   };
 }
