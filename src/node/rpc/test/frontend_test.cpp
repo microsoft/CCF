@@ -754,13 +754,14 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  backup_ctx->session.is_forwarded = false;
 
   {
     INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network.tables);
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup_read.process(ctx);
+    const auto r = user_frontend_backup_read.process(backup_ctx);
     REQUIRE(r.has_value());
     REQUIRE(channel_stub->is_empty());
 
@@ -772,7 +773,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Write command on backup is forwarded to primary");
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     REQUIRE(!r.has_value());
     REQUIRE(channel_stub->size() == 1);
 
@@ -805,7 +806,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     REQUIRE(!r.has_value());
     REQUIRE(channel_stub->size() == 1);
 
@@ -827,11 +828,13 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   {
+    // A write was executed on this frontend (above), so reads must be
+    // forwarded too for session consistency
     INFO("Read command is now forwarded to primary on this session");
     TestUserFrontend user_frontend_backup_read(*network.tables);
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup_read.process(ctx);
+    const auto r = user_frontend_backup_read.process(backup_ctx);
     REQUIRE(r.has_value());
     REQUIRE(channel_stub->is_empty());
 
@@ -867,6 +870,20 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto client_sig = client_sig_view->get(user_id);
     REQUIRE(client_sig.has_value());
     REQUIRE(client_sig.value() == signed_req);
+  }
+
+  // On a session that was previously forwarded, and is now primary,
+  // commands should still succeed
+  ctx->session.is_forwarded = true;
+  {
+    INFO("Write command primary on a forwarded session succeeds");
+    REQUIRE(channel_stub->is_empty());
+
+    const auto r = user_frontend_primary.process(ctx);
+    CHECK(r.has_value());
+    add_callers_primary_store();
+    auto response = parse_response(r.value());
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 }
 
