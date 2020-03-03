@@ -70,8 +70,8 @@ def run(args):
         for cert, member_id in members_table.items():
             members[member_id] = cert
 
-        if "ccf.voting_history" in tables:
-            votinghistory_table = tables["ccf.voting_history"]
+        if "ccf.governance_history" in tables:
+            votinghistory_table = tables["ccf.governance_history"]
             for member_id, signed_request in votinghistory_table.items():
                 # if the signed vote is stored - there has to be a member at this point
                 assert member_id in members

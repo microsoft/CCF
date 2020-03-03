@@ -364,8 +364,8 @@ namespace ccf
     void record_voting_history(
       Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
     {
-      auto voting_history = tx.get_view(network.voting_history);
-      voting_history->put(caller_id, {signed_request});
+      auto governance_history = tx.get_view(network.governance_history);
+      governance_history->put(caller_id, {signed_request});
     }
 
     NetworkTables& network;
