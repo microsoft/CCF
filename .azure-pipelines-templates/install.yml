@@ -10,6 +10,7 @@ steps:
     python3.7 -m venv env
     source env/bin/activate
     python -m pip install -U -r ${{ parameters.install_prefix }}/bin/requirements.txt
+    pip freeze > ${{ parameters.install_prefix }}/bin/requirements.txt
     timeout --signal=SIGINT --kill-after=60s --preserve-status 60s \
       python ${{ parameters.install_prefix }}/bin/start_network.py \
       -p ../../build/liblogging \

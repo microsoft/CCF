@@ -43,6 +43,7 @@ The :term:`constitution`, as defined by the initial members, should be passed vi
 The network is now in its opening state and any new nodes can join the network without being trusted by members.
 
 .. note:: Once a CCF network is started, :ref:`members can add other members and users via governance <members/open_network:Opening a Network>`.
+.. note:: If starting up the network with PBFT enabled as the consensus protocol, be sure to add the ``--consensus pbft`` CLI argument  when starting up the node. For more info on the provided consensus protocols please see :ref:`here <developers/consensus:Consensus Protocols>`
 
 Adding a New Node to the Network
 --------------------------------
@@ -70,6 +71,7 @@ If the network has not yet been opened by members (see :ref:`members/open_networ
 If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`members/common_member_operations:Trusting a New Node`).
 
 .. note:: When starting up the network or when joining an existing network, the secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`operators/recovery:Catastrophic Recovery` for more details on how to recover a crashed network.
+.. note:: If starting up the network with PBFT enabled as the consensus protocol, be sure to add the ``--consensus pbft`` CLI argument when starting up the node. For more info on the provided consensus protocols please see :ref:`here <developers/consensus:Consensus Protocols>`
 
 Opening a Network to Users
 --------------------------

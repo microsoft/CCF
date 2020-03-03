@@ -7,6 +7,7 @@
 
 #include "Message_tags.h"
 #include "Prepare.h"
+#include "Prepared_cert.h"
 #include "Principal.h"
 #include "Replica.h"
 #include "Req_queue.h"
@@ -14,7 +15,11 @@
 #include "pbft_assert.h"
 
 Pre_prepare::Pre_prepare(
-  View v, Seqno s, Req_queue& reqs, size_t& requests_in_batch) :
+  View v,
+  Seqno s,
+  Req_queue& reqs,
+  size_t& requests_in_batch,
+  Prepared_cert* prepared_cert) :
   Message(Pre_prepare_tag, Max_message_size)
 {
   rep().view = v;
@@ -98,9 +103,37 @@ Pre_prepare::Pre_prepare(
 
   LOG_TRACE << "request in batch:" << requests_in_batch << std::endl;
 
+  if (prepared_cert == nullptr)
+  {
+    rep().num_prev_pp_sig = 0;
+  }
+  else
+  {
+    const auto& proof = prepared_cert->get_pre_prepared_cert_proof();
+    rep().num_prev_pp_sig = proof.size();
+
+    uint8_t* sigs = (uint8_t*)contents() + sizeof(Pre_prepare_rep) +
+      rep().rset_size + rep().n_big_reqs * sizeof(Digest);
+
+    for (const auto& p : proof)
+    {
+      Included_sig* ic = reinterpret_cast<Included_sig*>(sigs);
+      ic->pid = p.first;
+      std::copy(
+        p.second.signature.begin(), p.second.signature.end(), ic->sig.begin());
+      std::fill(
+        ic->sig.end(),
+        ic->sig.end() + ALIGNED_SIZE(pbft_max_signature_size) -
+          pbft_max_signature_size,
+        0);
+      sigs += ALIGNED_SIZE(sizeof(Included_sig));
+    }
+  }
+
   // Compute authenticator and update size.
   int old_size = sizeof(Pre_prepare_rep) + rep().rset_size +
-    rep().n_big_reqs * sizeof(Digest);
+    rep().n_big_reqs * sizeof(Digest) +
+    rep().num_prev_pp_sig * ALIGNED_SIZE(sizeof(Included_sig));
 
 #ifndef USE_PKEY
   set_size(old_size + pbft::GlobalState::get_node().auth_size());
@@ -178,16 +211,9 @@ bool Pre_prepare::set_digest(int64_t signed_version)
   rep().digest = d;
 
 #ifdef SIGN_BATCH
-  if (
-    pbft::GlobalState::get_replica().should_sign_next_and_reset() ||
-    (rep().seqno ==
-     pbft::GlobalState::get_replica().next_expected_sig_offset()) ||
-    pbft::GlobalState::get_node().f() == 0)
-  {
-    pbft::GlobalState::get_replica().set_next_expected_sig_offset();
-    rep().sig_size = pbft::GlobalState::get_node().gen_signature(
-      d.digest(), d.digest_size(), rep().batch_digest_signature);
-  }
+  pbft::GlobalState::get_replica().set_next_expected_sig_offset();
+  rep().sig_size = pbft::GlobalState::get_node().gen_signature(
+    d.digest(), d.digest_size(), rep().batch_digest_signature);
 #endif
 
   return true;
@@ -220,6 +246,8 @@ bool Pre_prepare::calculate_digest(Digest& d)
       (const char*)rep().replicated_state_merkle_root.data(),
       rep().replicated_state_merkle_root.size());
     d.update_last(context, (char*)&rep().ctx, sizeof(rep().ctx));
+    d.update_last(context, (char*)&rep().rset_size, sizeof(rep().rset_size));
+    d.update_last(context, (char*)&rep().n_big_reqs, sizeof(rep().n_big_reqs));
 
     Request req;
     char* max_req = requests() + rep().rset_size;
@@ -235,6 +263,11 @@ bool Pre_prepare::calculate_digest(Digest& d)
         return false;
       }
     }
+
+#ifdef SIGN_BATCH
+    d.update_last(
+      context, (char*)&rep().num_prev_pp_sig, sizeof(rep().num_prev_pp_sig));
+#endif
 
     // Finalize digest of requests and non-det-choices.
     d.update_last(

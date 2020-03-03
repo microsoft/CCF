@@ -32,16 +32,15 @@ namespace enclave
     struct ProcessPbftResp
     {
       std::vector<uint8_t> result;
-      crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version;
     };
 
     virtual ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx, bool include_merkle_roots) = 0;
+      std::shared_ptr<enclave::RpcContext> ctx) = 0;
     virtual ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext>,
       ccf::Store::Tx& tx,
-      bool playback,
-      bool include_merkle_roots) = 0;
+      bool playback) = 0;
+    virtual crypto::Sha256Hash get_merkle_root() = 0;
   };
 }

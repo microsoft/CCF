@@ -42,13 +42,14 @@ namespace ccf
     static constexpr auto WITHDRAW = "withdraw";
 
     static constexpr auto ACK = "ack";
-    static constexpr auto UPDATE_ACK_NONCE = "updateAckNonce";
+    static constexpr auto UPDATE_ACK_STATE_DIGEST = "updateAckStateDigest";
   };
 
   struct NodeProcs
   {
     static constexpr auto JOIN = "join";
     static constexpr auto GET_SIGNED_INDEX = "getSignedIndex";
+    static constexpr auto GET_NODE_QUOTE = "getQuote";
     static constexpr auto GET_QUOTES = "getQuotes";
   };
 }

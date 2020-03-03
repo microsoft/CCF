@@ -484,9 +484,11 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     global_commit(executable_pp.get());
 
-    if (executable_pp->is_signed() && f() > 0)
+    if (f() > 0 && (last_executed % checkpoint_interval == 0))
     {
-      mark_stable(last_executed, true);
+      Seqno stable_point = std::max(
+        last_executed - checkpoint_interval / 2, seqno_at_last_f_change);
+      mark_stable(stable_point, true);
     }
 
     if (playback_before_f == 0 && f() != 0)
@@ -813,8 +815,14 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
     auto ctx = std::make_unique<ExecTentativeCbCtx>();
-    Pre_prepare* pp =
-      new Pre_prepare(view(), next_pp_seqno, rqueue, ctx->requests_in_batch);
+
+    Prepared_cert* ps = nullptr;
+    if (next_pp_seqno > congestion_window)
+    {
+      ps = &plog.fetch(next_pp_seqno - congestion_window);
+    }
+    Pre_prepare* pp = new Pre_prepare(
+      view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ps);
 
     auto fn = [](
                 Pre_prepare* pp,
@@ -1099,11 +1107,6 @@ void Replica::handle(Prepare* m)
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
-      if (ledger_writer)
-      {
-        ledger_writer->write_prepare(ps, ms);
-      }
-
       send_commit(ms, f() == 0);
     }
     return;
@@ -1316,12 +1319,12 @@ void Replica::set_f(ccf::NodeId f)
     rqueue.clear();
   }
 
+  seqno_at_last_f_change = last_executed + 1;
   Node::set_f(f);
 }
 
 void Replica::emit_signature_on_next_pp(int64_t version)
 {
-  sign_next = true;
   signed_version = version;
 }
 
@@ -1898,10 +1901,6 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
   pbft::GlobalState::get_replica().set_next_expected_sig_offset();
 
-  // Call mark_stable to ensure there is space for the pre-prepares
-  // and prepares that are inserted in the log below.
-  mark_stable(last_executed, last_executed >= ms);
-
   if (last_stable > min)
   {
     min = last_stable;
@@ -2163,7 +2162,6 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     last_tentative_execute,
     max_local_commit_value,
     stash_replier,
-    request,
     &Replica::execute_tentative_request_end,
     tx);
 
@@ -2198,12 +2196,11 @@ void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
     msg.client, msg.rid, msg.last_tentative_execute, msg.outb.size);
 }
 
-bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
+bool Replica::create_execute_commands(
+  Pre_prepare* pp,
+  int64_t& max_local_commit_value,
+  std::vector<std::unique_ptr<ExecCommandMsg>>& cmds)
 {
-  LOG_DEBUG_FMT(
-    "in execute tentative for seqno {} and last_tentnative_execute {}",
-    pp->seqno(),
-    last_tentative_execute);
   if (
     pp->seqno() == last_tentative_execute + 1 && !state.in_fetch_state() &&
     !state.in_check_state() && has_complete_new_view())
@@ -2212,14 +2209,8 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     LOG_TRACE << "in execute tentative with last_tentative_execute: "
               << last_tentative_execute
               << " and last_executed: " << last_executed << std::endl;
-
-    // Iterate over the requests in the message, calling execute for
-    // each of them.
     Pre_prepare::Requests_iter iter(pp);
     Request request;
-    int64_t max_local_commit_value = INT64_MIN;
-
-    std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
 
     while (iter.get(request))
     {
@@ -2231,12 +2222,32 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
         pp->seqno());
       cmds.push_back(std::move(cmd));
     }
-
-    exec_command(cmds, info);
-
     return true;
   }
   return false;
+}
+
+bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
+{
+  LOG_DEBUG_FMT(
+    "in execute tentative for seqno {} and last_tentnative_execute {}",
+    pp->seqno(),
+    last_tentative_execute);
+
+  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+  if (create_execute_commands(pp, info.max_local_commit_value, cmds))
+  {
+    exec_command(cmds, info);
+    return true;
+  }
+  return false;
+}
+
+void Replica::execute_tentative_callback(void* ctx)
+{
+  auto msg = std::unique_ptr<ExecuteTentativeCbMsg>(
+    reinterpret_cast<ExecuteTentativeCbMsg*>(ctx));
+  msg->fn(msg->pp, msg->self, std::move(msg->ctx));
 }
 
 bool Replica::execute_tentative(
@@ -2244,38 +2255,33 @@ bool Replica::execute_tentative(
   void(cb)(Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>),
   std::unique_ptr<ExecTentativeCbCtx> ctx)
 {
-  if (execute_tentative(pp, ctx->info))
+  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+  if (create_execute_commands(pp, ctx->info.max_local_commit_value, cmds))
   {
+    ByzInfo& info = ctx->info;
     if (cb != nullptr)
     {
       if (node_info.general_info.support_threading)
       {
-        struct ExecuteTenativeCbMsg
-        {
-          Replica* self;
-          Pre_prepare* pp;
-          void (*fn)(
-            Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>);
-          std::unique_ptr<ExecTentativeCbCtx> ctx;
-        };
-
-        auto fn = [](std::unique_ptr<enclave::Tmsg<ExecuteTenativeCbMsg>> msg) {
-          msg->data.fn(msg->data.pp, msg->data.self, std::move(msg->data.ctx));
-        };
-        auto msg = std::make_unique<enclave::Tmsg<ExecuteTenativeCbMsg>>(fn);
-        msg->data.self = this;
-        msg->data.pp = pp;
-        msg->data.fn = cb;
-        msg->data.ctx = std::move(ctx);
-
-        enclave::ThreadMessaging::thread_messaging
-          .add_task<ExecuteTenativeCbMsg>(
-            enclave::ThreadMessaging::main_thread, std::move(msg));
+        auto msg = new ExecuteTentativeCbMsg();
+        msg->self = this;
+        msg->pp = pp;
+        msg->fn = cb;
+        msg->ctx = std::move(ctx);
+        msg->ctx->info.cb = &execute_tentative_callback;
+        msg->ctx->info.cb_ctx = msg;
       }
       else
       {
-        cb(pp, this, std::move(ctx));
+        ctx->info.cb = nullptr;
+        ctx->info.cb_ctx = nullptr;
       }
+    }
+
+    exec_command(cmds, info);
+    if (!node_info.general_info.support_threading)
+    {
+      cb(pp, this, std::move(ctx));
     }
     return true;
   }
@@ -2383,19 +2389,21 @@ void Replica::execute_committed(bool was_f_0)
         }
 
         // Send and log Checkpoint message for the new state if needed
-        if (pp->is_signed() && f() > 0)
+        if (f() > 0 && (last_executed % checkpoint_interval == 0))
         {
           Digest d_state;
-          state.digest(last_executed, d_state);
-          Checkpoint* e = new Checkpoint(last_executed, d_state);
-          Certificate<Checkpoint>& cc = elog.fetch(last_executed);
+          Seqno stable_point = std::max(
+            last_executed - checkpoint_interval / 2, seqno_at_last_f_change);
+          state.digest(stable_point, d_state);
+          Checkpoint* e = new Checkpoint(stable_point, d_state);
+          Certificate<Checkpoint>& cc = elog.fetch(stable_point);
           cc.add_mine(e);
 
           send(e, All_replicas);
 
           if (cc.is_complete())
           {
-            mark_stable(last_executed, true);
+            mark_stable(stable_point, true);
           }
         }
       }
@@ -2634,7 +2642,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
   vi.mark_stable(last_stable);
   elog.truncate(last_stable);
   state.discard_checkpoints(last_stable, last_executed);
-  brt.mark_stable(last_stable);
+  brt.mark_stable(last_stable, rqueue);
 
   if (mark_stable_cb != nullptr)
   {
@@ -2966,8 +2974,14 @@ void Replica::send_null()
       Req_queue empty;
       size_t requests_in_batch;
 
+      Prepared_cert* ps = nullptr;
+      if (next_pp_seqno != 0)
+      {
+        ps = &plog.fetch(next_pp_seqno - 1);
+      }
+
       Pre_prepare* pp =
-        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch);
+        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch, ps);
       pp->set_digest();
       send(pp, All_replicas);
       plog.fetch(next_pp_seqno).add_mine(pp);
