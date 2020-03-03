@@ -182,6 +182,7 @@ if("virtual" IN_LIST TARGET)
   target_link_libraries(test_ledger_replay PRIVATE libcommontest.mock)
   use_libbyz(test_ledger_replay)
   add_san(test_ledger_replay)
+  set_property(TEST test_ledger_replay PROPERTY LABELS pbft)
 
   add_test(
     NAME test_UDP_with_delay
@@ -190,4 +191,5 @@ if("virtual" IN_LIST TARGET)
       --servers 4 --clients 2 --test-config
       ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --with-delays
   )
+  set_property(TEST test_UDP_with_delay PROPERTY LABELS pbft)
 endif()

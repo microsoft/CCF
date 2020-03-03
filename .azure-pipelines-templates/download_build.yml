@@ -1,6 +1,3 @@
-parameters:
-  artifact_name: ''
-
 steps:
 - task: DownloadPipelineArtifact@1
   inputs:

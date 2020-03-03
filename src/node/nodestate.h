@@ -286,7 +286,7 @@ namespace ccf
           }
 
           setup_history();
-          setup_encryptor();
+          setup_encryptor(args.consensus_type);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -328,7 +328,7 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
 
           setup_history();
-          setup_encryptor();
+          setup_encryptor(args.consensus_type);
 
           // Accept members connections for members to finish recovery once the
           // public ledger has been read
@@ -408,7 +408,7 @@ namespace ccf
             }
 
             setup_history();
-            setup_encryptor();
+            setup_encryptor(args.consensus_type);
 
             open_member_frontend();
 
@@ -590,6 +590,7 @@ namespace ccf
         h->set_node_id(self);
 
       setup_raft(true);
+      LOG_INFO_FMT("What is consensus type {}", consensus->type());
 
       LOG_DEBUG_FMT(
         "Restarting Raft at index: {} term: {} commit_idx {}",
@@ -1485,7 +1486,7 @@ namespace ccf
       network.tables->set_history(history);
     }
 
-    void setup_encryptor()
+    void setup_encryptor(ConsensusType consensus_type)
     {
       // This function makes use of network secrets and should be called once
       // the node has joined the service (either via start_network() or
@@ -1495,7 +1496,7 @@ namespace ccf
       encryptor = std::make_shared<NullTxEncryptor>();
 #else
 
-      if (consensus->type() == ConsensusType::Pbft)
+      if (consensus_type == ConsensusType::Pbft)
       {
         encryptor = std::make_shared<NullTxEncryptor>();
       }

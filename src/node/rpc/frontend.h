@@ -253,6 +253,7 @@ namespace ccf
 
       if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
       {
+        LOG_INFO_FMT("Hey hey hey");
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
         if (rep.has_value())
         {
@@ -291,33 +292,35 @@ namespace ccf
             "PBFT is not yet ready.");
         }
       }
-
-      auto rep = process_command(ctx, tx, caller_id.value());
-
-      // If necessary, forward the RPC to the current primary
-      if (!rep.has_value())
+      else
       {
-        if (consensus != nullptr)
-        {
-          auto primary_id = consensus->primary();
+        auto rep = process_command(ctx, tx, caller_id.value());
 
-          if (
-            primary_id != NoNode && cmd_forwarder &&
-            cmd_forwarder->forward_command(
-              ctx, primary_id, caller_id.value(), get_cert_to_forward(ctx)))
+        // If necessary, forward the RPC to the current primary
+        if (!rep.has_value())
+        {
+          if (consensus != nullptr)
           {
-            // Indicate that the RPC has been forwarded to primary
-            LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
-            return std::nullopt;
+            auto primary_id = consensus->primary();
+
+            if (
+              primary_id != NoNode && cmd_forwarder &&
+              cmd_forwarder->forward_command(
+                ctx, primary_id, caller_id.value(), get_cert_to_forward(ctx)))
+            {
+              // Indicate that the RPC has been forwarded to primary
+              LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
+              return std::nullopt;
+            }
           }
+
+          return ctx->error_response(
+            jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
+            "RPC could not be forwarded to primary.");
         }
 
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
-          "RPC could not be forwarded to primary.");
+        return rep.value();
       }
-
-      return rep.value();
     }
 
     virtual std::vector<uint8_t> get_cert_to_forward(
