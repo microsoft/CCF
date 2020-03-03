@@ -54,7 +54,7 @@ if(BUILD_TESTS)
     CONSENSUS pbft
     ADDITIONAL_ARGS
       --transactions ${SMALL_BANK_ITERATIONS_PBFT} --max-writes-ahead 1000
-      --metrics-file small_bank_metrics.json
+      --metrics-file small_bank_pbft_metrics.json
   )
 
   if(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
