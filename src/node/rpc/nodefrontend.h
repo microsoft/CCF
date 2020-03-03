@@ -172,7 +172,7 @@ namespace ccf
         // are quoted
         auto caller_pem =
           tls::make_verifier(
-            std::vector<uint8_t>(args.rpc_ctx->session.caller_cert))
+            std::vector<uint8_t>(args.rpc_ctx->session->caller_cert))
             ->cert_pem();
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};

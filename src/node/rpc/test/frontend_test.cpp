@@ -151,7 +151,7 @@ public:
 
   void record_ctx(RequestArgs& args)
   {
-    last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session.caller_cert);
+    last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session->caller_cert);
     last_caller_id = args.caller_id;
   }
 };
@@ -345,13 +345,13 @@ auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
-const enclave::SessionContext user_session(
+auto user_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, user_caller_der);
-const enclave::SessionContext backup_user_session(
+auto backup_user_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, user_caller_der);
-const enclave::SessionContext invalid_session(
+auto invalid_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, invalid_caller_der);
-const enclave::SessionContext member_session(
+auto member_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, member_caller_der);
 
 UserId user_id = INVALID_ID;
@@ -754,7 +754,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  backup_ctx->session.is_forwarded = false;
+  backup_ctx->session->is_forwarded = false;
 
   {
     INFO("Read command is not forwarded to primary");
@@ -874,7 +874,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   // On a session that was previously forwarded, and is now primary,
   // commands should still succeed
-  ctx->session.is_forwarded = true;
+  ctx->session->is_forwarded = true;
   {
     INFO("Write command primary on a forwarded session succeeds");
     REQUIRE(channel_stub->is_empty());
@@ -907,7 +907,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
 
-  const enclave::SessionContext node_session(
+  auto node_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, node_caller);
   auto ctx = enclave::make_rpc_context(node_session, serialized_call);
   const auto r = node_frontend_backup.process(ctx);

@@ -180,7 +180,7 @@ namespace http
 
   public:
     HttpRpcContext(
-      const enclave::SessionContext& s,
+      std::shared_ptr<enclave::SessionContext> s,
       http_method verb_,
       const std::string_view& path_,
       const std::string_view& query_,
@@ -350,7 +350,7 @@ namespace http
 namespace enclave
 {
   inline std::shared_ptr<RpcContext> make_rpc_context(
-    const SessionContext& s,
+    std::shared_ptr<enclave::SessionContext> s,
     const std::vector<uint8_t>& packed,
     const std::vector<uint8_t>& raw_pbft = {})
   {
