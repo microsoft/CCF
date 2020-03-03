@@ -5,7 +5,7 @@ steps:
     targetPath: $(Build.SourcesDirectory)/build
 
 - script: |
-    tar -xaf artifact.tar.gz
+    tar -xaf ${{ parameters.artifact_name }}/artifact.tar.gz
   displayName: Uncompress build artifact
   workingDirectory: build
 
