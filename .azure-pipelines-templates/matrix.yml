@@ -23,22 +23,26 @@ parameters:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
       dependsOn: ['Formatting_and_License_Checks', 'Build_SGX_Debug']
-    SAN:
+    Build_SAN:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
       dependsOn: ['Formatting_and_License_Checks']
+    SAN:
+      container: nosgx
+      pool: Ubuntu-1804-D16s_v3
+      dependsOn: ['Formatting_and_License_Checks', 'Build_SAN']
     Release:
       container: sgx
       pool: Ubuntu-1804-DC4s
-      dependsOn: ['BuildAndTest_NoSGX_CFT_Debug', 'BuildAndTest_SGX_CFT_Debug', 'BuildAndTest_NoSGX_CFT_SAN', 'BuildAndTest_NoSGX_BFT_Debug', 'BuildAndTest_SGX_BFT_Debug', 'BuildAndTest_NoSGX_BFT_SAN']
+      dependsOn: ['Test_NoSGX_CFT_Debug', 'Test_SGX_CFT_Debug', 'Test_NoSGX_CFT_SAN', 'Test_NoSGX_BFT_Debug', 'Test_SGX_BFT_Debug', 'Test_NoSGX_BFT_SAN']
     Metrics:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['BuildAndTest_SGX_CFT_Perf', 'BuildAndTest_SGX_BFT_Perf']
+      dependsOn: ['Test_SGX_CFT_Perf', 'Test_SGX_BFT_Perf']
     Publish:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['BuildAndTest_SGX_CFT_Release', 'BuildAndTest_SGX_BFT_Release']
+      dependsOn: ['Test_SGX_CFT_Release', 'Test_SGX_BFT_Release']
     Perf:
       pool: CCF-Perf
       dependsOn:  ['Formatting_and_License_Checks']
@@ -80,7 +84,10 @@ parameters:
       BFT:
         ctest_args: '-L "perf" -LE "raft|all"'
     san:
-      ctest_args: '-LE "benchmark|perf|suite"'
+      CFT:
+        ctest_args: '-LE "benchmark|perf|suite|pbft"'
+      BFT:
+        ctest_args: '-LE "benchmark|perf|suite|raft|all"'
 
 jobs:
   - template: checks.yml
@@ -109,16 +116,24 @@ jobs:
           suffix: 'Debug'
           artifact_name: 'Build_${{ target }}_Debug'
 
-  # # SAN builds (ASAN & UBSAN)
-  # - ${{ each consensus in parameters.consensus }}:
-  #   - template: common_test.yml
-  #     parameters:
-  #       target: NoSGX
-  #       consensus: ${{ consensus }}
-  #       env: ${{ parameters.env.SAN }}
-  #       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
-  #       ctest_filter: '${{ parameters.test.san.ctest_args }}'
-  #       suffix: 'SAN'
+  # SAN build (ASAN & UBSAN)
+  - template: common_build.yml
+    parameters:
+      target: Build_NoSGX
+      env: ${{ parameters.env.Build_SAN }}
+      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.Build_NoSGX.cmake_args }}'
+      suffix: 'SAN'
+      artifact_name: '${{ build_target }}_SAN'
+
+  # SAN Tests
+  - ${{ each consensus in parameters.consensus }}:
+    - template: common_test.yml
+      parameters:
+        target: NoSGX
+        consensus: ${{ consensus }}
+        env: ${{ parameters.env.SAN }}
+        ctest_filter: '${{ parameters.test.san.ctest_args }}'
+        suffix: 'SAN'
 
   # # Performance tests
   # - ${{ each consensus in parameters.consensus }}:
