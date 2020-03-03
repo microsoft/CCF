@@ -28,4 +28,4 @@ PBFT is still under development and should not be enabled in a production enviro
 
 There is an open research question of `node identity with Byzantine nodes <https://github.com/microsoft/CCF/issues/893>`_.
 
-By default CCF runs with Raft. To enable PBFT CCF must be built with the the build switch **PBFT** set to ON. The ``--consensus pbft`` CLI argument must also be provided when starting up the nodes (see :ref:`here <operators/start_network:Starting a New Network>` for starting up a newtork and nodes).
+By default CCF runs with Raft. To run CCF with PBFT the ``--consensus pbft`` CLI argument must be provided when starting up the nodes (see :ref:`here <operators/start_network:Starting a New Network>` for starting up a newtork and nodes).
