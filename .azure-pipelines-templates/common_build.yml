@@ -2,7 +2,7 @@ jobs:
 - job: ${{ parameters.target }}_${{ parameters.suffix }}
   variables:
     skipComponentGovernanceDetection: true
-  displayName: 'Build ${{ parameters.target }} ${{ parameters.suffix }}'
+  displayName: '${{ parameters.target }} ${{ parameters.suffix }}'
 
   ${{ insert }}: ${{ parameters.env }}
 

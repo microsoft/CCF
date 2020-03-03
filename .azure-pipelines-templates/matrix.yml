@@ -98,26 +98,26 @@ jobs:
       env: ${{ parameters.env.Checks }}
       job_name: 'Formatting_and_License_Checks'
   
-  - ${{ each build_target in parameters.build_target }}:
-    - template: common_build.yml
-      parameters:
-        target: '${{ build_target }}'
-        env: ${{ parameters.env[build_target] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[build_target].cmake_args }}'
-        suffix: 'Debug'
-        artifact_name: '${{ build_target }}_Debug'
+  # - ${{ each build_target in parameters.build_target }}:
+  #   - template: common_build.yml
+  #     parameters:
+  #       target: '${{ build_target }}'
+  #       env: ${{ parameters.env[build_target] }}
+  #       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[build_target].cmake_args }}'
+  #       suffix: 'Debug'
+  #       artifact_name: '${{ build_target }}_Debug'
 
-  # Debug test runs with code coverage
-  - ${{ each target in parameters.target }}:
-    - ${{ each consensus in parameters.consensus }}:
-      - template: common_test.yml
-        parameters:
-          target: ${{ target }}
-          consensus: ${{ consensus }}
-          env: ${{ parameters.env[target] }}
-          ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
-          suffix: 'Debug'
-          artifact_name: 'Build_${{ target }}_Debug'
+  # # Debug test runs with code coverage
+  # - ${{ each target in parameters.target }}:
+  #   - ${{ each consensus in parameters.consensus }}:
+  #     - template: common_test.yml
+  #       parameters:
+  #         target: ${{ target }}
+  #         consensus: ${{ consensus }}
+  #         env: ${{ parameters.env[target] }}
+  #         ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
+  #         suffix: 'Debug'
+  #         artifact_name: 'Build_${{ target }}_Debug'
 
   # SAN build (ASAN & UBSAN)
   - template: common_build.yml
