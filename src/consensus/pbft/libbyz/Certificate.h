@@ -347,6 +347,7 @@ void Certificate<T>::reset_f()
   {
     complete = pbft::GlobalState::get_node().num_correct_replicas();
   }
+  mym = 0;
 }
 
 template <class T>
