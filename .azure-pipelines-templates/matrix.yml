@@ -13,6 +13,10 @@ parameters:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
       dependsOn: ['Formatting_and_License_Checks', 'Build_NoSGX_Debug']
+    SGX_Build:
+      container: sgx
+      pool: Ubuntu-1804-DC8_v2
+      dependsOn: ['Formatting_and_License_Checks', 'Build_SGX_Debug']
     SGX:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
@@ -42,7 +46,7 @@ parameters:
       cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
     NoSGX_Build:
       cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
-    SGX:
+    SGX_Build:
       cmake_args: ''
     debug:
       cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF'
@@ -79,14 +83,14 @@ jobs:
       env: ${{ parameters.env.Checks }}
       job_name: 'Formatting_and_License_Checks'
   
-  - template: build.yml
-    parameters:
-      # do this for every build type
-      env: ${{ parameters.env.NoSGX_Build }}
-      target: NoSGX
-      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
-      suffix: Debug
-      artifact_name: '${{ target }}_${{ suffix }}'
+  - ${{ each target in parameters.target }}:
+    - template: build.yml
+      parameters:
+        target: '${{ target }}_Build'
+        env: ${{ parameters.env[target] }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
+        suffix: Debug
+        artifact_name: '${{ target }}_${{ suffix }}'
 
   # Debug builds with code coverage
   - ${{ each target in parameters.target }}:
