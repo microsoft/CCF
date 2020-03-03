@@ -55,7 +55,11 @@ class Consortium:
 
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(member_id=member_id) as mc:
-            r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
+            r = mc.rpc(
+                "propose",
+                {"parameter": params, "script": {"text": script}},
+                signed=True,
+            )
             return r.result, r.error
 
     def vote(
@@ -122,7 +126,7 @@ class Consortium:
 
     def withdraw(self, member_id, remote_node, proposal_id):
         with remote_node.member_client(member_id=member_id) as c:
-            return c.do("withdraw", {"id": proposal_id})
+            return c.do("withdraw", {"id": proposal_id}, signed=True)
 
     def update_ack_state_digest(self, member_id, remote_node):
         with remote_node.member_client(member_id=member_id) as mc:

@@ -393,7 +393,7 @@ class CCFClient:
         if "expected_error_code" in kwargs:
             expected_error_code = kwargs.pop("expected_error_code")
 
-        r = self.request(*args, **kwargs)
+        r = self.rpc(*args, **kwargs)
 
         if expected_result is not None:
             assert expected_result == r.result

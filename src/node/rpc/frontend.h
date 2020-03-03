@@ -442,6 +442,15 @@ namespace ccf
           jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, method);
       }
 
+      if (
+        handler->require_client_signature &&
+        !ctx->get_signed_request().has_value())
+      {
+        return ctx->error_response(
+          jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED,
+          fmt::format("{} RPC must be signed", method));
+      }
+
       update_history();
       update_consensus();
 
