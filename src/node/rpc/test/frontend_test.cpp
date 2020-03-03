@@ -347,6 +347,8 @@ std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 const enclave::SessionContext user_session(
   enclave::InvalidSessionId, user_caller_der);
+const enclave::SessionContext backup_user_session(
+  enclave::InvalidSessionId, user_caller_der);
 const enclave::SessionContext invalid_session(
   enclave::InvalidSessionId, invalid_caller_der);
 const enclave::SessionContext member_session(
@@ -732,13 +734,15 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto simple_call = create_simple_request();
   auto serialized_call = simple_call.build_request();
 
+  auto backup_ctx =
+    enclave::make_rpc_context(backup_user_session, serialized_call);
   auto ctx = enclave::make_rpc_context(user_session, serialized_call);
 
   {
     INFO("Backup frontend without forwarder does not forward");
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     REQUIRE(r.has_value());
     REQUIRE(channel_stub->is_empty());
 
@@ -816,6 +820,22 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto response =
       parse_response(user_frontend_backup.process_forwarded(fwd_ctx));
 
+    CHECK(
+      response[jsonrpc::ERR][jsonrpc::CODE] ==
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
+  }
+
+  {
+    INFO("Read command is now forwarded to primary on this session");
+    TestUserFrontend user_frontend_backup_read(*network.tables);
+    REQUIRE(channel_stub->is_empty());
+
+    const auto r = user_frontend_backup_read.process(ctx);
+    REQUIRE(r.has_value());
+    REQUIRE(channel_stub->is_empty());
+
+    const auto response = parse_response(r.value());
     CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(

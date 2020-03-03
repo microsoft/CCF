@@ -455,18 +455,27 @@ namespace ccf
         {
           case HandlerRegistry::Read:
           {
+            if (ctx->session.is_forwarded)
+            {
+              return forward_or_redirect_json(ctx);
+            }
             break;
           }
 
           case HandlerRegistry::Write:
           {
+            ctx->session.is_forwarded = true;
             return forward_or_redirect_json(ctx);
-            break;
           }
 
           case HandlerRegistry::MayWrite:
           {
             if (!ctx->read_only_hint)
+            {
+              ctx->session.is_forwarded = true;
+              return forward_or_redirect_json(ctx);
+            }
+            else if (ctx->session.is_forwarded)
             {
               return forward_or_redirect_json(ctx);
             }
