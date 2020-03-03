@@ -1,6 +1,7 @@
 parameters:
   consensus: ['CFT', 'BFT']
   target: ['NoSGX', 'SGX']
+  build_target: ['Build_NoSGX', 'Build_SGX']
 
   env:
     Checks:
@@ -84,11 +85,11 @@ jobs:
       env: ${{ parameters.env.Checks }}
       job_name: 'Formatting_and_License_Checks'
   
-  - ${{ each target in parameters.target }}:
+  - ${{ each build_target in parameters.build_target }}:
     - template: build.yml
       parameters:
-        build_target: 'Build_${{ target }}'
-        target: 'Build_${{ target }}'
+        target: '${{ target }}'
+        build_target: '${{ build_target }}'
         env: ${{ parameters.env[build_target] }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[build_target].cmake_args }}'
         suffix: 'Debug'
