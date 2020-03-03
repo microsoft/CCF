@@ -152,7 +152,6 @@ public:
   Seqno last_gb_seqno = 0;
 
   Seqno signature_offset = 0;
-  std::atomic<bool> sign_next = false;
   std::atomic<kv::Version> signed_version = 0;
 
   Seqno next_expected_sig_offset()
@@ -168,13 +167,6 @@ public:
   Seqno sig_req_offset()
   {
     return node_info.general_info.max_requests_between_signatures;
-  }
-
-  bool should_sign_next_and_reset()
-  {
-    bool val = sign_next;
-    sign_next = false;
-    return val;
   }
 
   bool delay_vc();
@@ -314,8 +306,23 @@ private:
     std::optional<ByzInfo> orig_byzinfo;
   };
 
+  struct ExecuteTentativeCbMsg
+  {
+    Replica* self;
+    Pre_prepare* pp;
+    void (*fn)(Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>);
+    std::unique_ptr<ExecTentativeCbCtx> ctx;
+  };
+
+  static void execute_tentative_callback(void* ctx);
+
   bool is_exec_pending = false;
   std::list<Message*> pending_recv_msgs;
+
+  bool create_execute_commands(
+    Pre_prepare* pp,
+    int64_t& max_local_commit_value,
+    std::vector<std::unique_ptr<ExecCommandMsg>>& cmds);
 
   bool execute_tentative(Pre_prepare* pp, ByzInfo& info);
 
@@ -441,6 +448,8 @@ private:
   Seqno last_executed; // Sequence number of last executed message.
   Seqno last_tentative_execute; // Sequence number of last message tentatively
                                 // executed.
+
+  Seqno seqno_at_last_f_change = 0;
 
   // Sets and logs to keep track of messages received. Their size
   // is equal to max_out.

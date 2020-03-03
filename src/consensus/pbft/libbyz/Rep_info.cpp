@@ -42,6 +42,7 @@ char* Rep_info::new_reply(
   r->set_size(message_size);
   r->trim();
   char* ret = r->contents() + sizeof(Reply_rep);
+  std::lock_guard<SpinLock> mguard(lock);
   auto ret_insert = reps.insert({Key{(size_t)pid, rid, n}, std::move(r)});
   if (ret_insert.second)
   {
@@ -58,6 +59,7 @@ int Rep_info::new_reply_size() const
 
 void Rep_info::end_reply(int pid, Request_id rid, Seqno n, int size)
 {
+  std::lock_guard<SpinLock> mguard(lock);
   auto it = reps.find({(size_t)pid, rid, n});
   if (it != reps.end())
   {
@@ -77,6 +79,7 @@ void Rep_info::end_reply(int pid, Request_id rid, Seqno n, int size)
 
 Reply* Rep_info::reply(int pid, Request_id rid, Seqno n)
 {
+  std::lock_guard<SpinLock> mguard(lock);
   auto it = reps.find({(size_t)pid, rid, n});
   if (it != reps.end())
   {
@@ -88,6 +91,7 @@ Reply* Rep_info::reply(int pid, Request_id rid, Seqno n)
 
 void Rep_info::send_reply(int pid, Request_id rid, Seqno n, View v, int id)
 {
+  std::lock_guard<SpinLock> mguard(lock);
   auto it = reps.find({(size_t)pid, rid, n});
   if (it != reps.end())
   {
@@ -119,11 +123,13 @@ void Rep_info::send_reply(int pid, Request_id rid, Seqno n, View v, int id)
 
 void Rep_info::clear()
 {
+  std::lock_guard<SpinLock> mguard(lock);
   reps.clear();
 }
 
 void Rep_info::dump_state(std::ostream& os)
 {
+  std::lock_guard<SpinLock> mguard(lock);
   for (auto& pair : reps)
   {
     os << " cid: " << pair.first.cid << " rid: " << pair.first.rid

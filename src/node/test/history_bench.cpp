@@ -55,7 +55,7 @@ static void hash_only(picobench::state& s)
     (void)_;
     auto data = txs[idx++];
     crypto::Sha256Hash h;
-    crypto::Sha256Hash::evercrypt_sha256({data}, h.h);
+    crypto::Sha256Hash::evercrypt_sha256({data}, h.h.data());
     do_not_optimize(h);
     clobber_memory();
   }
@@ -85,7 +85,7 @@ static void hash_mbedtls_sha256(picobench::state& s)
     (void)_;
     auto data = txs[idx++];
     crypto::Sha256Hash h;
-    crypto::Sha256Hash::mbedtls_sha256({data}, h.h);
+    crypto::Sha256Hash::mbedtls_sha256({data}, h.h.data());
     do_not_optimize(h);
     clobber_memory();
   }

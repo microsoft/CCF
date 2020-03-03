@@ -10,6 +10,7 @@ import infra.ccf
 import infra.proc
 import infra.checker
 import infra.node
+import infra.crypto
 
 from loguru import logger as LOG
 
@@ -123,8 +124,18 @@ class Consortium:
         with remote_node.member_client(member_id=member_id) as c:
             return c.do("withdraw", {"id": proposal_id})
 
+    def update_ack_state_digest(self, member_id, remote_node):
+        with remote_node.member_client(member_id=member_id) as mc:
+            res = mc.rpc("updateAckStateDigest", params={})
+            return bytearray(res.result)
+
     def ack(self, member_id, remote_node):
-        pass
+        state_digest = self.update_ack_state_digest(member_id, remote_node)
+        with remote_node.member_client(member_id=member_id) as mc:
+            res = mc.rpc(
+                "ack", params={"state_digest": list(state_digest)}, signed=True
+            )
+            assert res.error is None, f"Error ACK: {res.error}"
 
     def get_proposals(self, member_id, remote_node):
         script = """
