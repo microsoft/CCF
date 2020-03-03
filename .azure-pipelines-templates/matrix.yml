@@ -123,7 +123,7 @@ jobs:
       env: ${{ parameters.env.Build_SAN }}
       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.Build_NoSGX.cmake_args }}'
       suffix: 'SAN'
-      artifact_name: '${{ target }}_SAN'
+      artifact_name: 'Build_NoSGX_SAN'
 
   # SAN Tests
   - ${{ each consensus in parameters.consensus }}:
