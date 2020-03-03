@@ -385,7 +385,6 @@ if(BUILD_TESTS)
   )
   target_include_directories(lua_test PRIVATE ${LUA_DIR})
   target_link_libraries(lua_test PRIVATE lua.host)
-  set_property(TEST lua_test APPEND PROPERTY LABELS raft)
 
   # Picobench benchmarks
   add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
