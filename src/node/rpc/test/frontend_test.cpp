@@ -426,7 +426,7 @@ TEST_CASE("process_pbft")
   const auto serialized_call = simple_call.build_request();
   pbft::Request request = {user_id, user_caller_der, serialized_call};
 
-  const enclave::SessionContext session(
+  auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   frontend.process_pbft(ctx);
