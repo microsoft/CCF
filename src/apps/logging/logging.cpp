@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/appinterface.h"
+#include "formatters.h"
 #include "logging_schema.h"
 #include "node/rpc/userfrontend.h"
 
@@ -14,42 +15,6 @@ using namespace std;
 using namespace nlohmann;
 using namespace ccf;
 
-namespace fmt
-{
-  template <>
-  struct formatter<valijson::ValidationResults::Error>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const valijson::ValidationResults::Error& e, FormatContext& ctx)
-    {
-      return format_to(
-        ctx.begin(), "[{}] {}", fmt::join(e.context, ""), e.description);
-    }
-  };
-
-  template <>
-  struct formatter<valijson::ValidationResults>
-  {
-    template <typename ParseContext>
-    constexpr auto parse(ParseContext& ctx)
-    {
-      return ctx.begin();
-    }
-
-    template <typename FormatContext>
-    auto format(const valijson::ValidationResults& vr, FormatContext& ctx)
-    {
-      return format_to(ctx.begin(), "{}", fmt::join(vr, "\n\t"));
-    }
-  };
-}
-
 namespace ccfapp
 {
   struct Procs
@@ -59,6 +24,8 @@ namespace ccfapp
 
     static constexpr auto LOG_RECORD_PUBLIC = "LOG_record_pub";
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
+
+    static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
   };
 
   // SNIPPET_START: errors
@@ -232,6 +199,36 @@ namespace ccfapp
       };
       // SNIPPET_END: get_public
 
+      // SNIPPET_START: log_record_prefix_cert
+      auto log_record_prefix_cert = [this](RequestArgs& args) {
+        mbedtls_x509_crt cert;
+        mbedtls_x509_crt_init(&cert);
+
+        const auto& cert_data = args.rpc_ctx->session.caller_cert;
+        const auto ret =
+          mbedtls_x509_crt_parse(&cert, cert_data.data(), cert_data.size());
+
+        const auto body_j =
+          nlohmann::json::parse(args.rpc_ctx->get_request_body());
+
+        const auto in = body_j.get<LoggingRecord::In>();
+        if (in.msg.empty())
+        {
+          args.rpc_ctx->set_response_error(
+            (int)LoggerErrors::MESSAGE_EMPTY,
+            "Cannot record an empty log message");
+          return;
+        }
+
+        const auto log_line = fmt::format("{}: {}", cert.subject, in.msg);
+        auto view = args.tx.get_view(records);
+        view->put(in.id, log_line);
+
+        args.rpc_ctx->set_response_result(true);
+        return;
+      };
+      // SNIPPET_END: log_record_prefix_cert
+
       install_with_auto_schema<LoggingRecord::In, bool>(
         Procs::LOG_RECORD, handler_adapter(record), Write);
       // SNIPPET: install_get
@@ -250,6 +247,8 @@ namespace ccfapp
         Read,
         get_public_params_schema,
         get_public_result_schema);
+
+      install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

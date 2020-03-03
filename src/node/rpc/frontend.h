@@ -75,13 +75,9 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      HandlerRegistry::Forwardable forwardable)
+      std::shared_ptr<enclave::RpcContext> ctx)
     {
-      if (
-        cmd_forwarder &&
-        forwardable == HandlerRegistry::Forwardable::CanForward &&
-        !ctx->session.fwd.has_value())
+      if (cmd_forwarder && !ctx->session.fwd.has_value())
       {
         return std::nullopt;
       }
@@ -464,7 +460,7 @@ namespace ccf
 
           case HandlerRegistry::Write:
           {
-            return forward_or_redirect_json(ctx, handler->forwardable);
+            return forward_or_redirect_json(ctx);
             break;
           }
 
@@ -472,7 +468,7 @@ namespace ccf
           {
             if (!ctx->read_only_hint)
             {
-              return forward_or_redirect_json(ctx, handler->forwardable);
+              return forward_or_redirect_json(ctx);
             }
             break;
           }

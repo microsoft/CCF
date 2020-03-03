@@ -245,11 +245,7 @@ namespace ccf
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, handler_adapter(get_commit), Read);
       install_with_auto_schema<void, GetMetrics::Out>(
-        GeneralProcs::GET_METRICS,
-        handler_adapter(get_metrics),
-        Read,
-        Forwardable::CanForward,
-        true);
+        GeneralProcs::GET_METRICS, handler_adapter(get_metrics), Read, true);
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, handler_adapter(make_signature), Write);
       install_with_auto_schema<void, WhoAmI::Out>(
