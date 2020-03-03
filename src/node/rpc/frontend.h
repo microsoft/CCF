@@ -251,7 +251,6 @@ namespace ccf
 
       if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
       {
-        LOG_INFO_FMT("Hey hey hey");
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
         if (rep.has_value())
         {
