@@ -1993,10 +1993,10 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   LOG_INFO << "Done with process new view " << v << std::endl;
 }
 
-Pre_prepare* Replica::prepared_pre_prepare(Seqno n)
+Pre_prepare* Replica::prepared_pre_prepare(Seqno n, bool was_f_0)
 {
   Prepared_cert& pc = plog.fetch(n);
-  if (pc.is_complete())
+  if (pc.is_complete(was_f_0))
   {
     return pc.pre_prepare();
   }
@@ -2005,7 +2005,7 @@ Pre_prepare* Replica::prepared_pre_prepare(Seqno n)
 
 Pre_prepare* Replica::committed(Seqno s, bool was_f_0)
 {
-  Pre_prepare* pp = prepared_pre_prepare(s);
+  Pre_prepare* pp = prepared_pre_prepare(s, was_f_0);
   if (clog.fetch(s).is_complete() || was_f_0)
   {
     return pp;
