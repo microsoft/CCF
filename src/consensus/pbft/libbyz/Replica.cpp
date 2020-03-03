@@ -1320,6 +1320,7 @@ void Replica::set_f(ccf::NodeId f)
   }
 
   seqno_at_last_f_change = last_executed + 1;
+  mark_stable(last_executed, true);
   Node::set_f(f);
 }
 
