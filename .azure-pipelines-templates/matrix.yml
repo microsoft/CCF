@@ -45,9 +45,9 @@ parameters:
   build:
     common:
       cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
-    NoSGX_Build:
+    Build_NoSGX:
       cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
-    SGX_Build:
+    Build_SGX:
       cmake_args: ''
     debug:
       cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF'
