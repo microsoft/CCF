@@ -1,6 +1,7 @@
 parameters:
   consensus: ['CFT', 'BFT']
   target: ['NoSGX', 'SGX']
+  build_target: ['Build_NoSGX', 'Build_SGX']
 
   env:
     Checks:
@@ -52,9 +53,9 @@ parameters:
   build:
     common:
       cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
-    NoSGX:
+    Build_NoSGX:
       cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
-    SGX:
+    Build_SGX:
       cmake_args: ''
     debug:
       cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF'
@@ -97,14 +98,14 @@ jobs:
       env: ${{ parameters.env.Checks }}
       job_name: 'Formatting_and_License_Checks'
   
-  - ${{ each target in parameters.target }}:
+  - ${{ each build_target in parameters.build_target }}:
     - template: common_build.yml
       parameters:
-        target: '${{ target }}'
-        env: ${{ parameters.env[target] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
+        target: '${{ build_target }}'
+        env: ${{ parameters.env[build_target] }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[build_target].cmake_args }}'
         suffix: 'Debug'
-        artifact_name: 'Build_${{ target }}_Debug'
+        artifact_name: '${{ build_target }}_Debug'
 
   # Debug test runs with code coverage
   - ${{ each target in parameters.target }}:
