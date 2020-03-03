@@ -89,7 +89,7 @@ jobs:
       job_name: 'Formatting_and_License_Checks'
   
   - ${{ each build_target in parameters.build_target }}:
-    - template: build.yml
+    - template: common_build.yml
       parameters:
         target: '${{ build_target }}'
         env: ${{ parameters.env[build_target] }}
@@ -100,7 +100,7 @@ jobs:
   # Debug test runs with code coverage
   - ${{ each target in parameters.target }}:
     - ${{ each consensus in parameters.consensus }}:
-      - template: common.yml
+      - template: common_test.yml
         parameters:
           target: ${{ target }}
           consensus: ${{ consensus }}
@@ -111,7 +111,7 @@ jobs:
 
   # # SAN builds (ASAN & UBSAN)
   # - ${{ each consensus in parameters.consensus }}:
-  #   - template: common.yml
+  #   - template: common_test.yml
   #     parameters:
   #       target: NoSGX
   #       consensus: ${{ consensus }}
@@ -122,7 +122,7 @@ jobs:
 
   # # Performance tests
   # - ${{ each consensus in parameters.consensus }}:
-  #     - template: common.yml
+  #     - template: common_test.yml
   #       parameters:
   #         target: SGX
   #         consensus: ${{ consensus }}
@@ -140,7 +140,7 @@ jobs:
   # - ${{ if eq(parameters.perf_or_release, 'release') }}:
   #   # Release builds
   #   - ${{ each consensus in parameters.consensus }}:
-  #     - template: common.yml
+  #     - template: common_test.yml
   #       parameters:
   #         target: SGX
   #         consensus: ${{ consensus }}
