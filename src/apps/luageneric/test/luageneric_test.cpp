@@ -157,7 +157,7 @@ std::vector<uint8_t> make_pc(const string& method, const Params& params)
 template <typename F, typename K, typename V>
 void check_store_load(F frontend, K k, V v)
 {
-  const enclave::SessionContext user_session(
+  auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
 
   // store
@@ -183,7 +183,7 @@ TEST_CASE("simple lua apps")
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
-  const enclave::SessionContext user_session(
+  auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
 
   SUBCASE("missing lua arg")
@@ -317,7 +317,7 @@ TEST_CASE("simple bank")
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
-  const enclave::SessionContext user_session(
+  auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
 
   constexpr auto create_method = "SB_create";
@@ -434,7 +434,7 @@ TEST_CASE("pre-populated environment")
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
   set_lua_logger();
-  const enclave::SessionContext user_session(
+  auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
 
   {

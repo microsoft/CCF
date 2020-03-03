@@ -204,7 +204,7 @@ namespace ccfapp
         mbedtls_x509_crt cert;
         mbedtls_x509_crt_init(&cert);
 
-        const auto& cert_data = args.rpc_ctx->session.caller_cert;
+        const auto& cert_data = args.rpc_ctx->session->caller_cert;
         const auto ret =
           mbedtls_x509_crt_parse(&cert, cert_data.data(), cert_data.size());
 

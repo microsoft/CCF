@@ -1214,7 +1214,7 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
-      const enclave::SessionContext node_session(
+      auto node_session = std::make_shared<enclave::SessionContext>(
         enclave::InvalidSessionId, node_cert);
       auto ctx = enclave::make_rpc_context(node_session, packed);
 
