@@ -50,7 +50,7 @@ const json frontend_process(
   r.set_body(&body);
   auto serialise_request = r.build_request();
 
-  const enclave::SessionContext session(0, caller);
+  auto session = std::make_shared<enclave::SessionContext>(0, caller);
   auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 

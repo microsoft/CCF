@@ -240,7 +240,7 @@ namespace ccfapp
     {}
   };
 
-  std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
+  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
     NetworkTables& network, AbstractNotifier& notifier)
   {
     return make_shared<JS>(network);

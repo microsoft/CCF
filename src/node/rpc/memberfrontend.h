@@ -7,7 +7,6 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quoteverification.h"
-#include "tls/entropy.h"
 #include "tls/keypair.h"
 
 #include <exception>
@@ -35,8 +34,10 @@ namespace ccf
     {
       const auto s = tx.get_view(network.gov_scripts)->get(name);
       if (!s)
+      {
         throw std::logic_error(
           fmt::format("Could not find gov script: {}", name));
+      }
       return *s;
     }
 
@@ -104,8 +105,10 @@ namespace ccf
            auto new_member_id =
              g.add_member(parsed.cert, parsed.keyshare, MemberStatus::ACCEPTED);
 
-           auto ack = tx.get_view(this->network.member_acks);
-           ack->put(new_member_id, {rng->random(SIZE_NONCE)});
+           auto [ma_view, sig_view] =
+             tx.get_view(this->network.member_acks, this->network.signatures);
+
+           ma_view->put(new_member_id, MemberAck(sig_view->get(0)->root));
 
            return true;
          }},
@@ -131,7 +134,7 @@ namespace ccf
            }
 
            user_info->user_data = parsed.user_data;
-           users_view->put(parsed.user_id, *user_info);
+           users_view->put(parsed.user_id, user_info.value());
            return true;
          }},
         // accept a node
@@ -139,19 +142,19 @@ namespace ccf
          [this](Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
-           auto info = nodes->get(id);
-           if (!info)
+           auto node_info = nodes->get(id);
+           if (!node_info.has_value())
            {
              throw std::logic_error(fmt::format("Node {} does not exist", id));
            }
-           if (info->status == NodeStatus::RETIRED)
+           if (node_info->status == NodeStatus::RETIRED)
            {
              throw std::logic_error(
                fmt::format("Node {} is already retired", id));
            }
-           info->status = NodeStatus::TRUSTED;
-           nodes->put(id, *info);
-           LOG_INFO_FMT("Node {} is now {}", id, info->status);
+           node_info->status = NodeStatus::TRUSTED;
+           nodes->put(id, node_info.value());
+           LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
            return true;
          }},
         // retire a node
@@ -159,19 +162,19 @@ namespace ccf
          [this](Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
-           auto info = nodes->get(id);
-           if (!info)
+           auto node_info = nodes->get(id);
+           if (!node_info.has_value())
            {
              throw std::logic_error(fmt::format("Node {} does not exist", id));
            }
-           if (info->status == NodeStatus::RETIRED)
+           if (node_info->status == NodeStatus::RETIRED)
            {
              throw std::logic_error(
                fmt::format("Node {} is already retired", id));
            }
-           info->status = NodeStatus::RETIRED;
-           nodes->put(id, *info);
-           LOG_INFO_FMT("Node {} is now {}", id, info->status);
+           node_info->status = NodeStatus::RETIRED;
+           nodes->put(id, node_info.value());
+           LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
            return true;
          }},
         // accept new code
@@ -181,18 +184,24 @@ namespace ccf
            auto code_ids = tx.get_view(this->network.code_ids);
            auto existing_code_id = code_ids->get(id);
            if (existing_code_id)
+           {
              throw std::logic_error(fmt::format(
                "Code signature already exists with digest: {:02x}",
                fmt::join(id, "")));
+           }
            code_ids->put(id, CodeStatus::ACCEPTED);
            return true;
          }},
         {"accept_recovery",
          [this](Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
+           {
              return node.finish_recovery(tx, args);
+           }
            else
+           {
              return false;
+           }
          }},
         {"open_network",
          [this](Store::Tx& tx, const nlohmann::json& args) {
@@ -208,13 +217,17 @@ namespace ccf
     {
       auto proposals = tx.get_view(this->network.proposals);
       auto proposal = proposals->get(id);
-      if (!proposal)
+      if (!proposal.has_value())
+      {
         throw std::logic_error(fmt::format("No such proposal: {}", id));
+      }
 
       if (proposal->state != ProposalState::OPEN)
+      {
         throw std::logic_error(fmt::format(
           "Cannot complete non-open proposal - current state is {}",
           proposal->state));
+      }
 
       // run proposal script
       const auto proposed_calls = tsr.run<nlohmann::json>(
@@ -232,7 +245,9 @@ namespace ccf
       {
         // valid voter
         if (!check_member_active(tx, vote.first))
+        {
           continue;
+        }
 
         // does the voter agree?
         votes[std::to_string(vote.first)] = tsr.run<bool>(
@@ -270,7 +285,7 @@ namespace ccf
         {
           // vote unsuccessful, update the proposal's state
           proposal->state = ProposalState::REJECTED;
-          proposals->put(id, *proposal);
+          proposals->put(id, proposal.value());
           return false;
         }
         default:
@@ -289,17 +304,21 @@ namespace ccf
         if (f != hardcoded_funcs.end())
         {
           if (!f->second(tx, call.args))
+          {
             return false;
+          }
           continue;
         }
 
         // proposing a script function?
         const auto s = tx.get_view(network.gov_scripts)->get(call.func);
-        if (!s)
+        if (!s.has_value())
+        {
           continue;
+        }
         tsr.run<void>(
           tx,
-          {*s,
+          {s.value(),
            WlIds::MEMBER_CAN_PROPOSE, // can write!
            {},
            {}},
@@ -308,7 +327,7 @@ namespace ccf
 
       // if the vote was successful, update the proposal's state
       proposal->state = ProposalState::ACCEPTED;
-      proposals->put(id, *proposal);
+      proposals->put(id, proposal.value());
 
       return true;
     }
@@ -329,18 +348,30 @@ namespace ccf
     {
       auto member = tx.get_view(this->network.members)->get(id);
       if (!member)
+      {
         return false;
+      }
       for (const auto s : allowed)
+      {
         if (member->status == s)
+        {
           return true;
+        }
+      }
       return false;
+    }
+
+    void record_voting_history(
+      Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
+    {
+      auto governance_history = tx.get_view(network.governance_history);
+      governance_history->put(caller_id, {signed_request});
     }
 
     NetworkTables& network;
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
 
-    tls::EntropyPtr rng;
     static constexpr auto SIZE_NONCE = 16;
 
   public:
@@ -348,8 +379,7 @@ namespace ccf
       CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
-      tsr(network),
-      rng(tls::create_entropy())
+      tsr(network)
     {}
 
     void init_handlers(Store& tables_) override
@@ -421,15 +451,21 @@ namespace ccf
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
         Proposal proposal(in.script, in.parameter, args.caller_id);
+
         auto proposals = args.tx.get_view(this->network.proposals);
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
         const bool completed = complete_proposal(args.tx, proposal_id);
+
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
+
         args.rpc_ctx->set_response_result(
           Propose::Out({proposal_id, completed}));
         return;
       };
-      install_with_auto_schema<Propose>(MemberProcs::PROPOSE, propose, Write);
+      install_with_auto_schema<Propose>(
+        MemberProcs::PROPOSE, propose, Write, true);
 
       auto withdraw = [this](RequestArgs& args) {
         if (!check_member_status(
@@ -480,27 +516,21 @@ namespace ccf
         }
 
         proposal->state = ProposalState::WITHDRAWN;
-        proposals->put(proposal_id, *proposal);
+        proposals->put(proposal_id, proposal.value());
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         args.rpc_ctx->set_response_result(true);
         return;
       };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::WITHDRAW, withdraw, Write);
+        MemberProcs::WITHDRAW, withdraw, Write, true);
 
       auto vote = [this](RequestArgs& args) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           args.rpc_ctx->set_response_error(
             jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
-        }
-
-        const auto signed_request = args.rpc_ctx->get_signed_request();
-        if (!signed_request.has_value())
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED, "Votes must be signed");
           return;
         }
 
@@ -528,20 +558,108 @@ namespace ccf
           return;
         }
 
-        // record vote
         proposal->votes[args.caller_id] = vote.ballot;
-        proposals->put(vote.id, *proposal);
+        proposals->put(vote.id, proposal.value());
 
-        auto voting_history = args.tx.get_view(this->network.voting_history);
-        voting_history->put(args.caller_id, {signed_request.value()});
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         args.rpc_ctx->set_response_result(complete_proposal(args.tx, vote.id));
         return;
       };
-      install_with_auto_schema<Vote, bool>(MemberProcs::VOTE, vote, Write);
+      install_with_auto_schema<Vote, bool>(
+        MemberProcs::VOTE, vote, Write, true);
+
+      auto complete = [this](RequestArgs& args) {
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
+          return;
+        }
+
+        const auto proposal_action =
+          args.rpc_ctx->get_params().get<ProposalAction>();
+        const auto proposal_id = proposal_action.id;
+
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
+
+        args.rpc_ctx->set_response_result(
+          complete_proposal(args.tx, proposal_id));
+        return;
+      };
+      install_with_auto_schema<ProposalAction, bool>(
+        MemberProcs::COMPLETE, complete, Write, true);
+
+      //! A member acknowledges state
+      auto ack = [this](RequestArgs& args) {
+        const auto signed_request = args.rpc_ctx->get_signed_request();
+
+        auto [ma_view, sig_view] =
+          args.tx.get_view(this->network.member_acks, this->network.signatures);
+        const auto ma = ma_view->get(args.caller_id);
+        if (!ma)
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+            fmt::format("No ACK record exists for caller {}", args.caller_id));
+          return;
+        }
+
+        if (
+          ma->state_digest !=
+          args.rpc_ctx->get_params().get<StateDigest>().state_digest)
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            "Submitted state digest is not valid");
+          return;
+        }
+
+        ma_view->put(
+          args.caller_id,
+          MemberAck(sig_view->get(0)->root, signed_request.value()));
+
+        auto members = args.tx.get_view(this->network.members);
+        auto member = members->get(args.caller_id);
+        if (member->status == MemberStatus::ACCEPTED)
+        {
+          member->status = MemberStatus::ACTIVE;
+        }
+        members->put(args.caller_id, member.value());
+        args.rpc_ctx->set_response_result(true);
+        return;
+      };
+
+      install_with_auto_schema<StateDigest, bool>(
+        MemberProcs::ACK, ack, Write, true);
+
+      //! A member asks for a fresher state digest
+      auto update_state_digest = [this](RequestArgs& args) {
+        auto [ma_view, sig_view] =
+          args.tx.get_view(this->network.member_acks, this->network.signatures);
+        auto ma = ma_view->get(args.caller_id);
+        if (!ma)
+        {
+          args.rpc_ctx->set_response_error(
+            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+            fmt::format("No ACK record exists for caller {}", args.caller_id));
+          return;
+        }
+
+        auto root = sig_view->get(0)->root;
+        ma->state_digest = std::vector<uint8_t>(root.h.begin(), root.h.end());
+        ma_view->put(args.caller_id, ma.value());
+
+        args.rpc_ctx->set_response_result(ma->state_digest);
+        return;
+      };
+      install_with_auto_schema<void, StateDigest>(
+        MemberProcs::UPDATE_ACK_STATE_DIGEST, update_state_digest, Write);
 
       auto create = [this](RequestArgs& args) {
-        LOG_INFO_FMT("Processing create RPC");
+        LOG_DEBUG_FMT("Processing create RPC");
         const auto in =
           args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
 
@@ -571,7 +689,7 @@ namespace ccf
                                   in.public_encryption_key,
                                   NodeStatus::TRUSTED});
 
-        LOG_INFO_FMT("Got self = {}", self);
+        LOG_INFO_FMT("Create node id: {}", self);
         if (self != 0)
         {
           args.rpc_ctx->set_response_error(
@@ -604,86 +722,6 @@ namespace ccf
         return;
       };
       install(MemberProcs::CREATE, create, Write);
-
-      auto complete = [this](RequestArgs& args) {
-        if (!check_member_active(args.tx, args.caller_id))
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
-        }
-
-        const auto proposal_action =
-          args.rpc_ctx->get_params().get<ProposalAction>();
-        const auto proposal_id = proposal_action.id;
-
-        args.rpc_ctx->set_response_result(
-          complete_proposal(args.tx, proposal_id));
-        return;
-      };
-      install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::COMPLETE, complete, Write);
-
-      //! A member acknowledges state
-      auto ack = [this](RequestArgs& args) {
-        auto mas = args.tx.get_view(this->network.member_acks);
-        const auto last_ma = mas->get(args.caller_id);
-        if (!last_ma)
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            fmt::format("No ACK record exists for caller {}", args.caller_id));
-          return;
-        }
-
-        auto verifier = tls::make_verifier(
-          std::vector<uint8_t>(args.rpc_ctx->session.caller_cert));
-        const auto rs = args.rpc_ctx->get_params().get<RawSignature>();
-        if (!verifier->verify(last_ma->next_nonce, rs.sig))
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Signature is not valid");
-          return;
-        }
-
-        MemberAck next_ma{rs.sig, rng->random(SIZE_NONCE)};
-        mas->put(args.caller_id, next_ma);
-
-        // update member status to ACTIVE
-        auto members = args.tx.get_view(this->network.members);
-        auto member = members->get(args.caller_id);
-        if (member->status == MemberStatus::ACCEPTED)
-        {
-          member->status = MemberStatus::ACTIVE;
-        }
-        members->put(args.caller_id, *member);
-        args.rpc_ctx->set_response_result(true);
-        return;
-      };
-      // ACK method cannot be forwarded and should be run on primary as it makes
-      // explicit use of caller certificate
-      install_with_auto_schema<RawSignature, bool>(
-        MemberProcs::ACK, ack, Write, Forwardable::DoNotForward);
-
-      //! A member asks for a fresher nonce
-      auto update_ack_nonce = [this](RequestArgs& args) {
-        auto mas = args.tx.get_view(this->network.member_acks);
-        auto ma = mas->get(args.caller_id);
-        if (!ma)
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            fmt::format("No ACK record exists for caller {}", args.caller_id));
-          return;
-        }
-        ma->next_nonce = rng->random(SIZE_NONCE);
-        mas->put(args.caller_id, *ma);
-        args.rpc_ctx->set_response_result(true);
-        return;
-      };
-      install_with_auto_schema<void, bool>(
-        MemberProcs::UPDATE_ACK_NONCE, update_ack_nonce, Write);
     }
   };
 
@@ -718,13 +756,13 @@ namespace ccf
     {
       // Lookup the caller member's certificate from the forwarded caller id
       auto members_view = tx.get_view(*members);
-      auto caller = members_view->get(ctx->session.fwd->caller_id);
+      auto caller = members_view->get(ctx->session->fwd->caller_id);
       if (!caller.has_value())
       {
         return false;
       }
 
-      ctx->session.caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert;
       return true;
     }
   };

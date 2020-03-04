@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include "crypto/hash.h"
 #include "entities.h"
 #include "rawsignature.h"
 
@@ -16,9 +17,11 @@ namespace ccf
     ObjectId index;
     ObjectId term;
     ObjectId commit;
+    crypto::Sha256Hash root;
     std::vector<uint8_t> tree;
 
-    MSGPACK_DEFINE(MSGPACK_BASE(RawSignature), node, index, term, commit, tree);
+    MSGPACK_DEFINE(
+      MSGPACK_BASE(RawSignature), node, index, term, commit, root, tree);
 
     Signature() {}
 
@@ -34,17 +37,19 @@ namespace ccf
       ObjectId index_,
       ObjectId term_,
       ObjectId commit_,
-      const std::vector<uint8_t> sig_,
-      const std::vector<uint8_t> tree_) :
+      const crypto::Sha256Hash root_,
+      const std::vector<uint8_t>& sig_,
+      const std::vector<uint8_t>& tree_) :
       RawSignature{sig_},
       node(node_),
       index(index_),
       term(term_),
       commit(commit_),
+      root(root_),
       tree(tree_)
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE(Signature, RawSignature)
-  DECLARE_JSON_REQUIRED_FIELDS(Signature, node, index, term, commit)
+  DECLARE_JSON_REQUIRED_FIELDS(Signature, node, index, term, commit, root)
   using Signatures = Store::Map<ObjectId, Signature>;
 }

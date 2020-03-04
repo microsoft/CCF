@@ -92,15 +92,14 @@ def human_readable_size(n):
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
-            truncate(
-                f"{name} {request.method} {request.params}"
-                + (
-                    f" (RO hint: {request.readonly_hint})"
-                    if request.readonly_hint is not None
-                    else ""
-                )
-                + f"{description}"
+            f"{name} {request.method} "
+            + truncate(f"{request.params}")
+            + (
+                f" (RO hint: {request.readonly_hint})"
+                if request.readonly_hint is not None
+                else ""
             )
+            + f"{description}"
         )
 
     def log_response(self, id, response):
@@ -393,7 +392,7 @@ class CCFClient:
         if "expected_error_code" in kwargs:
             expected_error_code = kwargs.pop("expected_error_code")
 
-        r = self.request(*args, **kwargs)
+        r = self.rpc(*args, **kwargs)
 
         if expected_result is not None:
             assert expected_result == r.result

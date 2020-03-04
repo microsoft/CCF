@@ -38,9 +38,10 @@ namespace enclave
   {
     Payload data;
 
-    Tmsg(void (*_cb)(std::unique_ptr<Tmsg<Payload>>)) :
-      ThreadMsg(reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb))
-
+    template <typename... Args>
+    Tmsg(void (*_cb)(std::unique_ptr<Tmsg<Payload>>), Args&&... args) :
+      ThreadMsg(reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(_cb)),
+      data(std::forward<Args>(args)...)
     {}
 
     virtual ~Tmsg() = default;
@@ -199,6 +200,14 @@ namespace enclave
         (enclave::Tmsg<RetType>*)msg.release());
       new (ret.get()) enclave::Tmsg<RetType>(cb);
       return ret;
+    }
+
+    template <typename Payload>
+    static void ChangeTmsgCallback(
+      std::unique_ptr<Tmsg<Payload>>& msg,
+      void (*cb_)(std::unique_ptr<Tmsg<Payload>>))
+    {
+      msg->cb = (reinterpret_cast<void (*)(std::unique_ptr<ThreadMsg>)>(cb_));
     }
 
   private:
