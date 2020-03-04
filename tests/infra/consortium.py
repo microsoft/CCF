@@ -305,45 +305,11 @@ class Consortium:
                 LOG.error(nonce_bytes.hex())
                 LOG.error(len(nonce_bytes))
 
-                LOG.warning(
-                    base64.b64encode(ctx.decrypt(encrypted_share_bytes, nonce_bytes,))
-                )
+                decrypted_share = ctx.decrypt(encrypted_share_bytes, nonce_bytes,)
 
-                # Load private key from member pem
-                # with open(
-                #     os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"), "rb"
-                # ) as m_priv_pem:
-                #     m_priv = load_pem_private_key(
-                #         m_priv_pem.read(), password=None, backend=default_backend(),
-                #     ).private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+                LOG.warning(base64.b64encode(decrypted_share))
 
-                #     LOG.error(m_priv.hex())
-
-                #     with open(
-                #         os.path.join(self.common_dir, f"member{m}_kshare_pub.pem"), "rb"
-                #     ) as m_pub_pem:
-                #         m_pub = load_pem_public_key(
-                #             m_pub_pem.read(), backend=default_backend(),
-                #         ).public_bytes(Encoding.Raw, PublicFormat.Raw)
-
-                # LOG.error(m_pub.hex())
-
-                # skbob = PrivateKey.generate()
-                # pkbob = skbob.public_key
-
-                # sender_box = Box(PrivateKey(m_priv, RawEncoder), pkbob)
-                # recipient_box = Box(skbob, PublicKey(m_pub, RawEncoder))
-
-                # msg = b"Hello world"
-                # cipher = sender_box.encrypt(msg)
-                # decrypted = recipient_box.decrypt(cipher)
-                # LOG.warning(decrypted)
-                # assert msg == decrypted
-
-                # TODO: Try to decrypt share
-                # 1. Parse member private key
-                # 2. Parse network public key
-                # 3. Decrypt
+                r = mc.rpc("submitRecoveryShare", params={"share": decrypted_share})
 
     def add_new_code(self, member_id, remote_node, new_code_id):
         script = """

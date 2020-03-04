@@ -7,6 +7,7 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quoteverification.h"
+#include "node/secretshare.h"
 #include "tls/keypair.h"
 
 #include <exception>
@@ -26,6 +27,13 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SetUserData)
   DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
   DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
+
+  struct SubmitRecoveryShare
+  {
+    std::vector<uint8_t> share;
+  };
+  DECLARE_JSON_TYPE(SubmitRecoveryShare)
+  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, share)
 
   class MemberHandlers : public CommonHandlerRegistry
   {
@@ -371,6 +379,8 @@ namespace ccf
     NetworkTables& network;
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
+    // For now, shares are stored in enclave memory
+    std::vector<SecretSharing::Share> pending_shares;
 
     static constexpr auto SIZE_NONCE = 16;
 
@@ -661,7 +671,8 @@ namespace ccf
       auto get_encrypted_recovery_share = [this](RequestArgs& args) {
         // This check should depend on whether new shares are emitted when a new
         // member is added (status = Accepted) or when the new member acks
-        // (status = Active). For now, the member should just be accepted.
+        // (status = Active). For now, the member should just be in state
+        // accepted.
         if (!check_member_accepted(args.tx, args.caller_id))
         {
           args.rpc_ctx->set_response_error(
@@ -673,10 +684,8 @@ namespace ccf
         auto current_keyshare = args.tx.get_view(this->network.shares)->get(0);
         for (auto const& s : current_keyshare->encrypted_shares)
         {
-          LOG_FAIL_FMT("We've got a share for member {}", s.first);
           if (s.first == args.caller_id)
           {
-            LOG_FAIL_FMT("A share for me!");
             enc_s = s.second;
           }
         }
@@ -704,13 +713,37 @@ namespace ccf
           return;
         }
 
-        // For now, we don't check if recovery has yet been approved. To be
-        // resilient to elections, we should store that the service is waiting
-        // for shares post recovery vote.
+        const auto in = args.rpc_ctx->get_params().get<SubmitRecoveryShare>();
 
-        throw std::logic_error("Not implemented");
+        SecretSharing::Share share;
+        std::copy_n(in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+
+        pending_shares.emplace_back(share);
+
+        LOG_FAIL_FMT("Adding pending share");
+
+        GenesisGenerator g(this->network, args.tx);
+
+        if (pending_shares.size() == g.get_active_members_count())
+        {
+          LOG_FAIL_FMT("Sufficient pending shares!");
+          auto ledger_secrets =
+            SecretSharing::combine(pending_shares, pending_shares.size());
+
+          std::cout << "Combined secret:";
+          for (auto const& s : ledger_secrets)
+          {
+            std::cout << std::hex << std::setfill('0') << std::setw(2)
+                      << (int)s;
+          }
+          std::cout << std::endl;
+
+          return;
+        }
+
+        args.rpc_ctx->set_response_result(true);
       };
-      install_with_auto_schema<std::vector<uint8_t>, bool>(
+      install_with_auto_schema<SubmitRecoveryShare, bool>(
         MemberProcs::SUBMIT_RECOVERY_SHARE, submit_recovery_share, Write);
 
       auto create = [this](RequestArgs& args) {

@@ -60,7 +60,7 @@ getEncryptedRecoveryShare
 submitRecoveryShare
 -------------------
 
-.. warning:: Not Yet Implemented
+.. warning:: Experimental
 
 .. jsonschema:: ../schemas/submitRecoveryShare_params.json
 .. jsonschema:: ../schemas/submitRecoveryShare_result.json
