@@ -170,7 +170,7 @@ jobs:
   # - ${{ if eq(parameters.perf_or_release, 'release') }}:
   #   # Release builds
   #   - ${{ each consensus in parameters.consensus }}:
-  #     - template: common_test.yml
+  #     - template: common.yml
   #       parameters:
   #         target: SGX
   #         consensus: ${{ consensus }}

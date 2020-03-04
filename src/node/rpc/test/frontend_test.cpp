@@ -46,6 +46,15 @@ public:
       args.rpc_ctx->set_response_result(true);
     };
     install("empty_function", empty_function, HandlerRegistry::Read);
+
+    auto empty_function_signed = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_result(true);
+    };
+    install(
+      "empty_function_signed",
+      empty_function_signed,
+      HandlerRegistry::Read,
+      true);
   }
 };
 
@@ -150,7 +159,7 @@ public:
 
   void record_ctx(RequestArgs& args)
   {
-    last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session.caller_cert);
+    last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session->caller_cert);
     last_caller_id = args.caller_id;
   }
 };
@@ -341,11 +350,13 @@ auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
-const enclave::SessionContext user_session(
+auto user_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, user_caller_der);
-const enclave::SessionContext invalid_session(
+auto backup_user_session = make_shared<enclave::SessionContext>(
+  enclave::InvalidSessionId, user_caller_der);
+auto invalid_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, invalid_caller_der);
-const enclave::SessionContext member_session(
+auto member_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, member_caller_der);
 
 UserId user_id = INVALID_ID;
@@ -418,7 +429,7 @@ DOCTEST_TEST_CASE("process_pbft")
   const auto serialized_call = simple_call.build_request();
   pbft::Request request = {user_id, user_caller_der, serialized_call};
 
-  const enclave::SessionContext session(
+  auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   frontend.process_pbft(ctx);
@@ -532,6 +543,23 @@ DOCTEST_TEST_CASE("process")
     auto value = signed_resp.value();
     DOCTEST_CHECK(value.req.empty());
     DOCTEST_CHECK(value.sig == signed_req.sig);
+  }
+
+  SUBCASE("request without signature on sign-only handler")
+  {
+    const auto unsigned_req = create_simple_request("empty_function_signed");
+    const auto serialized_call = unsigned_req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    const auto serialized_response = frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+
+    const auto err_it = response.find(jsonrpc::ERR);
+    REQUIRE(err_it != response.end());
+    const auto error = *err_it;
+    CHECK(error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
+    const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
+    CHECK(error_msg.find("RPC must be signed") != std::string::npos);
   }
 }
 
@@ -725,13 +753,15 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto simple_call = create_simple_request();
   auto serialized_call = simple_call.build_request();
 
+  auto backup_ctx =
+    enclave::make_rpc_context(backup_user_session, serialized_call);
   auto ctx = enclave::make_rpc_context(user_session, serialized_call);
 
   {
     DOCTEST_INFO("Backup frontend without forwarder does not forward");
     DOCTEST_REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     DOCTEST_REQUIRE(r.has_value());
     DOCTEST_REQUIRE(channel_stub->is_empty());
 
@@ -743,13 +773,14 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  backup_ctx->session->is_forwarded = false;
 
   {
     DOCTEST_INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network.tables);
     DOCTEST_REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup_read.process(ctx);
+    const auto r = user_frontend_backup_read.process(backup_ctx);
     DOCTEST_REQUIRE(r.has_value());
     DOCTEST_REQUIRE(channel_stub->is_empty());
 
@@ -761,7 +792,7 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     DOCTEST_INFO("Write command on backup is forwarded to primary");
     DOCTEST_REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     DOCTEST_REQUIRE(!r.has_value());
     DOCTEST_REQUIRE(channel_stub->size() == 1);
 
@@ -794,7 +825,7 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     DOCTEST_INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
     DOCTEST_REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     DOCTEST_REQUIRE(!r.has_value());
     DOCTEST_REQUIRE(channel_stub->size() == 1);
 
@@ -809,6 +840,24 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto response =
       parse_response(user_frontend_backup.process_forwarded(fwd_ctx));
 
+    DOCTEST_CHECK(
+      response[jsonrpc::ERR][jsonrpc::CODE] ==
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
+  }
+
+  {
+    // A write was executed on this frontend (above), so reads must be
+    // forwarded too for session consistency
+    DOCTEST_INFO("Read command is now forwarded to primary on this session");
+    TestUserFrontend user_frontend_backup_read(*network.tables);
+    DOCTEST_REQUIRE(channel_stub->is_empty());
+
+    const auto r = user_frontend_backup_read.process(backup_ctx);
+    DOCTEST_REQUIRE(r.has_value());
+    DOCTEST_REQUIRE(channel_stub->is_empty());
+
+    const auto response = parse_response(r.value());
     DOCTEST_CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
@@ -841,6 +890,20 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     DOCTEST_REQUIRE(client_sig.has_value());
     DOCTEST_REQUIRE(client_sig.value() == signed_req);
   }
+
+  // On a session that was previously forwarded, and is now primary,
+  // commands should still succeed
+  ctx->session->is_forwarded = true;
+  {
+    DOCTEST_INFO("Write command primary on a forwarded session succeeds");
+    DOCTEST_REQUIRE(channel_stub->is_empty());
+
+    const auto r = user_frontend_primary.process(ctx);
+    DOCTEST_CHECK(r.has_value());
+    add_callers_primary_store();
+    auto response = parse_response(r.value());
+    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+  }
 }
 
 DOCTEST_TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
@@ -863,7 +926,7 @@ DOCTEST_TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
 
-  const enclave::SessionContext node_session(
+  auto node_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, node_caller);
   auto ctx = enclave::make_rpc_context(node_session, serialized_call);
   const auto r = node_frontend_backup.process(ctx);

@@ -39,23 +39,29 @@ class Consortium:
         members_kshare_pub = [f"member{m}_kshare_pub.pem" for m in self.members]
         return list(zip(members_certs, members_kshare_pub))
 
-    def generate_and_propose_new_member(self, remote_node, member_id, curve):
+    def generate_and_propose_new_member(
+        self, member_id, remote_node, new_member_id, curve
+    ):
         # For now, the infra does not keep track of the members id
-        self._generate_new_member_info(member_id, curve)
+        self._generate_new_member_info(new_member_id, curve)
         return self.propose_add_member(
-            member_id=0,
+            member_id=member_id,
             remote_node=remote_node,
             new_member_cert=os.path.join(
-                self.common_dir, f"member{member_id}_cert.pem"
+                self.common_dir, f"member{new_member_id}_cert.pem"
             ),
             new_member_keyshare=os.path.join(
-                self.common_dir, f"member{member_id}_kshare_pub.pem"
+                self.common_dir, f"member{new_member_id}_kshare_pub.pem"
             ),
         )
 
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(member_id=member_id) as mc:
-            r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
+            r = mc.rpc(
+                "propose",
+                {"parameter": params, "script": {"text": script}},
+                signed=True,
+            )
             return r.result, r.error
 
     def vote(
@@ -122,7 +128,7 @@ class Consortium:
 
     def withdraw(self, member_id, remote_node, proposal_id):
         with remote_node.member_client(member_id=member_id) as c:
-            return c.do("withdraw", {"id": proposal_id})
+            return c.rpc("withdraw", {"id": proposal_id}, signed=True)
 
     def update_ack_state_digest(self, member_id, remote_node):
         with remote_node.member_client(member_id=member_id) as mc:
@@ -132,10 +138,8 @@ class Consortium:
     def ack(self, member_id, remote_node):
         state_digest = self.update_ack_state_digest(member_id, remote_node)
         with remote_node.member_client(member_id=member_id) as mc:
-            res = mc.rpc(
-                "ack", params={"state_digest": list(state_digest)}, signed=True
-            )
-            assert res.error is None, f"Error ACK: {res.error}"
+            r = mc.rpc("ack", params={"state_digest": list(state_digest)}, signed=True)
+            assert r.error is None, f"Error ACK: {r.error}"
 
     def get_proposals(self, member_id, remote_node):
         script = """

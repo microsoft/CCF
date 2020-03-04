@@ -393,7 +393,7 @@ class LocalRemote(CmdMixin):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
         for path in self.exe_files:
-            dst_path = os.path.normpath(os.path.join(self.root, path))
+            dst_path = os.path.normpath(os.path.join(self.root, os.path.basename(path)))
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:

@@ -80,11 +80,11 @@ The ``Ledger`` class is constructed using the path of the ledger. It then expose
 
 .. note:: Parsing the encrypted private data (which begins immediately after the public data on the ledger, and is optional) is not supported by the ``Ledger`` class at the moment.
 
-An example of how to read and verify entries on the ledger can be found in `votinghistory.py <https://github.com/microsoft/CCF/blob/master/tests/votinghistory.py>`_, which verifies the voting history.
+An example of how to read and verify entries on the ledger can be found in `governance_history.py <https://github.com/microsoft/CCF/blob/master/tests/governance_history.py>`_, which verifies the voting history.
 Since every vote request is signed by the voting member, verified by the primary and then stored on the ledger, the test performs the following (this sequence of operations is performed sequentially per transaction):
 
  1. Read and store the member certificates
- 2. Read an entry from the ``ccf.voting_history`` table (each entry in the table contains the member id of the voting member, along with the signed request)
+ 2. Read an entry from the ``ccf.governance.history`` table (each entry in the table contains the member id of the voting member, along with the signed request)
  3. Create a public key using the certificate of the voting member (which was stored on step 1)
  4. Verify the signature using the public key and the raw request
  5. Repeat steps 2 - 4 until all voting history entries have been read
