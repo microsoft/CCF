@@ -55,25 +55,16 @@ parameters:
       dependsOn:  ['Build_SGX_Perf']
 
   build:
-    common:
-      cmake_args: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache"'
-    Build_NoSGX:
-      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
-    Build_SGX:
-      cmake_args: ''
-    NoSGX:
-      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
-    SGX:
-      cmake_args: ''
-    debug:
-      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF'
-    install:
-      install_prefix: '/tmp/ccf-install'
-      cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
-    san:
-      cmake_args: '-DSAN=ON'
-    perf:
-      cmake_args: '-DVERBOSE_LOGGING=ON -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
+    Build_SGX: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF'
+    Build_NoSGX: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF -DTARGET=virtual -DCOVERAGE=ON'
+    SGX: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF'
+    NoSGX: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF -DTARGET=virtual -DCOVERAGE=ON'
+    san: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DSAN=ON -DTARGET=virtual -DCOVERAGE=ON'
+    perf: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DVERBOSE_LOGGING=ON -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
+    install: '-DCMAKE_C_COMPILER_LAUNCHER="ccache" -DCMAKE_CXX_COMPILER_LAUNCHER="ccache" -DCMAKE_INSTALL_PREFIX=/tmp/ccf-install -DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
+
+  install:
+    install_prefix: '/tmp/ccf-install'
 
 
   test:
@@ -109,55 +100,55 @@ jobs:
       env: ${{ parameters.env.Checks }}
       job_name: 'Formatting_and_License_Checks'
   
-  # - ${{ each build_target in parameters.build_target }}:
-  #   - template: common_build.yml
-  #     parameters:
-  #       target: '${{ build_target }}'
-  #       env: ${{ parameters.env[build_target] }}
-  #       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[build_target].cmake_args }}'
-  #       suffix: 'Debug'
-  #       artifact_name: '${{ build_target }}_Debug'
+  - ${{ each build_target in parameters.build_target }}:
+    - template: common_build.yml
+      parameters:
+        target: '${{ build_target }}'
+        env: ${{ parameters.env[build_target] }}
+        cmake_args: '${{ parameters.build[build_target] }}'
+        suffix: 'Debug'
+        artifact_name: '${{ build_target }}_Debug'
 
-  # # Debug test runs with code coverage
-  # - ${{ each target in parameters.target }}:
-  #   - ${{ each consensus in parameters.consensus }}:
-  #     - template: common_test.yml
-  #       parameters:
-  #         target: ${{ target }}
-  #         consensus: ${{ consensus }}
-  #         env: ${{ parameters.env[target] }}
-  #         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
-  #         ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
-  #         suffix: 'Debug'
-  #         artifact_name: 'Build_${{ target }}_Debug'
+  # Debug test runs with code coverage
+  - ${{ each target in parameters.target }}:
+    - ${{ each consensus in parameters.consensus }}:
+      - template: common_test.yml
+        parameters:
+          target: ${{ target }}
+          consensus: ${{ consensus }}
+          env: ${{ parameters.env[target] }}
+          cmake_args: '${{ parameters.build[target] }}'
+          ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
+          suffix: 'Debug'
+          artifact_name: 'Build_${{ target }}_Debug'
 
-  # # SAN build (ASAN & UBSAN)
-  # - template: common_build.yml
-  #   parameters:
-  #     target: Build_NoSGX
-  #     env: ${{ parameters.env.Build_SAN }}
-  #     cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-  #     suffix: 'SAN'
-  #     artifact_name: 'Build_NoSGX_SAN'
+  # SAN build (ASAN & UBSAN)
+  - template: common_build.yml
+    parameters:
+      target: Build_NoSGX
+      env: ${{ parameters.env.Build_SAN }}
+      cmake_args: '${{ parameters.build.san }}'
+      suffix: 'SAN'
+      artifact_name: 'Build_NoSGX_SAN'
 
-  # # SAN Tests
-  # - ${{ each consensus in parameters.consensus }}:
-  #   - template: common_test.yml
-  #     parameters:
-  #       target: NoSGX
-  #       consensus: ${{ consensus }}
-  #       env: ${{ parameters.env.SAN }}
-  #       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-  #       ctest_filter: '${{ parameters.test.san[consensus].ctest_args }}'
-  #       suffix: 'SAN'
-  #       artifact_name: 'Build_NoSGX_SAN'
+  # SAN Tests
+  - ${{ each consensus in parameters.consensus }}:
+    - template: common_test.yml
+      parameters:
+        target: NoSGX
+        consensus: ${{ consensus }}
+        env: ${{ parameters.env.SAN }}
+        cmake_args: '${{ parameters.build.san }}'
+        ctest_filter: '${{ parameters.test.san[consensus].ctest_args }}'
+        suffix: 'SAN'
+        artifact_name: 'Build_NoSGX_SAN'
 
   # Performance build
   - template: common_build.yml
     parameters:
       target: Build_SGX
       env: ${{ parameters.env.Build_Perf }}
-      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
+      cmake_args: '${{ parameters.build.perf }}'
       suffix: 'Perf'
       artifact_name: 'Build_SGX_Perf'
 
@@ -169,42 +160,42 @@ jobs:
           target: SGX
           consensus: ${{ consensus }}
           env: ${{ parameters.env.Perf }}
-          install_prefix: '${{ parameters.build.install.install_prefix }}'
-          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
+          install_prefix: '${{ parameters.install.install_prefix }}'
+          cmake_args: '${{ parameters.build.perf }}'
           ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
           artifact_name: 'Build_SGX_Perf'
 
-  # # Collect and Plot metrics
-  # - template: metrics.yml
-  #   parameters:
-  #     env: ${{ parameters.env.Metrics }}
+  # Collect and Plot metrics
+  - template: metrics.yml
+    parameters:
+      env: ${{ parameters.env.Metrics }}
 
-  # # Publish release
-  # - ${{ if eq(parameters.perf_or_release, 'release') }}:
-  #   # Release build
-  #   - template: common_build.yml
-  #     parameters:
-  #       target: Build_SGX
-  #       env: ${{ parameters.env.Build_Release }}
-  #       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
-  #       suffix: 'Release'
-  #       artifact_name: 'Build_SGX_Release'
+  # Publish release
+  - ${{ if eq(parameters.perf_or_release, 'release') }}:
+    # Release build
+    - template: common_build.yml
+      parameters:
+        target: Build_SGX
+        env: ${{ parameters.env.Build_Release }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
+        suffix: 'Release'
+        artifact_name: 'Build_SGX_Release'
 
-  #   # Release builds
-  #   - ${{ each consensus in parameters.consensus }}:
-  #     - template: common_test.yml
-  #       parameters:
-  #         target: SGX
-  #         consensus: ${{ consensus }}
-  #         env: ${{ parameters.env.Release }}
-  #         install_prefix: '${{ parameters.build.install.install_prefix }}'
-  #         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
-  #         ctest_filter: '${{ parameters.test.Release[consensus].ctest_args }}'
-  #         suffix: 'Release'
-  #         artifact_name: 'Build_SGX_Release'
+    # Release builds
+    - ${{ each consensus in parameters.consensus }}:
+      - template: common_test.yml
+        parameters:
+          target: SGX
+          consensus: ${{ consensus }}
+          env: ${{ parameters.env.Release }}
+          install_prefix: '${{ parameters.build.install.install_prefix }}'
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
+          ctest_filter: '${{ parameters.test.Release[consensus].ctest_args }}'
+          suffix: 'Release'
+          artifact_name: 'Build_SGX_Release'
 
-  #   - template: release.yml
-  #     parameters:
-  #       env: ${{ parameters.env.Publish }}
+    - template: release.yml
+      parameters:
+        env: ${{ parameters.env.Publish }}
 

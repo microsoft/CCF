@@ -1,6 +1,5 @@
 steps:
 - script: |
-    ninja
     ninja install
   workingDirectory: build
   displayName: 'Install'
