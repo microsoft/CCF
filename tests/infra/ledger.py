@@ -47,6 +47,7 @@ class LedgerDomain:
         self._buffer_size = buffer.getbuffer().nbytes
         self._unpacker = msgpack.Unpacker(self._buffer, raw=True, strict_map_key=False)
         self._version = self._read_next()
+        self._tables = {}
         self._read()
 
     def _read_next(self):
