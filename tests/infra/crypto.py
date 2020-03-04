@@ -14,6 +14,8 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
+# import pynacl
+
 
 class Cert:
     def __init__(self, cert_path):

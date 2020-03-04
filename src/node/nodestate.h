@@ -304,7 +304,10 @@ namespace ccf
           reset_quote();
           sm.advance(State::partOfNetwork);
 
-          return Success<CreateNew::Out>({node_cert, network.identity->cert});
+          return Success<CreateNew::Out>(
+            {node_cert,
+             network.identity->cert,
+             crypto::BoxKey::public_from_private(network.encryption_priv_key)});
         }
         case StartType::Join:
         {
