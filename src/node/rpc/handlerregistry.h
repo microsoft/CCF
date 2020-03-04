@@ -17,8 +17,6 @@ namespace ccf
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     Store::Tx& tx;
     CallerId caller_id;
-    const std::string& method;
-    const nlohmann::json& params;
   };
 
   using HandleFunction = std::function<void(RequestArgs& args)>;
@@ -50,19 +48,13 @@ namespace ccf
       MayWrite
     };
 
-    enum class Forwardable
-    {
-      CanForward,
-      DoNotForward
-    };
-
     struct Handler
     {
       HandleFunction func;
       ReadWrite rw;
       nlohmann::json params_schema;
       nlohmann::json result_schema;
-      Forwardable forwardable;
+      bool require_client_signature = false;
       bool execute_locally = false;
     };
 
@@ -96,7 +88,9 @@ namespace ccf
      * @param rw Flag if method will Read, Write, MayWrite
      * @param params_schema JSON schema for params object in requests
      * @param result_schema JSON schema for result object in responses
-     * @param forwardable Allow method to be forwarded to primary
+     * @param require_client_signature If true, client request must be signed
+     * @param execute_locally If true, request is executed without consensus
+     * (PBFT only)
      */
     void install(
       const std::string& method,
@@ -104,18 +98,22 @@ namespace ccf
       ReadWrite rw,
       const nlohmann::json& params_schema = nlohmann::json::object(),
       const nlohmann::json& result_schema = nlohmann::json::object(),
-      Forwardable forwardable = Forwardable::CanForward,
+      bool require_client_signature = false,
       bool execute_locally = false)
     {
-      handlers[method] = {
-        f, rw, params_schema, result_schema, forwardable, execute_locally};
+      handlers[method] = {f,
+                          rw,
+                          params_schema,
+                          result_schema,
+                          require_client_signature,
+                          execute_locally};
     }
 
     void install(
       const std::string& method,
       HandleFunction f,
       ReadWrite rw,
-      Forwardable forwardable)
+      bool require_client_signature)
     {
       install(
         method,
@@ -123,7 +121,7 @@ namespace ccf
         rw,
         nlohmann::json::object(),
         nlohmann::json::object(),
-        forwardable);
+        require_client_signature);
     }
 
     template <typename In, typename Out, typename F>
@@ -131,7 +129,7 @@ namespace ccf
       const std::string& method,
       F&& f,
       ReadWrite rw,
-      Forwardable forwardable = Forwardable::CanForward,
+      bool require_client_signature = false,
       bool execute_locally = false)
     {
       auto params_schema = nlohmann::json::object();
@@ -152,7 +150,7 @@ namespace ccf
         rw,
         params_schema,
         result_schema,
-        forwardable,
+        require_client_signature,
         execute_locally);
     }
 

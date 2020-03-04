@@ -7,7 +7,7 @@ return {
     {
       return {msg: tables.log.get(params.id)};
     }
-    get(JSON.parse(args).params)
+    get(JSON.parse(args))
   ]],
 
   LOG_get_pub = [[
@@ -15,7 +15,7 @@ return {
     {
       return {msg: tables.log.get(params.id)};
     }
-    get(JSON.parse(args).params)
+    get(JSON.parse(args))
   ]],
 
   LOG_record = [[
@@ -24,7 +24,7 @@ return {
       tables.log.put(params.id, params.msg);
       return true;
     }
-    record(JSON.parse(args).params)
+    record(JSON.parse(args))
   ]],
 
   LOG_record_pub = [[
@@ -33,6 +33,6 @@ return {
       tables.log.put(params.id, params.msg);
       return true;
     }
-    record(JSON.parse(args).params)
+    record(JSON.parse(args))
   ]]
 }

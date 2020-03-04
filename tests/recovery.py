@@ -9,8 +9,6 @@ import multiprocessing
 import infra.e2e_args
 from random import seed
 import infra.ccf
-import infra.proc
-import infra.remote
 import infra.logging_app as app
 import json
 import suite.test_requirements as reqs
@@ -23,7 +21,7 @@ from loguru import logger as LOG
 def test(network, args, txs=None):
     primary, backups = network.find_nodes()
 
-    ledger = primary.remote.get_ledger()
+    ledger = primary.get_ledger()
     sealed_secrets = primary.get_sealed_secrets()
 
     recovered_network = infra.ccf.Network(

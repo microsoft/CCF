@@ -14,6 +14,16 @@
 class Principal;
 class Req_queue;
 class Request;
+class Prepared_cert;
+
+#pragma pack(push)
+#pragma pack(1)
+struct Included_sig
+{
+  uint8_t pid;
+  PbftSignature sig;
+};
+#pragma pack(pop)
 
 //
 // Pre_prepare messages have the following format:
@@ -38,6 +48,7 @@ struct Pre_prepare_rep : public Message_rep
   static constexpr size_t padding_size =
     ALIGNED_SIZE(pbft_max_signature_size) - pbft_max_signature_size;
   std::array<uint8_t, padding_size> padding;
+  size_t num_prev_pp_sig;
 #endif
 
   // Followed by "rset_size" bytes of the request set, "n_big_reqs"
@@ -60,7 +71,12 @@ class Pre_prepare : public Message
 public:
   Pre_prepare(uint32_t msg_size = 0) : Message(msg_size) {}
 
-  Pre_prepare(View v, Seqno s, Req_queue& reqs, size_t& requests_in_batch);
+  Pre_prepare(
+    View v,
+    Seqno s,
+    Req_queue& reqs,
+    size_t& requests_in_batch,
+    Prepared_cert* prepared_cert = nullptr);
   // Effects: Creates a new signed Pre_prepare message with view
   // number "v", sequence number "s", the requests in "reqs" (up to a
   // maximum size) and appropriate non-deterministic choices.  It

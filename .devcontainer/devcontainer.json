@@ -1,7 +1,7 @@
 {
 	"name": "Sample Development Environment for CCF",
 	"context": "..",
-	"dockerFile": "../docker/Dockerfile",
+	"image": "ccfciteam/ccf-ci-18.04-oe-0.8.0:latest",
 	"runArgs": [],
 	"extensions": ["ms-vscode.cpptools", "ms-python.python"]
 }

@@ -248,8 +248,8 @@ namespace ccf
         GeneralProcs::GET_METRICS,
         handler_adapter(get_metrics),
         Read,
-        Forwardable::CanForward,
-        true);
+        false, // does not require client signature
+        true); // executed locally
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, handler_adapter(make_signature), Write);
       install_with_auto_schema<void, WhoAmI::Out>(

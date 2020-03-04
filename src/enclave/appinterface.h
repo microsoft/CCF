@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "enclave/rpchandler.h"
-#include "node/networktables.h"
-#include "node/rpc/nodeinterface.h"
+
+#include "node/rpc/userfrontend.h"
 
 namespace ccfapp
 {
@@ -17,7 +16,7 @@ namespace ccfapp
    *
    * @see `ccf::RpcFrontend`
    */
-  std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
+  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
     ccf::NetworkTables& network, ccf::AbstractNotifier& notifier);
   // SNIPPET_END: rpc_handler
 }

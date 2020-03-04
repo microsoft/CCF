@@ -44,9 +44,12 @@ date=$(date "+%a, %d %b %Y %H:%M:%S %Z")
 
 req_digest=$(echo -n "$request" | openssl dgst -sha256 -binary | openssl base64)
 
+content_length=${#request}
+
 # Construct string to sign
 string_to_sign="date: $date
-digest: SHA-256=$req_digest"
+digest: SHA-256=$req_digest
+content-length: $content_length"
 
 # Compute signature
 signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha256 -sign "$privk" | openssl base64 -A)
@@ -54,5 +57,5 @@ signed_raw=$(echo -n "$string_to_sign" | openssl dgst -sha256 -sign "$privk" | o
 curl \
 -H "Date: $date" \
 -H "Digest: SHA-256=$req_digest" \
--H "Authorization: Signature keyId=\"tls\",algorithm=\"ecdsa-sha256\",headers=\"date digest\",signature=\"$signed_raw\"" \
+-H "Authorization: Signature keyId=\"tls\",algorithm=\"ecdsa-sha256\",headers=\"date digest content-length\",signature=\"$signed_raw\"" \
 "$@"

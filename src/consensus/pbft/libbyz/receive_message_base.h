@@ -40,7 +40,7 @@ public:
   virtual View view() const = 0;
   virtual bool is_primary() const = 0;
   virtual int primary() const = 0;
-  virtual void handle(Request* m) = 0;
+  virtual void process_message(Message* m) = 0;
   virtual void send(Message* m, int i) = 0;
   virtual Seqno get_last_executed() const = 0;
   virtual int my_id() const = 0;
@@ -49,4 +49,5 @@ public:
   virtual void playback_request(ccf::Store::Tx& tx) = 0;
   virtual char* create_response_message(
     int client_id, Request_id rid, uint32_t size) = 0;
+  virtual bool IsExecutionPending() = 0;
 };

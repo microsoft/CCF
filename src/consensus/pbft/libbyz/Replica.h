@@ -152,7 +152,6 @@ public:
   Seqno last_gb_seqno = 0;
 
   Seqno signature_offset = 0;
-  std::atomic<bool> sign_next = false;
   std::atomic<kv::Version> signed_version = 0;
 
   Seqno next_expected_sig_offset()
@@ -168,13 +167,6 @@ public:
   Seqno sig_req_offset()
   {
     return node_info.general_info.max_requests_between_signatures;
-  }
-
-  bool should_sign_next_and_reset()
-  {
-    bool val = sign_next;
-    sign_next = false;
-    return val;
   }
 
   bool delay_vc();
@@ -206,7 +198,7 @@ public:
 
   void handle(Request* m);
 
-  void recv_process_one_msg(Message* m);
+  void process_message(Message* m);
   // Helper functions when receiving a message. This can be used
   // when polling for a new message or we have a new message
   // passed to us.
@@ -217,6 +209,11 @@ public:
   void playback_pre_prepare(ccf::Store::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
+
+  bool IsExecutionPending()
+  {
+    return is_exec_pending;
+  }
 
 private:
   friend class State;
@@ -262,6 +259,8 @@ private:
   void send_pre_prepare(bool do_not_wait_for_batch_size = false);
   // Effects: Sends a Pre_prepare message
 
+  void try_send_prepare();
+
   void send_prepare(Seqno seqno, std::optional<ByzInfo> info = std::nullopt);
   // Effects: Sends a prepare message if appropriate.
   // If ByzInfo is provided there is no need to execute since execution has
@@ -298,7 +297,39 @@ private:
   // Effects: Sends back replies that have been executed tentatively
   // to the client. The replies are tentative unless "committed" is true.
 
+  struct ExecTentativeCbCtx
+  {
+    ByzInfo info;
+    size_t requests_in_batch;
+    Seqno seqno;
+    bool send_only_to_self = false;
+    std::optional<ByzInfo> orig_byzinfo;
+  };
+
+  struct ExecuteTentativeCbMsg
+  {
+    Replica* self;
+    Pre_prepare* pp;
+    void (*fn)(Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>);
+    std::unique_ptr<ExecTentativeCbCtx> ctx;
+  };
+
+  static void execute_tentative_callback(void* ctx);
+
+  bool is_exec_pending = false;
+  std::list<Message*> pending_recv_msgs;
+
+  bool create_execute_commands(
+    Pre_prepare* pp,
+    int64_t& max_local_commit_value,
+    std::vector<std::unique_ptr<ExecCommandMsg>>& cmds);
+
   bool execute_tentative(Pre_prepare* pp, ByzInfo& info);
+
+  bool execute_tentative(
+    Pre_prepare* pp,
+    void(cb)(Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>),
+    std::unique_ptr<ExecTentativeCbCtx> ctx);
   // Effects: Tentatively executes as many commands as possible. It
   // extracts requests to execute commands from a message "m"; calls
   // exec_command for each command; and sends back replies to the
@@ -306,7 +337,6 @@ private:
 
   std::unique_ptr<ExecCommandMsg> execute_tentative_request(
     Request& request,
-    ByzInfo& info,
     int64_t& max_local_commit_value,
     bool include_markle_roots,
     ccf::Store::Tx* tx = nullptr,
@@ -418,6 +448,8 @@ private:
   Seqno last_executed; // Sequence number of last executed message.
   Seqno last_tentative_execute; // Sequence number of last message tentatively
                                 // executed.
+
+  Seqno seqno_at_last_f_change = 0;
 
   // Sets and logs to keep track of messages received. Their size
   // is equal to max_out.

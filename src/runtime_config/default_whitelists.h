@@ -43,5 +43,5 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
-      Tables::VOTING_HISTORY}}};
+      Tables::GOV_HISTORY}}};
 }

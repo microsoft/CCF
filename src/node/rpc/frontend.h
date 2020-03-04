@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "commonhandlerregistry.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/pbft/pbfttables.h"
 #include "consts.h"
 #include "ds/buffer.h"
 #include "ds/spinlock.h"
@@ -73,13 +75,9 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> forward_or_redirect_json(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      HandlerRegistry::Forwardable forwardable)
+      std::shared_ptr<enclave::RpcContext> ctx)
     {
-      if (
-        cmd_forwarder &&
-        forwardable == HandlerRegistry::Forwardable::CanForward &&
-        !ctx->session.fwd.has_value())
+      if (cmd_forwarder && !ctx->session->fwd.has_value())
       {
         return std::nullopt;
       }
@@ -216,7 +214,7 @@ namespace ccf
       }
       else
       {
-        caller_id = handlers.valid_caller(tx, ctx->session.caller_cert);
+        caller_id = handlers.valid_caller(tx, ctx->session->caller_cert);
       }
 
       if (!caller_id.has_value())
@@ -226,14 +224,15 @@ namespace ccf
           invalid_caller_error_message());
       }
 
-      if (ctx->signed_request.has_value())
+      const auto signed_request = ctx->get_signed_request();
+      if (signed_request.has_value())
       {
         if (
           !ctx->is_create_request &&
           !verify_client_signature(
-            ctx->session.caller_cert,
+            ctx->session->caller_cert,
             caller_id.value(),
-            ctx->signed_request.value()))
+            signed_request.value()))
         {
           return ctx->error_response(
             jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
@@ -246,7 +245,7 @@ namespace ccf
           ctx->is_create_request)
         {
           record_client_signature(
-            tx, caller_id.value(), ctx->signed_request.value());
+            tx, caller_id.value(), signed_request.value());
         }
       }
 
@@ -260,16 +259,15 @@ namespace ccf
 
       update_history();
       reqid = {caller_id.value(),
-               ctx->session.client_session_id,
+               ctx->session->client_session_id,
                ctx->get_request_index()};
       if (history)
       {
         if (!history->add_request(
               reqid,
-              (size_t)ctx->actor,
               caller_id.value(),
-              ctx->session.caller_cert,
-              ctx->raw))
+              ctx->session->caller_cert,
+              ctx->get_serialised_request()))
         {
           LOG_FAIL_FMT(
             "Adding request failed: {}, {}, {}",
@@ -322,7 +320,7 @@ namespace ccf
     virtual std::vector<uint8_t> get_cert_to_forward(
       std::shared_ptr<enclave::RpcContext> ctx)
     {
-      return ctx->session.caller_cert;
+      return ctx->session->caller_cert;
     }
 
     /** Process a serialised command with the associated RPC context via PBFT
@@ -330,47 +328,42 @@ namespace ccf
      * @param ctx Context for this RPC
      */
     ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      bool include_merkle_roots) override
+      std::shared_ptr<enclave::RpcContext> ctx) override
     {
       Store::Tx tx;
-      return process_pbft(ctx, tx, false, include_merkle_roots);
+      return process_pbft(ctx, tx, false);
     }
 
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      bool playback,
-      bool include_merkle_roots) override
+      bool playback) override
     {
-      crypto::Sha256Hash replicated_state_merkle_root;
       kv::Version version = kv::NoVersion;
 
       update_consensus();
-
-      bool has_updated_merkle_roots = false;
 
       if (!playback)
       {
         auto req_view = tx.get_view(*pbft_requests_map);
         req_view->put(
           0,
-          {(size_t)ctx->actor,
-           ctx->session.fwd.value().caller_id,
-           ctx->session.caller_cert,
-           ctx->raw,
+          {ctx->session->fwd.value().caller_id,
+           ctx->session->caller_cert,
+           ctx->get_serialised_request(),
            ctx->pbft_raw});
       }
 
-      auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
+      auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
 
       version = tx.get_version();
-      if (include_merkle_roots)
-      {
-        replicated_state_merkle_root = history->get_replicated_state_root();
-      }
 
-      return {rep.value(), replicated_state_merkle_root, version};
+      return {rep.value(), version};
+    }
+
+    crypto::Sha256Hash get_merkle_root() override
+    {
+      return history->get_replicated_state_root();
     }
 
     /** Process a serialised input forwarded from another node
@@ -385,7 +378,7 @@ namespace ccf
     std::vector<uint8_t> process_forwarded(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      if (!ctx->session.fwd.has_value())
+      if (!ctx->session->fwd.has_value())
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
@@ -402,13 +395,14 @@ namespace ccf
 
       // Store client signature. It is assumed that the forwarder node has
       // already verified the client signature.
-      if (ctx->signed_request.has_value())
+      const auto signed_request = ctx->get_signed_request();
+      if (signed_request.has_value())
       {
         record_client_signature(
-          tx, ctx->session.fwd->caller_id, ctx->signed_request.value());
+          tx, ctx->session->fwd->caller_id, signed_request.value());
       }
 
-      auto rep = process_command(ctx, tx, ctx->session.fwd->caller_id);
+      auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
       if (!rep.has_value())
       {
         // This should never be called when process_command is called with a
@@ -424,7 +418,9 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      auto handler = handlers.find_handler(ctx->method);
+      const auto method = ctx->get_method();
+      const auto local_method = method.substr(method.find_first_not_of('/'));
+      auto handler = handlers.find_handler(local_method);
       if (handler != nullptr && handler->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
@@ -437,38 +433,22 @@ namespace ccf
       Store::Tx& tx,
       CallerId caller_id)
     {
-      const auto rpc_version = ctx->unpacked_rpc.at(jsonrpc::JSON_RPC);
-      if (rpc_version != jsonrpc::RPC_VERSION)
-      {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          fmt::format(
-            "Unexpected JSON-RPC version. Must be string \"{}\", received {}",
-            jsonrpc::RPC_VERSION,
-            rpc_version.dump()));
-      }
-
-      const auto params_it = ctx->unpacked_rpc.find(jsonrpc::PARAMS);
-      if (
-        params_it != ctx->unpacked_rpc.end() &&
-        (!params_it->is_array() && !params_it->is_object()))
-      {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-          fmt::format(
-            "If present, parameters must be an array or object. Received: {}",
-            params_it->dump()));
-      }
-
-      const auto& params = params_it == ctx->unpacked_rpc.end() ?
-        nlohmann::json(nullptr) :
-        *params_it;
-
-      auto handler = handlers.find_handler(ctx->method);
+      const auto method = ctx->get_method();
+      const auto local_method = method.substr(method.find_first_not_of('/'));
+      auto handler = handlers.find_handler(local_method);
       if (handler == nullptr)
       {
         return ctx->error_response(
-          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, ctx->method);
+          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, method);
+      }
+
+      if (
+        handler->require_client_signature &&
+        !ctx->get_signed_request().has_value())
+      {
+        return ctx->error_response(
+          jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED,
+          fmt::format("{} RPC must be signed", method));
       }
 
       update_history();
@@ -484,21 +464,29 @@ namespace ccf
         {
           case HandlerRegistry::Read:
           {
+            if (ctx->session->is_forwarded)
+            {
+              return forward_or_redirect_json(ctx);
+            }
             break;
           }
 
           case HandlerRegistry::Write:
           {
-            return forward_or_redirect_json(ctx, handler->forwardable);
-            break;
+            ctx->session->is_forwarded = true;
+            return forward_or_redirect_json(ctx);
           }
 
           case HandlerRegistry::MayWrite:
           {
-            bool readonly = ctx->unpacked_rpc.value(jsonrpc::READONLY, true);
-            if (!readonly)
+            if (!ctx->read_only_hint)
             {
-              return forward_or_redirect_json(ctx, handler->forwardable);
+              ctx->session->is_forwarded = true;
+              return forward_or_redirect_json(ctx);
+            }
+            else if (ctx->session->is_forwarded)
+            {
+              return forward_or_redirect_json(ctx);
             }
             break;
           }
@@ -507,7 +495,7 @@ namespace ccf
 #endif
 
       auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller_id, ctx->method, params};
+      auto args = RequestArgs{ctx, tx, caller_id};
 
       tx_count++;
 

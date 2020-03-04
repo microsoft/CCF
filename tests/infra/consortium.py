@@ -10,43 +10,58 @@ import infra.ccf
 import infra.proc
 import infra.checker
 import infra.node
-from nacl.public import PrivateKey, PublicKey, Box
-from nacl.encoding import RawEncoder
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.serialization import (
-    Encoding,
-    PrivateFormat,
-    PublicFormat,
-    NoEncryption,
-)
+import infra.crypto
 
 from loguru import logger as LOG
 
 
 class Consortium:
-    def __init__(self, members, curve, key_generator):
+    def __init__(self, members, curve, key_generator, common_dir):
         self.members = members
-        members = [f"member{m}" for m in members]
-        for m in members:
-            infra.proc.ccall(
-                key_generator,
-                f"--name={m}",
-                f"--curve={curve.name}",
-                "--gen-key-share",
-                log_output=False,
-            ).check_returncode()
-        self.status = infra.ccf.ServiceStatus.OPEN
+        self.common_dir = common_dir
+        self.key_generator = key_generator
+        for m_id in members:
+            self._generate_new_member_info(m_id, curve)
+
+    def _generate_new_member_info(self, member_id, curve):
+        member = f"member{member_id}"
+        infra.proc.ccall(
+            self.key_generator,
+            f"--name={member}",
+            f"--curve={curve.name}",
+            "--gen-key-share",
+            path=self.common_dir,
+            log_output=False,
+        ).check_returncode()
 
     def get_members_info(self):
         members_certs = [f"member{m}_cert.pem" for m in self.members]
         members_kshare_pub = [f"member{m}_kshare_pub.pem" for m in self.members]
         return list(zip(members_certs, members_kshare_pub))
 
+    def generate_and_propose_new_member(
+        self, member_id, remote_node, new_member_id, curve
+    ):
+        # For now, the infra does not keep track of the members id
+        self._generate_new_member_info(new_member_id, curve)
+        return self.propose_add_member(
+            member_id=member_id,
+            remote_node=remote_node,
+            new_member_cert=os.path.join(
+                self.common_dir, f"member{new_member_id}_cert.pem"
+            ),
+            new_member_keyshare=os.path.join(
+                self.common_dir, f"member{new_member_id}_kshare_pub.pem"
+            ),
+        )
+
     def propose(self, member_id, remote_node, script=None, params=None):
         with remote_node.member_client(member_id=member_id) as mc:
-            r = mc.rpc("propose", {"parameter": params, "script": {"text": script}})
+            r = mc.rpc(
+                "propose",
+                {"parameter": params, "script": {"text": script}},
+                signed=True,
+            )
             return r.result, r.error
 
     def vote(
@@ -90,6 +105,8 @@ class Consortium:
         # There is no need to stop after n / 2 + 1 members have voted,
         # but this could prove to be useful in detecting errors
         # related to the voting mechanism
+        if len(self.members) == 1:
+            return True
         majority_count = int(len(self.members) / 2 + 1)
         for i, member in enumerate(self.members):
             if i >= majority_count:
@@ -111,10 +128,18 @@ class Consortium:
 
     def withdraw(self, member_id, remote_node, proposal_id):
         with remote_node.member_client(member_id=member_id) as c:
-            return c.do("withdraw", {"id": proposal_id})
+            return c.rpc("withdraw", {"id": proposal_id}, signed=True)
+
+    def update_ack_state_digest(self, member_id, remote_node):
+        with remote_node.member_client(member_id=member_id) as mc:
+            res = mc.rpc("updateAckStateDigest", params={})
+            return bytearray(res.result)
 
     def ack(self, member_id, remote_node):
-        pass
+        state_digest = self.update_ack_state_digest(member_id, remote_node)
+        with remote_node.member_client(member_id=member_id) as mc:
+            r = mc.rpc("ack", params={"state_digest": list(state_digest)}, signed=True)
+            assert r.error is None, f"Error ACK: {r.error}"
 
     def get_proposals(self, member_id, remote_node):
         script = """
@@ -169,14 +194,16 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
-    def propose_add_member(self, member_id, remote_node, new_member_cert, new_keyshare):
+    def propose_add_member(
+        self, member_id, remote_node, new_member_cert, new_member_keyshare
+    ):
         script = """
         tables, member_info = ...
         return Calls:call("new_member", member_info)
         """
         with open(new_member_cert) as cert:
             new_member_cert_pem = [ord(c) for c in cert.read()]
-        with open(new_keyshare) as keyshare:
+        with open(new_member_keyshare) as keyshare:
             new_member_keyshare = [ord(k) for k in keyshare.read()]
         return self.propose(
             member_id,
@@ -214,13 +241,13 @@ class Consortium:
     def add_users(self, remote_node, users):
         for u in users:
             user_cert = []
-            with open(f"user{u}_cert.pem") as cert:
+            with open(os.path.join(self.common_dir, f"user{u}_cert.pem")) as cert:
                 user_cert = [ord(c) for c in cert.read()]
             script = """
             tables, user_cert = ...
             return Calls:call("new_user", user_cert)
             """
-            result, error = self.propose(1, remote_node, script, user_cert)
+            result, error = self.propose(0, remote_node, script, user_cert)
             self.vote_using_majority(remote_node, result["id"])
 
     def set_lua_app(self, member_id, remote_node, app_script):
@@ -259,14 +286,14 @@ class Consortium:
                 LOG.warning(r.result)
 
                 # Load private key from member pem
-                with open(f"member{m}_kshare_priv.pem", "rb") as m_priv_pem:
+                with open(os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"), "rb") as m_priv_pem:
                     m_priv = load_pem_private_key(
                         m_priv_pem.read(), password=None, backend=default_backend(),
                     ).private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
 
                     LOG.error(m_priv.hex())
 
-                    with open(f"member{m}_kshare_pub.pem", "rb") as m_pub_pem:
+                    with open(os.path.join(self.common_dir, f"member{m}_kshare_pub.pem"), "rb") as m_pub_pem:
                         m_pub = load_pem_public_key(
                             m_pub_pem.read(), backend=default_backend(),
                         ).public_bytes(Encoding.Raw, PublicFormat.Raw)
@@ -318,7 +345,9 @@ class Consortium:
             current_status = rep.result["status"]
             current_cert = array.array("B", rep.result["cert"]).tobytes()
 
-            expected_cert = open("networkcert.pem", "rb").read()
+            expected_cert = open(
+                os.path.join(self.common_dir, "networkcert.pem"), "rb"
+            ).read()
             assert (
                 current_cert == expected_cert
             ), "Current service certificate did not match with networkcert.pem"
@@ -342,9 +371,12 @@ class Consortium:
     ):
         exists = False
         for _ in range(timeout):
-            if self._check_node_exists(remote_node, node_id, node_status):
-                exists = True
-                break
+            try:
+                if self._check_node_exists(remote_node, node_id, node_status):
+                    exists = True
+                    break
+            except TimeoutError:
+                LOG.warning(f"Node {node_id} has not been recorded in the store yet")
             time.sleep(1)
         if not exists:
             raise TimeoutError(

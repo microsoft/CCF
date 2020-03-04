@@ -45,8 +45,7 @@ private:
     {
       json j;
       j["name"] = to_string(i);
-      const auto response =
-        json::from_msgpack(conn->call("SmallBank_balance", j));
+      const auto response = conn->call("SmallBank_balance", j);
 
       check_response(response);
       accs.push_back({{"account", i}, {"balance", response["result"]}});
@@ -221,8 +220,7 @@ private:
 
       json j;
       j["name"] = to_string(account_it->get<size_t>());
-      const auto response =
-        json::from_msgpack(conn->call("SmallBank_balance", j));
+      const auto response = conn->call("SmallBank_balance", j);
 
       auto result_it = response.find("result");
       if (result_it == response.end())

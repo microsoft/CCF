@@ -187,3 +187,7 @@ void Byz_print_stats();
 void Byz_reset_client();
 /* Reverts client to its initial state to ensure independence of experimental
    points */
+
+bool Byz_execution_pending();
+/* We are executing an async operation do not execute any time based events
+   at this time */

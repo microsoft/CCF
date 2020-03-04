@@ -197,7 +197,7 @@ static void pre_verify_reply_cb(
 
   if (result)
   {
-    self->recv_process_one_msg(m);
+    self->process_message(m);
   }
   else
   {
@@ -220,7 +220,7 @@ static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
   resp->data.result = self->pre_verify(m);
 
   enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
-    0, std::move(resp));
+    enclave::ThreadMessaging::main_thread, std::move(resp));
 }
 
 static uint64_t verification_thread = 0;
@@ -351,7 +351,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   {
     if (pre_verify(m))
     {
-      recv_process_one_msg(m);
+      process_message(m);
     }
     else
     {
@@ -440,7 +440,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
 
   std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
   cmds.emplace_back(execute_tentative_request(
-    *req, playback_byz_info, playback_max_local_commit_value, true, &tx, true));
+    *req, playback_max_local_commit_value, true, &tx, true));
 
   exec_command(cmds, playback_byz_info);
 }
@@ -484,9 +484,11 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     global_commit(executable_pp.get());
 
-    if (executable_pp->is_signed() && f() > 0)
+    if (f() > 0 && (last_executed % checkpoint_interval == 0))
     {
-      mark_stable(last_executed, true);
+      Seqno stable_point = std::max(
+        last_executed - checkpoint_interval / 2, seqno_at_last_f_change);
+      mark_stable(stable_point, true);
     }
 
     if (playback_before_f == 0 && f() != 0)
@@ -532,9 +534,15 @@ void Replica::recv_start()
   }
 }
 
-void Replica::recv_process_one_msg(Message* m)
+void Replica::process_message(Message* m)
 {
   PBFT_ASSERT(m->tag() != New_key_tag, "Tag no longer supported");
+
+  if (is_exec_pending)
+  {
+    pending_recv_msgs.push_back(m);
+    return;
+  }
 
   switch (m->tag())
   {
@@ -693,7 +701,7 @@ void Replica::recv()
   while (1)
   {
     Message* m = Node::recv();
-    recv_process_one_msg(m);
+    process_message(m);
   }
 }
 
@@ -806,33 +814,49 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     next_pp_seqno++;
     LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
-    size_t requests_in_batch;
-    ByzInfo info;
-    Pre_prepare* pp =
-      new Pre_prepare(view(), next_pp_seqno, rqueue, requests_in_batch);
-    if (execute_tentative(pp, info))
+    auto ctx = std::make_unique<ExecTentativeCbCtx>();
+
+    Prepared_cert* ps = nullptr;
+    if (next_pp_seqno > congestion_window)
     {
-      LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
-                << std::endl;
+      ps = &plog.fetch(next_pp_seqno - congestion_window);
+    }
+    Pre_prepare* pp = new Pre_prepare(
+      view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ps);
+
+    auto fn = [](
+                Pre_prepare* pp,
+                Replica* self,
+                std::unique_ptr<ExecTentativeCbCtx> ctx) {
+      ByzInfo& info = ctx->info;
+
       pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
-      pp->set_digest(signed_version.load());
-      plog.fetch(next_pp_seqno).add_mine(pp);
+      pp->set_digest(self->signed_version.load());
+      self->plog.fetch(self->next_pp_seqno).add_mine(pp);
 
-      requests_per_batch.insert({next_pp_seqno, requests_in_batch});
+      self->requests_per_batch.insert(
+        {self->next_pp_seqno, ctx->requests_in_batch});
 
-      if (ledger_writer)
+      if (self->ledger_writer)
       {
-        last_te_version = ledger_writer->write_pre_prepare(pp);
+        self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
       }
-
       if (pbft::GlobalState::get_node().f() > 0)
       {
-        send(pp, All_replicas);
+        self->send(pp, All_replicas);
       }
       else
       {
-        send_prepare(next_pp_seqno, info);
+        self->send_prepare(self->next_pp_seqno, info);
       }
+      self->try_send_prepare();
+    };
+
+    is_exec_pending = true;
+    if (execute_tentative(pp, fn, std::move(ctx)))
+    {
+      LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
+                << std::endl;
     }
     else
     {
@@ -843,6 +867,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
         << std::endl;
       next_pp_seqno--;
       delete pp;
+      try_send_prepare();
     }
   }
 
@@ -943,10 +968,22 @@ void Replica::handle(Pre_prepare* m)
   delete m;
 }
 
+void Replica::try_send_prepare()
+{
+  is_exec_pending = false;
+  while (!pending_recv_msgs.empty() && !is_exec_pending)
+  {
+    Message* m = pending_recv_msgs.front();
+    pending_recv_msgs.pop_front();
+    process_message(m);
+  }
+}
+
 void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 {
-  while (plog.within_range(seqno))
+  if (plog.within_range(seqno))
   {
+    is_exec_pending = true;
     Prepared_cert& pc = plog.fetch(seqno);
 
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
@@ -954,51 +991,67 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       bool send_only_to_self = (f() == 0);
       // Send prepare to all replicas and log it.
       Pre_prepare* pp = pc.pre_prepare();
-      ByzInfo info;
+
+      auto fn = [](
+                  Pre_prepare* pp,
+                  Replica* self,
+                  std::unique_ptr<ExecTentativeCbCtx> msg) {
+        if (!self->compare_execution_results(msg->info, pp))
+        {
+          LOG_INFO_FMT(
+            "Merkle roots don't match in send prepare for seqno {}",
+            msg->seqno);
+          PBFT_ASSERT(false, "should not be here");
+
+          self->try_send_prepare();
+          return;
+        }
+
+        if (self->ledger_writer && !self->is_primary())
+        {
+          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+        }
+
+        Prepare* p = new Prepare(
+          self->v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
+        int send_node_id =
+          (msg->send_only_to_self ? self->node_id : All_replicas);
+        self->send(p, send_node_id);
+        Prepared_cert& pc = self->plog.fetch(msg->seqno);
+        pc.add_mine(p);
+        LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
+
+        if (pc.is_complete())
+        {
+          LOG_TRACE << "pc is complete for seqno: " << msg->seqno
+                    << " and sending commit" << std::endl;
+          self->send_commit(msg->seqno, send_node_id == self->node_id);
+        }
+
+        self->is_exec_pending = false;
+        self->send_prepare(msg->seqno + 1, msg->orig_byzinfo);
+      };
+
+      auto msg = std::make_unique<ExecTentativeCbCtx>();
+      msg->seqno = seqno;
+      msg->send_only_to_self = send_only_to_self;
+      msg->orig_byzinfo = byz_info;
       if (byz_info.has_value())
       {
-        info = byz_info.value();
+        msg->info = byz_info.value();
+        fn(pp, this, std::move(msg));
       }
       else
       {
-        if (!execute_tentative(pp, info))
+        if (!execute_tentative(pp, fn, std::move(msg)))
         {
-          break;
+          try_send_prepare();
         }
       }
-
-      if (!compare_execution_results(info, pp))
-      {
-        LOG_INFO_FMT(
-          "Merkle roots don't match in send prepare for seqno {}", seqno);
-        break;
-      }
-
-      if (ledger_writer && !is_primary())
-      {
-        last_te_version = ledger_writer->write_pre_prepare(pp);
-      }
-
-      Prepare* p =
-        new Prepare(v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
-      int send_node_id = (send_only_to_self ? node_id : All_replicas);
-      send(p, send_node_id);
-      pc.add_mine(p);
-      LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
-
-      if (pc.is_complete())
-      {
-        LOG_TRACE << "pc is complete for seqno: " << seqno
-                  << " and sending commit" << std::endl;
-        send_commit(seqno, send_node_id == node_id);
-      }
-      seqno++;
-    }
-    else
-    {
-      break;
+      return;
     }
   }
+  try_send_prepare();
 }
 
 void Replica::send_commit(Seqno s, bool send_only_to_self)
@@ -1054,11 +1107,6 @@ void Replica::handle(Prepare* m)
     Prepared_cert& ps = plog.fetch(ms);
     if (ps.add(m) && ps.is_complete())
     {
-      if (ledger_writer)
-      {
-        ledger_writer->write_prepare(ps, ms);
-      }
-
       send_commit(ms, f() == 0);
     }
     return;
@@ -1271,12 +1319,12 @@ void Replica::set_f(ccf::NodeId f)
     rqueue.clear();
   }
 
+  seqno_at_last_f_change = last_executed + 1;
   Node::set_f(f);
 }
 
 void Replica::emit_signature_on_next_pp(int64_t version)
 {
-  sign_next = true;
   signed_version = version;
 }
 
@@ -1402,7 +1450,7 @@ void Replica::handle(Status* m)
       if (m->has_nv_info())
       {
         min = std::max(last_stable + 1, m->last_executed() + 1);
-        LOG_TRACE_FMT("Rentransmitting from min {} to max {}", min, max);
+        LOG_TRACE_FMT("Retransmitting from min {} to max {}", min, max);
         if (
           last_stable > m->last_stable() &&
           last_executed > m->last_executed() + 1)
@@ -1851,9 +1899,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
   next_pp_seqno = max - 1;
 
-  // Call mark_stable to ensure there is space for the pre-prepares
-  // and prepares that are inserted in the log below.
-  mark_stable(last_executed, last_executed >= ms);
+  pbft::GlobalState::get_replica().set_next_expected_sig_offset();
 
   if (last_stable > min)
   {
@@ -2001,7 +2047,6 @@ void Replica::rollback_to_globally_comitted()
       "Roll back done, last tentative execute and last executed are {} {}",
       last_tentative_execute,
       last_executed);
-    pbft::GlobalState::get_replica().set_next_expected_sig_offset();
   }
 }
 
@@ -2097,7 +2142,6 @@ void Replica::execute_prepared(bool committed)
 
 std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   Request& request,
-  ByzInfo& info,
   int64_t& max_local_commit_value,
   bool include_markle_roots,
   ccf::Store::Tx* tx,
@@ -2118,7 +2162,6 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     last_tentative_execute,
     max_local_commit_value,
     stash_replier,
-    request,
     &Replica::execute_tentative_request_end,
     tx);
 
@@ -2153,12 +2196,11 @@ void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
     msg.client, msg.rid, msg.last_tentative_execute, msg.outb.size);
 }
 
-bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
+bool Replica::create_execute_commands(
+  Pre_prepare* pp,
+  int64_t& max_local_commit_value,
+  std::vector<std::unique_ptr<ExecCommandMsg>>& cmds)
 {
-  LOG_DEBUG_FMT(
-    "in execute tentative for seqno {} and last_tentnative_execute {}",
-    pp->seqno(),
-    last_tentative_execute);
   if (
     pp->seqno() == last_tentative_execute + 1 && !state.in_fetch_state() &&
     !state.in_check_state() && has_complete_new_view())
@@ -2167,28 +2209,80 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     LOG_TRACE << "in execute tentative with last_tentative_execute: "
               << last_tentative_execute
               << " and last_executed: " << last_executed << std::endl;
-
-    // Iterate over the requests in the message, calling execute for
-    // each of them.
     Pre_prepare::Requests_iter iter(pp);
     Request request;
-    int64_t max_local_commit_value = INT64_MIN;
-
-    std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
 
     while (iter.get(request))
     {
       auto cmd = execute_tentative_request(
         request,
-        info,
         max_local_commit_value,
         !iter.has_more_requests(),
         nullptr,
         pp->seqno());
       cmds.push_back(std::move(cmd));
     }
+    return true;
+  }
+  return false;
+}
+
+bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
+{
+  LOG_DEBUG_FMT(
+    "in execute tentative for seqno {} and last_tentnative_execute {}",
+    pp->seqno(),
+    last_tentative_execute);
+
+  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+  if (create_execute_commands(pp, info.max_local_commit_value, cmds))
+  {
+    exec_command(cmds, info);
+    return true;
+  }
+  return false;
+}
+
+void Replica::execute_tentative_callback(void* ctx)
+{
+  auto msg = std::unique_ptr<ExecuteTentativeCbMsg>(
+    reinterpret_cast<ExecuteTentativeCbMsg*>(ctx));
+  msg->fn(msg->pp, msg->self, std::move(msg->ctx));
+}
+
+bool Replica::execute_tentative(
+  Pre_prepare* pp,
+  void(cb)(Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>),
+  std::unique_ptr<ExecTentativeCbCtx> ctx)
+{
+  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
+  if (create_execute_commands(pp, ctx->info.max_local_commit_value, cmds))
+  {
+    ByzInfo& info = ctx->info;
+    if (cb != nullptr)
+    {
+      if (node_info.general_info.support_threading)
+      {
+        auto msg = new ExecuteTentativeCbMsg();
+        msg->self = this;
+        msg->pp = pp;
+        msg->fn = cb;
+        msg->ctx = std::move(ctx);
+        msg->ctx->info.cb = &execute_tentative_callback;
+        msg->ctx->info.cb_ctx = msg;
+      }
+      else
+      {
+        ctx->info.cb = nullptr;
+        ctx->info.cb_ctx = nullptr;
+      }
+    }
 
     exec_command(cmds, info);
+    if (!node_info.general_info.support_threading)
+    {
+      cb(pp, this, std::move(ctx));
+    }
     return true;
   }
   return false;
@@ -2295,19 +2389,21 @@ void Replica::execute_committed(bool was_f_0)
         }
 
         // Send and log Checkpoint message for the new state if needed
-        if (pp->is_signed() && f() > 0)
+        if (f() > 0 && (last_executed % checkpoint_interval == 0))
         {
           Digest d_state;
-          state.digest(last_executed, d_state);
-          Checkpoint* e = new Checkpoint(last_executed, d_state);
-          Certificate<Checkpoint>& cc = elog.fetch(last_executed);
+          Seqno stable_point = std::max(
+            last_executed - checkpoint_interval / 2, seqno_at_last_f_change);
+          state.digest(stable_point, d_state);
+          Checkpoint* e = new Checkpoint(stable_point, d_state);
+          Certificate<Checkpoint>& cc = elog.fetch(stable_point);
           cc.add_mine(e);
 
           send(e, All_replicas);
 
           if (cc.is_complete())
           {
-            mark_stable(last_executed, true);
+            mark_stable(stable_point, true);
           }
         }
       }
@@ -2546,7 +2642,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
   vi.mark_stable(last_stable);
   elog.truncate(last_stable);
   state.discard_checkpoints(last_stable, last_executed);
-  brt.mark_stable(last_stable);
+  brt.mark_stable(last_stable, rqueue);
 
   if (mark_stable_cb != nullptr)
   {
@@ -2878,8 +2974,14 @@ void Replica::send_null()
       Req_queue empty;
       size_t requests_in_batch;
 
+      Prepared_cert* ps = nullptr;
+      if (next_pp_seqno != 0)
+      {
+        ps = &plog.fetch(next_pp_seqno - 1);
+      }
+
       Pre_prepare* pp =
-        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch);
+        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch, ps);
       pp->set_digest();
       send(pp, All_replicas);
       plog.fetch(next_pp_seqno).add_mine(pp);
