@@ -149,7 +149,7 @@ namespace ccf
 
     void set_response_unauthorized(
       std::shared_ptr<enclave::RpcContext>& ctx,
-      const std::string& msg = "Failed to verify client signature") const
+      std::string&& msg = "Failed to verify client signature") const
     {
       ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
       ctx->set_response_header(
@@ -158,7 +158,7 @@ namespace ccf
           "Signature realm=\"Signed request access\", "
           "headers=\"(request-target) {}",
           http::headers::DIGEST));
-      ctx->set_response_body(std::vector<uint8_t>(msg.begin(), msg.end()));
+      ctx->set_response_body(std::move(msg));
     }
 
   public:

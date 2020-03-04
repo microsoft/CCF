@@ -177,15 +177,21 @@ namespace ccfapp
         const auto in = body_j.get<LoggingRecord::In>();
         if (in.msg.empty())
         {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body("Cannot record an empty log message");
+          return;
         }
 
         const auto log_line = fmt::format("{}: {}", cert.subject, in.msg);
         auto view = args.tx.get_view(records);
         view->put(in.id, log_line);
 
-        return make_success(true);
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        args.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
       // SNIPPET_END: log_record_prefix_cert
 
