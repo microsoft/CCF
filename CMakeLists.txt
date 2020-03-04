@@ -441,13 +441,6 @@ if(BUILD_TESTS)
     CONSENSUS raft
   )
 
-  # Storing signed votes test
-  add_e2e_test(
-    NAME voting_history_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/votinghistory.py
-    CONSENSUS raft
-  )
-
   # Member client end to end tests
   add_e2e_test(
     NAME member_client_test
