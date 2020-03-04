@@ -402,7 +402,7 @@ namespace ccf
             {
               setup_pbft(args.config);
             }
-            else
+            else if (args.consensus_type == ConsensusType::Raft)
             {
               setup_raft(resp->public_only);
             }

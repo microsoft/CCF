@@ -34,6 +34,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 )
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
@@ -554,8 +555,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --election-timeout 10000
     )
   endif()
-
-  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
 
   add_e2e_test(
     NAME late_joiners
