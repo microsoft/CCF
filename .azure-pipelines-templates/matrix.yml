@@ -93,51 +93,51 @@ parameters:
         ctest_args: '-LE "benchmark|perf|suite|raft|bench"'
 
 jobs:
-  - template: checks.yml
-    parameters:
-      env: ${{ parameters.env.Checks }}
-      job_name: 'Formatting_and_License_Checks'
+  # - template: checks.yml
+  #   parameters:
+  #     env: ${{ parameters.env.Checks }}
+  #     job_name: 'Formatting_and_License_Checks'
   
-  - ${{ each build_target in parameters.build_target }}:
-    - template: common_build.yml
-      parameters:
-        target: '${{ build_target }}'
-        env: ${{ parameters.env[build_target] }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[build_target].cmake_args }}'
-        suffix: 'Debug'
-        artifact_name: '${{ build_target }}_Debug'
+  # - ${{ each build_target in parameters.build_target }}:
+  #   - template: common_build.yml
+  #     parameters:
+  #       target: '${{ build_target }}'
+  #       env: ${{ parameters.env[build_target] }}
+  #       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[build_target].cmake_args }}'
+  #       suffix: 'Debug'
+  #       artifact_name: '${{ build_target }}_Debug'
 
-  # Debug test runs with code coverage
-  - ${{ each target in parameters.target }}:
-    - ${{ each consensus in parameters.consensus }}:
-      - template: common_test.yml
-        parameters:
-          target: ${{ target }}
-          consensus: ${{ consensus }}
-          env: ${{ parameters.env[target] }}
-          ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
-          suffix: 'Debug'
-          artifact_name: 'Build_${{ target }}_Debug'
+  # # Debug test runs with code coverage
+  # - ${{ each target in parameters.target }}:
+  #   - ${{ each consensus in parameters.consensus }}:
+  #     - template: common_test.yml
+  #       parameters:
+  #         target: ${{ target }}
+  #         consensus: ${{ consensus }}
+  #         env: ${{ parameters.env[target] }}
+  #         ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
+  #         suffix: 'Debug'
+  #         artifact_name: 'Build_${{ target }}_Debug'
 
-  # SAN build (ASAN & UBSAN)
-  - template: common_build.yml
-    parameters:
-      target: Build_NoSGX
-      env: ${{ parameters.env.Build_SAN }}
-      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-      suffix: 'SAN'
-      artifact_name: 'Build_NoSGX_SAN'
+  # # SAN build (ASAN & UBSAN)
+  # - template: common_build.yml
+  #   parameters:
+  #     target: Build_NoSGX
+  #     env: ${{ parameters.env.Build_SAN }}
+  #     cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
+  #     suffix: 'SAN'
+  #     artifact_name: 'Build_NoSGX_SAN'
 
-  # SAN Tests
-  - ${{ each consensus in parameters.consensus }}:
-    - template: common_test.yml
-      parameters:
-        target: NoSGX
-        consensus: ${{ consensus }}
-        env: ${{ parameters.env.SAN }}
-        ctest_filter: '${{ parameters.test.san[consensus].ctest_args }}'
-        suffix: 'SAN'
-        artifact_name: 'Build_NoSGX_SAN'
+  # # SAN Tests
+  # - ${{ each consensus in parameters.consensus }}:
+  #   - template: common_test.yml
+  #     parameters:
+  #       target: NoSGX
+  #       consensus: ${{ consensus }}
+  #       env: ${{ parameters.env.SAN }}
+  #       ctest_filter: '${{ parameters.test.san[consensus].ctest_args }}'
+  #       suffix: 'SAN'
+  #       artifact_name: 'Build_NoSGX_SAN'
 
   # Performance build
   - template: common_build.yml
