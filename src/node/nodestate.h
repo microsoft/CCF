@@ -406,6 +406,10 @@ namespace ccf
             {
               setup_raft(resp->public_only);
             }
+            else
+            {
+              throw std::logic_error("Unknown consensus type");
+            }
 
             setup_history();
             setup_encryptor(args.consensus_type);
@@ -590,7 +594,6 @@ namespace ccf
         h->set_node_id(self);
 
       setup_raft(true);
-      LOG_INFO_FMT("What is consensus type {}", consensus->type());
 
       LOG_DEBUG_FMT(
         "Restarting Raft at index: {} term: {} commit_idx {}",

@@ -438,8 +438,8 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME governance_history_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
+    CONSENSUS raft
   )
-  set_property(TEST governance_history_test PROPERTY LABELS raft_scenario)
 
   # Storing signed votes test
   add_e2e_test(
