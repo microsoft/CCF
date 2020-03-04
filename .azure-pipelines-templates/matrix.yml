@@ -173,17 +173,17 @@ jobs:
     parameters:
       env: ${{ parameters.env.Metrics }}
 
-  # Release build
-  - template: common_build.yml
-    parameters:
-      target: Build_SGX
-      env: ${{ parameters.env.Build_Release }}
-      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
-      suffix: 'Release'
-      artifact_name: 'Build_SGX_Release'
-
   # Publish release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
+    # Release build
+    - template: common_build.yml
+      parameters:
+        target: Build_SGX
+        env: ${{ parameters.env.Build_Release }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
+        suffix: 'Release'
+        artifact_name: 'Build_SGX_Release'
+
     # Release builds
     - ${{ each consensus in parameters.consensus }}:
       - template: common_test.yml
