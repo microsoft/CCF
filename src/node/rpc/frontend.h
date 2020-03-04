@@ -282,6 +282,12 @@ namespace ccf
           tx.set_req_id(reqid);
           return std::nullopt;
         }
+        else
+        {
+          return ctx->error_response(
+            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            "PBFT is not yet ready.");
+        }
       }
       else
       {

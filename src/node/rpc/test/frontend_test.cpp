@@ -545,7 +545,7 @@ DOCTEST_TEST_CASE("process")
     DOCTEST_CHECK(value.sig == signed_req.sig);
   }
 
-  SUBCASE("request without signature on sign-only handler")
+  DOCTEST_SUBCASE("request without signature on sign-only handler")
   {
     const auto unsigned_req = create_simple_request("empty_function_signed");
     const auto serialized_call = unsigned_req.build_request();
@@ -555,11 +555,12 @@ DOCTEST_TEST_CASE("process")
     auto response = parse_response(serialized_response);
 
     const auto err_it = response.find(jsonrpc::ERR);
-    REQUIRE(err_it != response.end());
+    DOCTEST_REQUIRE(err_it != response.end());
     const auto error = *err_it;
-    CHECK(error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
+    DOCTEST_CHECK(
+      error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
     const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
-    CHECK(error_msg.find("RPC must be signed") != std::string::npos);
+    DOCTEST_CHECK(error_msg.find("RPC must be signed") != std::string::npos);
   }
 }
 
