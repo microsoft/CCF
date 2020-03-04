@@ -34,14 +34,6 @@ class GcmHeader:
 
 
 class LedgerDomain:
-
-    _buffer = None
-    _unpacker = None
-    _buffer_size = 0
-    _version = 0
-    _read_version = 0
-    _tables = {}
-
     def __init__(self, buffer):
         self._buffer = buffer
         self._buffer_size = buffer.getbuffer().nbytes
