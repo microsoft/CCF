@@ -32,3 +32,4 @@ jobs:
       - template: install.yml
         parameters:
           install_prefix: ${{ parameters.install_prefix }}
+          suffix: ${{ parameters.suffix }}
