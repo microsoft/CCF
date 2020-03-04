@@ -168,7 +168,7 @@ namespace ccf
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
         auto caller_pem =
-          tls::make_verifier(args.rpc_ctx->session.caller_cert)->cert_pem();
+          tls::make_verifier(args.rpc_ctx->session->caller_cert)->cert_pem();
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};
 

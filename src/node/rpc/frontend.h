@@ -147,6 +147,20 @@ namespace ccf
       return true;
     }
 
+    void set_response_unauthorized(
+      std::shared_ptr<enclave::RpcContext>& ctx,
+      const std::string& msg = "Failed to verify client signature") const
+    {
+      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_response_header(
+        http::headers::WWW_AUTHENTICATE,
+        fmt::format(
+          "Signature realm=\"Signed request access\", "
+          "headers=\"(request-target) {}",
+          http::headers::DIGEST));
+      ctx->set_response_body(std::vector<uint8_t>(msg.begin(), msg.end()));
+    }
+
   public:
     RpcFrontend(
       Store& tables_,
@@ -233,14 +247,7 @@ namespace ccf
             caller_id.value(),
             signed_request.value()))
         {
-          ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
-          ctx->set_response_header(
-            http::headers::WWW_AUTHENTICATE,
-            fmt::format(
-              "Signature realm=\"Signed request access\", "
-              "headers=\"(request-target) {}",
-              http::headers::DIGEST));
-          ctx->set_response_body("Failed to verify client signature");
+          set_response_unauthorized(ctx);
           return ctx->serialise_response();
         }
 
@@ -451,9 +458,9 @@ namespace ccf
         handler->require_client_signature &&
         !ctx->get_signed_request().has_value())
       {
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED,
-          fmt::format("{} RPC must be signed", method));
+        set_response_unauthorized(
+          ctx, fmt::format("'{}' RPC must be signed", method));
+        return ctx->serialise_response();
       }
 
       update_history();

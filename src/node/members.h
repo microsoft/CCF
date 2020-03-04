@@ -96,8 +96,6 @@ namespace ccf
     //! the signed request containing the last state digest
     SignedReq signed_req = {};
 
-    std::vector<uint8_t> delete_me;
-
     MemberAck() {}
 
     MemberAck(const crypto::Sha256Hash& root) : StateDigest(root) {}

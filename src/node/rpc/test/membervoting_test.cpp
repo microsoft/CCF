@@ -539,33 +539,35 @@ TEST_CASE("Add new members until there are 7 then reject")
       // (1) read ack entry
       const auto read_state_digest_req = create_request(
         read_params(new_member->id, Tables::MEMBER_ACKS), "read");
-      const auto ack0 = parse_response_body<MemberAck>(
-        frontend_process(frontend, read_nonce_req, new_member->cert));
+      const auto ack0 = parse_response_body<StateDigest>(
+        frontend_process(frontend, read_state_digest_req, new_member->cert));
 
       // (2) ask for a fresher digest of state
       const auto freshen_state_digest_req =
         create_request(nullptr, "updateAckStateDigest");
-      check_success(
+      const auto freshen_state_digest = parse_response_body<StateDigest>(
         frontend_process(frontend, freshen_state_digest_req, new_member->cert));
+      CHECK(freshen_state_digest.state_digest != ack0.state_digest);
 
       // (3) read ack entry again and check that the state digest has changed
-      const auto ack1 = parse_response_body<MemberAck>(
+      const auto ack1 = parse_response_body<StateDigest>(
         frontend_process(frontend, read_state_digest_req, new_member->cert));
-      CHECK(ack0.next_nonce != ack1.next_nonce);
+      CHECK(ack0.state_digest != ack1.state_digest);
+      CHECK(freshen_state_digest.state_digest == ack1.state_digest);
 
       // (4) sign stale state and send it
       StateDigest params;
-      params.state_digest = ack0.result.state_digest;
+      params.state_digest = ack0.state_digest;
       const auto send_stale_sig_req =
         create_signed_request(params, "ack", new_member->kp);
       check_error(
         frontend_process(frontend, send_stale_sig_req, new_member->cert),
-        HTTP_STATUS_FORBIDDEN);
+        HTTP_STATUS_BAD_REQUEST);
 
       // (5) sign new state digest and send it
-      const auto good_sig = RawSignature{new_member->kp->sign(ack1.next_nonce)};
+      params.state_digest = ack1.state_digest;
       const auto send_good_sig_req =
-        create_signed_request(good_sig, "ack", new_member->kp);
+        create_signed_request(params, "ack", new_member->kp);
       check_success(
         frontend_process(frontend, send_good_sig_req, new_member->cert));
 
@@ -624,7 +626,7 @@ TEST_CASE("Accept node")
       return Calls:call("trust_node", node_id)
     )xxx");
     const auto propose =
-      create_signed_request(Propose::In{proposal, node_id}, "propose", );
+      create_signed_request(Propose::In{proposal, node_id}, "propose", new_kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 

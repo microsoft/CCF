@@ -455,18 +455,15 @@ namespace ccf
       install_with_auto_schema<Propose>(
         MemberProcs::PROPOSE, json_adapter(propose), Write);
 
-      auto withdraw = [this](
-                        Store::Tx& tx,
-                        CallerId caller_id,
-                        const nlohmann::json& params) {
-        if (!check_member_active(tx, caller_id))
+      auto withdraw = [this](RequestArgs& args, const nlohmann::json& params) {
+        if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
         const auto proposal_action = params.get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
-        auto proposals = tx.get_view(this->network.proposals);
+        auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
 
         if (!proposal)
@@ -476,7 +473,7 @@ namespace ccf
             fmt::format("Proposal {} does not exist", proposal_id));
         }
 
-        if (proposal->proposer != caller_id)
+        if (proposal->proposer != args.caller_id)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
@@ -484,7 +481,7 @@ namespace ccf
               "Proposal {} can only be withdrawn by proposer {}, not caller {}",
               proposal_id,
               proposal->proposer,
-              caller_id));
+              args.caller_id));
         }
 
         if (proposal->state != ProposalState::OPEN)
@@ -552,7 +549,7 @@ namespace ccf
         return make_success(complete_proposal(args.tx, vote.id));
       };
       install_with_auto_schema<Vote, bool>(
-        MemberProcs::VOTE, vote, Write, true);
+        MemberProcs::VOTE, json_adapter(vote), Write, true);
 
       auto complete =
         [this](
@@ -572,25 +569,28 @@ namespace ccf
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args, const nlohmann::json& params) {
-        auto mas = args.tx.get_view(this->network.member_acks);
-        const auto last_ma = mas->get(args.caller_id);
-        if (!last_ma)
+        const auto signed_request = args.rpc_ctx->get_signed_request();
+
+        auto [ma_view, sig_view] =
+          args.tx.get_view(this->network.member_acks, this->network.signatures);
+        const auto ma = ma_view->get(args.caller_id);
+        if (!ma)
         {
           return make_error(
             HTTP_STATUS_FORBIDDEN,
             fmt::format("No ACK record exists for caller {}", args.caller_id));
         }
 
-        auto verifier = tls::make_verifier(
-          std::vector<uint8_t>(args.rpc_ctx->session.caller_cert));
-        const auto rs = params.get<RawSignature>();
-        if (!verifier->verify(last_ma->next_nonce, rs.sig))
+        const auto digest = params.get<StateDigest>();
+        if (ma->state_digest != digest.state_digest)
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, "Signature is not valid");
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, "Submitted state digest is not valid");
         }
 
-        MemberAck next_ma{rs.sig, rng->random(SIZE_NONCE)};
-        mas->put(args.caller_id, next_ma);
+        ma_view->put(
+          args.caller_id,
+          MemberAck(sig_view->get(0)->root, signed_request.value()));
 
         // update member status to ACTIVE
         auto members = args.tx.get_view(this->network.members);
@@ -623,17 +623,16 @@ namespace ccf
           ma->state_digest = std::vector<uint8_t>(root.h.begin(), root.h.end());
           ma_view->put(caller_id, ma.value());
 
-          return make_success(ma->state_digest);
+          return make_success(ma.value());
         };
       install_with_auto_schema<void, StateDigest>(
         MemberProcs::UPDATE_ACK_STATE_DIGEST,
         json_adapter(update_state_digest),
         Write);
 
-      auto create = [this](RequestArgs& args) {
+      auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
         LOG_DEBUG_FMT("Processing create RPC");
-        const auto in =
-          args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
+        const auto in = params.get<CreateNetworkNodeToNode::In>();
 
         GenesisGenerator g(this->network, tx);
 

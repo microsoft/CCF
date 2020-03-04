@@ -49,7 +49,7 @@ public:
     install("empty_function", empty_function, HandlerRegistry::Read);
 
     auto empty_function_signed = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install(
       "empty_function_signed",
@@ -514,19 +514,29 @@ TEST_CASE("process")
 
   SUBCASE("request without signature on sign-only handler")
   {
-    const auto unsigned_req = create_simple_request("empty_function_signed");
-    const auto serialized_call = unsigned_req.build_request();
+    const auto unsigned_call = create_simple_request("empty_function_signed");
+    const auto serialized_call = unsigned_call.build_request();
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
 
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
 
-    const auto err_it = response.find(jsonrpc::ERR);
-    REQUIRE(err_it != response.end());
-    const auto error = *err_it;
-    CHECK(error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
-    const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
+    CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
+    const std::string error_msg(response.body.begin(), response.body.end());
     CHECK(error_msg.find("RPC must be signed") != std::string::npos);
+  }
+
+  SUBCASE("request with signature on sign-only handler")
+  {
+    const auto unsigned_call = create_simple_request("empty_function_signed");
+    const auto [signed_call, signed_req] = create_signed_request(unsigned_call);
+    const auto serialized_call = signed_call.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    const auto serialized_response = frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 }
 
@@ -833,10 +843,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->is_empty());
 
     const auto response = parse_response(r.value());
-    CHECK(
-      response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
+    CHECK(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
   }
 
   {
@@ -877,7 +884,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     CHECK(r.has_value());
     add_callers_primary_store();
     auto response = parse_response(r.value());
-    CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 }
 
