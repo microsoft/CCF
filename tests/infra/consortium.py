@@ -11,6 +11,7 @@ import infra.proc
 import infra.checker
 import infra.node
 import infra.crypto
+import base64
 
 from loguru import logger as LOG
 
@@ -278,6 +279,14 @@ class Consortium:
         result, error = self.propose(member_id, remote_node, script, sealed_secrets)
         self.vote_using_majority(remote_node, result["id"])
 
+    def store_current_network_encryption_key(self):
+        cmd = [
+            "cp",
+            os.path.join(self.common_dir, f"network_enc_pubk.pem"),
+            os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+        ]
+        infra.proc.ccall(*cmd).check_returncode()
+
     def get_and_decrypt_shares(self, remote_node):
         for m in self.members:
             LOG.warning("Get share for member")
@@ -285,32 +294,51 @@ class Consortium:
                 r = mc.rpc("getEncryptedRecoveryShare", params={})
                 LOG.warning(r.result)
 
+                ctx = infra.crypto.CryptoBoxCtx(
+                    os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"),
+                    os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+                )
+
+                nonce_bytes = bytes(r.result["nonce"])
+                encrypted_share_bytes = bytes(r.result["encrypted_share"])
+                LOG.error(encrypted_share_bytes.hex())
+                LOG.error(nonce_bytes.hex())
+                LOG.error(len(nonce_bytes))
+
+                LOG.warning(
+                    base64.b64encode(ctx.decrypt(encrypted_share_bytes, nonce_bytes,))
+                )
+
                 # Load private key from member pem
-                with open(os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"), "rb") as m_priv_pem:
-                    m_priv = load_pem_private_key(
-                        m_priv_pem.read(), password=None, backend=default_backend(),
-                    ).private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+                # with open(
+                #     os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"), "rb"
+                # ) as m_priv_pem:
+                #     m_priv = load_pem_private_key(
+                #         m_priv_pem.read(), password=None, backend=default_backend(),
+                #     ).private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
 
-                    LOG.error(m_priv.hex())
+                #     LOG.error(m_priv.hex())
 
-                    with open(os.path.join(self.common_dir, f"member{m}_kshare_pub.pem"), "rb") as m_pub_pem:
-                        m_pub = load_pem_public_key(
-                            m_pub_pem.read(), backend=default_backend(),
-                        ).public_bytes(Encoding.Raw, PublicFormat.Raw)
+                #     with open(
+                #         os.path.join(self.common_dir, f"member{m}_kshare_pub.pem"), "rb"
+                #     ) as m_pub_pem:
+                #         m_pub = load_pem_public_key(
+                #             m_pub_pem.read(), backend=default_backend(),
+                #         ).public_bytes(Encoding.Raw, PublicFormat.Raw)
 
-                        LOG.error(m_pub.hex())
+                # LOG.error(m_pub.hex())
 
-                    skbob = PrivateKey.generate()
-                    pkbob = skbob.public_key
+                # skbob = PrivateKey.generate()
+                # pkbob = skbob.public_key
 
-                    sender_box = Box(PrivateKey(m_priv, RawEncoder), pkbob)
-                    recipient_box = Box(skbob, PublicKey(m_pub, RawEncoder))
+                # sender_box = Box(PrivateKey(m_priv, RawEncoder), pkbob)
+                # recipient_box = Box(skbob, PublicKey(m_pub, RawEncoder))
 
-                    msg = b"Hello world"
-                    cipher = sender_box.encrypt(msg)
-                    decrypted = recipient_box.decrypt(cipher)
-                    LOG.warning(decrypted)
-                    assert msg == decrypted
+                # msg = b"Hello world"
+                # cipher = sender_box.encrypt(msg)
+                # decrypted = recipient_box.decrypt(cipher)
+                # LOG.warning(decrypted)
+                # assert msg == decrypted
 
                 # TODO: Try to decrypt share
                 # 1. Parse member private key

@@ -327,6 +327,8 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
+          network.encryption_priv_key =
+            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
 
           setup_history();
           setup_encryptor();
@@ -339,7 +341,10 @@ namespace ccf
 
           sm.advance(State::readingPublicLedger);
 
-          return Success<CreateNew::Out>({node_cert, network.identity->cert});
+          return Success<CreateNew::Out>(
+            {node_cert,
+             network.identity->cert,
+             crypto::BoxKey::public_from_private(network.encryption_priv_key)});
         }
         default:
         {
