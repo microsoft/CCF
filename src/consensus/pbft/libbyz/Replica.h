@@ -366,7 +366,7 @@ private:
   // Effects: Updates this to reflect that the checkpoint with
   // sequence number "seqno" was fetch.
 
-  Pre_prepare* prepared_pre_prepare(Seqno s);
+  Pre_prepare* prepared_pre_prepare(Seqno s, bool was_f_0 = false);
   // Effects: Returns non-zero iff there is a pre-prepare pp that prepared for
   // sequence number "s" (in this case it returns pp).
 
