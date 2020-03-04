@@ -133,7 +133,7 @@ class Consortium:
     def update_ack_state_digest(self, member_id, remote_node):
         with remote_node.member_client(member_id=member_id) as mc:
             res = mc.rpc("updateAckStateDigest", params={})
-            return bytearray(res.result)
+            return bytearray(res.result["state_digest"])
 
     def ack(self, member_id, remote_node):
         state_digest = self.update_ack_state_digest(member_id, remote_node)

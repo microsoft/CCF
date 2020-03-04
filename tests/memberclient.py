@@ -132,11 +132,11 @@ def run(args):
 
         LOG.debug("Members vote to accept the accept node proposal")
         result = network.consortium.vote(0, primary, proposal_id, True)
-        assert result[0] and not result[1]
+        assert result[0] and not result[1].result
 
         # Result is true with 3 votes (proposer, member 0, and member 1)
         result = network.consortium.vote(1, primary, proposal_id, True)
-        assert result[0] and result[1]
+        assert result[0] and result[1].result
 
         LOG.info("New member makes a new proposal")
         response = network.consortium.propose(3, primary, script, 1)
@@ -164,11 +164,11 @@ def run(args):
         LOG.debug("Further votes fail")
         result = network.consortium.vote(3, primary, proposal_id, True)
         assert not result[0]
-        assert result[1]["code"] == params_error
+        assert result[1].status == params_error
 
         result = network.consortium.vote(3, primary, proposal_id, False)
         assert not result[0]
-        assert result[1]["code"] == params_error
+        assert result[1].status == params_error
 
         LOG.debug("New member proposes to deactivate member 0")
         response = network.consortium.propose(3, primary, query, 0)
@@ -178,10 +178,10 @@ def run(args):
 
         LOG.debug("Other members accept the proposal")
         result = network.consortium.vote(2, primary, proposal_id, True)
-        assert result[0] and not result[1]
+        assert result[0] and not result[1].result
 
         result = network.consortium.vote(1, primary, proposal_id, True)
-        assert result[0] and result[1]
+        assert result[0] and result[1].result
 
         LOG.debug("Deactivated member cannot make a new proposal")
         response = network.consortium.propose(0, primary, script, 0)
