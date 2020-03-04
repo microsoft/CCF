@@ -10,6 +10,6 @@ steps:
   workingDirectory: build
 
 - script: | 
-    cmake .. -L
+    cmake .. -L ${{ parameters.cmake_args }}
   displayName: Re-generate test metadata 
   workingDirectory: build

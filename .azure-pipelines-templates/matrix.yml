@@ -61,6 +61,10 @@ parameters:
       cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
     Build_SGX:
       cmake_args: ''
+    NoSGX:
+      cmake_args: '-DTARGET=virtual -DCOVERAGE=ON'
+    SGX:
+      cmake_args: ''
     debug:
       cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DVERBOSE_LOGGING=ON -DBUILD_SMALLBANK=OFF'
     install:
@@ -122,6 +126,7 @@ jobs:
           target: ${{ target }}
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
           ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
           suffix: 'Debug'
           artifact_name: 'Build_${{ target }}_Debug'
@@ -142,6 +147,7 @@ jobs:
         target: NoSGX
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SAN }}
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
         ctest_filter: '${{ parameters.test.san[consensus].ctest_args }}'
         suffix: 'SAN'
         artifact_name: 'Build_NoSGX_SAN'
@@ -164,6 +170,7 @@ jobs:
           consensus: ${{ consensus }}
           env: ${{ parameters.env.Perf }}
           install_prefix: '${{ parameters.build.install.install_prefix }}'
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
           ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
           artifact_name: 'Build_SGX_Perf'
@@ -192,6 +199,7 @@ jobs:
           consensus: ${{ consensus }}
           env: ${{ parameters.env.Release }}
           install_prefix: '${{ parameters.build.install.install_prefix }}'
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
           ctest_filter: '${{ parameters.test.Release[consensus].ctest_args }}'
           suffix: 'Release'
           artifact_name: 'Build_SGX_Release'
