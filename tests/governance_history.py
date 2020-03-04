@@ -7,6 +7,7 @@ import infra.remote
 import infra.crypto
 import infra.ledger
 import json
+import http
 
 from loguru import logger as LOG
 
@@ -84,7 +85,7 @@ def run(args):
 
         LOG.debug("Unsigned votes are rejected")
         result = network.consortium.vote(1, primary, proposal_id, True, True)
-        assert not result[0] and result[1].status == http.HTTPStatus.BAD_REQUEST.value
+        assert not result[0] and result[1].status == http.HTTPStatus.UNAUTHORIZED.value
 
         result = network.consortium.vote(2, primary, proposal_id, True)
         assert result[0] and result[1].result

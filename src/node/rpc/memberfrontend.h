@@ -434,24 +434,27 @@ namespace ccf
       install_with_auto_schema<Script, nlohmann::json>(
         MemberProcs::QUERY, json_adapter(query), Read);
 
-      auto propose =
-        [this](
-          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
-          if (!check_member_active(tx, caller_id))
-          {
-            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-          }
+      auto propose = [this](RequestArgs& args, const nlohmann::json& params) {
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+        }
 
-          const auto in = params.get<Propose::In>();
-          const auto proposal_id = get_next_id(
-            tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
-          Proposal proposal(in.script, in.parameter, caller_id);
-          auto proposals = tx.get_view(this->network.proposals);
-          proposal.votes[caller_id] = in.ballot;
-          proposals->put(proposal_id, proposal);
-          const bool completed = complete_proposal(tx, proposal_id);
-          return make_success(Propose::Out({proposal_id, completed}));
-        };
+        const auto in = params.get<Propose::In>();
+        const auto proposal_id = get_next_id(
+          args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
+        Proposal proposal(in.script, in.parameter, args.caller_id);
+
+        auto proposals = args.tx.get_view(this->network.proposals);
+        proposal.votes[args.caller_id] = in.ballot;
+        proposals->put(proposal_id, proposal);
+        const bool completed = complete_proposal(args.tx, proposal_id);
+
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
+
+        return make_success(Propose::Out({proposal_id, completed}));
+      };
       install_with_auto_schema<Propose>(
         MemberProcs::PROPOSE, json_adapter(propose), Write);
 
