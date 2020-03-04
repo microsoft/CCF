@@ -1,0 +1,125 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+import infra.e2e_args
+import infra.ccf
+import infra.proc
+import infra.remote
+import infra.crypto
+import infra.ledger
+import json
+
+from loguru import logger as LOG
+
+
+def count_governance_operations(ledger):
+    LOG.debug("Audit the ledger file for governance operations")
+
+    members = {}
+    verified_votes = 0
+    verified_proposals = 0
+    verified_withdrawals = 0
+
+    for tr in ledger:
+        tables = tr.get_public_domain().get_tables()
+        if "ccf.member_certs" in tables:
+            members_table = tables["ccf.member_certs"]
+            for cert, member_id in members_table.items():
+                members[member_id] = cert
+
+        if "ccf.governance.history" in tables:
+            governance_history_table = tables["ccf.governance.history"]
+            for member_id, signed_request in governance_history_table.items():
+                assert member_id in members
+                cert = members[member_id]
+                sig = signed_request[0][0]
+                req = signed_request[0][1]
+                request_body = signed_request[0][2]
+                digest = signed_request[0][3]
+                infra.crypto.verify_request_sig(cert, sig, req, request_body, digest)
+                if "members/propose" in req.decode():
+                    verified_proposals += 1
+                elif "members/vote" in req.decode():
+                    verified_votes += 1
+                elif "members/withdraw" in req.decode():
+                    verified_withdrawals += 1
+
+    return (verified_proposals, verified_votes, verified_withdrawals)
+
+
+def run(args):
+    hosts = ["localhost", "localhost"]
+
+    # Keep track of how many propose, vote and withdraw are issued in this test
+    proposals_issued = 0
+    votes_issued = 0
+    withdrawals_issued = 0
+
+    with infra.ccf.network(
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        primary, term = network.find_primary()
+
+        ledger_filename = network.find_primary()[0].remote.ledger_path()
+        ledger = infra.ledger.Ledger(ledger_filename)
+        (
+            original_proposals,
+            original_votes,
+            original_withdrawals,
+        ) = count_governance_operations(ledger)
+
+        LOG.info("Add new member proposal")
+        response = network.consortium.generate_and_propose_new_member(
+            0, primary, new_member_id=3, curve=infra.ccf.ParticipantsCurve.secp256k1
+        )
+        assert response.status == http.HTTPStatus.OK.value
+        assert not response.result["completed"]
+        proposal_id = response.result["id"]
+        proposals_issued += 1
+
+        LOG.debug("2/3 members accept the proposal")
+        result = network.consortium.vote(0, primary, proposal_id, True)
+        assert result[0] and not result[1].result
+        votes_issued += 1
+
+        LOG.debug("Unsigned votes are rejected")
+        result = network.consortium.vote(1, primary, proposal_id, True, True)
+        assert not result[0] and result[1].status == http.HTTPStatus.BAD_REQUEST.value
+
+        result = network.consortium.vote(2, primary, proposal_id, True)
+        assert result[0] and result[1].result
+        votes_issued += 1
+
+        LOG.info("Create new proposal but withdraw it before it is accepted")
+        response = network.consortium.generate_and_propose_new_member(
+            1, primary, new_member_id=4, curve=infra.ccf.ParticipantsCurve.secp256k1
+        )
+        assert response.status == http.HTTPStatus.OK.value
+        assert not response.result["completed"]
+        proposal_id = response.result["id"]
+        proposals_issued += 1
+
+        result = network.consortium.withdraw(1, primary, proposal_id)
+        assert result.result
+        withdrawals_issued += 1
+
+    (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(
+        ledger
+    )
+
+    assert (
+        final_proposals == original_proposals + proposals_issued
+    ), f"Unexpected number of propose operations recorded in the ledger (expected {original_proposals + proposals_issued}, found {final_proposals})"
+    assert (
+        final_votes == original_votes + votes_issued
+    ), f"Unexpected number of vote operations recorded in the ledger (expected {original_votes + votes_issued}, found {final_votes})"
+    assert (
+        final_withdrawals == original_withdrawals + withdrawals_issued
+    ), f"Unexpected number of withdraw operations recorded in the ledger (expected {original_withdrawals + withdrawals_issued}, found {final_withdrawals})"
+
+
+if __name__ == "__main__":
+
+    args = infra.e2e_args.cli_args()
+    args.package = "liblogging"
+    run(args)

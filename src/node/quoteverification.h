@@ -52,7 +52,9 @@ namespace ccf
       crypto::Sha256Hash hash{cert};
       if (
         parsed_quote.report_data_size != crypto::Sha256Hash::SIZE &&
-        memcmp(hash.h, parsed_quote.report_data, crypto::Sha256Hash::SIZE) != 0)
+        memcmp(
+          hash.h.data(), parsed_quote.report_data, crypto::Sha256Hash::SIZE) !=
+          0)
       {
         return QuoteVerificationResult::FAIL_VERIFY_INVALID_HASH;
       }

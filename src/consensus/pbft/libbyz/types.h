@@ -48,7 +48,11 @@ static const uint32_t MERKLE_ROOT_SIZE = 32;
 struct ByzInfo
 {
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
-  int64_t ctx;
+  int64_t ctx = INT64_MIN;
+  void (*cb)(void* ctx) = nullptr;
+  void* cb_ctx = nullptr;
+  int64_t max_local_commit_value = INT64_MIN;
+  uint32_t pending_cmd_callbacks;
 };
 
 class Request;
@@ -67,7 +71,6 @@ struct ExecCommandMsg
     Seqno last_tentative_execute_,
     int64_t& max_local_commit_value_,
     int replier_,
-    Request& request_,
     void (*cb_)(ExecCommandMsg& msg, ByzInfo& info),
     // if tx is nullptr we are in normal execution, otherwise we
     // are in playback mode
@@ -81,7 +84,6 @@ struct ExecCommandMsg
     last_tentative_execute(last_tentative_execute_),
     max_local_commit_value(max_local_commit_value_),
     replier(replier_),
-    request(request_),
     cb(cb_),
     tx(tx_)
   {}
@@ -100,7 +102,6 @@ struct ExecCommandMsg
   Seqno last_tentative_execute;
   int64_t& max_local_commit_value;
   int replier;
-  Request& request;
   void (*cb)(ExecCommandMsg& msg, ByzInfo& info);
 };
 

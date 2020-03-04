@@ -9,6 +9,7 @@
 #include "Partition.h"
 #include "Reply.h"
 #include "Time.h"
+#include "ds/spinlock.h"
 #include "types.h"
 
 #include <memory>
@@ -95,6 +96,7 @@ private:
     }
   };
   std::unordered_map<Key, std::unique_ptr<Reply>, KeyHash> reps;
+  SpinLock lock;
 };
 
 inline Seqno Rep_info::total_requests_processed() const

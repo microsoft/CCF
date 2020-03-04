@@ -12,12 +12,12 @@
 
 namespace ccf
 {
-  struct VotingHistory
+  struct GovernanceHistoryEntry
   {
     SignedReq signed_request;
     MSGPACK_DEFINE(signed_request);
   };
-  DECLARE_JSON_TYPE(VotingHistory)
-  DECLARE_JSON_REQUIRED_FIELDS(VotingHistory, signed_request)
-  using VotingHistoryTable = Store::Map<MemberId, VotingHistory>;
+  DECLARE_JSON_TYPE(GovernanceHistoryEntry)
+  DECLARE_JSON_REQUIRED_FIELDS(GovernanceHistoryEntry, signed_request)
+  using GovernanceHistory = Store::Map<MemberId, GovernanceHistoryEntry>;
 }

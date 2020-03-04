@@ -239,8 +239,8 @@ namespace ccf
         GeneralProcs::GET_METRICS,
         json_adapter(get_metrics),
         Read,
-        Forwardable::CanForward,
-        true);
+        false, // does not require client signature
+        true); // executed locally
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, json_adapter(make_signature), Write);
       install_with_auto_schema<void, WhoAmI::Out>(

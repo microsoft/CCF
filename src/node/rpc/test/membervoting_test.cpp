@@ -98,7 +98,7 @@ std::vector<uint8_t> create_request(
 }
 
 std::vector<uint8_t> create_signed_request(
-  const json& params, const string& method_name, tls::KeyPairPtr& kp_)
+  const json& params, const string& method_name, const tls::KeyPairPtr& kp_)
 {
   http::Request r(method_name);
 
@@ -136,7 +136,7 @@ auto frontend_process(
   const std::vector<uint8_t>& serialized_request,
   const Cert& caller)
 {
-  const enclave::SessionContext session(
+  auto session = std::make_shared<enclave::SessionContext>(
     0, tls::make_verifier(caller)->der_cert_data());
   auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
@@ -339,7 +339,7 @@ TEST_CASE("Proposer ballot")
     proposal.parameter["cert"] = proposed_member;
     proposal.parameter["keyshare"] = dummy_key_share;
     proposal.ballot = vote_against;
-    const auto propose = create_request(proposal, "propose");
+    const auto propose = create_signed_request(proposal, "propose", kp);
     const auto r = frontend_process(frontend, propose, proposer_cert);
 
     // the proposal should be accepted, but not succeed immediately
@@ -455,7 +455,7 @@ TEST_CASE("Add new members until there are 7 then reject")
     proposal.parameter["cert"] = cert_pem;
     proposal.parameter["keyshare"] = keyshare;
 
-    const auto propose = create_request(proposal, "propose");
+    const auto propose = create_signed_request(proposal, "propose", kp);
 
     {
       const auto r = frontend_process(frontend, propose, member_cert);
@@ -537,40 +537,39 @@ TEST_CASE("Add new members until there are 7 then reject")
          new_member++)
     {
       // (1) read ack entry
-      const auto read_nonce_req = create_request(
+      const auto read_state_digest_req = create_request(
         read_params(new_member->id, Tables::MEMBER_ACKS), "read");
       const auto ack0 = parse_response_body<MemberAck>(
         frontend_process(frontend, read_nonce_req, new_member->cert));
 
-      // (2) ask for a fresher nonce
-      const auto freshen_nonce_req = create_request(nullptr, "updateAckNonce");
+      // (2) ask for a fresher digest of state
+      const auto freshen_state_digest_req =
+        create_request(nullptr, "updateAckStateDigest");
       check_success(
-        frontend_process(frontend, freshen_nonce_req, new_member->cert));
+        frontend_process(frontend, freshen_state_digest_req, new_member->cert));
 
-      // (3) read ack entry again and check that the nonce has changed
+      // (3) read ack entry again and check that the state digest has changed
       const auto ack1 = parse_response_body<MemberAck>(
-        frontend_process(frontend, read_nonce_req, new_member->cert));
+        frontend_process(frontend, read_state_digest_req, new_member->cert));
       CHECK(ack0.next_nonce != ack1.next_nonce);
 
-      // (4) sign old nonce and send it
-      const auto bad_sig = RawSignature{new_member->kp->sign(ack0.next_nonce)};
-      const auto send_bad_sig_req = create_request(bad_sig, "ack");
+      // (4) sign stale state and send it
+      StateDigest params;
+      params.state_digest = ack0.result.state_digest;
+      const auto send_stale_sig_req =
+        create_signed_request(params, "ack", new_member->kp);
       check_error(
-        frontend_process(frontend, send_bad_sig_req, new_member->cert),
-        HTTP_STATUS_BAD_REQUEST);
+        frontend_process(frontend, send_stale_sig_req, new_member->cert),
+        HTTP_STATUS_FORBIDDEN);
 
-      // (5) sign new nonce and send it
+      // (5) sign new state digest and send it
       const auto good_sig = RawSignature{new_member->kp->sign(ack1.next_nonce)};
-      const auto send_good_sig_req = create_request(good_sig, "ack");
+      const auto send_good_sig_req =
+        create_signed_request(good_sig, "ack", new_member->kp);
       check_success(
         frontend_process(frontend, send_good_sig_req, new_member->cert));
 
-      // (6) read ack entry again and check that the signature matches
-      const auto ack2 = parse_response_body<MemberAck>(
-        frontend_process(frontend, read_nonce_req, new_member->cert));
-      CHECK(ack2.sig == good_sig.sig);
-
-      // (7) read own member status
+      // (6) read own member status
       const auto read_status_req =
         create_request(read_params(new_member->id, Tables::MEMBERS), "read");
       const auto mi = parse_response_body<MemberInfo>(
@@ -625,7 +624,7 @@ TEST_CASE("Accept node")
       return Calls:call("trust_node", node_id)
     )xxx");
     const auto propose =
-      create_request(Propose::In{proposal, node_id}, "propose");
+      create_signed_request(Propose::In{proposal, node_id}, "propose", );
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
@@ -660,7 +659,7 @@ TEST_CASE("Accept node")
       return Calls:call("retire_node", node_id)
     )xxx");
     const auto propose =
-      create_request(Propose::In{proposal, node_id}, "propose");
+      create_signed_request(Propose::In{proposal, node_id}, "propose", new_kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
@@ -691,7 +690,7 @@ TEST_CASE("Accept node")
       return Calls:call("trust_node", node_id)
     )xxx");
     const auto propose =
-      create_request(Propose::In{proposal, node_id}, "propose");
+      create_signed_request(Propose::In{proposal, node_id}, "propose", new_kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
@@ -709,7 +708,7 @@ TEST_CASE("Accept node")
       return Calls:call("retire_node", node_id)
     )xxx");
     const auto propose =
-      create_request(Propose::In{proposal, node_id}, "propose");
+      create_signed_request(Propose::In{proposal, node_id}, "propose", new_kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
@@ -747,7 +746,7 @@ bool test_raw_writes(
   const auto proposal_id = 0ul;
   {
     const uint8_t proposer_id = 0;
-    const auto propose = create_request(proposal, "propose");
+    const auto propose = create_signed_request(proposal, "propose", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_certs[0]));
 
@@ -926,7 +925,7 @@ TEST_CASE("Remove proposal")
 
   {
     const auto propose =
-      create_request(Propose::In{proposal_script, 0}, "propose");
+      create_signed_request(Propose::In{proposal_script, 0}, "propose", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
 
@@ -947,7 +946,7 @@ TEST_CASE("Remove proposal")
   {
     json param;
     param["id"] = wrong_proposal_id;
-    const auto withdraw = create_request(param, "withdraw");
+    const auto withdraw = create_signed_request(param, "withdraw", kp);
 
     check_error(
       frontend_process(frontend, withdraw, member_cert),
@@ -958,7 +957,7 @@ TEST_CASE("Remove proposal")
   {
     json param;
     param["id"] = proposal_id;
-    const auto withdraw = create_request(param, "withdraw");
+    const auto withdraw = create_signed_request(param, "withdraw", caller.kp);
 
     check_error(
       frontend_process(frontend, withdraw, cert), HTTP_STATUS_FORBIDDEN);
@@ -968,7 +967,7 @@ TEST_CASE("Remove proposal")
   {
     json param;
     param["id"] = proposal_id;
-    const auto withdraw = create_request(param, "withdraw");
+    const auto withdraw = create_signed_request(param, "withdraw", kp);
 
     check_success(frontend_process(frontend, withdraw, member_cert));
 
@@ -998,7 +997,8 @@ TEST_CASE("Complete proposal after initial rejection")
     INFO("Propose");
     const auto proposal =
       "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
-    const auto propose = create_request(Propose::In{proposal}, "propose");
+    const auto propose =
+      create_signed_request(Propose::In{proposal}, "propose", kp);
 
     Store::Tx tx;
     const auto r = parse_response_body<Propose::Out>(
@@ -1021,7 +1021,8 @@ TEST_CASE("Complete proposal after initial rejection")
 
   {
     INFO("Try to complete");
-    const auto complete = create_request(ProposalAction{0}, "complete");
+    const auto complete =
+      create_signed_request(ProposalAction{0}, "complete", kp);
 
     check_success(frontend_process(frontend, complete, member_certs[1]), false);
   }
@@ -1035,7 +1036,8 @@ TEST_CASE("Complete proposal after initial rejection")
 
   {
     INFO("Try again to complete");
-    const auto complete = create_request(ProposalAction{0}, "complete");
+    const auto complete =
+      create_signed_request(ProposalAction{0}, "complete", kp);
 
     check_success(frontend_process(frontend, complete, member_certs[1]));
   }
@@ -1066,7 +1068,7 @@ TEST_CASE("Vetoed proposal gets rejected")
 
   const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
   const auto propose =
-    create_request(Propose::In{proposal, user_cert}, "propose");
+    create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
 
   const auto r = parse_response_body<Propose::Out>(
     frontend_process(frontend, propose, voter_a_cert));
@@ -1116,7 +1118,7 @@ TEST_CASE("Add user via proposed call")
 
   const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
   const auto propose =
-    create_request(Propose::In{proposal, user_cert}, "propose");
+    create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
 
   const auto r = parse_response_body<Propose::Out>(
     frontend_process(frontend, propose, member_cert));
@@ -1185,7 +1187,7 @@ TEST_CASE("Passing members ballot with operator")
     proposal.parameter["keyshare"] = dummy_key_share;
     proposal.ballot = vote_for;
 
-    const auto propose = create_request(proposal, "propose");
+    const auto propose = create_signed_request(proposal, "propose", kp);
     const auto r = parse_response_body<Propose::Out>(frontend_process(
       frontend,
       propose,
@@ -1304,8 +1306,8 @@ TEST_CASE("Passing operator vote")
       return Calls:call("trust_node", node_id)
     )xxx");
 
-    const auto propose =
-      create_request(Propose::In{proposal, node_id, vote_for}, "propose");
+    const auto propose = create_signed_request(
+      Propose::In{proposal, node_id, vote_for}, "propose", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
@@ -1389,8 +1391,8 @@ TEST_CASE("Members passing an operator vote")
       return Calls:call("trust_node", node_id)
     )xxx");
 
-    const auto propose =
-      create_request(Propose::In{proposal, node_id, vote_against}, "propose");
+    const auto propose = create_signed_request(
+      Propose::In{proposal, node_id, vote_against}, "propose", kp);
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
@@ -1492,7 +1494,8 @@ TEST_CASE("User data")
         proposed_user_data}})
       )xxx",
       user_id);
-    const auto proposal_serialized = create_request(proposal, "propose");
+    const auto proposal_serialized =
+      create_signed_request(proposal, "propose", kp);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
     CHECK(propose_response.completed);
@@ -1515,7 +1518,8 @@ TEST_CASE("User data")
     )xxx");
     proposal.parameter["id"] = user_id;
     proposal.parameter["data"] = user_data_string;
-    const auto proposal_serialized = create_request(proposal, "propose");
+    const auto proposal_serialized =
+      create_signed_request(proposal, "propose", kp);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
     CHECK(propose_response.completed);

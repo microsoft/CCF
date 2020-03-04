@@ -107,7 +107,8 @@ jobs:
           target: SGX
           consensus: ${{ consensus }}
           env: ${{ parameters.env.Perf }}
-          cmake_args: '${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build.perf.cmake_args }}'
+          install_prefix: '${{ parameters.build.install.install_prefix }}'
+          cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }} ${{ parameters.build.perf.cmake_args }}'
           ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
 
@@ -125,7 +126,6 @@ jobs:
           target: SGX
           consensus: ${{ consensus }}
           env: ${{ parameters.env.Release }}
-          install: true
           install_prefix: '${{ parameters.build.install.install_prefix }}'
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build[consensus].cmake_args }}'
           ctest_filter: '${{ parameters.test.Release.ctest_args }}'

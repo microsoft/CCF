@@ -121,8 +121,8 @@ namespace http
 
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
+    std::shared_ptr<enclave::SessionContext> session_ctx;
     size_t session_id;
-
     size_t request_index = 0;
 
   public:
@@ -204,14 +204,18 @@ namespace http
           return;
         }
 
-        const enclave::SessionContext session(session_id, peer_cert());
+        if (session_ctx == nullptr)
+        {
+          session_ctx =
+            std::make_shared<enclave::SessionContext>(session_id, peer_cert());
+        }
 
         std::shared_ptr<HttpRpcContext> rpc_ctx = nullptr;
         try
         {
           rpc_ctx = std::make_shared<HttpRpcContext>(
             request_index++,
-            session,
+            session_ctx,
             verb,
             path,
             query,

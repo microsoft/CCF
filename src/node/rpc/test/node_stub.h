@@ -52,8 +52,19 @@ namespace ccf
       return true;
     }
 
-    void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override {}
+    void node_quotes(
+      Store::Tx& tx,
+      GetQuotes::Out& result,
+      const std::optional<std::set<NodeId>>& filter) override
+    {}
+
     void split_ledger_secrets(Store::Tx& tx) override {}
+
+    NodeId get_node_id() const override
+    {
+      return 0;
+    }
+
     void set_is_public(bool is_public_)
     {
       is_public = is_public_;

@@ -47,6 +47,15 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install("empty_function", empty_function, HandlerRegistry::Read);
+
+    auto empty_function_signed = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_result(true);
+    };
+    install(
+      "empty_function_signed",
+      empty_function_signed,
+      HandlerRegistry::Read,
+      true);
   }
 };
 
@@ -147,7 +156,7 @@ public:
 
   void record_ctx(RequestArgs& args)
   {
-    last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session.caller_cert);
+    last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session->caller_cert);
     last_caller_id = args.caller_id;
   }
 };
@@ -207,27 +216,6 @@ public:
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     handlers.install("empty_function", empty_function, HandlerRegistry::Write);
-  }
-};
-
-class TestNoForwardingFrontEnd : public SimpleUserRpcFrontend,
-                                 public RpcContextRecorder
-{
-public:
-  TestNoForwardingFrontEnd(Store& tables) : SimpleUserRpcFrontend(tables)
-  {
-    open();
-
-    auto empty_function = [this](RequestArgs& args) {
-      record_ctx(args);
-      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    };
-    // Note that this is a Write function that cannot be forwarded
-    install(
-      "empty_function",
-      empty_function,
-      HandlerRegistry::Write,
-      HandlerRegistry::Forwardable::DoNotForward);
   }
 };
 
@@ -330,11 +318,13 @@ auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
-const enclave::SessionContext user_session(
+auto user_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, user_caller_der);
-const enclave::SessionContext invalid_session(
+auto backup_user_session = make_shared<enclave::SessionContext>(
+  enclave::InvalidSessionId, user_caller_der);
+auto invalid_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, invalid_caller_der);
-const enclave::SessionContext member_session(
+auto member_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, member_caller_der);
 
 UserId user_id = INVALID_ID;
@@ -409,10 +399,10 @@ TEST_CASE("process_pbft")
   const auto serialized_call = simple_call.build_request();
   pbft::Request request = {user_id, user_caller_der, serialized_call};
 
-  const enclave::SessionContext session(
+  auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
-  frontend.process_pbft(ctx, true);
+  frontend.process_pbft(ctx);
 
   Store::Tx tx;
   auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);
@@ -520,6 +510,23 @@ TEST_CASE("process")
     auto value = signed_resp.value();
     CHECK(value.req.empty());
     CHECK(value.sig == signed_req.sig);
+  }
+
+  SUBCASE("request without signature on sign-only handler")
+  {
+    const auto unsigned_req = create_simple_request("empty_function_signed");
+    const auto serialized_call = unsigned_req.build_request();
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+
+    const auto serialized_response = frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+
+    const auto err_it = response.find(jsonrpc::ERR);
+    REQUIRE(err_it != response.end());
+    const auto error = *err_it;
+    CHECK(error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
+    const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
+    CHECK(error_msg.find("RPC must be signed") != std::string::npos);
   }
 }
 
@@ -730,13 +737,15 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto simple_call = create_simple_request();
   auto serialized_call = simple_call.build_request();
 
+  auto backup_ctx =
+    enclave::make_rpc_context(backup_user_session, serialized_call);
   auto ctx = enclave::make_rpc_context(user_session, serialized_call);
 
   {
     INFO("Backup frontend without forwarder does not forward");
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     REQUIRE(r.has_value());
     REQUIRE(channel_stub->is_empty());
 
@@ -745,13 +754,14 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
+  backup_ctx->session->is_forwarded = false;
 
   {
     INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network.tables);
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup_read.process(ctx);
+    const auto r = user_frontend_backup_read.process(backup_ctx);
     REQUIRE(r.has_value());
     REQUIRE(channel_stub->is_empty());
 
@@ -763,7 +773,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Write command on backup is forwarded to primary");
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     REQUIRE(!r.has_value());
     REQUIRE(channel_stub->size() == 1);
 
@@ -793,7 +803,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     INFO("Forwarding write command to a backup returns error");
     REQUIRE(channel_stub->is_empty());
 
-    const auto r = user_frontend_backup.process(ctx);
+    const auto r = user_frontend_backup.process(backup_ctx);
     REQUIRE(!r.has_value());
     REQUIRE(channel_stub->size() == 1);
 
@@ -809,6 +819,24 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       parse_response(user_frontend_backup.process_forwarded(fwd_ctx));
 
     CHECK(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
+  }
+
+  {
+    // A write was executed on this frontend (above), so reads must be
+    // forwarded too for session consistency
+    INFO("Read command is now forwarded to primary on this session");
+    TestUserFrontend user_frontend_backup_read(*network.tables);
+    REQUIRE(channel_stub->is_empty());
+
+    const auto r = user_frontend_backup_read.process(backup_ctx);
+    REQUIRE(r.has_value());
+    REQUIRE(channel_stub->is_empty());
+
+    const auto response = parse_response(r.value());
+    CHECK(
+      response[jsonrpc::ERR][jsonrpc::CODE] ==
+      static_cast<jsonrpc::ErrorBaseType>(
+        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
   }
 
   {
@@ -838,23 +866,18 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(client_sig.value() == signed_req);
   }
 
+  // On a session that was previously forwarded, and is now primary,
+  // commands should still succeed
+  ctx->session->is_forwarded = true;
   {
-    INFO(
-      "HandlerRegistry::Write command should not be forwarded if marked as "
-      "non-forwardable");
-    TestNoForwardingFrontEnd user_frontend_backup_no_forwarding(
-      *network.tables);
-
-    auto backup2_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
-      nullptr, channel_stub, nullptr);
-    auto backup2_consensus = std::make_shared<kv::BackupStubConsensus>();
-    network.tables->set_consensus(backup_consensus);
-    user_frontend_backup_no_forwarding.set_cmd_forwarder(backup2_forwarder);
-
+    INFO("Write command primary on a forwarded session succeeds");
     REQUIRE(channel_stub->is_empty());
-    const auto r = user_frontend_backup_no_forwarding.process(ctx);
-    REQUIRE(r.has_value());
-    REQUIRE(channel_stub->size() == 0);
+
+    const auto r = user_frontend_primary.process(ctx);
+    CHECK(r.has_value());
+    add_callers_primary_store();
+    auto response = parse_response(r.value());
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 }
 
@@ -878,7 +901,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
 
-  const enclave::SessionContext node_session(
+  auto node_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, node_caller);
   auto ctx = enclave::make_rpc_context(node_session, serialized_call);
   const auto r = node_frontend_backup.process(ctx);

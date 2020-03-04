@@ -10,6 +10,7 @@
 #include "consensus/pbft/pbfttables.h"
 #include "consensus/raft/rafttables.h"
 #include "entities.h"
+#include "governancehistory.h"
 #include "members.h"
 #include "nodes.h"
 #include "proposals.h"
@@ -20,7 +21,6 @@
 #include "signatures.h"
 #include "users.h"
 #include "values.h"
-#include "votinghistory.h"
 #include "whitelists.h"
 
 #include <memory>
@@ -44,7 +44,7 @@ namespace ccf
     Whitelists& whitelists;
     CodeIDs& code_ids;
     MemberAcks& member_acks;
-    VotingHistoryTable& voting_history;
+    GovernanceHistory& governance_history;
     ClientSignatures& member_client_signatures;
     Shares& shares;
 
@@ -102,8 +102,8 @@ namespace ccf
         tables->create<CodeIDs>(Tables::CODE_IDS, kv::SecurityDomain::PUBLIC)),
       member_acks(tables->create<MemberAcks>(
         Tables::MEMBER_ACKS, kv::SecurityDomain::PUBLIC)),
-      voting_history(tables->create<VotingHistoryTable>(
-        Tables::VOTING_HISTORY, kv::SecurityDomain::PUBLIC)),
+      governance_history(tables->create<GovernanceHistory>(
+        Tables::GOV_HISTORY, kv::SecurityDomain::PUBLIC)),
       member_client_signatures(
         tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
       shares(
@@ -143,7 +143,7 @@ namespace ccf
         std::ref(whitelists),
         std::ref(code_ids),
         std::ref(member_acks),
-        std::ref(voting_history),
+        std::ref(governance_history),
         std::ref(member_client_signatures),
         std::ref(users),
         std::ref(user_certs),

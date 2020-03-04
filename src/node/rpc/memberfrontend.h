@@ -7,7 +7,6 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quoteverification.h"
-#include "tls/entropy.h"
 #include "tls/keypair.h"
 
 #include <exception>
@@ -35,8 +34,10 @@ namespace ccf
     {
       const auto s = tx.get_view(network.gov_scripts)->get(name);
       if (!s)
+      {
         throw std::logic_error(
           fmt::format("Could not find gov script: {}", name));
+      }
       return *s;
     }
 
@@ -104,8 +105,10 @@ namespace ccf
            auto new_member_id =
              g.add_member(parsed.cert, parsed.keyshare, MemberStatus::ACCEPTED);
 
-           auto ack = tx.get_view(this->network.member_acks);
-           ack->put(new_member_id, {rng->random(SIZE_NONCE)});
+           auto [ma_view, sig_view] =
+             tx.get_view(this->network.member_acks, this->network.signatures);
+
+           ma_view->put(new_member_id, MemberAck(sig_view->get(0)->root));
 
            return true;
          }},
@@ -131,7 +134,7 @@ namespace ccf
            }
 
            user_info->user_data = parsed.user_data;
-           users_view->put(parsed.user_id, *user_info);
+           users_view->put(parsed.user_id, user_info.value());
            return true;
          }},
         // accept a node
@@ -139,19 +142,19 @@ namespace ccf
          [this](Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
-           auto info = nodes->get(id);
-           if (!info)
+           auto node_info = nodes->get(id);
+           if (!node_info.has_value())
            {
              throw std::logic_error(fmt::format("Node {} does not exist", id));
            }
-           if (info->status == NodeStatus::RETIRED)
+           if (node_info->status == NodeStatus::RETIRED)
            {
              throw std::logic_error(
                fmt::format("Node {} is already retired", id));
            }
-           info->status = NodeStatus::TRUSTED;
-           nodes->put(id, *info);
-           LOG_INFO_FMT("Node {} is now {}", id, info->status);
+           node_info->status = NodeStatus::TRUSTED;
+           nodes->put(id, node_info.value());
+           LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
            return true;
          }},
         // retire a node
@@ -159,19 +162,19 @@ namespace ccf
          [this](Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
-           auto info = nodes->get(id);
-           if (!info)
+           auto node_info = nodes->get(id);
+           if (!node_info.has_value())
            {
              throw std::logic_error(fmt::format("Node {} does not exist", id));
            }
-           if (info->status == NodeStatus::RETIRED)
+           if (node_info->status == NodeStatus::RETIRED)
            {
              throw std::logic_error(
                fmt::format("Node {} is already retired", id));
            }
-           info->status = NodeStatus::RETIRED;
-           nodes->put(id, *info);
-           LOG_INFO_FMT("Node {} is now {}", id, info->status);
+           node_info->status = NodeStatus::RETIRED;
+           nodes->put(id, node_info.value());
+           LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
            return true;
          }},
         // accept new code
@@ -181,18 +184,24 @@ namespace ccf
            auto code_ids = tx.get_view(this->network.code_ids);
            auto existing_code_id = code_ids->get(id);
            if (existing_code_id)
+           {
              throw std::logic_error(fmt::format(
                "Code signature already exists with digest: {:02x}",
                fmt::join(id, "")));
+           }
            code_ids->put(id, CodeStatus::ACCEPTED);
            return true;
          }},
         {"accept_recovery",
          [this](Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
+           {
              return node.finish_recovery(tx, args);
+           }
            else
+           {
              return false;
+           }
          }},
         {"open_network",
          [this](Store::Tx& tx, const nlohmann::json& args) {
@@ -208,13 +217,17 @@ namespace ccf
     {
       auto proposals = tx.get_view(this->network.proposals);
       auto proposal = proposals->get(id);
-      if (!proposal)
+      if (!proposal.has_value())
+      {
         throw std::logic_error(fmt::format("No such proposal: {}", id));
+      }
 
       if (proposal->state != ProposalState::OPEN)
+      {
         throw std::logic_error(fmt::format(
           "Cannot complete non-open proposal - current state is {}",
           proposal->state));
+      }
 
       // run proposal script
       const auto proposed_calls = tsr.run<nlohmann::json>(
@@ -232,7 +245,9 @@ namespace ccf
       {
         // valid voter
         if (!check_member_active(tx, vote.first))
+        {
           continue;
+        }
 
         // does the voter agree?
         votes[std::to_string(vote.first)] = tsr.run<bool>(
@@ -270,7 +285,7 @@ namespace ccf
         {
           // vote unsuccessful, update the proposal's state
           proposal->state = ProposalState::REJECTED;
-          proposals->put(id, *proposal);
+          proposals->put(id, proposal.value());
           return false;
         }
         default:
@@ -289,17 +304,21 @@ namespace ccf
         if (f != hardcoded_funcs.end())
         {
           if (!f->second(tx, call.args))
+          {
             return false;
+          }
           continue;
         }
 
         // proposing a script function?
         const auto s = tx.get_view(network.gov_scripts)->get(call.func);
-        if (!s)
+        if (!s.has_value())
+        {
           continue;
+        }
         tsr.run<void>(
           tx,
-          {*s,
+          {s.value(),
            WlIds::MEMBER_CAN_PROPOSE, // can write!
            {},
            {}},
@@ -308,7 +327,7 @@ namespace ccf
 
       // if the vote was successful, update the proposal's state
       proposal->state = ProposalState::ACCEPTED;
-      proposals->put(id, *proposal);
+      proposals->put(id, proposal.value());
 
       return true;
     }
@@ -329,18 +348,30 @@ namespace ccf
     {
       auto member = tx.get_view(this->network.members)->get(id);
       if (!member)
+      {
         return false;
+      }
       for (const auto s : allowed)
+      {
         if (member->status == s)
+        {
           return true;
+        }
+      }
       return false;
+    }
+
+    void record_voting_history(
+      Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
+    {
+      auto governance_history = tx.get_view(network.governance_history);
+      governance_history->put(caller_id, {signed_request});
     }
 
     NetworkTables& network;
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
 
-    tls::EntropyPtr rng;
     static constexpr auto SIZE_NONCE = 16;
 
   public:
@@ -348,8 +379,7 @@ namespace ccf
       CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
-      tsr(network),
-      rng(tls::create_entropy())
+      tsr(network)
     {}
 
     void init_handlers(Store& tables_) override
@@ -470,12 +500,14 @@ namespace ccf
         }
 
         proposal->state = ProposalState::WITHDRAWN;
-        proposals->put(proposal_id, *proposal);
+        proposals->put(proposal_id, proposal.value());
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         return make_success(true);
       };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::WITHDRAW, json_adapter(withdraw), Write);
+        MemberProcs::WITHDRAW, json_adapter(withdraw), Write, true);
 
       auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -511,76 +543,16 @@ namespace ccf
               ProposalState::OPEN));
         }
 
-        // record vote
         proposal->votes[args.caller_id] = vote.ballot;
-        proposals->put(vote.id, *proposal);
+        proposals->put(vote.id, proposal.value());
 
-        auto voting_history = args.tx.get_view(this->network.voting_history);
-        voting_history->put(args.caller_id, {signed_request.value()});
+        record_voting_history(
+          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         return make_success(complete_proposal(args.tx, vote.id));
       };
       install_with_auto_schema<Vote, bool>(
-        MemberProcs::VOTE, json_adapter(vote), Write);
-
-      auto create = [this](Store::Tx& tx, nlohmann::json&& params) {
-        LOG_INFO_FMT("Processing create RPC");
-        const auto in = params.get<CreateNetworkNodeToNode::In>();
-
-        GenesisGenerator g(this->network, tx);
-
-        // This endpoint can only be called once, directly from the starting
-        // node for the genesis transaction to initialise the service
-        if (g.is_service_created())
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Service is already created");
-        }
-
-        g.init_values();
-        for (auto& [cert, k_encryption_key] : in.members_info)
-        {
-          g.add_member(cert, k_encryption_key);
-        }
-
-        node.split_ledger_secrets(tx);
-
-        size_t self = g.add_node({in.node_info_network,
-                                  in.node_cert,
-                                  in.quote,
-                                  in.public_encryption_key,
-                                  NodeStatus::TRUSTED});
-
-        LOG_INFO_FMT("Got self = {}", self);
-        if (self != 0)
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Starting node ID is not 0");
-        }
-
-#ifdef GET_QUOTE
-        CodeDigest node_code_id;
-        std::copy_n(
-          std::begin(in.code_digest),
-          CODE_DIGEST_BYTES,
-          std::begin(node_code_id));
-        g.trust_code_id(node_code_id);
-#endif
-
-        for (const auto& wl : default_whitelists)
-        {
-          g.set_whitelist(wl.first, wl.second);
-        }
-
-        g.set_gov_scripts(
-          lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
-
-        g.create_service(in.network_cert);
-
-        LOG_INFO_FMT("Created service");
-        return make_success(true);
-      };
-      install(MemberProcs::CREATE, json_adapter(create), Write);
+        MemberProcs::VOTE, vote, Write, true);
 
       auto complete =
         [this](
@@ -596,7 +568,7 @@ namespace ccf
           return make_success(complete_proposal(tx, proposal_id));
         };
       install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::COMPLETE, json_adapter(complete), Write);
+        MemberProcs::COMPLETE, json_adapter(complete), Write, true);
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args, const nlohmann::json& params) {
@@ -630,29 +602,93 @@ namespace ccf
         members->put(args.caller_id, *member);
         return make_success(true);
       };
-      // ACK method cannot be forwarded and should be run on primary as it makes
-      // explicit use of caller certificate
-      install_with_auto_schema<RawSignature, bool>(
-        MemberProcs::ACK, json_adapter(ack), Write, Forwardable::DoNotForward);
+      install_with_auto_schema<StateDigest, bool>(
+        MemberProcs::ACK, json_adapter(ack), Write, true);
 
-      //! A member asks for a fresher nonce
-      auto update_ack_nonce =
+      //! A member asks for a fresher state digest
+      auto update_state_digest =
         [this](
           Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
-          auto mas = tx.get_view(this->network.member_acks);
-          auto ma = mas->get(caller_id);
+          auto [ma_view, sig_view] =
+            tx.get_view(this->network.member_acks, this->network.signatures);
+          auto ma = ma_view->get(caller_id);
           if (!ma)
           {
             return make_error(
               HTTP_STATUS_FORBIDDEN,
               fmt::format("No ACK record exists for caller {}", caller_id));
           }
-          ma->next_nonce = rng->random(SIZE_NONCE);
-          mas->put(caller_id, *ma);
-          return make_success(true);
+
+          auto root = sig_view->get(0)->root;
+          ma->state_digest = std::vector<uint8_t>(root.h.begin(), root.h.end());
+          ma_view->put(caller_id, ma.value());
+
+          return make_success(ma->state_digest);
         };
-      install_with_auto_schema<void, bool>(
-        MemberProcs::UPDATE_ACK_NONCE, json_adapter(update_ack_nonce), Write);
+      install_with_auto_schema<void, StateDigest>(
+        MemberProcs::UPDATE_ACK_STATE_DIGEST,
+        json_adapter(update_state_digest),
+        Write);
+
+      auto create = [this](RequestArgs& args) {
+        LOG_DEBUG_FMT("Processing create RPC");
+        const auto in =
+          args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
+
+        GenesisGenerator g(this->network, tx);
+
+        // This endpoint can only be called once, directly from the starting
+        // node for the genesis transaction to initialise the service
+        if (g.is_service_created())
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Service is already created");
+        }
+
+        g.init_values();
+        for (auto& [cert, k_encryption_key] : in.members_info)
+        {
+          g.add_member(cert, k_encryption_key);
+        }
+
+        node.split_ledger_secrets(tx);
+
+        size_t self = g.add_node({in.node_info_network,
+                                  in.node_cert,
+                                  in.quote,
+                                  in.public_encryption_key,
+                                  NodeStatus::TRUSTED});
+
+        LOG_INFO_FMT("Create node id: {}", self);
+        if (self != 0)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Starting node ID is not 0");
+        }
+
+#ifdef GET_QUOTE
+        CodeDigest node_code_id;
+        std::copy_n(
+          std::begin(in.code_digest),
+          CODE_DIGEST_BYTES,
+          std::begin(node_code_id));
+        g.trust_code_id(node_code_id);
+#endif
+
+        for (const auto& wl : default_whitelists)
+        {
+          g.set_whitelist(wl.first, wl.second);
+        }
+
+        g.set_gov_scripts(
+          lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
+
+        g.create_service(in.network_cert);
+
+        LOG_INFO_FMT("Created service");
+        return make_success(true);
+      };
+      install(MemberProcs::CREATE, json_adapter(create), Write);
     }
   };
 
@@ -687,13 +723,13 @@ namespace ccf
     {
       // Lookup the caller member's certificate from the forwarded caller id
       auto members_view = tx.get_view(*members);
-      auto caller = members_view->get(ctx->session.fwd->caller_id);
+      auto caller = members_view->get(ctx->session->fwd->caller_id);
       if (!caller.has_value())
       {
         return false;
       }
 
-      ctx->session.caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert;
       return true;
     }
   };

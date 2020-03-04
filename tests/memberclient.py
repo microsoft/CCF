@@ -50,9 +50,10 @@ def run(args):
         """
 
         LOG.info("Proposal to add a new member (with different curve)")
-        respnse = network.consortium.generate_and_propose_new_member(
+        response = network.consortium.generate_and_propose_new_member(
+            0,
             primary,
-            member_id=3,
+            new_member_id=3,
             curve=infra.ccf.ParticipantsCurve(args.default_curve).next(),
         )
         assert response.status == http.HTTPStatus.OK.value
@@ -119,8 +120,6 @@ def run(args):
         """
         response = network.consortium.propose(3, primary, script, 0)
         assert response.status == http.HTTPStatus.FORBIDDEN.value
-
-        return
 
         LOG.debug("New member ACK")
         result = network.consortium.ack(3, primary)
