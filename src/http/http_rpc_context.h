@@ -262,8 +262,6 @@ namespace http
 
     virtual bool response_is_error() const override
     {
-      // TODO: Is this correct, or should we consider CREATED etc as valid
-      // non-errors?
       return response_status != HTTP_STATUS_OK;
     }
 
