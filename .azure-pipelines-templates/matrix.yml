@@ -93,10 +93,10 @@ parameters:
         ctest_args: '-LE "benchmark|perf|suite|raft|bench"'
 
 jobs:
-  # - template: checks.yml
-  #   parameters:
-  #     env: ${{ parameters.env.Checks }}
-  #     job_name: 'Formatting_and_License_Checks'
+  - template: checks.yml
+    parameters:
+      env: ${{ parameters.env.Checks }}
+      job_name: 'Formatting_and_License_Checks'
   
   # - ${{ each build_target in parameters.build_target }}:
   #   - template: common_build.yml
