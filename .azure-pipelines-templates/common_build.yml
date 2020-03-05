@@ -12,7 +12,6 @@ jobs:
     - template: cmake.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
-        suite_label_suffix: '${{ parameters.target }}'
     - template: ninja.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
