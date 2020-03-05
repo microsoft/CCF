@@ -5,6 +5,7 @@
 #include "enclave/rpccontext.h"
 #include "handlerregistry.h"
 #include "http/http_consts.h"
+#include "node/rpc/jsonrpc.h"
 
 #include <http-parser/http_parser.h>
 

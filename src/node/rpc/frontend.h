@@ -9,7 +9,6 @@
 #include "ds/spinlock.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
-#include "jsonrpc.h"
 #include "node/clientsignatures.h"
 #include "node/nodes.h"
 #include "nodeinterface.h"

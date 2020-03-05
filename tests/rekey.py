@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.ccf
-import infra.jsonrpc
 import infra.notification
 import suite.test_requirements as reqs
 import infra.e2e_args

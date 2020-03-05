@@ -13,6 +13,7 @@
 #include "genesisgen.h"
 #include "history.h"
 #include "networkstate.h"
+#include "node/rpc/jsonrpc.h"
 #include "nodetonode.h"
 #include "notifier.h"
 #include "rpc/consts.h"

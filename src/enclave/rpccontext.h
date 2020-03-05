@@ -4,7 +4,6 @@
 
 #include "node/clientsignatures.h"
 #include "node/entities.h"
-#include "node/rpc/jsonrpc.h"
 
 #include <variant>
 #include <vector>

@@ -10,7 +10,6 @@ import shutil
 import random
 import infra.ccf
 import infra.proc
-import infra.jsonrpc
 import infra.e2e_args
 
 from loguru import logger as LOG
