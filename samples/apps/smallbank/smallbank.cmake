@@ -92,7 +92,7 @@ if(BUILD_TESTS)
     CONSENSUS raft
     ADDITIONAL_ARGS
       --transactions
-      ${SMALL_BANK_SIGNED_ITERATIONS_RAFT}
+      ${SMALL_BANK_SIGNED_ITERATIONS}
       --max-writes-ahead
       1000
       --metrics-file
