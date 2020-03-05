@@ -9,19 +9,15 @@ parameters:
     NoSGX:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
-      dependsOn: ['Formatting_and_License_Checks']
     SGX:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
-      dependsOn: ['Formatting_and_License_Checks']
     SAN:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
-      dependsOn: ['Formatting_and_License_Checks']
     Release:
       container: sgx
       pool: Ubuntu-1804-DC4s
-      dependsOn: ['Formatting_and_License_Checks']
     Metrics:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
@@ -32,7 +28,6 @@ parameters:
       dependsOn: ['Test_SGX_CFT_Release', 'Test_SGX_BFT_Release']
     Perf:
       pool: CCF-Perf
-      dependsOn: ['Formatting_and_License_Checks']
 
   build:
     common:
@@ -67,6 +62,8 @@ parameters:
     CFT:
       ctest_args: '-LE "pbft"'
 
+  static_check_job_name: 'Formatting_and_License_Checks'      
+
 jobs:
   - template: checks.yml
     parameters:
@@ -94,7 +91,7 @@ jobs:
           ctest_filter: '${{ parameters.test[target].ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
           suffix: 'Debug'
           artifact_name: 'Build_${{ target }}_Debug'
-          depends_on: 'Build_${{ target }}_Debug'
+          depends_on: ['Build_${{ target }}_Debug', '${{ parameters.static_check_job_name }}']
 
   # SAN build (ASAN & UBSAN)
   - template: common_build.yml
@@ -116,7 +113,7 @@ jobs:
         ctest_filter: '${{ parameters.test.san.ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
         suffix: 'SAN'
         artifact_name: 'Build_NoSGX_SAN'
-        depends_on: 'Build_NoSGX_SAN'
+        depends_on: ['Build_NoSGX_SAN', '${{ parameters.static_check_job_name }}']
 
   # Performance build
   - template: common_build.yml
@@ -140,7 +137,7 @@ jobs:
           ctest_filter: '${{ parameters.test.perf.ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
           suffix: 'Perf'
           artifact_name: 'Build_SGX_Perf'
-          depends_on: 'Build_SGX_Perf'
+          depends_on: ['Build_SGX_Perf', '${{ parameters.static_check_job_name }}']
 
   # Collect and Plot metrics
   - template: metrics.yml
@@ -170,7 +167,7 @@ jobs:
           ctest_filter: '${{ parameters.test.Release.ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
           suffix: 'Release'
           artifact_name: 'Build_SGX_Release'
-          depends_on: 'Build_SGX_Release'
+          depends_on: ['Build_SGX_Release', '${{ parameters.static_check_job_name }}']
 
     - template: release.yml
       parameters:
