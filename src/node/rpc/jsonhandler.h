@@ -209,7 +209,24 @@ namespace ccf
       {
         const auto body = std::get_if<nlohmann::json>(&res);
         ctx->set_response_status(HTTP_STATUS_OK);
-        ctx->set_response_body(jsonrpc::pack(*body, packing));
+        switch (packing)
+        {
+          case jsonrpc::Pack::Text:
+          {
+            const auto s = fmt::format("{}\n", body->dump(2));
+            ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
+            break;
+          }
+          case jsonrpc::Pack::MsgPack:
+          {
+            ctx->set_response_body(nlohmann::json::to_msgpack(*body));
+            break;
+          }
+          default:
+          {
+            throw std::logic_error("Unhandled jsonrpc::Pack");
+          }
+        }
         ctx->set_response_header(
           http::headers::CONTENT_TYPE, pack_to_content_type(packing));
       }
