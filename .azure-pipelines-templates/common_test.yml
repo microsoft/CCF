@@ -2,7 +2,8 @@ jobs:
 - job: Test_${{ parameters.target }}_${{ parameters.consensus }}_${{ parameters.suffix }}
   variables:
     skipComponentGovernanceDetection: true
-  displayName: 'Test_${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
+  displayName: 'Test ${{ parameters.target }} ${{ parameters.consensus }} ${{ parameters.suffix }}'
+  dependsOn: ${{ parameters.depends_on }}
 
   ${{ insert }}: ${{ parameters.env }}
 

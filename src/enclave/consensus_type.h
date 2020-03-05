@@ -5,6 +5,5 @@
 enum ConsensusType
 {
   Raft = 1,
-  Pbft = 2,
-  Unknown = 3
+  Pbft = 2
 };
