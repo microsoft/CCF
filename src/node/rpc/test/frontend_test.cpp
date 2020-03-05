@@ -1,9 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
-#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include "consensus/pbft/pbftrequests.h"
-#include "doctest/doctest.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
@@ -21,6 +19,7 @@
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
+#include <doctest/doctest.h>
 #include <iostream>
 #include <string>
 
@@ -318,8 +317,8 @@ nlohmann::json parse_response(
   http::Parser parser(HTTP_RESPONSE, processor);
 
   const auto parsed_count = parser.execute(v.data(), v.size());
-  DOCTEST_REQUIRE(parsed_count == v.size());
-  DOCTEST_REQUIRE(processor.received.size() == 1);
+  REQUIRE(parsed_count == v.size());
+  REQUIRE(processor.received.size() == 1);
 
   return jsonrpc::unpack(processor.received.front().body, pack);
 }
@@ -389,7 +388,7 @@ void prepare_callers()
   nos_id = g.add_user(nos_caller);
   member_id = g.add_member(member_caller, dummy_key_share);
   invalid_member_id = g.add_member(invalid_caller, dummy_key_share);
-  DOCTEST_CHECK(g.finalize() == kv::CommitSuccess::OK);
+  CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
 void add_callers_primary_store()
@@ -400,7 +399,7 @@ void add_callers_primary_store()
   g.init_values();
   user_id = g.add_user(user_caller);
   member_id = g.add_member(member_caller, dummy_key_share);
-  DOCTEST_CHECK(g.finalize() == kv::CommitSuccess::OK);
+  CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
 void add_callers_pbft_store()
@@ -413,10 +412,10 @@ void add_callers_pbft_store()
   GenesisGenerator g(pbft_network, gen_tx);
   g.init_values();
   user_id = g.add_user(user_caller);
-  DOCTEST_CHECK(g.finalize() == kv::CommitSuccess::OK);
+  CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
-DOCTEST_TEST_CASE("process_pbft")
+TEST_CASE("process_pbft")
 {
   add_callers_pbft_store();
   TestUserFrontend frontend(*pbft_network.tables);
@@ -437,29 +436,29 @@ DOCTEST_TEST_CASE("process_pbft")
   Store::Tx tx;
   auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);
   auto request_value = pbft_requests_map->get(0);
-  DOCTEST_REQUIRE(request_value.has_value());
+  REQUIRE(request_value.has_value());
 
   pbft::Request deserialised_req = request_value.value();
 
-  DOCTEST_REQUIRE(deserialised_req.caller_id == user_id);
-  DOCTEST_REQUIRE(deserialised_req.caller_cert == user_caller_der);
-  DOCTEST_REQUIRE(deserialised_req.raw == serialized_call);
+  REQUIRE(deserialised_req.caller_id == user_id);
+  REQUIRE(deserialised_req.caller_cert == user_caller_der);
+  REQUIRE(deserialised_req.raw == serialized_call);
 }
 
-DOCTEST_TEST_CASE("SignedReq to and from json")
+TEST_CASE("SignedReq to and from json")
 {
   SignedReq sr;
-  DOCTEST_REQUIRE(sr.sig.empty());
-  DOCTEST_REQUIRE(sr.req.empty());
+  REQUIRE(sr.sig.empty());
+  REQUIRE(sr.req.empty());
 
   nlohmann::json j = sr;
 
   sr = j;
-  DOCTEST_REQUIRE(sr.sig.empty());
-  DOCTEST_REQUIRE(sr.req.empty());
+  REQUIRE(sr.sig.empty());
+  REQUIRE(sr.req.empty());
 }
 
-DOCTEST_TEST_CASE("process_command")
+TEST_CASE("process_command")
 {
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
@@ -471,20 +470,20 @@ DOCTEST_TEST_CASE("process_command")
   Store::Tx tx;
   CallerId caller_id(0);
   auto response = frontend.process_command(rpc_ctx, tx, caller_id);
-  DOCTEST_REQUIRE(response.has_value());
+  REQUIRE(response.has_value());
 
   auto j_result = parse_response(response.value());
-  DOCTEST_CHECK(j_result[jsonrpc::RESULT] == true);
+  CHECK(j_result[jsonrpc::RESULT] == true);
 }
 
-DOCTEST_TEST_CASE("process")
+TEST_CASE("process")
 {
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
   const auto simple_call = create_simple_request();
   const auto [signed_call, signed_req] = create_signed_request(simple_call);
 
-  DOCTEST_SUBCASE("invalid method")
+  SUBCASE("invalid method")
   {
     constexpr auto method_name = "this_method_doesnt_exist";
     const auto invalid_call = create_simple_request(method_name);
@@ -494,41 +493,40 @@ DOCTEST_TEST_CASE("process")
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
     const auto err_it = response.find(jsonrpc::ERR);
-    DOCTEST_REQUIRE(err_it != response.end());
-    const auto error_message =
-      err_it->find(jsonrpc::MESSAGE)->get<std::string>();
-    DOCTEST_CHECK(error_message.find(method_name) != std::string::npos);
+    REQUIRE(err_it != response.end());
+    const auto error_message = err_it->find("message")->get<std::string>();
+    CHECK(error_message.find(method_name) != std::string::npos);
   }
 
-  DOCTEST_SUBCASE("without signature")
+  SUBCASE("without signature")
   {
     const auto serialized_call = simple_call.build_request();
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
 
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response[jsonrpc::RESULT] == true);
 
     auto signed_resp = get_signed_req(user_id);
-    DOCTEST_CHECK(!signed_resp.has_value());
+    CHECK(!signed_resp.has_value());
   }
 
-  DOCTEST_SUBCASE("with signature")
+  SUBCASE("with signature")
   {
     const auto serialized_call = signed_call.build_request();
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
 
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response[jsonrpc::RESULT] == true);
 
     auto signed_resp = get_signed_req(user_id);
-    DOCTEST_REQUIRE(signed_resp.has_value());
+    REQUIRE(signed_resp.has_value());
     auto value = signed_resp.value();
-    DOCTEST_CHECK(value == signed_req);
+    CHECK(value == signed_req);
   }
 
-  DOCTEST_SUBCASE("request with signature but do not store")
+  SUBCASE("request with signature but do not store")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
     const auto serialized_call = signed_call.build_request();
@@ -536,16 +534,16 @@ DOCTEST_TEST_CASE("process")
 
     const auto serialized_response = frontend_nostore.process(rpc_ctx).value();
     const auto response = parse_response(serialized_response);
-    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response[jsonrpc::RESULT] == true);
 
     auto signed_resp = get_signed_req(user_id);
-    DOCTEST_REQUIRE(signed_resp.has_value());
+    REQUIRE(signed_resp.has_value());
     auto value = signed_resp.value();
-    DOCTEST_CHECK(value.req.empty());
-    DOCTEST_CHECK(value.sig == signed_req.sig);
+    CHECK(value.req.empty());
+    CHECK(value.sig == signed_req.sig);
   }
 
-  DOCTEST_SUBCASE("request without signature on sign-only handler")
+  SUBCASE("request without signature on sign-only handler")
   {
     const auto unsigned_req = create_simple_request("empty_function_signed");
     const auto serialized_call = unsigned_req.build_request();
@@ -555,16 +553,15 @@ DOCTEST_TEST_CASE("process")
     auto response = parse_response(serialized_response);
 
     const auto err_it = response.find(jsonrpc::ERR);
-    DOCTEST_REQUIRE(err_it != response.end());
+    REQUIRE(err_it != response.end());
     const auto error = *err_it;
-    DOCTEST_CHECK(
-      error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
-    const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
-    DOCTEST_CHECK(error_msg.find("RPC must be signed") != std::string::npos);
+    CHECK(error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
+    const auto error_msg = error["message"].get<std::string>();
+    CHECK(error_msg.find("RPC must be signed") != std::string::npos);
   }
 }
 
-DOCTEST_TEST_CASE("MinimalHandleFunction")
+TEST_CASE("MinimalHandleFunction")
 {
   prepare_callers();
   TestMinimalHandleFunction frontend(*network.tables);
@@ -583,7 +580,7 @@ DOCTEST_TEST_CASE("MinimalHandleFunction")
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
       auto response =
         parse_response(frontend.process(rpc_ctx).value(), pack_type);
-      DOCTEST_CHECK(response[jsonrpc::RESULT] == j_body);
+      CHECK(response[jsonrpc::RESULT] == j_body);
     }
 
     {
@@ -595,7 +592,7 @@ DOCTEST_TEST_CASE("MinimalHandleFunction")
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
       auto response =
         parse_response(frontend.process(rpc_ctx).value(), pack_type);
-      DOCTEST_CHECK(response[jsonrpc::RESULT] == user_id);
+      CHECK(response[jsonrpc::RESULT] == user_id);
     }
   }
 
@@ -608,7 +605,7 @@ DOCTEST_TEST_CASE("MinimalHandleFunction")
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
     auto response =
       parse_response(frontend.process(rpc_ctx).value(), default_pack);
-    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 
   {
@@ -632,78 +629,78 @@ DOCTEST_TEST_CASE("MinimalHandleFunction")
         parse_response(frontend.process(rpc_ctx).value(), default_pack);
 
       const auto err_it = response.find(jsonrpc::ERR);
-      DOCTEST_REQUIRE(err_it != response.end());
+      REQUIRE(err_it != response.end());
       const auto error = *err_it;
-      DOCTEST_CHECK(error[jsonrpc::CODE] == err);
-      const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
-      DOCTEST_CHECK(error_msg.find(msg) != std::string::npos);
+      CHECK(error[jsonrpc::CODE] == err);
+      const auto error_msg = error["message"].get<std::string>();
+      CHECK(error_msg.find(msg) != std::string::npos);
     }
   }
 }
 
 // callers
 
-DOCTEST_TEST_CASE("User caller")
+TEST_CASE("User caller")
 {
   prepare_callers();
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
   TestUserFrontend frontend(*network.tables);
 
-  DOCTEST_SUBCASE("valid caller")
+  SUBCASE("valid caller")
   {
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 
-  DOCTEST_SUBCASE("invalid caller")
+  SUBCASE("invalid caller")
   {
     auto member_rpc_ctx =
       enclave::make_rpc_context(member_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    DOCTEST_CHECK(
+    CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
         jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
   }
 }
 
-DOCTEST_TEST_CASE("Member caller")
+TEST_CASE("Member caller")
 {
   prepare_callers();
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
   TestMemberFrontend frontend(network, stub_node);
 
-  DOCTEST_SUBCASE("valid caller")
+  SUBCASE("valid caller")
   {
     auto member_rpc_ctx =
       enclave::make_rpc_context(member_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 
-  DOCTEST_SUBCASE("invalid caller")
+  SUBCASE("invalid caller")
   {
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    DOCTEST_CHECK(
+    CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
         jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
   }
 }
 
-DOCTEST_TEST_CASE("No certs table")
+TEST_CASE("No certs table")
 {
   prepare_callers();
 
@@ -714,10 +711,10 @@ DOCTEST_TEST_CASE("No certs table")
   auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
   std::vector<uint8_t> serialized_response = frontend.process(rpc_ctx).value();
   auto response = parse_response(serialized_response);
-  DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+  CHECK(response[jsonrpc::RESULT] == true);
 }
 
-DOCTEST_TEST_CASE("Signed read requests can be executed on backup")
+TEST_CASE("Signed read requests can be executed on backup")
 {
   prepare_callers();
 
@@ -732,10 +729,10 @@ DOCTEST_TEST_CASE("Signed read requests can be executed on backup")
     enclave::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
 
-  DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+  CHECK(response[jsonrpc::RESULT] == true);
 }
 
-DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
+TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
 
@@ -759,15 +756,15 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto ctx = enclave::make_rpc_context(user_session, serialized_call);
 
   {
-    DOCTEST_INFO("Backup frontend without forwarder does not forward");
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    INFO("Backup frontend without forwarder does not forward");
+    REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup.process(backup_ctx);
-    DOCTEST_REQUIRE(r.has_value());
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    REQUIRE(r.has_value());
+    REQUIRE(channel_stub->is_empty());
 
     const auto response = parse_response(r.value());
-    DOCTEST_CHECK(
+    CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
         jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
@@ -777,25 +774,25 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   backup_ctx->session->is_forwarded = false;
 
   {
-    DOCTEST_INFO("Read command is not forwarded to primary");
+    INFO("Read command is not forwarded to primary");
     TestUserFrontend user_frontend_backup_read(*network.tables);
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup_read.process(backup_ctx);
-    DOCTEST_REQUIRE(r.has_value());
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    REQUIRE(r.has_value());
+    REQUIRE(channel_stub->is_empty());
 
     const auto response = parse_response(r.value());
-    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 
   {
-    DOCTEST_INFO("Write command on backup is forwarded to primary");
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    INFO("Write command on backup is forwarded to primary");
+    REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup.process(backup_ctx);
-    DOCTEST_REQUIRE(!r.has_value());
-    DOCTEST_REQUIRE(channel_stub->size() == 1);
+    REQUIRE(!r.has_value());
+    REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
     auto [fwd_ctx, node_id] =
@@ -804,31 +801,31 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         .value();
 
     {
-      DOCTEST_INFO("Invalid caller");
+      INFO("Invalid caller");
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      DOCTEST_CHECK(
+      CHECK(
         response[jsonrpc::ERR][jsonrpc::CODE] ==
         static_cast<jsonrpc::ErrorBaseType>(
           jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
     };
 
     {
-      DOCTEST_INFO("Valid caller");
+      INFO("Valid caller");
       add_callers_primary_store();
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+      CHECK(response[jsonrpc::RESULT] == true);
     }
   }
 
   {
-    DOCTEST_INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
+    REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup.process(backup_ctx);
-    DOCTEST_REQUIRE(!r.has_value());
-    DOCTEST_REQUIRE(channel_stub->size() == 1);
+    REQUIRE(!r.has_value());
+    REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
     auto [fwd_ctx, node_id] =
@@ -841,7 +838,7 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto response =
       parse_response(user_frontend_backup.process_forwarded(fwd_ctx));
 
-    DOCTEST_CHECK(
+    CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
         jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
@@ -850,32 +847,32 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   {
     // A write was executed on this frontend (above), so reads must be
     // forwarded too for session consistency
-    DOCTEST_INFO("Read command is now forwarded to primary on this session");
+    INFO("Read command is now forwarded to primary on this session");
     TestUserFrontend user_frontend_backup_read(*network.tables);
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup_read.process(backup_ctx);
-    DOCTEST_REQUIRE(r.has_value());
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    REQUIRE(r.has_value());
+    REQUIRE(channel_stub->is_empty());
 
     const auto response = parse_response(r.value());
-    DOCTEST_CHECK(
+    CHECK(
       response[jsonrpc::ERR][jsonrpc::CODE] ==
       static_cast<jsonrpc::ErrorBaseType>(
         jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
   }
 
   {
-    DOCTEST_INFO("Client signature on forwarded RPC is recorded by primary");
+    INFO("Client signature on forwarded RPC is recorded by primary");
 
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    REQUIRE(channel_stub->is_empty());
     auto [signed_call, signed_req] = create_signed_request();
     auto serialized_signed_call = signed_call.build_request();
     auto signed_ctx =
       enclave::make_rpc_context(user_session, serialized_signed_call);
     const auto r = user_frontend_backup.process(signed_ctx);
-    DOCTEST_REQUIRE(!r.has_value());
-    DOCTEST_REQUIRE(channel_stub->size() == 1);
+    REQUIRE(!r.has_value());
+    REQUIRE(channel_stub->size() == 1);
 
     auto forwarded_msg = channel_stub->get_pop_back();
     auto [fwd_ctx, node_id] =
@@ -888,26 +885,26 @@ DOCTEST_TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     Store::Tx tx;
     auto client_sig_view = tx.get_view(network2.user_client_signatures);
     auto client_sig = client_sig_view->get(user_id);
-    DOCTEST_REQUIRE(client_sig.has_value());
-    DOCTEST_REQUIRE(client_sig.value() == signed_req);
+    REQUIRE(client_sig.has_value());
+    REQUIRE(client_sig.value() == signed_req);
   }
 
   // On a session that was previously forwarded, and is now primary,
   // commands should still succeed
   ctx->session->is_forwarded = true;
   {
-    DOCTEST_INFO("Write command primary on a forwarded session succeeds");
-    DOCTEST_REQUIRE(channel_stub->is_empty());
+    INFO("Write command primary on a forwarded session succeeds");
+    REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_primary.process(ctx);
-    DOCTEST_CHECK(r.has_value());
+    CHECK(r.has_value());
     add_callers_primary_store();
     auto response = parse_response(r.value());
-    DOCTEST_CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response[jsonrpc::RESULT] == true);
   }
 }
 
-DOCTEST_TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
+TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
 
@@ -931,8 +928,8 @@ DOCTEST_TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
     enclave::InvalidSessionId, node_caller);
   auto ctx = enclave::make_rpc_context(node_session, serialized_call);
   const auto r = node_frontend_backup.process(ctx);
-  DOCTEST_REQUIRE(!r.has_value());
-  DOCTEST_REQUIRE(channel_stub->size() == 1);
+  REQUIRE(!r.has_value());
+  REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
   auto [fwd_ctx, node_id] =
@@ -943,11 +940,11 @@ DOCTEST_TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto response =
     parse_response(node_frontend_primary.process_forwarded(fwd_ctx));
 
-  DOCTEST_CHECK(node_frontend_primary.last_caller_cert == node_caller);
-  DOCTEST_CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
+  CHECK(node_frontend_primary.last_caller_cert == node_caller);
+  CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
 }
 
-DOCTEST_TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
+TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
   add_callers_primary_store();
@@ -970,8 +967,8 @@ DOCTEST_TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto ctx = enclave::make_rpc_context(user_session, serialized_call);
   const auto r = user_frontend_backup.process(ctx);
-  DOCTEST_REQUIRE(!r.has_value());
-  DOCTEST_REQUIRE(channel_stub->size() == 1);
+  REQUIRE(!r.has_value());
+  REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
   auto [fwd_ctx, node_id] =
@@ -982,12 +979,11 @@ DOCTEST_TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto response =
     parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
 
-  DOCTEST_CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
-  DOCTEST_CHECK(user_frontend_primary.last_caller_id == 0);
+  CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
+  CHECK(user_frontend_primary.last_caller_id == 0);
 }
 
-DOCTEST_TEST_CASE(
-  "Memberfrontend forwarding" * doctest::test_suite("forwarding"))
+TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
   add_callers_primary_store();
@@ -1012,8 +1008,8 @@ DOCTEST_TEST_CASE(
 
   auto ctx = enclave::make_rpc_context(member_session, serialized_call);
   const auto r = member_frontend_backup.process(ctx);
-  DOCTEST_REQUIRE(!r.has_value());
-  DOCTEST_REQUIRE(channel_stub->size() == 1);
+  REQUIRE(!r.has_value());
+  REQUIRE(channel_stub->size() == 1);
 
   auto forwarded_msg = channel_stub->get_pop_back();
   auto [fwd_ctx, node_id] =
@@ -1024,11 +1020,11 @@ DOCTEST_TEST_CASE(
   auto response =
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));
 
-  DOCTEST_CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
-  DOCTEST_CHECK(member_frontend_primary.last_caller_id == 0);
+  CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
+  CHECK(member_frontend_primary.last_caller_id == 0);
 }
 
-DOCTEST_TEST_CASE("App-defined errors")
+TEST_CASE("App-defined errors")
 {
   prepare_callers();
 
@@ -1042,13 +1038,12 @@ DOCTEST_TEST_CASE("App-defined errors")
       frontend.process(rpc_ctx).value();
     auto foo_response = parse_response(serialized_foo_response);
 
-    DOCTEST_CHECK(foo_response[jsonrpc::ERR] != nullptr);
-    DOCTEST_CHECK(
+    CHECK(foo_response[jsonrpc::ERR] != nullptr);
+    CHECK(
       foo_response[jsonrpc::ERR][jsonrpc::CODE].get<userapp::AppError>() ==
       userapp::AppError::Foo);
 
-    const auto msg =
-      foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
+    const auto msg = foo_response[jsonrpc::ERR]["message"].get<std::string>();
   }
 
   {
@@ -1060,14 +1055,13 @@ DOCTEST_TEST_CASE("App-defined errors")
       frontend.process(rpc_ctx).value();
     auto bar_response = parse_response(serialized_bar_response);
 
-    DOCTEST_CHECK(bar_response[jsonrpc::ERR] != nullptr);
-    DOCTEST_CHECK(
+    CHECK(bar_response[jsonrpc::ERR] != nullptr);
+    CHECK(
       bar_response[jsonrpc::ERR][jsonrpc::CODE].get<userapp::AppError>() ==
       userapp::AppError::Bar);
 
-    const auto msg =
-      bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-    DOCTEST_CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
+    const auto msg = bar_response[jsonrpc::ERR]["message"].get<std::string>();
+    CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
   }
 }
 

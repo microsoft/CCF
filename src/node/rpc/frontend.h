@@ -457,43 +457,44 @@ namespace ccf
       update_history();
       update_consensus();
 
-      bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
-        ctx->is_create_request;
-
-      if (consensus == nullptr || consensus->type() == ConsensusType::Raft)
+      if (consensus == nullptr)
       {
-        if (!is_primary)
-        {
-          switch (handler->rw)
-          {
-            case HandlerRegistry::Read:
-            {
-              if (ctx->session->is_forwarded)
-              {
-                return forward_or_redirect_json(ctx);
-              }
-              break;
-            }
+        throw std::logic_error("Consensus has not been set yet");
+      }
 
-            case HandlerRegistry::Write:
+      bool is_primary = consensus->is_primary() || ctx->is_create_request;
+
+      if (consensus->type() == ConsensusType::Raft && !is_primary)
+      {
+        switch (handler->rw)
+        {
+          case HandlerRegistry::Read:
+          {
+            if (ctx->session->is_forwarded)
+            {
+              return forward_or_redirect_json(ctx);
+            }
+            break;
+          }
+
+          case HandlerRegistry::Write:
+          {
+            ctx->session->is_forwarded = true;
+            return forward_or_redirect_json(ctx);
+          }
+
+          case HandlerRegistry::MayWrite:
+          {
+            if (!ctx->read_only_hint)
             {
               ctx->session->is_forwarded = true;
               return forward_or_redirect_json(ctx);
             }
-
-            case HandlerRegistry::MayWrite:
+            else if (ctx->session->is_forwarded)
             {
-              if (!ctx->read_only_hint)
-              {
-                ctx->session->is_forwarded = true;
-                return forward_or_redirect_json(ctx);
-              }
-              else if (ctx->session->is_forwarded)
-              {
-                return forward_or_redirect_json(ctx);
-              }
-              break;
+              return forward_or_redirect_json(ctx);
             }
+            break;
           }
         }
       }
