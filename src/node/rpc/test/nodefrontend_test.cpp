@@ -4,7 +4,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "consensus/test/stub_consensus.h"
 #include "crypto/cryptobox.h"
-#include "doctest/doctest.h"
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
 #include "node/genesisgen.h"
@@ -13,6 +12,8 @@
 #include "node_stub.h"
 #include "tls/pem.h"
 #include "tls/verifier.h"
+
+#include <doctest/doctest.h>
 
 using namespace ccf;
 using namespace nlohmann;
@@ -35,7 +36,7 @@ void check_error(const nlohmann::json& j, const E expected)
 
 void check_error_message(const nlohmann::json& j, const std::string& msg)
 {
-  CHECK(j[ERR][MESSAGE].get<std::string>().find(msg) != std::string::npos);
+  CHECK(j[ERR]["message"].get<std::string>().find(msg) != std::string::npos);
 }
 
 const json frontend_process(

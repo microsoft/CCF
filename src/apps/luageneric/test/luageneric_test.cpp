@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "consensus/test/stub_consensus.h"
-#include "doctest/doctest.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
@@ -15,6 +14,7 @@
 #include "runtime_config/default_whitelists.h"
 #include "tls/keypair.h"
 
+#include <doctest/doctest.h>
 #include <iostream>
 #include <map>
 #include <set>
@@ -209,7 +209,7 @@ TEST_CASE("simple lua apps")
     auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     const auto response = check_error(
       frontend->process(rpc_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
-    const auto error_msg = response[ERR][MESSAGE].get<string>();
+    const auto error_msg = response[ERR]["message"].get<string>();
     CHECK(error_msg.find("THIS_KEY_DOESNT_EXIST") != string::npos);
   }
 
