@@ -309,7 +309,7 @@ class Consortium:
 
                 LOG.warning(base64.b64encode(decrypted_share))
 
-                r = mc.rpc("submitRecoveryShare", params={"share": decrypted_share})
+                r = mc.rpc("submitRecoveryShare", params={"share": list(decrypted_share)})
 
     def add_new_code(self, member_id, remote_node, new_code_id):
         script = """

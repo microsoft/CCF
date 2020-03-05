@@ -716,7 +716,12 @@ namespace ccf
         const auto in = args.rpc_ctx->get_params().get<SubmitRecoveryShare>();
 
         SecretSharing::Share share;
-        std::copy_n(in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+        std::copy_n(
+          in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+
+        LOG_FAIL_FMT(
+          "Submitted share: {}",
+          tls::b64_from_raw(share.begin(), share.size()));
 
         pending_shares.emplace_back(share);
 
@@ -727,21 +732,18 @@ namespace ccf
         if (pending_shares.size() == g.get_active_members_count())
         {
           LOG_FAIL_FMT("Sufficient pending shares!");
-          auto ledger_secrets =
+          auto share_wrapping_key_raw =
             SecretSharing::combine(pending_shares, pending_shares.size());
 
-          std::cout << "Combined secret:";
-          for (auto const& s : ledger_secrets)
-          {
-            std::cout << std::hex << std::setfill('0') << std::setw(2)
-                      << (int)s;
-          }
-          std::cout << std::endl;
+          auto s_vec = std::vector<uint8_t>(
+            ledger_secrets.begin(), ledger_secrets.begin() + 32);
 
-          return;
+          LOG_FAIL_FMT("Combined secret: {}", tls::b64_from_raw(s_vec));
+
+          args.rpc_ctx->set_response_result(true);
         }
 
-        args.rpc_ctx->set_response_result(true);
+        args.rpc_ctx->set_response_result(false);
       };
       install_with_auto_schema<SubmitRecoveryShare, bool>(
         MemberProcs::SUBMIT_RECOVERY_SHARE, submit_recovery_share, Write);

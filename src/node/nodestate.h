@@ -276,6 +276,10 @@ namespace ccf
           network.encryption_priv_key =
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
 
+          std::cout << tls::b64_from_raw(
+                         network.ledger_secrets->get_secret(1)->master)
+                    << std::endl;
+
           self = 0; // The first node id is always 0
 
 #ifdef PBFT
@@ -991,6 +995,8 @@ namespace ccf
         tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
       auto share_wrapping_key = crypto::KeyAesGcm(share_wrapping_key_raw);
 
+      LOG_FAIL_FMT("k_z: {}", tls::b64_from_raw(share_wrapping_key_raw));
+
       // Once sealing is completely removed, this can be called from the
       // LedgerSecrets class directly
       crypto::GcmCipher encrypted_ls(
@@ -1026,6 +1032,8 @@ namespace ccf
       {
         auto share_raw = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
+
+        LOG_FAIL_FMT("Share: {}", tls::b64_from_raw(share_raw));
 
         auto enc_pub_key_raw = tls::parse_25519_public(tls::Pem(enc_pub_key));
         auto encrypted_share = crypto::Box::create(
