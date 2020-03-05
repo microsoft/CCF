@@ -132,7 +132,7 @@ jobs:
           target: SGX
           consensus: ${{ consensus }}
           env: ${{ parameters.env.Perf }}
-          install_prefix: '${{ parameters.install.install_prefix }}'
+          install_prefix: '${{ parameters.build.install.install_prefix }}'
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
           ctest_filter: '${{ parameters.test.perf.ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
           suffix: 'Perf'
