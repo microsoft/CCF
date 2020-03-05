@@ -48,19 +48,30 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|suite"'
+      BFT:
+        ctest_args: '-LE "benchmark|perf|suite|raft"'
+      CFT:
+        ctest_args: '-LE "benchmark|perf|suite|pbft"'
     SGX:
-      ctest_args: '-LE "benchmark|perf"'
+      BFT:
+        ctest_args: '-LE "benchmark|perf|raft"'
+      CFT:
+        ctest_args: '-LE "benchmark|perf|pbft"'
     Release:
-      ctest_args: '-LE "benchmark|perf"'
+      BFT:
+        ctest_args: '-LE "benchmark|perf|raft"'
+      CFT:
+        ctest_args: '-LE "benchmark|perf|pbft"'
     perf:
-      ctest_args: '-L "benchmark|perf"'
+      BFT:
+        ctest_args: '-L "benchmark|perf|raft"'
+      CFT:
+        ctest_args: '-L "benchmark|perf|pbft"'
     san:
-      ctest_args: '-LE "benchmark|perf|suite"'
-    BFT:
-      ctest_args: '-LE "benchmark|raft"'
-    CFT:
-      ctest_args: '-LE "pbft"'
+      BFT:
+        ctest_args: '-LE "benchmark|perf|suite|raft"'
+      CFT:
+        ctest_args: '-LE "benchmark|perf|suite|pbft"'
 
   static_check_job_name: 'Formatting_and_License_Checks'      
 
@@ -88,7 +99,7 @@ jobs:
           consensus: ${{ consensus }}
           env: ${{ parameters.env[target] }}
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
-          ctest_filter: '${{ parameters.test[target].ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
+          ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
           suffix: 'Debug'
           artifact_name: 'Build_${{ target }}_Debug'
           depends_on: ['Build_${{ target }}_Debug', '${{ parameters.static_check_job_name }}']
@@ -110,7 +121,7 @@ jobs:
         consensus: ${{ consensus }}
         env: ${{ parameters.env.SAN }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-        ctest_filter: '${{ parameters.test.san.ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
+        ctest_filter: '${{ parameters.test.san[consensus].ctest_args }} }}'
         suffix: 'SAN'
         artifact_name: 'Build_NoSGX_SAN'
         depends_on: ['Build_NoSGX_SAN', '${{ parameters.static_check_job_name }}']
@@ -134,7 +145,7 @@ jobs:
           env: ${{ parameters.env.Perf }}
           install_prefix: '${{ parameters.build.install.install_prefix }}'
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
-          ctest_filter: '${{ parameters.test.perf.ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
+          ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
           artifact_name: 'Build_SGX_Perf'
           depends_on: ['Build_SGX_Perf', '${{ parameters.static_check_job_name }}']
@@ -164,7 +175,7 @@ jobs:
           env: ${{ parameters.env.Release }}
           install_prefix: '${{ parameters.build.install.install_prefix }}'
           cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
-          ctest_filter: '${{ parameters.test.Release.ctest_args }} ${{ parameters.test[consensus].ctest_args }}'
+          ctest_filter: '${{ parameters.test.Release[consensus].ctest_args }}'
           suffix: 'Release'
           artifact_name: 'Build_SGX_Release'
           depends_on: ['Build_SGX_Release', '${{ parameters.static_check_job_name }}']
