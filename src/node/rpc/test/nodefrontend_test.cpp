@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "consensus/test/stub_consensus.h"
 #include "crypto/cryptobox.h"
 #include "doctest/doctest.h"
 #include "ds/logger.h"
-#include "consensus/test/stub_consensus.h"
 #include "nlohmann/json.hpp"
 #include "node/genesisgen.h"
 #include "node/rpc/jsonrpc.h"

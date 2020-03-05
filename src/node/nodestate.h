@@ -745,7 +745,6 @@ namespace ccf
         *recovery_signature_map,
         *recovery_nodes_map);
 
-      recovery_encryptor = nullptr;
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<NullTxEncryptor>();
 #else
@@ -1507,7 +1506,6 @@ namespace ccf
       // This function makes use of network secrets and should be called once
       // the node has joined the service (either via start_network() or
       // join_network())
-      encryptor = nullptr;
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<NullTxEncryptor>();
 #else

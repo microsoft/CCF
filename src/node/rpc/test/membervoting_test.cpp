@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "consensus/test/stub_consensus.h"
 #include "doctest/doctest.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "consensus/test/stub_consensus.h"
 #include "node/clientsignatures.h"
 #include "node/encryptor.h"
 #include "node/genesisgen.h"

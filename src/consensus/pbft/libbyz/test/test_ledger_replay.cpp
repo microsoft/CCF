@@ -11,8 +11,8 @@
 #include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttables.h"
 #include "consensus/pbft/pbfttypes.h"
-#include "host/ledger.h"
 #include "consensus/test/stub_consensus.h"
+#include "host/ledger.h"
 #include "network_mock.h"
 #include "tls/keypair.h"
 
