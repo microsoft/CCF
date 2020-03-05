@@ -144,7 +144,7 @@ jobs:
     parameters:
       env: ${{ parameters.env.Metrics }}
 
-  # Publish release
+  # Build, test, and publish release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
     # Release build
     - template: common_build.yml
@@ -155,7 +155,7 @@ jobs:
         suffix: 'Release'
         artifact_name: 'Build_SGX_Release'
 
-    # Release builds
+    # Release tests
     - ${{ each consensus in parameters.consensus }}:
       - template: common_test.yml
         parameters:

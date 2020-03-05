@@ -272,19 +272,7 @@ namespace ccf
 
           self = 0; // The first node id is always 0
 
-          if (args.consensus_type == ConsensusType::Pbft)
-          {
-            setup_pbft(args.config);
-          }
-          else if (args.consensus_type == ConsensusType::Raft)
-          {
-            setup_raft();
-          }
-          else
-          {
-            throw std::logic_error("Unknown consensus type");
-          }
-
+          setup_consensus(args.consensus_type, args.config);
           setup_history();
           setup_encryptor(args.consensus_type);
 
@@ -398,19 +386,8 @@ namespace ccf
 
             self = resp->node_id;
 
-            if (args.consensus_type == ConsensusType::Pbft)
-            {
-              setup_pbft(args.config);
-            }
-            else if (args.consensus_type == ConsensusType::Raft)
-            {
-              setup_raft(resp->public_only);
-            }
-            else
-            {
-              throw std::logic_error("Unknown consensus type");
-            }
-
+            setup_consensus(
+              args.consensus_type, args.config, resp->public_only);
             setup_history();
             setup_encryptor(args.consensus_type);
 
@@ -1523,6 +1500,26 @@ namespace ccf
 #endif
 
       network.tables->set_encryptor(encryptor);
+    }
+
+    void setup_consensus(
+      ConsensusType consensus_type,
+      const CCFConfig& config,
+      bool public_only = false)
+    {
+      if (consensus_type == ConsensusType::Pbft)
+      {
+        setup_pbft(config);
+      }
+      else if (consensus_type == ConsensusType::Raft)
+      {
+        setup_raft(public_only);
+      }
+      else
+      {
+        throw std::logic_error(
+          "Unknown consensus type " + std::to_string(consensus_type));
+      }
     }
 
     void add_node(
