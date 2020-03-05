@@ -1,7 +1,7 @@
 Issuing Commands
 ================
 
-Clients communicate with CCF using HTTP requests. Currently all requests must use the HTTP method ``POST``, and the body of each request is expected to be a valid JSON-RPC object. Arbitrary payload and return types will be supported in future. The ``method`` must be prefixed with the name of the target frontend (``"users"`` or ``"members"``), separated from the intended ``method`` with a single ``/``, and this ``method`` must also match the resource path in the URL.
+Clients communicate with CCF using HTTP requests.
 
 These requests can be sent by standard tools. CCF's test infrastructure uses `Python Requests <https://requests.readthedocs.io/en/master/>`_ by default, but can be switched to a ``curl``-based client (printing each command to stdout) by running with environment variable ``CURL_CLIENT`` set.
 
@@ -30,7 +30,8 @@ The HTTP response some CCF commit information in the headers:
 - ``"x-ccf-commit"`` is the unique version at which the request was executed
 - ``"x-ccf-global-commit"`` is the latest version agreed on by the network and forever committed to the ledger, at the time the request was executed, as seen by the contacted node
 - ``"x-ccf-term"`` indicates the consensus term at which the request was executed
-- the body (the JSON value ``true``) indicates that the request was executed successfully, for other RPCs this may be an arbitrary JSON object
+
+The response body (the JSON value ``true``) indicates that the request was executed successfully. For many RPCs this will be a JSON object with more details about the execution result.
 
 Signing
 -------
