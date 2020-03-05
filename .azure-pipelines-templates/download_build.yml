@@ -1,5 +1,6 @@
 parameters:	
   artifact_name: ''
+  cmake_args: ''
 
 steps:
 - task: DownloadPipelineArtifact@1
