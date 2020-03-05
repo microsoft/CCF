@@ -36,7 +36,11 @@ namespace ccf
       HandlerRegistry::init_handlers(t);
 
       auto get_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
-        const auto in = params.get<GetCommit::In>();
+        GetCommit::In in{};
+        if (!params.is_null())
+        {
+          in = params.get<GetCommit::In>();
+        }
 
         kv::Version commit = in.commit.value_or(tables->commit_version());
 
