@@ -12,7 +12,7 @@
 #include "consensus/pbft/pbfttables.h"
 #include "consensus/pbft/pbfttypes.h"
 #include "host/ledger.h"
-#include "kv/test/stub_consensus.h"
+#include "consensus/test/stub_consensus.h"
 #include "network_mock.h"
 #include "tls/keypair.h"
 

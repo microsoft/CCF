@@ -5,7 +5,7 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "kv/test/stub_consensus.h"
+#include "consensus/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/genesisgen.h"
@@ -408,6 +408,9 @@ void add_callers_pbft_store()
   pbft_network.tables->set_encryptor(encryptor);
   pbft_network.tables->clear();
   pbft_network.tables->set_history(history);
+  auto backup_consensus =
+    std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::Pbft);
+  pbft_network.tables->set_consensus(backup_consensus);
 
   GenesisGenerator g(pbft_network, gen_tx);
   g.init_values();

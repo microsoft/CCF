@@ -204,6 +204,11 @@ namespace ccf
     {
       update_consensus();
 
+      if (consensus == nullptr)
+      {
+        throw std::logic_error("Consensus has not been set yet");
+      }
+
       Store::Tx tx;
 
       // Retrieve id of caller
@@ -240,16 +245,14 @@ namespace ccf
         }
 
         // Client signature is only recorded on the primary
-        if (
-          consensus == nullptr || consensus->is_primary() ||
-          ctx->is_create_request)
+        if (consensus->is_primary() || ctx->is_create_request)
         {
           record_client_signature(
             tx, caller_id.value(), signed_request.value());
         }
       }
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
+      if (consensus->type() == ConsensusType::Pbft)
       {
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
         if (rep.has_value())
@@ -456,11 +459,6 @@ namespace ccf
 
       update_history();
       update_consensus();
-
-      if (consensus == nullptr)
-      {
-        throw std::logic_error("Consensus has not been set yet");
-      }
 
       bool is_primary = consensus->is_primary() || ctx->is_create_request;
 

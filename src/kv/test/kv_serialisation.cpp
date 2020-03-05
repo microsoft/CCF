@@ -5,7 +5,7 @@
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
 #include "node/encryptor.h"
-#include "stub_consensus.h"
+#include "consensus/test/stub_consensus.h"
 
 #include <doctest/doctest.h>
 #include <msgpack-c/msgpack.hpp>

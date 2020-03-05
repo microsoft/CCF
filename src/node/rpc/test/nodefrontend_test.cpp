@@ -5,6 +5,7 @@
 #include "crypto/cryptobox.h"
 #include "doctest/doctest.h"
 #include "ds/logger.h"
+#include "consensus/test/stub_consensus.h"
 #include "nlohmann/json.hpp"
 #include "node/genesisgen.h"
 #include "node/rpc/jsonrpc.h"
@@ -83,6 +84,8 @@ TEST_CASE("Add a node to an opening service")
   network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
   network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
   network.encryption_priv_key = dummy_encryption_priv_key;
+  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network.tables->set_consensus(consensus);
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -181,6 +184,8 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
   network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
   network.encryption_priv_key = dummy_encryption_priv_key;
+  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network.tables->set_consensus(consensus);
 
   gen.create_service({});
   gen.open_service();
