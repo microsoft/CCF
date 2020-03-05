@@ -61,8 +61,6 @@ namespace enclave
 
     bool is_create_request = false;
 
-    bool read_only_hint = true;
-
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
     RpcContext(

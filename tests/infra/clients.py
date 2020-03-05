@@ -32,6 +32,7 @@ def truncate(string, max_len=256):
 CCF_COMMIT_HEADER = "x-ccf-commit"
 CCF_TERM_HEADER = "x-ccf-term"
 CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
+CCF_READ_ONLY_HEADER = "x-ccf-read-only"
 
 
 class Request:
@@ -208,6 +209,9 @@ class CurlClient:
                 f"-m {self.request_timeout}",
             ]
 
+            if request.readonly_hint:
+                cmd.extend(["-H", f"{CCF_READ_ONLY_HEADER}: true"])
+
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
             if self.key:
@@ -288,11 +292,16 @@ class RequestClient:
                 headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
             )
 
+        extra_headers = {}
+        if request.readonly_hint:
+            extra_headers[CCF_READ_ONLY_HEADER] = "true"
+
         response = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
             timeout=self.request_timeout,
             auth=auth_value,
+            headers=extra_headers,
         )
         return Response.from_requests_response(response)
 

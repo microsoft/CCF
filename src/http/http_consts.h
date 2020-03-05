@@ -17,6 +17,7 @@ namespace http
     static constexpr auto CCF_COMMIT = "x-ccf-commit";
     static constexpr auto CCF_TERM = "x-ccf-term";
     static constexpr auto CCF_GLOBAL_COMMIT = "x-ccf-global-commit";
+    static constexpr auto CCF_READ_ONLY = "x-ccf-read-only";
   }
 
   namespace headervalues

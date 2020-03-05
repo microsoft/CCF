@@ -490,7 +490,9 @@ namespace ccf
 
           case HandlerRegistry::MayWrite:
           {
-            if (!ctx->read_only_hint)
+            const auto read_only_it =
+              ctx->get_request_header(http::headers::CCF_READ_ONLY);
+            if (!read_only_it.has_value() || (read_only_it.value() != "true"))
             {
               ctx->session->is_forwarded = true;
               return forward_or_redirect_json(ctx);
