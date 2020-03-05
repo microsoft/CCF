@@ -213,7 +213,7 @@ namespace ccf
         {
           case jsonrpc::Pack::Text:
           {
-            const auto s = fmt::format("{}\n", body->dump(2));
+            const auto s = fmt::format("{}\n", body->dump());
             ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
             break;
           }
