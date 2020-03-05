@@ -95,10 +95,6 @@ option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 
-set(PBFT_BUILD_ENCLAVE TRUE)
-set(PBFT_BUILD_HOST TRUE)
-set(PBFT_USE_LIBC TRUE)
-
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
 )

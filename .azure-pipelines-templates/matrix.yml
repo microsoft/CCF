@@ -58,7 +58,7 @@ parameters:
     san:
       ctest_args: '-LE "benchmark|perf|suite"'
     BFT:
-      ctest_args: '-LE "raft"'
+      ctest_args: '-LE "benchmark|raft"'
     CFT:
       ctest_args: '-LE "pbft"'
 

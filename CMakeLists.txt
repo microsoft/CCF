@@ -36,6 +36,8 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
 
+set(CONSENSUSES raft pbft)
+
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
@@ -567,33 +569,21 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
-  add_e2e_test(
-    NAME end_to_end_logging
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CURL_CLIENT TRUE
-    CONSENSUS raft
-  )
+  foreach(CONSENSUS ${CONSENSUSES})
+    add_e2e_test(
+      NAME end_to_end_logging_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      CURL_CLIENT TRUE
+      CONSENSUS ${CONSENSUS}
+    )
 
-  add_e2e_test(
-    NAME end_to_end_logging_pbft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CURL_CLIENT TRUE
-    CONSENSUS pbft
-  )
-
-  add_e2e_test(
-    NAME election_tests
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --election-timeout 2000
-  )
-
-  add_e2e_test(
-    NAME election_tests_pbft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    CONSENSUS pbft
-    ADDITIONAL_ARGS --election-timeout 2000
-  )
+    add_e2e_test(
+      NAME election_tests_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS --election-timeout 2000
+    )
+  endforeach()
 
   # Logging scenario perf test
   add_perf_test(
