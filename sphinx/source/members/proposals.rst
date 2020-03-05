@@ -20,21 +20,19 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
 
     $ cat add_member.json
     {
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "members/propose",
-        "params": {
-            "parameter": {"cert": [<cert of member4>], "keyshare": [<public keyshare of member4>]},
-            "script": {
-                "text": "tables, member_info = ...; return Calls:call(\"new_member\", member_info)"
-            }
+        "parameter": {"cert": [<cert of member4>], "keyshare": [<public keyshare of member4>]},
+        "script": {
+            "text": "tables, member_info = ...; return Calls:call(\"new_member\", member_info)"
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json
-    {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
+    {
+      "completed": false,
+      "id": 1
+    }
 
-In this case, a new proposal with id ``1`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or later). Other members can then vote to accept or reject the proposal:
+In this case, a new proposal with id ``1`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or withhold their vote until later). Other members can then vote to accept or reject the proposal:
 
 .. code-block:: bash
 
@@ -42,37 +40,27 @@ In this case, a new proposal with id ``1`` has successfully been created and the
 
     $ cat vote_reject.json
     {
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "members/vote",
-        "params": {
-            "ballot": {
-                "text": "return false"
-            },
-            "id": 0
-        }
+        "ballot": {
+            "text": "return false"
+        },
+        "id": 0
     }
 
     $ cat vote_accept.json
     {
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "members/vote",
-        "params": {
-            "ballot": {
-                "text": "return true"
-            },
-            "id": 0
-        }
+        "ballot": {
+            "text": "return true"
+        },
+        "id": 0
     }
 
     // Member 2 rejects the proposal (votes: 1/3)
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json
-    {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":false,"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
+    false
 
     // Member 3 accepts the proposal (votes: 2/3)
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json
-    {"commit":106,"global_commit":105,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    true
 
     // As a majority of members have accepted the proposal, member4 is added to the consortium
 
@@ -89,15 +77,10 @@ The details of pending proposals, including the proposer member id, proposal scr
 
     $ cat display_proposals.json
     {
-      "jsonrpc": "2.0",
-      "id": 0,
-      "method": "members/query",
-      "params": {
-        "text": "tables = ...; local proposals = {}; tables[\"ccf.proposals\"]:foreach( function(k, v) proposals[tostring(k)] = v; end ) return proposals;"
-      }
+      "text": "tables = ...; local proposals = {}; tables[\"ccf.proposals\"]:foreach( function(k, v) proposals[tostring(k)] = v; end ) return proposals;"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/query --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @display_proposals.json
+    $ ./scurl.sh https://<ccf-node-address>/members/query --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @display_proposals.json -H "content-type: application/json"
     {
       "1": {
         "parameter": [...],
@@ -133,15 +116,10 @@ At any stage during the voting process and before the proposal is completed, the
 
     $ cat withdraw_0.json
     {
-      "jsonrpc": "2.0",
-      "id": 0,
-      "method": "members/withdraw",
-      "params": {
-        "id": 0
-      }
+      "id": 0
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/withdraw --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @withdraw_0.json
-    {"commit":110,"global_commit":109,"id":0,"jsonrpc":"2.0","result":true,"term":4}
+    $ ./scurl.sh https://<ccf-node-address>/members/withdraw --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @withdraw_0.json -H "content-type: application/json"
+    true
 
 This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
