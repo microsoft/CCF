@@ -753,9 +753,10 @@ namespace ccf
       // Since private ledger recovery is done in a temporary store, ledger
       // secrets are only sealed once the recovery is successful.
 
-      // if consensus is pbft use null encryptor
       if (consensus->type() == ConsensusType::Pbft)
       {
+        // for now do not encrypt the ledger as the current implementation does
+        // not work for PBFT
         recovery_encryptor = std::make_shared<NullTxEncryptor>();
       }
       else
@@ -1513,6 +1514,8 @@ namespace ccf
 
       if (consensus_type == ConsensusType::Pbft)
       {
+        // for now do not encrypt the ledger as the current implementation does
+        // not work for PBFT
         encryptor = std::make_shared<NullTxEncryptor>();
       }
       else
