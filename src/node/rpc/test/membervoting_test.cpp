@@ -192,6 +192,8 @@ TEST_CASE("Member query/read")
 {
   // initialize the network state
   NetworkTables network;
+  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
+  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
