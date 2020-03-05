@@ -37,7 +37,6 @@ if(BUILD_TESTS)
       set(SMALL_BANK_ITERATIONS 200000)
     endif()
 
-
     add_perf_test(
       NAME small_bank_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
