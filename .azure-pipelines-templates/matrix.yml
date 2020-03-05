@@ -154,7 +154,7 @@ jobs:
       parameters:
         target: SGX
         env: ${{ parameters.env.Release }}
-        '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
+        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
         suffix: 'Release'
         artifact_name: 'Build_SGX_Release'
 
