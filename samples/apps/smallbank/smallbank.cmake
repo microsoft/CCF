@@ -18,7 +18,7 @@ if(BUILD_TESTS)
   # Small Bank end to end and performance test
   foreach(CONSENSUS ${CONSENSUSES})
 
-    if(${CONSENSUS} STREQUAL "pbft")
+    if(${CONSENSUS} STREQUAL pbft)
       if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(SMALL_BANK_VERIFICATION_FILE
             ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
@@ -36,6 +36,7 @@ if(BUILD_TESTS)
       )
       set(SMALL_BANK_ITERATIONS 200000)
     endif()
+
 
     add_perf_test(
       NAME small_bank_client_test_${CONSENSUS}
@@ -55,7 +56,7 @@ if(BUILD_TESTS)
     set(SMALL_BANK_SIGNED_VERIFICATION_FILE
         ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
     )
-    set(SMALL_BANK_SIGNED_ITERATIONS_RAFT 50000)
+    set(SMALL_BANK_SIGNED_ITERATIONS 50000)
   else()
     set(SMALL_BANK_SIGNED_VERIFICATION_FILE
         ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
