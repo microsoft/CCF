@@ -25,7 +25,7 @@ For example, to record a message at a specific id with the :ref:`developers/exam
 
     true
 
-The HTTP response contains a JSON-RPC response object, with some CCF commit information in the headers:
+The HTTP response some CCF commit information in the headers:
 
 - ``"x-ccf-commit"`` is the unique version at which the request was executed
 - ``"x-ccf-global-commit"`` is the latest version agreed on by the network and forever committed to the ledger, at the time the request was executed, as seen by the contacted node
