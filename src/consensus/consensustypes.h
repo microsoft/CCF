@@ -18,6 +18,7 @@ namespace consensus
   {
     size_t request_timeout;
     size_t election_timeout;
+    size_t status_timeout;
     MSGPACK_DEFINE(request_timeout, election_timeout);
   };
 

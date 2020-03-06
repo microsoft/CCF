@@ -259,7 +259,7 @@ namespace pbft
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
       general_info.view_timeout = consensus_config.election_timeout;
-      general_info.status_timeout = 100;
+      general_info.status_timeout = consensus_config.status_timeout;
       general_info.recovery_timeout = 9999250000;
       general_info.max_requests_between_signatures =
         sig_max_tx / Max_requests_in_batch;

@@ -148,14 +148,23 @@ int main(int argc, char** argv)
     "backup triggers a new election.",
     true);
 
-  size_t heartbeat_timeout = 100;
+  size_t raft_timeout = 100;
   app.add_option(
-    "--heartbeat-timeout-ms",
-    heartbeat_timeout,
-    "Consensus (e.g. Raft) timeout in milliseconds. The consensus primary "
+    "--raft-timeout-ms",
+    raft_timeout,
+    "Raft timeout in milliseconds. The Raft leader "
     "sends heartbeats to its "
-    "backups at regular intervals defined by this timeout. This should be "
-    "set to a significantly lower value than --consensus-election-timeout-ms.",
+    "followers at regular intervals defined by this timeout. This should be "
+    "set to a significantly lower value than --consensus-election-timeout-ms. ",
+    true);
+
+  size_t pbft_status_timeout = 100;
+  app.add_option(
+    "--pbft-status-timeout-ms",
+    pbft_status_timeout,
+    "Pbft status timeout in milliseconds. All pbft nodes send "
+    "messages containing their status to all other known nodes"
+    "at regular intervals defined by this timeout.",
     true);
 
   size_t max_msg_size = 24;
@@ -351,7 +360,8 @@ int main(int argc, char** argv)
 #endif
 
   CCFConfig ccf_config;
-  ccf_config.consensus_config = {heartbeat_timeout, election_timeout};
+  ccf_config.consensus_config = {
+    raft_timeout, election_timeout, pbft_status_timeout};
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
