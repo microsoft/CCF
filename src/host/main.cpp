@@ -147,31 +147,41 @@ int main(int argc, char** argv)
     "--notify-server-address",
     "Server address to notify progress to");
 
-  size_t election_timeout = 5000;
-  app.add_option(
-    "--election-timeout-ms",
-    election_timeout,
-    "Consensus election timeout in milliseconds. If a consensus backup does "
-    "not receive any heartbeat from the primary after this timeout, the backup "
-    "triggers a new election.",
-    true);
-
   size_t raft_timeout = 100;
   app.add_option(
     "--raft-timeout-ms",
     raft_timeout,
     "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
     "followers at regular intervals defined by this timeout. This should be "
-    "set to a significantly lower value than --consensus-election-timeout-ms.",
+    "set to a significantly lower value than --raft-election-timeout-ms.",
     true);
 
-  size_t pbft_status_timeout = 100;
+  size_t raft_election_timeout = 5000;
   app.add_option(
-    "--pbft-status-timeout-ms",
-    pbft_status_timeout,
-    "Pbft status timeout in milliseconds. All pbft nodes send messages "
+    "--raft-election-timeout-ms",
+    raft_election_timeout,
+    "Raft election timeout in milliseconds. If a follower does not receive any "
+    "heartbeat from the leader after this timeout, the follower triggers a new "
+    "election.",
+    true);
+
+  size_t pbft_view_change_timeout = 5000;
+  app.add_option(
+    "--pbft_view-change-timeout-ms",
+    pbft_view_change_timeout,
+    "Pbft view change timeout in milliseconds. A backup that receives a "
+    "request and forwards it to the primary will trigger a view change if the "
+    "backup has not received a pre prepare from the primary for that request "
+    "after this timeout.",
+    true);
+
+  size_t pbft_status_interval = 100;
+  app.add_option(
+    "--pbft-status-interval-ms",
+    pbft_status_interval,
+    "Pbft status timer interval in milliseconds. All pbft nodes send messages "
     "containing their status to all other known nodes at regular intervals "
-    "defined by this timeout.",
+    "defined by this timer interval.",
     true);
 
   size_t max_msg_size = 24;
@@ -370,8 +380,10 @@ int main(int argc, char** argv)
 #endif
 
   CCFConfig ccf_config;
-  ccf_config.consensus_config = {
-    raft_timeout, election_timeout, pbft_status_timeout};
+  ccf_config.consensus_config = {raft_timeout,
+                                 raft_election_timeout,
+                                 pbft_view_change_timeout,
+                                 pbft_status_interval};
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,

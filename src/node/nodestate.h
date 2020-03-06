@@ -1430,8 +1430,8 @@ namespace ccf
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         self,
-        std::chrono::milliseconds(consensus_config.request_timeout),
-        std::chrono::milliseconds(consensus_config.election_timeout),
+        std::chrono::milliseconds(consensus_config.raft_request_timeout),
+        std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
 
       consensus = std::make_shared<RaftConsensusType>(std::move(raft));

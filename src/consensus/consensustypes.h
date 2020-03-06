@@ -16,10 +16,15 @@ namespace consensus
 {
   struct Config
   {
-    size_t request_timeout;
-    size_t election_timeout;
-    size_t status_timeout;
-    MSGPACK_DEFINE(request_timeout, election_timeout);
+    size_t raft_request_timeout;
+    size_t raft_election_timeout;
+    size_t pbft_view_change_timeout;
+    size_t pbft_status_interval;
+    MSGPACK_DEFINE(
+      raft_request_timeout,
+      raft_election_timeout,
+      pbft_view_change_timeout,
+      pbft_status_interval);
   };
 
 #pragma pack(push, 1)
