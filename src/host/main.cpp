@@ -20,7 +20,9 @@
 #include <iostream>
 #include <locale>
 #include <string>
+#include <sys/types.h>
 #include <thread>
+#include <unistd.h>
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -108,6 +110,13 @@ int main(int argc, char** argv)
     "--node-cert-file",
     node_cert_file,
     "Path to which the node certificate will be written",
+    true);
+
+  std::string node_pid_file("cchost.pid");
+  app.add_option(
+    "--node-pid-file",
+    node_pid_file,
+    "Path to which the node PID will be written",
     true);
 
   size_t sig_max_tx = 5000;
@@ -433,6 +442,9 @@ int main(int argc, char** argv)
   {
     files::dump(network_cert, network_cert_file);
   }
+
+  // Write PID to disk
+  files::dump(fmt::format("{}", ::getpid()), node_pid_file);
 
   auto enclave_thread_start = [&]() {
 #ifndef VIRTUAL_ENCLAVE
