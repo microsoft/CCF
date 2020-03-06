@@ -701,10 +701,10 @@ TEST_CASE("Accept node")
       frontend_process(frontend, propose, member_0_cert));
 
     const Script vote_ballot("return true");
-    const auto vote = create_signed_request(Vote{2, vote_ballot}, "vote", kp);
-    check_error(
-      frontend_process(frontend, vote, member_1_cert),
-      HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    const auto vote =
+      create_signed_request(Vote{r.proposal_id, vote_ballot}, "vote", kp);
+    check_result_state(
+      frontend_process(frontend, vote, member_1_cert), ProposalState::FAILED);
   }
 
   // check that retired node cannot be retired again
@@ -719,10 +719,10 @@ TEST_CASE("Accept node")
       frontend_process(frontend, propose, member_0_cert));
 
     const Script vote_ballot("return true");
-    const auto vote = create_signed_request(Vote{3, vote_ballot}, "vote", kp);
-    check_error(
-      frontend_process(frontend, vote, member_1_cert),
-      HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    const auto vote =
+      create_signed_request(Vote{r.proposal_id, vote_ballot}, "vote", kp);
+    check_result_state(
+      frontend_process(frontend, vote, member_1_cert), ProposalState::FAILED);
   }
 }
 
