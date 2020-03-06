@@ -9,7 +9,6 @@
 #include "ds/spinlock.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
-#include "jsonrpc.h"
 #include "node/clientsignatures.h"
 #include "node/nodes.h"
 #include "nodeinterface.h"
@@ -85,6 +84,7 @@ namespace ccf
       {
         // If this frontend is not allowed to forward or the command has already
         // been forwarded, redirect to the current primary
+        ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
@@ -94,15 +94,13 @@ namespace ccf
 
           if (info)
           {
-            return ctx->error_response(
-              jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
-              info->pubhost + ":" + info->rpcport);
+            ctx->set_response_header(
+              http::headers::LOCATION,
+              fmt::format("{}:{}", info->pubhost, info->rpcport));
           }
         }
 
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
-          "Not primary, primary unknown.");
+        return ctx->serialise_response();
       }
     }
 
@@ -146,6 +144,20 @@ namespace ccf
       }
 
       return true;
+    }
+
+    void set_response_unauthorized(
+      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string&& msg = "Failed to verify client signature") const
+    {
+      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_response_header(
+        http::headers::WWW_AUTHENTICATE,
+        fmt::format(
+          "Signature realm=\"Signed request access\", "
+          "headers=\"(request-target) {}",
+          http::headers::DIGEST));
+      ctx->set_response_body(std::move(msg));
     }
 
   public:
@@ -219,9 +231,9 @@ namespace ccf
 
       if (!caller_id.has_value())
       {
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-          invalid_caller_error_message());
+        ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+        ctx->set_response_body(invalid_caller_error_message());
+        return ctx->serialise_response();
       }
 
       const auto signed_request = ctx->get_signed_request();
@@ -234,9 +246,8 @@ namespace ccf
             caller_id.value(),
             signed_request.value()))
         {
-          return ctx->error_response(
-            jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
-            "Failed to verify client signature.");
+          set_response_unauthorized(ctx);
+          return ctx->serialise_response();
         }
 
         // Client signature is only recorded on the primary
@@ -274,18 +285,18 @@ namespace ccf
             std::get<0>(reqid),
             std::get<1>(reqid),
             std::get<2>(reqid));
-          return ctx->error_response(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "PBFT could not process request.");
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx->set_response_body("PBFT could not process request.");
+          return ctx->serialise_response();
         }
         tx.set_req_id(reqid);
         return std::nullopt;
       }
       else
       {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "PBFT is not yet ready.");
+        ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        ctx->set_response_body("PBFT is not yet ready.");
+        return ctx->serialise_response();
       }
 #else
       auto rep = process_command(ctx, tx, caller_id.value());
@@ -308,9 +319,9 @@ namespace ccf
           }
         }
 
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
-          "RPC could not be forwarded to primary.");
+        ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        ctx->set_response_body("RPC could not be forwarded to primary.");
+        return ctx->serialise_response();
       }
 
       return rep.value();
@@ -388,9 +399,9 @@ namespace ccf
 
       if (!lookup_forwarded_caller_cert(ctx, tx))
       {
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-          invalid_caller_error_message());
+        ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+        ctx->set_response_body(invalid_caller_error_message());
+        return ctx->serialise_response();
       }
 
       // Store client signature. It is assumed that the forwarder node has
@@ -438,17 +449,17 @@ namespace ccf
       auto handler = handlers.find_handler(local_method);
       if (handler == nullptr)
       {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, method);
+        ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+        return ctx->serialise_response();
       }
 
       if (
         handler->require_client_signature &&
         !ctx->get_signed_request().has_value())
       {
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED,
-          fmt::format("{} RPC must be signed", method));
+        set_response_unauthorized(
+          ctx, fmt::format("'{}' RPC must be signed", method));
+        return ctx->serialise_response();
       }
 
       update_history();
@@ -479,7 +490,9 @@ namespace ccf
 
           case HandlerRegistry::MayWrite:
           {
-            if (!ctx->read_only_hint)
+            const auto read_only_it =
+              ctx->get_request_header(http::headers::CCF_READ_ONLY);
+            if (!read_only_it.has_value() || (read_only_it.value() != "true"))
             {
               ctx->session->is_forwarded = true;
               return forward_or_redirect_json(ctx);
@@ -519,12 +532,14 @@ namespace ccf
                 cv = tx.get_read_version();
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
-              ctx->set_response_headers(COMMIT, cv);
+              ctx->set_response_header(http::headers::CCF_COMMIT, cv);
               if (consensus != nullptr)
               {
-                ctx->set_response_headers(TERM, consensus->get_view());
-                ctx->set_response_headers(
-                  GLOBAL_COMMIT, consensus->get_commit_seqno());
+                ctx->set_response_header(
+                  http::headers::CCF_TERM, consensus->get_view());
+                ctx->set_response_header(
+                  http::headers::CCF_GLOBAL_COMMIT,
+                  consensus->get_commit_seqno());
 
                 if (
                   history && consensus->is_primary() &&
@@ -551,22 +566,24 @@ namespace ccf
 
             case kv::CommitSuccess::NO_REPLICATE:
             {
-              return ctx->error_response(
-                jsonrpc::CCFErrorCodes::TX_FAILED_TO_REPLICATE,
-                "Transaction failed to replicate.");
+              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              ctx->set_response_body("Transaction failed to replicate.");
+              return ctx->serialise_response();
             }
           }
         }
         catch (const RpcException& e)
         {
-          return ctx->error_response((int)e.error_id, e.msg);
+          ctx->set_response_status(e.status);
+          ctx->set_response_body(e.what());
+          return ctx->serialise_response();
         }
         catch (JsonParseError& e)
         {
-          e.pointer_elements.push_back(jsonrpc::PARAMS);
-          const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
-          return ctx->error_response(
-            jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
+          auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
+          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          ctx->set_response_body(std::move(err));
+          return ctx->serialise_response();
         }
         catch (const kv::KvSerialiserException& e)
         {
@@ -578,8 +595,9 @@ namespace ccf
         }
         catch (const std::exception& e)
         {
-          return ctx->error_response(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR, e.what());
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx->set_response_body(e.what());
+          return ctx->serialise_response();
         }
       }
     }

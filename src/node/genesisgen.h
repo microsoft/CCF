@@ -10,7 +10,6 @@
 #include "nodeinfonetwork.h"
 #include "nodes.h"
 #include "rpc/consts.h"
-#include "rpc/jsonrpc.h"
 #include "runtime_config/default_whitelists.h"
 #include "tls/verifier.h"
 #include "values.h"

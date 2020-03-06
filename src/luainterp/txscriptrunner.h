@@ -151,8 +151,7 @@ namespace ccf
       {
         std::stringstream ss;
         ss << "Script failed: " << e.what();
-        throw RpcException(
-          ss.str(), static_cast<int>(jsonrpc::CCFErrorCodes::SCRIPT_ERROR));
+        throw RpcException(ss.str(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
       }
 
       static std::string get_var_string_from_args(lua_State* l)

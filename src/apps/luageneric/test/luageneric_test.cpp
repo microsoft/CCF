@@ -9,6 +9,7 @@
 #include "luainterp/luainterp.h"
 #include "node/encryptor.h"
 #include "node/genesisgen.h"
+#include "node/rpc/jsonhandler.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/test/node_stub.h"
 #include "runtime_config/default_whitelists.h"
@@ -36,39 +37,41 @@ namespace ccf
 }
 
 constexpr auto default_format = jsonrpc::Pack::MsgPack;
-constexpr auto content_type = default_format == jsonrpc::Pack::Text ?
-  http::headervalues::contenttype::JSON :
-  (default_format == jsonrpc::Pack::MsgPack ?
-     http::headervalues::contenttype::MSGPACK :
-     "unknown");
+constexpr auto content_type = details::pack_to_content_type(default_format);
 
-nlohmann::json parse_response(const vector<uint8_t>& v)
+using TResponse = http::SimpleResponseProcessor::Response;
+
+TResponse parse_response(const vector<uint8_t>& v)
 {
-  http::SimpleMsgProcessor processor;
-  http::Parser parser(HTTP_RESPONSE, processor);
+  http::SimpleResponseProcessor processor;
+  http::ResponseParser parser(processor);
 
   const auto parsed_count = parser.execute(v.data(), v.size());
   REQUIRE(parsed_count == v.size());
   REQUIRE(processor.received.size() == 1);
 
-  return jsonrpc::unpack(processor.received.front().body, default_format);
+  return processor.received.front();
 }
 
-template <typename E>
-nlohmann::json check_error(const vector<uint8_t>& v, const E expected)
+TResponse check_error(const vector<uint8_t>& v, http_status expected)
 {
-  const auto j_error = parse_response(v);
-  CHECK(
-    j_error[ERR][CODE].get<jsonrpc::ErrorBaseType>() ==
-    static_cast<jsonrpc::ErrorBaseType>(expected));
-  return j_error;
+  const auto response = parse_response(v);
+  CHECK(response.status == expected);
+  return response;
+}
+
+template <typename T>
+T parse_response_body(const TResponse& r)
+{
+  const auto body_j = jsonrpc::unpack(r.body, default_format);
+  return body_j.get<T>();
 }
 
 template <typename T>
 void check_success(const vector<uint8_t>& v, const T& expected)
 {
-  const Response<json> r = parse_response(v);
-  CHECK(T(r.result) == expected);
+  const auto actual = parse_response_body<T>(parse_response(v));
+  CHECK(actual == expected);
 }
 
 void set_whitelists(GenesisGenerator& gen)
@@ -204,9 +207,12 @@ TEST_CASE("simple lua apps")
     // call "missing"
     const auto packed = make_pc("missing", {});
     auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
-    const auto response = check_error(
-      frontend->process(rpc_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
-    const auto error_msg = response[ERR][MESSAGE].get<string>();
+    auto response = check_error(
+      frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    CHECK(
+      response.headers[http::headers::CONTENT_TYPE] ==
+      http::headervalues::contenttype::TEXT);
+    const std::string error_msg(response.body.begin(), response.body.end());
     CHECK(error_msg.find("THIS_KEY_DOESNT_EXIST") != string::npos);
   }
 
@@ -238,7 +244,7 @@ TEST_CASE("simple lua apps")
       tables, gov_tables, args = ...
       local v = tables.priv0:get(args.params.k)
       if not v then
-        return env.err(env.error_codes.INVALID_PARAMS, "key does not exist")
+        return env.err(env.error_codes.BAD_REQUEST, "key does not exist")
       end
       return env.succ(v)
     )xxx";
@@ -261,8 +267,7 @@ TEST_CASE("simple lua apps")
     // (3) attempt to read non-existing key (set of integers)
     const auto packed = make_pc("load", {{"k", set{5, 6, 7}}});
     auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
-    check_error(
-      frontend->process(rpc_ctx).value(), StandardErrorCodes::INVALID_PARAMS);
+    check_error(frontend->process(rpc_ctx).value(), HTTP_STATUS_BAD_REQUEST);
   }
 
   SUBCASE("access gov tables")
@@ -301,7 +306,7 @@ TEST_CASE("simple lua apps")
       {{"k", 99}, {"v", MemberInfo{{}, {}, MemberStatus::ACTIVE}}});
     auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
     check_error(
-      frontend->process(put_ctx).value(), CCFErrorCodes::SCRIPT_ERROR);
+      frontend->process(put_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
   }
 }
 
@@ -325,7 +330,7 @@ TEST_CASE("simple bank")
     tables, gov_tables, args = ...
     local dst = args.params.dst
     if tables.priv0:get(dst) then
-      return env.err(env.error_codes.INVALID_PARAMS, "account already exists")
+      return env.err(env.error_codes.BAD_REQUEST, "account already exists")
     end
 
     tables.priv0:put(dst, args.params.amt)
@@ -340,7 +345,7 @@ TEST_CASE("simple bank")
     local amt = tables.priv0:get(acc)
     if not amt then
       return env.err(
-        env.error_codes.INVALID_PARAMS, "account " .. acc .. " does not exist")
+        env.error_codes.BAD_REQUEST, "account " .. acc .. " does not exist")
     end
 
     return env.succ(amt)
@@ -355,18 +360,18 @@ TEST_CASE("simple bank")
     local src_n = tables.priv0:get(src)
     if not src_n then
       return env.err(
-        env.error_codes.INVALID_PARAMS, "source account does not exist")
+        env.error_codes.BAD_REQUEST, "source account does not exist")
     end
 
     local dst_n = tables.priv0:get(dst)
     if not dst_n then
       return env.err(
-        env.error_codes.INVALID_PARAMS, "destination account does not exist")
+        env.error_codes.BAD_REQUEST, "destination account does not exist")
     end
 
     local amt = args.params.amt
     if src_n < amt then
-      return env.err(env.error_codes.INVALID_PARAMS, "insufficient funds")
+      return env.err(env.error_codes.BAD_REQUEST, "insufficient funds")
     end
 
     tables.priv0:put(src, src_n - amt)
@@ -401,8 +406,7 @@ TEST_CASE("simple bank")
   {
     const auto read_packed = make_pc(read_method, {{"account", 3}});
     auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
-    check_error(
-      frontend->process(read_ctx).value(), StandardErrorCodes::INVALID_PARAMS);
+    check_error(frontend->process(read_ctx).value(), HTTP_STATUS_BAD_REQUEST);
   }
 
   {
@@ -505,8 +509,7 @@ TEST_CASE("pre-populated environment")
       const auto packed = make_pc(log_fatal_method, {});
       auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_error(
-        frontend->process(rpc_ctx).value(),
-        jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
+        frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
     }
 
     constexpr auto log_throws_nil_method = "log_throws_nil";
@@ -516,8 +519,7 @@ TEST_CASE("pre-populated environment")
       const auto packed = make_pc(log_throws_nil_method, {});
       auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_error(
-        frontend->process(rpc_ctx).value(),
-        jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
+        frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
     }
 
     constexpr auto log_throws_bool_method = "log_throws_bool";
@@ -528,8 +530,7 @@ TEST_CASE("pre-populated environment")
       const auto packed = make_pc(log_throws_bool_method, {});
       auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
       check_error(
-        frontend->process(rpc_ctx).value(),
-        jsonrpc::StandardErrorCodes::INTERNAL_ERROR);
+        frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
     }
 
     constexpr auto log_no_throw_method = "log_no_throw";
@@ -550,61 +551,42 @@ TEST_CASE("pre-populated environment")
     constexpr auto invalid_params = R"xxx(
       return env.succ(
         {
-          env.error_codes.PARSE_ERROR,
-          env.error_codes.INVALID_REQUEST,
-          env.error_codes.METHOD_NOT_FOUND,
-          env.error_codes.INVALID_PARAMS,
-          env.error_codes.INTERNAL_ERROR,
-          env.error_codes.METHOD_NOT_FOUND,
-
-          env.error_codes.TX_NOT_PRIMARY,
-          env.error_codes.TX_FAILED_TO_REPLICATE,
-          env.error_codes.SCRIPT_ERROR,
-          env.error_codes.INSUFFICIENT_RIGHTS,
-          env.error_codes.TX_PRIMARY_UNKNOWN,
-          env.error_codes.RPC_NOT_SIGNED,
-          env.error_codes.INVALID_CLIENT_SIGNATURE,
-          env.error_codes.INVALID_CALLER_ID,
-          env.error_codes.CODE_ID_NOT_FOUND,
-          env.error_codes.CODE_ID_RETIRED,
-          env.error_codes.RPC_NOT_FORWARDED,
-          env.error_codes.QUOTE_NOT_VERIFIED
+          env.error_codes.CONTINUE,
+          env.error_codes.OK,
+          env.error_codes.NO_CONTENT,
+          env.error_codes.MOVED_PERMANENTLY,
+          env.error_codes.TEMPORARY_REDIRECT,
+          env.error_codes.BAD_REQUEST,
+          env.error_codes.UNAUTHORIZED,
+          env.error_codes.FORBIDDEN,
+          env.error_codes.NOT_FOUND,
+          env.error_codes.INTERNAL_SERVER_ERROR,
+          env.error_codes.NOT_IMPLEMENTED,
         }
       )
     )xxx";
     set_handler(network, invalid_params_method, {invalid_params});
 
     {
-      using EBT = jsonrpc::ErrorBaseType;
-      using StdEC = jsonrpc::StandardErrorCodes;
-      using CCFEC = jsonrpc::CCFErrorCodes;
       const auto packed = make_pc(invalid_params_method, {});
       auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
-      const Response<std::vector<EBT>> r =
-        parse_response(frontend->process(rpc_ctx).value());
+      const auto r = parse_response_body<std::vector<http_status>>(
+        parse_response(frontend->process(rpc_ctx).value()));
 
-      std::vector<EBT> expected;
-      expected.push_back(EBT(StdEC::PARSE_ERROR));
-      expected.push_back(EBT(StdEC::INVALID_REQUEST));
-      expected.push_back(EBT(StdEC::METHOD_NOT_FOUND));
-      expected.push_back(EBT(StdEC::INVALID_PARAMS));
-      expected.push_back(EBT(StdEC::INTERNAL_ERROR));
-      expected.push_back(EBT(StdEC::METHOD_NOT_FOUND));
+      std::vector<http_status> expected;
+      expected.push_back(HTTP_STATUS_CONTINUE);
+      expected.push_back(HTTP_STATUS_OK);
+      expected.push_back(HTTP_STATUS_NO_CONTENT);
+      expected.push_back(HTTP_STATUS_MOVED_PERMANENTLY);
+      expected.push_back(HTTP_STATUS_TEMPORARY_REDIRECT);
+      expected.push_back(HTTP_STATUS_BAD_REQUEST);
+      expected.push_back(HTTP_STATUS_UNAUTHORIZED);
+      expected.push_back(HTTP_STATUS_FORBIDDEN);
+      expected.push_back(HTTP_STATUS_NOT_FOUND);
+      expected.push_back(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+      expected.push_back(HTTP_STATUS_NOT_IMPLEMENTED);
 
-      expected.push_back(EBT(CCFEC::TX_NOT_PRIMARY));
-      expected.push_back(EBT(CCFEC::TX_FAILED_TO_REPLICATE));
-      expected.push_back(EBT(CCFEC::SCRIPT_ERROR));
-      expected.push_back(EBT(CCFEC::INSUFFICIENT_RIGHTS));
-      expected.push_back(EBT(CCFEC::TX_PRIMARY_UNKNOWN));
-      expected.push_back(EBT(CCFEC::RPC_NOT_SIGNED));
-      expected.push_back(EBT(CCFEC::INVALID_CLIENT_SIGNATURE));
-      expected.push_back(EBT(CCFEC::INVALID_CALLER_ID));
-      expected.push_back(EBT(CCFEC::CODE_ID_NOT_FOUND));
-      expected.push_back(EBT(CCFEC::CODE_ID_RETIRED));
-      expected.push_back(EBT(CCFEC::RPC_NOT_FORWARDED));
-      expected.push_back(EBT(CCFEC::QUOTE_NOT_VERIFIED));
-
-      CHECK(r.result == expected);
+      CHECK(r == expected);
     }
   }
 }

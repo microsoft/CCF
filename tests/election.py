@@ -5,6 +5,7 @@ import getpass
 import logging
 import time
 import math
+import http
 import infra.ccf
 import infra.proc
 import infra.e2e_args

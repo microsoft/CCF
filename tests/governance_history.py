@@ -7,6 +7,7 @@ import infra.remote
 import infra.crypto
 import infra.ledger
 import json
+import http
 
 from loguru import logger as LOG
 
@@ -69,35 +70,34 @@ def run(args):
         ) = count_governance_operations(ledger)
 
         LOG.info("Add new member proposal")
-        result, error = network.consortium.generate_and_propose_new_member(
+        response = network.consortium.generate_and_propose_new_member(
             0, primary, new_member_id=3, curve=infra.ccf.ParticipantsCurve.secp256k1
         )
-        assert not result["completed"]
-        proposal_id = result["id"]
+        assert response.status == http.HTTPStatus.OK.value
+        assert not response.result["completed"]
+        proposal_id = response.result["id"]
         proposals_issued += 1
 
         LOG.debug("2/3 members accept the proposal")
         result = network.consortium.vote(0, primary, proposal_id, True)
-        assert result[0] and not result[1]
+        assert result[0] and not result[1].result
         votes_issued += 1
 
         LOG.debug("Unsigned votes are rejected")
         result = network.consortium.vote(1, primary, proposal_id, True, True)
-        assert (
-            not result[0]
-            and result[1]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
-        )
+        assert not result[0] and result[1].status == http.HTTPStatus.UNAUTHORIZED.value
 
         result = network.consortium.vote(2, primary, proposal_id, True)
-        assert result[0] and result[1]
+        assert result[0] and result[1].result
         votes_issued += 1
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
-        result, _ = network.consortium.generate_and_propose_new_member(
+        response = network.consortium.generate_and_propose_new_member(
             1, primary, new_member_id=4, curve=infra.ccf.ParticipantsCurve.secp256k1
         )
-        assert not result["completed"]
-        proposal_id = result["id"]
+        assert response.status == http.HTTPStatus.OK.value
+        assert not response.result["completed"]
+        proposal_id = response.result["id"]
         proposals_issued += 1
 
         result = network.consortium.withdraw(1, primary, proposal_id)

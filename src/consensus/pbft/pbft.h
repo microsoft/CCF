@@ -18,7 +18,6 @@
 #include "host/ledger.h"
 #include "kv/kvtypes.h"
 #include "node/nodetypes.h"
-#include "node/rpc/jsonrpc.h"
 
 #include <list>
 #include <memory>

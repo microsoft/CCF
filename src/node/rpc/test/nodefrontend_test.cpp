@@ -23,21 +23,20 @@ extern "C"
 }
 
 auto dummy_encryption_priv_key = std::vector<uint8_t>(crypto::BoxKey::KEY_SIZE);
+using TResponse = http::SimpleResponseProcessor::Response;
 
-template <typename E>
-void check_error(const nlohmann::json& j, const E expected)
+void check_error(const TResponse& r, http_status expected)
 {
-  CHECK(
-    j[ERR][CODE].get<jsonrpc::ErrorBaseType>() ==
-    static_cast<jsonrpc::ErrorBaseType>(expected));
+  CHECK(r.status == expected);
 }
 
-void check_error_message(const nlohmann::json& j, const std::string& msg)
+void check_error_message(const TResponse& r, const std::string& msg)
 {
-  CHECK(j[ERR][MESSAGE].get<std::string>().find(msg) != std::string::npos);
+  const std::string body_s(r.body.begin(), r.body.end());
+  CHECK(body_s.find(msg) != std::string::npos);
 }
 
-const json frontend_process(
+TResponse frontend_process(
   NodeRpcFrontend& frontend,
   const json& json_params,
   const std::string& method,
@@ -56,15 +55,22 @@ const json frontend_process(
 
   CHECK(serialised_response.has_value());
 
-  http::SimpleMsgProcessor processor;
-  http::Parser parser(HTTP_RESPONSE, processor);
+  http::SimpleResponseProcessor processor;
+  http::ResponseParser parser(processor);
 
   const auto parsed_count =
     parser.execute(serialised_response->data(), serialised_response->size());
   REQUIRE(parsed_count == serialised_response->size());
   REQUIRE(processor.received.size() == 1);
 
-  return jsonrpc::unpack(processor.received.front().body, Pack::Text);
+  return processor.received.front();
+}
+
+template <typename T>
+T parse_response_body(const TResponse& r)
+{
+  const auto body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+  return body_j.get<T>();
 }
 
 TEST_CASE("Add a node to an opening service")
@@ -92,12 +98,11 @@ TEST_CASE("Add a node to an opening service")
   INFO("Add first node before a service exists");
   {
     JoinNetworkNodeToNode::In join_input;
-    auto response_j =
+    const auto response =
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-    check_error(response_j, StandardErrorCodes::INTERNAL_ERROR);
-    check_error_message(
-      response_j, "No service is available to accept new node");
+    check_error(response, HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    check_error_message(response, "No service is available to accept new node");
   }
 
   gen.create_service({});
@@ -107,19 +112,23 @@ TEST_CASE("Add a node to an opening service")
   {
     JoinNetworkNodeToNode::In join_input;
 
-    auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
+    auto http_response =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+
+    const auto response =
+      parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     CHECK(
-      response->network_info.ledger_secrets == *network.ledger_secrets.get());
-    CHECK(response->network_info.identity == *network.identity.get());
+      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+    CHECK(response.network_info.identity == *network.identity.get());
     CHECK(
-      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
-    CHECK(response->node_status == NodeStatus::TRUSTED);
-    CHECK(response->public_only == false);
+      response.network_info.encryption_priv_key == dummy_encryption_priv_key);
+    CHECK(response.node_status == NodeStatus::TRUSTED);
+    CHECK(response.public_only == false);
 
     Store::Tx tx;
-    const NodeId node_id = response->node_id;
+    const NodeId node_id = response.node_id;
     auto nodes_view = tx.get_view(network.nodes);
     auto node_info = nodes_view->get(node_id);
 
@@ -135,15 +144,19 @@ TEST_CASE("Add a node to an opening service")
   {
     JoinNetworkNodeToNode::In join_input;
 
-    auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
+    auto http_response =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+
+    const auto response =
+      parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     CHECK(
-      response->network_info.ledger_secrets == *network.ledger_secrets.get());
-    CHECK(response->network_info.identity == *network.identity.get());
+      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+    CHECK(response.network_info.identity == *network.identity.get());
     CHECK(
-      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
-    CHECK(response->node_status == NodeStatus::TRUSTED);
+      response.network_info.encryption_priv_key == dummy_encryption_priv_key);
+    CHECK(response.node_status == NodeStatus::TRUSTED);
   }
 
   INFO(
@@ -156,11 +169,11 @@ TEST_CASE("Add a node to an opening service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
 
-    auto response_j =
+    auto http_response =
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-    check_error(response_j, StandardErrorCodes::INVALID_PARAMS);
-    check_error_message(response_j, "A node with the same node host");
+    check_error(http_response, HTTP_STATUS_BAD_REQUEST);
+    check_error_message(http_response, "A node with the same node host");
   }
 }
 
@@ -198,13 +211,16 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Add node once service is open");
   {
-    auto response_j =
+    auto http_response =
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
 
-    CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
-    auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(response_j);
+    const auto response =
+      parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
-    auto node_id = response->node_id;
+    CHECK(response.network_info.identity.priv_key.empty());
+
+    auto node_id = response.node_id;
 
     auto nodes_view = tx.get_view(network.nodes);
     node_info = nodes_view->get(node_id);
@@ -226,20 +242,24 @@ TEST_CASE("Add a node to an open service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
 
-    auto response_j =
+    auto http_response =
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
-    check_error(response_j, StandardErrorCodes::INVALID_PARAMS);
-    check_error_message(response_j, "A node with the same node host");
+    check_error(http_response, HTTP_STATUS_BAD_REQUEST);
+    check_error_message(http_response, "A node with the same node host");
   }
 
   INFO("Try to join again without being trusted");
   {
-    auto response_j =
+    auto http_response =
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+
+    const auto response =
+      parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     // The network secrets are still not available to the joining node
-    CHECK(response_j[RESULT].find("network_info") == response_j[RESULT].end());
+    CHECK(response.network_info.identity.priv_key.empty());
   }
 
   INFO("Trust node and attempt to join");
@@ -250,16 +270,20 @@ TEST_CASE("Add a node to an open service")
     nodes_view->put(0, node_info.value());
     CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-    auto response = jsonrpc::Response<JoinNetworkNodeToNode::Out>(
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller));
+    auto http_response =
+      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    CHECK(http_response.status == HTTP_STATUS_OK);
+
+    const auto response =
+      parse_response_body<JoinNetworkNodeToNode::Out>(http_response);
 
     CHECK(
-      response->network_info.ledger_secrets == *network.ledger_secrets.get());
-    CHECK(response->network_info.identity == *network.identity.get());
+      response.network_info.ledger_secrets == *network.ledger_secrets.get());
+    CHECK(response.network_info.identity == *network.identity.get());
     CHECK(
-      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
-    CHECK(response->node_status == NodeStatus::TRUSTED);
-    CHECK(response->public_only == true);
+      response.network_info.encryption_priv_key == dummy_encryption_priv_key);
+    CHECK(response.node_status == NodeStatus::TRUSTED);
+    CHECK(response.public_only == true);
   }
 }
 

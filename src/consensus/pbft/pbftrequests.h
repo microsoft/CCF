@@ -3,7 +3,6 @@
 #pragma once
 
 #include "node/entities.h"
-#include "node/rpc/jsonrpc.h"
 
 #include <msgpack-c/msgpack.hpp>
 #include <vector>

@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "node/rpc/jsonrpc.h"
-
 #include <nlohmann/json.hpp>
 
 using NodeId = uint64_t;
