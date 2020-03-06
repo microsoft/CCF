@@ -719,44 +719,38 @@ namespace ccf
         std::copy_n(
           in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
 
-        LOG_FAIL_FMT(
-          "Submitted share: {}",
-          tls::b64_from_raw(share.begin(), share.size()));
-
         pending_shares.emplace_back(share);
-
-        LOG_FAIL_FMT("Adding pending share");
 
         GenesisGenerator g(this->network, args.tx);
 
         if (pending_shares.size() == g.get_active_members_count())
         {
-          LOG_FAIL_FMT("Sufficient pending shares!");
-          auto share_wrapping_key_raw =
-            SecretSharing::combine(pending_shares, pending_shares.size());
+          LOG_DEBUG_FMT(
+            "Reached secret sharing threshold {}", pending_shares.size());
 
-          // TODO: Create a class for keyshare wrapping key (k_z)
-          auto s_vec = std::vector<uint8_t>(
-            share_wrapping_key_raw.begin(),
-            share_wrapping_key_raw.begin() + 32);
-
-          LOG_FAIL_FMT("k_z: {}", tls::b64_from_raw(s_vec));
-
-          auto share_wrapping_key = crypto::KeyAesGcm(s_vec);
+          auto share_wrapping_key = LedgerSecretWrappingKey(
+            SecretSharing::combine(pending_shares, pending_shares.size()));
 
           auto shares_view = args.tx.get_view(this->network.shares);
-
+          auto key_share_info = shares_view->get(0);
+          if (!key_share_info.has_value())
+          {
+            args.rpc_ctx->set_response_error(
+              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+              "No key share info available");
+            return;
+          }
           std::vector<uint8_t> decrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
           crypto::GcmCipher encrypted_ls;
-          encrypted_ls.deserialise(
-            shares_view->get(0)->encrypted_ledger_secret);
+          encrypted_ls.deserialise(key_share_info->encrypted_ledger_secret);
 
-          share_wrapping_key.decrypt(
-            encrypted_ls.hdr.get_iv(),
-            encrypted_ls.hdr.tag,
-            encrypted_ls.cipher,
-            nullb,
-            decrypted_ls.data());
+          crypto::KeyAesGcm(share_wrapping_key.data)
+            .decrypt(
+              encrypted_ls.hdr.get_iv(),
+              encrypted_ls.hdr.tag,
+              encrypted_ls.cipher,
+              nullb,
+              decrypted_ls.data());
 
           LedgerSecret decrypted_ledger_secret(decrypted_ls);
 

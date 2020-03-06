@@ -1013,7 +1013,7 @@ namespace ccf
       GenesisGenerator g(network, tx);
       auto active_members = g.get_active_members_keyshare();
 
-      SecretSharing::SecretToSplit secret_to_split = {};
+      SecretSharing::SplitSecret secret_to_split = {};
       std::copy_n(
         share_wrapping_key_raw.begin(),
         share_wrapping_key_raw.size(),
