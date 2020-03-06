@@ -213,35 +213,31 @@ namespace ccf
          }},
       };
 
-    bool complete_proposal(Store::Tx& tx, const ObjectId id)
+    ProposalInfo complete_proposal(
+      Store::Tx& tx, const ObjectId proposal_id, Proposal& proposal)
     {
-      auto proposals = tx.get_view(this->network.proposals);
-      auto proposal = proposals->get(id);
-      if (!proposal.has_value())
-      {
-        throw std::logic_error(fmt::format("No such proposal: {}", id));
-      }
-
-      if (proposal->state != ProposalState::OPEN)
+      if (proposal.state != ProposalState::OPEN)
       {
         throw std::logic_error(fmt::format(
           "Cannot complete non-open proposal - current state is {}",
-          proposal->state));
+          proposal.state));
       }
+
+      auto proposals = tx.get_view(this->network.proposals);
 
       // run proposal script
       const auto proposed_calls = tsr.run<nlohmann::json>(
         tx,
-        {proposal->script,
+        {proposal.script,
          {}, // can't write
          WlIds::MEMBER_CAN_READ,
          get_script(tx, GovScriptIds::ENV_PROPOSAL)},
         // vvv arguments to script vvv
-        proposal->parameter);
+        proposal.parameter);
 
       nlohmann::json votes;
       // Collect all member votes
-      for (const auto& vote : proposal->votes)
+      for (const auto& vote : proposal.votes)
       {
         // valid voter
         if (!check_member_active(tx, vote.first))
@@ -279,19 +275,21 @@ namespace ccf
         case CompletionResult::PENDING:
         {
           // vote is pending, return false but do not update state
-          return false;
+          return get_proposal_info(proposal_id, proposal);
         }
         case CompletionResult::REJECTED:
         {
           // vote unsuccessful, update the proposal's state
-          proposal->state = ProposalState::REJECTED;
-          proposals->put(id, proposal.value());
-          return false;
+          proposal.state = ProposalState::REJECTED;
+          proposals->put(proposal_id, proposal);
+          return get_proposal_info(proposal_id, proposal);
         }
         default:
         {
           throw std::logic_error(fmt::format(
-            "Invalid completion result ({}) for proposal {}", pass, id));
+            "Invalid completion result ({}) for proposal {}",
+            pass,
+            proposal_id));
         }
       };
 
@@ -305,7 +303,7 @@ namespace ccf
         {
           if (!f->second(tx, call.args))
           {
-            return false;
+            return get_proposal_info(proposal_id, proposal);
           }
           continue;
         }
@@ -326,10 +324,10 @@ namespace ccf
       }
 
       // if the vote was successful, update the proposal's state
-      proposal->state = ProposalState::ACCEPTED;
-      proposals->put(id, proposal.value());
+      proposal.state = ProposalState::ACCEPTED;
+      proposals->put(proposal_id, proposal);
 
-      return true;
+      return get_proposal_info(proposal_id, proposal);
     }
 
     bool check_member_active(Store::Tx& tx, MemberId id)
@@ -366,6 +364,12 @@ namespace ccf
     {
       auto governance_history = tx.get_view(network.governance_history);
       governance_history->put(caller_id, {signed_request});
+    }
+
+    static ProposalInfo get_proposal_info(
+      ObjectId proposal_id, const Proposal& proposal)
+    {
+      return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
     }
 
     NetworkTables& network;
@@ -448,12 +452,12 @@ namespace ccf
         auto proposals = args.tx.get_view(this->network.proposals);
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
-        const bool completed = complete_proposal(args.tx, proposal_id);
 
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        return make_success(Propose::Out({proposal_id, completed}));
+        return make_success(
+          Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
       install_with_auto_schema<Propose>(
         MemberProcs::PROPOSE, json_adapter(propose), Write);
@@ -504,9 +508,9 @@ namespace ccf
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        return make_success(true);
+        return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      install_with_auto_schema<ProposalAction, bool>(
+      install_with_auto_schema<ProposalAction, ProposalInfo>(
         MemberProcs::WITHDRAW, json_adapter(withdraw), Write, true);
 
       auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
@@ -549,9 +553,10 @@ namespace ccf
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        return make_success(complete_proposal(args.tx, vote.id));
+        return make_success(
+          complete_proposal(args.tx, vote.id, proposal.value()));
       };
-      install_with_auto_schema<Vote, bool>(
+      install_with_auto_schema<Vote, ProposalInfo>(
         MemberProcs::VOTE, json_adapter(vote), Write, true);
 
       auto complete =
@@ -565,9 +570,19 @@ namespace ccf
           const auto proposal_action = params.get<ProposalAction>();
           const auto proposal_id = proposal_action.id;
 
-          return make_success(complete_proposal(tx, proposal_id));
+          auto proposals = tx.get_view(this->network.proposals);
+          auto proposal = proposals->get(proposal_id);
+          if (!proposal.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format("No such proposal: {}", proposal_id));
+          }
+
+          return make_success(
+            complete_proposal(tx, proposal_id, proposal.value()));
         };
-      install_with_auto_schema<ProposalAction, bool>(
+      install_with_auto_schema<ProposalAction, ProposalInfo>(
         MemberProcs::COMPLETE, json_adapter(complete), Write, true);
 
       //! A member acknowledges state
