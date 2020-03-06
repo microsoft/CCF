@@ -1,5 +1,6 @@
-parameters:
+parameters:	
   artifact_name: ''
+  cmake_args: ''
 
 steps:
 - task: DownloadPipelineArtifact@1
@@ -13,6 +14,8 @@ steps:
   workingDirectory: build
 
 - script: | 
-    cmake .. -L
+    cmake -L ${{ parameters.cmake_args }} -GNinja ..
+  env:
+    TESTS_SUFFIX: ${{ parameters.suite_label_suffix }}
   displayName: Re-generate test metadata 
   workingDirectory: build

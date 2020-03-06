@@ -4,6 +4,7 @@
 
 #include "calltypes.h"
 #include "consensus/ledgerenclave.h"
+#include "consensus/pbft/pbft.h"
 #include "consensus/raft/raftconsensus.h"
 #include "crypto/cryptobox.h"
 #include "ds/logger.h"
@@ -26,10 +27,6 @@
 #include "tls/25519.h"
 #include "tls/client.h"
 #include "tls/entropy.h"
-
-#ifdef PBFT
-#  include "consensus/pbft/pbft.h"
-#endif
 
 #ifndef VIRTUAL_ENCLAVE
 #  include <ccf_t.h>
@@ -94,10 +91,7 @@ namespace ccf
   using RaftConsensusType =
     raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode>;
   using RaftType = raft::Raft<consensus::LedgerEnclave, NodeToNode>;
-
-#ifdef PBFT
   using PbftConsensusType = pbft::Pbft<consensus::LedgerEnclave, NodeToNode>;
-#endif
 
   template <typename T>
   class StateMachine
@@ -279,13 +273,9 @@ namespace ccf
 
           self = 0; // The first node id is always 0
 
-#ifdef PBFT
-          setup_pbft(args.config);
-#else
-          setup_raft();
-#endif
+          setup_consensus(args.consensus_type, args.config);
           setup_history();
-          setup_encryptor();
+          setup_encryptor(args.consensus_type);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -327,7 +317,7 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
 
           setup_history();
-          setup_encryptor();
+          setup_encryptor(args.consensus_type);
 
           // Accept members connections for members to finish recovery once the
           // public ledger has been read
@@ -411,13 +401,10 @@ namespace ccf
             network.encryption_priv_key = resp.network_info.encryption_priv_key;
 
             self = resp.node_id;
-#ifdef PBFT
-            setup_pbft(args.config);
-#else
-            setup_raft(resp.public_only);
-#endif
+
+            setup_consensus(args.consensus_type, args.config, resp.public_only);
             setup_history();
-            setup_encryptor();
+            setup_encryptor(args.consensus_type);
 
             open_member_frontend();
 
@@ -750,14 +737,24 @@ namespace ccf
         *recovery_signature_map,
         *recovery_nodes_map);
 
-      recovery_encryptor =
 #ifdef USE_NULL_ENCRYPTOR
-        std::make_shared<NullTxEncryptor>();
+      recovery_encryptor = std::make_shared<NullTxEncryptor>();
 #else
-        // Recovery encryptor should not seal ledger secrets on compaction.
-        // Since private ledger recovery is done in a temporary store, ledger
-        // secrets are only sealed once the recovery is successful.
-        std::make_shared<TxEncryptor>(self, network.ledger_secrets, true);
+      // Recovery encryptor should not seal ledger secrets on compaction.
+      // Since private ledger recovery is done in a temporary store, ledger
+      // secrets are only sealed once the recovery is successful.
+
+      if (consensus->type() == ConsensusType::Pbft)
+      {
+        // for now do not encrypt the ledger as the current implementation does
+        // not work for PBFT
+        recovery_encryptor = std::make_shared<NullTxEncryptor>();
+      }
+      else
+      {
+        recovery_encryptor =
+          std::make_shared<TxEncryptor>(self, network.ledger_secrets, true);
+      }
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -1274,12 +1271,14 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-
-#ifdef PBFT
-      return true;
-#else
-      return create_success;
-#endif
+      if (args.consensus_type == ConsensusType::Pbft)
+      {
+        return true;
+      }
+      else
+      {
+        return create_success;
+      }
     }
 
     void reset_quote()
@@ -1504,19 +1503,48 @@ namespace ccf
       network.tables->set_history(history);
     }
 
-    void setup_encryptor()
+    void setup_encryptor(ConsensusType consensus_type)
     {
       // This function makes use of network secrets and should be called once
       // the node has joined the service (either via start_network() or
       // join_network())
-      encryptor =
 #ifdef USE_NULL_ENCRYPTOR
-        std::make_shared<NullTxEncryptor>();
+      encryptor = std::make_shared<NullTxEncryptor>();
 #else
-        std::make_shared<TxEncryptor>(self, network.ledger_secrets);
+
+      if (consensus_type == ConsensusType::Pbft)
+      {
+        // for now do not encrypt the ledger as the current implementation does
+        // not work for PBFT
+        encryptor = std::make_shared<NullTxEncryptor>();
+      }
+      else
+      {
+        encryptor = std::make_shared<TxEncryptor>(self, network.ledger_secrets);
+      }
 #endif
 
       network.tables->set_encryptor(encryptor);
+    }
+
+    void setup_consensus(
+      ConsensusType consensus_type,
+      const CCFConfig& config,
+      bool public_only = false)
+    {
+      if (consensus_type == ConsensusType::Pbft)
+      {
+        setup_pbft(config);
+      }
+      else if (consensus_type == ConsensusType::Raft)
+      {
+        setup_raft(public_only);
+      }
+      else
+      {
+        throw std::logic_error(
+          "Unknown consensus type " + std::to_string(consensus_type));
+      }
     }
 
     void add_node(
@@ -1547,7 +1575,6 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
 
-#ifdef PBFT
     void setup_pbft(const CCFConfig& config)
     {
       setup_n2n_channels();
@@ -1590,6 +1617,5 @@ namespace ccf
 
       setup_basic_hooks();
     }
-#endif
   };
 }
