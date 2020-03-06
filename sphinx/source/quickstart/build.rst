@@ -50,7 +50,6 @@ The full list of build switches can be obtained by running:
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
 * **TARGET**: String, one of ``sgx``, ``virtual``, or ``sgx;virtual``. Defaults to ``sgx;virtual``, which builds both "virtual" enclaves and actual SGX enclaves.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
-* **PBFT**: Boolean. Enables PBFT as the consensus protocol. Defaults to OFF where the Raft consensus protocol will be used.
 
 Running Tests
 -------------

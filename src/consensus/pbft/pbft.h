@@ -11,6 +11,7 @@
 #include "consensus/pbft/libbyz/network.h"
 #include "consensus/pbft/libbyz/receive_message_base.h"
 #include "consensus/pbft/pbftconfig.h"
+#include "consensus/pbft/pbftglobals.h"
 #include "consensus/pbft/pbfttypes.h"
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"

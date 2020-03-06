@@ -1,5 +1,4 @@
-
-parameters:
+parameters:	
   artifact_name: ''
 
 steps:

@@ -1,14 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "doctest/doctest.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/test/stub_consensus.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/genesisgen.h"
+#include "node/history.h"
 #include "node/networkstate.h"
 #include "node/rpc/jsonhandler.h"
 #include "node/rpc/jsonrpc.h"
@@ -18,10 +19,7 @@
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
-#ifdef PBFT
-#  include "consensus/pbft/pbftrequests.h"
-#  include "node/history.h"
-#endif
+#include <doctest/doctest.h>
 #include <iostream>
 #include <string>
 
@@ -225,7 +223,6 @@ NetworkState network;
 NetworkState network2;
 auto encryptor = std::make_shared<NullTxEncryptor>();
 
-#ifdef PBFT
 NetworkState pbft_network(ConsensusType::Pbft);
 auto history_kp = tls::make_key_pair();
 
@@ -235,8 +232,6 @@ auto history = std::make_shared<NullTxHistory>(
   *history_kp,
   pbft_network.signatures,
   pbft_network.nodes);
-
-#endif
 
 StubNodeState stub_node;
 
@@ -371,14 +366,15 @@ void add_callers_primary_store()
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
-#ifdef PBFT
-
 void add_callers_pbft_store()
 {
   Store::Tx gen_tx;
   pbft_network.tables->set_encryptor(encryptor);
   pbft_network.tables->clear();
   pbft_network.tables->set_history(history);
+  auto backup_consensus =
+    std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::Pbft);
+  pbft_network.tables->set_consensus(backup_consensus);
 
   GenesisGenerator g(pbft_network, gen_tx);
   g.init_values();
@@ -415,7 +411,6 @@ TEST_CASE("process_pbft")
   REQUIRE(deserialised_req.caller_cert == user_caller_der);
   REQUIRE(deserialised_req.raw == serialized_call);
 }
-#else
 
 TEST_CASE("SignedReq to and from json")
 {
@@ -1010,8 +1005,6 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
   CHECK(member_frontend_primary.last_caller_id == 0);
 }
-
-#endif
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
