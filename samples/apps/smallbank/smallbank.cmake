@@ -42,7 +42,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
       VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
-      LABEL SB_${CONSENSUS}
+      LABEL SB
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS
         --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 1000
