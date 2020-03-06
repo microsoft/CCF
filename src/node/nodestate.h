@@ -311,7 +311,9 @@ namespace ccf
           return Success<CreateNew::Out>(
             {node_cert,
              network.identity->cert,
-             crypto::BoxKey::public_from_private(network.encryption_priv_key)});
+             tls::PublicX25519::write(
+               crypto::BoxKey::public_from_private(network.encryption_priv_key))
+               .raw()});
         }
         case StartType::Join:
         {
@@ -1035,7 +1037,7 @@ namespace ccf
 
         LOG_FAIL_FMT("Share: {}", tls::b64_from_raw(share_raw));
 
-        auto enc_pub_key_raw = tls::parse_25519_public(tls::Pem(enc_pub_key));
+        auto enc_pub_key_raw = tls::PublicX25519::parse(tls::Pem(enc_pub_key));
         auto encrypted_share = crypto::Box::create(
           share_raw, nonce, enc_pub_key_raw, network.encryption_priv_key);
 

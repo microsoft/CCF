@@ -18,14 +18,13 @@ from cryptography.hazmat.primitives.serialization import (
     load_pem_public_key,
     Encoding,
     PrivateFormat,
+    PublicFormat,
     NoEncryption,
 )
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
-
-# import pynacl
 
 
 class CryptoBoxCtx:
@@ -39,11 +38,12 @@ class CryptoBoxCtx:
             )
 
         with open(pubk_path, "rb") as pubk:
-            # TODO: Should uncomment once
-            # self.pubk = load_pem_public_key(
-            #     pubk.read(), backend=default_backend(),
-            # ).public_bytes(Encoding.Raw, PublicFormat.Raw)
-            self.pubk = PublicKey(pubk.read(), RawEncoder)
+            self.pubk = PublicKey(
+                load_pem_public_key(
+                    pubk.read(), backend=default_backend(),
+                ).public_bytes(Encoding.Raw, PublicFormat.Raw),
+                RawEncoder,
+            )
 
         # LOG.warning(self.privk.hex())
         # LOG.warning(self.pubk.hex())
@@ -54,8 +54,6 @@ class CryptoBoxCtx:
 
     def decrypt(self, cipher, nonce):
         return self.box.decrypt(cipher, nonce)
-
-
 
 
 # As per mbedtls md_type_t

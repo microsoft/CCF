@@ -736,7 +736,8 @@ namespace ccf
             SecretSharing::combine(pending_shares, pending_shares.size());
 
           auto s_vec = std::vector<uint8_t>(
-            ledger_secrets.begin(), ledger_secrets.begin() + 32);
+            share_wrapping_key_raw.begin(),
+            share_wrapping_key_raw.begin() + 32);
 
           LOG_FAIL_FMT("Combined secret: {}", tls::b64_from_raw(s_vec));
 
