@@ -120,7 +120,7 @@ namespace ccf
                                       node.is_part_of_public_network(),
                                       {*this->network.ledger_secrets.get(),
                                        *this->network.identity.get(),
-                                       this->network.encryption_priv_key}}));
+                                       *this->network.encryption_key.get()}}));
       }
       else
       {
@@ -193,7 +193,7 @@ namespace ccf
                node.is_part_of_public_network(),
                {*this->network.ledger_secrets.get(),
                 *this->network.identity.get(),
-                this->network.encryption_priv_key}}));
+                *this->network.encryption_key.get()}}));
             return;
           }
 
@@ -221,7 +221,7 @@ namespace ccf
                node.is_part_of_public_network(),
                {*this->network.ledger_secrets.get(),
                 *this->network.identity.get(),
-                this->network.encryption_priv_key}}));
+                *this->network.encryption_key.get()}}));
             return;
           }
           else if (node_status == NodeStatus::PENDING)

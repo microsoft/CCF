@@ -22,8 +22,6 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-auto dummy_encryption_priv_key = std::vector<uint8_t>(crypto::BoxKey::KEY_SIZE);
-
 template <typename E>
 void check_error(const nlohmann::json& j, const E expected)
 {
@@ -82,7 +80,7 @@ TEST_CASE("Add a node to an opening service")
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
   network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
-  network.encryption_priv_key = dummy_encryption_priv_key;
+  network.encryption_key = std::make_unique<NetworkEncryptionKey>();
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
@@ -114,7 +112,7 @@ TEST_CASE("Add a node to an opening service")
       response->network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response->network_info.identity == *network.identity.get());
     CHECK(
-      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
+      response->network_info.encryption_key == *network.encryption_key.get());
     CHECK(response->node_status == NodeStatus::TRUSTED);
     CHECK(response->public_only == false);
 
@@ -142,7 +140,7 @@ TEST_CASE("Add a node to an opening service")
       response->network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response->network_info.identity == *network.identity.get());
     CHECK(
-      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
+      response->network_info.encryption_key == *network.encryption_key.get());
     CHECK(response->node_status == NodeStatus::TRUSTED);
   }
 
@@ -180,7 +178,7 @@ TEST_CASE("Add a node to an open service")
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
   network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
   network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
-  network.encryption_priv_key = dummy_encryption_priv_key;
+  network.encryption_key = std::make_unique<NetworkEncryptionKey>();
 
   gen.create_service({});
   gen.open_service();
@@ -257,7 +255,7 @@ TEST_CASE("Add a node to an open service")
       response->network_info.ledger_secrets == *network.ledger_secrets.get());
     CHECK(response->network_info.identity == *network.identity.get());
     CHECK(
-      response->network_info.encryption_priv_key == dummy_encryption_priv_key);
+      response->network_info.encryption_key == *network.encryption_key.get());
     CHECK(response->node_status == NodeStatus::TRUSTED);
     CHECK(response->public_only == true);
   }

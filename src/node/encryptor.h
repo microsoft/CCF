@@ -261,7 +261,7 @@ namespace ccf
       {
         for (auto const& k : keys_to_seal)
         {
-          ledger_secrets->set_secret(k.version, std::move(k.raw_key));
+          ledger_secrets->set_secret(k.version, k.raw_key);
           ledger_secrets->seal_secret(k.version);
         }
       }

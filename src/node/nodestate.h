@@ -273,8 +273,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
-          network.encryption_priv_key =
-            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
+          network.encryption_key = std::make_unique<NetworkEncryptionKey>(true);
 
           std::cout << tls::b64_from_raw(
                          network.ledger_secrets->get_secret(1)->master)
@@ -311,9 +310,7 @@ namespace ccf
           return Success<CreateNew::Out>(
             {node_cert,
              network.identity->cert,
-             tls::PublicX25519::write(
-               crypto::BoxKey::public_from_private(network.encryption_priv_key))
-               .raw()});
+             network.encryption_key->get_public_pem()});
         }
         case StartType::Join:
         {
@@ -333,8 +330,7 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
-          network.encryption_priv_key =
-            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
+          network.encryption_key = std::make_unique<NetworkEncryptionKey>(true);
 
           setup_history();
           setup_encryptor();
@@ -350,7 +346,7 @@ namespace ccf
           return Success<CreateNew::Out>(
             {node_cert,
              network.identity->cert,
-             crypto::BoxKey::public_from_private(network.encryption_priv_key)});
+             network.encryption_key->get_public_pem()});
         }
         default:
         {
@@ -405,8 +401,8 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp->network_info.identity);
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               std::move(resp->network_info.ledger_secrets), seal);
-            network.encryption_priv_key =
-              resp->network_info.encryption_priv_key;
+            network.encryption_key = std::make_unique<NetworkEncryptionKey>(
+              resp->network_info.encryption_key);
 
             self = resp->node_id;
 #ifdef PBFT
@@ -1038,7 +1034,10 @@ namespace ccf
 
         auto enc_pub_key_raw = tls::PublicX25519::parse(tls::Pem(enc_pub_key));
         auto encrypted_share = crypto::Box::create(
-          share_raw, nonce, enc_pub_key_raw, network.encryption_priv_key);
+          share_raw,
+          nonce,
+          enc_pub_key_raw,
+          network.encryption_key->private_raw);
 
         encrypted_shares[member_id] = {nonce, encrypted_share};
         share_index++;
