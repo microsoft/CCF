@@ -2,12 +2,12 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.ccf
-import infra.jsonrpc
 
 import logging
 from time import gmtime, strftime
 import csv
 import random
+import http
 
 from loguru import logger as LOG
 
@@ -27,6 +27,10 @@ class AppUser:
 
     def __str__(self):
         return f"{self.ccf_id} ({self.name})"
+
+
+def check_status(rc):
+    return lambda status, _msg: status == rc.value
 
 
 def run(args):
@@ -72,7 +76,7 @@ def run(args):
                 transactions.append(json_tx)
 
         # Manager is granted special privileges by members, which is later read by app to enforce access restrictions
-        proposal_result, error = network.consortium.propose(
+        response = network.consortium.propose(
             0,
             primary,
             f"""
@@ -90,31 +94,27 @@ def run(args):
             )
             """,
         )
-        network.consortium.vote_using_majority(primary, proposal_result["id"])
+        network.consortium.vote_using_majority(primary, response.result["id"])
 
         # Check permissions are enforced
         with primary.user_client(user_id=regulator.name) as c:
             check(
                 c.rpc("REG_register", {}),
-                error=lambda e: e is not None
-                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
                 c.rpc("BK_register", {}),
-                error=lambda e: e is not None
-                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
         with primary.user_client(user_id=banks[0].name) as c:
             check(
                 c.rpc("REG_register", {}),
-                error=lambda e: e is not None
-                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
                 c.rpc("BK_register", {}),
-                error=lambda e: e is not None
-                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
         # As permissioned manager, register regulator and banks
@@ -143,8 +143,7 @@ def run(args):
                         "BK_register",
                         {"bank_id": regulator.ccf_id, "country": regulator.country},
                     ),
-                    error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                    error=check_status(http.HTTPStatus.BAD_REQUEST),
                 )
                 LOG.debug(f"User {regulator} successfully registered as regulator")
 
@@ -163,8 +162,7 @@ def run(args):
                             "REG_register",
                             {"regulator_id": bank.ccf_id, "country": bank.country},
                         ),
-                        error=lambda e: e is not None
-                        and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                        error=check_status(http.HTTPStatus.BAD_REQUEST),
                     )
                     LOG.debug(f"User {bank} successfully registered as bank")
 
@@ -220,9 +218,7 @@ def run(args):
                     else:
                         check(
                             c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
-                            error=lambda e: e is not None
-                            and e["code"]
-                            == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                            error=check_status(http.HTTPStatus.BAD_REQUEST),
                         )
                         non_flagged_ids.append(tx_id)
 
@@ -234,8 +230,7 @@ def run(args):
             # try to poll flagged but fail as you are not a regulator
             check(
                 c.rpc("REG_poll_flagged", {}),
-                error=lambda e: e is not None
-                and e["code"] == infra.jsonrpc.ErrorCode.INVALID_CALLER_ID.value,
+                error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
             # bank reveal some transactions that were flagged
@@ -248,8 +243,7 @@ def run(args):
             for tx_id in non_flagged_ids:
                 check(
                     c.rpc("TX_reveal", {"tx_id": tx_id}),
-                    error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                    error=check_status(http.HTTPStatus.BAD_REQUEST),
                 )
 
         # regulator poll for transactions that are flagged
@@ -269,9 +263,7 @@ def run(args):
                     if tx_id not in revealed_tx_ids:
                         check(
                             c.rpc("REG_get_revealed", {"tx_id": tx_id}),
-                            error=lambda e: e is not None
-                            and e["code"]
-                            == infra.jsonrpc.ErrorCode.INVALID_PARAMS.value,
+                            error=check_status(http.HTTPStatus.BAD_REQUEST),
                         )
 
                 # get from flagged txs, try to get the flagged ones that were revealed

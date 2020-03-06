@@ -13,6 +13,7 @@
 #include "genesisgen.h"
 #include "history.h"
 #include "networkstate.h"
+#include "node/rpc/jsonrpc.h"
 #include "nodetonode.h"
 #include "notifier.h"
 #include "rpc/consts.h"
@@ -363,42 +364,57 @@ namespace ccf
       join_client->connect(
         args.config.joining.target_host,
         args.config.joining.target_port,
-        [this, args](const std::vector<uint8_t>& data) {
+        [this, args](
+          http_status status,
+          http::HeaderMap&& headers,
+          std::vector<uint8_t>&& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
           {
             return false;
           }
 
+          if (status != HTTP_STATUS_OK)
+          {
+            LOG_FAIL_FMT(
+              "An error occurred while joining the network: {} {}{}",
+              status,
+              http_status_str(status),
+              data.empty() ?
+                "" :
+                fmt::format("  '{}'", std::string(data.begin(), data.end())));
+            return false;
+          }
+
           auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
-          jsonrpc::Response<JoinNetworkNodeToNode::Out> resp;
+          JoinNetworkNodeToNode::Out resp;
           try
           {
-            resp = jsonrpc::Response<JoinNetworkNodeToNode::Out>(j);
+            resp = j.get<JoinNetworkNodeToNode::Out>();
           }
           catch (const std::exception& e)
           {
             LOG_FAIL_FMT(
-              "An error occurred while joining the network {}", j.dump());
+              "An error occurred while parsing the join network response: {}",
+              j.dump());
             return false;
           }
 
           // Set network secrets, node id and become part of network.
-          if (resp->node_status == NodeStatus::TRUSTED)
+          if (resp.node_status == NodeStatus::TRUSTED)
           {
             network.identity =
-              std::make_unique<NetworkIdentity>(resp->network_info.identity);
+              std::make_unique<NetworkIdentity>(resp.network_info.identity);
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
-              std::move(resp->network_info.ledger_secrets), seal);
-            network.encryption_priv_key =
-              resp->network_info.encryption_priv_key;
+              std::move(resp.network_info.ledger_secrets), seal);
+            network.encryption_priv_key = resp.network_info.encryption_priv_key;
 
-            self = resp->node_id;
+            self = resp.node_id;
 #ifdef PBFT
             setup_pbft(args.config);
 #else
-            setup_raft(resp->public_only);
+            setup_raft(resp.public_only);
 #endif
             setup_history();
             setup_encryptor();
@@ -407,7 +423,7 @@ namespace ccf
 
             accept_network_tls_connections(args.config);
 
-            if (resp->public_only)
+            if (resp.public_only)
             {
               sm.advance(State::partOfPublicNetwork);
             }
@@ -422,13 +438,13 @@ namespace ccf
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (resp->public_only ? "public only" : "all domains"));
+              (resp.public_only ? "public only" : "all domains"));
           }
-          else if (resp->node_status == NodeStatus::PENDING)
+          else if (resp.node_status == NodeStatus::PENDING)
           {
             LOG_INFO_FMT(
               "Node {} is waiting for votes of members to be trusted",
-              resp->node_id);
+              resp.node_id);
           }
 
           return true;
@@ -938,33 +954,40 @@ namespace ccf
       return true;
     }
 
-    void node_quotes(Store::Tx& tx, GetQuotes::Out& result) override
+    void node_quotes(
+      Store::Tx& tx,
+      GetQuotes::Out& result,
+      const std::optional<std::set<NodeId>>& filter) override
     {
       auto nodes_view = tx.get_view(network.nodes);
 
-      nodes_view->foreach([&result](const NodeId& nid, const NodeInfo& ni) {
-        if (ni.status == ccf::NodeStatus::TRUSTED)
+      nodes_view->foreach([&result,
+                           &filter](const NodeId& nid, const NodeInfo& ni) {
+        if (!filter.has_value() || (filter->find(nid) != filter->end()))
         {
-          GetQuotes::Quote q;
-          q.node_id = nid;
-          q.raw = ni.quote;
+          if (ni.status == ccf::NodeStatus::TRUSTED)
+          {
+            GetQuotes::Quote q;
+            q.node_id = nid;
+            q.raw = ni.quote;
 
 #ifdef GET_QUOTE
-          oe_report_t parsed_quote = {0};
-          auto res =
-            oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
-          if (res != OE_OK)
-          {
-            q.error =
-              fmt::format("Failed to parse quote: {}", oe_result_str(res));
-          }
-          else
-          {
-            q.mrenclave = fmt::format(
-              "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
-          }
+            oe_report_t parsed_quote = {0};
+            auto res =
+              oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
+            if (res != OE_OK)
+            {
+              q.error =
+                fmt::format("Failed to parse quote: {}", oe_result_str(res));
+            }
+            else
+            {
+              q.mrenclave = fmt::format(
+                "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
+            }
 #endif
-          result.quotes.push_back(q);
+            result.quotes.push_back(q);
+          }
         }
         return true;
       });
@@ -1021,6 +1044,11 @@ namespace ccf
       }
 
       g.add_key_share_info({encrypted_ls.serialise(), encrypted_shares});
+    }
+
+    NodeId get_node_id() const override
+    {
+      return self;
     }
 
   private:
@@ -1167,8 +1195,8 @@ namespace ccf
 
     bool parse_create_response(const std::vector<uint8_t>& response)
     {
-      http::SimpleMsgProcessor processor;
-      http::Parser parser(HTTP_RESPONSE, processor);
+      http::SimpleResponseProcessor processor;
+      http::ResponseParser parser(processor);
 
       const auto parsed_count =
         parser.execute(response.data(), response.size());
@@ -1188,21 +1216,31 @@ namespace ccf
         return false;
       }
 
-      const auto body =
-        jsonrpc::unpack(processor.received.front().body, jsonrpc::Pack::Text);
-      const auto result_it = body.find(jsonrpc::RESULT);
-      if (result_it == body.end())
+      const auto& r = processor.received.front();
+
+      if (r.status != HTTP_STATUS_OK)
       {
-        LOG_FAIL_FMT("Create response is error: {}", body.dump());
+        LOG_FAIL_FMT(
+          "Create response is error: {} {}",
+          r.status,
+          http_status_str(r.status));
         return false;
       }
 
-      return *result_it;
+      const auto body = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+      if (!body.is_boolean())
+      {
+        LOG_FAIL_FMT(
+          "Expected boolean body in create response: {}", body.dump());
+        return false;
+      }
+
+      return body;
     }
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
-      const enclave::SessionContext node_session(
+      auto node_session = std::make_shared<enclave::SessionContext>(
         enclave::InvalidSessionId, node_cert);
       auto ctx = enclave::make_rpc_context(node_session, packed);
 

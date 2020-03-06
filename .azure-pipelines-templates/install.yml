@@ -10,6 +10,7 @@ steps:
     python3.7 -m venv env
     source env/bin/activate
     python -m pip install -U -r ${{ parameters.install_prefix }}/bin/requirements.txt
+    pip freeze > ${{ parameters.install_prefix }}/bin/requirements.txt
     timeout --signal=SIGINT --kill-after=60s --preserve-status 60s \
       python ${{ parameters.install_prefix }}/bin/start_network.py \
       -p ../../build/liblogging \
@@ -18,17 +19,18 @@ steps:
       -v
   displayName: Test installed CCF
 
-- task: ArchiveFiles@2
-  inputs:
-    rootFolderOrFile: ${{ parameters.install_prefix }}
-    archiveType: 'tar'
-    tarCompression: 'gz'
-    archiveFile: '$(Build.ArtifactStagingDirectory)/ccf${{ parameters.install_suffix }}.tar.gz'
-    verbose: true
-  displayName: 'Create Install Tarball'
+- ${{ if eq(parameters.suffix, 'Release') }}:
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: ${{ parameters.install_prefix }}
+      archiveType: 'tar'
+      tarCompression: 'gz'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/ccf.tar.gz'
+      verbose: true
+    displayName: 'Create Install Tarball'
 
-- task: PublishPipelineArtifact@1
-  inputs:
-    path: $(Build.ArtifactStagingDirectory)/ccf${{ parameters.install_suffix }}.tar.gz
-    artifact: ccf${{ parameters.install_suffix }}.tar.gz
-    displayName: 'Publish CCF Install'
+  - task: PublishPipelineArtifact@1
+    inputs:
+      path: $(Build.ArtifactStagingDirectory)/ccf.tar.gz
+      artifact: ccf.tar.gz
+      displayName: 'Publish CCF Install'

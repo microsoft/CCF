@@ -5,7 +5,6 @@
 #include "ds/hash.h"
 #include "entities.h"
 #include "rawsignature.h"
-#include "rpc/jsonrpc.h"
 
 #include <msgpack-c/msgpack.hpp>
 #include <vector>
@@ -95,8 +94,6 @@ namespace ccf
   {
     //! the signed request containing the last state digest
     SignedReq signed_req = {};
-
-    std::vector<uint8_t> delete_me;
 
     MemberAck() {}
 

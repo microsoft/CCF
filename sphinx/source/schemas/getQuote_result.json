@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "quotes": {
+      "items": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "mrenclave": {
+            "type": "string"
+          },
+          "node_id": {
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "number"
+          },
+          "raw": {
+            "items": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "number"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "node_id",
+          "raw"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "quotes"
+  ],
+  "title": "getQuote/result",
+  "type": "object"
+}

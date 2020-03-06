@@ -20,7 +20,7 @@ jobs:
         action: 'create'
         target: '$(Build.SourceVersion)'
         tagSource: 'auto'
-        assets: $(Build.ArtifactStagingDirectory)/**/ccf*.tar.gz
+        assets: $(Build.ArtifactStagingDirectory)/**/ccf.tar.gz
         assetUploadMode: 'delete'
         isDraft: true
         isPreRelease: true

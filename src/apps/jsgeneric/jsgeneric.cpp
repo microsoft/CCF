@@ -114,8 +114,8 @@ namespace ccfapp
         const auto local_method = method.substr(method.find_first_not_of('/'));
         if (local_method == UserScriptIds::ENV_HANDLER)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          args.rpc_ctx->set_response_body(
             fmt::format("Cannot call environment script ('{}')", local_method));
           return;
         }
@@ -125,10 +125,9 @@ namespace ccfapp
         auto handler_script = scripts->get(local_method);
         if (!handler_script)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
-            fmt::format(
-              "No handler script found for method '{}'", local_method));
+          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "No handler script found for method '{}'", local_method));
           return;
         }
 
@@ -188,9 +187,8 @@ namespace ccfapp
         if (JS_IsException(val))
         {
           js_dump_error(ctx);
-          int err_code = jsonrpc::CCFErrorCodes::SCRIPT_ERROR;
-          std::string msg = "";
-          args.rpc_ctx->set_response_error(err_code, msg);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body("Exception thrown while executing");
           return;
         }
 
@@ -207,7 +205,9 @@ namespace ccfapp
         JS_FreeContext(ctx);
         JS_FreeRuntime(rt);
 
-        args.rpc_ctx->set_response_result(std::move(response));
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_body(
+          jsonrpc::pack(response, jsonrpc::Pack::Text));
         return;
       };
 

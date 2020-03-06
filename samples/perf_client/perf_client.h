@@ -77,19 +77,13 @@ namespace client
 
     // Process reply to an RPC. Records time reply was received. Calls
     // check_response for derived-overridable validation
-    void process_reply(const std::vector<uint8_t>& reply)
+    void process_reply(const RpcTlsClient::Response& reply)
     {
-      auto j = jsonrpc::unpack(reply, jsonrpc::Pack::MsgPack);
-      if (!j.is_object())
-      {
-        throw std::logic_error(j.dump());
-      }
-
       if (check_responses)
       {
-        if (!check_response(j))
+        if (!check_response(reply))
         {
-          throw std::logic_error("Response failed check: " + j.dump());
+          throw std::logic_error("Response failed check");
         }
       }
 
@@ -97,26 +91,27 @@ namespace client
 
       if (timing.has_value())
       {
-        const auto id_it = j.find("id");
-        if (id_it == j.end())
-          throw std::logic_error("Missing RPC ID: " + j.dump());
-
-        const auto commit_it = j.find("commit");
-        const auto global_it = j.find("global_commit");
-        const auto term_it = j.find("term");
+        const auto commit_it = reply.headers.find(http::headers::CCF_COMMIT);
+        const auto global_it =
+          reply.headers.find(http::headers::CCF_GLOBAL_COMMIT);
+        const auto term_it = reply.headers.find(http::headers::CCF_TERM);
 
         // If any of these are missing, we'll write no commits and consider
         // this a failed request
-        if (commit_it != j.end() && global_it != j.end() && term_it != j.end())
+        if (
+          commit_it != reply.headers.end() &&
+          global_it != reply.headers.end() && term_it != reply.headers.end())
         {
-          commits.emplace(timing::CommitIDs{*commit_it, *global_it, *term_it});
+          const size_t commit = std::atoi(commit_it->second.c_str());
+          const size_t global = std::atoi(global_it->second.c_str());
+          const size_t term = std::atoi(term_it->second.c_str());
+          commits.emplace(timing::CommitIDs{commit, global, term});
 
-          highest_local_commit =
-            std::max<size_t>(highest_local_commit, *commit_it);
+          highest_local_commit = std::max<size_t>(highest_local_commit, commit);
         }
 
         // Record time of received responses
-        timing->record_receive(*id_it, commits);
+        timing->record_receive(reply.id, commits);
       }
     }
 
@@ -173,7 +168,7 @@ namespace client
       const std::optional<size_t>& index)
     {
       const PreparedTx tx{
-        rpc_connection->gen_rpc(method, params), method, expects_commit};
+        rpc_connection->gen_request(method, params), method, expects_commit};
 
       if (index.has_value())
       {
@@ -226,10 +221,10 @@ namespace client
       const std::shared_ptr<RpcTlsClient>& connection)
     {}
 
-    virtual bool check_response(const nlohmann::json& j)
+    virtual bool check_response(const RpcTlsClient::Response& r)
     {
       // Default behaviour is to accept anything that doesn't contain an error
-      return j.find("error") == j.end();
+      return r.status == HTTP_STATUS_OK;
     }
 
     virtual void pre_creation_hook(){};
@@ -296,7 +291,7 @@ namespace client
       // Optimistically read (non-blocking) any current responses
       while (read < written)
       {
-        const auto r = connection->read_rpc_non_blocking();
+        const auto r = connection->read_response_non_blocking();
         if (!r.has_value())
         {
           // If we have no responses waiting, move on to the next thing
@@ -313,7 +308,7 @@ namespace client
       {
         while (written - read >= max_writes_ahead)
         {
-          process_reply(connection->read_rpc());
+          process_reply(connection->read_response());
           ++read;
         }
       }
@@ -327,7 +322,7 @@ namespace client
       // Read response (blocking) for all pending txs
       while (read < written)
       {
-        process_reply(connection->read_rpc());
+        process_reply(connection->read_response());
         ++read;
       }
     }
@@ -342,7 +337,7 @@ namespace client
     {
       // End with a mkSign RPC to force a final global commit
       const auto method = "mkSign";
-      const auto mk_sign = connection->gen_rpc(method);
+      const auto mk_sign = connection->gen_request(method);
       if (timing.has_value())
       {
         timing->record_send(method, mk_sign.id, true);
@@ -350,7 +345,7 @@ namespace client
       connection->write(mk_sign.encoded);
 
       // Do a blocking read for this final response
-      process_reply(connection->read_rpc());
+      process_reply(connection->read_response());
     }
 
     virtual void verify_params(const nlohmann::json& expected)

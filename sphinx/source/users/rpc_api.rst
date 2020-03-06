@@ -3,71 +3,58 @@ RPC API
 
 The available RPC methods vary depending on your TLS connection identity. Some methods are common to all frontends, others are restricted to the member and node frontends, and the app logic is only exposed to users.
 
-The API can also be retrieved from a running service using the `listMethods`_ and `getSchema`_ methods. For example, using the CCF client application:
+The API can also be retrieved from a running service using the `listMethods`_ and `getSchema`_ methods. For example, using curl:
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/users/listMethods --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @listMethods.json
+    $ curl https://<ccf-node-address>/users/listMethods --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
-      "commit": 4,
-      "global_commit": 4,
-      "id": 0,
-      "jsonrpc": "2.0",
-      "result": {
-        "methods": [
-          "LOG_get",
-          "LOG_get_pub",
-          "LOG_record",
-          "LOG_record_pub",
-          "getCommit",
-          "getMetrics",
-          "getNetworkInfo",
-          "getPrimaryInfo",
-          "getReceipt",
-          "getSchema",
-          "listMethods",
-          "mkSign",
-          "verifyReceipt",
-          "whoAmI",
-          "whoIs"
-        ]
-      },
-      "term": 2
+      "methods": [
+        "LOG_get",
+        "LOG_get_pub",
+        "LOG_record",
+        "LOG_record_prefix_cert",
+        "LOG_record_pub",
+        "getCommit",
+        "getMetrics",
+        "getNetworkInfo",
+        "getPrimaryInfo",
+        "getReceipt",
+        "getSchema",
+        "listMethods",
+        "mkSign",
+        "verifyReceipt",
+        "whoAmI",
+        "whoIs"
+      ]
     }
 
-    $ curl https://<ccf-node-address>/users/getSchema --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @getSchema.json
+    $ curl https://<ccf-node-address>/users/getSchema --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary '{"method": "getPrimaryInfo"}' -H "content-type: application/json"
     {
-      "commit": 4,
-      "global_commit": 4,
-      "id": 1,
-      "jsonrpc": "2.0",
-      "result": {
-        "params_schema": {},
-        "result_schema": {
-          "$schema": "http://json-schema.org/draft-07/schema#",
-          "properties": {
-            "primary_host": {
-              "type": "string"
-            },
-            "primary_id": {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "number"
-            },
-            "primary_port": {
-              "type": "string"
-            }
+      "params_schema": {},
+      "result_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "primary_host": {
+            "type": "string"
           },
-          "required": [
-            "primary_id",
-            "primary_host",
-            "primary_port"
-          ],
-          "title": "getPrimaryInfo/result",
-          "type": "object"
-        }
-      },
-      "term": 2
+          "primary_id": {
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "number"
+          },
+          "primary_port": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "primary_id",
+          "primary_host",
+          "primary_port"
+        ],
+        "title": "getPrimaryInfo/result",
+        "type": "object"
+      }
     }
 
 
