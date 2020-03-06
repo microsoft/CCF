@@ -735,13 +735,39 @@ namespace ccf
           auto share_wrapping_key_raw =
             SecretSharing::combine(pending_shares, pending_shares.size());
 
+          // TODO: Create a class for keyshare wrapping key (k_z)
           auto s_vec = std::vector<uint8_t>(
             share_wrapping_key_raw.begin(),
             share_wrapping_key_raw.begin() + 32);
 
-          LOG_FAIL_FMT("Combined secret: {}", tls::b64_from_raw(s_vec));
+          LOG_FAIL_FMT("k_z: {}", tls::b64_from_raw(s_vec));
+
+          auto share_wrapping_key = crypto::KeyAesGcm(s_vec);
+
+          auto shares_view = args.tx.get_view(this->network.shares);
+
+          std::vector<uint8_t> decrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
+          crypto::GcmCipher encrypted_ls;
+          encrypted_ls.deserialise(
+            shares_view->get(0)->encrypted_ledger_secret);
+
+          share_wrapping_key.decrypt(
+            encrypted_ls.hdr.get_iv(),
+            encrypted_ls.hdr.tag,
+            encrypted_ls.cipher,
+            nullb,
+            decrypted_ls.data());
+
+          LedgerSecret decrypted_ledger_secret(decrypted_ls);
+
+          LOG_FAIL_FMT(
+            "Decrypted ledger secrets {}",
+            tls::b64_from_raw(decrypted_ledger_secret.master));
+
+          pending_shares.clear();
 
           args.rpc_ctx->set_response_result(true);
+          return;
         }
 
         args.rpc_ctx->set_response_result(false);

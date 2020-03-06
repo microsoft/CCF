@@ -289,11 +289,11 @@ class Consortium:
 
     def get_and_decrypt_shares(self, remote_node):
         for m in self.members:
-            LOG.warning("Get share for member")
             with remote_node.member_client(member_id=m) as mc:
                 r = mc.rpc("getEncryptedRecoveryShare", params={})
                 LOG.warning(r.result)
 
+                # TODO: Sort out original key stuff.
                 ctx = infra.crypto.CryptoBoxCtx(
                     os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"),
                     os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
@@ -307,11 +307,18 @@ class Consortium:
 
                 decrypted_share = ctx.decrypt(encrypted_share_bytes, nonce_bytes,)
 
-                LOG.warning(base64.b64encode(decrypted_share))
-
                 r = mc.rpc(
                     "submitRecoveryShare", params={"share": list(decrypted_share)}
                 )
+                LOG.warning(r.result)
+                if m == 2:
+                    assert (
+                        r.result == True
+                    ), "Shares should be combined when all members have submitted their shares"
+                else:
+                    assert (
+                        r.result == False
+                    ), "Shares should not be combined until all members have submitted their shares"
 
     def add_new_code(self, member_id, remote_node, new_code_id):
         script = """

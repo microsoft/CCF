@@ -1001,8 +1001,7 @@ namespace ccf
 
       // Once sealing is completely removed, this can be called from the
       // LedgerSecrets class directly
-      crypto::GcmCipher encrypted_ls(
-        network.ledger_secrets->get_secret(1)->master.size());
+      crypto::GcmCipher encrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
       share_wrapping_key.encrypt(
         encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
                                    // key is never re-used for encryption
