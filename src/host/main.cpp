@@ -143,28 +143,26 @@ int main(int argc, char** argv)
     "--election-timeout-ms",
     election_timeout,
     "Consensus election timeout in milliseconds. If a consensus backup does "
-    "not "
-    "receive any heartbeat from the primary after this timeout, the "
-    "backup triggers a new election.",
+    "not receive any heartbeat from the primary after this timeout, the backup "
+    "triggers a new election.",
     true);
 
   size_t raft_timeout = 100;
   app.add_option(
     "--raft-timeout-ms",
     raft_timeout,
-    "Raft timeout in milliseconds. The Raft leader "
-    "sends heartbeats to its "
+    "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
     "followers at regular intervals defined by this timeout. This should be "
-    "set to a significantly lower value than --consensus-election-timeout-ms. ",
+    "set to a significantly lower value than --consensus-election-timeout-ms.",
     true);
 
   size_t pbft_status_timeout = 100;
   app.add_option(
     "--pbft-status-timeout-ms",
     pbft_status_timeout,
-    "Pbft status timeout in milliseconds. All pbft nodes send "
-    "messages containing their status to all other known nodes"
-    "at regular intervals defined by this timeout.",
+    "Pbft status timeout in milliseconds. All pbft nodes send messages "
+    "containing their status to all other known nodes at regular intervals "
+    "defined by this timeout.",
     true);
 
   size_t max_msg_size = 24;
