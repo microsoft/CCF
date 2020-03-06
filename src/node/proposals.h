@@ -46,47 +46,23 @@ namespace ccf
    *  return Calls:call(Puts:put("table", "key",
    *    tables["ccf.values"]:get(param))
    */
-  struct Propose
-  {
-    //! arguments for propose RPC
-    struct In
-    {
-      //! script that proposes changes
-      Script script;
-      //! fixed parameter for the script
-      nlohmann::json parameter = nullptr;
-      //! vote ballot of proposer
-      Script ballot = {"return true"};
-    };
-
-    //! results from propose RPC
-    struct Out
-    {
-      //! the id of the created proposal
-      ObjectId id;
-      //! the completion result
-      bool completed;
-    };
-  };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Propose::In)
-  DECLARE_JSON_REQUIRED_FIELDS(Propose::In, script, parameter)
-  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, ballot)
-  DECLARE_JSON_TYPE(Propose::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(Propose::Out, id, completed)
-
   enum class ProposalState
   {
-    OPEN,
-    ACCEPTED,
-    WITHDRAWN,
-    REJECTED
+    OPEN, //< Proposal is active and can be voted on
+    ACCEPTED, //< Proposal passed a successful vote and was enacted
+    WITHDRAWN, //< Proposal was removed by proposing member, will never be
+               // enacted
+    REJECTED, //< Proposal was rejected by vote, will never be enacted
+    FAILED, //< Proposal passed a successful vote, but its proposed actions
+            // failed, will never be enacted
   };
   DECLARE_JSON_ENUM(
     ProposalState,
     {{ProposalState::OPEN, "OPEN"},
      {ProposalState::ACCEPTED, "ACCEPTED"},
      {ProposalState::WITHDRAWN, "WITHDRAWN"},
-     {ProposalState::REJECTED, "REJECTED"}});
+     {ProposalState::REJECTED, "REJECTED"},
+     {ProposalState::FAILED, "FAILED"}});
 
   struct Proposal
   {
@@ -118,6 +94,15 @@ namespace ccf
 
   using Proposals = Store::Map<ObjectId, Proposal>;
 
+  struct ProposalInfo
+  {
+    ObjectId proposal_id;
+    MemberId proposer_id;
+    ProposalState state;
+  };
+  DECLARE_JSON_TYPE(ProposalInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposal_id, proposer_id, state);
+
   struct ProposalAction
   {
     //! the id of the proposal subject to the action
@@ -144,6 +129,26 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposedCall)
   DECLARE_JSON_REQUIRED_FIELDS(ProposedCall, func)
   DECLARE_JSON_OPTIONAL_FIELDS(ProposedCall, args)
+
+  struct Propose
+  {
+    //! arguments for propose RPC
+    struct In
+    {
+      //! script that proposes changes
+      Script script;
+      //! fixed parameter for the script
+      nlohmann::json parameter = nullptr;
+      //! vote ballot of proposer
+      Script ballot = {"return true"};
+    };
+
+    //! results from propose RPC
+    using Out = ProposalInfo;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Propose::In)
+  DECLARE_JSON_REQUIRED_FIELDS(Propose::In, script, parameter)
+  DECLARE_JSON_OPTIONAL_FIELDS(Propose::In, ballot)
 
   /** A list of calls proposed (and returned) by a proposal script
    * Every proposal script must return a compatible data structure.

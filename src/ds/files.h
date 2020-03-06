@@ -100,4 +100,15 @@ namespace files
     if (!f)
       throw logic_error("Failed to write to file: " + file);
   }
+
+  /**
+   * @brief Writes the content of a string to a file
+   *
+   * @param data string to write
+   * @param file the path
+   */
+  void dump(const std::string& data, const std::string& file)
+  {
+    return dump(std::vector<uint8_t>(data.begin(), data.end()), file);
+  }
 }
