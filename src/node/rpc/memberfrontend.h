@@ -80,11 +80,12 @@ namespace ccf
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
-      std::function<bool(Store::Tx&, const nlohmann::json&)>>
+      std::function<bool(ObjectId, Store::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
         // set the lua application script
         {"set_lua_app",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
 
@@ -92,14 +93,16 @@ namespace ccf
          }},
         // set the js application script
         {"set_js_app",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
         // add a new member
         {"new_member",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
            auto new_member_id =
@@ -114,7 +117,8 @@ namespace ccf
          }},
         // add a new user
         {"new_user",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const Cert pem_cert = args;
 
            GenesisGenerator g(this->network, tx);
@@ -123,14 +127,18 @@ namespace ccf
            return true;
          }},
         {"set_user_data",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
            auto users_view = tx.get_view(this->network.users);
            auto user_info = users_view->get(parsed.user_id);
            if (!user_info.has_value())
            {
-             throw std::logic_error(
-               fmt::format("{} is not a valid user ID", parsed.user_id));
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid user ID",
+               proposal_id,
+               parsed.user_id);
+             return false;
            }
 
            user_info->user_data = parsed.user_data;
@@ -139,18 +147,22 @@ namespace ccf
          }},
         // accept a node
         {"trust_node",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
            if (!node_info.has_value())
            {
-             throw std::logic_error(fmt::format("Node {} does not exist", id));
+             LOG_FAIL_FMT(
+               "Proposal {}: Node {} does not exist", proposal_id, id);
+             return false;
            }
            if (node_info->status == NodeStatus::RETIRED)
            {
-             throw std::logic_error(
-               fmt::format("Node {} is already retired", id));
+             LOG_FAIL_FMT(
+               "Proposal {}: Node {} is already retired", proposal_id, id);
+             return false;
            }
            node_info->status = NodeStatus::TRUSTED;
            nodes->put(id, node_info.value());
@@ -159,18 +171,22 @@ namespace ccf
          }},
         // retire a node
         {"retire_node",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
            if (!node_info.has_value())
            {
-             throw std::logic_error(fmt::format("Node {} does not exist", id));
+             LOG_FAIL_FMT(
+               "Proposal {}: Node {} does not exist", proposal_id, id);
+             return false;
            }
            if (node_info->status == NodeStatus::RETIRED)
            {
-             throw std::logic_error(
-               fmt::format("Node {} is already retired", id));
+             LOG_FAIL_FMT(
+               "Proposal {}: Node {} is already retired", proposal_id, id);
+             return false;
            }
            node_info->status = NodeStatus::RETIRED;
            nodes->put(id, node_info.value());
@@ -179,69 +195,88 @@ namespace ccf
          }},
         // accept new code
         {"new_code",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
            auto code_ids = tx.get_view(this->network.code_ids);
            auto existing_code_id = code_ids->get(id);
            if (existing_code_id)
            {
-             throw std::logic_error(fmt::format(
-               "Code signature already exists with digest: {:02x}",
-               fmt::join(id, "")));
+             LOG_FAIL_FMT(
+               "Proposal {}: Code signature already exists with digest: {:02x}",
+               proposal_id,
+               fmt::join(id, ""));
+             return false;
            }
            code_ids->put(id, CodeStatus::ACCEPTED);
            return true;
          }},
         {"accept_recovery",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
            {
-             return node.finish_recovery(tx, args);
+             const auto recovery_successful = node.finish_recovery(tx, args);
+             if (!recovery_successful)
+             {
+               LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
+             }
+             return recovery_successful;
            }
            else
            {
+             LOG_FAIL_FMT(
+               "Proposal {}: Node is not part of public network", proposal_id);
              return false;
            }
          }},
         {"open_network",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
-           return node.open_network(tx);
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           const auto network_opened = node.open_network(tx);
+           if (!network_opened)
+           {
+             LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
+           }
+           return network_opened;
          }},
         {"rekey_ledger",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
-           return node.rekey_ledger(tx);
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           const auto ledger_rekeyed = node.rekey_ledger(tx);
+           if (!ledger_rekeyed)
+           {
+             LOG_FAIL_FMT("Proposal {}: Ledger rekey failed", proposal_id);
+           }
+           return ledger_rekeyed;
          }},
       };
 
-    bool complete_proposal(Store::Tx& tx, const ObjectId id)
+    ProposalInfo complete_proposal(
+      Store::Tx& tx, const ObjectId proposal_id, Proposal& proposal)
     {
-      auto proposals = tx.get_view(this->network.proposals);
-      auto proposal = proposals->get(id);
-      if (!proposal.has_value())
-      {
-        throw std::logic_error(fmt::format("No such proposal: {}", id));
-      }
-
-      if (proposal->state != ProposalState::OPEN)
+      if (proposal.state != ProposalState::OPEN)
       {
         throw std::logic_error(fmt::format(
           "Cannot complete non-open proposal - current state is {}",
-          proposal->state));
+          proposal.state));
       }
+
+      auto proposals = tx.get_view(this->network.proposals);
 
       // run proposal script
       const auto proposed_calls = tsr.run<nlohmann::json>(
         tx,
-        {proposal->script,
+        {proposal.script,
          {}, // can't write
          WlIds::MEMBER_CAN_READ,
          get_script(tx, GovScriptIds::ENV_PROPOSAL)},
         // vvv arguments to script vvv
-        proposal->parameter);
+        proposal.parameter);
 
       nlohmann::json votes;
       // Collect all member votes
-      for (const auto& vote : proposal->votes)
+      for (const auto& vote : proposal.votes)
       {
         // valid voter
         if (!check_member_active(tx, vote.first))
@@ -279,19 +314,21 @@ namespace ccf
         case CompletionResult::PENDING:
         {
           // vote is pending, return false but do not update state
-          return false;
+          return get_proposal_info(proposal_id, proposal);
         }
         case CompletionResult::REJECTED:
         {
           // vote unsuccessful, update the proposal's state
-          proposal->state = ProposalState::REJECTED;
-          proposals->put(id, proposal.value());
-          return false;
+          proposal.state = ProposalState::REJECTED;
+          proposals->put(proposal_id, proposal);
+          return get_proposal_info(proposal_id, proposal);
         }
         default:
         {
           throw std::logic_error(fmt::format(
-            "Invalid completion result ({}) for proposal {}", pass, id));
+            "Invalid completion result ({}) for proposal {}",
+            pass,
+            proposal_id));
         }
       };
 
@@ -303,9 +340,11 @@ namespace ccf
         const auto f = hardcoded_funcs.find(call.func);
         if (f != hardcoded_funcs.end())
         {
-          if (!f->second(tx, call.args))
+          if (!f->second(proposal_id, tx, call.args))
           {
-            return false;
+            proposal.state = ProposalState::FAILED;
+            proposals->put(proposal_id, proposal);
+            return get_proposal_info(proposal_id, proposal);
           }
           continue;
         }
@@ -326,10 +365,10 @@ namespace ccf
       }
 
       // if the vote was successful, update the proposal's state
-      proposal->state = ProposalState::ACCEPTED;
-      proposals->put(id, proposal.value());
+      proposal.state = ProposalState::ACCEPTED;
+      proposals->put(proposal_id, proposal);
 
-      return true;
+      return get_proposal_info(proposal_id, proposal);
     }
 
     bool check_member_active(Store::Tx& tx, MemberId id)
@@ -366,6 +405,12 @@ namespace ccf
     {
       auto governance_history = tx.get_view(network.governance_history);
       governance_history->put(caller_id, {signed_request});
+    }
+
+    static ProposalInfo get_proposal_info(
+      ObjectId proposal_id, const Proposal& proposal)
+    {
+      return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
     }
 
     NetworkTables& network;
@@ -448,12 +493,12 @@ namespace ccf
         auto proposals = args.tx.get_view(this->network.proposals);
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
-        const bool completed = complete_proposal(args.tx, proposal_id);
 
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        return make_success(Propose::Out({proposal_id, completed}));
+        return make_success(
+          Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
       install_with_auto_schema<Propose>(
         MemberProcs::PROPOSE, json_adapter(propose), Write);
@@ -504,9 +549,9 @@ namespace ccf
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        return make_success(true);
+        return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      install_with_auto_schema<ProposalAction, bool>(
+      install_with_auto_schema<ProposalAction, ProposalInfo>(
         MemberProcs::WITHDRAW, json_adapter(withdraw), Write, true);
 
       auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
@@ -549,9 +594,10 @@ namespace ccf
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        return make_success(complete_proposal(args.tx, vote.id));
+        return make_success(
+          complete_proposal(args.tx, vote.id, proposal.value()));
       };
-      install_with_auto_schema<Vote, bool>(
+      install_with_auto_schema<Vote, ProposalInfo>(
         MemberProcs::VOTE, json_adapter(vote), Write, true);
 
       auto complete =
@@ -565,9 +611,19 @@ namespace ccf
           const auto proposal_action = params.get<ProposalAction>();
           const auto proposal_id = proposal_action.id;
 
-          return make_success(complete_proposal(tx, proposal_id));
+          auto proposals = tx.get_view(this->network.proposals);
+          auto proposal = proposals->get(proposal_id);
+          if (!proposal.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format("No such proposal: {}", proposal_id));
+          }
+
+          return make_success(
+            complete_proposal(tx, proposal_id, proposal.value()));
         };
-      install_with_auto_schema<ProposalAction, bool>(
+      install_with_auto_schema<ProposalAction, ProposalInfo>(
         MemberProcs::COMPLETE, json_adapter(complete), Write, true);
 
       //! A member acknowledges state

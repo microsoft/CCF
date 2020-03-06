@@ -94,7 +94,7 @@ def run(args):
             )
             """,
         )
-        network.consortium.vote_using_majority(primary, response.result["id"])
+        network.consortium.vote_using_majority(primary, response.result["proposal_id"])
 
         # Check permissions are enforced
         with primary.user_client(user_id=regulator.name) as c:
@@ -103,8 +103,7 @@ def run(args):
                 error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
-                c.rpc("BK_register", {}),
-                error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("BK_register", {}), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
         with primary.user_client(user_id=banks[0].name) as c:
@@ -113,8 +112,7 @@ def run(args):
                 error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
-                c.rpc("BK_register", {}),
-                error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("BK_register", {}), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
         # As permissioned manager, register regulator and banks
