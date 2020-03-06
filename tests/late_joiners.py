@@ -187,7 +187,7 @@ def run(args):
                 for t, node in timeouts:
                     et = (
                         args.pbft_view_change_timeout / 1000
-                        if consensus == "pbft"
+                        if args.consensus == "pbft"
                         else args.raft_election_timeout / 1000
                     )
 

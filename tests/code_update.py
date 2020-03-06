@@ -79,7 +79,7 @@ def run(args):
         LOG.info("Waiting for a new primary to be elected...")
         sleep_time = (
             args.pbft_view_change_timeout * 6 / 1000
-            if consensus == "pbft"
+            if args.consensus == "pbft"
             else args.raft_election_timeout * 6 / 1000
         )
         time.sleep(sleep_time)
