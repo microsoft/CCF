@@ -4,7 +4,7 @@
  */
 #pragma once
 
-#include "consensus/raft/rafttypes.h"
+#include "consensus/consensustypes.h"
 #include "consensus_type.h"
 #include "ds/buffer.h"
 #include "ds/logger.h"
@@ -34,7 +34,7 @@ struct EnclaveConfig
 
 struct CCFConfig
 {
-  raft::Config raft_config = {};
+  consensus::Config consensus_config = {};
   ccf::NodeInfoNetwork node_info_network = {};
   std::string domain;
 
@@ -65,7 +65,7 @@ struct CCFConfig
   Joining joining = {};
 
   MSGPACK_DEFINE(
-    raft_config,
+    consensus_config,
     node_info_network,
     domain,
     signature_intervals,

@@ -63,7 +63,7 @@ extern "C"
 #endif
 
     auto enclave = new enclave::Enclave(
-      ec, cc.signature_intervals, consensus_type, cc.raft_config);
+      ec, cc.signature_intervals, consensus_type, cc.consensus_config);
 
     bool result = enclave->create_new_node(
       start_type,

@@ -138,22 +138,24 @@ int main(int argc, char** argv)
     "--notify-server-address",
     "Server address to notify progress to");
 
-  size_t raft_election_timeout = 5000;
+  size_t election_timeout = 5000;
   app.add_option(
-    "--raft-election-timeout-ms",
-    raft_election_timeout,
-    "Raft election timeout in milliseconds. If a Raft follower does not "
-    "receive any heartbeat from the leader after this timeout, the "
-    "follower triggers a new election.",
+    "--election-timeout-ms",
+    election_timeout,
+    "Consensus election timeout in milliseconds. If a consensus backup does "
+    "not "
+    "receive any heartbeat from the primary after this timeout, the "
+    "backup triggers a new election.",
     true);
 
-  size_t raft_timeout = 100;
+  size_t heartbeat_timeout = 100;
   app.add_option(
-    "--raft-timeout-ms",
-    raft_timeout,
-    "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
-    "followers at regular intervals defined by this timeout. This should be "
-    "set to a significantly lower value than --raft-election-timeout-ms.",
+    "--heartbeat-timeout-ms",
+    heartbeat_timeout,
+    "Consensus (e.g. Raft) timeout in milliseconds. The consensus primary "
+    "sends heartbeats to its "
+    "backups at regular intervals defined by this timeout. This should be "
+    "set to a significantly lower value than --consensus-election-timeout-ms.",
     true);
 
   size_t max_msg_size = 24;
@@ -349,7 +351,7 @@ int main(int argc, char** argv)
 #endif
 
   CCFConfig ccf_config;
-  ccf_config.raft_config = {raft_timeout, raft_election_timeout};
+  ccf_config.consensus_config = {heartbeat_timeout, election_timeout};
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,

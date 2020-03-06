@@ -579,7 +579,7 @@ class CCFRemote(object):
             f"--ledger-file={self.ledger_file_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
-            f"--raft-election-timeout-ms={election_timeout}",
+            f"--election-timeout-ms={election_timeout}",
             f"--consensus={consensus}",
             f"--worker_threads={worker_threads}",
         ]
