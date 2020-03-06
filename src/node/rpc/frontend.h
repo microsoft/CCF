@@ -468,7 +468,7 @@ namespace ccf
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      if (!is_primary && consensus->type() == ConsensusType::Raft &&)
+      if (!is_primary && consensus->type() == ConsensusType::Raft)
       {
         switch (handler->rw)
         {

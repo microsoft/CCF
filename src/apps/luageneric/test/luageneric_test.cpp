@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "consensus/test/stub_consensus.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
@@ -180,8 +179,6 @@ TEST_CASE("simple lua apps")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -318,8 +315,6 @@ TEST_CASE("simple bank")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -436,8 +431,6 @@ TEST_CASE("pre-populated environment")
   NetworkTables network;
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();

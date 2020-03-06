@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "consensus/test/stub_consensus.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
@@ -201,8 +200,6 @@ TEST_CASE("Member query/read")
 {
   // initialize the network state
   NetworkTables network;
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -307,8 +304,6 @@ TEST_CASE("Proposer ballot")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -409,8 +404,6 @@ TEST_CASE("Add new members until there are 7 then reject")
   constexpr auto max_members = 8;
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -592,8 +585,6 @@ TEST_CASE("Accept node")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -811,8 +802,6 @@ TEST_CASE("Propose raw writes")
       const bool should_succeed = pro_votes > n_members / 2;
       NetworkTables network;
       network.tables->set_encryptor(encryptor);
-      auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-      network.tables->set_consensus(consensus);
       Store::Tx gen_tx;
       GenesisGenerator gen(network, gen_tx);
       gen.init_values();
@@ -878,8 +867,6 @@ TEST_CASE("Propose raw writes")
         {
           NetworkTables network;
           network.tables->set_encryptor(encryptor);
-          auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-          network.tables->set_consensus(consensus);
           Store::Tx gen_tx;
           GenesisGenerator gen(network, gen_tx);
           gen.init_values();
@@ -912,8 +899,6 @@ TEST_CASE("Remove proposal")
 
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1002,8 +987,6 @@ TEST_CASE("Complete proposal after initial rejection")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1066,8 +1049,6 @@ TEST_CASE("Vetoed proposal gets rejected")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1120,8 +1101,6 @@ TEST_CASE("Add user via proposed call")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1164,8 +1143,6 @@ TEST_CASE("Passing members ballot with operator")
   // Operator votes, but is _not_ taken into consideration
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1277,8 +1254,6 @@ TEST_CASE("Passing operator vote")
   // and gets it through without member votes
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1365,8 +1340,6 @@ TEST_CASE("Members passing an operator vote")
   // A majority of members pass the vote
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
@@ -1483,8 +1456,6 @@ TEST_CASE("User data")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::PrimaryStubConsensus>();
-  network.tables->set_consensus(consensus);
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
