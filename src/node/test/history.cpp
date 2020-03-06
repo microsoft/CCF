@@ -3,9 +3,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "node/history.h"
 
+#include "consensus/test/stub_consensus.h"
 #include "enclave/appinterface.h"
 #include "kv/kv.h"
-#include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/nodes.h"
@@ -109,13 +109,11 @@ TEST_CASE("Check signature verification")
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
   }
 
-#ifndef PBFT
   INFO("Issue signature, and verify successfully on backup");
   {
     primary_history->emit_signature();
     REQUIRE(backup_store.current_version() == 2);
   }
-#endif
 
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {

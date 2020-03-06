@@ -14,9 +14,14 @@ namespace kv
   {
   private:
     std::vector<std::vector<uint8_t>> replica;
+    ConsensusType consensus_type;
 
   public:
-    StubConsensus() : Consensus(0), replica() {}
+    StubConsensus(ConsensusType consensus_type_ = ConsensusType::Raft) :
+      Consensus(0),
+      replica(),
+      consensus_type(consensus_type_)
+    {}
 
     bool replicate(const BatchVector& entries) override
     {
@@ -104,17 +109,17 @@ namespace kv
 
     ConsensusType type() override
     {
-#ifdef PBFT
-      return ConsensusType::Pbft;
-#else
-      return ConsensusType::Raft;
-#endif
+      return consensus_type;
     }
   };
 
   class BackupStubConsensus : public StubConsensus
   {
   public:
+    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::Raft) :
+      StubConsensus(consensus_type)
+    {}
+
     bool is_primary() override
     {
       return false;
@@ -129,6 +134,10 @@ namespace kv
   class PrimaryStubConsensus : public StubConsensus
   {
   public:
+    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::Raft) :
+      StubConsensus(consensus_type)
+    {}
+
     bool is_primary() override
     {
       return true;

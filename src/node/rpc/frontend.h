@@ -260,72 +260,73 @@ namespace ccf
         }
       }
 
-#ifdef PBFT
-      auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
-      if (rep.has_value())
+      if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
       {
-        return rep.value();
-      }
-      kv::TxHistory::RequestID reqid;
-
-      update_history();
-      reqid = {caller_id.value(),
-               ctx->session->client_session_id,
-               ctx->get_request_index()};
-      if (history)
-      {
-        if (!history->add_request(
-              reqid,
-              caller_id.value(),
-              ctx->session->caller_cert,
-              ctx->get_serialised_request()))
+        auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
+        if (rep.has_value())
         {
-          LOG_FAIL_FMT(
-            "Adding request failed: {}, {}, {}",
-            std::get<0>(reqid),
-            std::get<1>(reqid),
-            std::get<2>(reqid));
+          return rep.value();
+        }
+        kv::TxHistory::RequestID reqid;
+
+        update_history();
+        reqid = {caller_id.value(),
+                 ctx->session->client_session_id,
+                 ctx->get_request_index()};
+        if (history)
+        {
+          if (!history->add_request(
+                reqid,
+                caller_id.value(),
+                ctx->session->caller_cert,
+                ctx->get_serialised_request()))
+          {
+            LOG_FAIL_FMT(
+              "Adding request failed: {}, {}, {}",
+              std::get<0>(reqid),
+              std::get<1>(reqid),
+              std::get<2>(reqid));
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+            ctx->set_response_body("PBFT could not process request.");
+            return ctx->serialise_response();
+          }
+          tx.set_req_id(reqid);
+          return std::nullopt;
+        }
+        else
+        {
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx->set_response_body("PBFT could not process request.");
+          ctx->set_response_body("PBFT is not yet ready.");
           return ctx->serialise_response();
         }
-        tx.set_req_id(reqid);
-        return std::nullopt;
       }
       else
       {
-        ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        ctx->set_response_body("PBFT is not yet ready.");
-        return ctx->serialise_response();
-      }
-#else
-      auto rep = process_command(ctx, tx, caller_id.value());
+        auto rep = process_command(ctx, tx, caller_id.value());
 
-      // If necessary, forward the RPC to the current primary
-      if (!rep.has_value())
-      {
-        if (consensus != nullptr)
+        // If necessary, forward the RPC to the current primary
+        if (!rep.has_value())
         {
-          auto primary_id = consensus->primary();
-
-          if (
-            primary_id != NoNode && cmd_forwarder &&
-            cmd_forwarder->forward_command(
-              ctx, primary_id, caller_id.value(), get_cert_to_forward(ctx)))
+          if (consensus != nullptr)
           {
-            // Indicate that the RPC has been forwarded to primary
-            LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
-            return std::nullopt;
+            auto primary_id = consensus->primary();
+
+            if (
+              primary_id != NoNode && cmd_forwarder &&
+              cmd_forwarder->forward_command(
+                ctx, primary_id, caller_id.value(), get_cert_to_forward(ctx)))
+            {
+              // Indicate that the RPC has been forwarded to primary
+              LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
+              return std::nullopt;
+            }
           }
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx->set_response_body("RPC could not be forwarded to primary.");
+          return ctx->serialise_response();
         }
-
-        ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        ctx->set_response_body("RPC could not be forwarded to primary.");
-        return ctx->serialise_response();
+        return rep.value();
       }
-
-      return rep.value();
-#endif
     }
 
     virtual std::vector<uint8_t> get_cert_to_forward(
@@ -463,13 +464,11 @@ namespace ccf
       }
 
       update_history();
-      update_consensus();
 
-#ifndef PBFT
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      if (!is_primary)
+      if (!is_primary && consensus->type() == ConsensusType::Raft)
       {
         switch (handler->rw)
         {
@@ -505,7 +504,6 @@ namespace ccf
           }
         }
       }
-#endif
 
       auto func = handler->func;
       auto args = RequestArgs{ctx, tx, caller_id};
@@ -587,8 +585,8 @@ namespace ccf
         }
         catch (const kv::KvSerialiserException& e)
         {
-          // If serialising the committed transaction fails, there is no way to
-          // recover safely (https://github.com/microsoft/CCF/issues/338).
+          // If serialising the committed transaction fails, there is no way
+          // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
           LOG_FATAL_FMT("Failed to serialise: {}", e.what());
           abort();

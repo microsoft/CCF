@@ -3,7 +3,6 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "crypto/cryptobox.h"
-#include "doctest/doctest.h"
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
 #include "node/genesisgen.h"
@@ -12,6 +11,8 @@
 #include "node_stub.h"
 #include "tls/pem.h"
 #include "tls/verifier.h"
+
+#include <doctest/doctest.h>
 
 using namespace ccf;
 using namespace nlohmann;

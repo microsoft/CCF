@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT
-#include "kv/test/stub_consensus.h"
+#include "consensus/test/stub_consensus.h"
 #include "node/history.h"
 
 #include <cstdlib>
