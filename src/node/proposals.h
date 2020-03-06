@@ -48,17 +48,21 @@ namespace ccf
    */
   enum class ProposalState
   {
-    OPEN,
-    ACCEPTED,
-    WITHDRAWN,
-    REJECTED
+    OPEN, //< Proposal is active and can be voted on
+    ACCEPTED, //< Proposal passed a successful vote and was enacted
+    WITHDRAWN, //< Proposal was removed by proposing member, will never be
+               // enacted
+    REJECTED, //< Proposal was rejected by vote, will never be enacted
+    FAILED, //< Proposal passed a successful vote, but its proposed actions
+            // failed, will never be enacted
   };
   DECLARE_JSON_ENUM(
     ProposalState,
     {{ProposalState::OPEN, "OPEN"},
      {ProposalState::ACCEPTED, "ACCEPTED"},
      {ProposalState::WITHDRAWN, "WITHDRAWN"},
-     {ProposalState::REJECTED, "REJECTED"}});
+     {ProposalState::REJECTED, "REJECTED"},
+     {ProposalState::FAILED, "FAILED"}});
 
   struct Proposal
   {
