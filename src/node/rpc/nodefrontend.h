@@ -76,7 +76,7 @@ namespace ccf
       if (conflicting_node_id.has_value())
       {
         return make_error(
-          jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          HTTP_STATUS_BAD_REQUEST,
           fmt::format(
             "A node with the same node host {} and port {} already exists "
             "(node id: {})",
@@ -142,18 +142,16 @@ namespace ccf
 
       signatures = tables->get<Signatures>(Tables::SIGNATURES);
 
-      auto accept = [this](RequestArgs& args) {
-        const auto in =
-          args.rpc_ctx->get_params().get<JoinNetworkNodeToNode::In>();
+      auto accept = [this](RequestArgs& args, const nlohmann::json& params) {
+        const auto in = params.get<JoinNetworkNodeToNode::In>();
 
         if (
           !this->node.is_part_of_network() &&
           !this->node.is_part_of_public_network())
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "Target node should be part of network to accept new nodes");
-          return;
         }
 
         auto [nodes_view, service_view] =
@@ -162,18 +160,15 @@ namespace ccf
         auto active_service = service_view->get(0);
         if (!active_service.has_value())
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "No service is available to accept new node");
-          return;
         }
 
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
         auto caller_pem =
-          tls::make_verifier(
-            std::vector<uint8_t>(args.rpc_ctx->session->caller_cert))
-            ->cert_pem();
+          tls::make_verifier(args.rpc_ctx->session->caller_cert)->cert_pem();
         std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
                                                caller_pem.str().end()};
 
@@ -187,19 +182,16 @@ namespace ccf
             check_node_exists(args.tx, caller_pem_raw, joining_node_status);
           if (existing_node_id.has_value())
           {
-            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
+            return make_success(JoinNetworkNodeToNode::Out(
               {joining_node_status,
                existing_node_id.value(),
                node.is_part_of_public_network(),
                {*this->network.ledger_secrets.get(),
                 *this->network.identity.get(),
                 this->network.encryption_priv_key}}));
-            return;
           }
 
-          args.rpc_ctx->set_response(
-            add_node(args.tx, caller_pem_raw, in, joining_node_status));
-          return;
+          return add_node(args.tx, caller_pem_raw, in, joining_node_status);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -215,39 +207,33 @@ namespace ccf
           auto node_status = nodes_view->get(existing_node_id.value())->status;
           if (node_status == NodeStatus::TRUSTED)
           {
-            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
+            return make_success(JoinNetworkNodeToNode::Out(
               {node_status,
                existing_node_id.value(),
                node.is_part_of_public_network(),
                {*this->network.ledger_secrets.get(),
                 *this->network.identity.get(),
                 this->network.encryption_priv_key}}));
-            return;
           }
           else if (node_status == NodeStatus::PENDING)
           {
-            args.rpc_ctx->set_response_result(JoinNetworkNodeToNode::Out(
+            return make_success(JoinNetworkNodeToNode::Out(
               {node_status, existing_node_id.value()}));
-            return;
           }
           else
           {
-            args.rpc_ctx->set_response_error(
-              jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-              "Joining node is not in expected state");
-            return;
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, "Joining node is not in expected state");
           }
         }
         else
         {
           // If the node does not exist, add it to the KV in state pending
-          args.rpc_ctx->set_response(
-            add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING));
-          return;
+          return add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING);
         }
       };
 
-      auto get_signed_index = [this](RequestArgs& args) {
+      auto get_signed_index = [this](Store::Tx& tx) {
         GetSignedIndex::Out result;
         if (this->node.is_reading_public_ledger())
         {
@@ -267,48 +253,43 @@ namespace ccf
         }
         else
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INVALID_REQUEST,
-            "Network is not in recovery mode");
-          return;
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, "Network is not in recovery mode");
         }
 
-        auto sig_view = args.tx.get_view(*signatures);
+        auto sig_view = tx.get_view(*signatures);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
           result.signed_index = 0;
         else
           result.signed_index = sig.value().index;
 
-        args.rpc_ctx->set_response_result(result);
-        return;
+        return make_success(result);
       };
 
-      auto get_quote = [this](RequestArgs& args) {
+      auto get_quote = [this](Store::Tx& tx) {
         GetQuotes::Out result;
         std::set<NodeId> filter;
         filter.insert(this->node.get_node_id());
-        this->node.node_quotes(args.tx, result, filter);
+        this->node.node_quotes(tx, result, filter);
 
-        args.rpc_ctx->set_response_result(result);
-        return;
+        return make_success(result);
       };
 
-      auto get_quotes = [this](RequestArgs& args) {
+      auto get_quotes = [this](Store::Tx& tx) {
         GetQuotes::Out result;
-        this->node.node_quotes(args.tx, result);
+        this->node.node_quotes(tx, result);
 
-        args.rpc_ctx->set_response_result(result);
-        return;
+        return make_success(result);
       };
 
-      install(NodeProcs::JOIN, accept, Write);
+      install(NodeProcs::JOIN, json_adapter(accept), Write);
       install_with_auto_schema<GetSignedIndex>(
-        NodeProcs::GET_SIGNED_INDEX, get_signed_index, Read);
+        NodeProcs::GET_SIGNED_INDEX, json_adapter(get_signed_index), Read);
       install_with_auto_schema<GetQuotes>(
-        NodeProcs::GET_NODE_QUOTE, get_quote, Read);
+        NodeProcs::GET_NODE_QUOTE, json_adapter(get_quote), Read);
       install_with_auto_schema<GetQuotes>(
-        NodeProcs::GET_QUOTES, get_quotes, Read);
+        NodeProcs::GET_QUOTES, json_adapter(get_quotes), Read);
     }
   };
 

@@ -29,26 +29,56 @@ std::string to_lowercase(std::string s)
 
 TEST_CASE("Complete request")
 {
-  std::vector<uint8_t> r;
+  for (const auto method : {HTTP_POST, HTTP_GET, HTTP_DELETE})
+  {
+    const std::vector<uint8_t> r = {0, 1, 2, 3};
+    constexpr auto url = "/some/path/to/a/resource";
 
-  http::SimpleMsgProcessor sp;
-  http::Parser p(HTTP_REQUEST, sp);
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp);
 
-  auto req = http::build_post_request(r);
-  auto parsed = p.execute(req.data(), req.size());
+    auto request = http::Request(url, method);
+    request.set_body(&r);
+    auto req = request.build_request();
+    auto parsed = p.execute(req.data(), req.size());
 
-  CHECK(!sp.received.empty());
-  const auto& m = sp.received.front();
-  CHECK(m.method == HTTP_POST);
-  CHECK(m.body == r);
+    CHECK(!sp.received.empty());
+    const auto& m = sp.received.front();
+    CHECK(m.method == method);
+    CHECK(m.path == url);
+    CHECK(m.body == r);
+  }
+}
+
+TEST_CASE("Complete response")
+{
+  for (const auto status : {HTTP_STATUS_OK,
+                            HTTP_STATUS_BAD_REQUEST,
+                            HTTP_STATUS_INTERNAL_SERVER_ERROR})
+  {
+    const std::vector<uint8_t> r = {0, 1, 2, 3};
+
+    http::SimpleResponseProcessor sp;
+    http::ResponseParser p(sp);
+
+    auto response = http::Response(status);
+    response.set_body(&r);
+    auto res = response.build_response();
+    auto parsed = p.execute(res.data(), res.size());
+
+    CHECK(!sp.received.empty());
+    const auto& m = sp.received.front();
+    CHECK(m.status == status);
+    CHECK(m.body == r);
+  }
 }
 
 TEST_CASE("Parsing error")
 {
   std::vector<uint8_t> r;
 
-  http::SimpleMsgProcessor sp;
-  http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp);
 
   auto req = http::build_post_request(r);
   req[6] = '\n';
@@ -69,8 +99,8 @@ TEST_CASE("Parsing error")
 
 TEST_CASE("Partial request")
 {
-  http::SimpleMsgProcessor sp;
-  http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp);
 
   const auto r0 = s_to_v(request_0);
   auto req = http::build_post_request(r0);
@@ -89,8 +119,8 @@ TEST_CASE("Partial request")
 
 TEST_CASE("Partial body")
 {
-  http::SimpleMsgProcessor sp;
-  http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp);
 
   const auto r0 = s_to_v(request_0);
   auto req = http::build_post_request(r0);
@@ -109,8 +139,8 @@ TEST_CASE("Partial body")
 
 TEST_CASE("Multiple requests")
 {
-  http::SimpleMsgProcessor sp;
-  http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp);
 
   const auto r0 = s_to_v(request_0);
   auto req = http::build_post_request(r0);
@@ -140,8 +170,8 @@ TEST_CASE("Multiple requests")
 
 TEST_CASE("Method parsing")
 {
-  http::SimpleMsgProcessor sp;
-  http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp);
 
   bool choice = false;
   for (const auto method : {HTTP_DELETE, HTTP_GET, HTTP_POST, HTTP_PUT})
@@ -162,8 +192,8 @@ TEST_CASE("Method parsing")
 
 TEST_CASE("URL parsing")
 {
-  http::SimpleMsgProcessor sp;
-  http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp);
 
   const auto path = "/foo/123";
 
@@ -196,8 +226,8 @@ TEST_CASE("Pessimal transport")
                               {"x-custom-header", "custom user data"},
                               {"x-MixedCASE", "DontCARE"}};
 
-  http::SimpleMsgProcessor sp;
-  http::Parser p(HTTP_REQUEST, sp);
+  http::SimpleRequestProcessor sp;
+  http::RequestParser p(sp);
 
   // Use the same processor and test repeatedly to make sure headers are for
   // only the current request

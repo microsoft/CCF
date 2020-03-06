@@ -13,6 +13,8 @@ import tempfile
 import base64
 import requests
 from requests_http_signature import HTTPSignatureAuth
+from http.client import HTTPResponse
+from io import BytesIO
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import asymmetric
@@ -27,6 +29,12 @@ def truncate(string, max_len=256):
         return string
 
 
+CCF_COMMIT_HEADER = "x-ccf-commit"
+CCF_TERM_HEADER = "x-ccf-term"
+CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
+CCF_READ_ONLY_HEADER = "x-ccf-read-only"
+
+
 class Request:
     def __init__(self, method, params, readonly_hint=None):
         self.method = method
@@ -34,30 +42,29 @@ class Request:
         self.readonly_hint = readonly_hint
 
 
+def int_or_none(v):
+    return int(v) if v is not None else None
+
+
+class FakeSocket:
+    def __init__(self, bs):
+        self.file = BytesIO(bs)
+
+    def makefile(self, *args, **kwargs):
+        return self.file
+
+
 class Response:
-    def __init__(
-        self,
-        id,
-        result=None,
-        error=None,
-        commit=None,
-        term=None,
-        global_commit=None,
-        jsonrpc="2.0",
-    ):
-        self.id = id
+    def __init__(self, status, result, error, commit, term, global_commit):
+        self.status = status
         self.result = result
         self.error = error
-        self.jsonrpc = jsonrpc
         self.commit = commit
         self.term = term
         self.global_commit = global_commit
-        self._attrs = set(locals()) - {"self"}
 
     def to_dict(self):
         d = {
-            "id": self.id,
-            "jsonrpc": self.jsonrpc,
             "commit": self.commit,
             "global_commit": self.global_commit,
             "term": self.term,
@@ -68,16 +75,30 @@ class Response:
             d["error"] = self.error
         return d
 
-    def _from_parsed(self, parsed):
-        unexpected = parsed.keys() - self._attrs
-        if unexpected:
-            raise ValueError(f"Unexpected keys in response: {unexpected}")
-        for attr, value in parsed.items():
-            setattr(self, attr, value)
+    def from_requests_response(rr):
+        return Response(
+            status=rr.status_code,
+            result=rr.json() if rr.ok else None,
+            error=None if rr.ok else rr.text,
+            commit=int_or_none(rr.headers.get(CCF_COMMIT_HEADER)),
+            term=int_or_none(rr.headers.get(CCF_TERM_HEADER)),
+            global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
+        )
 
-    def from_json(self, data):
-        parsed = json.loads(data.decode())
-        self._from_parsed(parsed)
+    def from_raw(raw):
+        sock = FakeSocket(raw)
+        response = HTTPResponse(sock)
+        response.begin()
+        raw_body = response.read(raw)
+        ok = response.status == 200
+        return Response(
+            status=response.status,
+            result=json.loads(raw_body) if ok else None,
+            error=None if ok else raw_body.decode(),
+            commit=int_or_none(response.getheader(CCF_COMMIT_HEADER)),
+            term=int_or_none(response.getheader(CCF_TERM_HEADER)),
+            global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
+        )
 
 
 def human_readable_size(n):
@@ -102,11 +123,10 @@ class RPCLogger:
             + f"{description}"
         )
 
-    def log_response(self, id, response):
+    def log_response(self, response):
         LOG.debug(
             truncate(
-                "#{} {}".format(
-                    id,
+                "{}".format(
                     {
                         k: v
                         for k, v in (response.__dict__ or {}).items()
@@ -129,9 +149,9 @@ class RPCFileLogger(RPCLogger):
             json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
-    def log_response(self, id, response):
+    def log_response(self, response):
         with open(self.path, "a") as f:
-            f.write(f"<< Response {id} :" + os.linesep)
+            f.write(f"<< Response:" + os.linesep)
             json.dump(response.to_dict() if response else "None", f, indent=2)
             f.write(os.linesep)
 
@@ -185,9 +205,12 @@ class CurlClient:
                 "Content-Type: application/json",
                 "--data-binary",
                 f"@{nf.name}",
-                "-w \\n%{http_code}",
+                "-i",
                 f"-m {self.request_timeout}",
             ]
+
+            if request.readonly_hint:
+                cmd.extend(["-H", f"{CCF_READ_ONLY_HEADER}: true"])
 
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
@@ -206,14 +229,7 @@ class CurlClient:
                 LOG.error(rc.stderr)
                 raise RuntimeError(f"Curl failed with return code {rc.returncode}")
 
-            # The response status code is displayed on the last line of
-            # the output (via -w option)
-            rep, status_code = rc.stdout.decode().rsplit("\n", 1)
-            if int(status_code) != 200:
-                LOG.error(rep)
-                raise RuntimeError(f"Curl failed with status code {status_code}")
-
-            return rep.encode()
+            return Response.from_raw(rc.stdout)
 
     def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
@@ -276,23 +292,28 @@ class RequestClient:
                 headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
             )
 
-        rep = self.session.post(
+        extra_headers = {}
+        if request.readonly_hint:
+            extra_headers[CCF_READ_ONLY_HEADER] = "true"
+
+        response = self.session.post(
             f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
             timeout=self.request_timeout,
             auth=auth_value,
+            headers=extra_headers,
         )
-        return rep.content
+        return Response.from_requests_response(response)
 
     def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
         while True:
             try:
-                rid = self._just_request(request, is_signed=is_signed)
+                response = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
                 # call _just_request directly
                 self._request = self._just_request
-                return rid
+                return response
             except requests.exceptions.SSLError as e:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
@@ -356,12 +377,10 @@ class CCFClient:
         else:
             self.client_impl = RequestClient(*args, **kwargs)
 
-    def _response(self, msg):
-        r = Response(0)
-        r.from_json(msg)
+    def _response(self, response):
         for logger in self.rpc_loggers:
-            logger.log_response(r.id, r)
-        return r
+            logger.log_response(response)
+        return response
 
     def request(self, method, params, *args, **kwargs):
         r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)

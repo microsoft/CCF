@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "http/http_builder.h"
 #include "tls/msg_types.h"
 
 namespace enclave
@@ -9,8 +10,10 @@ namespace enclave
   class ClientEndpoint
   {
   protected:
-    using HandleDataCallback =
-      std::function<bool(const std::vector<uint8_t>& data)>;
+    using HandleDataCallback = std::function<bool(
+      http_status status,
+      http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body)>;
 
     HandleDataCallback handle_data_cb;
 

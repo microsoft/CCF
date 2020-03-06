@@ -3,7 +3,6 @@
 #pragma once
 #include "../ds/hash.h"
 #include "entities.h"
-#include "rpc/jsonrpc.h"
 
 #include <mbedtls/md.h>
 #include <msgpack-c/msgpack.hpp>

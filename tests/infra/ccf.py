@@ -12,9 +12,9 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-import infra.jsonrpc
 import ssl
 import random
+import http
 from math import ceil
 
 from loguru import logger as LOG
@@ -411,10 +411,7 @@ class Network:
                             term = res.term
                             break
                         else:
-                            assert (
-                                res.error["code"]
-                                == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
-                            ), "RPC error code is not TX_NOT_PRIMARY"
+                            assert "Primary unknown" in res.error, res.error
                     except TimeoutError:
                         pass
             if primary_id is not None:

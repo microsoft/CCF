@@ -49,7 +49,7 @@ namespace ccfapp
     {
       UserHandlerRegistry::init_handlers(store);
 
-      auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto create = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Create an account with a balance from thin air.
         std::string name = params["name"];
         uint64_t acc_id = params["id"];
@@ -60,9 +60,7 @@ namespace ccfapp
 
         if (account_r.has_value())
         {
-          return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Account already exists");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Account already exists");
         }
 
         account_view->put(name, acc_id);
@@ -72,9 +70,7 @@ namespace ccfapp
 
         if (savings_r.has_value())
         {
-          return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Account already exists");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Account already exists");
         }
 
         savings_view->put(acc_id, savings_amt);
@@ -84,9 +80,7 @@ namespace ccfapp
 
         if (checking_r.has_value())
         {
-          return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Account already exists");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Account already exists");
         }
 
         checking_view->put(acc_id, checking_amt);
@@ -94,7 +88,7 @@ namespace ccfapp
         return make_success(true);
       };
 
-      auto create_batch = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto create_batch = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Create N accounts with identical balances from thin air.
         uint64_t from = params["from"];
         uint64_t to = params["to"];
@@ -113,7 +107,7 @@ namespace ccfapp
           if (account_r.has_value())
           {
             return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+              HTTP_STATUS_BAD_REQUEST,
               "Account already exists in accounts table: " + name);
           }
           account_view->put(name, acc_id);
@@ -122,7 +116,7 @@ namespace ccfapp
           if (savings_r.has_value())
           {
             return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+              HTTP_STATUS_BAD_REQUEST,
               "Account already exists in savings table: " + name);
           }
           savings_view->put(acc_id, savings_amt);
@@ -131,7 +125,7 @@ namespace ccfapp
           if (checking_r.has_value())
           {
             return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+              HTTP_STATUS_BAD_REQUEST,
               "Account already exists in checkings table: " + name);
           }
           checking_view->put(acc_id, checking_amt);
@@ -140,113 +134,97 @@ namespace ccfapp
         return make_success(true);
       };
 
-      auto balance = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto balance = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Check the combined balance of an account
         std::string name = params["name"];
         auto account_view = tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);
 
         if (!account_r.has_value())
-          return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Account does not exist");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Account does not exist");
 
         auto savings_view = tx.get_view(tables.savings);
         auto savings_r = savings_view->get(account_r.value());
 
         if (!savings_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Savings account does not exist");
+            HTTP_STATUS_BAD_REQUEST, "Savings account does not exist");
 
         auto checking_view = tx.get_view(tables.checkings);
         auto checking_r = checking_view->get(account_r.value());
 
         if (!checking_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Checking account does not exist");
+            HTTP_STATUS_BAD_REQUEST, "Checking account does not exist");
 
         auto result = checking_r.value() + savings_r.value();
         return make_success(result);
       };
 
-      auto transact_savings =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          // Add or remove money to the savings account
-          std::string name = params["name"];
-          int value = params["value"];
+      auto transact_savings = [this](Store::Tx& tx, nlohmann::json&& params) {
+        // Add or remove money to the savings account
+        std::string name = params["name"];
+        int value = params["value"];
 
-          if (name.empty())
-            return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-              "A name must be specified");
+        if (name.empty())
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, "A name must be specified");
 
-          auto account_view = tx.get_view(tables.accounts);
-          auto account_r = account_view->get(name);
+        auto account_view = tx.get_view(tables.accounts);
+        auto account_r = account_view->get(name);
 
-          if (!account_r.has_value())
-            return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-              "Account does not exist");
+        if (!account_r.has_value())
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Account does not exist");
 
-          auto savings_view = tx.get_view(tables.savings);
-          auto savings_r = savings_view->get(account_r.value());
+        auto savings_view = tx.get_view(tables.savings);
+        auto savings_r = savings_view->get(account_r.value());
 
-          if (!savings_r.has_value())
-            return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-              "Savings account does not exist");
+        if (!savings_r.has_value())
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, "Savings account does not exist");
 
-          if (savings_r.value() + value < 0)
-          {
-            return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-              "Not enough money in savings account");
-          }
+        if (savings_r.value() + value < 0)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, "Not enough money in savings account");
+        }
 
-          savings_view->put(account_r.value(), value + savings_r.value());
+        savings_view->put(account_r.value(), value + savings_r.value());
 
-          return make_success(true);
-        };
+        return make_success(true);
+      };
 
-      auto deposit_checking =
-        [this](Store::Tx& tx, const nlohmann::json& params) {
-          // Desposit money into the checking account out of thin air
-          std::string name = params["name"];
-          int64_t value = params["value"];
+      auto deposit_checking = [this](Store::Tx& tx, nlohmann::json&& params) {
+        // Desposit money into the checking account out of thin air
+        std::string name = params["name"];
+        int64_t value = params["value"];
 
-          if (name.empty())
-            return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-              "A name must be specified");
+        if (name.empty())
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, "A name must be specified");
 
-          if (value <= 0)
-            return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Value <= 0");
+        if (value <= 0)
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Value <= 0");
 
-          auto account_view = tx.get_view(tables.accounts);
-          auto account_r = account_view->get(name);
+        auto account_view = tx.get_view(tables.accounts);
+        auto account_r = account_view->get(name);
 
-          if (!account_r.has_value())
-            return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-              "Account does not exist");
+        if (!account_r.has_value())
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Account does not exist");
 
-          auto checking_view = tx.get_view(tables.checkings);
-          auto checking_r = checking_view->get(account_r.value());
+        auto checking_view = tx.get_view(tables.checkings);
+        auto checking_r = checking_view->get(account_r.value());
 
-          if (!checking_r.has_value())
-            return make_error(
-              jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-              "Checking account does not exist");
+        if (!checking_r.has_value())
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, "Checking account does not exist");
 
-          checking_view->put(account_r.value(), value + checking_r.value());
+        checking_view->put(account_r.value(), value + checking_r.value());
 
-          return make_success(true);
-        };
+        return make_success(true);
+      };
 
-      auto amalgamate = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto amalgamate = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Move the contents of one users account to another users account
         std::string name_1 = params["name_src"];
         std::string name_2 = params["name_dest"];
@@ -255,31 +233,27 @@ namespace ccfapp
 
         if (!account_1_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Source account does not exist");
+            HTTP_STATUS_BAD_REQUEST, "Source account does not exist");
 
         auto account_2_r = account_view->get(name_2);
 
         if (!account_2_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Destination account does not exist");
+            HTTP_STATUS_BAD_REQUEST, "Destination account does not exist");
 
         auto savings_view = tx.get_view(tables.savings);
         auto savings_r = savings_view->get(account_1_r.value());
 
         if (!savings_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Source savings account does not exist");
+            HTTP_STATUS_BAD_REQUEST, "Source savings account does not exist");
 
         auto checking_view = tx.get_view(tables.checkings);
         auto checking_r = checking_view->get(account_1_r.value());
 
         if (!checking_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Source checking account does not exist");
+            HTTP_STATUS_BAD_REQUEST, "Source checking account does not exist");
 
         auto sum_account_1 = checking_r.value() + savings_r.value();
         checking_view->put(account_1_r.value(), 0);
@@ -290,7 +264,7 @@ namespace ccfapp
 
         if (!checking_2_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+            HTTP_STATUS_BAD_REQUEST,
             "Destination checking account does not exist");
 
         checking_2_view->put(
@@ -299,7 +273,7 @@ namespace ccfapp
         return make_success(true);
       };
 
-      auto writeCheck = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto writeCheck = [this](Store::Tx& tx, nlohmann::json&& params) {
         // Write a check, if not enough funds then also charge an extra 1 money
         std::string name = params["name"];
         uint32_t amount = params["value"];
@@ -307,25 +281,21 @@ namespace ccfapp
         auto account_r = account_view->get(name);
 
         if (!account_r.has_value())
-          return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Account does not exist");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Account does not exist");
 
         auto savings_view = tx.get_view(tables.savings);
         auto savings_r = savings_view->get(account_r.value());
 
         if (!savings_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Savings account does not exist");
+            HTTP_STATUS_BAD_REQUEST, "Savings account does not exist");
 
         auto checking_view = tx.get_view(tables.checkings);
         auto checking_r = checking_view->get(account_r.value());
 
         if (!checking_r.has_value())
           return make_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Checking account does not exist");
+            HTTP_STATUS_BAD_REQUEST, "Checking account does not exist");
 
         auto account_value = checking_r.value() + savings_r.value();
         if (account_value < amount)
@@ -339,31 +309,31 @@ namespace ccfapp
 
       install(
         Procs::SMALL_BANKING_CREATE,
-        handler_adapter(create),
+        json_adapter(create),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_CREATE_BATCH,
-        handler_adapter(create_batch),
+        json_adapter(create_batch),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_BALANCE,
-        handler_adapter(balance),
+        json_adapter(balance),
         HandlerRegistry::Read);
       install(
         Procs::SMALL_BANKING_TRANSACT_SAVINGS,
-        handler_adapter(transact_savings),
+        json_adapter(transact_savings),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_DEPOSIT_CHECKING,
-        handler_adapter(deposit_checking),
+        json_adapter(deposit_checking),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_AMALGAMATE,
-        handler_adapter(amalgamate),
+        json_adapter(amalgamate),
         HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_WRITE_CHECK,
-        handler_adapter(writeCheck),
+        json_adapter(writeCheck),
         HandlerRegistry::Write);
     }
   };

@@ -19,13 +19,8 @@ The Logging application implements a trivial protocol, made up of four transacti
     .. code-block:: json
 
         {
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "users/LOG_record",
-            "params": {
-                "id": 42,
-                "msg": "A sample private log message"
-            }
+            "id": 42,
+            "msg": "A sample private log message"
         }
 
 - ``"LOG_get"``, which retrieves a log from a given index written by a previous ``"LOG_record"`` call.
@@ -35,12 +30,7 @@ The Logging application implements a trivial protocol, made up of four transacti
     .. code-block:: json
 
         {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "users/LOG_get",
-            "params": {
-                "id": 42
-            }
+            "id": 42
         }
 
 - ``"LOG_record_pub"``, which writes a log at a given index. Note that the log message will be not be encrypted and thus to anyone with access to the ledger.
@@ -50,13 +40,8 @@ The Logging application implements a trivial protocol, made up of four transacti
     .. code-block:: json
 
         {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "users/LOG_record_pub",
-            "params": {
-                "id": 100,
-                "msg": "A sample public log message"
-            }
+            "id": 100,
+            "msg": "A sample public log message"
         }
 
 - ``"LOG_get_pub"``, which retrieves a public log from a given index written by a previous ``"LOG_record_pub"`` call.
@@ -66,12 +51,7 @@ The Logging application implements a trivial protocol, made up of four transacti
     .. code-block:: json
 
         {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "users/LOG_get_pub",
-            "params": {
-                "id": 100
-            }
+            "id": 100
         }
 
 

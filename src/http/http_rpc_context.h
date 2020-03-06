@@ -37,6 +37,8 @@ namespace http
   class HttpRpcContext : public enclave::RpcContext
   {
   private:
+    size_t request_index;
+
     http_method verb;
     std::string whole_path = {};
     std::string path = {};
@@ -49,7 +51,9 @@ namespace http
     std::vector<uint8_t> serialised_request = {};
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
 
-    mutable std::optional<jsonrpc::Pack> body_packing = std::nullopt;
+    http::HeaderMap response_headers;
+    std::vector<uint8_t> response_body = {};
+    http_status response_status = HTTP_STATUS_OK;
 
     bool canonicalised = false;
 
@@ -136,50 +140,9 @@ namespace http
       canonicalised = true;
     }
 
-    jsonrpc::Pack get_content_type() const
-    {
-      if (!body_packing.has_value())
-      {
-        const auto content_type_it =
-          request_headers.find(http::headers::CONTENT_TYPE);
-        if (content_type_it != request_headers.end())
-        {
-          const auto& content_type = content_type_it->second;
-          if (content_type == http::headervalues::contenttype::JSON)
-          {
-            body_packing = jsonrpc::Pack::Text;
-          }
-          else if (content_type == http::headervalues::contenttype::MSGPACK)
-          {
-            body_packing = jsonrpc::Pack::MsgPack;
-          }
-          else
-          {
-            throw std::logic_error(fmt::format(
-              "Unsupported content type {}. Only {} and {} are currently "
-              "supported",
-              content_type,
-              http::headervalues::contenttype::JSON,
-              http::headervalues::contenttype::MSGPACK));
-          }
-        }
-        else
-        {
-          body_packing = jsonrpc::detect_pack(request_body);
-        }
-
-        // If we can't auto-detect a format, fallback to assuming text
-        if (!body_packing.has_value())
-        {
-          body_packing = jsonrpc::Pack::Text;
-        }
-      }
-
-      return body_packing.value();
-    }
-
   public:
     HttpRpcContext(
+      size_t request_index_,
       std::shared_ptr<enclave::SessionContext> s,
       http_method verb_,
       const std::string_view& path_,
@@ -189,6 +152,7 @@ namespace http
       const std::vector<uint8_t>& raw_request_ = {},
       const std::vector<uint8_t>& raw_pbft_ = {}) :
       RpcContext(s, raw_pbft_),
+      request_index(request_index_),
       verb(verb_),
       path(path_),
       query(query_),
@@ -204,47 +168,24 @@ namespace http
       }
     }
 
+    virtual size_t get_request_index() const override
+    {
+      return request_index;
+    }
+
     virtual const std::vector<uint8_t>& get_request_body() const override
     {
       return request_body;
     }
 
-    virtual nlohmann::json get_params() const override
+    virtual const std::string& get_request_query() const override
     {
-      nlohmann::json params;
+      return query;
+    }
 
-      if (verb == HTTP_POST)
-      {
-        if (request_body.empty())
-        {
-          params = nullptr;
-        }
-        else
-        {
-          const auto contents =
-            jsonrpc::unpack(request_body, get_content_type());
-
-          // Currently contents must either be a naked json payload, or a
-          // JSON-RPC object. We don't check the latter object for validity, we
-          // just extract its params field
-          const auto params_it = contents.find(jsonrpc::PARAMS);
-          if (params_it != contents.end())
-          {
-            params = *params_it;
-          }
-          else
-          {
-            params = contents;
-          }
-        }
-      }
-      else
-      {
-        throw std::logic_error(
-          "The only HTTP verb currently supported is POST");
-      }
-
-      return params;
+    virtual size_t get_request_verb() const override
+    {
+      return verb;
     }
 
     virtual const std::vector<uint8_t>& get_serialised_request() override
@@ -279,68 +220,61 @@ namespace http
       path = p;
     }
 
-    // https://github.com/microsoft/CCF/issues/843
+    virtual std::optional<std::string> get_request_header(
+      const std::string_view& name) override
+    {
+      const auto it = request_headers.find(name);
+      if (it != request_headers.end())
+      {
+        return it->second;
+      }
+
+      return std::nullopt;
+    }
+
+    virtual void set_response_body(const std::vector<uint8_t>& body) override
+    {
+      response_body = body;
+    }
+
+    virtual void set_response_body(std::vector<uint8_t>&& body) override
+    {
+      response_body = std::move(body);
+    }
+
+    virtual void set_response_body(std::string&& body) override
+    {
+      response_body = std::vector<uint8_t>(body.begin(), body.end());
+      set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+    }
+
+    virtual void set_response_status(int status) override
+    {
+      response_status = (http_status)status;
+    }
+
+    virtual void set_response_header(
+      const std::string_view& name, const std::string_view& value) override
+    {
+      response_headers[std::string(name)] = value;
+    }
+
+    virtual bool response_is_error() const override
+    {
+      return response_status != HTTP_STATUS_OK;
+    }
+
     virtual std::vector<uint8_t> serialise_response() const override
     {
-      nlohmann::json full_response;
-
-      if (response_is_error())
-      {
-        const auto error = get_response_error();
-        full_response = jsonrpc::error_response(
-          get_request_index(), jsonrpc::Error(error->code, error->msg));
-      }
-      else
-      {
-        const auto payload = get_response_result();
-        full_response = jsonrpc::result_response(get_request_index(), *payload);
-      }
+      auto http_response = http::Response(response_status);
 
       for (const auto& [k, v] : response_headers)
       {
-        const auto it = full_response.find(k);
-        if (it == full_response.end())
-        {
-          full_response[k] = v;
-        }
-        else
-        {
-          LOG_DEBUG_FMT(
-            "Ignoring response headers with key '{}' - already present in "
-            "response object",
-            k);
-        }
+        http_response.set_header(k, v);
       }
 
-      const auto body = jsonrpc::pack(full_response, get_content_type());
-
-      // We return status 200 regardless of whether the body contains a JSON-RPC
-      // success or a JSON-RPC error
-      auto http_response = http::Response(HTTP_STATUS_OK);
-      http_response.set_body(&body);
-      return http_response.build_response();
-    }
-
-    virtual std::vector<uint8_t> result_response(
-      const nlohmann::json& result) const override
-    {
-      auto http_response = http::Response(HTTP_STATUS_OK);
-      const auto body = jsonrpc::pack(
-        jsonrpc::result_response(get_request_index(), result),
-        get_content_type());
-      http_response.set_body(&body);
-      return http_response.build_response();
-    }
-
-    std::vector<uint8_t> error_response(
-      int error, const std::string& msg) const override
-    {
-      nlohmann::json error_element = jsonrpc::Error(error, msg);
-      auto http_response = http::Response(HTTP_STATUS_OK);
-      const auto body = jsonrpc::pack(
-        jsonrpc::error_response(get_request_index(), error_element),
-        get_content_type());
-      http_response.set_body(&body);
+      http_response.set_body(&response_body);
       return http_response.build_response();
     }
   };
@@ -354,8 +288,8 @@ namespace enclave
     const std::vector<uint8_t>& packed,
     const std::vector<uint8_t>& raw_pbft = {})
   {
-    http::SimpleMsgProcessor processor;
-    http::Parser parser(HTTP_REQUEST, processor);
+    http::SimpleRequestProcessor processor;
+    http::RequestParser parser(processor);
 
     const auto parsed_count = parser.execute(packed.data(), packed.size());
     if (parsed_count != packed.size())
@@ -381,6 +315,7 @@ namespace enclave
     const auto& msg = processor.received.front();
 
     return std::make_shared<http::HttpRpcContext>(
+      0,
       s,
       msg.method,
       msg.path,
