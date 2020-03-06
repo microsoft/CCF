@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "doctest/doctest.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
@@ -14,6 +13,7 @@
 #include "node_stub.h"
 #include "runtime_config/default_whitelists.h"
 
+#include <doctest/doctest.h>
 #include <iostream>
 #include <string>
 
