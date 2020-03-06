@@ -149,6 +149,7 @@ class SSHRemote(CmdMixin):
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
         self.suspension_proc = None
+        self._pid = None
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -253,19 +254,33 @@ class SSHRemote(CmdMixin):
         """
         cmd = self._cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
-        stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
-        _, stdout_, _ = self.proc_client.exec_command(f'ps -ef | pgrep -f "{cmd}"')
-        self.pid = stdout_.readline()
+        self.client.exec_command(cmd, get_pty=True)
+        self.pid()
+
+    def pid(self):
+        if self._pid is None:
+            pid_path = os.path.join(self.root, "cchost.pid")
+            time_left = 3
+            while time_left > 0:
+                _, stdout, _ = self.proc_client.exec_command(f'cat "{pid_path}"')
+                self._pid = stdout.read().strip()
+                if self._pid:
+                    break
+                time_left = max(time_left - 0.1, 0)
+                if not time_left:
+                    raise TimeoutError("Failed to read PID from file")
+                time.sleep(0.1)
+        return self._pid
 
     def suspend(self):
-        _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid}")
+        _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid()}")
         if stdout.channel.recv_exit_status() == 0:
             LOG.info(f"Node {self.name} suspended...")
         else:
             raise RuntimeError(f"Node {self.name} could not be suspended")
 
     def resume(self):
-        _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid}")
+        _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid()}")
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Could not resume node {self.name} from suspension!")
         LOG.info(f"Node {self.name} resuming from suspension...")

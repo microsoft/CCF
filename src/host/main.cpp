@@ -301,6 +301,9 @@ int main(int argc, char** argv)
   if (!host_log_level_)
     throw std::logic_error("No such logging level: "s + host_log_level);
 
+  // Write PID to disk
+  files::dump(fmt::format("{}", ::getpid()), node_pid_file);
+
   // set the host log level
   logger::config::level() = host_log_level_.value();
 
@@ -442,9 +445,6 @@ int main(int argc, char** argv)
   {
     files::dump(network_cert, network_cert_file);
   }
-
-  // Write PID to disk
-  files::dump(fmt::format("{}", ::getpid()), node_pid_file);
 
   auto enclave_thread_start = [&]() {
 #ifndef VIRTUAL_ENCLAVE
