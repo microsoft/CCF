@@ -104,7 +104,7 @@ namespace files
   /**
    * @brief Writes the content of a string to a file
    *
-   * @param data vector to write
+   * @param data string to write
    * @param file the path
    */
   void dump(const std::string& data, const std::string& file)
