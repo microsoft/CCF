@@ -587,7 +587,7 @@ class CCFRemote(object):
 
         election_timeout_arg = (
             f"--pbft_view-change-timeout-ms={pbft_view_change_timeout}"
-            if args.consensus == "pbft"
+            if consensus == "pbft"
             else f"--raft-election-timeout-ms={raft_election_timeout}"
         )
 
