@@ -14,7 +14,6 @@ jobs:
       parameters:
         artifact_name: ${{ parameters.artifact_name }}
         cmake_args: ${{ parameters.cmake_args }}
-        suite_label_suffix: '${{ parameters.target }}_${{ parameters.consensus }}'
     - template: test.yml
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
