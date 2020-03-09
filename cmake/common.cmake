@@ -467,10 +467,20 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
+  set(TESTS_SUFFIX "")
+  if("sgx" IN_LIST TARGET)
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_SGX")
+  endif()
+  if("raft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_CFT")
+  elseif("pbft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_BFT")
+  endif()
+
   if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG "${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}^")
+    set(LABEL_ARG "${PARSED_ARGS_LABEL}${TESTS_SUFFIX}^")
   else()
-    set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}^")
+    set(LABEL_ARG "${PARSED_ARGS_NAME}${TESTS_SUFFIX}^")
   endif()
 
   add_test(
