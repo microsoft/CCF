@@ -14,21 +14,28 @@
 
 namespace http
 {
-  class MsgProcessor
+  class RequestProcessor
   {
   public:
-    virtual void handle_message(
+    virtual void handle_request(
       http_method method,
       const std::string_view& path,
       const std::string_view& query,
-      const HeaderMap& headers,
-      const std::vector<uint8_t>& body) = 0;
+      HeaderMap&& headers,
+      std::vector<uint8_t>&& body) = 0;
   };
 
-  struct SimpleMsgProcessor : public http::MsgProcessor
+  class ResponseProcessor
   {
   public:
-    struct Msg
+    virtual void handle_response(
+      http_status status, HeaderMap&& headers, std::vector<uint8_t>&& body) = 0;
+  };
+
+  struct SimpleRequestProcessor : public http::RequestProcessor
+  {
+  public:
+    struct Request
     {
       http_method method;
       std::string path;
@@ -37,17 +44,38 @@ namespace http
       std::vector<uint8_t> body;
     };
 
-    std::queue<Msg> received;
+    std::queue<Request> received;
 
-    virtual void handle_message(
+    virtual void handle_request(
       http_method method,
       const std::string_view& path,
       const std::string_view& query,
-      const http::HeaderMap& headers,
-      const std::vector<uint8_t>& body) override
+      http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
     {
       received.emplace(
-        Msg{method, std::string(path), std::string(query), headers, body});
+        Request{method, std::string(path), std::string(query), headers, body});
+    }
+  };
+
+  struct SimpleResponseProcessor : public http::ResponseProcessor
+  {
+  public:
+    struct Response
+    {
+      http_status status;
+      http::HeaderMap headers;
+      std::vector<uint8_t> body;
+    };
+
+    std::queue<Response> received;
+
+    virtual void handle_response(
+      http_status status,
+      http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
+    {
+      received.emplace(Response{status, headers, body});
     }
   };
 
@@ -64,7 +92,7 @@ namespace http
   static int on_header_value(
     http_parser* parser, const char* at, size_t length);
   static int on_headers_complete(http_parser* parser);
-  static int on_req(http_parser* parser, const char* at, size_t length);
+  static int on_body(http_parser* parser, const char* at, size_t length);
   static int on_msg_end(http_parser* parser);
 
   inline std::string_view extract_url_field(
@@ -103,14 +131,12 @@ namespace http
 
   class Parser
   {
-  private:
+  protected:
     http_parser parser;
     http_parser_settings settings;
-    MsgProcessor& proc;
     State state = DONE;
 
-    std::vector<uint8_t> buf;
-    std::string url = "";
+    std::vector<uint8_t> body_buf;
     HeaderMap headers;
 
     std::pair<std::string, std::string> partial_parsed_header = {};
@@ -122,23 +148,22 @@ namespace http
       partial_parsed_header.second.clear();
     }
 
-  public:
-    Parser(http_parser_type type, MsgProcessor& proc_) : proc(proc_)
+    Parser(http_parser_type type)
     {
       http_parser_settings_init(&settings);
 
       settings.on_message_begin = on_msg_begin;
-      settings.on_url = on_url;
       settings.on_header_field = on_header_field;
       settings.on_header_value = on_header_value;
       settings.on_headers_complete = on_headers_complete;
-      settings.on_body = on_req;
+      settings.on_body = on_body;
       settings.on_message_complete = on_msg_end;
 
       http_parser_init(&parser, type);
       parser.data = this;
     }
 
+  public:
     http_parser* get_raw_parser()
     {
       return &parser;
@@ -164,12 +189,12 @@ namespace http
       return parsed;
     }
 
-    void append(const char* at, size_t length)
+    void append_body(const char* at, size_t length)
     {
       if (state == IN_MESSAGE)
       {
         LOG_TRACE_FMT("Appending chunk [{} bytes]", length);
-        std::copy(at, at + length, std::back_inserter(buf));
+        std::copy(at, at + length, std::back_inserter(body_buf));
       }
       else
       {
@@ -177,14 +202,13 @@ namespace http
       }
     }
 
-    void new_message()
+    virtual void new_message()
     {
       if (state == DONE)
       {
         LOG_TRACE_FMT("Entering new message");
         state = IN_MESSAGE;
-        url.clear();
-        buf.clear();
+        body_buf.clear();
         headers.clear();
       }
       else
@@ -194,32 +218,20 @@ namespace http
       }
     }
 
+    virtual void handle_completed_message() = 0;
+
     void end_message()
     {
       if (state == IN_MESSAGE)
       {
         LOG_TRACE_FMT("Done with message");
-        if (url.empty())
-        {
-          proc.handle_message(http_method(parser.method), {}, {}, headers, buf);
-        }
-        else
-        {
-          const auto [path, query] = parse_url(url);
-          proc.handle_message(
-            http_method(parser.method), path, query, headers, buf);
-        }
+        handle_completed_message();
         state = DONE;
       }
       else
       {
         throw std::runtime_error("Ending message, but not in a message");
       }
-    }
-
-    void append_url(const char* at, size_t length)
-    {
-      url.append(at, length);
     }
 
     void header_field(const char* at, size_t length)
@@ -256,13 +268,6 @@ namespace http
     return 0;
   }
 
-  static int on_url(http_parser* parser, const char* at, size_t length)
-  {
-    Parser* p = reinterpret_cast<Parser*>(parser->data);
-    p->append_url(at, length);
-    return 0;
-  }
-
   static int on_header_field(http_parser* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
@@ -284,10 +289,10 @@ namespace http
     return 0;
   }
 
-  static int on_req(http_parser* parser, const char* at, size_t length)
+  static int on_body(http_parser* parser, const char* at, size_t length)
   {
     Parser* p = reinterpret_cast<Parser*>(parser->data);
-    p->append(at, length);
+    p->append_body(at, length);
     return 0;
   }
 
@@ -297,4 +302,81 @@ namespace http
     p->end_message();
     return 0;
   }
+
+  // Request-specific
+  class RequestParser : public Parser
+  {
+  private:
+    RequestProcessor& proc;
+
+    std::string url = "";
+
+  public:
+    RequestParser(RequestProcessor& proc_) : Parser(HTTP_REQUEST), proc(proc_)
+    {
+      settings.on_url = on_url;
+    }
+
+    void append_url(const char* at, size_t length)
+    {
+      url.append(at, length);
+    }
+
+    void new_message() override
+    {
+      Parser::new_message();
+      url.clear();
+    }
+
+    void handle_completed_message() override
+    {
+      if (url.empty())
+      {
+        proc.handle_request(
+          http_method(parser.method),
+          {},
+          {},
+          std::move(headers),
+          std::move(body_buf));
+      }
+      else
+      {
+        const auto [path, query] = parse_url(url);
+        proc.handle_request(
+          http_method(parser.method),
+          path,
+          query,
+          std::move(headers),
+          std::move(body_buf));
+      }
+    }
+  };
+
+  static int on_url(http_parser* parser, const char* at, size_t length)
+  {
+    RequestParser* p = reinterpret_cast<RequestParser*>(parser->data);
+    p->append_url(at, length);
+    return 0;
+  }
+
+  // Response-specific
+  class ResponseParser : public Parser
+  {
+  private:
+    ResponseProcessor& proc;
+
+  public:
+    ResponseParser(ResponseProcessor& proc_) :
+      Parser(HTTP_RESPONSE),
+      proc(proc_)
+    {}
+
+    void handle_completed_message() override
+    {
+      proc.handle_response(
+        http_status(parser.status_code),
+        std::move(headers),
+        std::move(body_buf));
+    }
+  };
 }

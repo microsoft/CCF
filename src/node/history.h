@@ -486,7 +486,6 @@ namespace ccf
 
     void emit_signature() override
     {
-#ifndef PBFT
       // Signatures are only emitted when there is a consensus
       auto consensus = store.get_consensus();
       if (!consensus)
@@ -494,30 +493,33 @@ namespace ccf
         return;
       }
 
-      auto version = store.next_version();
-      auto view = consensus->get_view();
-      auto commit = consensus->get_commit_seqno();
-      LOG_DEBUG_FMT("Issuing signature at {}", version);
-      LOG_DEBUG_FMT("Signed at {} view: {} commit: {}", version, view, commit);
-      store.commit(
-        version,
-        [version, view, commit, this]() {
-          Store::Tx sig(version);
-          auto sig_view = sig.get_view(signatures);
-          crypto::Sha256Hash root = replicated_state_tree.get_root();
-          Signature sig_value(
-            id,
-            version,
-            view,
-            commit,
-            root,
-            kp.sign_hash(root.h.data(), root.h.size()),
-            replicated_state_tree.serialise());
-          sig_view->put(0, sig_value);
-          return sig.commit_reserved();
-        },
-        true);
-#endif
+      if (consensus->type() == ConsensusType::Raft)
+      {
+        auto version = store.next_version();
+        auto view = consensus->get_view();
+        auto commit = consensus->get_commit_seqno();
+        LOG_DEBUG_FMT("Issuing signature at {}", version);
+        LOG_DEBUG_FMT(
+          "Signed at {} view: {} commit: {}", version, view, commit);
+        store.commit(
+          version,
+          [version, view, commit, this]() {
+            Store::Tx sig(version);
+            auto sig_view = sig.get_view(signatures);
+            crypto::Sha256Hash root = replicated_state_tree.get_root();
+            Signature sig_value(
+              id,
+              version,
+              view,
+              commit,
+              root,
+              kp.sign_hash(root.h.data(), root.h.size()),
+              replicated_state_tree.serialise());
+            sig_view->put(0, sig_value);
+            return sig.commit_reserved();
+          },
+          true);
+      }
     }
 
     bool add_request(
@@ -553,28 +555,35 @@ namespace ccf
       size_t replicated_size) override
     {
       append(replicated, replicated_size);
-#ifdef PBFT
-      if (on_result.has_value())
+
+      auto consensus = store.get_consensus();
+
+      if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
       {
-        auto root = get_replicated_state_root();
-        LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-        results[id] = {version, root};
-        on_result.value()({id, version, root});
+        if (on_result.has_value())
+        {
+          auto root = get_replicated_state_root();
+          LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
+          results[id] = {version, root};
+          on_result.value()({id, version, root});
+        }
       }
-#endif
     }
 
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override
     {
-#ifdef PBFT
-      if (on_result.has_value())
+      auto consensus = store.get_consensus();
+
+      if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
       {
-        auto root = get_replicated_state_root();
-        LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-        results[id] = {version, root};
-        on_result.value()({id, version, root});
+        if (on_result.has_value())
+        {
+          auto root = get_replicated_state_root();
+          LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
+          results[id] = {version, root};
+          on_result.value()({id, version, root});
+        }
       }
-#endif
     }
 
     void add_response(

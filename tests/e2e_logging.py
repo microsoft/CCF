@@ -5,6 +5,7 @@ import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
+import http
 
 from loguru import logger as LOG
 
@@ -125,8 +126,7 @@ def test_update_lua(network, args):
             ]:
                 check(
                     c.rpc(endpoint, params={}),
-                    error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.METHOD_NOT_FOUND.value,
+                    error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value,
                 )
     else:
         LOG.warning("Skipping Lua app update as application is not Lua")

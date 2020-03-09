@@ -94,30 +94,31 @@ namespace ccf
       return verify_enclave_measurement(tx, network, cert, parsed_quote);
     }
 
-    static std::pair<int, std::string> quote_verification_error(
+    static std::pair<http_status, std::string> quote_verification_error(
       QuoteVerificationResult result)
     {
       switch (result)
       {
         case FAIL_VERIFY_OE:
           return std::make_pair(
-            jsonrpc::CCFErrorCodes::QUOTE_NOT_VERIFIED,
-            "Quote could not be verified");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Quote could not be verified");
         case FAIL_VERIFY_CODE_ID_RETIRED:
           return std::make_pair(
-            jsonrpc::CCFErrorCodes::CODE_ID_RETIRED,
-            "Quote does not contain valid enclave measurement");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "CODE_ID_RETIRED: Quote does not contain valid enclave "
+            "measurement");
         case FAIL_VERIFY_CODE_ID_NOT_FOUND:
           return std::make_pair(
-            jsonrpc::CCFErrorCodes::CODE_ID_NOT_FOUND,
-            "Quote does not contain known enclave measurement");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "CODE_ID_NOT_FOUND: Quote does not contain known enclave "
+            "measurement");
         case FAIL_VERIFY_INVALID_HASH:
           return std::make_pair(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "Quote does not contain joining node certificate hash");
         default:
           return std::make_pair(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR, "Unknown error");
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unknown error");
       }
     }
   };

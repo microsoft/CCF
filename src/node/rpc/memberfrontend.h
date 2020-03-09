@@ -88,11 +88,12 @@ namespace ccf
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
-      std::function<bool(Store::Tx&, const nlohmann::json&)>>
+      std::function<bool(ObjectId, Store::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
         // set the lua application script
         {"set_lua_app",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
 
@@ -100,14 +101,16 @@ namespace ccf
          }},
         // set the js application script
         {"set_js_app",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
         // add a new member
         {"new_member",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
            auto new_member_id =
@@ -122,7 +125,8 @@ namespace ccf
          }},
         // add a new user
         {"new_user",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const Cert pem_cert = args;
 
            GenesisGenerator g(this->network, tx);
@@ -131,14 +135,18 @@ namespace ccf
            return true;
          }},
         {"set_user_data",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
            auto users_view = tx.get_view(this->network.users);
            auto user_info = users_view->get(parsed.user_id);
            if (!user_info.has_value())
            {
-             throw std::logic_error(
-               fmt::format("{} is not a valid user ID", parsed.user_id));
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid user ID",
+               proposal_id,
+               parsed.user_id);
+             return false;
            }
 
            user_info->user_data = parsed.user_data;
@@ -147,18 +155,22 @@ namespace ccf
          }},
         // accept a node
         {"trust_node",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
            if (!node_info.has_value())
            {
-             throw std::logic_error(fmt::format("Node {} does not exist", id));
+             LOG_FAIL_FMT(
+               "Proposal {}: Node {} does not exist", proposal_id, id);
+             return false;
            }
            if (node_info->status == NodeStatus::RETIRED)
            {
-             throw std::logic_error(
-               fmt::format("Node {} is already retired", id));
+             LOG_FAIL_FMT(
+               "Proposal {}: Node {} is already retired", proposal_id, id);
+             return false;
            }
            node_info->status = NodeStatus::TRUSTED;
            nodes->put(id, node_info.value());
@@ -167,18 +179,22 @@ namespace ccf
          }},
         // retire a node
         {"retire_node",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
            if (!node_info.has_value())
            {
-             throw std::logic_error(fmt::format("Node {} does not exist", id));
+             LOG_FAIL_FMT(
+               "Proposal {}: Node {} does not exist", proposal_id, id);
+             return false;
            }
            if (node_info->status == NodeStatus::RETIRED)
            {
-             throw std::logic_error(
-               fmt::format("Node {} is already retired", id));
+             LOG_FAIL_FMT(
+               "Proposal {}: Node {} is already retired", proposal_id, id);
+             return false;
            }
            node_info->status = NodeStatus::RETIRED;
            nodes->put(id, node_info.value());
@@ -187,69 +203,88 @@ namespace ccf
          }},
         // accept new code
         {"new_code",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
            auto code_ids = tx.get_view(this->network.code_ids);
            auto existing_code_id = code_ids->get(id);
            if (existing_code_id)
            {
-             throw std::logic_error(fmt::format(
-               "Code signature already exists with digest: {:02x}",
-               fmt::join(id, "")));
+             LOG_FAIL_FMT(
+               "Proposal {}: Code signature already exists with digest: {:02x}",
+               proposal_id,
+               fmt::join(id, ""));
+             return false;
            }
            code_ids->put(id, CodeStatus::ACCEPTED);
            return true;
          }},
         {"accept_recovery",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
            {
-             return node.finish_recovery(tx, args);
+             const auto recovery_successful = node.finish_recovery(tx, args);
+             if (!recovery_successful)
+             {
+               LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
+             }
+             return recovery_successful;
            }
            else
            {
+             LOG_FAIL_FMT(
+               "Proposal {}: Node is not part of public network", proposal_id);
              return false;
            }
          }},
         {"open_network",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
-           return node.open_network(tx);
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           const auto network_opened = node.open_network(tx);
+           if (!network_opened)
+           {
+             LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
+           }
+           return network_opened;
          }},
         {"rekey_ledger",
-         [this](Store::Tx& tx, const nlohmann::json& args) {
-           return node.rekey_ledger(tx);
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           const auto ledger_rekeyed = node.rekey_ledger(tx);
+           if (!ledger_rekeyed)
+           {
+             LOG_FAIL_FMT("Proposal {}: Ledger rekey failed", proposal_id);
+           }
+           return ledger_rekeyed;
          }},
       };
 
-    bool complete_proposal(Store::Tx& tx, const ObjectId id)
+    ProposalInfo complete_proposal(
+      Store::Tx& tx, const ObjectId proposal_id, Proposal& proposal)
     {
-      auto proposals = tx.get_view(this->network.proposals);
-      auto proposal = proposals->get(id);
-      if (!proposal.has_value())
-      {
-        throw std::logic_error(fmt::format("No such proposal: {}", id));
-      }
-
-      if (proposal->state != ProposalState::OPEN)
+      if (proposal.state != ProposalState::OPEN)
       {
         throw std::logic_error(fmt::format(
           "Cannot complete non-open proposal - current state is {}",
-          proposal->state));
+          proposal.state));
       }
+
+      auto proposals = tx.get_view(this->network.proposals);
 
       // run proposal script
       const auto proposed_calls = tsr.run<nlohmann::json>(
         tx,
-        {proposal->script,
+        {proposal.script,
          {}, // can't write
          WlIds::MEMBER_CAN_READ,
          get_script(tx, GovScriptIds::ENV_PROPOSAL)},
         // vvv arguments to script vvv
-        proposal->parameter);
+        proposal.parameter);
 
       nlohmann::json votes;
       // Collect all member votes
-      for (const auto& vote : proposal->votes)
+      for (const auto& vote : proposal.votes)
       {
         // valid voter
         if (!check_member_active(tx, vote.first))
@@ -287,19 +322,21 @@ namespace ccf
         case CompletionResult::PENDING:
         {
           // vote is pending, return false but do not update state
-          return false;
+          return get_proposal_info(proposal_id, proposal);
         }
         case CompletionResult::REJECTED:
         {
           // vote unsuccessful, update the proposal's state
-          proposal->state = ProposalState::REJECTED;
-          proposals->put(id, proposal.value());
-          return false;
+          proposal.state = ProposalState::REJECTED;
+          proposals->put(proposal_id, proposal);
+          return get_proposal_info(proposal_id, proposal);
         }
         default:
         {
           throw std::logic_error(fmt::format(
-            "Invalid completion result ({}) for proposal {}", pass, id));
+            "Invalid completion result ({}) for proposal {}",
+            pass,
+            proposal_id));
         }
       };
 
@@ -311,9 +348,11 @@ namespace ccf
         const auto f = hardcoded_funcs.find(call.func);
         if (f != hardcoded_funcs.end())
         {
-          if (!f->second(tx, call.args))
+          if (!f->second(proposal_id, tx, call.args))
           {
-            return false;
+            proposal.state = ProposalState::FAILED;
+            proposals->put(proposal_id, proposal);
+            return get_proposal_info(proposal_id, proposal);
           }
           continue;
         }
@@ -334,10 +373,10 @@ namespace ccf
       }
 
       // if the vote was successful, update the proposal's state
-      proposal->state = ProposalState::ACCEPTED;
-      proposals->put(id, proposal.value());
+      proposal.state = ProposalState::ACCEPTED;
+      proposals->put(proposal_id, proposal);
 
-      return true;
+      return get_proposal_info(proposal_id, proposal);
     }
 
     bool check_member_active(Store::Tx& tx, MemberId id)
@@ -376,6 +415,12 @@ namespace ccf
       governance_history->put(caller_id, {signed_request});
     }
 
+    static ProposalInfo get_proposal_info(
+      ObjectId proposal_id, const Proposal& proposal)
+    {
+      return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
+    }
+
     NetworkTables& network;
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
@@ -396,18 +441,18 @@ namespace ccf
     {
       CommonHandlerRegistry::init_handlers(tables_);
 
-      auto read = [this](RequestArgs& args) {
+      auto read = [this](
+                    Store::Tx& tx,
+                    CallerId caller_id,
+                    const nlohmann::json& params) {
         if (!check_member_status(
-              args.tx,
-              args.caller_id,
-              {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
+              tx, caller_id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
+          return make_error(
+            HTTP_STATUS_FORBIDDEN, "Member is not active or accepted");
         }
 
-        const auto in = args.rpc_ctx->get_params().get<KVRead::In>();
+        const auto in = params.get<KVRead::In>();
 
         const ccf::Script read_script(R"xxx(
         local tables, table_name, key = ...
@@ -415,49 +460,42 @@ namespace ccf
         )xxx");
 
         auto value = tsr.run<nlohmann::json>(
-          args.tx,
-          {read_script, {}, WlIds::MEMBER_CAN_READ, {}},
-          in.table,
-          in.key);
+          tx, {read_script, {}, WlIds::MEMBER_CAN_READ, {}}, in.table, in.key);
         if (value.empty())
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format(
               "Key {} does not exist in table {}", in.key.dump(), in.table));
-          return;
         }
 
-        args.rpc_ctx->set_response_result(std::move(value));
-        return;
+        return make_success(value);
       };
-      install_with_auto_schema<KVRead>(MemberProcs::READ, read, Read);
+      install_with_auto_schema<KVRead>(
+        MemberProcs::READ, json_adapter(read), Read);
 
-      auto query = [this](RequestArgs& args) {
-        if (!check_member_accepted(args.tx, args.caller_id))
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
-        }
+      auto query =
+        [this](
+          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+          if (!check_member_accepted(tx, caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not accepted");
+          }
 
-        const auto script = args.rpc_ctx->get_params().get<ccf::Script>();
-        args.rpc_ctx->set_response_result(tsr.run<nlohmann::json>(
-          args.tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
-        return;
-      };
+          const auto script = params.get<ccf::Script>();
+          return make_success(tsr.run<nlohmann::json>(
+            tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
+        };
       install_with_auto_schema<Script, nlohmann::json>(
-        MemberProcs::QUERY, query, Read);
+        MemberProcs::QUERY, json_adapter(query), Read);
 
-      auto propose = [this](RequestArgs& args) {
+      auto propose = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
-        const auto in = args.rpc_ctx->get_params().get<Propose::In>();
+        const auto in = params.get<Propose::In>();
         const auto proposal_id = get_next_id(
           args.tx.get_view(this->network.values), ValueIds::NEXT_PROPOSAL_ID);
         Proposal proposal(in.script, in.parameter, args.caller_id);
@@ -465,64 +503,55 @@ namespace ccf
         auto proposals = args.tx.get_view(this->network.proposals);
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
-        const bool completed = complete_proposal(args.tx, proposal_id);
 
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        args.rpc_ctx->set_response_result(
-          Propose::Out({proposal_id, completed}));
-        return;
+        return make_success(
+          Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
       install_with_auto_schema<Propose>(
-        MemberProcs::PROPOSE, propose, Write, true);
+        MemberProcs::PROPOSE, json_adapter(propose), Write);
 
-      auto withdraw = [this](RequestArgs& args) {
-        if (!check_member_status(
-              args.tx, args.caller_id, {MemberStatus::ACTIVE}))
+      auto withdraw = [this](RequestArgs& args, const nlohmann::json& params) {
+        if (!check_member_active(args.tx, args.caller_id))
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
-        const auto proposal_action =
-          args.rpc_ctx->get_params().get<ProposalAction>();
+        const auto proposal_action = params.get<ProposalAction>();
         const auto proposal_id = proposal_action.id;
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
 
         if (!proposal)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format("Proposal {} does not exist", proposal_id));
-          return;
         }
 
         if (proposal->proposer != args.caller_id)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
             fmt::format(
               "Proposal {} can only be withdrawn by proposer {}, not caller {}",
               proposal_id,
               proposal->proposer,
               args.caller_id));
-          return;
         }
 
         if (proposal->state != ProposalState::OPEN)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can be "
               "withdrawn",
               proposal_id,
               proposal->state,
               ProposalState::OPEN));
-          return;
         }
 
         proposal->state = ProposalState::WITHDRAWN;
@@ -530,42 +559,43 @@ namespace ccf
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        args.rpc_ctx->set_response_result(true);
-        return;
+        return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::WITHDRAW, withdraw, Write, true);
+      install_with_auto_schema<ProposalAction, ProposalInfo>(
+        MemberProcs::WITHDRAW, json_adapter(withdraw), Write, true);
 
-      auto vote = [this](RequestArgs& args) {
+      auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
-        const auto vote = args.rpc_ctx->get_params().get<Vote>();
+        const auto signed_request = args.rpc_ctx->get_signed_request();
+        if (!signed_request.has_value())
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Votes must be signed");
+        }
+
+        const auto vote = params.get<Vote>();
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(vote.id);
         if (!proposal)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format("Proposal {} does not exist", vote.id));
-          return;
         }
 
         if (proposal->state != ProposalState::OPEN)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can "
               "receive votes",
               vote.id,
               proposal->state,
               ProposalState::OPEN));
-          return;
         }
 
         proposal->votes[args.caller_id] = vote.ballot;
@@ -574,36 +604,40 @@ namespace ccf
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
-        args.rpc_ctx->set_response_result(complete_proposal(args.tx, vote.id));
-        return;
+        return make_success(
+          complete_proposal(args.tx, vote.id, proposal.value()));
       };
-      install_with_auto_schema<Vote, bool>(
-        MemberProcs::VOTE, vote, Write, true);
+      install_with_auto_schema<Vote, ProposalInfo>(
+        MemberProcs::VOTE, json_adapter(vote), Write, true);
 
-      auto complete = [this](RequestArgs& args) {
-        if (!check_member_active(args.tx, args.caller_id))
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
-        }
+      auto complete =
+        [this](
+          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+          if (!check_member_active(tx, caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          }
 
-        const auto proposal_action =
-          args.rpc_ctx->get_params().get<ProposalAction>();
-        const auto proposal_id = proposal_action.id;
+          const auto proposal_action = params.get<ProposalAction>();
+          const auto proposal_id = proposal_action.id;
 
-        record_voting_history(
-          args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
+          auto proposals = tx.get_view(this->network.proposals);
+          auto proposal = proposals->get(proposal_id);
+          if (!proposal.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format("No such proposal: {}", proposal_id));
+          }
 
-        args.rpc_ctx->set_response_result(
-          complete_proposal(args.tx, proposal_id));
-        return;
-      };
-      install_with_auto_schema<ProposalAction, bool>(
-        MemberProcs::COMPLETE, complete, Write, true);
+          return make_success(
+            complete_proposal(tx, proposal_id, proposal.value()));
+        };
+      install_with_auto_schema<ProposalAction, ProposalInfo>(
+        MemberProcs::COMPLETE, json_adapter(complete), Write, true);
 
       //! A member acknowledges state
-      auto ack = [this](RequestArgs& args) {
+      auto ack = [this](RequestArgs& args, const nlohmann::json& params) {
         const auto signed_request = args.rpc_ctx->get_signed_request();
 
         auto [ma_view, sig_view] =
@@ -611,120 +645,120 @@ namespace ccf
         const auto ma = ma_view->get(args.caller_id);
         if (!ma)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
             fmt::format("No ACK record exists for caller {}", args.caller_id));
-          return;
         }
 
-        if (
-          ma->state_digest !=
-          args.rpc_ctx->get_params().get<StateDigest>().state_digest)
+        const auto digest = params.get<StateDigest>();
+        if (ma->state_digest != digest.state_digest)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INVALID_PARAMS,
-            "Submitted state digest is not valid");
-          return;
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST, "Submitted state digest is not valid");
         }
 
         ma_view->put(
           args.caller_id,
           MemberAck(sig_view->get(0)->root, signed_request.value()));
 
+        // update member status to ACTIVE
         auto members = args.tx.get_view(this->network.members);
         auto member = members->get(args.caller_id);
         if (member->status == MemberStatus::ACCEPTED)
         {
           member->status = MemberStatus::ACTIVE;
         }
-        members->put(args.caller_id, member.value());
-        args.rpc_ctx->set_response_result(true);
-        return;
+        members->put(args.caller_id, *member);
+        return make_success(true);
       };
-
       install_with_auto_schema<StateDigest, bool>(
-        MemberProcs::ACK, ack, Write, true);
+        MemberProcs::ACK, json_adapter(ack), Write, true);
 
       //! A member asks for a fresher state digest
-      auto update_state_digest = [this](RequestArgs& args) {
-        auto [ma_view, sig_view] =
-          args.tx.get_view(this->network.member_acks, this->network.signatures);
-        auto ma = ma_view->get(args.caller_id);
-        if (!ma)
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-            fmt::format("No ACK record exists for caller {}", args.caller_id));
-          return;
-        }
-
-        auto root = sig_view->get(0)->root;
-        ma->state_digest = std::vector<uint8_t>(root.h.begin(), root.h.end());
-        ma_view->put(args.caller_id, ma.value());
-
-        args.rpc_ctx->set_response_result(ma->state_digest);
-        return;
-      };
-      install_with_auto_schema<void, StateDigest>(
-        MemberProcs::UPDATE_ACK_STATE_DIGEST, update_state_digest, Write);
-
-      auto get_encrypted_recovery_share = [this](RequestArgs& args) {
-        // This check should depend on whether new shares are emitted when a new
-        // member is added (status = Accepted) or when the new member acks
-        // (status = Active). For now, the member should just be in state
-        // accepted.
-        if (!check_member_accepted(args.tx, args.caller_id))
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
-        }
-
-        std::optional<EncryptedShare> enc_s;
-        auto current_keyshare = args.tx.get_view(this->network.shares)->get(0);
-        for (auto const& s : current_keyshare->encrypted_shares)
-        {
-          if (s.first == args.caller_id)
+      auto update_state_digest =
+        [this](
+          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+          auto [ma_view, sig_view] =
+            tx.get_view(this->network.member_acks, this->network.signatures);
+          auto ma = ma_view->get(caller_id);
+          if (!ma)
           {
-            enc_s = s.second;
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              fmt::format("No ACK record exists for caller {}", caller_id));
           }
-        }
 
-        if (!enc_s.has_value())
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::RECOVERY_SHARE_NOT_FOUND);
-        }
+          auto root = sig_view->get(0)->root;
+          ma->state_digest = std::vector<uint8_t>(root.h.begin(), root.h.end());
+          ma_view->put(caller_id, ma.value());
 
-        args.rpc_ctx->set_response_result(enc_s.value());
-        return;
-      };
+          return make_success(ma.value());
+        };
+      install_with_auto_schema<void, StateDigest>(
+        MemberProcs::UPDATE_ACK_STATE_DIGEST,
+        json_adapter(update_state_digest),
+        Write);
+
+      auto get_encrypted_recovery_share =
+        [this](RequestArgs& args, const nlohmann::json& params) {
+          // This check should depend on whether new shares are emitted when a
+          // new member is added (status = Accepted) or when the new member acks
+          // (status = Active).
+          if (!check_member_active(args.tx, args.caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          }
+
+          std::optional<EncryptedShare> enc_s;
+          auto current_keyshare =
+            args.tx.get_view(this->network.shares)->get(0);
+          for (auto const& s : current_keyshare->encrypted_shares)
+          {
+            if (s.first == args.caller_id)
+            {
+              enc_s = s.second;
+            }
+          }
+
+          if (!enc_s.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format(
+                "Recovery share not found for member {}", args.caller_id));
+          }
+
+          return make_success(enc_s.value());
+        };
       install_with_auto_schema<void, EncryptedShare>(
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
-        get_encrypted_recovery_share,
+        json_adapter(get_encrypted_recovery_share),
         Read);
 
-      auto submit_recovery_share = [this](RequestArgs& args) {
-        // Only active members can submit their shares for recovery
-        if (!check_member_active(args.tx, args.caller_id))
-        {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::CCFErrorCodes::INSUFFICIENT_RIGHTS);
-          return;
-        }
+      auto submit_recovery_share =
+        [this](RequestArgs& args, const nlohmann::json& params) {
+          // Only active members can submit their shares for recovery
+          if (!check_member_active(args.tx, args.caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          }
 
-        const auto in = args.rpc_ctx->get_params().get<SubmitRecoveryShare>();
+          const auto in = params.get<SubmitRecoveryShare>();
 
-        SecretSharing::Share share;
-        std::copy_n(
-          in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+          SecretSharing::Share share;
+          std::copy_n(
+            in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
 
-        pending_shares.emplace_back(share);
+          pending_shares.emplace_back(share);
 
-        GenesisGenerator g(this->network, args.tx);
+          GenesisGenerator g(this->network, args.tx);
+          if (pending_shares.size() < g.get_active_members_count())
+          {
+            // The number of shares required to re-assemble the secret has not
+            // yet been reached
+            return make_success(false);
+          }
 
-        if (pending_shares.size() == g.get_active_members_count())
-        {
           LOG_DEBUG_FMT(
             "Reached secret sharing threshold {}", pending_shares.size());
 
@@ -735,10 +769,8 @@ namespace ccf
           auto key_share_info = shares_view->get(0);
           if (!key_share_info.has_value())
           {
-            args.rpc_ctx->set_response_error(
-              jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-              "No key share info available");
-            return;
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, "No key share info available");
           }
           std::vector<uint8_t> decrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
           crypto::GcmCipher encrypted_ls;
@@ -754,36 +786,32 @@ namespace ccf
 
           LedgerSecret decrypted_ledger_secret(decrypted_ls);
 
+          // TODO: Get rid of this
           LOG_FAIL_FMT(
             "Decrypted ledger secrets {}",
             tls::b64_from_raw(decrypted_ledger_secret.master));
 
           pending_shares.clear();
 
-          args.rpc_ctx->set_response_result(true);
-          return;
-        }
-
-        args.rpc_ctx->set_response_result(false);
-      };
+          return make_success(true);
+        };
       install_with_auto_schema<SubmitRecoveryShare, bool>(
-        MemberProcs::SUBMIT_RECOVERY_SHARE, submit_recovery_share, Write);
+        MemberProcs::SUBMIT_RECOVERY_SHARE,
+        json_adapter(submit_recovery_share),
+        Write);
 
-      auto create = [this](RequestArgs& args) {
+      auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
         LOG_DEBUG_FMT("Processing create RPC");
-        const auto in =
-          args.rpc_ctx->get_params().get<CreateNetworkNodeToNode::In>();
+        const auto in = params.get<CreateNetworkNodeToNode::In>();
 
-        GenesisGenerator g(this->network, args.tx);
+        GenesisGenerator g(this->network, tx);
 
         // This endpoint can only be called once, directly from the starting
         // node for the genesis transaction to initialise the service
         if (g.is_service_created())
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Service is already created");
-          return;
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Service is already created");
         }
 
         g.init_values();
@@ -792,7 +820,7 @@ namespace ccf
           g.add_member(cert, k_encryption_key);
         }
 
-        node.split_ledger_secrets(args.tx);
+        node.split_ledger_secrets(tx);
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
@@ -803,10 +831,8 @@ namespace ccf
         LOG_INFO_FMT("Create node id: {}", self);
         if (self != 0)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "Starting node ID is not 0");
-          return;
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Starting node ID is not 0");
         }
 
 #ifdef GET_QUOTE
@@ -828,11 +854,10 @@ namespace ccf
 
         g.create_service(in.network_cert);
 
-        args.rpc_ctx->set_response_result(true);
         LOG_INFO_FMT("Created service");
-        return;
+        return make_success(true);
       };
-      install(MemberProcs::CREATE, create, Write);
+      install(MemberProcs::CREATE, json_adapter(create), Write);
     }
   };
 

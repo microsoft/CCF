@@ -6,7 +6,9 @@ import infra.proc
 import infra.remote
 import infra.crypto
 import infra.ledger
+from infra.proposal_state import ProposalState
 import json
+import http
 
 from loguru import logger as LOG
 
@@ -16,14 +18,15 @@ def count_governance_operations(ledger):
 
     members = {}
     verified_votes = 0
-    verified_propose = 0
-    verified_withdraw = 0
+    verified_proposals = 0
+    verified_withdrawals = 0
 
     for tr in ledger:
         tables = tr.get_public_domain().get_tables()
-        members_table = tables["ccf.member_certs"]
-        for cert, member_id in members_table.items():
-            members[member_id] = cert
+        if "ccf.member_certs" in tables:
+            members_table = tables["ccf.member_certs"]
+            for cert, member_id in members_table.items():
+                members[member_id] = cert
 
         if "ccf.governance.history" in tables:
             governance_history_table = tables["ccf.governance.history"]
@@ -35,20 +38,23 @@ def count_governance_operations(ledger):
                 request_body = signed_request[0][2]
                 digest = signed_request[0][3]
                 infra.crypto.verify_request_sig(cert, sig, req, request_body, digest)
-                if "members/vote" in req.decode():
+                if "members/propose" in req.decode():
+                    verified_proposals += 1
+                elif "members/vote" in req.decode():
                     verified_votes += 1
-                elif "members/propose" in req.decode():
-                    verified_propose += 1
                 elif "members/withdraw" in req.decode():
-                    verified_withdraw += 1
+                    verified_withdrawals += 1
 
-    return (verified_propose, verified_votes, verified_withdraw)
+    return (verified_proposals, verified_votes, verified_withdrawals)
 
 
 def run(args):
     hosts = ["localhost", "localhost"]
 
-    ledger_filename = None
+    # Keep track of how many propose, vote and withdraw are issued in this test
+    proposals_issued = 0
+    votes_issued = 0
+    withdrawals_issued = 0
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -59,57 +65,62 @@ def run(args):
         ledger_filename = network.find_primary()[0].remote.ledger_path()
         ledger = infra.ledger.Ledger(ledger_filename)
         (
-            original_verified_propose,
-            original_verified_votes,
-            original_verified_withdraw,
+            original_proposals,
+            original_votes,
+            original_withdrawals,
         ) = count_governance_operations(ledger)
 
         LOG.info("Add new member proposal")
-        result, error = network.consortium.generate_and_propose_new_member(
+        response = network.consortium.generate_and_propose_new_member(
             0, primary, new_member_id=3, curve=infra.ccf.ParticipantsCurve.secp256k1
         )
-        assert not result["completed"]
-        proposal_id = result["id"]
+        assert response.status == http.HTTPStatus.OK.value
+        assert response.result["state"] == ProposalState.Open.value
+        proposal_id = response.result["proposal_id"]
+        proposals_issued += 1
 
         LOG.debug("2/3 members accept the proposal")
-        result = network.consortium.vote(0, primary, proposal_id, True)
-        assert result[0] and not result[1]
+        response = network.consortium.vote(0, primary, proposal_id, True)
+        assert response.status == http.HTTPStatus.OK.value
+        assert response.result["state"] == ProposalState.Open.value
+        votes_issued += 1
 
         LOG.debug("Unsigned votes are rejected")
-        result = network.consortium.vote(1, primary, proposal_id, True, True)
-        assert (
-            not result[0]
-            and result[1]["code"] == infra.jsonrpc.ErrorCode.RPC_NOT_SIGNED.value
-        )
+        response = network.consortium.vote(1, primary, proposal_id, True, True)
+        assert response.status == http.HTTPStatus.UNAUTHORIZED.value
 
-        result = network.consortium.vote(2, primary, proposal_id, True)
-        assert result[0] and result[1]
+        response = network.consortium.vote(2, primary, proposal_id, True)
+        assert response.status == http.HTTPStatus.OK.value
+        assert response.result["state"] == ProposalState.Accepted.value
+        votes_issued += 1
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
-        result, _ = network.consortium.generate_and_propose_new_member(
+        response = network.consortium.generate_and_propose_new_member(
             1, primary, new_member_id=4, curve=infra.ccf.ParticipantsCurve.secp256k1
         )
-        assert not result["completed"]
-        proposal_id = result["id"]
+        assert response.status == http.HTTPStatus.OK.value
+        assert response.result["state"] == ProposalState.Open.value
+        proposal_id = response.result["proposal_id"]
+        proposals_issued += 1
 
-        result = network.consortium.withdraw(1, primary, proposal_id)
-        assert result.result
+        response = network.consortium.withdraw(1, primary, proposal_id)
+        assert response.status == http.HTTPStatus.OK.value
+        assert response.result["state"] == ProposalState.Withdrawn.value
+        withdrawals_issued += 1
 
-    (
-        final_verified_propose,
-        final_verified_votes,
-        final_verified_withdraw,
-    ) = count_governance_operations(ledger)
+    (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(
+        ledger
+    )
 
     assert (
-        final_verified_propose == original_verified_propose + 2
-    ), f"Unexpected number of propose operations recorded in the ledger ({final_verified_propose})"
+        final_proposals == original_proposals + proposals_issued
+    ), f"Unexpected number of propose operations recorded in the ledger (expected {original_proposals + proposals_issued}, found {final_proposals})"
     assert (
-        final_verified_votes >= original_verified_votes
-    ), f"Unexpected number of vote operations recorded in the ledger ({final_verified_votes})"
+        final_votes == original_votes + votes_issued
+    ), f"Unexpected number of vote operations recorded in the ledger (expected {original_votes + votes_issued}, found {final_votes})"
     assert (
-        final_verified_withdraw == original_verified_withdraw + 1
-    ), f"Unexpected number of withdraw operations recorded in the ledger ({final_verified_withdraw})"
+        final_withdrawals == original_withdrawals + withdrawals_issued
+    ), f"Unexpected number of withdraw operations recorded in the ledger (expected {original_withdrawals + withdrawals_issued}, found {final_withdrawals})"
 
 
 if __name__ == "__main__":

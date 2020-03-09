@@ -79,7 +79,7 @@ public:
   // Effects: Returns number of prepares in certificate that are known
   // to be correct.
 
-  bool is_complete();
+  bool is_complete(bool was_f_0 = false);
   // Effects: Returns true iff the certificate is complete.
 
   bool is_pp_complete();
@@ -247,7 +247,7 @@ inline int Prepared_cert::num_correct()
   return prepare_cert.num_correct();
 }
 
-inline bool Prepared_cert::is_complete()
+inline bool Prepared_cert::is_complete(bool was_f_0)
 {
   if (pp_info.is_complete())
   {
@@ -257,7 +257,7 @@ inline bool Prepared_cert::is_complete()
     }
 
     return prepare_cert.is_complete() &&
-      pp_info.pre_prepare()->match(prepare_cert.cvalue());
+      (was_f_0 || pp_info.pre_prepare()->match(prepare_cert.cvalue()));
   }
 
   return false;

@@ -28,41 +28,6 @@ namespace ccfapp
     static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
   };
 
-  // SNIPPET_START: errors
-  enum class LoggerErrors : jsonrpc::ErrorBaseType
-  {
-    UNKNOWN_ID =
-      (jsonrpc::ErrorBaseType)jsonrpc::CCFErrorCodes::APP_ERROR_START - 1,
-    MESSAGE_EMPTY = UNKNOWN_ID - 1,
-  };
-
-  std::string get_error_prefix(LoggerErrors ec)
-  {
-    std::stringstream ss;
-    ss << "[";
-    switch (ec)
-    {
-      case (LoggerErrors::UNKNOWN_ID):
-      {
-        ss << "UNKNOWN_ID";
-        break;
-      }
-      case (LoggerErrors::MESSAGE_EMPTY):
-      {
-        ss << "MESSAGE_EMPTY";
-        break;
-      }
-      default:
-      {
-        ss << "UNKNOWN LOGGER ERROR";
-        break;
-      }
-    }
-    ss << "]: ";
-    return ss.str();
-  }
-  // SNIPPET_END: errors
-
   // SNIPPET: table_definition
   using Table = Store::Map<size_t, string>;
 
@@ -115,14 +80,14 @@ namespace ccfapp
     {
       // SNIPPET_START: record
       // SNIPPET_START: macro_validation_record
-      auto record = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto record = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
 
         if (in.msg.empty())
         {
           return make_error(
-            LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
+            HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(records);
@@ -132,7 +97,7 @@ namespace ccfapp
       // SNIPPET_END: record
 
       // SNIPPET_START: get
-      auto get = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto get = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingGet::In>();
         auto view = tx.get_view(records);
         auto r = view->get(in.id);
@@ -141,20 +106,19 @@ namespace ccfapp
           return make_success(LoggingGet::Out{r.value()});
 
         return make_error(
-          LoggerErrors::UNKNOWN_ID, fmt::format("No such record: {}", in.id));
+          HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
       };
       // SNIPPET_END: get
 
       // SNIPPET_START: record_public
       // SNIPPET_START: valijson_record_public
-      auto record_public = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto record_public = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto validation_error =
           validate(params, record_public_params_schema);
 
         if (validation_error.has_value())
         {
-          return make_error(
-            jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
+          return make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
         // SNIPPET_END: valijson_record_public
 
@@ -162,7 +126,7 @@ namespace ccfapp
         if (msg.empty())
         {
           return make_error(
-            LoggerErrors::MESSAGE_EMPTY, "Cannot record an empty log message");
+            HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(public_records);
@@ -172,14 +136,13 @@ namespace ccfapp
       // SNIPPET_END: record_public
 
       // SNIPPET_START: get_public
-      auto get_public = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto get_public = [this](Store::Tx& tx, nlohmann::json&& params) {
         const auto validation_error =
           validate(params, get_public_params_schema);
 
         if (validation_error.has_value())
         {
-          return make_error(
-            jsonrpc::StandardErrorCodes::PARSE_ERROR, *validation_error);
+          return make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
 
         auto view = tx.get_view(public_records);
@@ -194,7 +157,7 @@ namespace ccfapp
         }
 
         return make_error(
-          LoggerErrors::UNKNOWN_ID,
+          HTTP_STATUS_BAD_REQUEST,
           fmt::format("No such record: {}", id.dump()));
       };
       // SNIPPET_END: get_public
@@ -214,9 +177,10 @@ namespace ccfapp
         const auto in = body_j.get<LoggingRecord::In>();
         if (in.msg.empty())
         {
-          args.rpc_ctx->set_response_error(
-            (int)LoggerErrors::MESSAGE_EMPTY,
-            "Cannot record an empty log message");
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body("Cannot record an empty log message");
           return;
         }
 
@@ -224,26 +188,28 @@ namespace ccfapp
         auto view = args.tx.get_view(records);
         view->put(in.id, log_line);
 
-        args.rpc_ctx->set_response_result(true);
-        return;
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        args.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
       // SNIPPET_END: log_record_prefix_cert
 
       install_with_auto_schema<LoggingRecord::In, bool>(
-        Procs::LOG_RECORD, handler_adapter(record), Write);
+        Procs::LOG_RECORD, json_adapter(record), Write);
       // SNIPPET: install_get
       install_with_auto_schema<LoggingGet>(
-        Procs::LOG_GET, handler_adapter(get), Read);
+        Procs::LOG_GET, json_adapter(get), Read);
 
       install(
         Procs::LOG_RECORD_PUBLIC,
-        handler_adapter(record_public),
+        json_adapter(record_public),
         Write,
         record_public_params_schema,
         record_public_result_schema);
       install(
         Procs::LOG_GET_PUBLIC,
-        handler_adapter(get_public),
+        json_adapter(get_public),
         Read,
         get_public_params_schema,
         get_public_result_schema);

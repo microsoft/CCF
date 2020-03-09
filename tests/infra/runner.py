@@ -75,20 +75,6 @@ def configure_remote_client(args, client_id, client_host, node, command_args):
         raise
 
 
-def run_client(args, primary, command_args):
-    command = [
-        args.client,
-        f"--rpc-address={primary.host}:{primary.rpc_port}",
-        f"--transactions={args.iterations}",
-        f"--config={args.config}",
-    ]
-    command += command_args
-
-    LOG.info("Client can be run with {}".format(" ".join(command)))
-    while True:
-        time.sleep(60)
-
-
 def run(get_command, args):
     if args.fixed_seed:
         seed(getpass.getuser())
@@ -107,19 +93,22 @@ def run(get_command, args):
 
         command_args = get_command_args(args, get_command)
 
-        if args.network_only:
-            run_client(args, primary, command_args)
-        else:
-            nodes = filter_nodes(primary, backups, args.send_tx_to)
-            clients = []
-            client_hosts = args.client_nodes or ["localhost"]
-            for client_id, client_host in enumerate(client_hosts):
-                node = nodes[client_id % len(nodes)]
-                remote_client = configure_remote_client(
-                    args, client_id, client_host, node, command_args
-                )
-                clients.append(remote_client)
+        nodes = filter_nodes(primary, backups, args.send_tx_to)
+        clients = []
+        client_hosts = args.client_nodes or ["localhost"]
+        for client_id, client_host in enumerate(client_hosts):
+            node = nodes[client_id % len(nodes)]
+            remote_client = configure_remote_client(
+                args, client_id, client_host, node, command_args
+            )
+            clients.append(remote_client)
 
+        if args.network_only:
+            for remote_client in clients:
+                LOG.info(f"Client can be run with: {remote_client.remote._cmd()}")
+            while True:
+                time.sleep(60)
+        else:
             for remote_client in clients:
                 remote_client.start()
 

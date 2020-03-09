@@ -9,189 +9,146 @@
 #include "tls_client.h"
 
 #include <fmt/format_header_only.h>
+#include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <thread>
+#include <tls/keypair.h>
 
-class JsonRpcTlsClient : public TlsClient
+class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
 {
 public:
-  uint32_t id = 0;
-  std::optional<std::string> prefix;
-
   struct PreparedRpc
   {
     std::vector<uint8_t> encoded;
     size_t id;
   };
 
-  using TlsClient::TlsClient;
-
-  JsonRpcTlsClient(
-    const std::string& host,
-    const std::string& port,
-    std::shared_ptr<tls::CA> node_ca = nullptr,
-    std::shared_ptr<tls::Cert> cert = nullptr) :
-    TlsClient(host, port, node_ca, cert)
-  {}
-
-  PreparedRpc gen_rpc_raw(
-    const nlohmann::json& j, const std::optional<size_t>& explicit_id = {})
+  struct Response
   {
-    auto m = jsonrpc::pack(j, jsonrpc::Pack::MsgPack);
-    auto len = static_cast<const uint32_t>(m.size());
-    std::vector<uint8_t> r(len + sizeof(len));
-    std::copy(m.cbegin(), m.cend(), r.begin() + sizeof(len));
-    auto plen = reinterpret_cast<const uint8_t*>(&len);
-    std::copy(plen, plen + sizeof(len), r.begin());
-    return {
-      r, explicit_id.has_value() ? explicit_id.value() : j["id"].get<size_t>()};
-  }
+    size_t id;
+    http_status status;
+    http::HeaderMap headers;
+    std::vector<uint8_t> body;
+  };
 
-  /** Generate and serialize transaction
-   *
-   * This is useful when preparing transactions ahead of time for later sending.
-   *
-   * @param method Method name
-   * @param params Method parameters
-   *
-   * @return serialized transaction
-   */
-  virtual PreparedRpc gen_rpc(
+protected:
+  http::ResponseParser parser;
+  std::optional<std::string> prefix;
+
+  size_t next_send_id = 0;
+  size_t next_recv_id = 0;
+
+  std::vector<uint8_t> gen_request_internal(
     const std::string& method,
-    const nlohmann::json& params = nlohmann::json::array())
+    const nlohmann::json& params,
+    tls::KeyPairPtr kp = nullptr)
   {
-    return gen_rpc_raw(json_rpc(method, params));
-  }
-
-  nlohmann::json json_rpc(
-    const std::string& method, const nlohmann::json& params)
-  {
-    auto method_ = method;
+    auto path = method;
     if (prefix.has_value())
     {
-      method_ = fmt::format("/{}/{}", prefix.value(), method);
+      path = fmt::format("/{}/{}", prefix.value(), path);
     }
 
-    nlohmann::json j;
-    j["jsonrpc"] = "2.0";
-    j["id"] = id++;
-    j["method"] = method_;
-    j["params"] = params;
-    return j;
+    auto r = http::Request(path);
+
+    const auto body_v = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
+    r.set_body(&body_v);
+    r.set_header(
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::MSGPACK);
+
+    if (kp != nullptr)
+    {
+      http::sign_request(r, kp);
+    }
+
+    return r.build_request();
   }
 
-  std::vector<uint8_t> call_raw(const std::vector<uint8_t>& raw)
+  Response call_raw(const std::vector<uint8_t>& raw)
   {
     CBuffer b(raw);
     write(b);
-    return read_rpc();
+    return read_response();
   }
 
-  /** Call method with parameters
-   *
-   * @param method Method name
-   * @param params Parameters to the method
-   *
-   * @return unpacked response
-   */
-  nlohmann::json call(const std::string& method, const nlohmann::json& params)
-  {
-    return jsonrpc::unpack(
-      call_raw(gen_rpc(method, params).encoded), jsonrpc::Pack::MsgPack);
-  }
-
-  /** Call method
-   *
-   * @param method Method name
-   *
-   * @return unpacked response
-   */
-  nlohmann::json call(const std::string& method)
-  {
-    return call(method, nlohmann::json::object());
-  }
-
-  virtual std::vector<uint8_t> read_rpc()
-  {
-    // read len
-    uint32_t len;
-    read({reinterpret_cast<uint8_t*>(&len), sizeof(len)});
-    std::vector<uint8_t> r(len);
-    read(r);
-    return r;
-  }
-
-  std::optional<std::vector<uint8_t>> read_rpc_non_blocking()
-  {
-    // read len
-    uint32_t len;
-    if (!read_non_blocking({reinterpret_cast<uint8_t*>(&len), sizeof(len)}))
-      return {};
-    // read payload
-    std::vector<uint8_t> r(len);
-    read(r);
-    return r;
-  }
-
-  void set_prefix(const std::string& prefix_)
-  {
-    prefix = prefix_;
-  }
-};
-
-class HttpRpcTlsClient : public JsonRpcTlsClient, public http::MsgProcessor
-{
-  http::Parser parser;
-  std::vector<uint8_t> message_body;
+  std::optional<Response> last_response;
 
 public:
+  using TlsClient::TlsClient;
+
   HttpRpcTlsClient(
     const std::string& host,
     const std::string& port,
     std::shared_ptr<tls::CA> node_ca = nullptr,
     std::shared_ptr<tls::Cert> cert = nullptr) :
-    JsonRpcTlsClient(host, port, node_ca, cert),
-    parser(HTTP_RESPONSE, *this)
+    TlsClient(host, port, node_ca, cert),
+    parser(*this)
   {}
 
-  virtual PreparedRpc gen_rpc(
-    const std::string& method,
-    const nlohmann::json& params = nlohmann::json::array()) override
+  virtual PreparedRpc gen_request(
+    const std::string& method, const nlohmann::json& params = nullptr)
   {
-    const auto body_j = json_rpc(method, params);
-    const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::MsgPack);
-    auto r = http::Request(body_j["method"].get<std::string>());
-    r.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::MSGPACK);
-
-    r.set_body(&body_v);
-
-    const auto request = r.build_request();
-    return {request, body_j["id"]};
+    return {gen_request_internal(method, params, nullptr), next_send_id++};
   }
 
-  virtual std::vector<uint8_t> read_rpc() override
+  Response call(
+    const std::string& method, const nlohmann::json& params = nullptr)
   {
-    message_body.clear();
+    return call_raw(gen_request(method, params).encoded);
+  }
 
-    while (message_body.empty())
+  nlohmann::json unpack_body(const Response& resp)
+  {
+    if (resp.body.empty())
+    {
+      return nullptr;
+    }
+    else if (resp.status == HTTP_STATUS_OK)
+    {
+      return jsonrpc::unpack(resp.body, jsonrpc::Pack::MsgPack);
+    }
+    else
+    {
+      return std::string(resp.body.begin(), resp.body.end());
+    }
+  }
+
+  Response read_response()
+  {
+    last_response = std::nullopt;
+
+    while (!last_response.has_value())
     {
       const auto next = read_all();
       parser.execute(next.data(), next.size());
     }
 
-    return message_body;
+    return std::move(last_response.value());
   }
 
-  virtual void handle_message(
-    http_method method,
-    const std::string_view& path,
-    const std::string_view& query,
-    const http::HeaderMap& headers,
-    const std::vector<uint8_t>& body) override
+  std::optional<Response> read_response_non_blocking()
   {
-    message_body = body;
+    if (bytes_available())
+    {
+      return read_response();
+    }
+
+    return std::nullopt;
+  }
+
+  virtual void handle_response(
+    http_status status,
+    http::HeaderMap&& headers,
+    std::vector<uint8_t>&& body) override
+  {
+    last_response = {
+      next_recv_id++, status, std::move(headers), std::move(body)};
+  }
+
+  void set_prefix(const std::string& prefix_)
+  {
+    prefix = prefix_;
   }
 };
 

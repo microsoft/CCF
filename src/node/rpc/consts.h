@@ -2,18 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "../entities.h"
-#include "jsonrpc.h"
 
 namespace ccf
 {
-  static constexpr auto COMMIT = "commit";
-  static constexpr auto GLOBAL_COMMIT = "global_commit";
-  static constexpr auto TERM = "term";
-  static constexpr auto CERT = "cert";
-  static constexpr auto PUBK = "pubk";
-  static constexpr auto TABLE = "table";
-  static constexpr auto OBJECTS = "objects";
-
   struct GeneralProcs
   {
     static constexpr auto GET_COMMIT = "getCommit";

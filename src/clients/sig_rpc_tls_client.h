@@ -4,10 +4,8 @@
 
 #include "rpc_tls_client.h"
 
-#include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <tls/base64.h>
-#include <tls/keypair.h>
 
 class SigHttpRpcTlsClient : public HttpRpcTlsClient
 {
@@ -21,22 +19,10 @@ public:
     key_pair(tls::make_key_pair(priv_key_))
   {}
 
-  PreparedRpc gen_rpc(
+  PreparedRpc gen_request(
     const std::string& method, const nlohmann::json& params) override
   {
-    const auto body_j = json_rpc(method, params);
-    const auto body_v = jsonrpc::pack(body_j, jsonrpc::Pack::MsgPack);
-
-    auto r = http::Request(body_j[jsonrpc::METHOD].get<std::string>());
-    r.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::MSGPACK);
-
-    r.set_body(&body_v);
-    http::sign_request(r, key_pair);
-
-    const auto request = r.build_request();
-
-    return {request, body_j["id"]};
+    return {gen_request_internal(method, params, key_pair), next_send_id++};
   }
 };
 

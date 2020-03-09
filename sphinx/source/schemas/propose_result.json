@@ -1,18 +1,30 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "completed": {
-      "type": "boolean"
-    },
-    "id": {
+    "proposal_id": {
       "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "number"
+    },
+    "proposer_id": {
+      "maximum": 18446744073709551615,
+      "minimum": 0,
+      "type": "number"
+    },
+    "state": {
+      "enum": [
+        "OPEN",
+        "ACCEPTED",
+        "WITHDRAWN",
+        "REJECTED",
+        "FAILED"
+      ]
     }
   },
   "required": [
-    "id",
-    "completed"
+    "proposal_id",
+    "proposer_id",
+    "state"
   ],
   "title": "propose/result",
   "type": "object"

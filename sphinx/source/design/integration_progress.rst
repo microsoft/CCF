@@ -47,13 +47,12 @@ Proposed diagram for creating a new network when running with CCF
         participant Replica
         participant Backup Replica
 
-        Client->>Frontend: JSON-RPC Request
-        Frontend->>History: add_request(RequestID, caller_id, JSON-RPC Request)
+        Client->>Frontend: HTTP Request
+        Frontend->>History: add_request(RequestID, caller_id, HTTP Request)
 
+        History->>Client Proxy: ON_REQUEST callback(RequestID, caller_id, HTTP Request)
 
-        History->>Client Proxy: ON_REQUEST callback(RequestID, caller_id, JSON-RPC Request)
-
-        Client Proxy->>Client Proxy: Wrap JSON-RPC Request in PBFT command
+        Client Proxy->>Client Proxy: Wrap HTTP Request in PBFT command
 
         Client Proxy->>Replica: send(PBFT command, All_replicas)
         Replica->>Backup Replica: send(PBFT command)
@@ -64,7 +63,7 @@ Proposed diagram for creating a new network when running with CCF
         Replica->>Replica: execute_tentative: starts
         Replica->>Replica: exec_command: starts
 
-        Replica->>Frontend: process_pbft(PBFT command [Wrapped JSON-RPC Request])
+        Replica->>Frontend: process_pbft(PBFT command [Wrapped HTTP Request])
 
         Frontend->>History: register ON_RESULT callback
 

@@ -9,7 +9,7 @@ Some global values are pre-populated in the Lua environment, to be used by both 
 
 * Loggers: the functions ``LOG_TRACE``, ``LOG_DEBUG``, ``LOG_INFO``, ``LOG_FAIL``, and ``LOG_FATAL`` will call CCF's equivalent logging macros, allowing Lua apps to write to stdout.
 
-* ``env`` table: common constants/functions should be set on this table rather than as additional global fields. This will contain a table named ``error_codes`` listing JSON RPC error codes defined by CCF (e.g., ``env.error_codes.INVALID_PARAMS`` can be used rather than ``-32603``). App-specific error codes may be added to this table with values between ``APP_ERROR_START`` and ``SERVER_ERROR_END``.
+* ``env`` table: common constants/functions should be set on this table rather than as additional global fields. This will contain a table named ``error_codes`` listing JSON RPC error codes defined by CCF (e.g., ``env.error_codes.BAD_REQUEST`` can be used rather than ``-32603``). App-specific error codes may be added to this table with values between ``APP_ERROR_START`` and ``SERVER_ERROR_END``.
 
 
 RPC Handler

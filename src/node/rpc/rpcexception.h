@@ -9,10 +9,9 @@ namespace ccf
   struct RpcException : public std::exception
   {
     const std::string msg;
-    const int error_id;
+    const int status;
 
-    RpcException(std::string msg, int error_id) : msg(msg), error_id(error_id)
-    {}
+    RpcException(std::string msg, int status) : msg(msg), status(status) {}
 
     const char* what() const throw() override
     {

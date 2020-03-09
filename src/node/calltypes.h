@@ -25,6 +25,7 @@ namespace ccf
   {
     struct In
     {
+      ConsensusType consensus_type;
       CCFConfig config;
     };
   };

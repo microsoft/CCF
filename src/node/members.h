@@ -5,7 +5,6 @@
 #include "ds/hash.h"
 #include "entities.h"
 #include "rawsignature.h"
-#include "rpc/jsonrpc.h"
 
 #include <msgpack-c/msgpack.hpp>
 #include <vector>
