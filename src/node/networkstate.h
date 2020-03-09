@@ -18,7 +18,7 @@ namespace ccf
 
     NetworkState(const ConsensusType& consensus_type_) :
       consensus_type(consensus_type_),
-      NetworkTables(consensus_type)
+      NetworkTables(consensus_type_)
     {}
     NetworkState() = default;
   };
