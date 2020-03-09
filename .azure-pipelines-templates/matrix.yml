@@ -73,14 +73,14 @@ parameters:
       CFT:
         ctest_args: '-LE "benchmark|perf|suite|pbft"'
 
-  static_check_job_name: 'Formatting_and_License_Checks'      
+  static_check_job_name: 'Formatting_and_License_Checks'
 
 jobs:
   - template: checks.yml
     parameters:
       env: ${{ parameters.env.Checks }}
       job_name: 'Formatting_and_License_Checks'
-  
+
   - ${{ each target in parameters.target }}:
     - template: common_build.yml
       parameters:
@@ -135,7 +135,7 @@ jobs:
       suffix: 'Perf'
       artifact_name: 'Build_SGX_Perf'
 
-  
+
   # Performance tests
   - ${{ each consensus in parameters.consensus }}:
       - template: common_test.yml
