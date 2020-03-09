@@ -165,7 +165,7 @@ namespace ccf
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
-    raft::Config raft_config;
+    consensus::Config consensus_config;
 
     NetworkState& network;
 
@@ -227,7 +227,7 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      const raft::Config& raft_config_,
+      const consensus::Config& consensus_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_)
@@ -235,7 +235,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
 
-      raft_config = raft_config_;
+      consensus_config = consensus_config_;
       n2n_channels = n2n_channels_;
       // Capture rpc_map to pass to pbft for frontend execution
       rpc_map = rpc_map_;
@@ -1430,8 +1430,8 @@ namespace ccf
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         self,
-        std::chrono::milliseconds(raft_config.request_timeout),
-        std::chrono::milliseconds(raft_config.election_timeout),
+        std::chrono::milliseconds(consensus_config.raft_request_timeout),
+        std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
 
       consensus = std::make_shared<RaftConsensusType>(std::move(raft));
@@ -1592,7 +1592,8 @@ namespace ccf
         *network.tables->get<pbft::PrePreparesMap>(
           pbft::Tables::PBFT_PRE_PREPARES),
         node_sign_kp->private_key_pem().str(),
-        node_cert);
+        node_cert,
+        consensus_config);
 
       network.tables->set_consensus(consensus);
 
