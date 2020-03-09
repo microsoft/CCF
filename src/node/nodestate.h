@@ -407,7 +407,7 @@ namespace ccf
               throw std::logic_error(
                 "Enclave initiated with consensus type " +
                 std::to_string(network.consensus_type) +
-                " but primary "
+                " but target node "
                 "responded with consensus " +
                 std::to_string(resp.consensus_type));
             }
