@@ -68,11 +68,11 @@ void check_error(const TResponse& r, http_status expected)
   CHECK(r.status == expected);
 }
 
-void check_success(const TResponse& r, const bool expected = true)
+void check_result_state(const TResponse& r, ProposalState expected)
 {
   CHECK(r.status == HTTP_STATUS_OK);
-  const auto result = parse_response_body<bool>(r);
-  CHECK(result == expected);
+  const auto result = parse_response_body<ProposalInfo>(r);
+  CHECK(result.state == expected);
 }
 
 void set_whitelists(GenesisGenerator& gen)
@@ -344,9 +344,9 @@ TEST_CASE("Proposer ballot")
 
     // the proposal should be accepted, but not succeed immediately
     const auto result = parse_response_body<Propose::Out>(r);
-    CHECK(result.completed == false);
+    CHECK(result.state == ProposalState::OPEN);
 
-    proposal_id = result.id;
+    proposal_id = result.proposal_id;
   }
 
   {
@@ -357,7 +357,7 @@ TEST_CASE("Proposer ballot")
     const auto r = frontend_process(frontend, vote, voter_cert);
 
     // The vote should not yet succeed
-    check_success(r, false);
+    check_result_state(r, ProposalState::OPEN);
   }
 
   {
@@ -386,7 +386,7 @@ TEST_CASE("Proposer ballot")
     const auto r = frontend_process(frontend, vote, proposer_cert);
 
     // The vote should now succeed
-    check_success(r, true);
+    check_result_state(r, ProposalState::ACCEPTED);
   }
 }
 
@@ -462,8 +462,8 @@ TEST_CASE("Add new members until there are 7 then reject")
       const auto result = parse_response_body<Propose::Out>(r);
 
       // the proposal should be accepted, but not succeed immediately
-      CHECK(result.id == proposal_id);
-      CHECK(result.completed == false);
+      CHECK(result.proposal_id == proposal_id);
+      CHECK(result.state == ProposalState::OPEN);
     }
 
     // read initial proposal, as second member
@@ -492,12 +492,12 @@ TEST_CASE("Add new members until there are 7 then reject")
 
     {
       const auto r = frontend_process(frontend, vote, voter_a_cert);
-      const auto result = parse_response_body<bool>(r);
+      const auto result = parse_response_body<ProposalInfo>(r);
 
       if (new_member.id < max_members)
       {
         // vote should succeed
-        CHECK(result);
+        CHECK(result.state == ProposalState::ACCEPTED);
         // check that member with the new new_member cert can make RPCs now
         CHECK(
           parse_response_body<int>(frontend_process(
@@ -509,7 +509,7 @@ TEST_CASE("Add new members until there are 7 then reject")
       else
       {
         // vote should not succeed
-        CHECK(!result);
+        CHECK(result.state == ProposalState::OPEN);
         // check that member with the new new_member cert can make RPCs now
         check_error(
           frontend_process(frontend, read_next_req, new_member.cert),
@@ -568,8 +568,10 @@ TEST_CASE("Add new members until there are 7 then reject")
       params.state_digest = ack1.state_digest;
       const auto send_good_sig_req =
         create_signed_request(params, "ack", new_member->kp);
-      check_success(
-        frontend_process(frontend, send_good_sig_req, new_member->cert));
+      const auto good_response =
+        frontend_process(frontend, send_good_sig_req, new_member->cert);
+      CHECK(good_response.status == HTTP_STATUS_OK);
+      CHECK(parse_response_body<bool>(good_response));
 
       // (6) read own member status
       const auto read_status_req =
@@ -630,8 +632,8 @@ TEST_CASE("Accept node")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
-    CHECK(!r.completed);
-    CHECK(r.id == 0);
+    CHECK(r.state == ProposalState::OPEN);
+    CHECK(r.proposal_id == 0);
   }
 
   // m1 votes for accepting a single new node
@@ -642,7 +644,8 @@ TEST_CASE("Accept node")
        )xxx");
     const auto vote = create_signed_request(Vote{0, vote_ballot}, "vote", kp);
 
-    check_success(frontend_process(frontend, vote, member_1_cert));
+    check_result_state(
+      frontend_process(frontend, vote, member_1_cert), ProposalState::ACCEPTED);
   }
 
   // check node exists with status pending
@@ -665,15 +668,16 @@ TEST_CASE("Accept node")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
-    CHECK(!r.completed);
-    CHECK(r.id == 1);
+    CHECK(r.state == ProposalState::OPEN);
+    CHECK(r.proposal_id == 1);
   }
 
   // m1 votes for retiring node
   {
     const Script vote_ballot("return true");
     const auto vote = create_signed_request(Vote{1, vote_ballot}, "vote", kp);
-    check_success(frontend_process(frontend, vote, member_1_cert));
+    check_result_state(
+      frontend_process(frontend, vote, member_1_cert), ProposalState::ACCEPTED);
   }
 
   // check that node exists with status retired
@@ -697,10 +701,10 @@ TEST_CASE("Accept node")
       frontend_process(frontend, propose, member_0_cert));
 
     const Script vote_ballot("return true");
-    const auto vote = create_signed_request(Vote{2, vote_ballot}, "vote", kp);
-    check_error(
-      frontend_process(frontend, vote, member_1_cert),
-      HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    const auto vote =
+      create_signed_request(Vote{r.proposal_id, vote_ballot}, "vote", kp);
+    check_result_state(
+      frontend_process(frontend, vote, member_1_cert), ProposalState::FAILED);
   }
 
   // check that retired node cannot be retired again
@@ -715,14 +719,14 @@ TEST_CASE("Accept node")
       frontend_process(frontend, propose, member_0_cert));
 
     const Script vote_ballot("return true");
-    const auto vote = create_signed_request(Vote{3, vote_ballot}, "vote", kp);
-    check_error(
-      frontend_process(frontend, vote, member_1_cert),
-      HTTP_STATUS_INTERNAL_SERVER_ERROR);
+    const auto vote =
+      create_signed_request(Vote{r.proposal_id, vote_ballot}, "vote", kp);
+    check_result_state(
+      frontend_process(frontend, vote, member_1_cert), ProposalState::FAILED);
   }
 }
 
-bool test_raw_writes(
+ProposalInfo test_raw_writes(
   NetworkTables& network,
   GenesisGenerator& gen,
   StubNodeState& node,
@@ -752,10 +756,12 @@ bool test_raw_writes(
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_certs[0]));
 
-    CHECK(r.completed == (n_members == 1));
-    CHECK(r.id == proposal_id);
-    if (r.completed)
-      return true;
+    const auto expected_state =
+      (n_members == 1) ? ProposalState::ACCEPTED : ProposalState::OPEN;
+    CHECK(r.state == expected_state);
+    CHECK(r.proposal_id == proposal_id);
+    if (r.state == ProposalState::ACCEPTED)
+      return r;
   }
 
   // con votes
@@ -765,20 +771,21 @@ bool test_raw_writes(
     const auto vote_serialized =
       create_signed_request(Vote{proposal_id, vote}, "vote", kp);
 
-    check_success(
-      frontend_process(frontend, vote_serialized, member_certs[i]), false);
+    check_result_state(
+      frontend_process(frontend, vote_serialized, member_certs[i]),
+      ProposalState::OPEN);
   }
 
   // pro votes (proposer also votes)
-  bool completed = false;
+  ProposalInfo info = {};
   for (uint8_t i = explicit_proposer_vote ? 0 : 1; i < pro_votes; i++)
   {
     const Script vote("return true");
     const auto vote_serialized =
       create_signed_request(Vote{proposal_id, vote}, "vote", kp);
-    if (!completed)
+    if (info.state == ProposalState::OPEN)
     {
-      completed = parse_response_body<bool>(
+      info = parse_response_body<ProposalInfo>(
         frontend_process(frontend, vote_serialized, member_certs[i]));
     }
     else
@@ -789,7 +796,7 @@ bool test_raw_writes(
         HTTP_STATUS_BAD_REQUEST);
     }
   }
-  return completed;
+  return info;
 }
 
 TEST_CASE("Propose raw writes")
@@ -811,12 +818,14 @@ TEST_CASE("Propose raw writes")
       nlohmann::json params;
       params["cert"] = member_cert;
       params["keyshare"] = dummy_key_share;
-      CHECK(
-        test_raw_writes(
-          network,
-          gen,
-          node,
-          {R"xxx(
+
+      const auto expected_state =
+        should_succeed ? ProposalState::ACCEPTED : ProposalState::OPEN;
+      const auto proposal_info = test_raw_writes(
+        network,
+        gen,
+        node,
+        {R"xxx(
         local tables, param = ...
         local STATE_ACTIVE = "ACTIVE"
         local NEXT_MEMBER_ID_VALUE = 0
@@ -830,9 +839,10 @@ TEST_CASE("Propose raw writes")
         p:put("ccf.member_certs", param.cert, member_id)
         return Calls:call("raw_puts", p)
       )xxx"s,
-           params},
-          n_members,
-          pro_votes) == should_succeed);
+         params},
+        n_members,
+        pro_votes);
+      CHECK(proposal_info.state == expected_state);
       if (!should_succeed)
         continue;
 
@@ -875,15 +885,18 @@ TEST_CASE("Propose raw writes")
           const auto sensitive_put =
             "return Calls:call('raw_puts', Puts:put('"s + sensitive_table +
             "', 9, {'aaa'}))"s;
-          CHECK(
-            test_raw_writes(
-              network,
-              gen,
-              node,
-              {sensitive_put},
-              n_members,
-              pro_votes,
-              proposer_vote) == (n_members == pro_votes));
+          const auto expected_state = (n_members == pro_votes) ?
+            ProposalState::ACCEPTED :
+            ProposalState::OPEN;
+          const auto proposal_info = test_raw_writes(
+            network,
+            gen,
+            node,
+            {sensitive_put},
+            n_members,
+            pro_votes,
+            proposer_vote);
+          CHECK(proposal_info.state == expected_state);
         }
       }
     }
@@ -931,8 +944,8 @@ TEST_CASE("Remove proposal")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
 
-    CHECK(r.id == proposal_id);
-    CHECK(!r.completed);
+    CHECK(r.proposal_id == proposal_id);
+    CHECK(r.state == ProposalState::OPEN);
   }
 
   // check that the proposal is there
@@ -971,7 +984,9 @@ TEST_CASE("Remove proposal")
     param["id"] = proposal_id;
     const auto withdraw = create_signed_request(param, "withdraw", kp);
 
-    check_success(frontend_process(frontend, withdraw, member_cert));
+    check_result_state(
+      frontend_process(frontend, withdraw, member_cert),
+      ProposalState::WITHDRAWN);
 
     // check that the proposal is now withdrawn
     {
@@ -1005,7 +1020,7 @@ TEST_CASE("Complete proposal after initial rejection")
     Store::Tx tx;
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_certs[0]));
-    CHECK(r.completed == false);
+    CHECK(r.state == ProposalState::OPEN);
   }
 
   {
@@ -1017,8 +1032,9 @@ TEST_CASE("Complete proposal after initial rejection")
     const auto vote_serialized =
       create_signed_request(Vote{0, vote}, "vote", kp);
 
-    check_success(
-      frontend_process(frontend, vote_serialized, member_certs[1]), false);
+    check_result_state(
+      frontend_process(frontend, vote_serialized, member_certs[1]),
+      ProposalState::OPEN);
   }
 
   {
@@ -1026,7 +1042,9 @@ TEST_CASE("Complete proposal after initial rejection")
     const auto complete =
       create_signed_request(ProposalAction{0}, "complete", kp);
 
-    check_success(frontend_process(frontend, complete, member_certs[1]), false);
+    check_result_state(
+      frontend_process(frontend, complete, member_certs[1]),
+      ProposalState::OPEN);
   }
 
   {
@@ -1041,7 +1059,9 @@ TEST_CASE("Complete proposal after initial rejection")
     const auto complete =
       create_signed_request(ProposalAction{0}, "complete", kp);
 
-    check_success(frontend_process(frontend, complete, member_certs[1]));
+    check_result_state(
+      frontend_process(frontend, complete, member_certs[1]),
+      ProposalState::ACCEPTED);
   }
 }
 
@@ -1074,18 +1094,17 @@ TEST_CASE("Vetoed proposal gets rejected")
 
   const auto r = parse_response_body<Propose::Out>(
     frontend_process(frontend, propose, voter_a_cert));
-  CHECK(r.completed == false);
-  CHECK(r.id == 0);
+  CHECK(r.state == ProposalState::OPEN);
+  CHECK(r.proposal_id == 0);
 
   const ccf::Script vote_against("return false");
   {
     INFO("Member vetoes proposal");
 
     const auto vote = create_signed_request(Vote{0, vote_against}, "vote", kp);
-    const auto r =
-      parse_response_body<bool>(frontend_process(frontend, vote, voter_b_cert));
+    const auto r = frontend_process(frontend, vote, voter_b_cert);
 
-    CHECK(r == false);
+    check_result_state(r, ProposalState::REJECTED);
   }
 
   {
@@ -1124,8 +1143,8 @@ TEST_CASE("Add user via proposed call")
 
   const auto r = parse_response_body<Propose::Out>(
     frontend_process(frontend, propose, member_cert));
-  CHECK(r.completed);
-  CHECK(r.id == 0);
+  CHECK(r.state == ProposalState::ACCEPTED);
+  CHECK(r.proposal_id == 0);
 
   Store::Tx tx1;
   const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
@@ -1195,9 +1214,9 @@ TEST_CASE("Passing members ballot with operator")
       propose,
       tls::make_verifier(members[proposer_id])->der_cert_data()));
 
-    CHECK(r.completed == false);
+    CHECK(r.state == ProposalState::OPEN);
 
-    proposal_id = r.id;
+    proposal_id = r.proposal_id;
   }
 
   {
@@ -1205,10 +1224,9 @@ TEST_CASE("Passing members ballot with operator")
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
-    const auto r = parse_response_body<bool>(
-      frontend_process(frontend, vote, operator_cert));
+    const auto r = frontend_process(frontend, vote, operator_cert);
 
-    CHECK(r == false);
+    check_result_state(r, ProposalState::OPEN);
   }
 
   {
@@ -1216,10 +1234,9 @@ TEST_CASE("Passing members ballot with operator")
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
-    const auto r = parse_response_body<bool>(
-      frontend_process(frontend, vote, members[voter_id]));
+    const auto r = frontend_process(frontend, vote, members[voter_id]);
 
-    CHECK(r == true);
+    check_result_state(r, ProposalState::ACCEPTED);
   }
 
   {
@@ -1313,8 +1330,8 @@ TEST_CASE("Passing operator vote")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
-    CHECK(r.completed);
-    proposal_id = r.id;
+    CHECK(r.state == ProposalState::ACCEPTED);
+    proposal_id = r.proposal_id;
   }
 
   {
@@ -1398,8 +1415,8 @@ TEST_CASE("Members passing an operator vote")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
-    CHECK(!r.completed);
-    proposal_id = r.id;
+    CHECK(r.state == ProposalState::OPEN);
+    proposal_id = r.proposal_id;
   }
 
   size_t first_voter_id = 1;
@@ -1410,10 +1427,9 @@ TEST_CASE("Members passing an operator vote")
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
-    const auto r = parse_response_body<bool>(
-      frontend_process(frontend, vote, members[first_voter_id]));
+    const auto r = frontend_process(frontend, vote, members[first_voter_id]);
 
-    CHECK(r == false);
+    check_result_state(r, ProposalState::OPEN);
   }
 
   {
@@ -1421,10 +1437,9 @@ TEST_CASE("Members passing an operator vote")
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
-    const auto r = parse_response_body<bool>(
-      frontend_process(frontend, vote, members[second_voter_id]));
+    const auto r = frontend_process(frontend, vote, members[second_voter_id]);
 
-    CHECK(r == true);
+    check_result_state(r, ProposalState::ACCEPTED);
   }
 
   {
@@ -1500,7 +1515,7 @@ TEST_CASE("User data")
       create_signed_request(proposal, "propose", kp);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
-    CHECK(propose_response.completed);
+    CHECK(propose_response.state == ProposalState::ACCEPTED);
 
     INFO("user data object can be read");
     const auto read_response = parse_response_body<ccf::UserInfo>(
@@ -1524,7 +1539,7 @@ TEST_CASE("User data")
       create_signed_request(proposal, "propose", kp);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
-    CHECK(propose_response.completed);
+    CHECK(propose_response.state == ProposalState::ACCEPTED);
 
     INFO("user data object can be read");
     const auto response = parse_response_body<ccf::UserInfo>(
