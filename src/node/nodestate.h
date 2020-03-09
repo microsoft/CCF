@@ -456,6 +456,7 @@ namespace ccf
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
       join_params.quote = quote;
+      join_params.consensus_type = network.consensus_type;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -756,7 +757,7 @@ namespace ccf
       // Since private ledger recovery is done in a temporary store, ledger
       // secrets are only sealed once the recovery is successful.
 
-      if (network.consensus_type == ConsensusType::Pbft)
+      if (network.consensus_type == ConsensusType::PBFT)
       {
         // for now do not encrypt the ledger as the current implementation does
         // not work for PBFT
@@ -1284,7 +1285,7 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-      if (network.consensus_type == ConsensusType::Pbft)
+      if (network.consensus_type == ConsensusType::PBFT)
       {
         return true;
       }
@@ -1525,7 +1526,7 @@ namespace ccf
       encryptor = std::make_shared<NullTxEncryptor>();
 #else
 
-      if (consensus_type == ConsensusType::Pbft)
+      if (consensus_type == ConsensusType::PBFT)
       {
         // for now do not encrypt the ledger as the current implementation does
         // not work for PBFT
@@ -1545,11 +1546,11 @@ namespace ccf
       const CCFConfig& config,
       bool public_only = false)
     {
-      if (consensus_type == ConsensusType::Pbft)
+      if (consensus_type == ConsensusType::PBFT)
       {
         setup_pbft(config);
       }
-      else if (consensus_type == ConsensusType::Raft)
+      else if (consensus_type == ConsensusType::RAFT)
       {
         setup_raft(public_only);
       }

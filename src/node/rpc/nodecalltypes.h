@@ -72,6 +72,7 @@ namespace ccf
       NodeInfoNetwork node_info_network;
       std::vector<uint8_t> quote;
       std::vector<uint8_t> public_encryption_key;
+      ConsensusType consensus_type;
     };
 
     struct Out

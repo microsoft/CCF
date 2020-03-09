@@ -27,7 +27,8 @@ namespace ccf
     JoinNetworkNodeToNode::In,
     node_info_network,
     quote,
-    public_encryption_key)
+    public_encryption_key,
+    consensus_type)
 
   DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)

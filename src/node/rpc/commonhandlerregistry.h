@@ -63,7 +63,7 @@ namespace ccf
       auto make_signature = [this](Store::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
-          if (consensus->type() == ConsensusType::Raft)
+          if (consensus->type() == ConsensusType::RAFT)
           {
             if (history != nullptr)
             {
@@ -71,7 +71,7 @@ namespace ccf
               return make_success(true);
             }
           }
-          else if (consensus->type() == ConsensusType::Pbft)
+          else if (consensus->type() == ConsensusType::PBFT)
           {
             consensus->emit_signature();
             return make_success(true);

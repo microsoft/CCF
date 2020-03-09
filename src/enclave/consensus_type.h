@@ -4,10 +4,12 @@
 
 enum ConsensusType
 {
-  Raft = 1,
-  Pbft = 2
+  RAFT = 0,
+  PBFT = 1
 };
 
 DECLARE_JSON_ENUM(
   ConsensusType,
-  {{ConsensusType::Raft, "Raft"}, {ConsensusType::Pbft, "Pbft"}});
+  {{ConsensusType::RAFT, "RAFT"}, {ConsensusType::PBFT, "PBFT"}});
+
+MSGPACK_ADD_ENUM(ConsensusType);

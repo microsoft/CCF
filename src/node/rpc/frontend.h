@@ -260,7 +260,7 @@ namespace ccf
         }
       }
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
+      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
         if (rep.has_value())
@@ -468,7 +468,7 @@ namespace ccf
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      if (!is_primary && consensus->type() == ConsensusType::Raft)
+      if (!is_primary && consensus->type() == ConsensusType::RAFT)
       {
         switch (handler->rw)
         {
@@ -543,7 +543,7 @@ namespace ccf
                   history && consensus->is_primary() &&
                   (cv % sig_max_tx == sig_max_tx / 2))
                 {
-                  if (consensus->type() == ConsensusType::Raft)
+                  if (consensus->type() == ConsensusType::RAFT)
                   {
                     history->emit_signature();
                   }
@@ -620,7 +620,7 @@ namespace ccf
         ms_to_sig = sig_max_ms;
         if (history && tables.commit_gap() > 0)
         {
-          if (consensus->type() == ConsensusType::Raft)
+          if (consensus->type() == ConsensusType::RAFT)
           {
             history->emit_signature();
           }

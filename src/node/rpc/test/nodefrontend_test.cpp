@@ -99,7 +99,7 @@ TEST_CASE("Add a node to an opening service")
   INFO("Try to join with a different consensus");
   {
     JoinNetworkNodeToNode::In join_input;
-    join_input.consensus_type = ConsensusType::Pbft;
+    join_input.consensus_type = ConsensusType::PBFT;
     const auto response =
       frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
 
@@ -109,8 +109,8 @@ TEST_CASE("Add a node to an opening service")
       fmt::format(
         "Node requested to join with consensus type {} but "
         "current consensus type is {}",
-        ConsensusType::Pbft,
-        ConsensusType::Raft));
+        ConsensusType::PBFT,
+        ConsensusType::RAFT));
   }
 
   INFO("Add first node before a service exists");
