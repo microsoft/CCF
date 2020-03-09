@@ -27,7 +27,7 @@ namespace ccf
 
   struct KeyShareInfo
   {
-    // For now, only one encryoted ledger secret is stored in the ledger
+    // For now, only one encrypted ledger secret is stored in the ledger
     std::vector<uint8_t> encrypted_ledger_secret;
     EncryptedSharesMap encrypted_shares;
 

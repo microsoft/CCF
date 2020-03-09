@@ -24,8 +24,6 @@ from cryptography.hazmat.primitives.serialization import (
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
-from loguru import logger as LOG
-
 
 class CryptoBoxCtx:
     def __init__(self, privk_path, pubk_path):
