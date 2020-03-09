@@ -185,7 +185,12 @@ def run(args):
                     suspended_nodes.append(node.node_id)
 
                 for t, node in timeouts:
-                    et = args.election_timeout / 1000
+                    et = (
+                        args.pbft_view_change_timeout / 1000
+                        if args.consensus == "pbft"
+                        else args.raft_election_timeout / 1000
+                    )
+
                     # if pbft suspend the primary more than the other suspended nodes
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
                         et += et * 0.5
