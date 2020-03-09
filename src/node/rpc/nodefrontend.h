@@ -108,7 +108,6 @@ namespace ccf
          caller_pem_raw,
          in.quote,
          in.public_encryption_key,
-         in.consensus_type,
          node_status});
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);

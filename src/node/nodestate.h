@@ -402,15 +402,17 @@ namespace ccf
 
             self = resp.node_id;
 
-            if (resp.consensus_type != network.consensus_type)
-            {
-              throw std::logic_error(
-                "Enclave initiated with consensus type " +
-                std::to_string(network.consensus_type) +
-                " but primary "
-                "responded with consensus " +
-                std::to_string(resp.consensus_type));
-            }
+            // if (resp.consensus_type != network.consensus_type)
+            // {
+            //   LOG_INFO_FMT("consensus type from resp is {}", resp.consensus_type);
+            //   throw std::logic_error(
+            //     "Enclave initiated with consensus type " +
+            //     std::to_string(network.consensus_type) +
+            //     " but primary "
+            //     "responded with consensus " +
+            //     std::to_string(resp.consensus_type));
+            // }
+
 
             setup_consensus(resp.consensus_type, args.config, resp.public_only);
             setup_history();
@@ -454,7 +456,6 @@ namespace ccf
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
       join_params.quote = quote;
-      join_params.consensus_type = network.consensus_type;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -575,7 +576,6 @@ namespace ccf
                          node_cert,
                          quote,
                          node_encrypt_kp->public_key_pem().raw(),
-                         network.consensus_type,
                          NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);

@@ -7,3 +7,7 @@ enum ConsensusType
   Raft = 1,
   Pbft = 2
 };
+
+DECLARE_JSON_ENUM(
+  ConsensusType,
+  {{ConsensusType::Raft, "Raft"}, {ConsensusType::Pbft, "Pbft"}});

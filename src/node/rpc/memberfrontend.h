@@ -715,7 +715,6 @@ namespace ccf
                                   in.node_cert,
                                   in.quote,
                                   in.public_encryption_key,
-                                  in.consensus_type,
                                   NodeStatus::TRUSTED});
 
         LOG_INFO_FMT("Create node id: {}", self);

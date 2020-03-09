@@ -26,12 +26,6 @@ namespace ccf
 
 MSGPACK_ADD_ENUM(ccf::NodeStatus);
 
-DECLARE_JSON_ENUM(
-  ConsensusType,
-  {{ConsensusType::Raft, "Raft"}, {ConsensusType::Pbft, "Pbft"}});
-
-MSGPACK_ADD_ENUM(ConsensusType);
-
 namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
@@ -39,7 +33,6 @@ namespace ccf
     std::vector<uint8_t> cert;
     std::vector<uint8_t> quote;
     std::vector<uint8_t> encryption_pub_key;
-    ConsensusType consensus_type;
     NodeStatus status = NodeStatus::PENDING;
 
     MSGPACK_DEFINE(
@@ -47,12 +40,11 @@ namespace ccf
       cert,
       quote,
       encryption_pub_key,
-      consensus_type,
       status);
   };
   DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(
-    NodeInfo, cert, quote, encryption_pub_key, consensus_type, status);
+    NodeInfo, cert, quote, encryption_pub_key, status);
 
   using Nodes = Store::Map<NodeId, NodeInfo>;
 }
