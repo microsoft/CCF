@@ -784,15 +784,7 @@ namespace ccf
               nullb,
               decrypted_ls.data());
 
-          LedgerSecret decrypted_ledger_secret(decrypted_ls);
-
-          // TODO: Get rid of this
-          LOG_FAIL_FMT(
-            "Decrypted ledger secrets {}",
-            tls::b64_from_raw(decrypted_ledger_secret.master));
-
           pending_shares.clear();
-
           return make_success(true);
         };
       install_with_auto_schema<SubmitRecoveryShare, bool>(

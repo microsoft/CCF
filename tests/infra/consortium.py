@@ -305,9 +305,8 @@ class Consortium:
         for m in self.members:
             with remote_node.member_client(member_id=m) as mc:
                 r = mc.rpc("getEncryptedRecoveryShare", params={})
-                LOG.warning(r.result)
 
-                # TODO: Sort out original key stuff.
+                # For now, members rely on a copy of the original network encryption public key
                 ctx = infra.crypto.CryptoBoxCtx(
                     os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"),
                     os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
@@ -315,16 +314,11 @@ class Consortium:
 
                 nonce_bytes = bytes(r.result["nonce"])
                 encrypted_share_bytes = bytes(r.result["encrypted_share"])
-                LOG.error(encrypted_share_bytes.hex())
-                LOG.error(nonce_bytes.hex())
-                LOG.error(len(nonce_bytes))
-
                 decrypted_share = ctx.decrypt(encrypted_share_bytes, nonce_bytes,)
 
                 r = mc.rpc(
                     "submitRecoveryShare", params={"share": list(decrypted_share)}
                 )
-                LOG.warning(r.result)
                 if m == 2:
                     assert (
                         r.result == True
