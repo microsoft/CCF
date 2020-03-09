@@ -273,9 +273,9 @@ namespace ccf
 
           self = 0; // The first node id is always 0
 
-          setup_consensus(args.consensus_type, args.config);
+          setup_consensus(network.consensus_type, args.config);
           setup_history();
-          setup_encryptor(args.consensus_type);
+          setup_encryptor(network.consensus_type);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -317,7 +317,7 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
 
           setup_history();
-          setup_encryptor(args.consensus_type);
+          setup_encryptor(network.consensus_type);
 
           // Accept members connections for members to finish recovery once the
           // public ledger has been read
@@ -402,9 +402,19 @@ namespace ccf
 
             self = resp.node_id;
 
-            setup_consensus(args.consensus_type, args.config, resp.public_only);
+            if (resp.consensus_type != network.consensus_type)
+            {
+              throw std::logic_error(
+                "Enclave initiated with consensus type " +
+                std::to_string(network.consensus_type) +
+                " but primary "
+                "responded with consensus " +
+                std::to_string(resp.consensus_type));
+            }
+
+            setup_consensus(resp.consensus_type, args.config, resp.public_only);
             setup_history();
-            setup_encryptor(args.consensus_type);
+            setup_encryptor(resp.consensus_type);
 
             open_member_frontend();
 
@@ -444,6 +454,7 @@ namespace ccf
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
       join_params.quote = quote;
+      join_params.consensus_type = network.consensus_type;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -564,6 +575,7 @@ namespace ccf
                          node_cert,
                          quote,
                          node_encrypt_kp->public_key_pem().raw(),
+                         network.consensus_type,
                          NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
@@ -744,7 +756,7 @@ namespace ccf
       // Since private ledger recovery is done in a temporary store, ledger
       // secrets are only sealed once the recovery is successful.
 
-      if (consensus->type() == ConsensusType::Pbft)
+      if (network.consensus_type == ConsensusType::Pbft)
       {
         // for now do not encrypt the ledger as the current implementation does
         // not work for PBFT
@@ -1176,6 +1188,7 @@ namespace ccf
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_params.node_info_network = args.config.node_info_network;
+      create_params.consensus_type = network.consensus_type;
 
       const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
@@ -1271,7 +1284,7 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-      if (args.consensus_type == ConsensusType::Pbft)
+      if (network.consensus_type == ConsensusType::Pbft)
       {
         return true;
       }
