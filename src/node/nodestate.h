@@ -402,17 +402,15 @@ namespace ccf
 
             self = resp.node_id;
 
-            // if (resp.consensus_type != network.consensus_type)
-            // {
-            //   LOG_INFO_FMT("consensus type from resp is {}", resp.consensus_type);
-            //   throw std::logic_error(
-            //     "Enclave initiated with consensus type " +
-            //     std::to_string(network.consensus_type) +
-            //     " but primary "
-            //     "responded with consensus " +
-            //     std::to_string(resp.consensus_type));
-            // }
-
+            if (resp.consensus_type != network.consensus_type)
+            {
+              throw std::logic_error(
+                "Enclave initiated with consensus type " +
+                std::to_string(network.consensus_type) +
+                " but primary "
+                "responded with consensus " +
+                std::to_string(resp.consensus_type));
+            }
 
             setup_consensus(resp.consensus_type, args.config, resp.public_only);
             setup_history();

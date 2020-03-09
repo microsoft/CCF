@@ -5,6 +5,7 @@
 #include "certs.h"
 #include "clientsignatures.h"
 #include "codeid.h"
+#include "consensus.h"
 #include "consensus/pbft/pbftpreprepares.h"
 #include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttables.h"
@@ -22,7 +23,6 @@
 #include "users.h"
 #include "values.h"
 #include "whitelists.h"
-#include "consensus.h"
 
 #include <memory>
 #include <tuple>

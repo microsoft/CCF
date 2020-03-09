@@ -83,7 +83,7 @@ namespace ccf
     auto add_consensus(ConsensusType consensus_type)
     {
       auto cv = tx.get_view(tables.consensus);
-      cv->put(0, {consensus_type});
+      cv->put(0, consensus_type);
     }
 
     auto add_member(

@@ -36,11 +36,7 @@ namespace ccf
     NodeStatus status = NodeStatus::PENDING;
 
     MSGPACK_DEFINE(
-      MSGPACK_BASE(NodeInfoNetwork),
-      cert,
-      quote,
-      encryption_pub_key,
-      status);
+      MSGPACK_BASE(NodeInfoNetwork), cert, quote, encryption_pub_key, status);
   };
   DECLARE_JSON_TYPE_WITH_BASE(NodeInfo, NodeInfoNetwork);
   DECLARE_JSON_REQUIRED_FIELDS(

@@ -3,17 +3,7 @@
 #pragma once
 #include "entities.h"
 
-#include <msgpack.hpp>
-
 namespace ccf
 {
-  struct Consensus
-  {
-    ConsensusType consensus_type;
-
-    MSGPACK_DEFINE(consensus_type);
-  };
-
- DECLARE_JSON_REQUIRED_FIELDS(Consensus, consensus_type)
- using ConsensusTable = Store::Map<ObjectId, Consensus>;
+  using ConsensusTable = Store::Map<ObjectId, ConsensusType>;
 }
