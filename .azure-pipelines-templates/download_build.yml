@@ -15,7 +15,5 @@ steps:
 
 - script: | 
     cmake -L ${{ parameters.cmake_args }} -GNinja ..
-  env:
-    TESTS_SUFFIX: ${{ parameters.suite_label_suffix }}
   displayName: Re-generate test metadata 
   workingDirectory: build

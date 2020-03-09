@@ -50,7 +50,11 @@ def run(args):
         current_term = None
 
         # Time before an election completes
-        max_election_duration = args.election_timeout * 4 // 1000
+        max_election_duration = (
+            args.pbft_view_change_timeout * 4 // 1000
+            if args.consensus == "pbft"
+            else args.raft_election_timeout * 4 // 1000
+        )
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(hosts) / 2)

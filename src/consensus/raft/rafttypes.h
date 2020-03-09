@@ -8,7 +8,6 @@
 #include <chrono>
 #include <cstdint>
 #include <limits>
-#include <msgpack.hpp>
 
 namespace raft
 {
@@ -18,13 +17,6 @@ namespace raft
   using Node2NodeMsg = uint64_t;
 
   static constexpr NodeId NoNode = std::numeric_limits<NodeId>::max();
-
-  struct Config
-  {
-    size_t request_timeout;
-    size_t election_timeout;
-    MSGPACK_DEFINE(request_timeout, election_timeout);
-  };
 
   template <typename S>
   class Store

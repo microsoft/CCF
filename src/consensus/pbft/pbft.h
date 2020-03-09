@@ -240,7 +240,8 @@ namespace pbft
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
       const std::string& privk_pem,
-      const std::vector<uint8_t>& cert) :
+      const std::vector<uint8_t>& cert,
+      const consensus::Config& consensus_config) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -257,8 +258,8 @@ namespace pbft
       general_info.max_faulty = 0;
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
-      general_info.view_timeout = 5000;
-      general_info.status_timeout = 100;
+      general_info.view_timeout = consensus_config.pbft_view_change_timeout;
+      general_info.status_timeout = consensus_config.pbft_status_interval;
       general_info.recovery_timeout = 9999250000;
       general_info.max_requests_between_signatures =
         sig_max_tx / Max_requests_in_batch;
