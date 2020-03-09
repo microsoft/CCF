@@ -44,9 +44,6 @@ class CryptoBoxCtx:
                 ).public_bytes(Encoding.Raw, PublicFormat.Raw),
                 RawEncoder,
             )
-
-        # LOG.warning(self.privk.hex())
-        # LOG.warning(self.pubk.hex())
         self.box = Box(self.privk, self.pubk)
 
     def encrypt(self, plain, nonce):
