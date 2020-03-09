@@ -18,7 +18,7 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args, txs=None):
+def test(network, args, txs=None, use_shares=False):
     primary, backups = network.find_nodes()
 
     ledger = primary.get_ledger()
@@ -39,7 +39,7 @@ def test(network, args, txs=None):
     LOG.info("Members verify that the new nodes have joined the network")
     recovered_network.wait_for_all_nodes_to_be_trusted()
 
-    if args.use_shares:
+    if use_shares:
         recovered_network.consortium.get_and_decrypt_shares(remote_node=primary)
 
     LOG.info("Members vote to complete the recovery")
