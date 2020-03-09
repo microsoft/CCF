@@ -71,9 +71,6 @@ def run(args):
         network.start_and_join(args)
 
         if args.use_shares:
-            LOG.warning(
-                "Storing initial network encryption public key away to decrypt shares later"
-            )
             network.consortium.store_current_network_encryption_key()
 
         for recovery_idx in range(args.recovery):
