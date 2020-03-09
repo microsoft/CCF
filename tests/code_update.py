@@ -77,7 +77,12 @@ def run(args):
             node.stop()
 
         LOG.info("Waiting for a new primary to be elected...")
-        time.sleep(args.election_timeout * 6 / 1000)
+        sleep_time = (
+            args.pbft_view_change_timeout * 6 / 1000
+            if args.consensus == "pbft"
+            else args.raft_election_timeout * 6 / 1000
+        )
+        time.sleep(sleep_time)
 
         new_primary, _ = network.find_primary()
         LOG.info(f"Waited, new_primary is {new_primary.node_id}")
