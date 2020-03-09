@@ -18,7 +18,10 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args, txs=None, use_shares=False):
+def test(network, args, use_shares=False):
+    if use_shares:
+        LOG.warning("Using member key shares for recovery (experimental)")
+
     primary, backups = network.find_nodes()
 
     ledger = primary.get_ledger()
@@ -74,7 +77,7 @@ def run(args):
             network.consortium.store_current_network_encryption_key()
 
         for recovery_idx in range(args.recovery):
-            recovered_network = test(network, args)
+            recovered_network = test(network, args, use_shares=args.use_shares)
             network.stop_all_nodes()
             network = recovered_network
 
@@ -108,8 +111,5 @@ checked. Note that the key for each logging message is unique (per table).
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
-
-    if args.use_shares:
-        LOG.warning("Using member key shares for recovery (experimental)")
 
     run(args)
