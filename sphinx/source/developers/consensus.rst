@@ -30,7 +30,7 @@ For more information on the PBFT protocol please see the original `PBFT paper <h
 
 PBFT parameters can be configured when starting up a network (see :ref:`here <operators/start_network:Starting a New Network>`). The paramters that can be set via the cli are:
 
-- ``pbft-view-change-timeout-ms`` is the PBFT view change timeout in milliseconds. A backup that receives a request and forwards it to the primary will trigger a view change if the backup has not received a pre prepare from the primary for that request after this timeout.
+- ``pbft-view-change-timeout-ms`` is the PBFT view change timeout in milliseconds. If a backup does not receive the pre-prepare message for a request forwarded to the primary after this timeout, the backup triggers a new view change.
 - ``pbft-status-interval-ms`` is the PBFT status timer interval in milliseconds. All PBFT nodes send messages containing their status to all other known nodes at regular intervals defined by this timer interval.
 
 

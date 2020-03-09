@@ -169,10 +169,9 @@ int main(int argc, char** argv)
   app.add_option(
     "--pbft_view-change-timeout-ms",
     pbft_view_change_timeout,
-    "Pbft view change timeout in milliseconds. A backup that receives a "
-    "request and forwards it to the primary will trigger a view change if the "
-    "backup has not received a pre prepare from the primary for that request "
-    "after this timeout.",
+    "Pbft view change timeout in milliseconds. If a backup does not receive "
+    "the pre-prepare message for a request forwarded to the primary after this "
+    "timeout, the backup triggers a new view change.",
     true);
 
   size_t pbft_status_interval = 100;
