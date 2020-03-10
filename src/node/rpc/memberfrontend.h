@@ -108,11 +108,6 @@ namespace ccf
            auto new_member_id =
              g.add_member(parsed.cert, parsed.keyshare, MemberStatus::ACCEPTED);
 
-           auto [ma_view, sig_view] =
-             tx.get_view(this->network.member_acks, this->network.signatures);
-
-           ma_view->put(new_member_id, MemberAck(sig_view->get(0)->root));
-
            return true;
          }},
         // add a new user
