@@ -14,7 +14,7 @@ steps:
     ls
     ls Testing
     ls Testing/Temporary
-    cat Testing/Temporary/LastTest.log
+    cat Testing/Temporary/LastTest*.log
   displayName: Test Output
   workingDirectory: build
   condition: succeededOrFailed()
