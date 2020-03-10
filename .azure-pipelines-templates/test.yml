@@ -11,6 +11,9 @@ steps:
   workingDirectory: build
 
 - script: |
+    ls
+    ls Testing
+    ls Testing/Temporary
     cat Testing/Temporary/LastTest.log
   displayName: Test Output
   condition: succeededOrFailed()
