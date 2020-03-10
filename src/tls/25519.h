@@ -31,6 +31,28 @@ namespace tls
     static constexpr auto x25519_oid_len = 3;
     static constexpr char x25519_oid[x25519_oid_len] = {0x2b, 0x65, 0x6e};
 
+    static int parse_subject_public_key_info_der(
+      uint8_t** buf, size_t* len, mbedtls_asn1_buf* alg_oid)
+    {
+      mbedtls_asn1_buf alg_params;
+      uint8_t* end = *buf + *len;
+
+      int ret = mbedtls_asn1_get_tag(
+        buf, end, len, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
+      if (ret != 0)
+      {
+        return ret;
+      }
+
+      ret = mbedtls_asn1_get_alg(buf, end, alg_oid, &alg_params);
+      if (ret != 0)
+      {
+        return ret;
+      }
+
+      return mbedtls_asn1_get_bitstring_null(buf, end, len);
+    }
+
     static int write_subject_public_key_info_der(
       uint8_t* buf,
       size_t size,
@@ -72,58 +94,54 @@ namespace tls
   public:
     static std::vector<uint8_t> parse(const Pem& public_pem)
     {
-      mbedtls_pem_context pem;
-      mbedtls_pem_init(&pem);
       auto pem_len = public_pem.size();
+      uint8_t* raw_public_key;
+      size_t raw_public_key_size;
+      mbedtls_pem_context pem;
 
-      int rc = mbedtls_pem_read_buffer(
-        &pem,
-        PUBLIC_KEY_PEM_HEADER,
-        PUBLIC_KEY_PEM_FOOTER,
-        public_pem.data(),
-        nullptr,
-        0,
-        &pem_len);
-      if (rc != 0)
+      try
       {
-        throw std::logic_error(
-          fmt::format("mbedtls_pem_read_buffer failed: {}", error_string(rc)));
+        mbedtls_pem_init(&pem);
+        int rc = mbedtls_pem_read_buffer(
+          &pem,
+          PUBLIC_KEY_PEM_HEADER,
+          PUBLIC_KEY_PEM_FOOTER,
+          public_pem.data(),
+          nullptr,
+          0,
+          &pem_len);
+        if (rc != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "mbedtls_pem_read_buffer failed: {}", error_string(rc)));
+        }
+
+        raw_public_key = pem.buf;
+        raw_public_key_size = pem.buflen;
+        mbedtls_asn1_buf alg_oid;
+
+        rc = parse_subject_public_key_info_der(
+          &raw_public_key, &raw_public_key_size, &alg_oid);
+        if (rc != 0)
+        {
+          throw std::logic_error(fmt::format(
+            "Parsing public key info failed: {}", error_string(rc)));
+        }
+
+        if (memcmp(x25519_oid, alg_oid.p, x25519_oid_len) != 0)
+        {
+          throw std::logic_error(
+            "Parsing public key failed: Key is not x25519");
+        }
+      }
+      catch (const std::exception& e)
+      {
+        mbedtls_pem_free(&pem);
+        throw;
       }
 
-      auto p = pem.buf;
-      auto len = pem.buflen;
-      auto end = pem.buf + pem.buflen;
-      rc = mbedtls_asn1_get_tag(
-        &p, end, &len, MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE);
-      if (rc != 0)
-      {
-        throw std::logic_error(
-          fmt::format("mbedtls_asn1_get_tag failed: {}", error_string(rc)));
-      }
-
-      mbedtls_pk_type_t pk_alg = MBEDTLS_PK_NONE;
-      mbedtls_asn1_buf alg_oid;
-      mbedtls_asn1_buf alg_params;
-      rc = mbedtls_asn1_get_alg(&p, end, &alg_oid, &alg_params);
-      if (rc != 0)
-      {
-        throw std::logic_error(
-          fmt::format("mbedtls_asn1_get_alg failed: {}", error_string(rc)));
-      }
-
-      if (memcmp(x25519_oid, alg_oid.p, x25519_oid_len) != 0)
-      {
-        throw std::logic_error("parse_25519_public(): Key is not x25519");
-      }
-
-      rc = mbedtls_asn1_get_bitstring_null(&p, end, &len);
-      if (rc != 0)
-      {
-        throw std::logic_error(
-          fmt::format("mbedtls_asn1_get_tag failed: {}", error_string(rc)));
-      }
-
-      std::vector<uint8_t> public_raw(p, end);
+      std::vector<uint8_t> public_raw(
+        raw_public_key, raw_public_key + raw_public_key_size);
       mbedtls_pem_free(&pem);
 
       return public_raw;
