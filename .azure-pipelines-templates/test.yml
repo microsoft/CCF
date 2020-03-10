@@ -4,8 +4,7 @@ parameters:
 
 steps:
 - script: |
-    ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }} -I 1,,2 &
-    ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }} -I 2,,2 &
+    ./tests.sh -VV --timeout 240 -j 2 --no-compress-output -T Test ${{ parameters.ctest_filter }}
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
   displayName: CTest

@@ -13,6 +13,8 @@ project(
 
 set(ENV{BETTER_EXCEPTIONS} 1)
 
+configure_file(CTestCustom.cmake ${CMAKE_BINARY_DIR}/CTestCustom.cmake COPYONLY)
+
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
