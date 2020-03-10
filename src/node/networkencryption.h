@@ -29,11 +29,6 @@ namespace ccf
       }
     }
 
-    std::vector<uint8_t> get_private_raw()
-    {
-      return private_raw;
-    }
-
     std::vector<uint8_t> get_public_pem()
     {
       return tls::PublicX25519::write(

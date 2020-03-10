@@ -419,7 +419,7 @@ namespace ccf
     NetworkTables& network;
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
-    // For now, shares are stored in enclave memory
+    // For now, shares are not stored in the KV
     std::vector<SecretSharing::Share> pending_shares;
 
     static constexpr auto SIZE_NONCE = 16;
@@ -765,19 +765,24 @@ namespace ccf
           if (!key_share_info.has_value())
           {
             return make_error(
-              HTTP_STATUS_BAD_REQUEST, "No key share info available");
+              HTTP_STATUS_INTERNAL_SERVER_ERROR, "No key share info available");
           }
           std::vector<uint8_t> decrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
           crypto::GcmCipher encrypted_ls;
           encrypted_ls.deserialise(key_share_info->encrypted_ledger_secret);
-
-          crypto::KeyAesGcm(share_wrapping_key.data)
-            .decrypt(
-              encrypted_ls.hdr.get_iv(),
-              encrypted_ls.hdr.tag,
-              encrypted_ls.cipher,
-              nullb,
-              decrypted_ls.data());
+          if (!crypto::KeyAesGcm(share_wrapping_key.data)
+                 .decrypt(
+                   encrypted_ls.hdr.get_iv(),
+                   encrypted_ls.hdr.tag,
+                   encrypted_ls.cipher,
+                   nullb,
+                   decrypted_ls.data()))
+          {
+            LOG_FAIL_FMT("Decryption of ledger secrets failed");
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "Decryption of ledger secrets failed");
+          }
 
           pending_shares.clear();
           return make_success(true);
