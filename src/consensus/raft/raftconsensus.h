@@ -120,7 +120,7 @@ namespace raft
 
     ConsensusType type() override
     {
-      return ConsensusType::Raft;
+      return ConsensusType::RAFT;
     }
   };
 }

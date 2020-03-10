@@ -704,6 +704,8 @@ namespace ccf
           g.add_member(cert, k_encryption_key);
         }
 
+        g.add_consensus(in.consensus_type);
+
         node.split_ledger_secrets(tx);
 
         size_t self = g.add_node({in.node_info_network,

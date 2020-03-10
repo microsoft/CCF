@@ -80,6 +80,12 @@ namespace ccf
       }
     }
 
+    auto add_consensus(ConsensusType consensus_type)
+    {
+      auto cv = tx.get_view(tables.consensus);
+      cv->put(0, consensus_type);
+    }
+
     auto add_member(
       const std::vector<uint8_t>& member_cert_pem,
       const std::vector<uint8_t>& member_keyshare_pub,

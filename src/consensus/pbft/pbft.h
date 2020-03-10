@@ -622,7 +622,7 @@ namespace pbft
 
     ConsensusType type() override
     {
-      return ConsensusType::Pbft;
+      return ConsensusType::PBFT;
     }
   };
 }

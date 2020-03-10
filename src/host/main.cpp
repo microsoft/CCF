@@ -392,11 +392,11 @@ int main(int argc, char** argv)
   ccf_config.domain = domain;
   if (consensus == "raft")
   {
-    consensus_type = ConsensusType::Raft;
+    consensus_type = ConsensusType::RAFT;
   }
   else if (consensus == "pbft")
   {
-    consensus_type = ConsensusType::Pbft;
+    consensus_type = ConsensusType::PBFT;
   }
 
   if (*start)

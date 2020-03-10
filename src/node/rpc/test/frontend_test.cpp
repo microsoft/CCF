@@ -223,7 +223,7 @@ NetworkState network;
 NetworkState network2;
 auto encryptor = std::make_shared<NullTxEncryptor>();
 
-NetworkState pbft_network(ConsensusType::Pbft);
+NetworkState pbft_network(ConsensusType::PBFT);
 auto history_kp = tls::make_key_pair();
 
 auto history = std::make_shared<NullTxHistory>(
@@ -373,7 +373,7 @@ void add_callers_pbft_store()
   pbft_network.tables->clear();
   pbft_network.tables->set_history(history);
   auto backup_consensus =
-    std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::Pbft);
+    std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::PBFT);
   pbft_network.tables->set_consensus(backup_consensus);
 
   GenesisGenerator g(pbft_network, gen_tx);
