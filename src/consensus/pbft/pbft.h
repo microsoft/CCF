@@ -18,6 +18,7 @@
 #include "enclave/rpcsessions.h"
 #include "host/ledger.h"
 #include "kv/kvtypes.h"
+#include "node/encryptor.h"
 #include "node/nodetypes.h"
 
 #include <list>
@@ -53,6 +54,7 @@ namespace pbft
     SeqNo* global_commit_seqno;
     View* last_commit_view;
     std::vector<ViewChangeInfo>* view_change_list;
+    kv::AbstractTxEncryptor* encryptor;
   } register_global_commit_ctx;
 
   struct RollbackInfo
@@ -220,6 +222,7 @@ namespace pbft
     SeqNo global_commit_seqno;
     View last_commit_view;
     std::unique_ptr<pbft::PbftStore> store;
+    std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     Index latest_stable_ae_index = 0;
 
@@ -241,11 +244,14 @@ namespace pbft
       pbft::PrePreparesMap& pbft_pre_prepares_map,
       const std::string& privk_pem,
       const std::vector<uint8_t>& cert,
-      const consensus::Config& consensus_config) :
+      const consensus::Config& consensus_config,
+      std::shared_ptr<kv::AbstractTxEncryptor> encryptor_ =
+        std::make_shared<ccf::NullTxEncryptor>()) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
       ledger(std::move(ledger_)),
+      encryptor(encryptor_),
       global_commit_seqno(1),
       last_commit_view(0),
       store(std::move(store_)),
@@ -341,11 +347,13 @@ namespace pbft
         if (*gb_info->last_commit_view < view)
         {
           gb_info->view_change_list->emplace_back(view, version);
+          gb_info->encryptor->set_term(view);
         }
         gb_info->store->compact(version);
       };
 
       register_global_commit_ctx.store = store.get();
+      register_global_commit_ctx.encryptor = encryptor.get();
       register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
       register_global_commit_ctx.last_commit_view = &last_commit_view;
       register_global_commit_ctx.view_change_list = &view_change_list;

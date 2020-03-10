@@ -12,8 +12,6 @@
 
 namespace ccf
 {
-  using SeqNo = uint64_t;
-
   // NullTxEncryptor does not decrypt or verify integrity
   class NullTxEncryptor : public kv::AbstractTxEncryptor
   {
@@ -41,6 +39,8 @@ namespace ccf
       return true;
     }
 
+    void set_term(kv::Term term) override {}
+
     size_t get_header_length() override
     {
       return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
@@ -57,10 +57,9 @@ namespace ccf
   class TxEncryptor : public kv::AbstractTxEncryptor
   {
   private:
-    NodeId id;
     bool is_recovery;
 
-    std::atomic<SeqNo> seqNo{0};
+    kv::Term term;
     SpinLock lock;
 
     std::shared_ptr<LedgerSecrets> ledger_secrets;
@@ -85,10 +84,11 @@ namespace ccf
 
     std::list<EncryptionKey> encryption_keys;
 
-    void set_iv(crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr)
+    void set_iv(
+      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version version)
     {
-      gcm_hdr.set_iv_id(id);
-      gcm_hdr.set_iv_seq(seqNo.fetch_add(1));
+      gcm_hdr.set_iv_term(term);
+      gcm_hdr.set_iv_seq(version);
     }
 
     const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
@@ -115,11 +115,8 @@ namespace ccf
     }
 
   public:
-    TxEncryptor(
-      NodeId id_,
-      std::shared_ptr<LedgerSecrets> ls,
-      bool is_recovery_ = false) :
-      id(id_),
+    TxEncryptor(std::shared_ptr<LedgerSecrets> ls, bool is_recovery_ = false) :
+      term(0),
       ledger_secrets(ls),
       is_recovery(is_recovery_)
     {
@@ -155,7 +152,13 @@ namespace ccf
       cipher.resize(plain.size());
 
       // Set IV
-      set_iv(gcm_hdr);
+      set_iv(gcm_hdr, version);
+
+      LOG_INFO_FMT(
+        "encrypt version {} term {} iv {}",
+        version,
+        term,
+        gcm_hdr.get_iv_int());
 
       get_encryption_key(version).encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
@@ -186,6 +189,11 @@ namespace ccf
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
+      LOG_INFO_FMT(
+        "decrypt version {} term {} iv {}",
+        version,
+        term,
+        gcm_hdr.get_iv_int());
       auto ret = get_encryption_key(version).decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 
@@ -193,6 +201,12 @@ namespace ccf
         plain.resize(0);
 
       return ret;
+    }
+
+    void set_term(kv::Term term_) override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      term = term_;
     }
 
     /**

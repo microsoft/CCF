@@ -273,9 +273,9 @@ namespace ccf
 
           self = 0; // The first node id is always 0
 
+          setup_encryptor(network.consensus_type);
           setup_consensus(network.consensus_type, args.config);
           setup_history();
-          setup_encryptor(network.consensus_type);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -411,9 +411,9 @@ namespace ccf
                 resp.consensus_type));
             }
 
+            setup_encryptor(resp.consensus_type);
             setup_consensus(resp.consensus_type, args.config, resp.public_only);
             setup_history();
-            setup_encryptor(resp.consensus_type);
 
             open_member_frontend();
 
@@ -763,7 +763,7 @@ namespace ccf
       else
       {
         recovery_encryptor =
-          std::make_shared<TxEncryptor>(self, network.ledger_secrets, true);
+          std::make_shared<TxEncryptor>(network.ledger_secrets, true);
       }
 #endif
 
@@ -1443,6 +1443,7 @@ namespace ccf
         self,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
+        encryptor,
         public_only);
 
       consensus = std::make_shared<RaftConsensusType>(std::move(raft));
@@ -1523,16 +1524,17 @@ namespace ccf
       encryptor = std::make_shared<NullTxEncryptor>();
 #else
 
-      if (consensus_type == ConsensusType::PBFT)
-      {
-        // for now do not encrypt the ledger as the current implementation does
-        // not work for PBFT
-        encryptor = std::make_shared<NullTxEncryptor>();
-      }
-      else
-      {
-        encryptor = std::make_shared<TxEncryptor>(self, network.ledger_secrets);
-      }
+      // if (consensus_type == ConsensusType::PBFT)
+      // {
+      //   // for now do not encrypt the ledger as the current implementation
+      //   does
+      //   // not work for PBFT
+      //   encryptor = std::make_shared<NullTxEncryptor>();
+      // }
+      // else
+      // {
+      encryptor = std::make_shared<TxEncryptor>(network.ledger_secrets);
+      // }
 #endif
 
       network.tables->set_encryptor(encryptor);
@@ -1604,7 +1606,8 @@ namespace ccf
           pbft::Tables::PBFT_PRE_PREPARES),
         node_sign_kp->private_key_pem().str(),
         node_cert,
-        consensus_config);
+        consensus_config,
+        encryptor);
 
       network.tables->set_consensus(consensus);
 
