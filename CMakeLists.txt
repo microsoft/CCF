@@ -435,6 +435,15 @@ if(BUILD_TESTS)
   )
   set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
+  # Add and remove nodes
+  if(QUOTES_ENABLED)
+    add_e2e_test(
+      NAME reconfiguration_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS raft
+    )
+  endif()
+
   # Storing signed governance operations
   add_e2e_test(
     NAME governance_history_test
@@ -542,12 +551,6 @@ if(BUILD_TESTS)
   )
 
   if(QUOTES_ENABLED)
-    add_e2e_test(
-      NAME reconfiguration_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS raft
-    )
-
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
