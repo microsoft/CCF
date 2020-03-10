@@ -753,18 +753,8 @@ namespace ccf
       // Recovery encryptor should not seal ledger secrets on compaction.
       // Since private ledger recovery is done in a temporary store, ledger
       // secrets are only sealed once the recovery is successful.
-
-      if (network.consensus_type == ConsensusType::PBFT)
-      {
-        // for now do not encrypt the ledger as the current implementation does
-        // not work for PBFT
-        recovery_encryptor = std::make_shared<NullTxEncryptor>();
-      }
-      else
-      {
-        recovery_encryptor =
-          std::make_shared<TxEncryptor>(network.ledger_secrets, true);
-      }
+      recovery_encryptor =
+        std::make_shared<TxEncryptor>(network.ledger_secrets, true);
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -1523,18 +1513,7 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<NullTxEncryptor>();
 #else
-
-      // if (consensus_type == ConsensusType::PBFT)
-      // {
-      //   // for now do not encrypt the ledger as the current implementation
-      //   does
-      //   // not work for PBFT
-      //   encryptor = std::make_shared<NullTxEncryptor>();
-      // }
-      // else
-      // {
       encryptor = std::make_shared<TxEncryptor>(network.ledger_secrets);
-      // }
 #endif
 
       network.tables->set_encryptor(encryptor);
