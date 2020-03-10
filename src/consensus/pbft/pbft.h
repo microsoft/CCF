@@ -347,7 +347,7 @@ namespace pbft
         if (*gb_info->last_commit_view < view)
         {
           gb_info->view_change_list->emplace_back(view, version);
-          gb_info->encryptor->set_term(view);
+          gb_info->encryptor->set_view(view);
         }
         gb_info->store->compact(version);
       };

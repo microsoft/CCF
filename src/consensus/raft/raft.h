@@ -1004,7 +1004,7 @@ namespace raft
       if (commit_idx)
         rollback(commit_idx);
 
-      encryptor->set_term(current_term);
+      encryptor->set_view(current_term);
 
       committable_indices.clear();
       state = Leader;

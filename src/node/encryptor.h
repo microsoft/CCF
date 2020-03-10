@@ -12,6 +12,7 @@
 
 namespace ccf
 {
+  using View = kv::Consensus::View;
   // NullTxEncryptor does not decrypt or verify integrity
   class NullTxEncryptor : public kv::AbstractTxEncryptor
   {
@@ -39,7 +40,7 @@ namespace ccf
       return true;
     }
 
-    void set_term(kv::Term term) override {}
+    void set_view(View view_) override {}
 
     size_t get_header_length() override
     {
@@ -59,7 +60,7 @@ namespace ccf
   private:
     bool is_recovery;
 
-    kv::Term term;
+    View view;
     SpinLock lock;
 
     std::shared_ptr<LedgerSecrets> ledger_secrets;
@@ -87,7 +88,7 @@ namespace ccf
     void set_iv(
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version version)
     {
-      gcm_hdr.set_iv_term(term);
+      gcm_hdr.set_iv_view(view);
       gcm_hdr.set_iv_seq(version);
     }
 
@@ -116,7 +117,7 @@ namespace ccf
 
   public:
     TxEncryptor(std::shared_ptr<LedgerSecrets> ls, bool is_recovery_ = false) :
-      term(0),
+      view(0),
       ledger_secrets(ls),
       is_recovery(is_recovery_)
     {
@@ -203,10 +204,9 @@ namespace ccf
       return ret;
     }
 
-    void set_term(kv::Term term_) override
+    void set_view(View view_) override
     {
-      std::lock_guard<SpinLock> guard(lock);
-      term = term_;
+      view = view_;
     }
 
     /**

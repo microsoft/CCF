@@ -34,10 +34,10 @@ namespace crypto
       memcpy(iv, data.data() + sizeof(tag), sizeof(iv));
     }
 
-    void set_iv_term(uint64_t term)
+    void set_iv_view(uint64_t view)
     {
       *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
-        static_cast<uint32_t>(term);
+        static_cast<uint32_t>(view);
     }
 
     void set_iv_seq(uint64_t seq)
