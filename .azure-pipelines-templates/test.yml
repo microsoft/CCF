@@ -12,7 +12,7 @@ steps:
 
 - script: |
     cat Testing/Temporary/LastTest.log
-  displayname: Test Output
+  displayName: Test Output
   condition: succeededOrFailed()
 
 # If a test fails, crudely upload nodes' logs for all tests
