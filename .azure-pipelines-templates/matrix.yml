@@ -44,7 +44,7 @@ parameters:
     san:
       cmake_args: '-DSAN=ON'
     perf:
-      cmake_args: '-DVERBOSE_LOGGING=ON -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
+      cmake_args: '-DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
 
   test:
     NoSGX:
