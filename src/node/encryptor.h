@@ -155,12 +155,6 @@ namespace ccf
       // Set IV
       set_iv(gcm_hdr, version);
 
-      LOG_INFO_FMT(
-        "encrypt version {} term {} iv {}",
-        version,
-        term,
-        gcm_hdr.get_iv_int());
-
       get_encryption_key(version).encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
@@ -190,11 +184,6 @@ namespace ccf
       gcm_hdr.deserialise(serialised_header);
       plain.resize(cipher.size());
 
-      LOG_INFO_FMT(
-        "decrypt version {} term {} iv {}",
-        version,
-        term,
-        gcm_hdr.get_iv_int());
       auto ret = get_encryption_key(version).decrypt(
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 
