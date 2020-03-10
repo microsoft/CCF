@@ -769,7 +769,16 @@ namespace ccf
           }
           std::vector<uint8_t> decrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
           crypto::GcmCipher encrypted_ls;
-          encrypted_ls.deserialise(key_share_info->encrypted_ledger_secret);
+          try
+          {
+            encrypted_ls.deserialise(key_share_info->encrypted_ledger_secret);
+          }
+          catch (const std::logic_error& e)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "Failed to deserialise ledger secrets");
+          }
           if (!crypto::KeyAesGcm(share_wrapping_key.data)
                  .decrypt(
                    encrypted_ls.hdr.get_iv(),
