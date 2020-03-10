@@ -101,7 +101,7 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node.create({start_type, consensus_type, ccf_config});
+      auto r = node.create({start_type, ccf_config});
       if (!r.second)
         return false;
 
@@ -238,7 +238,7 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node.join({consensus_type, ccf_config});
+          node.join({ccf_config});
         }
         else if (start_type == StartType::Recover)
         {

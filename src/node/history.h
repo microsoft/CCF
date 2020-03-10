@@ -493,7 +493,7 @@ namespace ccf
         return;
       }
 
-      if (consensus->type() == ConsensusType::Raft)
+      if (consensus->type() == ConsensusType::RAFT)
       {
         auto version = store.next_version();
         auto view = consensus->get_view();
@@ -558,7 +558,7 @@ namespace ccf
 
       auto consensus = store.get_consensus();
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
+      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
         if (on_result.has_value())
         {
@@ -574,7 +574,7 @@ namespace ccf
     {
       auto consensus = store.get_consensus();
 
-      if (consensus != nullptr && consensus->type() == ConsensusType::Pbft)
+      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
         if (on_result.has_value())
         {

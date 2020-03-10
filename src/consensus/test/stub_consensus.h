@@ -17,7 +17,7 @@ namespace kv
     ConsensusType consensus_type;
 
   public:
-    StubConsensus(ConsensusType consensus_type_ = ConsensusType::Raft) :
+    StubConsensus(ConsensusType consensus_type_ = ConsensusType::RAFT) :
       Consensus(0),
       replica(),
       consensus_type(consensus_type_)
@@ -116,7 +116,7 @@ namespace kv
   class BackupStubConsensus : public StubConsensus
   {
   public:
-    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::Raft) :
+    BackupStubConsensus(ConsensusType consensus_type = ConsensusType::RAFT) :
       StubConsensus(consensus_type)
     {}
 
@@ -134,7 +134,7 @@ namespace kv
   class PrimaryStubConsensus : public StubConsensus
   {
   public:
-    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::Raft) :
+    PrimaryStubConsensus(ConsensusType consensus_type = ConsensusType::RAFT) :
       StubConsensus(consensus_type)
     {}
 

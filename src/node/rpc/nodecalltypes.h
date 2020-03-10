@@ -62,6 +62,7 @@ namespace ccf
       std::vector<uint8_t> public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
+      ConsensusType consensus_type = ConsensusType::RAFT;
     };
   };
 
@@ -72,6 +73,7 @@ namespace ccf
       NodeInfoNetwork node_info_network;
       std::vector<uint8_t> quote;
       std::vector<uint8_t> public_encryption_key;
+      ConsensusType consensus_type = ConsensusType::RAFT;
     };
 
     struct Out
@@ -79,6 +81,7 @@ namespace ccf
       NodeStatus node_status;
       NodeId node_id;
       bool public_only;
+      ConsensusType consensus_type = ConsensusType::RAFT;
 
       struct NetworkInfo
       {
