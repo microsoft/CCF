@@ -16,6 +16,7 @@ steps:
     ls Testing/Temporary
     cat Testing/Temporary/LastTest.log
   displayName: Test Output
+  workingDirectory: build
   condition: succeededOrFailed()
 
 # If a test fails, crudely upload nodes' logs for all tests
