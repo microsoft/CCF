@@ -27,6 +27,8 @@ namespace metrics
     histogram::Global<Hist> global =
       histogram::Global<Hist>("histogram", __FILE__, __LINE__);
     Hist histogram = Hist(global);
+    std::array<uint64_t, 100> times = {0};
+
 
     ccf::GetMetrics::HistogramResults get_histogram_results()
     {
@@ -79,8 +81,6 @@ namespace metrics
 
       return result;
     }
-
-    std::array<uint64_t, 100> times = {0};
 
     void track_tx_rates(
       const std::chrono::milliseconds& elapsed, size_t tx_count)
