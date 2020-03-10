@@ -5,13 +5,15 @@ parameters:
 steps:
 - script: |
     ./tests.sh --timeout 240 -j 2 --no-compress-output -T Test ${{ parameters.ctest_filter }}
-    ls Testing
-    ls Testing/Temporary
-    cat Testing/Temporary/LastTest.log
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
   displayName: CTest
   workingDirectory: build
+
+- script: |
+    cat Testing/Temporary/LastTest.log
+  displayname: Test Output
+  condition: succeededOrFailed()
 
 # If a test fails, crudely upload nodes' logs for all tests
 - task: CopyFiles@2
