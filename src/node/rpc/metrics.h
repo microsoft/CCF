@@ -29,7 +29,6 @@ namespace metrics
     Hist histogram = Hist(global);
     std::array<uint64_t, 100> times = {0};
 
-
     ccf::GetMetrics::HistogramResults get_histogram_results()
     {
       ccf::GetMetrics::HistogramResults result;

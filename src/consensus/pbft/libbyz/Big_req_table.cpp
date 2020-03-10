@@ -198,7 +198,8 @@ bool Big_req_table::add_unmatched(BR_entry* e, Request*& old_req)
 
   if (centry.num_requests >= Max_unmatched_requests_per_client)
   {
-    LOG_FAIL_FMT("Too many Requests pending from client: {}", e->r->client_id());
+    LOG_FAIL_FMT(
+      "Too many Requests pending from client: {}", e->r->client_id());
     old_req = centry.list.pop_tail()->r;
   }
   else

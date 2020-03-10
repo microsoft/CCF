@@ -9,11 +9,7 @@
 #include "Pre_prepare.h"
 #include "Request.h"
 
-Req_queue::Req_queue() :
-  reqs(Max_num_replicas),
-  nelems(0),
-  nbytes(0)
-{}
+Req_queue::Req_queue() : reqs(Max_num_replicas), nelems(0), nbytes(0) {}
 
 bool Req_queue::append(Request* r)
 {
@@ -57,13 +53,13 @@ Request* Req_queue::remove()
   tcount = std::max(tcount, (uint32_t)1);
 
   bool found = false;
-  for (uint i = 0; i < tcount; ++i)
+  for (uint32_t i = 0; i < tcount; ++i)
   {
-      if (!rnodes[count % tcount].is_empty())
-      {
-        found = true;
-        break;
-      }
+    if (!rnodes[count % tcount].is_empty())
+    {
+      found = true;
+      break;
+    }
     count++;
   }
 
@@ -100,7 +96,8 @@ bool Req_queue::remove(int cid, Request_id rid)
   bool ret = false;
   if (rn->prev == nullptr)
   {
-    PBFT_ASSERT(rnodes[rn->r->user_id()].get_head() == rn.get(), "Invalid state");
+    PBFT_ASSERT(
+      rnodes[rn->r->user_id()].get_head() == rn.get(), "Invalid state");
     rnodes[rn->r->user_id()].remove(rn.get());
     ret = true;
   }
@@ -121,7 +118,8 @@ void Req_queue::clear()
   reqs.clear();
   for (uint32_t i = 0; i < tcount; ++i)
   {
-    while(!rnodes[i].is_empty()){
+    while (!rnodes[i].is_empty())
+    {
       rnodes[i].pop();
     }
   }

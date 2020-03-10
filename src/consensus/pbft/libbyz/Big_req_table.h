@@ -7,8 +7,8 @@
 
 #include "Digest.h"
 #include "Req_queue.h"
-#include "ds/thread_messaging.h"
 #include "ds/dllist.h"
+#include "ds/thread_messaging.h"
 #include "types.h"
 
 #include <list>

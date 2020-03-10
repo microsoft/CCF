@@ -6,13 +6,13 @@
 #pragma once
 
 #include "Request.h"
+#include "ds/dllist.h"
+#include "ds/thread_messaging.h"
 #include "pbft_assert.h"
 #include "types.h"
-#include "ds/thread_messaging.h"
-#include "ds/dllist.h"
 
-#include <unordered_map>
 #include <algorithm>
+#include <unordered_map>
 
 class Req_queue
 {
@@ -86,7 +86,8 @@ private:
     }
   };
   std::unordered_map<Key, std::unique_ptr<RNode>, KeyHash> reqs;
-  mutable snmalloc::DLList<RNode> rnodes[enclave::ThreadMessaging::max_num_threads];
+  mutable snmalloc::DLList<RNode>
+    rnodes[enclave::ThreadMessaging::max_num_threads];
   mutable uint64_t count = 0;
 
   int nelems; // Number of elements in queue

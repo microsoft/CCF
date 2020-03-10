@@ -1,3 +1,5 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
 #pragma once
 
 #include <cassert>
@@ -19,7 +21,7 @@ namespace snmalloc
    * Invalid pointer class.  This is similar to `std::nullptr_t`, but allows
    * other values.
    */
-  template<address_t Sentinel>
+  template <address_t Sentinel>
   struct InvalidPointer
   {
     /**
@@ -27,7 +29,7 @@ namespace snmalloc
      * are always the same, invalid pointer values with different sentinels are
      * always different.
      */
-    template<uintptr_t OtherSentinel>
+    template <uintptr_t OtherSentinel>
     constexpr bool operator==(const InvalidPointer<OtherSentinel>&)
     {
       return Sentinel == OtherSentinel;
@@ -37,7 +39,7 @@ namespace snmalloc
      * are always the same, invalid pointer values with different sentinels are
      * always different.
      */
-    template<uintptr_t OtherSentinel>
+    template <uintptr_t OtherSentinel>
     constexpr bool operator!=(const InvalidPointer<OtherSentinel>&)
     {
       return Sentinel != OtherSentinel;
@@ -48,7 +50,7 @@ namespace snmalloc
      * provenance-free integer and so will trap if dereferenced, on other
      * systems the sentinel should be a value in unmapped memory.
      */
-    template<typename T>
+    template <typename T>
     operator T*() const
     {
       return reinterpret_cast<T*>(Sentinel);
@@ -62,7 +64,7 @@ namespace snmalloc
     }
   };
 
-  template<class T, class Terminator = std::nullptr_t>
+  template <class T, class Terminator = std::nullptr_t>
   class DLList
   {
   private:
