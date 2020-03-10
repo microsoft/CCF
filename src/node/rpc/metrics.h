@@ -60,6 +60,13 @@ namespace metrics
           result[std::to_string(i)]["duration"] = tx_time_passed[i];
         }
       }
+
+      LOG_INFO << "Printing time series" << std::endl;
+      for (uint32_t i = 0; i < times.size(); ++i)
+      {
+        LOG_INFO << i << " - " << times[i] << std::endl;
+      }
+
       return result;
     }
 
@@ -72,6 +79,8 @@ namespace metrics
 
       return result;
     }
+
+    std::array<uint64_t, 100> times = {0};
 
     void track_tx_rates(
       const std::chrono::milliseconds& elapsed, size_t tx_count)
@@ -91,6 +100,12 @@ namespace metrics
           tx_time_passed[tick_count] = rate_duration;
         }
         tick_count++;
+
+        uint32_t bucket = rate_time_elapsed.count() / 1000.0;
+        if (bucket < times.size())
+        {
+          times[bucket] += tx_count;
+        }
       }
     }
   };
