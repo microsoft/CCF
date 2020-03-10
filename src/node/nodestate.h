@@ -165,7 +165,7 @@ namespace ccf
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
-    raft::Config raft_config;
+    consensus::Config consensus_config;
 
     NetworkState& network;
 
@@ -227,7 +227,7 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      const raft::Config& raft_config_,
+      const consensus::Config& consensus_config_,
       std::shared_ptr<NodeToNode> n2n_channels_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
       std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder_)
@@ -235,7 +235,7 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::uninitialized);
 
-      raft_config = raft_config_;
+      consensus_config = consensus_config_;
       n2n_channels = n2n_channels_;
       // Capture rpc_map to pass to pbft for frontend execution
       rpc_map = rpc_map_;
@@ -273,9 +273,9 @@ namespace ccf
 
           self = 0; // The first node id is always 0
 
-          setup_consensus(args.consensus_type, args.config);
+          setup_consensus(network.consensus_type, args.config);
           setup_history();
-          setup_encryptor(args.consensus_type);
+          setup_encryptor(network.consensus_type);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -317,7 +317,7 @@ namespace ccf
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
 
           setup_history();
-          setup_encryptor(args.consensus_type);
+          setup_encryptor(network.consensus_type);
 
           // Accept members connections for members to finish recovery once the
           // public ledger has been read
@@ -402,9 +402,18 @@ namespace ccf
 
             self = resp.node_id;
 
-            setup_consensus(args.consensus_type, args.config, resp.public_only);
+            if (resp.consensus_type != network.consensus_type)
+            {
+              throw std::logic_error(fmt::format(
+                "Enclave initiated with consensus type {} but target node "
+                "responded with consensus {}",
+                network.consensus_type,
+                resp.consensus_type));
+            }
+
+            setup_consensus(resp.consensus_type, args.config, resp.public_only);
             setup_history();
-            setup_encryptor(args.consensus_type);
+            setup_encryptor(resp.consensus_type);
 
             open_member_frontend();
 
@@ -444,6 +453,7 @@ namespace ccf
       join_params.public_encryption_key =
         node_encrypt_kp->public_key_pem().raw();
       join_params.quote = quote;
+      join_params.consensus_type = network.consensus_type;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}:{}",
@@ -744,7 +754,7 @@ namespace ccf
       // Since private ledger recovery is done in a temporary store, ledger
       // secrets are only sealed once the recovery is successful.
 
-      if (consensus->type() == ConsensusType::Pbft)
+      if (network.consensus_type == ConsensusType::PBFT)
       {
         // for now do not encrypt the ledger as the current implementation does
         // not work for PBFT
@@ -1176,6 +1186,7 @@ namespace ccf
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_params.node_info_network = args.config.node_info_network;
+      create_params.consensus_type = network.consensus_type;
 
       const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
@@ -1271,7 +1282,7 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-      if (args.consensus_type == ConsensusType::Pbft)
+      if (network.consensus_type == ConsensusType::PBFT)
       {
         return true;
       }
@@ -1430,8 +1441,8 @@ namespace ccf
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         self,
-        std::chrono::milliseconds(raft_config.request_timeout),
-        std::chrono::milliseconds(raft_config.election_timeout),
+        std::chrono::milliseconds(consensus_config.raft_request_timeout),
+        std::chrono::milliseconds(consensus_config.raft_election_timeout),
         public_only);
 
       consensus = std::make_shared<RaftConsensusType>(std::move(raft));
@@ -1512,7 +1523,7 @@ namespace ccf
       encryptor = std::make_shared<NullTxEncryptor>();
 #else
 
-      if (consensus_type == ConsensusType::Pbft)
+      if (consensus_type == ConsensusType::PBFT)
       {
         // for now do not encrypt the ledger as the current implementation does
         // not work for PBFT
@@ -1532,11 +1543,11 @@ namespace ccf
       const CCFConfig& config,
       bool public_only = false)
     {
-      if (consensus_type == ConsensusType::Pbft)
+      if (consensus_type == ConsensusType::PBFT)
       {
         setup_pbft(config);
       }
-      else if (consensus_type == ConsensusType::Raft)
+      else if (consensus_type == ConsensusType::RAFT)
       {
         setup_raft(public_only);
       }
@@ -1592,7 +1603,8 @@ namespace ccf
         *network.tables->get<pbft::PrePreparesMap>(
           pbft::Tables::PBFT_PRE_PREPARES),
         node_sign_kp->private_key_pem().str(),
-        node_cert);
+        node_cert,
+        consensus_config);
 
       network.tables->set_consensus(consensus);
 

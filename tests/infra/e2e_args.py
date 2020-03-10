@@ -82,10 +82,16 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         action="store_true",
     )
     parser.add_argument(
-        "--election-timeout",
-        help="Maximum election timeout for each node in the network",
+        "--raft-election-timeout",
+        help="Raft maximum election timeout for each node in the network",
         type=int,
         default=100000,
+    )
+    parser.add_argument(
+        "--pbft-view-change-timeout",
+        help="Pbft maximum view change timeout for each node in the network",
+        type=int,
+        default=5000,
     )
     parser.add_argument(
         "--consensus", help="Consensus", default="raft", choices=("raft", "pbft"),

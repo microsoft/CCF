@@ -5,6 +5,7 @@
 #include "certs.h"
 #include "clientsignatures.h"
 #include "codeid.h"
+#include "consensus.h"
 #include "consensus/pbft/pbftpreprepares.h"
 #include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttables.h"
@@ -74,6 +75,7 @@ namespace ccf
     Values& values;
     Secrets& secrets;
     Signatures& signatures;
+    ConsensusTable& consensus;
 
     //
     // Pbft related tables
@@ -81,9 +83,9 @@ namespace ccf
     pbft::RequestsMap& pbft_requests_map;
     pbft::PrePreparesMap& pbft_pre_prepares_map;
 
-    NetworkTables(const ConsensusType& consensus_type = ConsensusType::Raft) :
+    NetworkTables(const ConsensusType& consensus_type = ConsensusType::RAFT) :
       tables(
-        (consensus_type == ConsensusType::Raft) ?
+        (consensus_type == ConsensusType::RAFT) ?
           std::make_shared<Store>(
             raft::replicate_type_raft, raft::replicated_tables_raft) :
           std::make_shared<Store>(
@@ -123,6 +125,8 @@ namespace ccf
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       signatures(tables->create<Signatures>(
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
+      consensus(tables->create<ConsensusTable>(
+        Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
       pbft_requests_map(
         tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       pbft_pre_prepares_map(

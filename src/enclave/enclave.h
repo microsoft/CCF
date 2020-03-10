@@ -43,7 +43,7 @@ namespace enclave
       EnclaveConfig* enclave_config,
       const CCFConfig::SignatureIntervals& signature_intervals,
       const ConsensusType& consensus_type_,
-      const raft::Config& raft_config) :
+      const consensus::Config& consensus_config) :
       circuit(enclave_config->circuit),
       basic_writer_factory(*circuit),
       writer_factory(basic_writer_factory, enclave_config->writer_config),
@@ -78,7 +78,7 @@ namespace enclave
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
-      node.initialize(raft_config, n2n_channels, rpc_map, cmd_forwarder);
+      node.initialize(consensus_config, n2n_channels, rpc_map, cmd_forwarder);
     }
 
     bool create_new_node(
@@ -98,7 +98,7 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node.create({start_type, consensus_type, ccf_config});
+      auto r = node.create({start_type, ccf_config});
       if (!r.second)
         return false;
 
@@ -221,7 +221,7 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node.join({consensus_type, ccf_config});
+          node.join({ccf_config});
         }
         else if (start_type == StartType::Recover)
         {

@@ -29,6 +29,9 @@ def run(args):
         network.start_and_join(args)
         primary, term = network.find_primary()
 
+        LOG.debug("Original members can ACK")
+        result = network.consortium.ack(0, primary)
+
         LOG.debug("Network should not be able to be opened twice")
         script = """
         tables = ...

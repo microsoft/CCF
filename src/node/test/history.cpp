@@ -182,7 +182,7 @@ TEST_CASE("Check signing works across rollback")
   }
 
   primary_store.rollback(1);
-  if (consensus->type() == ConsensusType::Pbft)
+  if (consensus->type() == ConsensusType::PBFT)
   {
     backup_store.rollback(1);
   }
@@ -190,7 +190,7 @@ TEST_CASE("Check signing works across rollback")
   INFO("Issue signature, and verify successfully on backup");
   {
     primary_history->emit_signature();
-    if (consensus->type() == ConsensusType::Pbft)
+    if (consensus->type() == ConsensusType::PBFT)
     {
       REQUIRE(backup_store.current_version() == 1);
     }

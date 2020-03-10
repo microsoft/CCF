@@ -546,7 +546,8 @@ class CCFRemote(object):
         host_log_level="info",
         sig_max_tx=1000,
         sig_max_ms=1000,
-        election_timeout=1000,
+        raft_election_timeout=1000,
+        pbft_view_change_timeout=5000,
         consensus="raft",
         worker_threads=0,
         memory_reserve_startup=0,
@@ -584,6 +585,12 @@ class CCFRemote(object):
         # to reference the destination file locally in the target workspace.
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
+        election_timeout_arg = (
+            f"--pbft_view-change-timeout-ms={pbft_view_change_timeout}"
+            if consensus == "pbft"
+            else f"--raft-election-timeout-ms={raft_election_timeout}"
+        )
+
         cmd = [
             self.BIN,
             f"--enclave-file={enclave_path}",
@@ -594,7 +601,7 @@ class CCFRemote(object):
             f"--ledger-file={self.ledger_file_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
-            f"--raft-election-timeout-ms={election_timeout}",
+            election_timeout_arg,
             f"--consensus={consensus}",
             f"--worker_threads={worker_threads}",
         ]

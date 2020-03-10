@@ -118,6 +118,7 @@ namespace ccf
           JoinNetworkNodeToNode::Out({node_status,
                                       joining_node_id,
                                       node.is_part_of_public_network(),
+                                      this->network.consensus_type,
                                       {*this->network.ledger_secrets.get(),
                                        *this->network.identity.get(),
                                        this->network.encryption_priv_key}}));
@@ -154,6 +155,17 @@ namespace ccf
             "Target node should be part of network to accept new nodes");
         }
 
+        if (this->network.consensus_type != in.consensus_type)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            fmt::format(
+              "Node requested to join with consensus type {} but "
+              "current consensus type is {}",
+              in.consensus_type,
+              this->network.consensus_type));
+        }
+
         auto [nodes_view, service_view] =
           args.tx.get_view(this->network.nodes, this->network.service);
 
@@ -186,6 +198,7 @@ namespace ccf
               {joining_node_status,
                existing_node_id.value(),
                node.is_part_of_public_network(),
+               this->network.consensus_type,
                {*this->network.ledger_secrets.get(),
                 *this->network.identity.get(),
                 this->network.encryption_priv_key}}));
@@ -211,6 +224,7 @@ namespace ccf
               {node_status,
                existing_node_id.value(),
                node.is_part_of_public_network(),
+               this->network.consensus_type,
                {*this->network.ledger_secrets.get(),
                 *this->network.identity.get(),
                 this->network.encryption_priv_key}}));
