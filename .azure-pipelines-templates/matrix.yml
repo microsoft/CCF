@@ -89,7 +89,7 @@ jobs:
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
         suffix: 'Debug'
         artifact_name: 'Build_${{ target }}_Debug'
-        depends_on: '$ {{ parameters.static_check_job_name }}'
+        depends_on: '${{ parameters.static_check_job_name }}'
 
   # Debug test runs with code coverage
   - ${{ each target in parameters.target }}:
@@ -113,7 +113,7 @@ jobs:
       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
       suffix: 'SAN'
       artifact_name: 'Build_NoSGX_SAN'
-      depends_on: '$ {{ parameters.static_check_job_name }}'
+      depends_on: '${{ parameters.static_check_job_name }}'
 
   # SAN Tests
   - ${{ each consensus in parameters.consensus }}:
@@ -136,7 +136,7 @@ jobs:
       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
       suffix: 'Perf'
       artifact_name: 'Build_SGX_Perf'
-      depends_on: '$ {{ parameters.static_check_job_name }}'
+      depends_on: '${{ parameters.static_check_job_name }}'
 
   # Performance tests
   - ${{ each consensus in parameters.consensus }}:
