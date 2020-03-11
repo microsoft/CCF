@@ -115,7 +115,6 @@ void Req_queue::clear()
 {
   uint32_t tcount = enclave::ThreadMessaging::thread_count;
   tcount = std::max(tcount, (uint32_t)1);
-  reqs.clear();
   for (uint32_t i = 0; i < tcount; ++i)
   {
     while (!rnodes[i].is_empty())
