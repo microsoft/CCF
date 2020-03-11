@@ -44,7 +44,7 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
     signature s(d, pbft::GlobalState::get_node().id());
 
     rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
-      (char*)&s, sizeof(s), rep().batch_digest_signature);
+      reinterpret_cast<char*>(&s), sizeof(s), rep().batch_digest_signature);
   }
   else
   {

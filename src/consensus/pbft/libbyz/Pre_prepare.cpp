@@ -22,10 +22,14 @@ Pre_prepare::Pre_prepare(
   Prepared_cert* prepared_cert) :
   Message(
     Pre_prepare_tag,
-    sizeof(Pre_prepare_rep) + sizeof(Digest) * Max_requests_in_batch +
-      pbft_max_signature_size + pbft::GlobalState::get_node().auth_size() +
+    sizeof(Pre_prepare_rep) +
+      sizeof(Digest) * Max_requests_in_batch + // Message header + max number of
+                                               // messages in a pre_prepare
+      pbft_max_signature_size +
+      pbft::GlobalState::get_node().auth_size() + // Merkle root signature
       (pbft_max_signature_size + sizeof(uint64_t)) *
-        pbft::GlobalState::get_node().num_of_replicas())
+        pbft::GlobalState::get_node()
+          .num_of_replicas()) // signatures for the previous pre_prepare
 {
   rep().view = v;
   rep().seqno = s;
