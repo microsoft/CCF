@@ -8,8 +8,7 @@
 #include "Digest.h"
 #include "Req_queue.h"
 #include "ds/thread_messaging.h"
-#include "snmalloc/src/ds/address.h"
-#include "snmalloc/src/ds/dllist.h"
+#include "ds/dllist.h"
 #include "types.h"
 
 #include <list>
