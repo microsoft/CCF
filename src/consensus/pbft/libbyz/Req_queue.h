@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include "snmalloc/src/ds/address.h"
-#include "snmalloc/src/ds/dllist.h"
 #include "Request.h"
 #include "ds/thread_messaging.h"
 #include "pbft_assert.h"
+#include "snmalloc/src/ds/address.h"
+#include "snmalloc/src/ds/dllist.h"
 #include "types.h"
 
 #include <algorithm>
