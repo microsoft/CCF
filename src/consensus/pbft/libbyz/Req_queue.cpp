@@ -9,19 +9,13 @@
 #include "Pre_prepare.h"
 #include "Request.h"
 
-Req_queue::Req_queue() :
-  reqs(Max_num_replicas),
-  head(nullptr),
-  tail(nullptr),
-  nelems(0),
-  nbytes(0)
-{}
+Req_queue::Req_queue() : reqs(Max_num_replicas), nelems(0), nbytes(0) {}
 
 bool Req_queue::append(Request* r)
 {
   size_t cid = r->client_id();
   Request_id rid = r->request_id();
-
+  int user_id = r->user_id();
   auto it = reqs.find({cid, rid});
   if (it == reqs.end())
   {
@@ -30,18 +24,7 @@ bool Req_queue::append(Request* r)
     auto rn = std::make_unique<RNode>();
     rn->r.reset(r);
 
-    if (head == nullptr)
-    {
-      head = tail = rn.get();
-      rn->prev = rn->next = nullptr;
-    }
-    else
-    {
-      tail->next = rn.get();
-      rn->prev = tail;
-      rn->next = nullptr;
-      tail = rn.get();
-    }
+    rnodes[user_id].insert_back(rn.get());
 
     reqs.insert({Key{cid, rid}, std::move(rn)});
     return true;
@@ -66,23 +49,28 @@ bool Req_queue::is_in_rqueue(Request* r)
 
 Request* Req_queue::remove()
 {
-  if (head == nullptr)
+  uint32_t tcount = enclave::ThreadMessaging::thread_count;
+  tcount = std::max(tcount, (uint32_t)1);
+
+  bool found = false;
+  for (uint32_t i = 0; i < tcount; ++i)
+  {
+    if (!rnodes[count % tcount].is_empty())
+    {
+      found = true;
+      break;
+    }
+    count++;
+  }
+
+  if (!found)
   {
     return nullptr;
   }
 
-  Request* ret = head->r.release();
+  auto rn = rnodes[count % tcount].pop();
+  Request* ret = rn->r.release();
   PBFT_ASSERT(ret != 0, "Invalid state");
-
-  head = head->next;
-  if (head != nullptr)
-  {
-    head->prev = nullptr;
-  }
-  else
-  {
-    tail = nullptr;
-  }
 
   nelems--;
   nbytes -= ret->size();
@@ -108,23 +96,14 @@ bool Req_queue::remove(int cid, Request_id rid)
   bool ret = false;
   if (rn->prev == nullptr)
   {
-    PBFT_ASSERT(head == rn.get(), "Invalid state");
-    head = rn->next;
+    PBFT_ASSERT(
+      rnodes[rn->r->user_id()].get_head() == rn.get(), "Invalid state");
+    rnodes[rn->r->user_id()].remove(rn.get());
     ret = true;
   }
   else
   {
     rn->prev->next = rn->next;
-  }
-
-  if (rn->next == nullptr)
-  {
-    PBFT_ASSERT(tail == rn.get(), "Invalid state");
-    tail = rn->prev;
-  }
-  else
-  {
-    rn->next->prev = rn->prev;
   }
 
   reqs.erase(it);
@@ -134,8 +113,18 @@ bool Req_queue::remove(int cid, Request_id rid)
 
 void Req_queue::clear()
 {
+  uint32_t tcount = enclave::ThreadMessaging::thread_count;
+  // There is a corner case when we run the very first transaction that
+  // thread_count can be 0. The use of std::max is a work around.
+  tcount = std::max(tcount, (uint32_t)1);
+  for (uint32_t i = 0; i < tcount; ++i)
+  {
+    while (!rnodes[i].is_empty())
+    {
+      rnodes[i].pop();
+    }
+  }
   reqs.clear();
-  head = tail = nullptr;
   nelems = nbytes = 0;
 }
 

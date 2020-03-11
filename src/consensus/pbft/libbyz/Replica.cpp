@@ -313,6 +313,7 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
 
     default:
       // Unknown message type.
+      LOG_FAIL_FMT("Unknown message type:{}", Message::get_tag(data));
       delete m;
       return nullptr;
   }
@@ -329,6 +330,11 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
     LOG_FAIL << "Received message size exceeds message: " << size << std::endl;
   }
   Message* m = create_message(data, size);
+  if (m == nullptr)
+  {
+    return;
+  }
+
   uint32_t target_thread = 0;
 
   if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
