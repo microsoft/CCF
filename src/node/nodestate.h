@@ -760,8 +760,17 @@ namespace ccf
       // Recovery encryptor should not seal ledger secrets on compaction.
       // Since private ledger recovery is done in a temporary store, ledger
       // secrets are only sealed once the recovery is successful.
-      recovery_encryptor =
-        std::make_shared<TxEncryptor>(network.ledger_secrets, true);
+
+      if (network.consensus_type == ConsensusType::PBFT)
+      {
+        recovery_encryptor =
+          std::make_shared<PbftTxEncryptor>(network.ledger_secrets, true);
+      }
+      else
+      {
+        recovery_encryptor =
+          std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets, true);
+      }
 #endif
 
       recovery_store->set_history(recovery_history);
@@ -1442,7 +1451,6 @@ namespace ccf
         self,
         std::chrono::milliseconds(consensus_config.raft_request_timeout),
         std::chrono::milliseconds(consensus_config.raft_election_timeout),
-        encryptor,
         public_only);
 
       consensus = std::make_shared<RaftConsensusType>(std::move(raft));
@@ -1522,7 +1530,15 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<NullTxEncryptor>();
 #else
-      encryptor = std::make_shared<TxEncryptor>(network.ledger_secrets);
+      if (network.consensus_type == ConsensusType::PBFT)
+      {
+        encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);
+      }
+      else
+      {
+        encryptor =
+          std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets);
+      }
 #endif
 
       network.tables->set_encryptor(encryptor);
@@ -1594,8 +1610,7 @@ namespace ccf
           pbft::Tables::PBFT_PRE_PREPARES),
         node_sign_kp->private_key_pem().str(),
         node_cert,
-        consensus_config,
-        encryptor);
+        consensus_config);
 
       network.tables->set_consensus(consensus);
 

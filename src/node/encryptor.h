@@ -12,6 +12,7 @@
 
 namespace ccf
 {
+  using SeqNo = uint64_t;
   using View = kv::Consensus::View;
   // NullTxEncryptor does not decrypt or verify integrity
   class NullTxEncryptor : public kv::AbstractTxEncryptor
@@ -59,13 +60,7 @@ namespace ccf
   {
   private:
     bool is_recovery;
-
-    View view;
-    View last_used_view = 0;
-    kv::Version last_used_version = 0;
     SpinLock lock;
-    SpinLock iv_lock;
-
     std::shared_ptr<LedgerSecrets> ledger_secrets;
 
     // Encryption keys are set when TxEncryptor object is created and are used
@@ -88,34 +83,8 @@ namespace ccf
 
     std::list<EncryptionKey> encryption_keys;
 
-    void check_iv_validity(kv::Version version, View view)
-    {
-      // expects iv to be locked
-      if (version <= last_used_version)
-      {
-        if (view <= last_used_view)
-        {
-          throw std::logic_error(fmt::format(
-            "Re-using IV, last used version is {} and last used view is {}",
-            last_used_version,
-            last_used_view));
-        }
-      }
-
-      last_used_version = version;
-      last_used_view = view;
-    }
-
-    void set_iv(
-      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version version)
-    {
-      std::lock_guard<SpinLock> guard(iv_lock);
-
-      check_iv_validity(version, view);
-
-      gcm_hdr.set_iv_view(view);
-      gcm_hdr.set_iv_seq(version);
-    }
+    virtual void set_iv(
+      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version version) = 0;
 
     const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
     {
@@ -142,7 +111,6 @@ namespace ccf
 
   public:
     TxEncryptor(std::shared_ptr<LedgerSecrets> ls, bool is_recovery_ = false) :
-      view(0),
       ledger_secrets(ls),
       is_recovery(is_recovery_)
     {
@@ -220,11 +188,7 @@ namespace ccf
       return ret;
     }
 
-    void set_view(View view_) override
-    {
-      std::lock_guard<SpinLock> guard(iv_lock);
-      view = view_;
-    }
+    void set_view(View view_) override {}
 
     /**
      * Return length of serialised header.
@@ -296,6 +260,56 @@ namespace ccf
           ledger_secrets->seal_secret(k.version);
         }
       }
+    }
+  };
+
+  class RaftTxEncryptor : public TxEncryptor
+  {
+  private:
+    NodeId id;
+    std::atomic<SeqNo> seqNo{0};
+
+  public:
+    RaftTxEncryptor(
+      NodeId id_,
+      std::shared_ptr<LedgerSecrets> ls,
+      bool is_recovery_ = false) :
+      id(id_),
+      TxEncryptor(ls, is_recovery_)
+    {}
+
+    void set_iv(
+      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
+      kv::Version version) override
+    {
+      gcm_hdr.set_iv_id(id);
+      gcm_hdr.set_iv_seq(seqNo.fetch_add(1));
+    }
+  };
+
+  class PbftTxEncryptor : public TxEncryptor
+  {
+  private:
+    View view;
+
+  public:
+    PbftTxEncryptor(
+      std::shared_ptr<LedgerSecrets> ls, bool is_recovery_ = false) :
+      view(0),
+      TxEncryptor(ls, is_recovery_)
+    {}
+
+    void set_view(View view_) override
+    {
+      view = view_;
+    }
+
+    void set_iv(
+      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
+      kv::Version version) override
+    {
+      gcm_hdr.set_iv_id(view);
+      gcm_hdr.set_iv_seq(version);
     }
   };
 }

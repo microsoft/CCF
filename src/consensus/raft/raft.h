@@ -6,7 +6,6 @@
 #include "ds/serialized.h"
 #include "ds/spinlock.h"
 #include "kv/kvtypes.h"
-#include "node/encryptor.h"
 #include "node/nodetypes.h"
 #include "rafttypes.h"
 
@@ -123,7 +122,6 @@ namespace raft
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
-    std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
     std::shared_ptr<ChannelProxy> channels;
 
   public:
@@ -134,8 +132,6 @@ namespace raft
       NodeId id,
       std::chrono::milliseconds request_timeout_,
       std::chrono::milliseconds election_timeout_,
-      std::shared_ptr<kv::AbstractTxEncryptor> encryptor_ =
-        std::make_shared<ccf::NullTxEncryptor>(),
       bool public_only_ = false) :
       store(std::move(store)),
 
@@ -155,7 +151,6 @@ namespace raft
       public_only(public_only_),
 
       ledger(std::move(ledger_)),
-      encryptor(encryptor_),
       channels(channels_),
 
       distrib(-(int)election_timeout_.count(), 0),
@@ -1002,9 +997,9 @@ namespace raft
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
       if (commit_idx)
+      {
         rollback(commit_idx);
-
-      encryptor->set_view(current_term);
+      }
 
       committable_indices.clear();
       state = Leader;

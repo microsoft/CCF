@@ -20,7 +20,7 @@ namespace crypto
     uint8_t iv[SIZE_IV] = {};
 
     // 12 bytes IV with 8 LSB are unique sequence number
-    // and 4 MSB are 4 LSB of View
+    // and 4 MSB are 4 LSB of unique id (Node id or View)
     constexpr static uint8_t IV_DELIMITER = 8;
     constexpr static size_t RAW_DATA_SIZE = sizeof(tag) + sizeof(iv);
 
@@ -34,10 +34,10 @@ namespace crypto
       memcpy(iv, data.data() + sizeof(tag), sizeof(iv));
     }
 
-    void set_iv_view(uint64_t view)
+    void set_iv_id(uint64_t id)
     {
       *reinterpret_cast<uint32_t*>(iv + IV_DELIMITER) =
-        static_cast<uint32_t>(view);
+        static_cast<uint32_t>(id);
     }
 
     void set_iv_seq(uint64_t seq)

@@ -166,6 +166,7 @@ Replica::Replica(
   exec_command = nullptr;
 
   ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
+  encryptor = store.get_encryptor();
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -1282,13 +1283,6 @@ void Replica::register_rollback_cb(
   rollback_info = rb_info;
 }
 
-void Replica::register_view_change_cb(
-  view_change_handler_cb cb, pbft::ViewChangeInfo* vc_info)
-{
-  view_change_cb = cb;
-  view_change_info = vc_info;
-}
-
 template <class T>
 std::unique_ptr<T> Replica::create_message(
   const uint8_t* message_data, size_t data_size)
@@ -1691,9 +1685,9 @@ void Replica::handle(View_change* m)
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
-    if (view_change_cb != nullptr)
+    if (encryptor)
     {
-      view_change_cb(v, view_change_info);
+      encryptor->set_view(v);
     }
     vc_recovering = true;
     send_view_change();
@@ -1744,9 +1738,9 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
-  if (view_change_cb != nullptr)
+  if (encryptor)
   {
-    view_change_cb(v, view_change_info);
+    encryptor->set_view(v);
   }
   cur_primary = v % num_replicas;
   limbo = true;
