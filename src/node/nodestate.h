@@ -796,13 +796,15 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      GenesisGenerator g(network, tx);
-      if (!g.service_wait_for_shares())
+      if (with_shares)
       {
-        return false;
+        GenesisGenerator g(network, tx);
+        if (!g.service_wait_for_shares())
+        {
+          return false;
+        }
       }
-
-      if (!with_shares)
+      else
       {
         LOG_INFO_FMT("Initiating end of recovery (primary)");
 
