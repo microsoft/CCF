@@ -7,5 +7,6 @@ namespace snmalloc
   using address_t = uintptr_t;
 }
 
-#include <assert.h>
 #include "snmalloc/src/ds/dllist.h"
+
+#include <assert.h>
