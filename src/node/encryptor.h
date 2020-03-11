@@ -61,8 +61,10 @@ namespace ccf
     bool is_recovery;
 
     View view;
+    View last_used_view = 0;
+    kv::Version last_used_version = 0;
     SpinLock lock;
-    SpinLock view_lock;
+    SpinLock iv_lock;
 
     std::shared_ptr<LedgerSecrets> ledger_secrets;
 
@@ -86,10 +88,31 @@ namespace ccf
 
     std::list<EncryptionKey> encryption_keys;
 
+    void check_iv_validity(kv::Version version, View view)
+    {
+      // expects iv to be locked
+      if (version <= last_used_version)
+      {
+        if (view <= last_used_view)
+        {
+          throw std::logic_error(fmt::format(
+            "Re-using IV, last used version is {} and last used view is {}",
+            last_used_version,
+            last_used_view));
+        }
+      }
+
+      last_used_version = version;
+      last_used_view = view;
+    }
+
     void set_iv(
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version version)
     {
-      std::lock_guard<SpinLock> guard(view_lock);
+      std::lock_guard<SpinLock> guard(iv_lock);
+
+      check_iv_validity(version, view);
+
       gcm_hdr.set_iv_view(view);
       gcm_hdr.set_iv_seq(version);
     }
@@ -190,14 +213,16 @@ namespace ccf
         gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
 
       if (!ret)
+      {
         plain.resize(0);
+      }
 
       return ret;
     }
 
     void set_view(View view_) override
     {
-      std::lock_guard<SpinLock> guard(view_lock);
+      std::lock_guard<SpinLock> guard(iv_lock);
       view = view_;
     }
 
