@@ -31,9 +31,9 @@ namespace pbft
   using SeqNo = kv::Consensus::SeqNo;
   using View = kv::Consensus::View;
 
-  struct ViewChangeInfo
+  struct ViewChangeHistory
   {
-    ViewChangeInfo(View view_, SeqNo min_global_commit_) :
+    ViewChangeHistory(View view_, SeqNo min_global_commit_) :
       min_global_commit(min_global_commit_),
       view(view_)
     {}
@@ -53,8 +53,7 @@ namespace pbft
     pbft::PbftStore* store;
     SeqNo* global_commit_seqno;
     View* last_commit_view;
-    std::vector<ViewChangeInfo>* view_change_list;
-    kv::AbstractTxEncryptor* encryptor;
+    std::vector<ViewChangeHistory>* view_change_list;
   } register_global_commit_ctx;
 
   struct RollbackInfo
@@ -62,6 +61,11 @@ namespace pbft
     pbft::PbftStore* store;
     consensus::LedgerEnclave* ledger;
   } register_rollback_ctx;
+
+  struct ViewChangeInfo
+  {
+    kv::AbstractTxEncryptor* encryptor;
+  } register_view_change_ctx;
 
   // maps node to last sent index to that node
   using NodesMap = std::unordered_map<NodeId, Index>;
@@ -229,7 +233,7 @@ namespace pbft
     // When this is set, only public domain is deserialised when receving append
     // entries
     bool public_only = false;
-    std::vector<ViewChangeInfo> view_change_list;
+    std::vector<ViewChangeHistory> view_change_list;
 
   public:
     Pbft(
@@ -255,7 +259,7 @@ namespace pbft
       global_commit_seqno(1),
       last_commit_view(0),
       store(std::move(store_)),
-      view_change_list(1, ViewChangeInfo(0, 0))
+      view_change_list(1, ViewChangeHistory(0, 0))
     {
       // configure replica
       GeneralInfo general_info;
@@ -347,13 +351,11 @@ namespace pbft
         if (*gb_info->last_commit_view < view)
         {
           gb_info->view_change_list->emplace_back(view, version);
-          gb_info->encryptor->set_view(view);
         }
         gb_info->store->compact(version);
       };
 
       register_global_commit_ctx.store = store.get();
-      register_global_commit_ctx.encryptor = encryptor.get();
       register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
       register_global_commit_ctx.last_commit_view = &last_commit_view;
       register_global_commit_ctx.view_change_list = &view_change_list;
@@ -373,6 +375,16 @@ namespace pbft
 
       message_receiver_base->register_rollback_cb(
         rollback_cb, &register_rollback_ctx);
+
+      auto view_change_cb = [](::View view, ViewChangeInfo* view_change_info) {
+        LOG_TRACE_FMT("New view is {}", view);
+        view_change_info->encryptor->set_view(view);
+      };
+
+      register_view_change_ctx.encryptor = encryptor.get();
+
+      message_receiver_base->register_view_change_cb(
+        view_change_cb, &register_view_change_ctx);
     }
 
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
@@ -412,7 +424,7 @@ namespace pbft
       for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
            ++rit)
       {
-        ViewChangeInfo& info = *rit;
+        ViewChangeHistory& info = *rit;
         if (info.min_global_commit <= seqno)
         {
           return info.view + 2;

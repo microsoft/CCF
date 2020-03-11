@@ -62,6 +62,7 @@ namespace ccf
 
     View view;
     SpinLock lock;
+    SpinLock view_lock;
 
     std::shared_ptr<LedgerSecrets> ledger_secrets;
 
@@ -88,6 +89,7 @@ namespace ccf
     void set_iv(
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version version)
     {
+      std::lock_guard<SpinLock> guard(view_lock);
       gcm_hdr.set_iv_view(view);
       gcm_hdr.set_iv_seq(version);
     }
@@ -195,6 +197,7 @@ namespace ccf
 
     void set_view(View view_) override
     {
+      std::lock_guard<SpinLock> guard(view_lock);
       view = view_;
     }
 

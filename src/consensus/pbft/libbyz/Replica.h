@@ -120,6 +120,10 @@ public:
   void register_rollback_cb(rollback_handler_cb cb, pbft::RollbackInfo* ctx);
   // Effects: Registers a handler that is called when we rollback
 
+  void register_view_change_cb(
+    view_change_handler_cb cb, pbft::ViewChangeInfo* ctx);
+  // Effects: Registers a handler that is called when we view change
+
   template <typename T>
   std::unique_ptr<T> create_message(
     const uint8_t* message_data, size_t data_size);
@@ -512,6 +516,11 @@ private:
   pbft::RollbackInfo* rollback_info;
   // call back when we are rolling back
   // Used to rollback the kv to the right version and truncate the ledger
+
+  view_change_handler_cb view_change_cb = nullptr;
+  pbft::ViewChangeInfo* view_change_info;
+  // call back when we are view changing
+  // Used to provide an updated view number
 
   std::unique_ptr<LedgerWriter> ledger_writer;
 

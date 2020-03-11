@@ -391,12 +391,8 @@ bool Replica::compare_execution_results(
 
   if (!execution_match)
   {
-    if (rollback_cb != nullptr)
-    {
-      rollback_cb(last_te_version, rollback_info);
-    }
-    last_tentative_execute--;
-    return false;
+    throw std::logic_error(
+      "Replica's merkle root does not match with that of the primary.");
   }
 
   last_te_version = info.ctx;
@@ -1276,6 +1272,13 @@ void Replica::register_rollback_cb(
   rollback_info = rb_info;
 }
 
+void Replica::register_view_change_cb(
+  view_change_handler_cb cb, pbft::ViewChangeInfo* vc_info)
+{
+  view_change_cb = cb;
+  view_change_info = vc_info;
+}
+
 template <class T>
 std::unique_ptr<T> Replica::create_message(
   const uint8_t* message_data, size_t data_size)
@@ -1678,6 +1681,10 @@ void Replica::handle(View_change* m)
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
+    if (view_change_cb != nullptr)
+    {
+      view_change_cb(v, view_change_info);
+    }
     vc_recovering = true;
     send_view_change();
   }
@@ -1727,6 +1734,10 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
+  if (view_change_cb != nullptr)
+  {
+    view_change_cb(v, view_change_info);
+  }
   cur_primary = v % num_replicas;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
