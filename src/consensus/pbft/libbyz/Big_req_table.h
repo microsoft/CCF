@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "../3rdparty/snmalloc/src/ds/address.h"
-#include "../3rdparty/snmalloc/src/ds/dllist.h"
+#include "snmalloc/src/ds/address.h"
+#include "snmalloc/src/ds/dllist.h"
 #include "Digest.h"
 #include "Req_queue.h"
 #include "ds/thread_messaging.h"

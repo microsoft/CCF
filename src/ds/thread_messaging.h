@@ -6,7 +6,7 @@
 
 #include "ds/logger.h"
 #ifdef USE_MPSCQ
-#  include "../3rdparty/snmalloc/src/ds/dllist.h"
+#  include "snmalloc/src/ds/dllist.h"
 #endif
 
 #include <atomic>
