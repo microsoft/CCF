@@ -32,8 +32,19 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   rep().digest_padding.fill(0);
   if (is_signed)
   {
+    struct signature
+    {
+      uint32_t magic = 0xba55ba11;
+      NodeId id;
+      Digest d;
+
+      signature(Digest d_, NodeId id_) : d(d_), id(id_) {}
+    };
+
+    signature s(d, pbft::GlobalState::get_node().id());
+
     rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
-      d.digest(), d.digest_size(), rep().batch_digest_signature);
+      reinterpret_cast<char*>(&s), sizeof(s), rep().batch_digest_signature);
   }
   else
   {
