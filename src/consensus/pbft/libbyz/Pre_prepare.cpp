@@ -20,7 +20,12 @@ Pre_prepare::Pre_prepare(
   Req_queue& reqs,
   size_t& requests_in_batch,
   Prepared_cert* prepared_cert) :
-  Message(Pre_prepare_tag, Max_message_size)
+  Message(
+    Pre_prepare_tag,
+    sizeof(Pre_prepare_rep) + sizeof(Digest) * Max_requests_in_batch +
+      pbft_max_signature_size + pbft::GlobalState::get_node().auth_size() +
+      (pbft_max_signature_size + sizeof(uint64_t)) *
+        pbft::GlobalState::get_node().num_of_replicas())
 {
   rep().view = v;
   rep().seqno = s;
