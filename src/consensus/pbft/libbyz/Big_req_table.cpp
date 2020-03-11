@@ -191,8 +191,9 @@ bool Big_req_table::add_unmatched(BR_entry* e, Request*& old_req)
   {
     // client is expected to send requests in request id order
     LOG_FAIL_FMT(
-      "client is expected to send requests in request id order {}",
-      e->r->client_id());
+      "client is expected to send requests in request id order {}, last seen {}",
+      e->r->client_id(),
+      centry.last_value_seen[e->r->user_id()]);
     return false;
   }
 
@@ -270,13 +271,13 @@ bool Big_req_table::add_request(Request* r, bool verified)
     // Buffer up to Max_unmatched_requests_per_client requests with the
     // largest timestamps from client.
     Request* old_req = 0;
-    auto bre = std::make_unique<BR_entry>();
+    auto bre = new BR_entry();
     bre->rd = rd;
     bre->r = r;
-    bool added = add_unmatched(bre.get(), old_req);
+    bool added = add_unmatched(bre, old_req);
     if (added)
     {
-      breqs.insert({rd, bre.release()});
+      breqs.insert({rd, bre});
 
       if (old_req)
       {
@@ -288,6 +289,11 @@ bool Big_req_table::add_request(Request* r, bool verified)
       }
 
       return true;
+    }
+    else
+    {
+      bre->r = nullptr;
+      delete bre;
     }
   }
   return false;
