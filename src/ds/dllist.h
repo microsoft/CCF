@@ -68,7 +68,7 @@ namespace snmalloc
     class T,
     class Terminator = std::nullptr_t,
     bool delete_on_clear = false>
-  class DLList
+  class DLList final
   {
   private:
     static_assert(
@@ -80,7 +80,7 @@ namespace snmalloc
     T* tail = Terminator();
 
   public:
-    virtual ~DLList()
+    ~DLList()
     {
       clear();
     }
