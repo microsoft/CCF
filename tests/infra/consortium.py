@@ -293,6 +293,14 @@ class Consortium:
         response = self.propose(member_id, remote_node, script, sealed_secrets)
         self.vote_using_majority(remote_node, response.result["proposal_id"])
 
+    def accept_recovery_with_shares(self, member_id, remote_node):
+        script = """
+        tables = ...
+        return Calls:call("accept_recovery_with_shares")
+        """
+        response = self.propose(member_id, remote_node, script)
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
+
     def store_current_network_encryption_key(self):
         cmd = [
             "cp",
@@ -301,7 +309,7 @@ class Consortium:
         ]
         infra.proc.ccall(*cmd).check_returncode()
 
-    def get_and_decrypt_shares(self, remote_node):
+    def get_decrypt_and_submit_shares(self, remote_node):
         for m in self.members:
             with remote_node.member_client(member_id=m) as mc:
                 r = mc.rpc("getEncryptedRecoveryShare", params={})
@@ -319,6 +327,7 @@ class Consortium:
                 r = mc.rpc(
                     "submitRecoveryShare", params={"share": list(decrypted_share)}
                 )
+                assert r.error is None, f"Error submitting recovery share: {r.error}"
                 if m == 2:
                     assert (
                         r.result == True

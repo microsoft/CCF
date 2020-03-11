@@ -11,7 +11,8 @@ namespace ccf
   {
   public:
     virtual ~AbstractNodeState() {}
-    virtual bool finish_recovery(Store::Tx& tx, const nlohmann::json& args) = 0;
+    virtual bool finish_recovery(
+      Store::Tx& tx, const nlohmann::json& args, bool with_shares) = 0;
     virtual bool open_network(Store::Tx& tx) = 0;
     virtual bool rekey_ledger(Store::Tx& tx) = 0;
     virtual bool is_part_of_public_network() const = 0;
@@ -23,8 +24,11 @@ namespace ccf
       Store::Tx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter = std::nullopt) = 0;
-    virtual void split_ledger_secrets(Store::Tx& tx) = 0;
     virtual NodeId get_node_id() const = 0;
+
+    virtual bool split_ledger_secrets(Store::Tx& tx) = 0;
+    virtual bool combine_recovery_shares(
+      Store::Tx& tx, const std::vector<Share>& shares) = 0;
   };
 
   class AbstractNotifier

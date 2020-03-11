@@ -23,6 +23,12 @@ namespace ccf
   static constexpr size_t CODE_DIGEST_BYTES = 256 / 8;
   using CodeDigest = std::array<uint8_t, CODE_DIGEST_BYTES>;
 
+  // TODO: Re-defined here to avoid importing secretshare.h from nodeinterface.h
+  // This will go soon anyway as memberfrontend.h will not pass the shares to
+  // nodestate.h directly
+  static constexpr size_t SHARE_LENGTH = 113;
+  using Share = std::array<uint8_t, SHARE_LENGTH>;
+
   struct Actors
   {
     static constexpr auto MEMBERS = "members";
