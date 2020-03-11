@@ -5,8 +5,9 @@
 
 #pragma once
 
+#include "../3rdparty/snmalloc/src/ds/address.h"
+#include "../3rdparty/snmalloc/src/ds/dllist.h"
 #include "Request.h"
-#include "ds/dllist.h"
 #include "ds/thread_messaging.h"
 #include "pbft_assert.h"
 #include "types.h"

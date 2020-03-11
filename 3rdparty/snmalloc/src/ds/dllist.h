@@ -1,27 +1,15 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <cassert>
 #include <cstdint>
 #include <type_traits>
 
 namespace snmalloc
 {
   /**
-   * The type used for an address.  Currently, all addresses are assumed to be
-   * provenance-carrying values and so it is possible to cast back from the
-   * result of arithmetic on an address_t.  Eventually, this will want to be
-   * separated into two types, one for raw addresses and one for addresses that
-   * can be cast back to pointers.
-   */
-  using address_t = uintptr_t;
-
-  /**
    * Invalid pointer class.  This is similar to `std::nullptr_t`, but allows
    * other values.
    */
-  template <address_t Sentinel>
+  template<address_t Sentinel>
   struct InvalidPointer
   {
     /**
@@ -29,7 +17,7 @@ namespace snmalloc
      * are always the same, invalid pointer values with different sentinels are
      * always different.
      */
-    template <uintptr_t OtherSentinel>
+    template<uintptr_t OtherSentinel>
     constexpr bool operator==(const InvalidPointer<OtherSentinel>&)
     {
       return Sentinel == OtherSentinel;
@@ -39,7 +27,7 @@ namespace snmalloc
      * are always the same, invalid pointer values with different sentinels are
      * always different.
      */
-    template <uintptr_t OtherSentinel>
+    template<uintptr_t OtherSentinel>
     constexpr bool operator!=(const InvalidPointer<OtherSentinel>&)
     {
       return Sentinel != OtherSentinel;
@@ -50,7 +38,7 @@ namespace snmalloc
      * provenance-free integer and so will trap if dereferenced, on other
      * systems the sentinel should be a value in unmapped memory.
      */
-    template <typename T>
+    template<typename T>
     operator T*() const
     {
       return reinterpret_cast<T*>(Sentinel);
@@ -64,7 +52,7 @@ namespace snmalloc
     }
   };
 
-  template <
+  template<
     class T,
     class Terminator = std::nullptr_t,
     bool delete_on_clear = false>
@@ -223,7 +211,7 @@ namespace snmalloc
 
       while (curr != item)
       {
-        assert(curr != Terminator());
+        SNMALLOC_ASSERT(curr != Terminator());
         curr = curr->next;
       }
 #else
@@ -239,7 +227,7 @@ namespace snmalloc
 
       while (curr != Terminator())
       {
-        assert(curr != item);
+        SNMALLOC_ASSERT(curr != item);
         curr = curr->next;
       }
 #else
@@ -255,7 +243,7 @@ namespace snmalloc
 
       while (item != Terminator())
       {
-        assert(item->prev == prev);
+        SNMALLOC_ASSERT(item->prev == prev);
         prev = item;
         item = item->next;
       }
