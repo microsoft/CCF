@@ -123,6 +123,7 @@ void Req_queue::clear()
       rnodes[i].pop();
     }
   }
+  reqs.clear();
   nelems = nbytes = 0;
 }
 
