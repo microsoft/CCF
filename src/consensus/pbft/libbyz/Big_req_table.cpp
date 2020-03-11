@@ -191,7 +191,8 @@ bool Big_req_table::add_unmatched(BR_entry* e, Request*& old_req)
   {
     // client is expected to send requests in request id order
     LOG_FAIL_FMT(
-      "client is expected to send requests in request id order {}, last seen {}",
+      "client is expected to send requests in request id order {}, last seen "
+      "{}",
       e->r->client_id(),
       centry.last_value_seen[e->r->user_id()]);
     return false;
