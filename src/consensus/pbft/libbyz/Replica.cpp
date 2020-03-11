@@ -397,8 +397,12 @@ bool Replica::compare_execution_results(
 
   if (!execution_match)
   {
-    throw std::logic_error(
-      "Replica's merkle root does not match with that of the primary.");
+    if (rollback_cb != nullptr)
+    {
+      rollback_cb(last_te_version, rollback_info);
+    }
+    last_tentative_execute--;
+    return false;
   }
 
   last_te_version = info.ctx;
@@ -503,9 +507,9 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
   }
   else
   {
-    LOG_INFO_FMT(
+    throw std::logic_error(fmt::format(
       "Merkle roots don't match in playback pre-prepare for seqno {}",
-      executable_pp->seqno());
+      executable_pp->seqno()));
   }
 }
 
