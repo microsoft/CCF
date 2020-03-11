@@ -176,10 +176,13 @@ namespace enclave
       }
     }
 
-    bool run_one(uint16_t tid)
+    Task& get_task(uint16_t tid)
     {
-      Task& task = tasks[tid];
+      return tasks[tid];
+    }
 
+    bool run_one(Task& task)
+    {
       return task.run_next_task();
     }
 

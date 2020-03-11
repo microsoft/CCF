@@ -54,17 +54,6 @@ struct Status_rep : public Message_rep
 };
 #pragma pack(pop)
 
-static_assert(
-  sizeof(Status_rep) + 2 * (max_out + 7) / 8 + sizeof(BR_info) * max_out +
-      pbft_max_signature_size <
-    Max_message_size,
-  "Invalid size");
-static_assert(
-  sizeof(Status_rep) + Status_rep::vcs_size + sizeof(PP_info) * max_out +
-      pbft_max_signature_size <
-    Max_message_size,
-  "Invalid size");
-
 class Status : public Message
 {
   //
