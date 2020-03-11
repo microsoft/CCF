@@ -766,10 +766,15 @@ namespace ccf
         recovery_encryptor =
           std::make_shared<PbftTxEncryptor>(network.ledger_secrets, true);
       }
-      else
+      else if (network.consensus_type == ConsensusType::RAFT)
       {
         recovery_encryptor =
           std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets, true);
+      }
+      else
+      {
+        throw std::logic_error(
+          "Unknown consensus type " + std::to_string(network.consensus_type));
       }
 #endif
 
@@ -1534,10 +1539,15 @@ namespace ccf
       {
         encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);
       }
-      else
+      else if (network.consensus_type == ConsensusType::RAFT)
       {
         encryptor =
           std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets);
+      }
+      else
+      {
+        throw std::logic_error(
+          "Unknown consensus type " + std::to_string(consensus_type));
       }
 #endif
 
