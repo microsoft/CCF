@@ -65,7 +65,7 @@ namespace metrics
       LOG_INFO << "Printing time series" << std::endl;
       for (uint32_t i = 0; i < times.size(); ++i)
       {
-        LOG_INFO << i << " - " << times[i] << std::endl;
+        LOG_INFO_FMT("{} - {}", i, times[i]);
       }
 
       return result;

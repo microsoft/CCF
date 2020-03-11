@@ -114,6 +114,8 @@ bool Req_queue::remove(int cid, Request_id rid)
 void Req_queue::clear()
 {
   uint32_t tcount = enclave::ThreadMessaging::thread_count;
+  // There is a corner case when we run the very first transaction that
+  // thread_count can be 0. The use of std::max is a work around.
   tcount = std::max(tcount, (uint32_t)1);
   for (uint32_t i = 0; i < tcount; ++i)
   {
