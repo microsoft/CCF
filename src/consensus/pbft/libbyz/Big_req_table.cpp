@@ -10,30 +10,6 @@
 #include "Request.h"
 #include "ds/logger.h"
 
-struct Waiting_pp
-{
-  Seqno n;
-  View v;
-  int i;
-};
-
-class BR_entry
-{
-public:
-  inline BR_entry() : r(0), maxn(-1), maxv(-1) {}
-  inline ~BR_entry()
-  {
-    delete r;
-  }
-
-  Digest rd; // Request's digest
-  Request* r; // Request or 0 is request not received
-  // if r=0, Seqnos of pre-prepares waiting for request
-  std::vector<Waiting_pp> waiting;
-  Seqno maxn; // Maximum seqno of pre-prepare referencing request
-  View maxv; // Maximum view in which this entry was marked useful
-};
-
 Big_req_table::Big_req_table(size_t num_of_replicas) :
   breqs(max_out),
   last_stable(0),
@@ -67,7 +43,7 @@ inline void Big_req_table::remove_unmatched(BR_entry* bre)
     PBFT_ASSERT(bre->r != 0, "Invalid state");
     auto& centry = unmatched[bre->r->client_id()];
 
-    centry.requests.remove(bre->r);
+    centry.list.remove(bre);
     centry.num_requests--;
     PBFT_ASSERT(centry.num_requests >= 0, "Should be positive");
   }
@@ -204,35 +180,37 @@ bool Big_req_table::check_pcerts(BR_entry* bre)
   return false;
 }
 
-bool Big_req_table::add_unmatched(Request* r, Request*& old_req)
+bool Big_req_table::add_unmatched(BR_entry* e, Request*& old_req)
 {
-  auto& centry = unmatched[r->client_id()];
+  auto& centry = unmatched[e->r->client_id()];
   old_req = 0;
 
   if (
-    !centry.requests.empty() &&
-    centry.last_value_seen[r->user_id()] >= r->request_id())
+    !centry.list.is_empty() &&
+    centry.last_value_seen[e->r->user_id()] >= e->r->request_id())
   {
     // client is expected to send requests in request id order
     LOG_FAIL_FMT(
-      "client is expected to send requests in request id order {}",
-      r->client_id());
+      "client is expected to send requests in request id order {}, last seen "
+      "{}",
+      e->r->client_id(),
+      centry.last_value_seen[e->r->user_id()]);
     return false;
   }
 
   if (centry.num_requests >= Max_unmatched_requests_per_client)
   {
-    LOG_FAIL_FMT("Too many Requests pending from client: {}", r->client_id());
-    old_req = centry.requests.back();
-    centry.requests.pop_back();
+    LOG_FAIL_FMT(
+      "Too many Requests pending from client: {}", e->r->client_id());
+    old_req = centry.list.pop_tail()->r;
   }
   else
   {
     centry.num_requests++;
   }
 
-  centry.last_value_seen[r->user_id()] = r->request_id();
-  centry.requests.push_front(r);
+  centry.last_value_seen[e->r->user_id()] = e->r->request_id();
+  centry.list.insert(e);
   return true;
 }
 
@@ -294,12 +272,12 @@ bool Big_req_table::add_request(Request* r, bool verified)
     // Buffer up to Max_unmatched_requests_per_client requests with the
     // largest timestamps from client.
     Request* old_req = 0;
-    bool added = add_unmatched(r, old_req);
+    auto bre = new BR_entry();
+    bre->rd = rd;
+    bre->r = r;
+    bool added = add_unmatched(bre, old_req);
     if (added)
     {
-      auto bre = new BR_entry;
-      bre->rd = rd;
-      bre->r = r;
       breqs.insert({rd, bre});
 
       if (old_req)
@@ -312,6 +290,11 @@ bool Big_req_table::add_request(Request* r, bool verified)
       }
 
       return true;
+    }
+    else
+    {
+      bre->r = nullptr;
+      delete bre;
     }
   }
   return false;

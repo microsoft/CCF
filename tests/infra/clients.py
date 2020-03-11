@@ -247,7 +247,7 @@ class CurlClient:
                     raise CCFConnectionException(
                         f"Connection still failing after {self.connection_timeout}s: {e}"
                     )
-                LOG.error(f"Got SSLError exception: {e}")
+                LOG.warning(f"Got SSLError exception: {e}")
                 time.sleep(0.1)
 
     def request(self, request):
@@ -321,7 +321,7 @@ class RequestClient:
                     raise CCFConnectionException(
                         f"Connection still failing after {self.connection_timeout}s: {e}"
                     )
-                LOG.error(f"Got SSLError exception: {e}")
+                LOG.warning(f"Got SSLError exception: {e}")
                 time.sleep(0.1)
             except requests.exceptions.ReadTimeout as e:
                 raise TimeoutError

@@ -27,6 +27,7 @@ namespace metrics
     histogram::Global<Hist> global =
       histogram::Global<Hist>("histogram", __FILE__, __LINE__);
     Hist histogram = Hist(global);
+    std::array<uint64_t, 100> times = {0};
 
     ccf::GetMetrics::HistogramResults get_histogram_results()
     {
@@ -60,6 +61,13 @@ namespace metrics
           result[std::to_string(i)]["duration"] = tx_time_passed[i];
         }
       }
+
+      LOG_INFO << "Printing time series" << std::endl;
+      for (uint32_t i = 0; i < times.size(); ++i)
+      {
+        LOG_INFO_FMT("{} - {}", i, times[i]);
+      }
+
       return result;
     }
 
@@ -91,6 +99,12 @@ namespace metrics
           tx_time_passed[tick_count] = rate_duration;
         }
         tick_count++;
+
+        uint32_t bucket = rate_time_elapsed.count() / 1000.0;
+        if (bucket < times.size())
+        {
+          times[bucket] += tx_count;
+        }
       }
     }
   };

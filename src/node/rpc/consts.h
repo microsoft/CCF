@@ -34,6 +34,10 @@ namespace ccf
 
     static constexpr auto ACK = "ack";
     static constexpr auto UPDATE_ACK_STATE_DIGEST = "updateAckStateDigest";
+
+    static constexpr auto GET_ENCRYPTED_RECOVERY_SHARE =
+      "getEncryptedRecoveryShare";
+    static constexpr auto SUBMIT_RECOVERY_SHARE = "submitRecoveryShare";
   };
 
   struct NodeProcs

@@ -7,6 +7,7 @@
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quoteverification.h"
+#include "node/secretshare.h"
 #include "tls/keypair.h"
 
 #include <exception>
@@ -26,6 +27,13 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SetUserData)
   DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
   DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
+
+  struct SubmitRecoveryShare
+  {
+    std::vector<uint8_t> share;
+  };
+  DECLARE_JSON_TYPE(SubmitRecoveryShare)
+  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, share)
 
   class MemberHandlers : public CommonHandlerRegistry
   {
@@ -411,6 +419,8 @@ namespace ccf
     NetworkTables& network;
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
+    // For now, shares are not stored in the KV
+    std::vector<SecretSharing::Share> pending_shares;
 
     static constexpr auto SIZE_NONCE = 16;
 
@@ -682,6 +692,113 @@ namespace ccf
       install_with_auto_schema<void, StateDigest>(
         MemberProcs::UPDATE_ACK_STATE_DIGEST,
         json_adapter(update_state_digest),
+        Write);
+
+      auto get_encrypted_recovery_share =
+        [this](RequestArgs& args, const nlohmann::json& params) {
+          // This check should depend on whether new shares are emitted when a
+          // new member is added (status = Accepted) or when the new member acks
+          // (status = Active).
+          if (!check_member_active(args.tx, args.caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          }
+
+          std::optional<EncryptedShare> enc_s;
+          auto current_keyshare =
+            args.tx.get_view(this->network.shares)->get(0);
+          for (auto const& s : current_keyshare->encrypted_shares)
+          {
+            if (s.first == args.caller_id)
+            {
+              enc_s = s.second;
+            }
+          }
+
+          if (!enc_s.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format(
+                "Recovery share not found for member {}", args.caller_id));
+          }
+
+          return make_success(enc_s.value());
+        };
+      install_with_auto_schema<void, EncryptedShare>(
+        MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
+        json_adapter(get_encrypted_recovery_share),
+        Read);
+
+      auto submit_recovery_share =
+        [this](RequestArgs& args, const nlohmann::json& params) {
+          // Only active members can submit their shares for recovery
+          if (!check_member_active(args.tx, args.caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          }
+
+          const auto in = params.get<SubmitRecoveryShare>();
+
+          SecretSharing::Share share;
+          std::copy_n(
+            in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+
+          pending_shares.emplace_back(share);
+
+          GenesisGenerator g(this->network, args.tx);
+          if (pending_shares.size() < g.get_active_members_count())
+          {
+            // The number of shares required to re-assemble the secret has not
+            // yet been reached
+            return make_success(false);
+          }
+
+          LOG_DEBUG_FMT(
+            "Reached secret sharing threshold {}", pending_shares.size());
+
+          auto share_wrapping_key = LedgerSecretWrappingKey(
+            SecretSharing::combine(pending_shares, pending_shares.size()));
+
+          auto shares_view = args.tx.get_view(this->network.shares);
+          auto key_share_info = shares_view->get(0);
+          if (!key_share_info.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR, "No key share info available");
+          }
+          std::vector<uint8_t> decrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
+          crypto::GcmCipher encrypted_ls;
+          try
+          {
+            encrypted_ls.deserialise(key_share_info->encrypted_ledger_secret);
+          }
+          catch (const std::logic_error& e)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "Failed to deserialise ledger secrets");
+          }
+          if (!crypto::KeyAesGcm(share_wrapping_key.data)
+                 .decrypt(
+                   encrypted_ls.hdr.get_iv(),
+                   encrypted_ls.hdr.tag,
+                   encrypted_ls.cipher,
+                   nullb,
+                   decrypted_ls.data()))
+          {
+            LOG_FAIL_FMT("Decryption of ledger secrets failed");
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "Decryption of ledger secrets failed");
+          }
+
+          pending_shares.clear();
+          return make_success(true);
+        };
+      install_with_auto_schema<SubmitRecoveryShare, bool>(
+        MemberProcs::SUBMIT_RECOVERY_SHARE,
+        json_adapter(submit_recovery_share),
         Write);
 
       auto create = [this](Store::Tx& tx, const nlohmann::json& params) {

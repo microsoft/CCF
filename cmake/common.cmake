@@ -175,14 +175,6 @@ else()
   set(TEST_ENCLAVE_TYPE -e virtual)
 endif()
 
-# Test-only option to enable extensive tests
-option(EXTENSIVE_TESTS "Enable extensive tests" OFF)
-if(EXTENSIVE_TESTS)
-  set(RECOVERY_ARGS --recovery 5 --msgs-per-recovery 10)
-else()
-  set(RECOVERY_ARGS --recovery 2 --msgs-per-recovery 5)
-endif()
-
 # Lua module
 set(LUA_DIR ${CCF_DIR}/3rdparty/lua)
 set(LUA_SOURCES

@@ -22,8 +22,26 @@ namespace ccf
       const std::vector<uint8_t>& data) = 0;
   };
 
+  struct LedgerSecretWrappingKey
+  {
+    static constexpr auto KZ_KEY_SIZE = crypto::GCM_SIZE_KEY;
+    std::vector<uint8_t> data; // Referred to as "kz" in TR
+
+    LedgerSecretWrappingKey() : data(tls::create_entropy()->random(KZ_KEY_SIZE))
+    {}
+
+    template <typename T>
+    LedgerSecretWrappingKey(const T& split_secret) :
+      data(
+        std::make_move_iterator(split_secret.begin()),
+        std::make_move_iterator(split_secret.begin() + split_secret.size()))
+    {}
+  };
+
   struct LedgerSecret
   {
+    static constexpr auto MASTER_KEY_SIZE = crypto::GCM_SIZE_KEY;
+
     std::vector<uint8_t> master; // Referred to as "sd" in TR
 
     bool operator==(const LedgerSecret& other) const
@@ -35,7 +53,7 @@ namespace ccf
     {
       if (random)
       {
-        master = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+        master = tls::create_entropy()->random(MASTER_KEY_SIZE);
       }
     }
 
