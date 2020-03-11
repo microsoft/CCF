@@ -268,8 +268,7 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
-          network.encryption_priv_key =
-            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
+          network.encryption_key = std::make_unique<NetworkEncryptionKey>(true);
 
           self = 0; // The first node id is always 0
 
@@ -295,7 +294,10 @@ namespace ccf
           reset_quote();
           sm.advance(State::partOfNetwork);
 
-          return Success<CreateNew::Out>({node_cert, network.identity->cert});
+          return Success<CreateNew::Out>(
+            {node_cert,
+             network.identity->cert,
+             network.encryption_key->get_public_pem()});
         }
         case StartType::Join:
         {
@@ -315,6 +317,7 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
+          network.encryption_key = std::make_unique<NetworkEncryptionKey>(true);
 
           setup_history();
           setup_encryptor(network.consensus_type);
@@ -327,7 +330,10 @@ namespace ccf
 
           sm.advance(State::readingPublicLedger);
 
-          return Success<CreateNew::Out>({node_cert, network.identity->cert});
+          return Success<CreateNew::Out>(
+            {node_cert,
+             network.identity->cert,
+             network.encryption_key->get_public_pem()});
         }
         default:
         {
@@ -398,7 +404,8 @@ namespace ccf
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               std::move(resp.network_info.ledger_secrets), seal);
-            network.encryption_priv_key = resp.network_info.encryption_priv_key;
+            network.encryption_key = std::make_unique<NetworkEncryptionKey>(
+              resp.network_info.encryption_key);
 
             self = resp.node_id;
 
@@ -1008,8 +1015,7 @@ namespace ccf
 
       // Once sealing is completely removed, this can be called from the
       // LedgerSecrets class directly
-      crypto::GcmCipher encrypted_ls(
-        network.ledger_secrets->get_secret(1)->master.size());
+      crypto::GcmCipher encrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
       share_wrapping_key.encrypt(
         encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
                                    // key is never re-used for encryption
@@ -1021,7 +1027,7 @@ namespace ccf
       GenesisGenerator g(network, tx);
       auto active_members = g.get_active_members_keyshare();
 
-      SecretSharing::SecretToSplit secret_to_split = {};
+      SecretSharing::SplitSecret secret_to_split = {};
       std::copy_n(
         share_wrapping_key_raw.begin(),
         share_wrapping_key_raw.size(),
@@ -1042,9 +1048,12 @@ namespace ccf
         auto share_raw = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
 
-        auto enc_pub_key_raw = tls::parse_25519_public(tls::Pem(enc_pub_key));
+        auto enc_pub_key_raw = tls::PublicX25519::parse(tls::Pem(enc_pub_key));
         auto encrypted_share = crypto::Box::create(
-          share_raw, nonce, enc_pub_key_raw, network.encryption_priv_key);
+          share_raw,
+          nonce,
+          enc_pub_key_raw,
+          network.encryption_key->private_raw);
 
         encrypted_shares[member_id] = {nonce, encrypted_share};
         share_index++;

@@ -31,6 +31,9 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
+    uint8_t* network_enc_pubk,
+    size_t network_enc_pubk_size,
+    size_t* network_enc_pubk_len,
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_threads)
@@ -73,7 +76,10 @@ extern "C"
       node_cert_len,
       network_cert,
       network_cert_size,
-      network_cert_len);
+      network_cert_len,
+      network_enc_pubk,
+      network_enc_pubk_size,
+      network_enc_pubk_len);
     e.store(enclave);
 
     return result;

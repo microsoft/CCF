@@ -705,6 +705,7 @@ class CCFRemote(object):
         self.remote.get(self.pem, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
+            self.remote.get("network_enc_pubk.pem", dst_path)
 
     def debug_node_cmd(self):
         return self.remote._dbg()

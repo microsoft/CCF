@@ -49,3 +49,18 @@ withdraw
 
 .. jsonschema:: ../schemas/withdraw_params.json
 .. jsonschema:: ../schemas/withdraw_result.json
+
+getEncryptedRecoveryShare
+-------------------------
+
+.. warning:: Experimental
+
+.. jsonschema:: ../schemas/getEncryptedRecoveryShare_result.json
+
+submitRecoveryShare
+-------------------
+
+.. warning:: Experimental
+
+.. jsonschema:: ../schemas/submitRecoveryShare_params.json
+.. jsonschema:: ../schemas/submitRecoveryShare_result.json

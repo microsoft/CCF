@@ -293,6 +293,41 @@ class Consortium:
         response = self.propose(member_id, remote_node, script, sealed_secrets)
         self.vote_using_majority(remote_node, response.result["proposal_id"])
 
+    def store_current_network_encryption_key(self):
+        cmd = [
+            "cp",
+            os.path.join(self.common_dir, f"network_enc_pubk.pem"),
+            os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+        ]
+        infra.proc.ccall(*cmd).check_returncode()
+
+    def get_and_decrypt_shares(self, remote_node):
+        for m in self.members:
+            with remote_node.member_client(member_id=m) as mc:
+                r = mc.rpc("getEncryptedRecoveryShare", params={})
+
+                # For now, members rely on a copy of the original network encryption public key
+                ctx = infra.crypto.CryptoBoxCtx(
+                    os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"),
+                    os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+                )
+
+                nonce_bytes = bytes(r.result["nonce"])
+                encrypted_share_bytes = bytes(r.result["encrypted_share"])
+                decrypted_share = ctx.decrypt(encrypted_share_bytes, nonce_bytes,)
+
+                r = mc.rpc(
+                    "submitRecoveryShare", params={"share": list(decrypted_share)}
+                )
+                if m == 2:
+                    assert (
+                        r.result == True
+                    ), "Shares should be combined when all members have submitted their shares"
+                else:
+                    assert (
+                        r.result == False
+                    ), "Shares should not be combined until all members have submitted their shares"
+
     def add_new_code(self, member_id, remote_node, new_code_id):
         script = """
         tables, code_digest = ...
