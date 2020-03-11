@@ -95,7 +95,7 @@ namespace ccf
     }
 
     bool combine_recovery_shares(
-      Store::Tx& tx, const std::vector<Share>& shares) override
+      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
       return true;
     }

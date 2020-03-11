@@ -5,7 +5,6 @@
 #include "crypto/cryptobox.h"
 #include "crypto/symmkey.h"
 #include "ds/logger.h"
-#include "entities.h"
 #include "genesisgen.h"
 #include "ledgersecrets.h"
 #include "networkstate.h"
@@ -105,7 +104,8 @@ namespace ccf
 
     // For now, the shares are passed directly to this function. Shares should
     // be retrieved from the KV instead.
-    LedgerSecret restore(Store::Tx& tx, const std::vector<Share>& shares)
+    LedgerSecret restore(
+      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares)
     {
       // First, re-assemble the ledger secrets wrapping key from the given
       // shares

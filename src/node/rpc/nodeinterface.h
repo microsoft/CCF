@@ -3,6 +3,7 @@
 #pragma once
 
 #include "node/entities.h"
+#include "node/secretshare.h"
 #include "nodecalltypes.h"
 
 namespace ccf
@@ -28,13 +29,6 @@ namespace ccf
 
     virtual bool split_ledger_secrets(Store::Tx& tx) = 0;
     virtual bool combine_recovery_shares(
-      Store::Tx& tx, const std::vector<Share>& shares) = 0;
-  };
-
-  class AbstractNotifier
-  {
-  public:
-    virtual ~AbstractNotifier() {}
-    virtual void notify(const std::vector<uint8_t>& data) = 0;
+      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) = 0;
   };
 }

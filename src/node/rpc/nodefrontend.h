@@ -7,6 +7,7 @@
 #include "node/entities.h"
 #include "node/networkstate.h"
 #include "node/quoteverification.h"
+#include "nodeinterface.h"
 
 namespace ccf
 {

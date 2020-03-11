@@ -8,7 +8,8 @@
 #include "node/nodes.h"
 #include "node/quoteverification.h"
 #include "node/secretshare.h"
-#include "node/sharemanager.h" // TODO: To remove
+#include "node/sharemanager.h"
+#include "nodeinterface.h"
 #include "tls/keypair.h"
 
 #include <exception>
