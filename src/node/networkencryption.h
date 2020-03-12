@@ -16,7 +16,7 @@ namespace ccf
       return private_raw == other.private_raw;
     }
 
-    NetworkEncryptionKey() {}
+    NetworkEncryptionKey() = default;
 
     NetworkEncryptionKey(std::vector<uint8_t>&& private_key_raw) :
       private_raw(std::move(private_key_raw))
