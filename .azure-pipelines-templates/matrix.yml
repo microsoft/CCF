@@ -73,14 +73,14 @@ parameters:
       CFT:
         ctest_args: '-LE "benchmark|perf|suite|pbft"'
 
-  static_check_job_name: 'Formatting_and_License_Checks'      
+  static_check_job_name: 'Formatting_and_License_Checks'
 
 jobs:
   - template: checks.yml
     parameters:
       env: ${{ parameters.env.Checks }}
       job_name: 'Formatting_and_License_Checks'
-  
+
   - ${{ each target in parameters.target }}:
     - template: common_build.yml
       parameters:
@@ -89,6 +89,7 @@ jobs:
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
         suffix: 'Debug'
         artifact_name: 'Build_${{ target }}_Debug'
+        depends_on: '${{ parameters.static_check_job_name }}'
 
   # Debug test runs with code coverage
   - ${{ each target in parameters.target }}:
@@ -102,7 +103,7 @@ jobs:
           ctest_filter: '${{ parameters.test[target][consensus].ctest_args }}'
           suffix: 'Debug'
           artifact_name: 'Build_${{ target }}_Debug'
-          depends_on: ['Build_${{ target }}_Debug', '${{ parameters.static_check_job_name }}']
+          depends_on: 'Build_${{ target }}_Debug'
 
   # SAN build (ASAN & UBSAN)
   - template: common_build.yml
@@ -112,6 +113,7 @@ jobs:
       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
       suffix: 'SAN'
       artifact_name: 'Build_NoSGX_SAN'
+      depends_on: '${{ parameters.static_check_job_name }}'
 
   # SAN Tests
   - ${{ each consensus in parameters.consensus }}:
@@ -124,7 +126,7 @@ jobs:
         ctest_filter: '${{ parameters.test.san[consensus].ctest_args }} }}'
         suffix: 'SAN'
         artifact_name: 'Build_NoSGX_SAN'
-        depends_on: ['Build_NoSGX_SAN', '${{ parameters.static_check_job_name }}']
+        depends_on: 'Build_NoSGX_SAN'
 
   # Performance build
   - template: common_build.yml
@@ -134,8 +136,8 @@ jobs:
       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
       suffix: 'Perf'
       artifact_name: 'Build_SGX_Perf'
+      depends_on: '${{ parameters.static_check_job_name }}'
 
-  
   # Performance tests
   - ${{ each consensus in parameters.consensus }}:
       - template: common_test.yml
@@ -148,7 +150,7 @@ jobs:
           ctest_filter: '${{ parameters.test.perf[consensus].ctest_args }}'
           suffix: 'Perf'
           artifact_name: 'Build_SGX_Perf'
-          depends_on: ['Build_SGX_Perf', '${{ parameters.static_check_job_name }}']
+          depends_on: 'Build_SGX_Perf'
 
   # Collect and Plot metrics
   - template: metrics.yml
@@ -178,7 +180,7 @@ jobs:
           ctest_filter: '${{ parameters.test.Release[consensus].ctest_args }}'
           suffix: 'Release'
           artifact_name: 'Build_SGX_Release'
-          depends_on: ['Build_SGX_Release', '${{ parameters.static_check_job_name }}']
+          depends_on: 'Build_SGX_Release'
 
     - template: release.yml
       parameters:
