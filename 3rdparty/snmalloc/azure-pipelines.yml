@@ -1,0 +1,258 @@
+trigger:
+- master
+
+pr:
+- master
+
+jobs:
+- job:
+  displayName: Linux
+  pool:
+    vmImage: 'ubuntu-16.04'
+  strategy:
+    matrix:
+      Clang-6 Debug:
+        CC: clang-6.0
+        CXX: clang++-6.0
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+
+      Clang-6 Release:
+        CC: clang-6.0
+        CXX: clang++-6.0
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+
+      GCC-8 Debug:
+        CC: gcc-8
+        CXX: g++-8
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+
+      GCC-8 Release:
+        CC: gcc-8
+        CXX: g++-8
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+
+      Self Host:
+        CC: clang-6.0
+        CXX: clang++-6.0
+        BuildType: Debug
+        SelfHost: true
+        CMakeArgs: ''
+
+      Cache Friendly:
+        CC: clang-6.0
+        CXX: clang++-6.0
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: '-DCACHE_FRIENDLY_OFFSET=64'
+
+  steps:
+  - script: |
+      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+      sudo apt-get update
+      sudo apt-get install -y ninja-build libc++-dev libc++abi-dev libc++abi1 libstdc++-7-dev gcc-8 g++-8
+      # sudo apt-get install clang-6.0 clang++-6.0
+
+      sudo update-alternatives --install /usr/bin/cc cc /usr/bin/$(CC) 100
+      sudo update-alternatives --set cc /usr/bin/$(CC)
+
+      sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/$(CXX) 100
+      sudo update-alternatives --set c++ /usr/bin/$(CXX)
+
+      CMAKE_CXX_FLAGS="-std=c++17"
+      if [[ "$CXX" == clang++* ]]; then CMAKE_CXX_FLAGS+=" -stdlib=libstdc++"; fi
+
+    displayName: 'Install Build Dependencies'
+
+  - task: CMake@1
+    displayName: 'CMake .. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+    inputs:
+      cmakeArgs: '.. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+
+  - script: |
+      ninja
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Compile'
+
+  - script: |
+      if [ $(SelfHost) = false ]; then
+        ctest -j 4 --output-on-failure -C $(BuildType)
+      else
+        sudo cp libsnmallocshim.so libsnmallocshim-1mib.so /usr/local/lib/
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim-1mib.so ninja
+      fi
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Test'
+
+- job:
+  displayName: Windows
+  pool:
+    vmImage: 'vs2017-win2016'
+  strategy:
+    matrix:
+      64-bit Debug:
+        BuildType: Debug
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
+        JFlag: -j 4
+
+      64-bit Release:
+        BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
+        JFlag: '-j 2'
+
+      64-bit Release Windows8Compat:
+        BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64" -DWIN8COMPAT=TRUE'
+        JFlag: '-j 2'
+
+      32-bit Debug:
+        BuildType: Debug
+        CMakeArgs: '-G"Visual Studio 15 2017"'
+        JFlag: '-j 4'
+
+      32-bit Release:
+        BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017"'
+        JFlag: '-j 2'
+
+  steps:
+  - script: |
+      bash -c "cat /proc/cpuinfo"
+      bash -c "cat /proc/meminfo"
+    displayName: 'Machine stats'
+
+  - task: CMake@1
+    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+    inputs:
+      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+
+  - task: MSBuild@1
+    displayName: 'Build solution build/snmalloc.sln'
+    inputs:
+      solution: build/snmalloc.sln
+      msbuildArguments: '/m /p:Configuration=$(BuildType)'
+
+  - script: 'ctest $(JFlag) --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
+    workingDirectory: build
+    displayName: 'Run Ctest'
+
+- job:
+  displayName: WinClang
+  pool: 
+    vmImage:  'windows-2019'
+  strategy:
+    matrix:
+      64-bit Debug Clang:
+        BuildType: Debug
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang++.exe"'
+        JFlag: -j 4
+
+  steps:
+  - script: |
+      bash -c "cat /proc/cpuinfo"
+      bash -c "cat /proc/meminfo"
+    displayName: 'Machine stats'
+
+  - script: |
+      choco install --accept-license -y Ninja llvm
+    displayName: 'Dependencies'
+
+  - task: CMake@1
+    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+    inputs:
+      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+
+  - task: CMake@1
+    displayName: 'CMake --build . --config ${BuildType}'
+    inputs:
+      cmakeArgs: '--build . --config ${BuildType}'
+
+  - script: |
+      set PATH=%PATH%;"C:\Program Files\LLVM\bin\"
+      func-statistics-1.exe
+      ctest $(JFlag) --interactive-debug-mode 0 --output-on-failure -C $(BuildType)
+
+    workingDirectory: build
+    displayName: 'Run Ctest'
+
+- job: 
+  displayName: macOS
+  pool:
+    vmImage: 'macOS-10.15'
+  strategy:
+    matrix:
+      Debug:
+        BuildType: Debug
+      Release:
+        BuildType: Release
+
+  steps:
+  - task: CMake@1
+    displayName: 'CMake .. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+    inputs:
+      cmakeArgs: '.. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+
+  - script: |
+      set -eo pipefail
+      make -j 4
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Compile'
+
+  - script: |
+      set -eo pipefail
+      ctest -j 4 --output-on-failure -C $(BuildType)
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Test'
+
+- job: 
+  displayName: Format
+  pool:
+    vmImage: 'ubuntu-18.04'
+  steps:
+  - script: |
+      set -eo pipefail
+      wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+      sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+      sudo apt-get update
+      sudo apt-get install -y clang-format-9 clang-tidy-9
+      sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100
+
+    displayName: 'Install clang'
+
+  - task: CMake@1
+    displayName: 'CMake ..'
+    inputs:
+      cmakeArgs: '..'
+
+  - script: |
+      set -eo pipefail
+      make clangformat
+      git diff --exit-code $(Build.SourceVersion)
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Clang-Format'
+
+  - script: |
+      set -eo pipefail
+      clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16
+
+    displayName: 'Clang-Tidy'

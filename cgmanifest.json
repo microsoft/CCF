@@ -132,8 +132,8 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/google/snmalloc",
-          "commitHash": "8304dedd175ac4637c77ac8e214cded2acc27502"
+          "repositoryUrl": "https://github.com/microsoft/snmalloc",
+          "commitHash": "8e3efcb1dcb27a5b43b66778a6c61681365f945f"
         }
       }
     },
