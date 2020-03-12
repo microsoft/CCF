@@ -92,7 +92,7 @@ namespace ccf
 
       // The secure channel between self and to has already been established
       GcmHdr hdr;
-      n2n_channel.tag(hdr, CBuffer{data.data(), data.size()});
+      n2n_channel.tag(hdr, data);
 
       to_host->write(node_outbound, to, msg_type, data, hdr);
       return true;
@@ -129,7 +129,7 @@ namespace ccf
 
       auto& n2n_channel = channels->get(t.from_node);
 
-      if (!n2n_channel.verify(hdr, CBuffer{d.data(), d.size()}))
+      if (!n2n_channel.verify(hdr, d))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",
