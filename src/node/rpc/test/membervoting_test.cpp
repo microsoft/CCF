@@ -1553,7 +1553,7 @@ DOCTEST_TEST_CASE("User data")
   }
 }
 
-TEST_CASE("Submit recovery shares")
+DOCTEST_TEST_CASE("Submit recovery shares")
 {
   // Setup original state
   NetworkTables network;
@@ -1563,7 +1563,7 @@ TEST_CASE("Submit recovery shares")
   size_t member_count = 4;
   std::map<size_t, EncryptedShare> retrieved_shares;
 
-  INFO("Setup state");
+  DOCTEST_INFO("Setup state");
   {
     Store::Tx gen_tx;
 
@@ -1576,13 +1576,13 @@ TEST_CASE("Submit recovery shares")
       auto cert = get_cert_data(i, kp);
       members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
     }
-    REQUIRE(node.split_ledger_secrets(gen_tx));
+    DOCTEST_REQUIRE(node.split_ledger_secrets(gen_tx));
     gen.finalize();
 
     frontend.open();
   }
 
-  INFO("Retrieve recovery shares");
+  DOCTEST_INFO("Retrieve recovery shares");
   {
     const auto get_recovery_shares =
       create_request(nullptr, "getEncryptedRecoveryShare");
@@ -1594,7 +1594,7 @@ TEST_CASE("Submit recovery shares")
     }
   }
 
-  INFO("Submit share before the service is in correct state");
+  DOCTEST_INFO("Submit share before the service is in correct state");
   {
     MemberId member_id = 0;
     const auto submit_recovery_share = create_request(
@@ -1606,17 +1606,17 @@ TEST_CASE("Submit recovery shares")
       HTTP_STATUS_FORBIDDEN);
   }
 
-  INFO("Change service state to waiting for recovery shares");
+  DOCTEST_INFO("Change service state to waiting for recovery shares");
   {
     Store::Tx tx;
     GenesisGenerator g(network, tx);
 
-    REQUIRE(g.service_wait_for_shares());
+    DOCTEST_REQUIRE(g.service_wait_for_shares());
 
     g.finalize();
   }
 
-  INFO("Submit recovery shares");
+  DOCTEST_INFO("Submit recovery shares");
   {
     for (auto const& m : members)
     {
@@ -1631,11 +1631,11 @@ TEST_CASE("Submit recovery shares")
       // share
       if (m.first != (member_count - 1))
       {
-        REQUIRE(!ret);
+        DOCTEST_REQUIRE(!ret);
       }
       else
       {
-        REQUIRE(ret);
+        DOCTEST_REQUIRE(ret);
       }
     }
   }

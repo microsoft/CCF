@@ -80,7 +80,7 @@ namespace ccf
       auto shares =
         SecretSharing::split(secret_to_split, active_member_count, threshold);
 
-      // es are not encrypted
+      // Here, shares are not encrypted and record in the ledger in plain text
       EncryptedSharesMap recorded_shares;
       MemberId member_id = 0;
       for (auto const& s : shares)

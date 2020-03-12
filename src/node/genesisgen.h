@@ -183,6 +183,7 @@ namespace ccf
       return active_nodes;
     }
 
+    // Service status should use a state machine, very much like NodeState.
     void create_service(
       const std::vector<uint8_t>& network_cert, kv::Version version = 1)
     {
