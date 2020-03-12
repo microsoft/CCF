@@ -1553,6 +1553,94 @@ DOCTEST_TEST_CASE("User data")
   }
 }
 
+DOCTEST_TEST_CASE("Submit recovery shares")
+{
+  // Setup original state
+  NetworkTables network;
+  auto node = StubNodeState(std::make_shared<NetworkTables>(network));
+  MemberRpcFrontend frontend(network, node);
+  std::map<size_t, ccf::Cert> members;
+  size_t member_count = 4;
+  std::map<size_t, EncryptedShare> retrieved_shares;
+
+  DOCTEST_INFO("Setup state");
+  {
+    Store::Tx gen_tx;
+
+    GenesisGenerator gen(network, gen_tx);
+    gen.init_values();
+    gen.create_service({});
+
+    for (size_t i = 0; i < member_count; i++)
+    {
+      auto cert = get_cert_data(i, kp);
+      members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
+    }
+    DOCTEST_REQUIRE(node.split_ledger_secrets(gen_tx));
+    gen.finalize();
+
+    frontend.open();
+  }
+
+  DOCTEST_INFO("Retrieve recovery shares");
+  {
+    const auto get_recovery_shares =
+      create_request(nullptr, "getEncryptedRecoveryShare");
+
+    for (auto const& m : members)
+    {
+      retrieved_shares[m.first] = parse_response_body<EncryptedShare>(
+        frontend_process(frontend, get_recovery_shares, m.second));
+    }
+  }
+
+  DOCTEST_INFO("Submit share before the service is in correct state");
+  {
+    MemberId member_id = 0;
+    const auto submit_recovery_share = create_request(
+      SubmitRecoveryShare({retrieved_shares[member_id].encrypted_share}),
+      "submitRecoveryShare");
+
+    check_error(
+      frontend_process(frontend, submit_recovery_share, members[member_id]),
+      HTTP_STATUS_FORBIDDEN);
+  }
+
+  DOCTEST_INFO("Change service state to waiting for recovery shares");
+  {
+    Store::Tx tx;
+    GenesisGenerator g(network, tx);
+
+    DOCTEST_REQUIRE(g.service_wait_for_shares());
+
+    g.finalize();
+  }
+
+  DOCTEST_INFO("Submit recovery shares");
+  {
+    for (auto const& m : members)
+    {
+      const auto submit_recovery_share = create_request(
+        SubmitRecoveryShare({retrieved_shares[m.first].encrypted_share}),
+        "submitRecoveryShare");
+
+      auto ret = parse_response_body<bool>(
+        frontend_process(frontend, submit_recovery_share, m.second));
+
+      // Share submission should only complete when last member submits their
+      // share
+      if (m.first != (member_count - 1))
+      {
+        DOCTEST_REQUIRE(!ret);
+      }
+      else
+      {
+        DOCTEST_REQUIRE(ret);
+      }
+    }
+  }
+}
+
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {

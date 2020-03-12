@@ -43,12 +43,16 @@ def test(network, args, use_shares=False):
     recovered_network.wait_for_all_nodes_to_be_trusted()
 
     if use_shares:
-        recovered_network.consortium.get_and_decrypt_shares(remote_node=primary)
-
-    LOG.info("Members vote to complete the recovery")
-    recovered_network.consortium.accept_recovery(
-        member_id=1, remote_node=primary, sealed_secrets=sealed_secrets
-    )
+        LOG.warning("Retrieve and submit recovery shares")
+        recovered_network.consortium.accept_recovery_with_shares(
+            member_id=1, remote_node=primary
+        )
+        recovered_network.consortium.get_decrypt_and_submit_shares(remote_node=primary)
+    else:
+        LOG.info("Members vote to complete the recovery")
+        recovered_network.consortium.accept_recovery(
+            member_id=1, remote_node=primary, sealed_secrets=sealed_secrets
+        )
 
     for node in recovered_network.nodes:
         recovered_network.wait_for_state(node, "partOfNetwork")
