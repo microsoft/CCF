@@ -50,6 +50,7 @@ namespace pbft
       const pbft::PrePrepare& pp,
       pbft::PrePreparesMap& pbft_pre_prepares_map) = 0;
     virtual kv::Version commit_tx(ccf::Store::Tx& tx) = 0;
+    virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
 
   template <typename T, typename S>
@@ -147,6 +148,18 @@ namespace pbft
         return p->current_version();
       }
       return kv::NoVersion;
+    }
+
+    std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor()
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          return p->get_encryptor();
+        }
+      }
     }
   };
 

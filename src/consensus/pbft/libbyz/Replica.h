@@ -514,6 +514,7 @@ private:
   // Used to rollback the kv to the right version and truncate the ledger
 
   std::unique_ptr<LedgerWriter> ledger_writer;
+  std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
   // State abstraction manages state checkpointing and digesting
   State state;

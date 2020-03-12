@@ -328,7 +328,7 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     // transactions
     auto secrets = std::make_shared<ccf::LedgerSecrets>();
     secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
-    auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
+    auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
 
     Store kv_store(consensus);
     Store kv_store_target;
