@@ -80,7 +80,12 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
 
   for (size_t i = 1; i <= 5; ++i)
   {
-    r0.replicate(kv::BatchVector{{i, {1, 2, 3}, true}});
+    auto entry = std::make_shared<std::vector<uint8_t>>();
+    entry->push_back(1);
+    entry->push_back(2);
+    entry->push_back(3);
+
+    r0.replicate(kv::BatchVector{{i, entry, true}});
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
     DOCTEST_REQUIRE(r0.get_commit_idx() == i);
   }
@@ -332,10 +337,11 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_INFO("Try to replicate on a follower, and fail");
   std::vector<uint8_t> entry = {1, 2, 3};
-  DOCTEST_REQUIRE_FALSE(r1.replicate(kv::BatchVector{{1, entry, true}}));
+  auto data = std::make_shared<std::vector<uint8_t>>(entry);
+  DOCTEST_REQUIRE_FALSE(r1.replicate(kv::BatchVector{{1, data, true}}));
 
   DOCTEST_INFO("Tell the leader to replicate a message");
-  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, entry, true}}));
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true}}));
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
   DOCTEST_REQUIRE(*r0.ledger->ledger.front() == entry);
   DOCTEST_INFO("The other nodes are not told about this yet");
@@ -432,7 +438,9 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
   DOCTEST_REQUIRE(r0.channels->sent_msg_count() == 0);
   DOCTEST_REQUIRE(r1.channels->sent_msg_count() == 0);
 
-  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, {1, 2, 3}, true}}));
+  std::vector<uint8_t> first_entry = {1, 2, 3};
+  auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true}}));
   r0.periodic(ms(10));
 
   DOCTEST_REQUIRE(
@@ -531,10 +539,12 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   DOCTEST_INFO("Replicate two entries");
   {
     std::vector<uint8_t> first_entry = {1, 1, 1};
+    auto data_1 = std::make_shared<std::vector<uint8_t>>(first_entry);
     std::vector<uint8_t> second_entry = {2, 2, 2};
+    auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
 
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, first_entry, true}}));
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true}}));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -554,7 +564,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   DOCTEST_INFO("Replicate one more entry but send AE all entries");
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, third_entry, true}}));
+    auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true}}));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
     // Simulate that the append entries was not deserialised successfully
@@ -582,7 +593,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   DOCTEST_INFO("Replicate one more entry (normal behaviour)");
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, fourth_entry, true}}));
+    auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true}}));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -594,7 +606,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     "Replicate one more entry without AE response from previous entry");
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, fifth_entry, true}}));
+    auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true}}));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -681,7 +694,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
   // large entries of size (append_entries_size_limit / 2), so 2nd and 4th entry
   // will exceed append entries limit size which means that 2nd and 4th entries
   // will trigger send_append_entries()
-  std::vector<uint8_t> data((r0.append_entries_size_limit / 2), 1);
+  auto data =
+    std::make_shared<::vector<uint8_t>>((r0.append_entries_size_limit / 2), 1);
   // I want to get ~500 messages sent over 1mill entries
   auto individual_entries = 1000000;
   auto num_small_entries_sent = 500;
@@ -706,7 +720,8 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   int data_size = (num_small_entries_sent * r0.append_entries_size_limit) /
     (individual_entries - num_big_entries);
-  std::vector<uint8_t> smaller_data(data_size, 1);
+  auto smaller_data = std::make_shared<std::vector<uint8_t>>(data_size, 1);
+
   for (size_t i = num_big_entries + 1; i <= individual_entries; ++i)
   {
     DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, smaller_data, true}}));
@@ -822,9 +837,22 @@ DOCTEST_TEST_CASE(
   r1.channels->sent_append_entries_response.clear();
   r2.channels->sent_append_entries_response.clear();
 
-  std::vector<uint8_t> first_entry = {1, 1, 1};
-  std::vector<uint8_t> second_entry = {2, 2, 2};
-  std::vector<uint8_t> third_entry = {3, 3, 3};
+  auto first_entry = std::make_shared<std::vector<uint8_t>>();
+  for (auto i = 0; i < 3; ++i)
+  {
+    first_entry->push_back(1);
+  }
+  auto second_entry = std::make_shared<std::vector<uint8_t>>();
+  for (auto i = 0; i < 3; ++i)
+  {
+    second_entry->push_back(2);
+  }
+
+  auto third_entry = std::make_shared<std::vector<uint8_t>>();
+  for (auto i = 0; i < 3; ++i)
+  {
+    third_entry->push_back(3);
+  }
 
   DOCTEST_INFO("Node 0 compacts twice but Nodes 1 and 2 only once");
   {

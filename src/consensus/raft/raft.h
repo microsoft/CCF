@@ -330,7 +330,7 @@ namespace raft
           committable_indices.push_back(index);
 
         last_idx = index;
-        auto s = write_to_ledger(data);
+        auto s = write_to_ledger(*data);
         entry_size_not_limited += s;
         entry_count++;
 
