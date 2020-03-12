@@ -91,7 +91,10 @@ namespace ccf
 
     template <class T>
     bool send_encrypted(
-      NodeId to, const std::vector<uint8_t>& data, const T& msg)
+      const NodeMsgType& msg_type,
+      NodeId to,
+      const std::vector<uint8_t>& data,
+      const T& msg)
     {
       auto& n2n_channel = channels->get(to);
       if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
@@ -104,8 +107,7 @@ namespace ccf
       std::vector<uint8_t> cipher(data.size());
       n2n_channel.encrypt(hdr, asCb(msg), data, cipher);
 
-      to_host->write(
-        node_outbound, to, NodeMsgType::forwarded_msg, msg, hdr, cipher);
+      to_host->write(node_outbound, to, msg_type, msg, hdr, cipher);
 
       return true;
     }

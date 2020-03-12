@@ -105,7 +105,15 @@ namespace pbft
         return msg->size();
       }
 
-      PbftHeader hdr = {PbftMsgType::pbft_message, id};
+      PbftHeader hdr;
+      if (should_encrypt(msg->tag()))
+      {
+        hdr = {PbftMsgType::encrypted_pbft_message, id};
+      }
+      else
+      {
+        hdr = {PbftMsgType::pbft_message, id};
+      }
 
       auto space = (sizeof(PbftHeader) + msg->size());
       serialized_msg.resize(space);
@@ -133,9 +141,21 @@ namespace pbft
         }
         return msg->size();
       }
+      if (should_encrypt(msg->tag()))
+      {
+        LOG_INFO_FMT("Sending an ecrypted message");
+        n2n_channels->send_encrypted(
+          ccf::NodeMsgType::consensus_msg, to, serialized_msg, hdr);
+        return msg->size();
+      }
       n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, serialized_msg);
       return msg->size();
+    }
+
+    bool should_encrypt(int tag)
+    {
+      return tag == Request_tag || tag == Reply_tag;
     }
 
     void send_append_entries(NodeId to, Index start_idx)
@@ -491,8 +511,33 @@ namespace pbft
       {
         case pbft_message:
         {
+          try
+          {
+            channels->template recv_authenticated(data, size);
+          }
+          catch (const std::logic_error& err)
+          {
+            LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+          }
           serialized::skip(data, size, sizeof(PbftHeader));
           message_receiver_base->receive_message(data, size);
+          break;
+        }
+        case encrypted_pbft_message:
+        {
+          std::pair<PbftHeader, std::vector<uint8_t>> r;
+          try
+          {
+            r = channels->template recv_encrypted<PbftHeader>(data, size);
+          }
+          catch (const std::logic_error& err)
+          {
+            LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
+          }
+          const auto* d = r.second.data();
+          auto s = r.second.size();
+          serialized::skip(d, s, sizeof(PbftHeader));
+          message_receiver_base->receive_message(d, s);
           break;
         }
         case pbft_append_entries:
