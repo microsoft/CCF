@@ -77,8 +77,7 @@ namespace ccf
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
 
-      return n2n_channels->send_encrypted(
-        NodeMsgType::forwarded_msg, to, plain, msg);
+      return n2n_channels->send_encrypted(to, plain, msg);
     }
 
     std::optional<std::tuple<std::shared_ptr<enclave::RpcContext>, NodeId>>
@@ -131,8 +130,7 @@ namespace ccf
 
       ForwardedHeader msg = {ForwardedMsg::forwarded_response, self};
 
-      return n2n_channels->send_encrypted(
-        NodeMsgType::forwarded_msg, from_node, plain, msg);
+      return n2n_channels->send_encrypted(from_node, plain, msg);
     }
 
     std::optional<std::pair<size_t, std::vector<uint8_t>>>

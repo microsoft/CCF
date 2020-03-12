@@ -68,11 +68,6 @@ namespace pbft
   class PbftEnclaveNetwork : public INetwork
   {
   private:
-    bool should_encrypt(int tag)
-    {
-      return tag == Request_tag || tag == Reply_tag;
-    }
-
     void serialize_message(uint8_t*& data, size_t& size, Message* msg)
     {
       serialized::write(
@@ -181,19 +176,6 @@ namespace pbft
         {
           send_append_entries(to, match_idx + 1);
         }
-        return msg->size();
-      }
-
-      if (should_encrypt(msg->tag()))
-      {
-        PbftHeader hdr = {PbftMsgType::encrypted_pbft_message, id};
-
-        auto space = (size_t)msg->size();
-        serialized_msg.resize(space);
-        auto data_ = serialized_msg.data();
-        serialize_message(data_, space, msg);
-        n2n_channels->send_encrypted(
-          ccf::NodeMsgType::consensus_msg, to, serialized_msg, hdr);
         return msg->size();
       }
 
@@ -529,21 +511,6 @@ namespace pbft
           {
             LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
           }
-          break;
-        }
-        case encrypted_pbft_message:
-        {
-          std::pair<PbftHeader, std::vector<uint8_t>> r;
-          try
-          {
-            r = channels->template recv_encrypted<PbftHeader>(data, size);
-          }
-          catch (const std::logic_error& err)
-          {
-            LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
-          }
-          message_receiver_base->receive_message(
-            r.second.data(), r.second.size());
           break;
         }
         case pbft_append_entries:
