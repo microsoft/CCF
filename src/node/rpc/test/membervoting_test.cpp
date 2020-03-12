@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
+#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
@@ -65,14 +66,14 @@ T parse_response_body(const TResponse& r)
 
 void check_error(const TResponse& r, http_status expected)
 {
-  CHECK(r.status == expected);
+  DOCTEST_CHECK(r.status == expected);
 }
 
 void check_result_state(const TResponse& r, ProposalState expected)
 {
-  CHECK(r.status == HTTP_STATUS_OK);
+  DOCTEST_CHECK(r.status == HTTP_STATUS_OK);
   const auto result = parse_response_body<ProposalInfo>(r);
-  CHECK(result.state == expected);
+  DOCTEST_CHECK(result.state == expected);
 }
 
 void set_whitelists(GenesisGenerator& gen)
@@ -141,15 +142,15 @@ auto frontend_process(
   auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 
-  CHECK(serialized_response.has_value());
+  DOCTEST_CHECK(serialized_response.has_value());
 
   http::SimpleResponseProcessor processor;
   http::ResponseParser parser(processor);
 
   const auto parsed_count =
     parser.execute(serialized_response->data(), serialized_response->size());
-  REQUIRE(parsed_count == serialized_response->size());
-  REQUIRE(processor.received.size() == 1);
+  DOCTEST_REQUIRE(parsed_count == serialized_response->size());
+  DOCTEST_REQUIRE(processor.received.size() == 1);
 
   return processor.received.front();
 }
@@ -196,7 +197,7 @@ auto init_frontend(
   return MemberRpcFrontend(network, node);
 }
 
-TEST_CASE("Member query/read")
+DOCTEST_TEST_CASE("Member query/read")
 {
   // initialize the network state
   NetworkTables network;
@@ -218,20 +219,20 @@ TEST_CASE("Member query/read")
   constexpr auto value = 456;
   Store::Tx tx;
   tx.get_view(network.values)->put(key, value);
-  CHECK(tx.commit() == kv::CommitSuccess::OK);
+  DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
   static constexpr auto query = R"xxx(
   local tables = ...
   return tables["ccf.values"]:get(123)
   )xxx";
 
-  SUBCASE("Query: bytecode/script allowed access")
+  DOCTEST_SUBCASE("Query: bytecode/script allowed access")
   {
     // set member ACL so that the VALUES table is accessible
     Store::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     bool compile = true;
     do
@@ -239,17 +240,17 @@ TEST_CASE("Member query/read")
       const auto req = create_request(query_params(query, compile), "query");
       const auto r = frontend_process(frontend, req, member_cert);
       const auto result = parse_response_body<int>(r);
-      CHECK(result == value);
+      DOCTEST_CHECK(result == value);
       compile = !compile;
     } while (!compile);
   }
 
-  SUBCASE("Query: table not in ACL")
+  DOCTEST_SUBCASE("Query: table not in ACL")
   {
     // set member ACL so that no table is accessible
     Store::Tx tx;
     tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
-    CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto req = create_request(query_params(query, true), "query");
     const auto response = frontend_process(frontend, req, member_cert);
@@ -257,27 +258,27 @@ TEST_CASE("Member query/read")
     check_error(response, HTTP_STATUS_INTERNAL_SERVER_ERROR);
   }
 
-  SUBCASE("Read: allowed access, key exists")
+  DOCTEST_SUBCASE("Read: allowed access, key exists")
   {
     Store::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call =
       create_request(read_params<int>(key, Tables::VALUES), "read");
     const auto r = frontend_process(frontend, read_call, member_cert);
     const auto result = parse_response_body<int>(r);
-    CHECK(result == value);
+    DOCTEST_CHECK(result == value);
   }
 
-  SUBCASE("Read: allowed access, key doesn't exist")
+  DOCTEST_SUBCASE("Read: allowed access, key doesn't exist")
   {
     constexpr auto wrong_key = 321;
     Store::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
-    CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call =
       create_request(read_params<int>(wrong_key, Tables::VALUES), "read");
@@ -286,11 +287,11 @@ TEST_CASE("Member query/read")
     check_error(response, HTTP_STATUS_BAD_REQUEST);
   }
 
-  SUBCASE("Read: access not allowed")
+  DOCTEST_SUBCASE("Read: access not allowed")
   {
     Store::Tx tx;
     tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
-    CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
     auto read_call =
       create_request(read_params<int>(key, Tables::VALUES), "read");
@@ -300,7 +301,7 @@ TEST_CASE("Member query/read")
   }
 }
 
-TEST_CASE("Proposer ballot")
+DOCTEST_TEST_CASE("Proposer ballot")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
@@ -327,7 +328,7 @@ TEST_CASE("Proposer ballot")
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
   {
-    INFO("Propose, initially voting against");
+    DOCTEST_INFO("Propose, initially voting against");
 
     const auto proposed_member = get_cert_data(2, kp);
 
@@ -344,13 +345,13 @@ TEST_CASE("Proposer ballot")
 
     // the proposal should be accepted, but not succeed immediately
     const auto result = parse_response_body<Propose::Out>(r);
-    CHECK(result.state == ProposalState::OPEN);
+    DOCTEST_CHECK(result.state == ProposalState::OPEN);
 
     proposal_id = result.proposal_id;
   }
 
   {
-    INFO("Second member votes for proposal");
+    DOCTEST_INFO("Second member votes for proposal");
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
@@ -361,25 +362,25 @@ TEST_CASE("Proposer ballot")
   }
 
   {
-    INFO("Read current votes");
+    DOCTEST_INFO("Read current votes");
 
     const auto proposal_result =
       get_proposal(frontend, proposal_id, proposer_cert);
 
     const auto& votes = proposal_result.votes;
-    CHECK(votes.size() == 2);
+    DOCTEST_CHECK(votes.size() == 2);
 
     const auto proposer_vote = votes.find(proposer_id);
-    CHECK(proposer_vote != votes.end());
-    CHECK(proposer_vote->second == vote_against);
+    DOCTEST_CHECK(proposer_vote != votes.end());
+    DOCTEST_CHECK(proposer_vote->second == vote_against);
 
     const auto voter_vote = votes.find(voter_id);
-    CHECK(voter_vote != votes.end());
-    CHECK(voter_vote->second == vote_for);
+    DOCTEST_CHECK(voter_vote != votes.end());
+    DOCTEST_CHECK(voter_vote->second == vote_for);
   }
 
   {
-    INFO("Proposer votes for");
+    DOCTEST_INFO("Proposer votes for");
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
@@ -397,8 +398,10 @@ struct NewMember
   Cert cert;
 };
 
-TEST_CASE("Add new members until there are 7 then reject")
+DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 {
+  logger::config::level() = logger::INFO;
+
   constexpr auto initial_members = 3;
   constexpr auto n_new_members = 7;
   constexpr auto max_members = 8;
@@ -462,16 +465,16 @@ TEST_CASE("Add new members until there are 7 then reject")
       const auto result = parse_response_body<Propose::Out>(r);
 
       // the proposal should be accepted, but not succeed immediately
-      CHECK(result.proposal_id == proposal_id);
-      CHECK(result.state == ProposalState::OPEN);
+      DOCTEST_CHECK(result.proposal_id == proposal_id);
+      DOCTEST_CHECK(result.state == ProposalState::OPEN);
     }
 
     // read initial proposal, as second member
     const Proposal initial_read =
       get_proposal(frontend, proposal_id, voter_a_cert);
-    CHECK(initial_read.proposer == proposer_id);
-    CHECK(initial_read.script == proposal.script);
-    CHECK(initial_read.parameter == proposal.parameter);
+    DOCTEST_CHECK(initial_read.proposer == proposer_id);
+    DOCTEST_CHECK(initial_read.script == proposal.script);
+    DOCTEST_CHECK(initial_read.parameter == proposal.parameter);
 
     // vote as second member
     Script vote_ballot(fmt::format(
@@ -497,9 +500,9 @@ TEST_CASE("Add new members until there are 7 then reject")
       if (new_member.id < max_members)
       {
         // vote should succeed
-        CHECK(result.state == ProposalState::ACCEPTED);
+        DOCTEST_CHECK(result.state == ProposalState::ACCEPTED);
         // check that member with the new new_member cert can make RPCs now
-        CHECK(
+        DOCTEST_CHECK(
           parse_response_body<int>(frontend_process(
             frontend, read_next_req, new_member.cert)) == new_member.id + 1);
 
@@ -509,7 +512,7 @@ TEST_CASE("Add new members until there are 7 then reject")
       else
       {
         // vote should not succeed
-        CHECK(result.state == ProposalState::OPEN);
+        DOCTEST_CHECK(result.state == ProposalState::OPEN);
         // check that member with the new new_member cert can make RPCs now
         check_error(
           frontend_process(frontend, read_next_req, new_member.cert),
@@ -518,18 +521,18 @@ TEST_CASE("Add new members until there are 7 then reject")
         // re-read proposal, as second member
         const Proposal final_read =
           get_proposal(frontend, proposal_id, voter_a_cert);
-        CHECK(final_read.proposer == proposer_id);
-        CHECK(final_read.script == proposal.script);
-        CHECK(final_read.parameter == proposal.parameter);
+        DOCTEST_CHECK(final_read.proposer == proposer_id);
+        DOCTEST_CHECK(final_read.script == proposal.script);
+        DOCTEST_CHECK(final_read.parameter == proposal.parameter);
 
         const auto my_vote = final_read.votes.find(voter_a);
-        CHECK(my_vote != final_read.votes.end());
-        CHECK(my_vote->second == vote_ballot);
+        DOCTEST_CHECK(my_vote != final_read.votes.end());
+        DOCTEST_CHECK(my_vote->second == vote_ballot);
       }
     }
   }
 
-  SUBCASE("ACK from newly added members")
+  DOCTEST_SUBCASE("ACK from newly added members")
   {
     // iterate over all new_members, except for the last one
     for (auto new_member = new_members.cbegin(); new_member !=
@@ -547,13 +550,13 @@ TEST_CASE("Add new members until there are 7 then reject")
         create_request(nullptr, "updateAckStateDigest");
       const auto freshen_state_digest = parse_response_body<StateDigest>(
         frontend_process(frontend, freshen_state_digest_req, new_member->cert));
-      CHECK(freshen_state_digest.state_digest != ack0.state_digest);
+      DOCTEST_CHECK(freshen_state_digest.state_digest != ack0.state_digest);
 
       // (3) read ack entry again and check that the state digest has changed
       const auto ack1 = parse_response_body<StateDigest>(
         frontend_process(frontend, read_state_digest_req, new_member->cert));
-      CHECK(ack0.state_digest != ack1.state_digest);
-      CHECK(freshen_state_digest.state_digest == ack1.state_digest);
+      DOCTEST_CHECK(ack0.state_digest != ack1.state_digest);
+      DOCTEST_CHECK(freshen_state_digest.state_digest == ack1.state_digest);
 
       // (4) sign stale state and send it
       StateDigest params;
@@ -570,20 +573,20 @@ TEST_CASE("Add new members until there are 7 then reject")
         create_signed_request(params, "ack", new_member->kp);
       const auto good_response =
         frontend_process(frontend, send_good_sig_req, new_member->cert);
-      CHECK(good_response.status == HTTP_STATUS_OK);
-      CHECK(parse_response_body<bool>(good_response));
+      DOCTEST_CHECK(good_response.status == HTTP_STATUS_OK);
+      DOCTEST_CHECK(parse_response_body<bool>(good_response));
 
       // (6) read own member status
       const auto read_status_req =
         create_request(read_params(new_member->id, Tables::MEMBERS), "read");
       const auto mi = parse_response_body<MemberInfo>(
         frontend_process(frontend, read_status_req, new_member->cert));
-      CHECK(mi.status == MemberStatus::ACTIVE);
+      DOCTEST_CHECK(mi.status == MemberStatus::ACTIVE);
     }
   }
 }
 
-TEST_CASE("Accept node")
+DOCTEST_TEST_CASE("Accept node")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
@@ -618,7 +621,7 @@ TEST_CASE("Accept node")
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, member_0_cert));
 
-    CHECK(r.status == NodeStatus::PENDING);
+    DOCTEST_CHECK(r.status == NodeStatus::PENDING);
   }
 
   // m0 proposes adding new node
@@ -632,8 +635,8 @@ TEST_CASE("Accept node")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
-    CHECK(r.state == ProposalState::OPEN);
-    CHECK(r.proposal_id == 0);
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
+    DOCTEST_CHECK(r.proposal_id == 0);
   }
 
   // m1 votes for accepting a single new node
@@ -654,7 +657,7 @@ TEST_CASE("Accept node")
       create_request(read_params<int>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, member_0_cert));
-    CHECK(r.status == NodeStatus::TRUSTED);
+    DOCTEST_CHECK(r.status == NodeStatus::TRUSTED);
   }
 
   // m0 proposes retire node
@@ -668,8 +671,8 @@ TEST_CASE("Accept node")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_0_cert));
 
-    CHECK(r.state == ProposalState::OPEN);
-    CHECK(r.proposal_id == 1);
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
+    DOCTEST_CHECK(r.proposal_id == 1);
   }
 
   // m1 votes for retiring node
@@ -686,7 +689,7 @@ TEST_CASE("Accept node")
       create_request(read_params<int>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, member_0_cert));
-    CHECK(r.status == NodeStatus::RETIRED);
+    DOCTEST_CHECK(r.status == NodeStatus::RETIRED);
   }
 
   // check that retired node cannot be trusted
@@ -744,8 +747,8 @@ ProposalInfo test_raw_writes(
     Store::Tx tx;
     auto next_member_id_r =
       tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
-    CHECK(next_member_id_r);
-    CHECK(*next_member_id_r == n_members);
+    DOCTEST_CHECK(next_member_id_r);
+    DOCTEST_CHECK(*next_member_id_r == n_members);
   }
 
   // propose
@@ -758,8 +761,8 @@ ProposalInfo test_raw_writes(
 
     const auto expected_state =
       (n_members == 1) ? ProposalState::ACCEPTED : ProposalState::OPEN;
-    CHECK(r.state == expected_state);
-    CHECK(r.proposal_id == proposal_id);
+    DOCTEST_CHECK(r.state == expected_state);
+    DOCTEST_CHECK(r.proposal_id == proposal_id);
     if (r.state == ProposalState::ACCEPTED)
       return r;
   }
@@ -799,9 +802,10 @@ ProposalInfo test_raw_writes(
   return info;
 }
 
-TEST_CASE("Propose raw writes")
+DOCTEST_TEST_CASE("Propose raw writes")
 {
-  SUBCASE("insensitive tables")
+  logger::config::level() = logger::INFO;
+  DOCTEST_SUBCASE("insensitive tables")
   {
     const auto n_members = 10;
     for (int pro_votes = 0; pro_votes <= n_members; pro_votes++)
@@ -842,7 +846,7 @@ TEST_CASE("Propose raw writes")
          params},
         n_members,
         pro_votes);
-      CHECK(proposal_info.state == expected_state);
+      DOCTEST_CHECK(proposal_info.state == expected_state);
       if (!should_succeed)
         continue;
 
@@ -850,19 +854,19 @@ TEST_CASE("Propose raw writes")
       Store::Tx tx;
       const auto next_mid =
         tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
-      CHECK(next_mid);
-      CHECK(*next_mid == n_members + 1);
+      DOCTEST_CHECK(next_mid);
+      DOCTEST_CHECK(*next_mid == n_members + 1);
       const auto m = tx.get_view(network.members)->get(n_members);
-      CHECK(m);
-      CHECK(m->status == MemberStatus::ACTIVE);
+      DOCTEST_CHECK(m);
+      DOCTEST_CHECK(m->status == MemberStatus::ACTIVE);
       const auto member_id =
         tx.get_view(network.member_certs)->get(member_cert);
-      CHECK(member_id);
-      CHECK(*member_id == n_members);
+      DOCTEST_CHECK(member_id);
+      DOCTEST_CHECK(*member_id == n_members);
     }
   }
 
-  SUBCASE("sensitive tables")
+  DOCTEST_SUBCASE("sensitive tables")
   {
     // propose changes to sensitive tables; changes must only be accepted
     // unanimously create new network for each case
@@ -896,14 +900,14 @@ TEST_CASE("Propose raw writes")
             n_members,
             pro_votes,
             proposer_vote);
-          CHECK(proposal_info.state == expected_state);
+          DOCTEST_CHECK(proposal_info.state == expected_state);
         }
       }
     }
   }
 }
 
-TEST_CASE("Remove proposal")
+DOCTEST_TEST_CASE("Remove proposal")
 {
   NewMember caller;
   auto cert = caller.kp->self_sign("CN=new member");
@@ -935,7 +939,7 @@ TEST_CASE("Remove proposal")
   {
     Store::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-    CHECK(!proposal);
+    DOCTEST_CHECK(!proposal);
   }
 
   {
@@ -944,20 +948,21 @@ TEST_CASE("Remove proposal")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_cert));
 
-    CHECK(r.proposal_id == proposal_id);
-    CHECK(r.state == ProposalState::OPEN);
+    DOCTEST_CHECK(r.proposal_id == proposal_id);
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
   }
 
   // check that the proposal is there
   {
     Store::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-    CHECK(proposal);
-    CHECK(proposal->state == ProposalState::OPEN);
-    CHECK(proposal->script.text.value() == proposal_script.text.value());
+    DOCTEST_CHECK(proposal);
+    DOCTEST_CHECK(proposal->state == ProposalState::OPEN);
+    DOCTEST_CHECK(
+      proposal->script.text.value() == proposal_script.text.value());
   }
 
-  SUBCASE("Attempt withdraw proposal with non existing id")
+  DOCTEST_SUBCASE("Attempt withdraw proposal with non existing id")
   {
     json param;
     param["id"] = wrong_proposal_id;
@@ -968,7 +973,7 @@ TEST_CASE("Remove proposal")
       HTTP_STATUS_BAD_REQUEST);
   }
 
-  SUBCASE("Attempt withdraw proposal that you didn't propose")
+  DOCTEST_SUBCASE("Attempt withdraw proposal that you didn't propose")
   {
     json param;
     param["id"] = proposal_id;
@@ -978,7 +983,7 @@ TEST_CASE("Remove proposal")
       frontend_process(frontend, withdraw, cert), HTTP_STATUS_FORBIDDEN);
   }
 
-  SUBCASE("Successfully withdraw proposal")
+  DOCTEST_SUBCASE("Successfully withdraw proposal")
   {
     json param;
     param["id"] = proposal_id;
@@ -992,13 +997,13 @@ TEST_CASE("Remove proposal")
     {
       Store::Tx tx;
       auto proposal = tx.get_view(network.proposals)->get(proposal_id);
-      CHECK(proposal.has_value());
-      CHECK(proposal->state == ProposalState::WITHDRAWN);
+      DOCTEST_CHECK(proposal.has_value());
+      DOCTEST_CHECK(proposal->state == ProposalState::WITHDRAWN);
     }
   }
 }
 
-TEST_CASE("Complete proposal after initial rejection")
+DOCTEST_TEST_CASE("Complete proposal after initial rejection")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
@@ -1011,7 +1016,7 @@ TEST_CASE("Complete proposal after initial rejection")
   frontend.open();
 
   {
-    INFO("Propose");
+    DOCTEST_INFO("Propose");
     const auto proposal =
       "return Calls:call('raw_puts', Puts:put('ccf.values', 999, 999))"s;
     const auto propose =
@@ -1020,11 +1025,11 @@ TEST_CASE("Complete proposal after initial rejection")
     Store::Tx tx;
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_certs[0]));
-    CHECK(r.state == ProposalState::OPEN);
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
   }
 
   {
-    INFO("Vote that rejects initially");
+    DOCTEST_INFO("Vote that rejects initially");
     const Script vote(R"xxx(
     local tables = ...
     return tables["ccf.values"]:get(123) == 123
@@ -1038,7 +1043,7 @@ TEST_CASE("Complete proposal after initial rejection")
   }
 
   {
-    INFO("Try to complete");
+    DOCTEST_INFO("Try to complete");
     const auto complete =
       create_signed_request(ProposalAction{0}, "complete", kp);
 
@@ -1048,14 +1053,14 @@ TEST_CASE("Complete proposal after initial rejection")
   }
 
   {
-    INFO("Put value that makes vote agree");
+    DOCTEST_INFO("Put value that makes vote agree");
     Store::Tx tx;
     tx.get_view(network.values)->put(123, 123);
-    CHECK(tx.commit() == kv::CommitSuccess::OK);
+    DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
   }
 
   {
-    INFO("Try again to complete");
+    DOCTEST_INFO("Try again to complete");
     const auto complete =
       create_signed_request(ProposalAction{0}, "complete", kp);
 
@@ -1065,7 +1070,7 @@ TEST_CASE("Complete proposal after initial rejection")
   }
 }
 
-TEST_CASE("Vetoed proposal gets rejected")
+DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
@@ -1094,12 +1099,12 @@ TEST_CASE("Vetoed proposal gets rejected")
 
   const auto r = parse_response_body<Propose::Out>(
     frontend_process(frontend, propose, voter_a_cert));
-  CHECK(r.state == ProposalState::OPEN);
-  CHECK(r.proposal_id == 0);
+  DOCTEST_CHECK(r.state == ProposalState::OPEN);
+  DOCTEST_CHECK(r.proposal_id == 0);
 
   const ccf::Script vote_against("return false");
   {
-    INFO("Member vetoes proposal");
+    DOCTEST_INFO("Member vetoes proposal");
 
     const auto vote = create_signed_request(Vote{0, vote_against}, "vote", kp);
     const auto r = frontend_process(frontend, vote, voter_b_cert);
@@ -1108,15 +1113,15 @@ TEST_CASE("Vetoed proposal gets rejected")
   }
 
   {
-    INFO("Check proposal was rejected");
+    DOCTEST_INFO("Check proposal was rejected");
 
     const auto proposal = get_proposal(frontend, 0, voter_a_cert);
 
-    CHECK(proposal.state == ProposalState::REJECTED);
+    DOCTEST_CHECK(proposal.state == ProposalState::REJECTED);
   }
 }
 
-TEST_CASE("Add user via proposed call")
+DOCTEST_TEST_CASE("Add user via proposed call")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
@@ -1143,20 +1148,20 @@ TEST_CASE("Add user via proposed call")
 
   const auto r = parse_response_body<Propose::Out>(
     frontend_process(frontend, propose, member_cert));
-  CHECK(r.state == ProposalState::ACCEPTED);
-  CHECK(r.proposal_id == 0);
+  DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
+  DOCTEST_CHECK(r.proposal_id == 0);
 
   Store::Tx tx1;
   const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
-  CHECK(uid);
-  CHECK(*uid == 1);
+  DOCTEST_CHECK(uid);
+  DOCTEST_CHECK(*uid == 1);
   const auto uid1 = tx1.get_view(network.user_certs)
                       ->get(tls::make_verifier(user_cert)->der_cert_data());
-  CHECK(uid1);
-  CHECK(*uid1 == 0);
+  DOCTEST_CHECK(uid1);
+  DOCTEST_CHECK(*uid1 == 0);
 }
 
-TEST_CASE("Passing members ballot with operator")
+DOCTEST_TEST_CASE("Passing members ballot with operator")
 {
   // Members pass a ballot with a constitution that includes an operator
   // Operator votes, but is _not_ taken into consideration
@@ -1195,7 +1200,7 @@ TEST_CASE("Passing members ballot with operator")
   const ccf::Script vote_for("return true");
   const ccf::Script vote_against("return false");
   {
-    INFO("Propose and vote for");
+    DOCTEST_INFO("Propose and vote for");
 
     const auto proposed_member = get_cert_data(4, kp);
 
@@ -1214,13 +1219,13 @@ TEST_CASE("Passing members ballot with operator")
       propose,
       tls::make_verifier(members[proposer_id])->der_cert_data()));
 
-    CHECK(r.state == ProposalState::OPEN);
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
 
     proposal_id = r.proposal_id;
   }
 
   {
-    INFO("Operator votes, but without effect");
+    DOCTEST_INFO("Operator votes, but without effect");
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
@@ -1230,7 +1235,7 @@ TEST_CASE("Passing members ballot with operator")
   }
 
   {
-    INFO("Second member votes for proposal, which passes");
+    DOCTEST_INFO("Second member votes for proposal, which passes");
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
@@ -1240,7 +1245,7 @@ TEST_CASE("Passing members ballot with operator")
   }
 
   {
-    INFO("Validate vote tally");
+    DOCTEST_INFO("Validate vote tally");
 
     const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
@@ -1249,23 +1254,23 @@ TEST_CASE("Passing members ballot with operator")
       get_proposal(frontend, proposal_id, members[proposer_id]);
 
     const auto& votes = proposal.votes;
-    CHECK(votes.size() == 3);
+    DOCTEST_CHECK(votes.size() == 3);
 
     const auto operator_vote = votes.find(operator_id);
-    CHECK(operator_vote != votes.end());
-    CHECK(operator_vote->second == vote_for);
+    DOCTEST_CHECK(operator_vote != votes.end());
+    DOCTEST_CHECK(operator_vote->second == vote_for);
 
     const auto proposer_vote = votes.find(proposer_id);
-    CHECK(proposer_vote != votes.end());
-    CHECK(proposer_vote->second == vote_for);
+    DOCTEST_CHECK(proposer_vote != votes.end());
+    DOCTEST_CHECK(proposer_vote->second == vote_for);
 
     const auto voter_vote = votes.find(voter_id);
-    CHECK(voter_vote != votes.end());
-    CHECK(voter_vote->second == vote_for);
+    DOCTEST_CHECK(voter_vote != votes.end());
+    DOCTEST_CHECK(voter_vote->second == vote_for);
   }
 }
 
-TEST_CASE("Passing operator vote")
+DOCTEST_TEST_CASE("Passing operator vote")
 {
   // Operator issues a proposal that only requires its own vote
   // and gets it through without member votes
@@ -1309,17 +1314,17 @@ TEST_CASE("Passing operator vote")
 
   auto node_id = 0;
   {
-    INFO("Check node exists with status pending");
+    DOCTEST_INFO("Check node exists with status pending");
     auto read_values =
       create_request(read_params<int>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, operator_cert));
 
-    CHECK(r.status == NodeStatus::PENDING);
+    DOCTEST_CHECK(r.status == NodeStatus::PENDING);
   }
 
   {
-    INFO("Operator proposes and votes for node");
+    DOCTEST_INFO("Operator proposes and votes for node");
     Script proposal(R"xxx(
       local tables, node_id = ...
       return Calls:call("trust_node", node_id)
@@ -1330,12 +1335,12 @@ TEST_CASE("Passing operator vote")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
-    CHECK(r.state == ProposalState::ACCEPTED);
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
     proposal_id = r.proposal_id;
   }
 
   {
-    INFO("Validate vote tally");
+    DOCTEST_INFO("Validate vote tally");
 
     const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
@@ -1343,15 +1348,15 @@ TEST_CASE("Passing operator vote")
     const auto proposal = get_proposal(frontend, proposal_id, operator_cert);
 
     const auto& votes = proposal.votes;
-    CHECK(votes.size() == 1);
+    DOCTEST_CHECK(votes.size() == 1);
 
     const auto proposer_vote = votes.find(operator_id);
-    CHECK(proposer_vote != votes.end());
-    CHECK(proposer_vote->second == vote_for);
+    DOCTEST_CHECK(proposer_vote != votes.end());
+    DOCTEST_CHECK(proposer_vote->second == vote_for);
   }
 }
 
-TEST_CASE("Members passing an operator vote")
+DOCTEST_TEST_CASE("Members passing an operator vote")
 {
   // Operator proposes a vote, but does not vote for it
   // A majority of members pass the vote
@@ -1395,16 +1400,16 @@ TEST_CASE("Members passing an operator vote")
 
   auto node_id = 0;
   {
-    INFO("Check node exists with status pending");
+    DOCTEST_INFO("Check node exists with status pending");
     const auto read_values =
       create_request(read_params<int>(node_id, Tables::NODES), "read");
     const auto r = parse_response_body<NodeInfo>(
       frontend_process(frontend, read_values, operator_cert));
-    CHECK(r.status == NodeStatus::PENDING);
+    DOCTEST_CHECK(r.status == NodeStatus::PENDING);
   }
 
   {
-    INFO("Operator proposes and votes against adding node");
+    DOCTEST_INFO("Operator proposes and votes against adding node");
     Script proposal(R"xxx(
       local tables, node_id = ...
       return Calls:call("trust_node", node_id)
@@ -1415,7 +1420,7 @@ TEST_CASE("Members passing an operator vote")
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, operator_cert));
 
-    CHECK(r.state == ProposalState::OPEN);
+    DOCTEST_CHECK(r.state == ProposalState::OPEN);
     proposal_id = r.proposal_id;
   }
 
@@ -1423,7 +1428,7 @@ TEST_CASE("Members passing an operator vote")
   size_t second_voter_id = 2;
 
   {
-    INFO("First member votes for proposal");
+    DOCTEST_INFO("First member votes for proposal");
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
@@ -1433,7 +1438,7 @@ TEST_CASE("Members passing an operator vote")
   }
 
   {
-    INFO("Second member votes for proposal");
+    DOCTEST_INFO("Second member votes for proposal");
 
     const auto vote =
       create_signed_request(Vote{proposal_id, vote_for}, "vote", kp);
@@ -1443,7 +1448,7 @@ TEST_CASE("Members passing an operator vote")
   }
 
   {
-    INFO("Validate vote tally");
+    DOCTEST_INFO("Validate vote tally");
 
     const auto readj = create_signed_request(
       read_params(proposal_id, Tables::PROPOSALS), "read", kp);
@@ -1451,23 +1456,23 @@ TEST_CASE("Members passing an operator vote")
     const auto proposal = get_proposal(frontend, proposal_id, operator_cert);
 
     const auto& votes = proposal.votes;
-    CHECK(votes.size() == 3);
+    DOCTEST_CHECK(votes.size() == 3);
 
     const auto proposer_vote = votes.find(operator_id);
-    CHECK(proposer_vote != votes.end());
-    CHECK(proposer_vote->second == vote_against);
+    DOCTEST_CHECK(proposer_vote != votes.end());
+    DOCTEST_CHECK(proposer_vote->second == vote_against);
 
     const auto first_vote = votes.find(first_voter_id);
-    CHECK(first_vote != votes.end());
-    CHECK(first_vote->second == vote_for);
+    DOCTEST_CHECK(first_vote != votes.end());
+    DOCTEST_CHECK(first_vote->second == vote_for);
 
     const auto second_vote = votes.find(second_voter_id);
-    CHECK(second_vote != votes.end());
-    CHECK(second_vote->second == vote_for);
+    DOCTEST_CHECK(second_vote != votes.end());
+    DOCTEST_CHECK(second_vote->second == vote_for);
   }
 }
 
-TEST_CASE("User data")
+DOCTEST_TEST_CASE("User data")
 {
   NetworkTables network;
   network.tables->set_encryptor(encryptor);
@@ -1488,10 +1493,10 @@ TEST_CASE("User data")
     create_request(read_params(user_id, Tables::USERS), "read");
 
   {
-    INFO("user data is initially empty");
+    DOCTEST_INFO("user data is initially empty");
     const auto read_response = parse_response_body<ccf::UserInfo>(
       frontend_process(frontend, read_user_info, member_cert));
-    CHECK(read_response.user_data.is_null());
+    DOCTEST_CHECK(read_response.user_data.is_null());
   }
 
   {
@@ -1499,7 +1504,7 @@ TEST_CASE("User data")
     user_data_object["name"] = "bob";
     user_data_object["permissions"] = {"read", "delete"};
 
-    INFO("user data can be set to an object");
+    DOCTEST_INFO("user data can be set to an object");
     Propose::In proposal;
     proposal.script = fmt::format(
       R"xxx(
@@ -1515,18 +1520,18 @@ TEST_CASE("User data")
       create_signed_request(proposal, "propose", kp);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
-    CHECK(propose_response.state == ProposalState::ACCEPTED);
+    DOCTEST_CHECK(propose_response.state == ProposalState::ACCEPTED);
 
-    INFO("user data object can be read");
+    DOCTEST_INFO("user data object can be read");
     const auto read_response = parse_response_body<ccf::UserInfo>(
       frontend_process(frontend, read_user_info, member_cert));
-    CHECK(read_response.user_data == user_data_object);
+    DOCTEST_CHECK(read_response.user_data == user_data_object);
   }
 
   {
     const auto user_data_string = "ADMINISTRATOR";
 
-    INFO("user data can be overwritten");
+    DOCTEST_INFO("user data can be overwritten");
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
       local tables, param = ...
@@ -1539,12 +1544,12 @@ TEST_CASE("User data")
       create_signed_request(proposal, "propose", kp);
     const auto propose_response = parse_response_body<Propose::Out>(
       frontend_process(frontend, proposal_serialized, member_cert));
-    CHECK(propose_response.state == ProposalState::ACCEPTED);
+    DOCTEST_CHECK(propose_response.state == ProposalState::ACCEPTED);
 
-    INFO("user data object can be read");
+    DOCTEST_INFO("user data object can be read");
     const auto response = parse_response_body<ccf::UserInfo>(
       frontend_process(frontend, read_user_info, member_cert));
-    CHECK(response.user_data == user_data_string);
+    DOCTEST_CHECK(response.user_data == user_data_string);
   }
 }
 
