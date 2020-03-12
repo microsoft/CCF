@@ -102,7 +102,7 @@ namespace kv
       LocalCommit* next;
       LocalCommit* prev;
     };
-    using LocalCommits = snmalloc::DLList<LocalCommit>;
+    using LocalCommits = snmalloc::DLList<LocalCommit, std::nullptr_t, true>;
 
     Store<S, D>* store;
     std::string name;
@@ -133,8 +133,7 @@ namespace kv
       local_hook(local_hook_),
       global_hook(global_hook_)
     {
-      LocalCommit* c = CreateNewLocalCommit(0, State(), Write());
-      roll->insert_back(c);
+      roll->insert_back(CreateNewLocalCommit(0, State(), Write()));
     }
 
     Map(const Map& that) = delete;
@@ -149,6 +148,7 @@ namespace kv
       }
       else
       {
+        c->~LocalCommit();
         new (c) LocalCommit(std::forward<Args>(args)...);
       }
       return c;
@@ -621,7 +621,9 @@ namespace kv
           }
 
           if (changes)
+          {
             map.roll->insert_back(map.CreateNewLocalCommit(v, state, writes));
+          }
         }
       }
 
@@ -859,7 +861,7 @@ namespace kv
       // This discards all entries in the roll and resets the compacted value
       // and rollback counter. The Map expects to be locked before clearing it.
       roll->clear();
-      roll->insert_back(new LocalCommit(0, State(), Write()));
+      roll->insert_back(CreateNewLocalCommit(0, State(), Write()));
       rollback_counter = 0;
     }
 

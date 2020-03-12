@@ -570,7 +570,7 @@ namespace ccf
     };
 
     SpinLock version_lock;
-    snmalloc::DLList<PendingInsert> pending_inserts;
+    snmalloc::DLList<PendingInsert, std::nullptr_t, true> pending_inserts;
 
     void add_pending_result(
       kv::TxHistory::RequestID id,
@@ -583,10 +583,11 @@ namespace ccf
 
     void execute_pending() override
     {
-      snmalloc::DLList<PendingInsert> pi;
+      snmalloc::DLList<PendingInsert, std::nullptr_t, true> pi;
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         pi = std::move(pending_inserts);
+        assert (pending_inserts.is_empty());
       }
 
       PendingInsert* p = pi.get_head();
