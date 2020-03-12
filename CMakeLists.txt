@@ -355,7 +355,7 @@ if(BUILD_TESTS)
   )
   target_link_libraries(
     nodefrontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                              secp256k1.host http_parser.host
+                              secp256k1.host http_parser.host sss.host
   )
 
   if(NOT ENV{RUNTIME_CONFIG_DIR})

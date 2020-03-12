@@ -23,6 +23,7 @@
 #include "rpc/serialization.h"
 #include "seal.h"
 #include "secretshare.h"
+#include "sharemanager.h"
 #include "timer.h"
 #include "tls/25519.h"
 #include "tls/client.h"
@@ -181,6 +182,7 @@ namespace ccf
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
     std::shared_ptr<Seal> seal;
+    ShareManager share_manager;
 
     //
     // join protocol
@@ -218,7 +220,8 @@ namespace ccf
       rpcsessions(rpcsessions),
       notifier(notifier),
       timers(timers),
-      seal(std::make_shared<Seal>(writer_factory))
+      seal(std::make_shared<Seal>(writer_factory)),
+      share_manager(network)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -790,35 +793,78 @@ namespace ccf
     }
 
     bool finish_recovery(
-      Store::Tx& tx, const nlohmann::json& sealed_secrets) override
+      Store::Tx& tx,
+      const nlohmann::json& sealed_secrets,
+      bool with_shares) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery (primary)");
+      if (with_shares)
+      {
+        GenesisGenerator g(network, tx);
+        if (!g.service_wait_for_shares())
+        {
+          return false;
+        }
+      }
+      else
+      {
+        LOG_INFO_FMT("Initiating end of recovery (primary)");
 
-      // Unseal past network secrets
-      auto past_secrets_idx = network.ledger_secrets->restore(sealed_secrets);
+        // Unseal past network secrets
+        auto past_secrets_idx = network.ledger_secrets->restore(sealed_secrets);
+
+        // Emit signature to certify transactions that happened on public
+        // network
+        history->emit_signature();
+
+        // For all nodes in the new network, write all past network secrets to
+        // the secrets table, encrypted with the respective public keys
+        for (auto const& secret_idx : past_secrets_idx)
+        {
+          auto secret = network.ledger_secrets->get_secret(secret_idx);
+          if (!secret.has_value())
+          {
+            LOG_FAIL_FMT(
+              "Ledger secrets have not been restored: {}", secret_idx);
+            return false;
+          }
+
+          // Do not broadcast the ledger secrets to self since they were already
+          // restored from sealed file
+          broadcast_ledger_secret(tx, secret.value(), secret_idx, true);
+        }
+
+        // Setup new temporary store and record current version/root
+        setup_private_recovery_store();
+
+        // Start reading private security domain of ledger
+        ledger_idx = 0;
+        read_ledger_idx(++ledger_idx);
+
+        sm.advance(State::readingPrivateLedger);
+      }
+      return true;
+    }
+
+    bool finish_recovery_with_shares(
+      Store::Tx& tx, const LedgerSecret& ledger_secret)
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      sm.expect(State::partOfPublicNetwork);
+
+      // For now, this only supports one recovery
+
+      LOG_INFO_FMT("Initiating end of recovery with shares (primary)");
 
       // Emit signature to certify transactions that happened on public
       // network
       history->emit_signature();
 
-      // For all nodes in the new network, write all past network secrets to
-      // the secrets table, encrypted with the respective public keys
-      for (auto const& secret_idx : past_secrets_idx)
-      {
-        auto secret = network.ledger_secrets->get_secret(secret_idx);
-        if (!secret.has_value())
-        {
-          LOG_FAIL_FMT("Ledger secrets have not been restored: {}", secret_idx);
-          return false;
-        }
+      network.ledger_secrets->set_secret(0, ledger_secret.master);
 
-        // Do not broadcast the ledger secrets to self since they were already
-        // restored from sealed file
-        broadcast_ledger_secret(tx, secret.value(), secret_idx, true);
-      }
+      broadcast_ledger_secret(tx, ledger_secret, 0, true);
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
@@ -1011,59 +1057,36 @@ namespace ccf
       });
     };
 
-    void split_ledger_secrets(Store::Tx& tx) override
+    bool split_ledger_secrets(Store::Tx& tx) override
     {
-      auto share_wrapping_key_raw =
-        tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
-      auto share_wrapping_key = crypto::KeyAesGcm(share_wrapping_key_raw);
-
-      // Once sealing is completely removed, this can be called from the
-      // LedgerSecrets class directly
-      crypto::GcmCipher encrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
-      share_wrapping_key.encrypt(
-        encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
-                                   // key is never re-used for encryption
-        network.ledger_secrets->get_secret(1)->master,
-        nullb,
-        encrypted_ls.cipher.data(),
-        encrypted_ls.hdr.tag);
-
-      GenesisGenerator g(network, tx);
-      auto active_members = g.get_active_members_keyshare();
-
-      SecretSharing::SplitSecret secret_to_split = {};
-      std::copy_n(
-        share_wrapping_key_raw.begin(),
-        share_wrapping_key_raw.size(),
-        secret_to_split.begin());
-
-      // For now, the secret sharing threshold is set to the number of initial
-      // members
-      size_t threshold = active_members.size();
-      auto shares =
-        SecretSharing::split(secret_to_split, active_members.size(), threshold);
-
-      EncryptedSharesMap encrypted_shares;
-      auto nonce = tls::create_entropy()->random(crypto::Box::NONCE_SIZE);
-
-      size_t share_index = 0;
-      for (auto const& [member_id, enc_pub_key] : active_members)
+      try
       {
-        auto share_raw = std::vector<uint8_t>(
-          shares[share_index].begin(), shares[share_index].end());
+        share_manager.create(tx);
+      }
+      catch (const std::logic_error& e)
+      {
+        LOG_FAIL_FMT("Failed to create shares: {}", e.what());
+        return false;
+      }
+      return true;
+    }
 
-        auto enc_pub_key_raw = tls::PublicX25519::parse(tls::Pem(enc_pub_key));
-        auto encrypted_share = crypto::Box::create(
-          share_raw,
-          nonce,
-          enc_pub_key_raw,
-          network.encryption_key->private_raw);
-
-        encrypted_shares[member_id] = {nonce, encrypted_share};
-        share_index++;
+    bool combine_recovery_shares(
+      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+    {
+      LedgerSecret restored_ledger_secret;
+      try
+      {
+        restored_ledger_secret = share_manager.restore(tx, shares);
+        finish_recovery_with_shares(tx, restored_ledger_secret);
+      }
+      catch (const std::logic_error& e)
+      {
+        LOG_FAIL_FMT("Failed to restore shares: {}", e.what());
+        return false;
       }
 
-      g.add_key_share_info({encrypted_ls.serialise(), encrypted_shares});
+      return true;
     }
 
     NodeId get_node_id() const override

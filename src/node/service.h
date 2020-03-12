@@ -17,13 +17,16 @@ namespace ccf
   {
     OPENING = 1,
     OPEN = 2,
-    CLOSED = 3 // For now, unused
+    WAITING_FOR_RECOVERY_SHARES = 3,
+    CLOSED = 4 // For now, unused
   };
 
   DECLARE_JSON_ENUM(
     ServiceStatus,
     {{ServiceStatus::OPENING, "OPENING"},
      {ServiceStatus::OPEN, "OPEN"},
+     {ServiceStatus::WAITING_FOR_RECOVERY_SHARES,
+      "WAITING_FOR_RECOVERY_SHARES"},
      {ServiceStatus::CLOSED, "CLOSED"}});
 }
 
