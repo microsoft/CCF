@@ -110,7 +110,7 @@ endif()
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-include_directories(${CCF_DIR}/src ${CCF_GENERATED_DIR})
+include_directories(${CCF_DIR}/src)
 
 include_directories(
   SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star
@@ -247,7 +247,9 @@ if("sgx" IN_LIST TARGET)
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
   use_client_mbedtls(cchost)
-  target_include_directories(cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_include_directories(
+    cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CCF_GENERATED_DIR}
+  )
   add_san(cchost)
 
   target_link_libraries(
@@ -423,9 +425,7 @@ function(add_e2e_test)
     # Make python test client framework importable
     set_property(
       TEST ${PARSED_ARGS_NAME} APPEND
-      PROPERTY
-        ENVIRONMENT
-        "PYTHONPATH=${CCF_DIR}/tests:${CCF_GENERATED_DIR}:$ENV{PYTHONPATH}"
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
     if(${PARSED_ARGS_IS_SUITE})
       set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS suite)

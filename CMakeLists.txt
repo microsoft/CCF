@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.8
+  VERSION 0.8.1
   LANGUAGES C CXX
 )
 
@@ -64,7 +64,6 @@ if("sgx" IN_LIST TARGET)
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/generated>
   )
 
   target_link_libraries(ccf.enclave PUBLIC libbyz.enclave)
@@ -117,7 +116,6 @@ if("virtual" IN_LIST TARGET)
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/generated>
   )
 
   target_link_libraries(ccf.virtual PUBLIC libbyz.host)
