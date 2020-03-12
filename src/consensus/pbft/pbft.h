@@ -514,12 +514,13 @@ namespace pbft
         {
           try
           {
-            auto d =
-              channels->template validate_authenticated<PbftHeader>(data, size);
-            const auto* dd = d.data();
-            auto s = d.size();
-            serialized::skip(dd, s, sizeof(PbftHeader));
-            message_receiver_base->receive_message(dd, s);
+            auto r =
+              channels->template recv_authenticated_with_load<PbftHeader>(
+                data, size);
+            const auto* d = r.data();
+            auto s = r.size();
+            serialized::skip(d, s, sizeof(PbftHeader));
+            message_receiver_base->receive_message(d, s);
           }
           catch (const std::logic_error& err)
           {
@@ -538,10 +539,8 @@ namespace pbft
           {
             LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
           }
-          const auto* d = r.second.data();
-          auto s = r.second.size();
-          // serialized::skip(d, s, sizeof(PbftHeader));
-          message_receiver_base->receive_message(d, s);
+          message_receiver_base->receive_message(
+            r.second.data(), r.second.size());
           break;
         }
         case pbft_append_entries:

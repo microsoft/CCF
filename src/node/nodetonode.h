@@ -119,7 +119,7 @@ namespace ccf
     }
 
     template <class T>
-    std::vector<uint8_t> validate_authenticated(
+    std::vector<uint8_t> recv_authenticated_with_load(
       const uint8_t*& data, size_t& size)
     {
       const auto& t = serialized::peek<T>(data, size);
@@ -135,7 +135,6 @@ namespace ccf
           t.from_node,
           size));
       }
-
       return d;
     }
 
@@ -144,7 +143,7 @@ namespace ccf
       const NodeMsgType& msg_type,
       NodeId to,
       const std::vector<uint8_t>& data,
-      const T& msg)
+      const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
       if (!is_channel_established(to, n2n_channel))
@@ -154,9 +153,9 @@ namespace ccf
 
       GcmHdr hdr;
       std::vector<uint8_t> cipher(data.size());
-      n2n_channel.encrypt(hdr, asCb(msg), data, cipher);
+      n2n_channel.encrypt(hdr, asCb(msg_hdr), data, cipher);
 
-      to_host->write(node_outbound, to, msg_type, msg, hdr, cipher);
+      to_host->write(node_outbound, to, msg_type, msg_hdr, hdr, cipher);
 
       return true;
     }
