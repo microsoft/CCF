@@ -3,6 +3,7 @@
 #pragma once
 
 #include "node/rpc/nodeinterface.h"
+#include "node/secretshare.h"
 
 namespace ccf
 {
@@ -10,9 +11,15 @@ namespace ccf
   {
   private:
     bool is_public = false;
+    std::shared_ptr<NetworkTables> network;
 
   public:
-    bool finish_recovery(Store::Tx& tx, const nlohmann::json& args) override
+    StubNodeState(std::shared_ptr<NetworkTables> network_ = nullptr) :
+      network(network_)
+    {}
+
+    bool finish_recovery(
+      Store::Tx& tx, const nlohmann::json& args, bool with_shares) override
     {
       return true;
     }
@@ -58,7 +65,40 @@ namespace ccf
       const std::optional<std::set<NodeId>>& filter) override
     {}
 
-    void split_ledger_secrets(Store::Tx& tx) override {}
+    bool split_ledger_secrets(Store::Tx& tx) override
+    {
+      auto [members_view, shares_view] =
+        tx.get_view(network->members, network->shares);
+      SecretSharing::SplitSecret secret_to_split = {};
+
+      GenesisGenerator g(*network.get(), tx);
+      auto active_member_count = g.get_active_members_count();
+
+      // All member shares are required to construct secrets
+      size_t threshold = active_member_count;
+
+      auto shares =
+        SecretSharing::split(secret_to_split, active_member_count, threshold);
+
+      // Here, shares are not encrypted and record in the ledger in plain text
+      EncryptedSharesMap recorded_shares;
+      MemberId member_id = 0;
+      for (auto const& s : shares)
+      {
+        auto share_raw = std::vector<uint8_t>(s.begin(), s.end());
+        recorded_shares[member_id] = {{}, share_raw};
+        member_id++;
+      }
+      g.add_key_share_info({{}, recorded_shares});
+
+      return true;
+    }
+
+    bool combine_recovery_shares(
+      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+    {
+      return true;
+    }
 
     NodeId get_node_id() const override
     {

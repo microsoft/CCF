@@ -997,7 +997,9 @@ namespace raft
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
       if (commit_idx)
+      {
         rollback(commit_idx);
+      }
 
       committable_indices.clear();
       state = Leader;
