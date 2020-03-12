@@ -227,16 +227,6 @@ set(OE_SIGN_PATH ${OE_BINDIR}/oesign)
 if(BUILD_TESTS)
   enable_testing()
 
-  # Add and remove nodes. As this test spins up many nodes, it is better to run
-  # it early if running the entire suite of tests in parallel (e.g. on the CI)
-  if(QUOTES_ENABLED)
-    add_e2e_test(
-      NAME reconfiguration_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS raft
-    )
-  endif()
-
   # Unit tests
   add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -552,6 +542,12 @@ if(BUILD_TESTS)
   )
 
   if(QUOTES_ENABLED)
+    add_e2e_test(
+      NAME reconfiguration_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      CONSENSUS raft
+    )
+
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
