@@ -122,16 +122,23 @@ namespace pbft
         return msg->size();
       }
 
-      PbftHeader hdr;
       if (should_encrypt(msg->tag()))
       {
-        hdr = {PbftMsgType::encrypted_pbft_message, id};
-      }
-      else
-      {
-        hdr = {PbftMsgType::pbft_message, id};
-      }
+        PbftHeader hdr = {PbftMsgType::encrypted_pbft_message, id};
 
+        auto space = (size_t)msg->size();
+        serialized_msg.resize(space);
+        auto data_ = serialized_msg.data();
+        serialized::write(
+          data_,
+          space,
+          reinterpret_cast<const uint8_t*>(msg->contents()),
+          msg->size());
+        n2n_channels->send_encrypted(
+          ccf::NodeMsgType::consensus_msg, to, serialized_msg, hdr);
+        return msg->size();
+      }
+      PbftHeader hdr = {PbftMsgType::pbft_message, id};
       auto space = (sizeof(PbftHeader) + msg->size());
       serialized_msg.resize(space);
       auto data_ = serialized_msg.data();
@@ -142,13 +149,6 @@ namespace pbft
         reinterpret_cast<const uint8_t*>(msg->contents()),
         msg->size());
 
-      if (should_encrypt(msg->tag()))
-      {
-        LOG_INFO_FMT("Sending an ecrypted message");
-        n2n_channels->send_encrypted(
-          ccf::NodeMsgType::consensus_msg, to, serialized_msg, hdr);
-        return msg->size();
-      }
       n2n_channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, serialized_msg);
       return msg->size();
@@ -540,7 +540,7 @@ namespace pbft
           }
           const auto* d = r.second.data();
           auto s = r.second.size();
-          serialized::skip(d, s, sizeof(PbftHeader));
+          // serialized::skip(d, s, sizeof(PbftHeader));
           message_receiver_base->receive_message(d, s);
           break;
         }
