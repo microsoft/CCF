@@ -8,6 +8,8 @@
 #include "node/nodes.h"
 #include "node/quoteverification.h"
 #include "node/secretshare.h"
+#include "node/sharemanager.h"
+#include "nodeinterface.h"
 #include "tls/keypair.h"
 
 #include <exception>
@@ -219,7 +221,31 @@ namespace ccf
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
            {
-             const auto recovery_successful = node.finish_recovery(tx, args);
+             const auto recovery_successful =
+               node.finish_recovery(tx, args, false);
+             if (!recovery_successful)
+             {
+               LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
+             }
+             return recovery_successful;
+           }
+           else
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: Node is not part of public network", proposal_id);
+             return false;
+           }
+         }},
+        // For now, members can propose to accept a recovery with shares. In
+        // that case, members will have to submit their shares after this
+        // proposal is accepted.
+        {"accept_recovery_with_shares",
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           if (node.is_part_of_public_network())
+           {
+             const auto recovery_successful =
+               node.finish_recovery(tx, nullptr, true);
              if (!recovery_successful)
              {
                LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
@@ -707,6 +733,12 @@ namespace ccf
           std::optional<EncryptedShare> enc_s;
           auto current_keyshare =
             args.tx.get_view(this->network.shares)->get(0);
+          if (!current_keyshare.has_value())
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "Failed to retrieve current key share info");
+          }
           for (auto const& s : current_keyshare->encrypted_shares)
           {
             if (s.first == args.caller_id)
@@ -730,72 +762,52 @@ namespace ccf
         json_adapter(get_encrypted_recovery_share),
         Read);
 
-      auto submit_recovery_share =
-        [this](RequestArgs& args, const nlohmann::json& params) {
-          // Only active members can submit their shares for recovery
-          if (!check_member_active(args.tx, args.caller_id))
-          {
-            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-          }
+      auto submit_recovery_share = [this](
+                                     RequestArgs& args,
+                                     const nlohmann::json& params) {
+        // Only active members can submit their shares for recovery
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+        }
 
-          const auto in = params.get<SubmitRecoveryShare>();
+        GenesisGenerator g(this->network, args.tx);
+        if (
+          g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            "Service is not waiting for recovery shares");
+        }
 
-          SecretSharing::Share share;
-          std::copy_n(
-            in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+        const auto in = params.get<SubmitRecoveryShare>();
 
-          pending_shares.emplace_back(share);
+        SecretSharing::Share share;
+        std::copy_n(
+          in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
 
-          GenesisGenerator g(this->network, args.tx);
-          if (pending_shares.size() < g.get_active_members_count())
-          {
-            // The number of shares required to re-assemble the secret has not
-            // yet been reached
-            return make_success(false);
-          }
+        pending_shares.emplace_back(share);
+        if (pending_shares.size() < g.get_active_members_count())
+        {
+          // The number of shares required to re-assemble the secret has not
+          // yet been reached
+          return make_success(false);
+        }
 
-          LOG_DEBUG_FMT(
-            "Reached secret sharing threshold {}", pending_shares.size());
+        LOG_DEBUG_FMT(
+          "Reached secret sharing threshold {}", pending_shares.size());
 
-          auto share_wrapping_key = LedgerSecretWrappingKey(
-            SecretSharing::combine(pending_shares, pending_shares.size()));
-
-          auto shares_view = args.tx.get_view(this->network.shares);
-          auto key_share_info = shares_view->get(0);
-          if (!key_share_info.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR, "No key share info available");
-          }
-          std::vector<uint8_t> decrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
-          crypto::GcmCipher encrypted_ls;
-          try
-          {
-            encrypted_ls.deserialise(key_share_info->encrypted_ledger_secret);
-          }
-          catch (const std::logic_error& e)
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Failed to deserialise ledger secrets");
-          }
-          if (!crypto::KeyAesGcm(share_wrapping_key.data)
-                 .decrypt(
-                   encrypted_ls.hdr.get_iv(),
-                   encrypted_ls.hdr.tag,
-                   encrypted_ls.cipher,
-                   nullb,
-                   decrypted_ls.data()))
-          {
-            LOG_FAIL_FMT("Decryption of ledger secrets failed");
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Decryption of ledger secrets failed");
-          }
-
+        if (!node.combine_recovery_shares(args.tx, pending_shares))
+        {
           pending_shares.clear();
-          return make_success(true);
-        };
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Failed to combine recovery shares");
+        }
+
+        pending_shares.clear();
+        return make_success(true);
+      };
       install_with_auto_schema<SubmitRecoveryShare, bool>(
         MemberProcs::SUBMIT_RECOVERY_SHARE,
         json_adapter(submit_recovery_share),
@@ -823,7 +835,13 @@ namespace ccf
 
         g.add_consensus(in.consensus_type);
 
-        node.split_ledger_secrets(tx);
+        if (!node.split_ledger_secrets(tx))
+        {
+          LOG_FAIL_FMT("Error splitting ledger secrets");
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            "Error splitting ledger secrets");
+        }
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,

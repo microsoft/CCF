@@ -22,22 +22,6 @@ namespace ccf
       const std::vector<uint8_t>& data) = 0;
   };
 
-  struct LedgerSecretWrappingKey
-  {
-    static constexpr auto KZ_KEY_SIZE = crypto::GCM_SIZE_KEY;
-    std::vector<uint8_t> data; // Referred to as "kz" in TR
-
-    LedgerSecretWrappingKey() : data(tls::create_entropy()->random(KZ_KEY_SIZE))
-    {}
-
-    template <typename T>
-    LedgerSecretWrappingKey(const T& split_secret) :
-      data(
-        std::make_move_iterator(split_secret.begin()),
-        std::make_move_iterator(split_secret.begin() + split_secret.size()))
-    {}
-  };
-
   struct LedgerSecret
   {
     static constexpr auto MASTER_KEY_SIZE = crypto::GCM_SIZE_KEY;
@@ -57,9 +41,7 @@ namespace ccf
       }
     }
 
-    LedgerSecret(const std::vector<uint8_t>& ledger_master_) :
-      master(ledger_master_)
-    {}
+    LedgerSecret(const std::vector<uint8_t>& master_) : master(master_) {}
   };
 
   class LedgerSecrets
