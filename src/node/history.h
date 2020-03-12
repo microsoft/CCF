@@ -587,7 +587,6 @@ namespace ccf
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         pi = std::move(pending_inserts);
-        assert (pending_inserts.is_empty());
       }
 
       PendingInsert* p = pi.get_head();
