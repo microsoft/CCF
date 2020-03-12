@@ -158,7 +158,6 @@ namespace pbft
         if (p)
         {
           return p->get_encryptor();
-          break;
         }
       }
     }
