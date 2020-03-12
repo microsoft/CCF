@@ -87,7 +87,6 @@ namespace ccf
 
       auto ret =
         key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
-
       if (ret)
       {
         // Set local recv nonce to received nonce only if verification is
@@ -158,6 +157,7 @@ namespace ccf
       }
       RecvNonce nonce(
         send_nonce.fetch_add(1), thread_ids[std::this_thread::get_id()]);
+
       header.set_iv_seq(nonce.get_val());
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
     }

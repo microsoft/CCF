@@ -6,7 +6,6 @@
 #include "ds/serialized.h"
 #include "enclave/rpchandler.h"
 #include "nodetypes.h"
-#include "tls/tls.h"
 
 #include <algorithm>
 #include <fmt/format_header_only.h>
@@ -42,6 +41,16 @@ namespace ccf
         signed_public.value());
     }
 
+    bool is_channel_established(NodeId id, Channel& channel)
+    {
+      if (channel.get_status() != ChannelStatus::ESTABLISHED)
+      {
+        establish_channel(id);
+        return false;
+      }
+      return true;
+    }
+
   public:
     NodeToNode(ringbuffer::AbstractWriterFactory& writer_factory_) :
       to_host(writer_factory_.create_writer_to_outside())
@@ -51,16 +60,6 @@ namespace ccf
     {
       self = id;
       channels = std::make_unique<ChannelManager>(network_pkey);
-    }
-
-    bool is_channel_established(NodeId id, Channel& channel)
-    {
-      if (channel.get_status() != ChannelStatus::ESTABLISHED)
-      {
-        establish_channel(id);
-        return false;
-      }
-      return true;
     }
 
     template <class T>
@@ -122,8 +121,10 @@ namespace ccf
     std::vector<uint8_t> recv_authenticated_with_load(
       const uint8_t*& data, size_t& size)
     {
+      // data contains the message header of type T, the raw data, and the gcm
+      // header at the end
       const auto& t = serialized::peek<T>(data, size);
-      const auto d = serialized::read(data, size, size - sizeof(GcmHdr));
+      const auto d = serialized::read(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
       auto& n2n_channel = channels->get(t.from_node);
