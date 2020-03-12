@@ -32,11 +32,6 @@ namespace pbft
                          consensus::AppendEntriesIndex
   {};
 
-  struct MessageData : PbftHeader
-  {
-    std::vector<uint8_t> data;
-  }
-
 #pragma pack(pop)
 
   template <typename S>

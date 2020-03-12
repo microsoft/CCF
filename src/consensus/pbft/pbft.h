@@ -105,6 +105,23 @@ namespace pbft
         return msg->size();
       }
 
+      if (msg->tag() == Append_entries_tag)
+      {
+        auto node = nodes.find(to);
+
+        Index match_idx = 0;
+        if (node != nodes.end())
+        {
+          match_idx = node->second;
+        }
+
+        if (match_idx < latest_stable_ae_index)
+        {
+          send_append_entries(to, match_idx + 1);
+        }
+        return msg->size();
+      }
+
       PbftHeader hdr;
       if (should_encrypt(msg->tag()))
       {
@@ -125,22 +142,6 @@ namespace pbft
         reinterpret_cast<const uint8_t*>(msg->contents()),
         msg->size());
 
-      if (msg->tag() == Append_entries_tag)
-      {
-        auto node = nodes.find(to);
-
-        Index match_idx = 0;
-        if (node != nodes.end())
-        {
-          match_idx = node->second;
-        }
-
-        if (match_idx < latest_stable_ae_index)
-        {
-          send_append_entries(to, match_idx + 1);
-        }
-        return msg->size();
-      }
       if (should_encrypt(msg->tag()))
       {
         LOG_INFO_FMT("Sending an ecrypted message");
@@ -513,14 +514,17 @@ namespace pbft
         {
           try
           {
-            channels->template recv_authenticated(data, size);
+            auto d =
+              channels->template validate_authenticated<PbftHeader>(data, size);
+            const auto* dd = d.data();
+            auto s = d.size();
+            serialized::skip(dd, s, sizeof(PbftHeader));
+            message_receiver_base->receive_message(dd, s);
           }
           catch (const std::logic_error& err)
           {
             LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
           }
-          serialized::skip(data, size, sizeof(PbftHeader));
-          message_receiver_base->receive_message(data, size);
           break;
         }
         case encrypted_pbft_message:

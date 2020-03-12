@@ -6,6 +6,7 @@
 #include "ds/serialized.h"
 #include "enclave/rpchandler.h"
 #include "nodetypes.h"
+#include "tls/tls.h"
 
 #include <algorithm>
 #include <fmt/format_header_only.h>
@@ -64,10 +65,54 @@ namespace ccf
       }
 
       // The secure channel between self and to has already been established
-      GcmHdr hdr;
-      n2n_channel.tag(hdr, asCb(data));
-      to_host->write(node_outbound, to, msg_type, data, hdr);
-      return true;
+      LOG_INFO_FMT("to {}", to);
+      if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
+      {
+        auto cb = CBuffer{data.data(), data.size()};
+        LOG_INFO_FMT(
+          "sending data {}",
+          tls::b64_from_raw(std::vector<uint8_t>(cb.p, cb.p + cb.n)));
+        GcmHdr hdr;
+        n2n_channel.tag(hdr, asCb(data));
+
+        to_host->write(node_outbound, to, msg_type, data, hdr);
+        return true;
+      }
+      else
+      {
+        GcmHdr hdr;
+        n2n_channel.tag(hdr, asCb(data));
+
+        to_host->write(node_outbound, to, msg_type, data, hdr);
+        return true;
+      }
+    }
+
+    template <class T>
+    std::vector<uint8_t> validate_authenticated(
+      const uint8_t*& data, size_t& size)
+    {
+      const auto& t = serialized::peek<T>(data, size);
+      const auto d = serialized::read(data, size, size - sizeof(GcmHdr));
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+
+      LOG_INFO_FMT("from {}", t.from_node);
+      auto cb = CBuffer{d.data(), d.size()};
+      LOG_INFO_FMT(
+        "received data {}",
+        tls::b64_from_raw(std::vector<uint8_t>(cb.p, cb.p + cb.n)));
+
+      auto& n2n_channel = channels->get(t.from_node);
+
+      if (!n2n_channel.verify(hdr, cb))
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {} (size: {})",
+          t.from_node,
+          size));
+      }
+
+      return d;
     }
 
     template <class T>

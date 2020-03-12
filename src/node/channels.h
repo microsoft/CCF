@@ -72,6 +72,7 @@ namespace ccf
       }
 
       RecvNonce recv_nonce(header.get_iv_int());
+      LOG_INFO_FMT("received nonce {}", recv_nonce.get_val());
       auto tid = recv_nonce.tid;
       auto local_nonce = local_recv_nonce[tid].load();
 
@@ -85,8 +86,16 @@ namespace ccf
         return false;
       }
 
+      LOG_INFO_FMT(
+        "get iv {} aad {} tag {}",
+        header.get_iv_int(),
+        tls::b64_from_raw(std::vector<uint8_t>(aad.p, aad.p + aad.n)),
+        tls::b64_from_raw(std::vector<uint8_t>(header.tag, header.tag + 16)));
+
       auto ret =
         key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
+
+
       if (ret)
       {
         // Set local recv nonce to received nonce only if verification is
@@ -134,6 +143,7 @@ namespace ccf
     void establish()
     {
       auto shared_secret = ctx.compute_shared_secret();
+      LOG_FAIL_FMT("shared secret {}", tls::b64_from_raw(shared_secret));
       key = std::make_unique<crypto::KeyAesGcm>(shared_secret);
       ctx.free_ctx();
       status = ESTABLISHED;
@@ -157,9 +167,14 @@ namespace ccf
       }
       RecvNonce nonce(
         send_nonce.fetch_add(1), thread_ids[std::this_thread::get_id()]);
-
+      LOG_INFO_FMT("setting nonce {}", nonce.get_val());
       header.set_iv_seq(nonce.get_val());
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
+      LOG_INFO_FMT(
+        "get iv {} aad {} tag {}",
+        header.get_iv_int(),
+        tls::b64_from_raw(std::vector<uint8_t>(aad.p, aad.p + aad.n)),
+        tls::b64_from_raw(std::vector<uint8_t>(header.tag, header.tag + 16)));
     }
 
     bool verify(const GcmHdr& header, CBuffer aad)
