@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include "../http_builder.h"
 #include "../http_parser.h"
 
@@ -27,7 +28,7 @@ std::string to_lowercase(std::string s)
   return s;
 }
 
-TEST_CASE("Complete request")
+DOCTEST_TEST_CASE("Complete request")
 {
   for (const auto method : {HTTP_POST, HTTP_GET, HTTP_DELETE})
   {
@@ -42,15 +43,15 @@ TEST_CASE("Complete request")
     auto req = request.build_request();
     auto parsed = p.execute(req.data(), req.size());
 
-    CHECK(!sp.received.empty());
+    DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
-    CHECK(m.method == method);
-    CHECK(m.path == url);
-    CHECK(m.body == r);
+    DOCTEST_CHECK(m.method == method);
+    DOCTEST_CHECK(m.path == url);
+    DOCTEST_CHECK(m.body == r);
   }
 }
 
-TEST_CASE("Complete response")
+DOCTEST_TEST_CASE("Complete response")
 {
   for (const auto status : {HTTP_STATUS_OK,
                             HTTP_STATUS_BAD_REQUEST,
@@ -66,14 +67,14 @@ TEST_CASE("Complete response")
     auto res = response.build_response();
     auto parsed = p.execute(res.data(), res.size());
 
-    CHECK(!sp.received.empty());
+    DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
-    CHECK(m.status == status);
-    CHECK(m.body == r);
+    DOCTEST_CHECK(m.status == status);
+    DOCTEST_CHECK(m.body == r);
   }
 }
 
-TEST_CASE("Parsing error")
+DOCTEST_TEST_CASE("Parsing error")
 {
   std::vector<uint8_t> r;
 
@@ -93,11 +94,11 @@ TEST_CASE("Parsing error")
     threw_with = strstr(e.what(), "HPE_INVALID_HEADER_TOKEN") != nullptr;
   }
 
-  CHECK(threw_with);
-  CHECK(sp.received.empty());
+  DOCTEST_CHECK(threw_with);
+  DOCTEST_CHECK(sp.received.empty());
 }
 
-TEST_CASE("Partial request")
+DOCTEST_TEST_CASE("Partial request")
 {
   http::SimpleRequestProcessor sp;
   http::RequestParser p(sp);
@@ -107,17 +108,17 @@ TEST_CASE("Partial request")
   size_t offset = 10;
 
   auto parsed = p.execute(req.data(), req.size() - offset);
-  CHECK(parsed == req.size() - offset);
+  DOCTEST_CHECK(parsed == req.size() - offset);
   parsed = p.execute(req.data() + req.size() - offset, offset);
-  CHECK(parsed == offset);
+  DOCTEST_CHECK(parsed == offset);
 
-  CHECK(!sp.received.empty());
+  DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
-  CHECK(m.method == HTTP_POST);
-  CHECK(m.body == r0);
+  DOCTEST_CHECK(m.method == HTTP_POST);
+  DOCTEST_CHECK(m.body == r0);
 }
 
-TEST_CASE("Partial body")
+DOCTEST_TEST_CASE("Partial body")
 {
   http::SimpleRequestProcessor sp;
   http::RequestParser p(sp);
@@ -127,17 +128,17 @@ TEST_CASE("Partial body")
   size_t offset = http::build_post_header(r0).size() + 4;
 
   auto parsed = p.execute(req.data(), req.size() - offset);
-  CHECK(parsed == req.size() - offset);
+  DOCTEST_CHECK(parsed == req.size() - offset);
   parsed = p.execute(req.data() + req.size() - offset, offset);
-  CHECK(parsed == offset);
+  DOCTEST_CHECK(parsed == offset);
 
-  CHECK(!sp.received.empty());
+  DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
-  CHECK(m.method == HTTP_POST);
-  CHECK(m.body == r0);
+  DOCTEST_CHECK(m.method == HTTP_POST);
+  DOCTEST_CHECK(m.body == r0);
 }
 
-TEST_CASE("Multiple requests")
+DOCTEST_TEST_CASE("Multiple requests")
 {
   http::SimpleRequestProcessor sp;
   http::RequestParser p(sp);
@@ -149,26 +150,26 @@ TEST_CASE("Multiple requests")
   std::copy(req1.begin(), req1.end(), std::back_inserter(req));
 
   auto parsed = p.execute(req.data(), req.size());
-  CHECK(parsed == req.size());
+  DOCTEST_CHECK(parsed == req.size());
 
   {
-    CHECK(!sp.received.empty());
+    DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
-    CHECK(m.method == HTTP_POST);
-    CHECK(m.body == r0);
+    DOCTEST_CHECK(m.method == HTTP_POST);
+    DOCTEST_CHECK(m.body == r0);
   }
 
   sp.received.pop();
 
   {
-    CHECK(!sp.received.empty());
+    DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
-    CHECK(m.method == HTTP_POST);
-    CHECK(m.body == r1);
+    DOCTEST_CHECK(m.method == HTTP_POST);
+    DOCTEST_CHECK(m.body == r1);
   }
 }
 
-TEST_CASE("Method parsing")
+DOCTEST_TEST_CASE("Method parsing")
 {
   http::SimpleRequestProcessor sp;
   http::RequestParser p(sp);
@@ -180,17 +181,17 @@ TEST_CASE("Method parsing")
     auto req = http::build_request(method, r);
     auto parsed = p.execute(req.data(), req.size());
 
-    CHECK(!sp.received.empty());
+    DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
-    CHECK(m.method == method);
-    CHECK(m.body == r);
+    DOCTEST_CHECK(m.method == method);
+    DOCTEST_CHECK(m.body == r);
 
     sp.received.pop();
     choice = !choice;
   }
 }
 
-TEST_CASE("URL parsing")
+DOCTEST_TEST_CASE("URL parsing")
 {
   http::SimpleRequestProcessor sp;
   http::RequestParser p(sp);
@@ -206,20 +207,22 @@ TEST_CASE("URL parsing")
   auto req = r.build_request();
 
   auto parsed = p.execute(req.data(), req.size());
-  CHECK(parsed == req.size());
+  DOCTEST_CHECK(parsed == req.size());
 
-  CHECK(!sp.received.empty());
+  DOCTEST_CHECK(!sp.received.empty());
   const auto& m = sp.received.front();
-  CHECK(m.method == HTTP_POST);
-  CHECK(m.body == body);
-  CHECK(m.path == path);
-  CHECK(m.query.find("balance=42") != std::string::npos);
-  CHECK(m.query.find("id=100") != std::string::npos);
-  CHECK(m.query.find("&") != std::string::npos);
+  DOCTEST_CHECK(m.method == HTTP_POST);
+  DOCTEST_CHECK(m.body == body);
+  DOCTEST_CHECK(m.path == path);
+  DOCTEST_CHECK(m.query.find("balance=42") != std::string::npos);
+  DOCTEST_CHECK(m.query.find("id=100") != std::string::npos);
+  DOCTEST_CHECK(m.query.find("&") != std::string::npos);
 }
 
-TEST_CASE("Pessimal transport")
+DOCTEST_TEST_CASE("Pessimal transport")
 {
+  logger::config::level() = logger::INFO;
+
   const http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
   const http::HeaderMap h2 = {{"foo", "barbar"},
                               {"content-type", "application/json"},
@@ -251,22 +254,22 @@ TEST_CASE("Pessimal transport")
       size_t next = 1;
       next = std::min(next, req.size() - done);
       auto parsed = p.execute(req.data() + done, next);
-      CHECK(parsed == next);
+      DOCTEST_CHECK(parsed == next);
       done += next;
     }
 
-    CHECK(!sp.received.empty());
+    DOCTEST_CHECK(!sp.received.empty());
     const auto& m = sp.received.front();
-    CHECK(m.method == HTTP_POST);
-    CHECK(m.body == r0);
+    DOCTEST_CHECK(m.method == HTTP_POST);
+    DOCTEST_CHECK(m.body == r0);
 
     // Check each specified header is present and matches. May include other
     // auto-inserted headers - these are ignored
     for (const auto& it : headers)
     {
       const auto found = m.headers.find(to_lowercase(it.first));
-      CHECK(found != m.headers.end());
-      CHECK(found->second == it.second);
+      DOCTEST_CHECK(found != m.headers.end());
+      DOCTEST_CHECK(found->second == it.second);
     }
 
     sp.received.pop();
