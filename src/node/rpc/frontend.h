@@ -11,7 +11,7 @@
 #include "forwarder.h"
 #include "node/clientsignatures.h"
 #include "node/nodes.h"
-#include "nodeinterface.h"
+#include "notifierinterface.h"
 #include "rpcexception.h"
 #include "tls/verifier.h"
 

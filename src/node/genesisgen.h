@@ -183,6 +183,7 @@ namespace ccf
       return active_nodes;
     }
 
+    // Service status should use a state machine, very much like NodeState.
     void create_service(
       const std::vector<uint8_t>& network_cert, kv::Version version = 1)
     {
@@ -207,13 +208,52 @@ namespace ccf
         return false;
       }
 
-      if (active_service->status != ServiceStatus::OPENING)
+      if (
+        active_service->status != ServiceStatus::OPENING &&
+        active_service->status != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         LOG_FAIL_FMT("Could not open current service: status is not OPENING");
         return false;
       }
 
       active_service->status = ServiceStatus::OPEN;
+      service_view->put(0, active_service.value());
+
+      return true;
+    }
+
+    std::optional<ServiceStatus> get_service_status()
+    {
+      auto service_view = tx.get_view(tables.service);
+      auto active_service = service_view->get(0);
+      if (!active_service.has_value())
+      {
+        LOG_FAIL_FMT("Failed to get active service");
+        return {};
+      }
+
+      return active_service->status;
+    }
+
+    bool service_wait_for_shares()
+    {
+      auto service_view = tx.get_view(tables.service);
+      auto active_service = service_view->get(0);
+      if (!active_service.has_value())
+      {
+        LOG_FAIL_FMT("Failed to get active service");
+        return false;
+      }
+
+      if (active_service->status != ServiceStatus::OPENING)
+      {
+        LOG_FAIL_FMT(
+          "Could not wait for shares on current service: status is not "
+          "OPENING");
+        return false;
+      }
+
+      active_service->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
       service_view->put(0, active_service.value());
 
       return true;
