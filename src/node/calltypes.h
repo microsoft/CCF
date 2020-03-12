@@ -16,6 +16,7 @@ namespace ccf
     {
       std::vector<uint8_t> node_cert;
       std::vector<uint8_t> network_cert;
+      std::vector<uint8_t> network_enc_pubk;
     };
   };
 

@@ -5,6 +5,7 @@
 #include "node/identity.h"
 #include "node/ledgersecrets.h"
 #include "node/members.h"
+#include "node/networkencryption.h"
 #include "node/nodeinfonetwork.h"
 
 #include <nlohmann/json.hpp>
@@ -86,13 +87,13 @@ namespace ccf
       {
         LedgerSecrets ledger_secrets;
         NetworkIdentity identity;
-        std::vector<uint8_t> encryption_priv_key;
+        NetworkEncryptionKey encryption_key;
 
         bool operator==(const NetworkInfo& other) const
         {
           return ledger_secrets == other.ledger_secrets &&
             identity == other.identity &&
-            encryption_priv_key == other.encryption_priv_key;
+            encryption_key == other.encryption_key;
         }
 
         bool operator!=(const NetworkInfo& other) const

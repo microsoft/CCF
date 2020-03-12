@@ -121,7 +121,7 @@ namespace ccf
                                       this->network.consensus_type,
                                       {*this->network.ledger_secrets.get(),
                                        *this->network.identity.get(),
-                                       this->network.encryption_priv_key}}));
+                                       *this->network.encryption_key.get()}}));
       }
       else
       {
@@ -201,7 +201,7 @@ namespace ccf
                this->network.consensus_type,
                {*this->network.ledger_secrets.get(),
                 *this->network.identity.get(),
-                this->network.encryption_priv_key}}));
+                *this->network.encryption_key.get()}}));
           }
 
           return add_node(args.tx, caller_pem_raw, in, joining_node_status);
@@ -227,7 +227,7 @@ namespace ccf
                this->network.consensus_type,
                {*this->network.ledger_secrets.get(),
                 *this->network.identity.get(),
-                this->network.encryption_priv_key}}));
+                *this->network.encryption_key.get()}}));
           }
           else if (node_status == NodeStatus::PENDING)
           {

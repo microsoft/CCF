@@ -7,6 +7,7 @@
 
 #include "Digest.h"
 #include "Req_queue.h"
+#include "ds/dllist.h"
 #include "ds/thread_messaging.h"
 #include "types.h"
 
@@ -14,8 +15,34 @@
 #include <unordered_map>
 #include <vector>
 
-class BR_entry;
 class Request;
+
+struct Waiting_pp
+{
+  Seqno n;
+  View v;
+  int i;
+};
+
+class BR_entry
+{
+public:
+  inline BR_entry() : r(0), maxn(-1), maxv(-1), next(nullptr), prev(nullptr) {}
+  inline ~BR_entry()
+  {
+    delete r;
+  }
+
+  Digest rd; // Request's digest
+  Request* r; // Request or 0 is request not received
+  // if r=0, Seqnos of pre-prepares waiting for request
+  std::vector<Waiting_pp> waiting;
+  Seqno maxn; // Maximum seqno of pre-prepare referencing request
+  View maxv; // Maximum view in which this entry was marked useful
+
+  BR_entry* next;
+  BR_entry* prev;
+};
 
 class Big_req_table
 {
@@ -98,7 +125,7 @@ private:
   // Effects: Removes bre->r from unmatched if it was not previously matched
   // to a pre-prepare.
 
-  bool add_unmatched(Request* r, Request*& old_req);
+  bool add_unmatched(BR_entry* e, Request*& old_req);
   // Effects: Adds r to the list of requests for the client if the request
   // id is greater than the largest in the list and returns true. If this causes
   // the number of requests to exceed Max_unmatched_requests_per_client,
@@ -114,7 +141,7 @@ private:
   struct Unmatched_requests
   {
     Unmatched_requests() : num_requests(0) {}
-    std::list<Request*> requests;
+    snmalloc::DLList<BR_entry> list;
     int num_requests;
     std::array<uint64_t, enclave::ThreadMessaging::max_num_threads>
       last_value_seen = {0};

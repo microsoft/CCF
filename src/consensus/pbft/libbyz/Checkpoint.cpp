@@ -35,8 +35,7 @@ Checkpoint::Checkpoint(Seqno s, Digest& d, bool stable) :
   auth_len = sizeof(Checkpoint_rep);
   auth_src_offset = 0;
 #else
-  rep().sig_size = pbft::GlobalState::get_node().gen_signature(
-    contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
+  rep().sig_size = 0;
 #endif
 }
 
@@ -52,8 +51,7 @@ void Checkpoint::re_authenticate(Principal* p, bool stable)
   if (rep().extra != 1 && stable)
   {
     rep().extra = 1;
-    rep().sig_size = pbft::GlobalState::get_node().gen_signature(
-      contents(), sizeof(Checkpoint_rep), contents() + sizeof(Checkpoint_rep));
+    rep().sig_size = 0;
   }
 #endif
 }
@@ -62,14 +60,6 @@ bool Checkpoint::pre_verify()
 {
   // Checkpoints must be sent by replicas.
   if (!pbft::GlobalState::get_node().is_replica(id()))
-  {
-    return false;
-  }
-
-  // Check signature size.
-  if (
-    size() - (int)sizeof(Checkpoint_rep) <
-    pbft::GlobalState::get_node().auth_size(id()))
   {
     return false;
   }

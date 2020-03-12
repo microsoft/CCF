@@ -18,6 +18,9 @@ enclave {
             [out, count=network_cert_size] uint8_t * network_cert,
             size_t network_cert_size,
             [out] size_t* network_cert_len,
+            [out, count=network_enc_pubk_size] uint8_t * network_enc_pubk,
+            size_t network_enc_pubk_size,
+            [out] size_t* network_enc_pubk_len,
             StartType start_type,
             ConsensusType consensus_type,
             size_t num_worker_thread

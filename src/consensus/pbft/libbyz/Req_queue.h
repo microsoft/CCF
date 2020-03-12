@@ -6,9 +6,12 @@
 #pragma once
 
 #include "Request.h"
+#include "ds/dllist.h"
+#include "ds/thread_messaging.h"
 #include "pbft_assert.h"
 #include "types.h"
 
+#include <algorithm>
 #include <unordered_map>
 
 class Req_queue
@@ -83,9 +86,9 @@ private:
     }
   };
   std::unordered_map<Key, std::unique_ptr<RNode>, KeyHash> reqs;
-
-  RNode* head;
-  RNode* tail;
+  mutable snmalloc::DLList<RNode>
+    rnodes[enclave::ThreadMessaging::max_num_threads];
+  mutable uint64_t count = 0;
 
   int nelems; // Number of elements in queue
   int nbytes; // Number of bytes in queue
@@ -103,10 +106,18 @@ inline int Req_queue::num_bytes() const
 
 inline Request* Req_queue::first() const
 {
-  if (head)
+  uint32_t tcount = enclave::ThreadMessaging::thread_count;
+  tcount = std::max(tcount, (uint32_t)1);
+
+  for (uint32_t i = 0; i < tcount; ++i)
   {
-    PBFT_ASSERT(head->r != 0, "Invalid state");
-    return head->r.get();
+    count++;
+    auto rn = rnodes[count % tcount].get_head();
+    if (rn != nullptr)
+    {
+      PBFT_ASSERT(rn->r != 0, "Invalid state");
+      return rn->r.get();
+    }
   }
   return 0;
 }

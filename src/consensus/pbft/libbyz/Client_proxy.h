@@ -464,8 +464,7 @@ void ClientProxy<T, C>::retransmit()
     RequestContext* ctx = head;
     Request* out_req = ctx->req.get();
 
-    LOG_DEBUG << "Retransmitting req id: " << out_req->request_id()
-              << std::endl;
+    LOG_INFO_FMT("Retransmitting req id: {}", out_req->request_id());
     INCR_OP(req_retrans);
 
 #ifndef ENFORCE_EXACTLY_ONCE

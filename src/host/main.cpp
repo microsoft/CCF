@@ -228,13 +228,22 @@ int main(int argc, char** argv)
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
+  std::string network_enc_pubk_file = "network_enc_pubk.pem";
 
   auto start = app.add_subcommand("start", "Start new network");
   start
     ->add_option(
       "--network-cert-file",
       network_cert_file,
-      "Destination path where fresh network certificate will be created",
+      "Destination path to freshly created network certificate",
+      true)
+    ->check(CLI::NonexistentPath);
+
+  start
+    ->add_option(
+      "--network-enc-pubk-file",
+      network_enc_pubk_file,
+      "Destination path to freshly created network encryption public key",
       true)
     ->check(CLI::NonexistentPath);
 
@@ -288,6 +297,14 @@ int main(int argc, char** argv)
       "--network-cert-file",
       network_cert_file,
       "Destination path to freshly created network certificate",
+      true)
+    ->check(CLI::NonexistentPath);
+
+  recover
+    ->add_option(
+      "--network-enc-pubk-file",
+      network_enc_pubk_file,
+      "Destination path to freshly created network encryption public key",
       true)
     ->check(CLI::NonexistentPath);
 
@@ -365,8 +382,10 @@ int main(int argc, char** argv)
 
   // Initialise the enclave and create a CCF node in it
   const size_t certificate_size = 4096;
+  const size_t pubk_size = 1024;
   std::vector<uint8_t> node_cert(certificate_size);
   std::vector<uint8_t> network_cert(certificate_size);
+  std::vector<uint8_t> network_enc_pubk(certificate_size);
 
   StartType start_type;
   ConsensusType consensus_type;
@@ -437,6 +456,7 @@ int main(int argc, char** argv)
     ccf_config,
     node_cert,
     network_cert,
+    network_enc_pubk,
     start_type,
     consensus_type,
     num_worker_threads);
@@ -465,6 +485,7 @@ int main(int argc, char** argv)
   if (*start || *recover)
   {
     files::dump(network_cert, network_cert_file);
+    files::dump(network_enc_pubk, network_enc_pubk_file);
   }
 
   auto enclave_thread_start = [&]() {

@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "encrypted_share": {
+      "items": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "number"
+      },
+      "type": "array"
+    },
+    "nonce": {
+      "items": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "number"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "nonce",
+    "encrypted_share"
+  ],
+  "title": "getEncryptedRecoveryShare/result",
+  "type": "object"
+}

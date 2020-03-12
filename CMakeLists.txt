@@ -337,7 +337,7 @@ if(BUILD_TESTS)
   )
   target_link_libraries(
     frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                          secp256k1.host http_parser.host
+                          secp256k1.host http_parser.host sss.host
   )
 
   add_unit_test(
@@ -346,7 +346,7 @@ if(BUILD_TESTS)
   )
   target_link_libraries(
     membervoting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                              secp256k1.host http_parser.host
+                              secp256k1.host http_parser.host sss.host
   )
 
   add_unit_test(
@@ -482,7 +482,14 @@ if(BUILD_TESTS)
     NAME recovery_tests
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
-    ADDITIONAL_ARGS ${RECOVERY_ARGS}
+    ADDITIONAL_ARGS --recovery 2
+  )
+
+  add_e2e_test(
+    NAME recovery_share_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS --recovery 1 --use-shares
   )
 
   add_e2e_test(
@@ -606,8 +613,4 @@ if(BUILD_TESTS)
       --repetitions
       1000
   )
-
-  if(EXTENSIVE_TESTS)
-    set_tests_properties(recovery_tests PROPERTIES TIMEOUT 2000)
-  endif()
 endif()
