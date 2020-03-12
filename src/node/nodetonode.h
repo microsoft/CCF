@@ -53,66 +53,50 @@ namespace ccf
       channels = std::make_unique<ChannelManager>(network_pkey);
     }
 
+    bool is_channel_established(NodeId id, Channel& channel)
+    {
+      if (channel.get_status() != ChannelStatus::ESTABLISHED)
+      {
+        establish_channel(id);
+        return false;
+      }
+      return true;
+    }
+
     template <class T>
     bool send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
+      if (!is_channel_established(to, n2n_channel))
       {
-        establish_channel(to);
         return false;
       }
 
       // The secure channel between self and to has already been established
-      LOG_INFO_FMT("to {}", to);
-      if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
-      {
-        auto cb = CBuffer{data.data(), data.size()};
-        LOG_INFO_FMT(
-          "sending data {}",
-          tls::b64_from_raw(std::vector<uint8_t>(cb.p, cb.p + cb.n)));
-        GcmHdr hdr;
-        n2n_channel.tag(hdr, asCb(data));
+      GcmHdr hdr;
+      n2n_channel.tag(hdr, asCb(data));
 
-        to_host->write(node_outbound, to, msg_type, data, hdr);
-        return true;
-      }
-      else
-      {
-        GcmHdr hdr;
-        n2n_channel.tag(hdr, asCb(data));
-
-        to_host->write(node_outbound, to, msg_type, data, hdr);
-        return true;
-      }
+      to_host->write(node_outbound, to, msg_type, data, hdr);
+      return true;
     }
 
-    template <class T>
-    std::vector<uint8_t> validate_authenticated(
-      const uint8_t*& data, size_t& size)
+    template <>
+    bool send_authenticated(
+      const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
     {
-      const auto& t = serialized::peek<T>(data, size);
-      const auto d = serialized::read(data, size, size - sizeof(GcmHdr));
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-
-      LOG_INFO_FMT("from {}", t.from_node);
-      auto cb = CBuffer{d.data(), d.size()};
-      LOG_INFO_FMT(
-        "received data {}",
-        tls::b64_from_raw(std::vector<uint8_t>(cb.p, cb.p + cb.n)));
-
-      auto& n2n_channel = channels->get(t.from_node);
-
-      if (!n2n_channel.verify(hdr, cb))
+      auto& n2n_channel = channels->get(to);
+      if (!is_channel_established(to, n2n_channel))
       {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {} (size: {})",
-          t.from_node,
-          size));
+        return false;
       }
 
-      return d;
+      // The secure channel between self and to has already been established
+      GcmHdr hdr;
+      n2n_channel.tag(hdr, CBuffer{data.data(), data.size()});
+
+      to_host->write(node_outbound, to, msg_type, data, hdr);
+      return true;
     }
 
     template <class T>
@@ -135,6 +119,27 @@ namespace ccf
     }
 
     template <class T>
+    std::vector<uint8_t> validate_authenticated(
+      const uint8_t*& data, size_t& size)
+    {
+      const auto& t = serialized::peek<T>(data, size);
+      const auto d = serialized::read(data, size, size - sizeof(GcmHdr));
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+
+      auto& n2n_channel = channels->get(t.from_node);
+
+      if (!n2n_channel.verify(hdr, CBuffer{d.data(), d.size()}))
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {} (size: {})",
+          t.from_node,
+          size));
+      }
+
+      return d;
+    }
+
+    template <class T>
     bool send_encrypted(
       const NodeMsgType& msg_type,
       NodeId to,
@@ -142,9 +147,8 @@ namespace ccf
       const T& msg)
     {
       auto& n2n_channel = channels->get(to);
-      if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
+      if (!is_channel_established(to, n2n_channel))
       {
-        establish_channel(to);
         return false;
       }
 
