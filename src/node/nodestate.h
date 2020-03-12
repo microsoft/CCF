@@ -272,9 +272,9 @@ namespace ccf
 
           self = 0; // The first node id is always 0
 
+          setup_encryptor(network.consensus_type);
           setup_consensus(network.consensus_type, args.config);
           setup_history();
-          setup_encryptor(network.consensus_type);
 
           // Become the primary and force replication
           consensus->force_become_primary();
@@ -418,9 +418,9 @@ namespace ccf
                 resp.consensus_type));
             }
 
+            setup_encryptor(resp.consensus_type);
             setup_consensus(resp.consensus_type, args.config, resp.public_only);
             setup_history();
-            setup_encryptor(resp.consensus_type);
 
             open_member_frontend();
 
@@ -763,14 +763,18 @@ namespace ccf
 
       if (network.consensus_type == ConsensusType::PBFT)
       {
-        // for now do not encrypt the ledger as the current implementation does
-        // not work for PBFT
-        recovery_encryptor = std::make_shared<NullTxEncryptor>();
+        recovery_encryptor =
+          std::make_shared<PbftTxEncryptor>(network.ledger_secrets, true);
+      }
+      else if (network.consensus_type == ConsensusType::RAFT)
+      {
+        recovery_encryptor =
+          std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets, true);
       }
       else
       {
-        recovery_encryptor =
-          std::make_shared<TxEncryptor>(self, network.ledger_secrets, true);
+        throw std::logic_error(
+          "Unknown consensus type " + std::to_string(network.consensus_type));
       }
 #endif
 
@@ -1531,16 +1535,19 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<NullTxEncryptor>();
 #else
-
-      if (consensus_type == ConsensusType::PBFT)
+      if (network.consensus_type == ConsensusType::PBFT)
       {
-        // for now do not encrypt the ledger as the current implementation does
-        // not work for PBFT
-        encryptor = std::make_shared<NullTxEncryptor>();
+        encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);
+      }
+      else if (network.consensus_type == ConsensusType::RAFT)
+      {
+        encryptor =
+          std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets);
       }
       else
       {
-        encryptor = std::make_shared<TxEncryptor>(self, network.ledger_secrets);
+        throw std::logic_error(
+          "Unknown consensus type " + std::to_string(consensus_type));
       }
 #endif
 

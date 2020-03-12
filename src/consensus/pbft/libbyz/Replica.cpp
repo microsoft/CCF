@@ -166,6 +166,7 @@ Replica::Replica(
   exec_command = nullptr;
 
   ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
+  encryptor = store.get_encryptor();
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -503,9 +504,9 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
   }
   else
   {
-    LOG_INFO_FMT(
+    throw std::logic_error(fmt::format(
       "Merkle roots don't match in playback pre-prepare for seqno {}",
-      executable_pp->seqno());
+      executable_pp->seqno()));
   }
 }
 
@@ -1680,6 +1681,10 @@ void Replica::handle(View_change* m)
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
+    if (encryptor)
+    {
+      encryptor->set_view(v);
+    }
     vc_recovering = true;
     send_view_change();
   }
@@ -1729,6 +1734,10 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
+  if (encryptor)
+  {
+    encryptor->set_view(v);
+  }
   cur_primary = v % num_replicas;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running

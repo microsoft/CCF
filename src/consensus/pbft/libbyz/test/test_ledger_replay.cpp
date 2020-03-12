@@ -376,7 +376,9 @@ TEST_CASE("Test Ledger Replay")
         REQUIRE(
           store->deserialise_views(corrupt_entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
-        pbft::GlobalState::get_replica().playback_pre_prepare(tx);
+        REQUIRE_THROWS_AS(
+          pbft::GlobalState::get_replica().playback_pre_prepare(tx),
+          std::logic_error);
         count_rollbacks++;
 
         // rolled back latest request so need to re-execute
