@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/champmap.h"
+#include "ds/dllist.h"
 #include "ds/logger.h"
 #include "ds/spinlock.h"
 #include "kvtypes.h"
@@ -86,11 +87,22 @@ namespace kv
 
     struct LocalCommit
     {
+      LocalCommit() = default;
+      LocalCommit(Version v, State s, Write w) :
+        version(std::move(v)),
+        state(std::move(s)),
+        writes(std::move(w)),
+        next(nullptr),
+        prev(nullptr)
+      {}
+
       Version version;
       State state;
       Write writes;
+      LocalCommit* next;
+      LocalCommit* prev;
     };
-    using LocalCommits = std::list<LocalCommit>;
+    using LocalCommits = snmalloc::DLList<LocalCommit, std::nullptr_t, true>;
 
     Store<S, D>* store;
     std::string name;
@@ -102,6 +114,8 @@ namespace kv
     SpinLock sl;
     const SecurityDomain security_domain;
     const bool replicated;
+
+    LocalCommits empty_commits;
 
     Map(
       Store<S, D>* store_,
@@ -119,10 +133,26 @@ namespace kv
       local_hook(local_hook_),
       global_hook(global_hook_)
     {
-      roll->push_back({0, State(), Write()});
+      roll->insert_back(CreateNewLocalCommit(0, State(), Write()));
     }
 
     Map(const Map& that) = delete;
+
+    template <typename... Args>
+    LocalCommit* CreateNewLocalCommit(Args&&... args)
+    {
+      LocalCommit* c = empty_commits.pop();
+      if (c == nullptr)
+      {
+        c = new LocalCommit(std::forward<Args>(args)...);
+      }
+      else
+      {
+        c->~LocalCommit();
+        new (c) LocalCommit(std::forward<Args>(args)...);
+      }
+      return c;
+    }
 
   public:
     virtual AbstractMap<S, D>* clone(AbstractStore* store) override
@@ -201,22 +231,22 @@ namespace kv
       if (name != p->name)
         return false;
 
-      auto& state1 = roll->back();
-      auto& state2 = p->roll->back();
+      auto state1 = roll->get_tail();
+      auto state2 = p->roll->get_tail();
 
-      if (state1.version != state2.version)
+      if (state1->version != state2->version)
         return false;
 
       size_t count = 0;
-      state2.state.foreach([&count](const K& k, const VersionV& v) {
+      state2->state.foreach([&count](const K& k, const VersionV& v) {
         count++;
         return true;
       });
 
       size_t i = 0;
       bool ok =
-        state1.state.foreach([&state2, &i](const K& k, const VersionV& v) {
-          auto search = state2.state.get(k);
+        state1->state.foreach([&state2, &i](const K& k, const VersionV& v) {
+          auto search = state2->state.get(k);
 
           if (search.has_value())
           {
@@ -272,7 +302,7 @@ namespace kv
       TxView(This& parent, State& s, Version v, size_t r) :
         map(parent),
         state(s),
-        committed(parent.roll->front().state),
+        committed(parent.roll->get_head()->state),
         start_version(v),
         rollback_counter(r),
         read_version(NoVersion),
@@ -515,9 +545,9 @@ namespace kv
           return false;
 
         // If we have iterated over the map, check for a global version match.
-        auto& current = map.roll->back();
+        auto current = map.roll->get_tail();
 
-        if ((read_version != NoVersion) && (read_version != current.version))
+        if ((read_version != NoVersion) && (read_version != current->version))
         {
           LOG_DEBUG_FMT("Read version {} is invalid", read_version);
           return false;
@@ -527,7 +557,7 @@ namespace kv
         for (auto it = reads.begin(); it != reads.end(); ++it)
         {
           // Get the value from the current state.
-          auto search = current.state.get(it->first);
+          auto search = current->state.get(it->first);
 
           if (it->second == NoVersion)
           {
@@ -567,7 +597,7 @@ namespace kv
 
         if (!writes.empty())
         {
-          auto state = map.roll->back().state;
+          auto state = map.roll->get_tail()->state;
 
           for (auto it = writes.begin(); it != writes.end(); ++it)
           {
@@ -591,7 +621,9 @@ namespace kv
           }
 
           if (changes)
-            map.roll->push_back({v, state, writes});
+          {
+            map.roll->insert_back(map.CreateNewLocalCommit(v, state, writes));
+          }
         }
       }
 
@@ -605,8 +637,8 @@ namespace kv
 
         if (map.local_hook)
         {
-          auto& roll = map.roll->back();
-          map.local_hook(roll.version, roll.state, roll.writes);
+          auto roll = map.roll->get_tail();
+          map.local_hook(roll->version, roll->state, roll->writes);
         }
       }
 
@@ -641,7 +673,7 @@ namespace kv
           }
           else
           {
-            auto search = map.roll->back().state.get(it->first);
+            auto search = map.roll->get_tail()->state.get(it->first);
             if (search.has_value())
               ++remove_ctr;
           }
@@ -716,11 +748,13 @@ namespace kv
       // Find the last entry committed at or before this version.
       TxView* view = nullptr;
 
-      for (auto it = roll->rbegin(); it != roll->rend(); ++it)
+      for (auto current = roll->get_tail(); current != nullptr;
+           current = current->prev)
       {
-        if (it->version <= version)
+        if (current->version <= version)
         {
-          view = new TxView(*this, it->state, it->version, rollback_counter);
+          view = new TxView(
+            *this, current->state, current->version, rollback_counter);
           break;
         }
       }
@@ -728,7 +762,10 @@ namespace kv
       if (view == nullptr)
       {
         view = new TxView(
-          *this, roll->front().state, roll->front().version, rollback_counter);
+          *this,
+          roll->get_head()->state,
+          roll->get_head()->version,
+          rollback_counter);
       }
 
       unlock();
@@ -740,46 +777,56 @@ namespace kv
       // This discards available rollback state before version v, and populates
       // the commit_deltas to be passed to the global commit hook, if there is
       // one, up to version v. The Map expects to be locked during compaction.
-      while (roll->size() > 1)
+      while (roll->get_head() != roll->get_tail())
       {
-        auto r = roll->begin();
+        auto r = roll->get_head();
 
         // Globally committed but not discardable.
         if (r->version == v)
         {
           // We know that write set is not empty.
           if (global_hook)
-            commit_deltas.emplace_back(
-              LocalCommit{r->version, r->state, move(r->writes)});
+          {
+            commit_deltas.insert_back(
+              CreateNewLocalCommit(r->version, r->state, move(r->writes)));
+          }
           return;
         }
 
         // Discardable, so move to commit_deltas.
         if (global_hook && !r->writes.empty())
-          std::move(r, std::next(r), std::back_inserter(commit_deltas));
+        {
+          commit_deltas.insert_back(
+            CreateNewLocalCommit(r->version, r->state, move(r->writes)));
+        }
 
         // Stop if the next state may be rolled back or is the only state.
         // This ensures there is always a state present.
-        if (std::next(r)->version > v)
+        if (r->next->version > v)
           return;
 
-        roll->pop_front();
+        auto c = roll->pop();
+        empty_commits.insert(c);
       }
 
       // There is only one roll. We may need to call the commit hook.
-      auto r = roll->begin();
+      auto r = roll->get_head();
 
       if (global_hook && !r->writes.empty())
-        commit_deltas.emplace_back(
-          LocalCommit{r->version, r->state, move(r->writes)});
+      {
+        commit_deltas.insert_back(
+          CreateNewLocalCommit(r->version, r->state, move(r->writes)));
+      }
     }
 
     void post_compact() override
     {
       if (global_hook)
       {
-        for (auto& r : commit_deltas)
-          global_hook(r.version, r.state, r.writes);
+        for (auto r = commit_deltas.get_head(); r != nullptr; r = r->next)
+        {
+          global_hook(r->version, r->state, r->writes);
+        }
       }
 
       commit_deltas.clear();
@@ -791,17 +838,18 @@ namespace kv
       // The Map expects to be locked during rollback.
       bool advance = false;
 
-      while (roll->size() > 1)
+      while (roll->get_head() != roll->get_tail())
       {
-        auto& r = roll->back();
+        auto r = roll->get_tail();
 
         // The initial empty state has v = 0, so will not be discarded if it
         // is present.
-        if (r.version <= v)
+        if (r->version <= v)
           break;
 
         advance = true;
-        roll->pop_back();
+        auto c = roll->pop_tail();
+        empty_commits.insert(c);
       }
 
       if (advance)
@@ -813,7 +861,7 @@ namespace kv
       // This discards all entries in the roll and resets the compacted value
       // and rollback counter. The Map expects to be locked before clearing it.
       roll->clear();
-      roll->push_back({0, State(), Write()});
+      roll->insert_back(CreateNewLocalCommit(0, State(), Write()));
       rollback_counter = 0;
     }
 
@@ -1757,6 +1805,7 @@ namespace kv
            std::make_pair(std::move(pending_tx), globally_committable)});
 
         auto h = get_history();
+        auto c = get_consensus();
 
         for (Version offset = 1; true; ++offset)
         {
@@ -1766,6 +1815,8 @@ namespace kv
 
           auto& [pending_tx_, committable_] = search->second;
           auto [success_, reqid, data_] = pending_tx_();
+          auto data_shared =
+            std::make_shared<std::vector<uint8_t>>(std::move(data_));
 
           // NB: this cannot happen currently. Regular Tx only make it here if
           // they did succeed, and signatures cannot conflict because they
@@ -1776,13 +1827,13 @@ namespace kv
 
           if (h)
           {
-            h->add_result(reqid, version, data_.data(), data_.size());
+            h->add_pending(reqid, version, data_shared);
           }
 
           LOG_DEBUG_FMT(
-            "Batching {} ({})", last_replicated + offset, data_.size());
+            "Batching {} ({})", last_replicated + offset, data_shared->size());
           batch.emplace_back(
-            last_replicated + offset, std::move(data_), committable_);
+            last_replicated + offset, data_shared, committable_);
           pending_txs.erase(search);
         }
 
@@ -1800,12 +1851,13 @@ namespace kv
         if (
           last_replicated == previous_last_replicated &&
           previous_rollback_count == rollback_count)
+        {
           last_replicated = next_last_replicated;
+        }
         return CommitSuccess::OK;
       }
       else
       {
-        std::lock_guard<SpinLock> vguard(version_lock);
         LOG_DEBUG_FMT("Failed to replicate");
         return CommitSuccess::NO_REPLICATE;
       }
@@ -1844,13 +1896,15 @@ namespace kv
       for (auto& map : maps)
         map.second->unlock();
 
-      std::lock_guard<SpinLock> vguard(version_lock);
-      version = 0;
-      compacted = 0;
-      last_replicated = 0;
-      last_committable = 0;
-      rollback_count = 0;
-      pending_txs.clear();
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        version = 0;
+        compacted = 0;
+        last_replicated = 0;
+        last_committable = 0;
+        rollback_count = 0;
+        pending_txs.clear();
+      }
     }
 
     /** This is only safe in very restricted circumstances, and is only

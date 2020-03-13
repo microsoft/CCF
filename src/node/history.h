@@ -4,6 +4,7 @@
 
 #include "consensus/pbft/pbfttypes.h"
 #include "crypto/hash.h"
+#include "ds/dllist.h"
 #include "ds/logger.h"
 #include "entities.h"
 #include "kv/kvtypes.h"
@@ -147,6 +148,14 @@ namespace ccf
       kv::Version version,
       const std::vector<uint8_t>& replicated) override
     {}
+
+    void add_pending(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      std::shared_ptr<std::vector<uint8_t>> replicated) override
+    {}
+
+    void execute_pending() override {}
 
     virtual void add_result(
       RequestID id,
@@ -538,6 +547,62 @@ namespace ccf
       }
 
       return consensus->on_request({id, request, caller_id, caller_cert});
+    }
+
+    struct PendingInsert
+    {
+      PendingInsert(
+        kv::TxHistory::RequestID i,
+        kv::Version v,
+        std::shared_ptr<std::vector<uint8_t>> r) :
+        id(i),
+        version(v),
+        replicated(std::move(r)),
+        next(nullptr),
+        prev(nullptr)
+      {}
+
+      kv::TxHistory::RequestID id;
+      kv::Version version;
+      std::shared_ptr<std::vector<uint8_t>> replicated;
+      PendingInsert* next;
+      PendingInsert* prev;
+    };
+
+    SpinLock version_lock;
+    snmalloc::DLList<PendingInsert, std::nullptr_t, true> pending_inserts;
+
+    void add_pending(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      std::shared_ptr<std::vector<uint8_t>> replicated) override
+    {
+      auto consensus = store.get_consensus();
+      if (consensus->type() == ConsensusType::RAFT)
+      {
+        add_result(id, version, replicated->data(), replicated->size());
+      }
+      else
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        pending_inserts.insert_back(new PendingInsert(id, version, replicated));
+      }
+    }
+
+    void execute_pending() override
+    {
+      snmalloc::DLList<PendingInsert, std::nullptr_t, true> pi;
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        pi = std::move(pending_inserts);
+      }
+
+      PendingInsert* p = pi.get_head();
+      while (p != nullptr)
+      {
+        add_result(p->id, p->version, *p->replicated);
+        p = p->next;
+      }
     }
 
     void add_result(

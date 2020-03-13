@@ -42,11 +42,6 @@ public:
   // Effects: Returns the timestamp in the last message sent to
   // principal "pid".
 
-  Digest& digest(int pid);
-  // Requires: "pid" is a valid principal identifier.
-  // Effects: Returns a reference to the digest of the last reply
-  // value sent to pid.
-
   Reply* reply(int pid);
   // Requires: "pid" is a valid principal identifier.
   // Effects: Returns a pointer to the last reply value sent to "pid"
@@ -136,11 +131,6 @@ inline bool Rep_info_exactly_once::is_committed(int pid)
 inline Request_id Rep_info_exactly_once::req_id(int pid)
 {
   return reps[pid]->request_id();
-}
-
-inline Digest& Rep_info_exactly_once::digest(int pid)
-{
-  return reps[pid]->digest();
 }
 
 inline Reply* Rep_info_exactly_once::reply(int pid)

@@ -30,7 +30,6 @@ Reply::Reply(
   Request_id req,
   Seqno n,
   int replica,
-  Digest& d,
   Principal* p,
   bool tentative) :
   Message(Reply_tag, sizeof(Reply_rep) + MAC_size)
@@ -49,7 +48,6 @@ Reply::Reply(
   rep().n = n;
   rep().replica = replica;
   rep().reply_size = -1;
-  rep().digest = d;
 
   INCR_OP(reply_auth);
   START_CC(reply_auth_cycles);
@@ -90,7 +88,6 @@ void Reply::authenticate(Principal* p, int act_len, bool tentative)
   }
 
   rep().reply_size = act_len;
-  rep().digest = Digest(contents() + sizeof(Reply_rep), act_len);
   int old_size = sizeof(Reply_rep) + act_len;
   set_size(old_size + MAC_size);
 
@@ -153,16 +150,6 @@ bool Reply::pre_verify()
   if (size() - (int)sizeof(Reply_rep) - rep_size < MAC_size)
   {
     return false;
-  }
-
-  // Check reply
-  if (full())
-  {
-    Digest d(contents() + sizeof(Reply_rep), rep_size);
-    if (d != rep().digest)
-    {
-      return false;
-    }
   }
 
   // Check signature.
