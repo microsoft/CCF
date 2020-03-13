@@ -109,24 +109,25 @@ static void commit_latency(picobench::state& s)
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    for (int j = 0; j < S; j++)
+    Store::Tx tx;
+    auto [tx0, tx1] = tx.get_view(map0, map1);
+    for (int iTx = 0; iTx < S; iTx++)
     {
-      Store::Tx tx;
-      auto [tx0, tx1] = tx.get_view(map0, map1);
-
-      auto key = "key" + std::to_string(i);
+      auto key = "key" + std::to_string(i) + " - " + std::to_string(iTx);
       tx0->put(key, "value");
       tx1->put(key, "value");
-      auto rc = tx.commit();
-      if (rc != kv::CommitSuccess::OK)
-        throw std::logic_error(
-          "Transaction commit failed: " + std::to_string(rc));
     }
-    s.start_timer();
-    kv_store.compact(kv_store.current_version());
-    clobber_memory();
-    s.stop_timer();
+
+    auto rc = tx.commit();
+    if (rc != kv::CommitSuccess::OK)
+    {
+      throw std::logic_error(
+        "Transaction commit failed: " + std::to_string(rc));
+    }
   }
+  s.start_timer();
+  kv_store.compact(kv_store.current_version());
+  s.stop_timer();
 }
 
 const std::vector<int> tx_count = {10, 100, 1000};
@@ -137,7 +138,6 @@ using SD = kv::SecurityDomain;
 PICOBENCH_SUITE("commit_latency");
 PICOBENCH(commit_latency<10>).iterations(tx_count).samples(10).baseline();
 PICOBENCH(commit_latency<100>).iterations(tx_count).samples(10);
-PICOBENCH(commit_latency<1000>).iterations(tx_count).samples(10);
 
 PICOBENCH_SUITE("serialise");
 PICOBENCH(serialise<SD::PUBLIC>)
