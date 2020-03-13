@@ -22,7 +22,6 @@ struct Reply_rep : public Message_rep
   View v; // current view
   Request_id rid; // unique request identifier
   Seqno n; // sequence number when request was executed
-  Digest digest; // digest of reply.
   int replica; // id of replica sending the reply
   int reply_size; // if negative, reply is not full.
   // Followed by a reply that is "reply_size" bytes long and
@@ -77,7 +76,6 @@ public:
     Request_id req,
     Seqno n,
     int replica,
-    Digest& d,
     Principal* p,
     bool tentative);
   // Effects: Creates a new empty Reply message and appends a MAC for principal
@@ -99,9 +97,6 @@ public:
 
   int id() const;
   // Effects: Fetches the replier's identifier from the message.
-
-  Digest& digest() const;
-  // Effects: Fetches the digest from the message.
 
   char* reply(int& len);
   // Effects: Returns a pointer to the reply and sets len to the
@@ -159,11 +154,6 @@ inline int Reply::id() const
   return rep().replica;
 }
 
-inline Digest& Reply::digest() const
-{
-  return rep().digest;
-}
-
 inline char* Reply::reply(int& len)
 {
   len = rep().reply_size;
@@ -187,6 +177,6 @@ inline bool Reply::match(Reply* r)
     return false;
   }
 
-  return (rep().digest == r->rep().digest) & (rep().n == r->rep().n) &
+  return (rep().n == r->rep().n) &
     ((!is_tentative() & !r->is_tentative()) | (view() == r->view()));
 }

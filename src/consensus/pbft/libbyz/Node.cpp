@@ -190,7 +190,6 @@ void Node::send(Message* m, int i)
 
 void Node::send(Message* m, Principal* p)
 {
-  PBFT_ASSERT(m->size() <= Max_message_size, "Message is too big");
   PBFT_ASSERT(m->tag() < Max_message_tag, "Invalid message tag");
   PBFT_ASSERT(p != nullptr, "Must send to a principal");
 

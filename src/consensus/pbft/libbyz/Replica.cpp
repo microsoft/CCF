@@ -367,6 +367,13 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 bool Replica::compare_execution_results(
   const ByzInfo& info, Pre_prepare* pre_prepare)
 {
+  // We are currently not ordering the execution on the backups correctly.
+  // This will be resolved in the immediate future.
+  if (enclave::ThreadMessaging::thread_count > 2)
+  {
+    return true;
+  }
+
   auto& r_pp_root = pre_prepare->get_replicated_state_merkle_root();
 
   auto execution_match = true;
@@ -441,11 +448,10 @@ void Replica::playback_request(ccf::Store::Tx& tx)
 
   waiting_for_playback_pp = true;
 
-  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
-  cmds.emplace_back(execute_tentative_request(
+  vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, true));
 
-  exec_command(cmds, playback_byz_info);
+  exec_command(vec_exec_cmds, playback_byz_info, 1);
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -2174,6 +2180,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     last_tentative_execute,
     max_local_commit_value,
     stash_replier,
+    request.user_id(),
     &Replica::execute_tentative_request_end,
     tx);
 
@@ -2211,7 +2218,8 @@ void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
 bool Replica::create_execute_commands(
   Pre_prepare* pp,
   int64_t& max_local_commit_value,
-  std::vector<std::unique_ptr<ExecCommandMsg>>& cmds)
+  std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& cmds,
+  uint32_t& num_requests)
 {
   if (
     pp->seqno() == last_tentative_execute + 1 && !state.in_fetch_state() &&
@@ -2224,6 +2232,7 @@ bool Replica::create_execute_commands(
     Pre_prepare::Requests_iter iter(pp);
     Request request;
 
+    num_requests = 0;
     while (iter.get(request))
     {
       auto cmd = execute_tentative_request(
@@ -2232,7 +2241,8 @@ bool Replica::create_execute_commands(
         !iter.has_more_requests(),
         nullptr,
         pp->seqno());
-      cmds.push_back(std::move(cmd));
+      cmds[num_requests] = std::move(cmd);
+      ++num_requests;
     }
     return true;
   }
@@ -2246,10 +2256,11 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     pp->seqno(),
     last_tentative_execute);
 
-  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
-  if (create_execute_commands(pp, info.max_local_commit_value, cmds))
+  uint32_t num_requests;
+  if (create_execute_commands(
+        pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
-    exec_command(cmds, info);
+    exec_command(vec_exec_cmds, info, num_requests);
     return true;
   }
   return false;
@@ -2267,8 +2278,9 @@ bool Replica::execute_tentative(
   void(cb)(Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>),
   std::unique_ptr<ExecTentativeCbCtx> ctx)
 {
-  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
-  if (create_execute_commands(pp, ctx->info.max_local_commit_value, cmds))
+  uint32_t num_requests;
+  if (create_execute_commands(
+        pp, ctx->info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
     ByzInfo& info = ctx->info;
     if (cb != nullptr)
@@ -2290,7 +2302,7 @@ bool Replica::execute_tentative(
       }
     }
 
-    exec_command(cmds, info);
+    exec_command(vec_exec_cmds, info, num_requests);
     if (!node_info.general_info.support_threading)
     {
       cb(pp, this, std::move(ctx));

@@ -42,5 +42,6 @@ namespace enclave
       ccf::Store::Tx& tx,
       bool playback) = 0;
     virtual crypto::Sha256Hash get_merkle_root() = 0;
+    virtual void update_merkle_tree() = 0;
   };
 }
