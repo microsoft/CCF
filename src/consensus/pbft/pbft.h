@@ -67,75 +67,14 @@ namespace pbft
 
   class PbftEnclaveNetwork : public INetwork
   {
-  public:
-    PbftEnclaveNetwork(
-      NodeId id,
-      std::shared_ptr<ccf::NodeToNode> n2n_channels,
-      NodesMap& nodes_,
-      Index& latest_stable_ae_index_) :
-      n2n_channels(n2n_channels),
-      id(id),
-      nodes(nodes_),
-      latest_stable_ae_index(latest_stable_ae_index_)
-    {}
-
-    virtual ~PbftEnclaveNetwork() = default;
-
-    bool Initialize(in_port_t port) override
+  private:
+    void serialize_message(uint8_t*& data, size_t& size, Message* msg)
     {
-      return true;
-    }
-
-    void set_receiver(IMessageReceiveBase* receiver)
-    {
-      message_receiver_base = receiver;
-    }
-
-    std::vector<uint8_t> serialized_msg;
-
-    int Send(Message* msg, IPrincipal& principal) override
-    {
-      NodeId to = principal.pid();
-      if (to == id)
-      {
-        // If a replica sends a message to itself (e.g. if f == 0), handle
-        // the message straight away without writing it to the ringbuffer
-        message_receiver_base->receive_message(
-          (const uint8_t*)(msg->contents()), msg->size());
-        return msg->size();
-      }
-
-      PbftHeader hdr = {PbftMsgType::pbft_message, id};
-
-      auto space = (sizeof(PbftHeader) + msg->size());
-      serialized_msg.resize(space);
-      auto data_ = serialized_msg.data();
-      serialized::write<PbftHeader>(data_, space, hdr);
       serialized::write(
-        data_,
-        space,
+        data,
+        size,
         reinterpret_cast<const uint8_t*>(msg->contents()),
         msg->size());
-
-      if (msg->tag() == Append_entries_tag)
-      {
-        auto node = nodes.find(to);
-
-        Index match_idx = 0;
-        if (node != nodes.end())
-        {
-          match_idx = node->second;
-        }
-
-        if (match_idx < latest_stable_ae_index)
-        {
-          send_append_entries(to, match_idx + 1);
-        }
-        return msg->size();
-      }
-      n2n_channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg, to, serialized_msg);
-      return msg->size();
     }
 
     void send_append_entries(NodeId to, Index start_idx)
@@ -162,7 +101,7 @@ namespace pbft
       const auto prev_idx = start_idx - 1;
 
       LOG_INFO_FMT(
-        "Send append entried from {} to {}: {} to {}",
+        "Send append entries from {} to {}: {} to {}",
         id,
         to,
         start_idx,
@@ -183,6 +122,73 @@ namespace pbft
       // The host will append log entries to this message when it is
       // sent to the destination node.
       n2n_channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
+    }
+
+    std::vector<uint8_t> serialized_msg;
+
+  public:
+    PbftEnclaveNetwork(
+      NodeId id,
+      std::shared_ptr<ccf::NodeToNode> n2n_channels,
+      NodesMap& nodes_,
+      Index& latest_stable_ae_index_) :
+      n2n_channels(n2n_channels),
+      id(id),
+      nodes(nodes_),
+      latest_stable_ae_index(latest_stable_ae_index_)
+    {}
+
+    virtual ~PbftEnclaveNetwork() = default;
+
+    bool Initialize(in_port_t port) override
+    {
+      return true;
+    }
+
+    void set_receiver(IMessageReceiveBase* receiver)
+    {
+      message_receiver_base = receiver;
+    }
+
+    int Send(Message* msg, IPrincipal& principal) override
+    {
+      NodeId to = principal.pid();
+      if (to == id)
+      {
+        // If a replica sends a message to itself (e.g. if f == 0), handle
+        // the message straight away without writing it to the ringbuffer
+        message_receiver_base->receive_message(
+          (const uint8_t*)(msg->contents()), msg->size());
+        return msg->size();
+      }
+
+      if (msg->tag() == Append_entries_tag)
+      {
+        auto node = nodes.find(to);
+
+        Index match_idx = 0;
+        if (node != nodes.end())
+        {
+          match_idx = node->second;
+        }
+
+        if (match_idx < latest_stable_ae_index)
+        {
+          send_append_entries(to, match_idx + 1);
+        }
+        return msg->size();
+      }
+
+      PbftHeader hdr = {PbftMsgType::pbft_message, id};
+      auto space = (sizeof(PbftHeader) + msg->size());
+      serialized_msg.resize(space);
+      auto data_ = serialized_msg.data();
+      serialized::write<PbftHeader>(data_, space, hdr);
+      serialize_message(data_, space, msg);
+
+      n2n_channels->send_authenticated(
+        ccf::NodeMsgType::consensus_msg, to, serialized_msg);
+      return msg->size();
     }
 
     virtual Message* GetNextMessage() override
@@ -491,8 +497,17 @@ namespace pbft
       {
         case pbft_message:
         {
-          serialized::skip(data, size, sizeof(PbftHeader));
-          message_receiver_base->receive_message(data, size);
+          try
+          {
+            auto r =
+              channels->template recv_authenticated_with_load<PbftHeader>(
+                data, size);
+            message_receiver_base->receive_message(r.p, r.n);
+          }
+          catch (const std::logic_error& err)
+          {
+            LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+          }
           break;
         }
         case pbft_append_entries:

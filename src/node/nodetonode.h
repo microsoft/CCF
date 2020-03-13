@@ -41,6 +41,16 @@ namespace ccf
         signed_public.value());
     }
 
+    bool try_established_channel(NodeId id, Channel& channel)
+    {
+      if (channel.get_status() != ChannelStatus::ESTABLISHED)
+      {
+        establish_channel(id);
+        return false;
+      }
+      return true;
+    }
+
   public:
     NodeToNode(ringbuffer::AbstractWriterFactory& writer_factory_) :
       to_host(writer_factory_.create_writer_to_outside())
@@ -57,15 +67,33 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
+      if (!try_established_channel(to, n2n_channel))
       {
-        establish_channel(to);
         return false;
       }
 
       // The secure channel between self and to has already been established
       GcmHdr hdr;
       n2n_channel.tag(hdr, asCb(data));
+
+      to_host->write(node_outbound, to, msg_type, data, hdr);
+      return true;
+    }
+
+    template <>
+    bool send_authenticated(
+      const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
+    {
+      auto& n2n_channel = channels->get(to);
+      if (!try_established_channel(to, n2n_channel))
+      {
+        return false;
+      }
+
+      // The secure channel between self and to has already been established
+      GcmHdr hdr;
+      n2n_channel.tag(hdr, data);
+
       to_host->write(node_outbound, to, msg_type, data, hdr);
       return true;
     }
@@ -90,22 +118,47 @@ namespace ccf
     }
 
     template <class T>
+    CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
+    {
+      // data contains the message header of type T, the raw data, and the gcm
+      // header at the end
+      const auto* payload_data = data;
+      auto payload_size = size - sizeof(GcmHdr);
+
+      const auto& t = serialized::overlay<T>(data, size);
+      serialized::skip(data, size, (size - sizeof(GcmHdr)));
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+
+      auto& n2n_channel = channels->get(t.from_node);
+
+      if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {} (size: {})",
+          t.from_node,
+          size));
+      }
+
+      serialized::skip(payload_data, payload_size, sizeof(T));
+      return {payload_data, payload_size};
+    }
+
+    template <class T>
     bool send_encrypted(
-      NodeId to, const std::vector<uint8_t>& data, const T& msg)
+      NodeId to, const std::vector<uint8_t>& data, const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
-      if (n2n_channel.get_status() != ChannelStatus::ESTABLISHED)
+      if (!try_established_channel(to, n2n_channel))
       {
-        establish_channel(to);
         return false;
       }
 
       GcmHdr hdr;
       std::vector<uint8_t> cipher(data.size());
-      n2n_channel.encrypt(hdr, asCb(msg), data, cipher);
+      n2n_channel.encrypt(hdr, asCb(msg_hdr), data, cipher);
 
       to_host->write(
-        node_outbound, to, NodeMsgType::forwarded_msg, msg, hdr, cipher);
+        node_outbound, to, NodeMsgType::forwarded_msg, msg_hdr, hdr, cipher);
 
       return true;
     }
