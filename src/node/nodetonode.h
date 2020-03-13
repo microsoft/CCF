@@ -41,7 +41,7 @@ namespace ccf
         signed_public.value());
     }
 
-    bool is_channel_established(NodeId id, Channel& channel)
+    bool try_established_channel(NodeId id, Channel& channel)
     {
       if (channel.get_status() != ChannelStatus::ESTABLISHED)
       {
@@ -67,7 +67,7 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!is_channel_established(to, n2n_channel))
+      if (!try_established_channel(to, n2n_channel))
       {
         return false;
       }
@@ -85,7 +85,7 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!is_channel_established(to, n2n_channel))
+      if (!try_established_channel(to, n2n_channel))
       {
         return false;
       }
@@ -144,7 +144,7 @@ namespace ccf
       NodeId to, const std::vector<uint8_t>& data, const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
-      if (!is_channel_established(to, n2n_channel))
+      if (!try_established_channel(to, n2n_channel))
       {
         return false;
       }
