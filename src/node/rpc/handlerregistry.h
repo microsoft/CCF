@@ -38,6 +38,7 @@ namespace ccf
       nlohmann::json params_schema;
       nlohmann::json result_schema;
       bool require_client_signature = false;
+      bool require_valid_caller = true;
       bool execute_locally = false;
     };
 
@@ -72,6 +73,7 @@ namespace ccf
      * @param params_schema JSON schema for params object in requests
      * @param result_schema JSON schema for result object in responses
      * @param require_client_signature If true, client request must be signed
+     * @param require_valid_caller If true, caller must be a known user
      * @param execute_locally If true, request is executed without consensus
      * (PBFT only)
      */
@@ -89,6 +91,7 @@ namespace ccf
                           params_schema,
                           result_schema,
                           require_client_signature,
+                          require_valid_caller,
                           execute_locally};
     }
 
@@ -113,6 +116,7 @@ namespace ccf
       F&& f,
       ReadWrite rw,
       bool require_client_signature = false,
+      bool require_valid_caller = true,
       bool execute_locally = false)
     {
       auto params_schema = nlohmann::json::object();
@@ -134,6 +138,7 @@ namespace ccf
         params_schema,
         result_schema,
         require_client_signature,
+        require_valid_caller,
         execute_locally);
     }
 
