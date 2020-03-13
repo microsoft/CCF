@@ -49,9 +49,9 @@ target_include_directories(
       "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
       # "$<INSTALL_INTERFACE:${EVERCRYPT_INC}>"
-      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
-      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
-      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
 )
 install(
   TARGETS ccf.test
@@ -80,9 +80,9 @@ if("sgx" IN_LIST TARGET)
     PUBLIC
      "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
-      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
-      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
   target_link_libraries(ccf.enclave PUBLIC libbyz.enclave)
@@ -132,9 +132,9 @@ if("virtual" IN_LIST TARGET)
     PUBLIC
       "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin>
+      $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
   target_link_libraries(ccf.virtual PUBLIC libbyz.host)

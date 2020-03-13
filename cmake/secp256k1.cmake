@@ -9,7 +9,7 @@ if("sgx" IN_LIST TARGET)
     secp256k1.enclave
     PUBLIC
       $<BUILD_INTERFACE:${CCF_DIR}/3rdparty/secp256k1>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/secp256k1>
+      $<INSTALL_INTERFACE:include/3rdparty/secp256k1>
   )
   target_compile_options(
     secp256k1.enclave PRIVATE -fvisibility=hidden -nostdinc
@@ -30,7 +30,7 @@ add_library(secp256k1.host STATIC ${CCF_DIR}/3rdparty/secp256k1/src/secp256k1.c)
 target_include_directories(
   secp256k1.host
   PUBLIC $<BUILD_INTERFACE:${CCF_DIR}/3rdparty/secp256k1>
-         $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/secp256k1>
+         $<INSTALL_INTERFACE:include/3rdparty/secp256k1>
 )
 target_compile_options(secp256k1.host PRIVATE -fvisibility=hidden)
 target_compile_definitions(secp256k1.host PRIVATE HAVE_CONFIG_H SECP256K1_BUILD)
