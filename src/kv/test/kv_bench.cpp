@@ -123,7 +123,7 @@ static void commit_latency(picobench::state& s)
           "Transaction commit failed: " + std::to_string(rc));
     }
     s.start_timer();
-    kv_store.compact(0);
+    kv_store.compact(kv_store.current_version());
     clobber_memory();
     s.stop_timer();
   }
