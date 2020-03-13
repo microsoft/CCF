@@ -502,10 +502,7 @@ namespace pbft
             auto r =
               channels->template recv_authenticated_with_load<PbftHeader>(
                 data, size);
-            const auto* d = r.data();
-            auto s = r.size();
-            serialized::skip(d, s, sizeof(PbftHeader));
-            message_receiver_base->receive_message(d, s);
+            message_receiver_base->receive_message(r.p, r.n);
           }
           catch (const std::logic_error& err)
           {

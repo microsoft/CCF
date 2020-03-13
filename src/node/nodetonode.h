@@ -118,25 +118,29 @@ namespace ccf
     }
 
     template <class T>
-    std::vector<uint8_t> recv_authenticated_with_load(
-      const uint8_t*& data, size_t& size)
+    CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
     {
       // data contains the message header of type T, the raw data, and the gcm
       // header at the end
-      const auto& t = serialized::peek<T>(data, size);
-      const auto d = serialized::read(data, size, (size - sizeof(GcmHdr)));
+      const auto* payload_data = data;
+      auto payload_size = size - sizeof(GcmHdr);
+
+      const auto& t = serialized::overlay<T>(data, size);
+      serialized::skip(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
       auto& n2n_channel = channels->get(t.from_node);
 
-      if (!n2n_channel.verify(hdr, d))
+      if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",
           t.from_node,
           size));
       }
-      return d;
+
+      serialized::skip(payload_data, payload_size, sizeof(T));
+      return {payload_data, payload_size};
     }
 
     template <class T>
