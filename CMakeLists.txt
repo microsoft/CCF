@@ -482,7 +482,6 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
   )
 
-  # PBFT can't run due to max len < len in client proxy
   add_e2e_test(
     NAME lua_end_to_end_batched
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
@@ -491,7 +490,6 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
   )
 
-  # throws because of rollback that rolls back before last checkpoint
   add_e2e_test(
     NAME js_end_to_end_logging
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
