@@ -44,7 +44,8 @@ char* Rep_info::new_reply(
   char* ret = r->contents() + sizeof(Reply_rep);
   {
     std::lock_guard<SpinLock> mguard(lock);
-    auto ret_insert = reps.insert({Key{(size_t)pid, rid, n}, std::move(r)});
+    auto ret_insert =
+      reps.insert({Key{static_cast<size_t>(pid), rid, n}, std::move(r)});
     if (ret_insert.second)
     {
       return ret;
@@ -64,11 +65,11 @@ void Rep_info::end_reply(int pid, Request_id rid, Seqno n, int size)
   Reply* r;
   {
     std::lock_guard<SpinLock> mguard(lock);
-    auto it = reps.find({(size_t)pid, rid, n});
+    auto it = reps.find({static_cast<size_t>(pid), rid, n});
     if (it == reps.end())
     {
-      LOG_INFO << " Attempt to end reply not in this < " << pid << "," << rid
-               << "," << n << ">" << std::endl;
+      LOG_INFO_FMT(
+        " Attempt to end reply not in this < {}, {}, {} >", pid, rid, n);
       return;
     }
     Reply* r = it->second.get();

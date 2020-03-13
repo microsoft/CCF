@@ -149,7 +149,7 @@ namespace ccf
       const std::vector<uint8_t>& replicated) override
     {}
 
-    void add_pending_result(
+    void add_pending(
       kv::TxHistory::RequestID id,
       kv::Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) override
@@ -572,13 +572,21 @@ namespace ccf
     SpinLock version_lock;
     snmalloc::DLList<PendingInsert, std::nullptr_t, true> pending_inserts;
 
-    void add_pending_result(
+    void add_pending(
       kv::TxHistory::RequestID id,
       kv::Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) override
     {
-      std::lock_guard<SpinLock> vguard(version_lock);
-      pending_inserts.insert_back(new PendingInsert(id, version, replicated));
+      auto consensus = store.get_consensus();
+      if (consensus->type() == ConsensusType::RAFT)
+      {
+        add_result(id, version, replicated->data(), replicated->size());
+      }
+      else
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        pending_inserts.insert_back(new PendingInsert(id, version, replicated));
+      }
     }
 
     void execute_pending() override

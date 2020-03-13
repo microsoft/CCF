@@ -130,7 +130,7 @@ namespace kv
       RequestID id,
       kv::Version version,
       const std::vector<uint8_t>& replicated) = 0;
-    virtual void add_pending_result(
+    virtual void add_pending(
       RequestID id,
       kv::Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) = 0;

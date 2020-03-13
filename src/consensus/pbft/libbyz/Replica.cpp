@@ -367,7 +367,7 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 bool Replica::compare_execution_results(
   const ByzInfo& info, Pre_prepare* pre_prepare)
 {
-  // We are currently not ording the execution on the backups correctly.
+  // We are currently not ordering the execution on the backups correctly.
   // This will be resolved in the immediate future.
   if (enclave::ThreadMessaging::thread_count > 2)
   {

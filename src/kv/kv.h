@@ -1827,15 +1827,7 @@ namespace kv
 
           if (h)
           {
-            if (c->type() == ConsensusType::RAFT)
-            {
-              h->add_result(
-                reqid, version, data_shared->data(), data_shared->size());
-            }
-            else
-            {
-              h->add_pending_result(reqid, version, data_shared);
-            }
+            h->add_pending(reqid, version, data_shared);
           }
 
           LOG_DEBUG_FMT(

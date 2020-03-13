@@ -81,7 +81,15 @@ namespace pbft
           PbftConfigCcf::max_update_merkle_tree_interval ==
         0)
       {
-        frontend->update_merkle_tree();
+        try
+        {
+          frontend->update_merkle_tree();
+        }
+        catch (const std::exception& e)
+        {
+          LOG_TRACE_FMT("Failed to insert into merkle tree", e.what());
+          abort();
+        }
       }
 
       if (info.pending_cmd_callbacks == 0)
