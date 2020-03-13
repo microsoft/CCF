@@ -130,10 +130,7 @@ const uint32_t sample_size = 100;
 using SD = kv::SecurityDomain;
 
 PICOBENCH_SUITE("commit_latency");
-PICOBENCH(commit_latency)
-  .iterations(tx_count)
-  .samples(10)
-  .baseline();
+PICOBENCH(commit_latency).iterations(tx_count).samples(10).baseline();
 
 PICOBENCH_SUITE("serialise");
 PICOBENCH(serialise<SD::PUBLIC>)
