@@ -42,6 +42,25 @@ option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
+add_library(ccf.test STATIC ${CCF_DIR}/src/tls/main.cpp)
+target_include_directories(
+    ccf.test SYSTEM
+    PUBLIC
+      "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
+      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
+      # "$<INSTALL_INTERFACE:${EVERCRYPT_INC}>"
+      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
+      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
+      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+)
+install(
+  TARGETS ccf.test
+  EXPORT ccf
+  DESTINATION lib
+)
+
+
+
 if("sgx" IN_LIST TARGET)
   # enclave version
   add_library(
@@ -59,11 +78,11 @@ if("sgx" IN_LIST TARGET)
   target_include_directories(
     ccf.enclave SYSTEM
     PUBLIC
-      $<BUILD_INTERFACE:${EVERCRYPT_INC}>
+     "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
-      $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
+      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
+      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
+      # $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
   target_link_libraries(ccf.enclave PUBLIC libbyz.enclave)
@@ -111,7 +130,7 @@ if("virtual" IN_LIST TARGET)
   target_include_directories(
     ccf.virtual SYSTEM
     PUBLIC
-      $<BUILD_INTERFACE:${EVERCRYPT_INC}>
+      "$<BUILD_INTERFACE:${EVERCRYPT_INC}>"
       $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt>
       $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include/3rdparty/hacl-star/evercrypt/kremlin>
