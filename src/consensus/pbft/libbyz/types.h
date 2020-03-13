@@ -71,6 +71,7 @@ struct ExecCommandMsg
     Seqno last_tentative_execute_,
     int64_t& max_local_commit_value_,
     int replier_,
+    int reply_thread_,
     void (*cb_)(ExecCommandMsg& msg, ByzInfo& info),
     // if tx is nullptr we are in normal execution, otherwise we
     // are in playback mode
@@ -84,6 +85,7 @@ struct ExecCommandMsg
     last_tentative_execute(last_tentative_execute_),
     max_local_commit_value(max_local_commit_value_),
     replier(replier_),
+    reply_thread(reply_thread_),
     cb(cb_),
     tx(tx_)
   {}
@@ -96,6 +98,7 @@ struct ExecCommandMsg
   size_t req_size;
   bool include_merkle_roots;
   Seqno total_requests_executed;
+  int reply_thread;
   ccf::Store::Tx* tx;
 
   // Required for the callback
@@ -106,4 +109,6 @@ struct ExecCommandMsg
 };
 
 using ExecCommand = std::function<int(
-  std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo&)>;
+  std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
+  ByzInfo&,
+  uint32_t)>;

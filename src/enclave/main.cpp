@@ -98,14 +98,14 @@ extern "C"
         thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
           std::this_thread::get_id(), tid));
 
-        LOG_DEBUG_FMT("Starting thread: {}", tid);
+        LOG_INFO_FMT("Starting thread: {}", tid);
       }
 
       while (num_pending_threads != 0)
       {
       }
 
-      LOG_DEBUG_FMT("All threads are ready!");
+      LOG_INFO_FMT("All threads are ready!");
 
       if (tid == 0)
       {

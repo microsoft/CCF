@@ -26,6 +26,7 @@ int main(int argc, char** argv)
     vector<string> items{
       sregex_token_iterator(line.begin(), line.end(), delim, -1),
       std::sregex_token_iterator()};
+    std::shared_ptr<std::vector<uint8_t>> data;
     switch (shash(items[0].c_str()))
     {
       case shash("nodes"):
@@ -62,10 +63,9 @@ int main(int argc, char** argv)
         break;
       case shash("replicate"):
         assert(items.size() == 4);
-        driver->replicate(
-          stoi(items[1]),
-          stoi(items[2]),
-          vector<uint8_t>(items[3].begin(), items[3].end()));
+        data = std::make_shared<std::vector<uint8_t>>(
+          items[3].begin(), items[3].end());
+        driver->replicate(stoi(items[1]), stoi(items[2]), data);
         break;
       case shash("disconnect"):
         assert(items.size() == 3);

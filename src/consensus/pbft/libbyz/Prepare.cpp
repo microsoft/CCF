@@ -34,7 +34,7 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   {
     struct signature
     {
-      uint32_t magic = 0xba55ba11;
+      uint32_t magic = 0xba5eba11;
       NodeId id;
       Digest d;
 

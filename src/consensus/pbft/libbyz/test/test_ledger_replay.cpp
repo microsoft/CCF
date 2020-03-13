@@ -37,9 +37,13 @@ public:
   };
 
   ExecCommand exec_command =
-    [this](std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
-      for (auto& msg : msgs)
+    [this](
+      std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
+      ByzInfo& info,
+      uint32_t num_requests) {
+      for (uint32_t i = 0; i < num_requests; ++i)
       {
+        std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
         Byz_req* inb = &msg->inb;
         Byz_rep& outb = msg->outb;
         int client = msg->client;
