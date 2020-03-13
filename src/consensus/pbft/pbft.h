@@ -515,17 +515,18 @@ namespace pbft
       {
         case pbft_message:
         {
+          CBuffer r;
           try
           {
-            auto r =
-              channels->template recv_authenticated_with_load<PbftHeader>(
-                data, size);
-            message_receiver_base->receive_message(r.p, r.n);
+            r = channels->template recv_authenticated_with_load<PbftHeader>(
+              data, size);
           }
           catch (const std::logic_error& err)
           {
             LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+            return;
           }
+          message_receiver_base->receive_message(r.p, r.n);
           break;
         }
         case encrypted_pbft_message:
@@ -538,6 +539,7 @@ namespace pbft
           catch (const std::logic_error& err)
           {
             LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
+            return;
           }
           message_receiver_base->receive_message(
             r.second.data(), r.second.size());
