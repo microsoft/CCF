@@ -500,14 +500,6 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/src/apps/logging/loggingjs.lua
   )
 
-  if(NOT SAN)
-    add_e2e_test(
-      NAME connections
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-      CONSENSUS raft
-    )
-  endif()
-
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
@@ -535,6 +527,14 @@ if(BUILD_TESTS)
   endif()
 
   foreach(CONSENSUS ${CONSENSUSES})
+    if(NOT SAN)
+      add_e2e_test(
+        NAME connections_${CONSENSUS}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+        CONSENSUS ${CONSENSUS}
+      )
+    endif()
+
     add_e2e_test(
       NAME lua_end_to_end_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
