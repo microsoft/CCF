@@ -41,7 +41,7 @@ namespace ccf
         signed_public.value());
     }
 
-    bool is_channel_established(NodeId id, Channel& channel)
+    bool try_established_channel(NodeId id, Channel& channel)
     {
       if (channel.get_status() != ChannelStatus::ESTABLISHED)
       {
@@ -67,7 +67,7 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!is_channel_established(to, n2n_channel))
+      if (!try_established_channel(to, n2n_channel))
       {
         return false;
       }
@@ -85,14 +85,14 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!is_channel_established(to, n2n_channel))
+      if (!try_established_channel(to, n2n_channel))
       {
         return false;
       }
 
       // The secure channel between self and to has already been established
       GcmHdr hdr;
-      n2n_channel.tag(hdr, CBuffer{data.data(), data.size()});
+      n2n_channel.tag(hdr, data);
 
       to_host->write(node_outbound, to, msg_type, data, hdr);
       return true;
@@ -118,25 +118,29 @@ namespace ccf
     }
 
     template <class T>
-    std::vector<uint8_t> recv_authenticated_with_load(
-      const uint8_t*& data, size_t& size)
+    CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
     {
       // data contains the message header of type T, the raw data, and the gcm
       // header at the end
-      const auto& t = serialized::peek<T>(data, size);
-      const auto d = serialized::read(data, size, (size - sizeof(GcmHdr)));
+      const auto* payload_data = data;
+      auto payload_size = size - sizeof(GcmHdr);
+
+      const auto& t = serialized::overlay<T>(data, size);
+      serialized::skip(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
       auto& n2n_channel = channels->get(t.from_node);
 
-      if (!n2n_channel.verify(hdr, CBuffer{d.data(), d.size()}))
+      if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",
           t.from_node,
           size));
       }
-      return d;
+
+      serialized::skip(payload_data, payload_size, sizeof(T));
+      return {payload_data, payload_size};
     }
 
     template <class T>
@@ -147,7 +151,7 @@ namespace ccf
       const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
-      if (!is_channel_established(to, n2n_channel))
+      if (!try_established_channel(to, n2n_channel))
       {
         return false;
       }
