@@ -315,7 +315,7 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
     default:
       // Unknown message type.
       LOG_FAIL_FMT("Unknown message type:{}", Message::get_tag(data));
-      delete m;
+      throw std::logic_error("unknown msg type");
       return nullptr;
   }
 

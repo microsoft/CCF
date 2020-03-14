@@ -620,7 +620,6 @@ namespace pbft
       const uint8_t* data = d.data();
       size_t size = d.size();
       PbftHeader hdr = serialized::peek<PbftHeader>(data, size);
-      //switch (serialized::peek<PbftMsgType>(data, size))
       switch(hdr.msg)
       {
         case pbft_message:
