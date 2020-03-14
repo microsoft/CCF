@@ -270,7 +270,6 @@ namespace ccf
 
       if (signature_size > data_remaining)
       {
-        throw std::logic_error("aaa");
         LOG_FAIL_FMT(
           "Signature header wants {} bytes, but only {} remain",
           signature_size,
@@ -280,7 +279,6 @@ namespace ccf
 
       if (signature_size < data_remaining)
       {
-        throw std::logic_error("aaa");
         LOG_FAIL_FMT(
           "Expected signature to use all remaining {} bytes, but only uses {}",
           data_remaining,

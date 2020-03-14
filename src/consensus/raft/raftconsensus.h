@@ -74,7 +74,6 @@ namespace raft
       return raft->leader();
     }
 
-    //void recv_message(const uint8_t* data, size_t size) override
     void recv_message(OArray data) override
     {
       return raft->recv_message(data.data(), data.size());

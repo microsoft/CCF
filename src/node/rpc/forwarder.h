@@ -156,7 +156,6 @@ namespace ccf
       return std::make_pair(client_session_id, rpc);
     }
 
-    //void recv_message(const uint8_t* data, size_t size)
     void recv_message(std::vector<uint8_t> d)
     {
       const uint8_t* data = d.data();

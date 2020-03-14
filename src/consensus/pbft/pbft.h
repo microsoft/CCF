@@ -268,8 +268,6 @@ namespace pbft
       enclave::ThreadMessaging::thread_messaging.add_task<SendAuthenticatedMsg>(
         tid, std::move(tmsg));
 
-      //n2n_channels->send_authenticated(
-      //  ccf::NodeMsgType::consensus_msg, to, serialized_msg);
       return msg->size();
     }
 
@@ -603,8 +601,6 @@ namespace pbft
         LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
       }
 
-      // TODO: callback to main thread
-      //msg->cb = &recv_authenticated_msg_process_cb;
       enclave::ThreadMessaging::ChangeTmsgCallback(msg, &recv_authenticated_msg_process_cb);
       enclave::ThreadMessaging::thread_messaging.add_task<RecvAuthenticatedMsg>(
         enclave::ThreadMessaging::main_thread, std::move(msg));
