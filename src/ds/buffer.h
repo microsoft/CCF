@@ -8,6 +8,47 @@
 #include <utility>
 #include <vector>
 
+struct OArray
+{
+  OArray(std::vector<uint8_t> d_) : d(std::move(d_)), data_(d_.data()), size_(d_.size()) {}
+
+  OArray(const OArray& other) = delete;
+  OArray(OArray& other) = delete;
+  OArray& operator=(const OArray& rhs) = delete;
+  OArray& operator=(OArray& rhs) = delete;
+
+  OArray(OArray&& other)
+  {
+    data_ = other.data_;
+    size_ = other.size_;
+    d = std::move(other.d);
+  }
+  OArray& operator=(OArray&& other)
+  {
+    data_ = other.data_;
+    size_ = other.size_;
+    d = std::move(other.d);
+
+    return *this;
+  }
+
+  const uint8_t*& data()
+  {
+    return data_;
+  }
+
+  size_t& size()
+  {
+    return size_;
+  }
+
+private:
+  const uint8_t* data_;
+  size_t size_;
+
+  std::vector<uint8_t> d;
+};
+
 template <typename T>
 struct Array
 {

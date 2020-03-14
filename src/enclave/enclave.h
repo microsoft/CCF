@@ -204,11 +204,11 @@ namespace enclave
               serialized::peek<ccf::NodeMsgType>(p, psize) ==
               ccf::NodeMsgType::forwarded_msg)
             {
-              cmd_forwarder->recv_message(p, psize);
+              cmd_forwarder->recv_message(std::move(body));
             }
             else
             {
-              node.node_msg(body);
+              node.node_msg(std::move(body));
             }
           });
 

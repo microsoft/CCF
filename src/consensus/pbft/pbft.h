@@ -577,22 +577,25 @@ namespace pbft
       return true;
     }
 
-    void recv_message(const uint8_t* data, size_t size) override
+    //void recv_message(const uint8_t* data, size_t size) override
+    void recv_message(OArray d) override
     {
+      const uint8_t* data = d.data();
+      size_t size = d.size();
       switch (serialized::peek<PbftMsgType>(data, size))
       {
         case pbft_message:
         {
           try
           {
+            /*
             serialized::skip(data, size, sizeof(PbftHeader));
             message_receiver_base->receive_message(data, size);
-            /*
+            */
             auto r =
               channels->template recv_authenticated_with_load<PbftHeader>(
                 data, size);
             message_receiver_base->receive_message(r.p, r.n);
-            */
           }
           catch (const std::logic_error& err)
           {

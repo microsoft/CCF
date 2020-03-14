@@ -156,8 +156,11 @@ namespace ccf
       return std::make_pair(client_session_id, rpc);
     }
 
-    void recv_message(const uint8_t* data, size_t size)
+    //void recv_message(const uint8_t* data, size_t size)
+    void recv_message(std::vector<uint8_t> d)
     {
+      const uint8_t* data = d.data();
+      size_t size = d.size();
       serialized::skip(data, size, sizeof(NodeMsgType));
 
       auto forwarded_msg = serialized::peek<ForwardedMsg>(data, size);
