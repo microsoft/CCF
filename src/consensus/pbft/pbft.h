@@ -135,10 +135,6 @@ namespace pbft
 
       enclave::ThreadMessaging::thread_messaging
         .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
-
-      // The host will append log entries to this message when it is
-      // sent to the destination node.
-      //n2n_channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
     }
 
     std::vector<uint8_t> serialized_msg;
@@ -577,30 +573,76 @@ namespace pbft
       return true;
     }
 
-    //void recv_message(const uint8_t* data, size_t size) override
+    struct RecvAuthenticatedMsg
+    {
+      RecvAuthenticatedMsg(OArray d_, Pbft<LedgerProxy, ChannelProxy>* self_) :
+        d(std::move(d_)),
+        self(self_),
+        result(false)
+      {}
+
+      OArray d;
+      Pbft<LedgerProxy, ChannelProxy>* self;
+      CBuffer r;
+      bool result;
+    };
+
+    static void recv_authenticated_msg_cb(
+      std::unique_ptr<enclave::Tmsg<RecvAuthenticatedMsg>> msg)
+    {
+      try
+      {
+        msg->data.r = msg->data.self->channels
+                          ->template recv_authenticated_with_load<PbftHeader>(
+                            msg->data.d.data(), msg->data.d.size());
+        msg->data.result = true;
+      }
+      catch (const std::logic_error& err)
+      {
+        msg->data.result = false;
+        LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+      }
+
+      // TODO: callback to main thread
+      //msg->cb = &recv_authenticated_msg_process_cb;
+      enclave::ThreadMessaging::ChangeTmsgCallback(msg, &recv_authenticated_msg_process_cb);
+      enclave::ThreadMessaging::thread_messaging.add_task<RecvAuthenticatedMsg>(
+        enclave::ThreadMessaging::main_thread, std::move(msg));
+    }
+
+    static void recv_authenticated_msg_process_cb(
+      std::unique_ptr<enclave::Tmsg<RecvAuthenticatedMsg>> msg)
+    {
+      if (msg->data.result)
+      {
+        msg->data.self->message_receiver_base->receive_message(msg->data.r.p, msg->data.r.n);
+      }
+    }
+
     void recv_message(OArray d) override
     {
       const uint8_t* data = d.data();
       size_t size = d.size();
-      switch (serialized::peek<PbftMsgType>(data, size))
+      PbftHeader hdr = serialized::peek<PbftHeader>(data, size);
+      //switch (serialized::peek<PbftMsgType>(data, size))
+      switch(hdr.msg)
       {
         case pbft_message:
         {
-          try
+          auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
+            &recv_authenticated_msg_cb, std::move(d), this);
+
+          uint16_t tid = 0;
+          if (enclave::ThreadMessaging::thread_count > 1)
           {
-            /*
-            serialized::skip(data, size, sizeof(PbftHeader));
-            message_receiver_base->receive_message(data, size);
-            */
-            auto r =
-              channels->template recv_authenticated_with_load<PbftHeader>(
-                data, size);
-            message_receiver_base->receive_message(r.p, r.n);
+            tid =
+              (hdr.from_node % (enclave::ThreadMessaging::thread_count - 1));
+            ++tid;
           }
-          catch (const std::logic_error& err)
-          {
-            LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
-          }
+
+          enclave::ThreadMessaging::thread_messaging
+            .add_task<RecvAuthenticatedMsg>(tid, std::move(tmsg));
+
           break;
         }
         case pbft_append_entries:
