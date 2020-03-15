@@ -129,7 +129,7 @@ namespace pbft
       uint16_t tid = 0;
       if (enclave::ThreadMessaging::thread_count > 1)
       {
-        tid =(to % (enclave::ThreadMessaging::thread_count-1));
+        tid = (to % (enclave::ThreadMessaging::thread_count - 1));
         ++tid;
       }
 
@@ -261,7 +261,7 @@ namespace pbft
       uint16_t tid = 0;
       if (enclave::ThreadMessaging::thread_count > 1)
       {
-        tid =(to % (enclave::ThreadMessaging::thread_count-1));
+        tid = (to % (enclave::ThreadMessaging::thread_count - 1));
         ++tid;
       }
 
@@ -590,8 +590,8 @@ namespace pbft
       try
       {
         auto r = msg->data.self->channels
-                          ->template recv_authenticated_with_load<PbftHeader>(
-                            msg->data.d.data(), msg->data.d.size());
+                   ->template recv_authenticated_with_load<PbftHeader>(
+                     msg->data.d.data(), msg->data.d.size());
         msg->data.d.data() = r.p;
         msg->data.d.size() = r.n;
         msg->data.result = true;
@@ -602,7 +602,8 @@ namespace pbft
         LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
       }
 
-      enclave::ThreadMessaging::ChangeTmsgCallback(msg, &recv_authenticated_msg_process_cb);
+      enclave::ThreadMessaging::ChangeTmsgCallback(
+        msg, &recv_authenticated_msg_process_cb);
       enclave::ThreadMessaging::thread_messaging.add_task<RecvAuthenticatedMsg>(
         enclave::ThreadMessaging::main_thread, std::move(msg));
     }
@@ -622,7 +623,7 @@ namespace pbft
       const uint8_t* data = d.data();
       size_t size = d.size();
       PbftHeader hdr = serialized::peek<PbftHeader>(data, size);
-      switch(hdr.msg)
+      switch (hdr.msg)
       {
         case pbft_message:
         {

@@ -10,7 +10,11 @@
 
 struct OArray
 {
-  OArray(std::vector<uint8_t> d_) : d(std::move(d_)), data_(d_.data()), size_(d_.size()) {}
+  OArray(std::vector<uint8_t> d_) :
+    d(std::move(d_)),
+    data_(d_.data()),
+    size_(d_.size())
+  {}
 
   OArray(const OArray& other) = delete;
   OArray(OArray& other) = delete;

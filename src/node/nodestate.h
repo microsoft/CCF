@@ -905,7 +905,8 @@ namespace ccf
       OArray oa(std::move(data));
 
       Header header;
-      NodeMsgType msg_type = serialized::overlay<NodeMsgType>(oa.data(), oa.size());
+      NodeMsgType msg_type =
+        serialized::overlay<NodeMsgType>(oa.data(), oa.size());
 
       switch (msg_type)
       {
