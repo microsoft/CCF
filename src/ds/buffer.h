@@ -8,8 +8,11 @@
 #include <utility>
 #include <vector>
 
-struct OArray
+// The OArray (Owning Array) owns a buffer and provides a projection onto said
+// buffer via a pointer and a length.
+class OArray
 {
+public:
   OArray(std::vector<uint8_t> d_) :
     d(std::move(d_)),
     data_(d_.data()),
