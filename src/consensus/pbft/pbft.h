@@ -581,7 +581,6 @@ namespace pbft
 
       OArray d;
       Pbft<LedgerProxy, ChannelProxy>* self;
-      CBuffer r;
       bool result;
     };
 
@@ -590,9 +589,11 @@ namespace pbft
     {
       try
       {
-        msg->data.r = msg->data.self->channels
+        auto r = msg->data.self->channels
                           ->template recv_authenticated_with_load<PbftHeader>(
                             msg->data.d.data(), msg->data.d.size());
+        msg->data.d.data() = r.p;
+        msg->data.d.size() = r.n;
         msg->data.result = true;
       }
       catch (const std::logic_error& err)
@@ -611,7 +612,8 @@ namespace pbft
     {
       if (msg->data.result)
       {
-        msg->data.self->message_receiver_base->receive_message(msg->data.r.p, msg->data.r.n);
+        msg->data.self->message_receiver_base->receive_message(
+          msg->data.d.data(), msg->data.d.size());
       }
     }
 
