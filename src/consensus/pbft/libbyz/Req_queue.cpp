@@ -31,6 +31,8 @@ bool Req_queue::append(Request* r)
   }
 
   // this request is already in the queue
+  LOG_TRACE_FMT(
+    "Did not insert request to req_queue, cid:{}, rid:{}", cid, rid);
   return false;
 }
 
