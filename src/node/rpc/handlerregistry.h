@@ -84,6 +84,7 @@ namespace ccf
       const nlohmann::json& params_schema = nlohmann::json::object(),
       const nlohmann::json& result_schema = nlohmann::json::object(),
       bool require_client_signature = false,
+      bool require_valid_caller = true,
       bool execute_locally = false)
     {
       handlers[method] = {f,
@@ -99,7 +100,8 @@ namespace ccf
       const std::string& method,
       HandleFunction f,
       ReadWrite rw,
-      bool require_client_signature)
+      bool require_client_signature,
+      bool require_valid_caller = true)
     {
       install(
         method,
@@ -107,7 +109,8 @@ namespace ccf
         rw,
         nlohmann::json::object(),
         nlohmann::json::object(),
-        require_client_signature);
+        require_client_signature,
+        require_valid_caller);
     }
 
     template <typename In, typename Out, typename F>

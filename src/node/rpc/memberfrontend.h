@@ -878,7 +878,7 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      install(MemberProcs::CREATE, json_adapter(create), Write);
+      install(MemberProcs::CREATE, json_adapter(create), Write, true, false);
     }
   };
 

@@ -54,6 +54,16 @@ public:
       empty_function_signed,
       HandlerRegistry::Read,
       true);
+
+    auto empty_function_no_auth = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    install(
+      "empty_function_no_auth",
+      empty_function_no_auth,
+      HandlerRegistry::Read,
+      false,
+      true);
   }
 };
 
@@ -67,7 +77,7 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("empty_function", empty_function, HandlerRegistry::Read);
+    install("empty_function", empty_function, HandlerRegistry::Read, true);
     disable_request_storing();
   }
 };
@@ -443,12 +453,10 @@ TEST_CASE("process_command")
   REQUIRE(response.status == HTTP_STATUS_OK);
 }
 
-TEST_CASE("process")
+TEST_CASE("process with signatures")
 {
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
-  const auto simple_call = create_simple_request();
-  const auto [signed_call, signed_req] = create_signed_request(simple_call);
 
   SUBCASE("missing rpc")
   {
@@ -462,41 +470,88 @@ TEST_CASE("process")
     REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
   }
 
-  SUBCASE("without signature")
+  SUBCASE("handler does not require signature")
   {
-    const auto serialized_call = simple_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request();
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_simple_call = simple_call.build_request();
+    const auto serialized_signed_call = signed_call.build_request();
 
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    REQUIRE(response.status == HTTP_STATUS_OK);
+    auto simple_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    auto signed_resp = get_signed_req(user_id);
-    CHECK(!signed_resp.has_value());
+    INFO("Unsigned RPC");
+    {
+      const auto serialized_response = frontend.process(simple_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      CHECK(!signed_resp.has_value());
+    }
+
+    INFO("Signed RPC");
+    {
+      const auto serialized_response = frontend.process(signed_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      CHECK(!signed_resp.has_value());
+    }
   }
 
-  SUBCASE("with signature")
+  SUBCASE("handler requires signature")
   {
-    const auto serialized_call = signed_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request("empty_function_signed");
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_simple_call = simple_call.build_request();
+    const auto serialized_signed_call = signed_call.build_request();
 
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    REQUIRE(response.status == HTTP_STATUS_OK);
+    auto simple_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    auto signed_resp = get_signed_req(user_id);
-    REQUIRE(signed_resp.has_value());
-    auto value = signed_resp.value();
-    CHECK(value == signed_req);
+    INFO("Unsigned RPC");
+    {
+      const auto serialized_response = frontend.process(simple_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+
+      CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(error_msg.find("RPC must be signed") != std::string::npos);
+
+      auto signed_resp = get_signed_req(user_id);
+      CHECK(!signed_resp.has_value());
+    }
+
+    INFO("Signed RPC");
+    {
+      const auto serialized_response = frontend.process(signed_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      REQUIRE(signed_resp.has_value());
+      auto value = signed_resp.value();
+      CHECK(value == signed_req);
+    }
   }
 
   SUBCASE("request with signature but do not store")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
-    const auto serialized_call = signed_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request("empty_function");
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_signed_call = signed_call.build_request();
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    const auto serialized_response = frontend_nostore.process(rpc_ctx).value();
+    const auto serialized_response =
+      frontend_nostore.process(signed_rpc_ctx).value();
     const auto response = parse_response(serialized_response);
     REQUIRE(response.status == HTTP_STATUS_OK);
 
@@ -505,33 +560,6 @@ TEST_CASE("process")
     auto value = signed_resp.value();
     CHECK(value.req.empty());
     CHECK(value.sig == signed_req.sig);
-  }
-
-  SUBCASE("request without signature on sign-only handler")
-  {
-    const auto unsigned_call = create_simple_request("empty_function_signed");
-    const auto serialized_call = unsigned_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-
-    CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
-    const std::string error_msg(response.body.begin(), response.body.end());
-    CHECK(error_msg.find("RPC must be signed") != std::string::npos);
-  }
-
-  SUBCASE("request with signature on sign-only handler")
-  {
-    const auto unsigned_call = create_simple_request("empty_function_signed");
-    const auto [signed_call, signed_req] = create_signed_request(unsigned_call);
-    const auto serialized_call = signed_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-
-    CHECK(response.status == HTTP_STATUS_OK);
   }
 }
 

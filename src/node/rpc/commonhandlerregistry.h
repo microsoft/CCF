@@ -244,6 +244,7 @@ namespace ccf
         json_adapter(get_metrics),
         Read,
         false, // does not require client signature
+        true,  // requires valid caller
         true); // executed locally
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, json_adapter(make_signature), Write);
