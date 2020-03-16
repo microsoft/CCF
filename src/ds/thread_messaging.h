@@ -205,6 +205,18 @@ namespace enclave
       return ret;
     }
 
+    static uint16_t get_execution_thread(uint32_t i)
+    {
+      uint16_t tid = 0;
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        tid = (i % (enclave::ThreadMessaging::thread_count - 1));
+        ++tid;
+      }
+
+      return tid;
+    }
+
     template <typename Payload>
     static void ChangeTmsgCallback(
       std::unique_ptr<Tmsg<Payload>>& msg,

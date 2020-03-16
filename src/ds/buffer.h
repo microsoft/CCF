@@ -1,24 +1,24 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+#include <assert.h>
 #include <atomic>
 #include <stdint.h>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <assert.h>
 
 // The OArray (Owning Array) owns a buffer and provides a projection onto said
 // buffer via a pointer and a length.
 class OArray
 {
 public:
-  OArray(std::vector<uint8_t> d_) :
-    d(std::move(d_)),
-    data_(d_.data()),
-    size_(d_.size())
+  OArray(std::vector<uint8_t> d_) : d(std::move(d_))
   {
+    data_ = d.data();
+    size_ = d.size();
+
     check_invariants();
   }
 
@@ -64,9 +64,9 @@ private:
 
   void check_invariants()
   {
-    assert(d.data() <= data_);
+    assert((uint64_t)data_ >= (uint64_t)d.data());
     assert(d.size() >= size_);
-    assert(data_ + size_ <= d.data() + d.size());
+    assert((uint64_t)data_ + size_ <= (uint64_t)d.data() + d.size());
   }
 
   std::vector<uint8_t> d;

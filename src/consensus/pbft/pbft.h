@@ -126,13 +126,7 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      uint16_t tid = 0;
-      if (enclave::ThreadMessaging::thread_count > 1)
-      {
-        tid = (to % (enclave::ThreadMessaging::thread_count - 1));
-        ++tid;
-      }
-
+      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
       enclave::ThreadMessaging::thread_messaging
         .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
     }
@@ -258,13 +252,7 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      uint16_t tid = 0;
-      if (enclave::ThreadMessaging::thread_count > 1)
-      {
-        tid = (to % (enclave::ThreadMessaging::thread_count - 1));
-        ++tid;
-      }
-
+      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
       enclave::ThreadMessaging::thread_messaging.add_task<SendAuthenticatedMsg>(
         tid, std::move(tmsg));
 
@@ -573,7 +561,8 @@ namespace pbft
 
     struct RecvAuthenticatedMsg
     {
-      RecvAuthenticatedMsg(OArray d_, Pbft<LedgerProxy, ChannelProxy>* self_) :
+      RecvAuthenticatedMsg(
+        OArray d_, Pbft<LedgerProxy, ChannelProxy>* self_) :
         d(std::move(d_)),
         self(self_),
         result(false)
@@ -598,8 +587,8 @@ namespace pbft
       }
       catch (const std::logic_error& err)
       {
-        msg->data.result = false;
         LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+        return;
       }
 
       enclave::ThreadMessaging::ChangeTmsgCallback(
@@ -611,11 +600,9 @@ namespace pbft
     static void recv_authenticated_msg_process_cb(
       std::unique_ptr<enclave::Tmsg<RecvAuthenticatedMsg>> msg)
     {
-      if (msg->data.result)
-      {
-        msg->data.self->message_receiver_base->receive_message(
-          msg->data.d.data(), msg->data.d.size());
-      }
+      assert(msg->data.result);
+      msg->data.self->message_receiver_base->receive_message(
+        msg->data.d.data(), msg->data.d.size());
     }
 
     void recv_message(OArray d) override
@@ -630,14 +617,8 @@ namespace pbft
           auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
             &recv_authenticated_msg_cb, std::move(d), this);
 
-          uint16_t tid = 0;
-          if (enclave::ThreadMessaging::thread_count > 1)
-          {
-            tid =
-              (hdr.from_node % (enclave::ThreadMessaging::thread_count - 1));
-            ++tid;
-          }
-
+          uint16_t tid =
+            enclave::ThreadMessaging::get_execution_thread(hdr.from_node);
           enclave::ThreadMessaging::thread_messaging
             .add_task<RecvAuthenticatedMsg>(tid, std::move(tmsg));
 
