@@ -562,7 +562,7 @@ namespace pbft
     struct RecvAuthenticatedMsg
     {
       RecvAuthenticatedMsg(
-        OArray d_, Pbft<LedgerProxy, ChannelProxy>* self_) :
+        OArray&& d_, Pbft<LedgerProxy, ChannelProxy>* self_) :
         d(std::move(d_)),
         self(self_),
         result(false)
@@ -605,7 +605,7 @@ namespace pbft
         msg->data.d.data(), msg->data.d.size());
     }
 
-    void recv_message(OArray d) override
+    void recv_message(OArray&& d) override
     {
       const uint8_t* data = d.data();
       size_t size = d.size();

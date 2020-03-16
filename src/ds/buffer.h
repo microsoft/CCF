@@ -14,7 +14,7 @@
 class OArray
 {
 public:
-  OArray(std::vector<uint8_t> d_) : d(std::move(d_))
+  OArray(const std::vector<uint8_t>& d_) : d(std::move(d_))
   {
     data_ = d.data();
     size_ = d.size();

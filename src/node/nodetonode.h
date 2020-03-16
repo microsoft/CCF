@@ -224,7 +224,7 @@ namespace ccf
       }
     }
 
-    void recv_message(OArray oa)
+    void recv_message(OArray&& oa)
     {
       const uint8_t* data = oa.data();
       size_t size = oa.size();
