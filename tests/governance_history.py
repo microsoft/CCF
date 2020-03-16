@@ -37,13 +37,6 @@ def count_governance_operations(ledger):
                 req = signed_request[0][1]
                 request_body = signed_request[0][2]
                 digest = signed_request[0][3]
-                LOG.warning(f"cert: {cert}")
-                LOG.warning(f"sig: {sig}")
-                LOG.warning(f"req: {req}")
-                LOG.warning(f"body: {request_body}")
-                LOG.warning(f"digest: {digest}")
-
-
                 infra.crypto.verify_request_sig(cert, sig, req, request_body, digest)
                 if "members/propose" in req.decode():
                     verified_proposals += 1

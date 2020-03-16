@@ -429,7 +429,7 @@ namespace ccf
       return false;
     }
 
-    void record_governance_history(
+    void record_voting_history(
       Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
     {
       auto governance_history = tx.get_view(network.governance_history);
@@ -525,7 +525,7 @@ namespace ccf
         proposal.votes[args.caller_id] = in.ballot;
         proposals->put(proposal_id, proposal);
 
-        record_governance_history(
+        record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         return make_success(
@@ -577,7 +577,7 @@ namespace ccf
 
         proposal->state = ProposalState::WITHDRAWN;
         proposals->put(proposal_id, proposal.value());
-        record_governance_history(
+        record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
@@ -622,7 +622,7 @@ namespace ccf
         proposal->votes[args.caller_id] = vote.ballot;
         proposals->put(vote.id, proposal.value());
 
-        record_governance_history(
+        record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         return make_success(
