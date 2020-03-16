@@ -236,29 +236,29 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      const auto signed_request = ctx->get_signed_request();
-      if (signed_request.has_value())
-      {
-        if (
-          !ctx->is_create_request &&
-          !verify_client_signature(
-            ctx->session->caller_cert,
-            caller_id.value(),
-            signed_request.value()))
-        {
-          set_response_unauthorized(ctx);
-          return ctx->serialise_response();
-        }
+      // const auto signed_request = ctx->get_signed_request();
+      // if (signed_request.has_value())
+      // {
+      //   if (
+      //     !ctx->is_create_request &&
+      //     !verify_client_signature(
+      //       ctx->session->caller_cert,
+      //       caller_id.value(),
+      //       signed_request.value()))
+      //   {
+      //     set_response_unauthorized(ctx);
+      //     return ctx->serialise_response();
+      //   }
 
-        // Client signature is only recorded on the primary
-        if (
-          consensus == nullptr || consensus->is_primary() ||
-          ctx->is_create_request)
-        {
-          record_client_signature(
-            tx, caller_id.value(), signed_request.value());
-        }
-      }
+      //   // Client signature is only recorded on the primary
+      //   if (
+      //     consensus == nullptr || consensus->is_primary() ||
+      //     ctx->is_create_request)
+      //   {
+      //     record_client_signature(
+      //       tx, caller_id.value(), signed_request.value());
+      //   }
+      // }
 
       if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
@@ -454,13 +454,26 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      if (
-        handler->require_client_signature &&
-        !ctx->get_signed_request().has_value())
+      if (handler->require_client_signature)
       {
-        set_response_unauthorized(
-          ctx, fmt::format("'{}' RPC must be signed", method));
-        return ctx->serialise_response();
+        const auto signed_request = ctx->get_signed_request();
+        if (!signed_request.has_value())
+        {
+          set_response_unauthorized(
+            ctx, fmt::format("'{}' RPC must be signed by client", method));
+          return ctx->serialise_response();
+        }
+        else
+        {
+          if (
+            !ctx->is_create_request &&
+            !verify_client_signature(
+              ctx->session->caller_cert, caller_id, signed_request.value()))
+          {
+            set_response_unauthorized(ctx);
+            return ctx->serialise_response();
+          }
+        }
       }
 
       update_history();
