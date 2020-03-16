@@ -79,8 +79,6 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id):
                 LOG.error(f"assert error error for LOG_get on node {node.node_id}")
         raise AssertionError(f"{node.nodeid} is not up to date")
 
-        
-
 
 def wait_for_nodes(nodes, final_msg, final_msg_id):
     with nodes[0].node_client() as mc:
