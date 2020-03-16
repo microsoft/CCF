@@ -902,18 +902,19 @@ namespace ccf
         return;
       }
 
-      auto p = data.data();
-      auto psize = data.size();
+      OArray oa(std::move(data));
+
       Header header;
-      NodeMsgType msg_type = serialized::overlay<NodeMsgType>(p, psize);
+      NodeMsgType msg_type =
+        serialized::overlay<NodeMsgType>(oa.data(), oa.size());
 
       switch (msg_type)
       {
         case channel_msg:
-          n2n_channels->recv_message(p, psize);
+          n2n_channels->recv_message(std::move(oa));
           break;
         case consensus_msg:
-          consensus->recv_message(p, psize);
+          consensus->recv_message(std::move(oa));
           break;
 
         default:

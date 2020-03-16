@@ -9,7 +9,6 @@ jobs:
   steps:
     - checkout: self
       clean: true
-      condition: eq(variables['Build.Reason'], 'PullRequest')
 
     - script: ./cimetrics_env.sh python -m cimetrics.upload_complete
       env:
