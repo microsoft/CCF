@@ -220,7 +220,7 @@ namespace kv
     virtual SeqNo get_commit_seqno() = 0;
     virtual NodeId primary() = 0;
 
-    virtual void recv_message(const uint8_t* data, size_t size) = 0;
+    virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
       SeqNo seqno,
       std::unordered_set<NodeId> conf,

@@ -224,8 +224,10 @@ namespace ccf
       }
     }
 
-    void recv_message(const uint8_t* data, size_t size)
+    void recv_message(OArray&& oa)
     {
+      const uint8_t* data = oa.data();
+      size_t size = oa.size();
       switch (serialized::peek<ChannelMsg>(data, size))
       {
         case key_exchange:

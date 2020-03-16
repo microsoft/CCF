@@ -208,7 +208,7 @@ namespace enclave
             }
             else
             {
-              node.node_msg(body);
+              node.node_msg(std::move(body));
             }
           });
 
