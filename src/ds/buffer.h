@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <assert.h>
 
 // The OArray (Owning Array) owns a buffer and provides a projection onto said
 // buffer via a pointer and a length.
@@ -17,7 +18,9 @@ public:
     d(std::move(d_)),
     data_(d_.data()),
     size_(d_.size())
-  {}
+  {
+    check_invariants();
+  }
 
   OArray(const OArray& other) = delete;
   OArray(OArray& other) = delete;
@@ -26,32 +29,45 @@ public:
 
   OArray(OArray&& other)
   {
+    other.check_invariants();
     data_ = other.data_;
     size_ = other.size_;
     d = std::move(other.d);
+    check_invariants();
   }
   OArray& operator=(OArray&& other)
   {
+    other.check_invariants();
     data_ = other.data_;
     size_ = other.size_;
     d = std::move(other.d);
+    check_invariants();
 
     return *this;
   }
 
   const uint8_t*& data()
   {
+    check_invariants();
     return data_;
   }
 
   size_t& size()
   {
+    check_invariants();
     return size_;
   }
 
 private:
   const uint8_t* data_;
   size_t size_;
+
+  void check_invariants()
+  {
+    assert(d.data() <= data_);
+    assert(d.size() >= size_);
+    assert(data_ + size_ <= d.data() + d.size());
+  }
 
   std::vector<uint8_t> d;
 };
