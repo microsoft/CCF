@@ -201,18 +201,15 @@ namespace ccfapp
       install_with_auto_schema<LoggingGet>(
         Procs::LOG_GET, json_adapter(get), Read);
 
-      install(
-        Procs::LOG_RECORD_PUBLIC,
-        json_adapter(record_public),
-        Write,
-        record_public_params_schema,
-        record_public_result_schema);
-      install(
-        Procs::LOG_GET_PUBLIC,
-        json_adapter(get_public),
-        Read,
-        get_public_params_schema,
-        get_public_result_schema);
+      auto& record_public_handler =
+        install(Procs::LOG_RECORD_PUBLIC, json_adapter(record_public), Write);
+      record_public_handler.params_schema = record_public_params_schema;
+      record_public_handler.result_schema = record_public_result_schema;
+
+      auto& get_public_handler =
+        install(Procs::LOG_GET_PUBLIC, json_adapter(get_public), Read);
+      get_public_handler.params_schema = get_public_params_schema;
+      get_public_handler.result_schema = get_public_result_schema;
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
 

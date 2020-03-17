@@ -582,8 +582,10 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      install_with_auto_schema<ProposalAction, ProposalInfo>(
-        MemberProcs::WITHDRAW, json_adapter(withdraw), Write, true);
+      auto& withdraw_handler =
+        install_with_auto_schema<ProposalAction, ProposalInfo>(
+          MemberProcs::WITHDRAW, json_adapter(withdraw), Write);
+      withdraw_handler.require_client_signature = true;
 
       auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -628,8 +630,9 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, vote.id, proposal.value()));
       };
-      install_with_auto_schema<Vote, ProposalInfo>(
-        MemberProcs::VOTE, json_adapter(vote), Write, true);
+      auto& vote_handler = install_with_auto_schema<Vote, ProposalInfo>(
+        MemberProcs::VOTE, json_adapter(vote), Write);
+      vote_handler.require_client_signature = true;
 
       auto complete =
         [this](
@@ -654,8 +657,10 @@ namespace ccf
           return make_success(
             complete_proposal(tx, proposal_id, proposal.value()));
         };
-      install_with_auto_schema<ProposalAction, ProposalInfo>(
-        MemberProcs::COMPLETE, json_adapter(complete), Write, true);
+      auto& complete_handler =
+        install_with_auto_schema<ProposalAction, ProposalInfo>(
+          MemberProcs::COMPLETE, json_adapter(complete), Write);
+      complete_handler.require_client_signature = true;
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args, const nlohmann::json& params) {
@@ -692,8 +697,9 @@ namespace ccf
         members->put(args.caller_id, *member);
         return make_success(true);
       };
-      install_with_auto_schema<StateDigest, bool>(
-        MemberProcs::ACK, json_adapter(ack), Write, true);
+      auto& ack_handler = install_with_auto_schema<StateDigest, bool>(
+        MemberProcs::ACK, json_adapter(ack), Write);
+      ack_handler.require_client_signature = true;
 
       //! A member asks for a fresher state digest
       auto update_state_digest =

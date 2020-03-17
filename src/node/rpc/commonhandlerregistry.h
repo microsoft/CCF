@@ -239,12 +239,9 @@ namespace ccf
 
       install_with_auto_schema<GetCommit>(
         GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read);
-      install_with_auto_schema<void, GetMetrics::Out>(
-        GeneralProcs::GET_METRICS,
-        json_adapter(get_metrics),
-        Read,
-        false, // does not require client signature
-        true); // executed locally
+      auto& metrics_handler = install_with_auto_schema<void, GetMetrics::Out>(
+        GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read);
+      metrics_handler.execute_locally = true;
       install_with_auto_schema<void, bool>(
         GeneralProcs::MK_SIGN, json_adapter(make_signature), Write);
       install_with_auto_schema<void, WhoAmI::Out>(

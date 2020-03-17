@@ -37,7 +37,11 @@ namespace ccf
       ReadWrite read_write = Write;
       nlohmann::json params_schema = nullptr;
       nlohmann::json result_schema = nullptr;
+
+      // If true, client request must be signed
       bool require_client_signature = false;
+
+      // If true, request is executed without consensus (PBFT only)
       bool execute_locally = false;
     };
 
@@ -69,54 +73,32 @@ namespace ccf
      * @param method Method name
      * @param f Method implementation
      * @param read_write Flag if method will Read, Write, MayWrite
-     * @param require_client_signature If true, client request must be signed
-     * @param execute_locally If true, request is executed without consensus
-     * (PBFT only)
      */
     Handler& install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite read_write,
-      bool require_client_signature = false,
-      bool execute_locally = false)
+      const std::string& method, HandleFunction f, ReadWrite read_write)
     {
       auto& handler = handlers[method];
       handler.func = f;
       handler.read_write = read_write;
-      handler.require_client_signature = require_client_signature;
-      handler.execute_locally = execute_locally;
       return handler;
     }
 
     template <typename In, typename Out, typename F>
     Handler& install_with_auto_schema(
-      const std::string& method,
-      F&& f,
-      ReadWrite read_write,
-      bool require_client_signature = false,
-      bool execute_locally = false)
+      const std::string& method, F&& f, ReadWrite read_write)
     {
-      auto params_schema = nlohmann::json::object();
+      auto& handler = install(method, std::forward<F>(f), read_write);
+
       if constexpr (!std::is_same_v<In, void>)
       {
-        params_schema = ds::json::build_schema<In>(method + "/params");
+        handler.params_schema = ds::json::build_schema<In>(method + "/params");
       }
 
-      auto result_schema = nlohmann::json::object();
       if constexpr (!std::is_same_v<Out, void>)
       {
-        result_schema = ds::json::build_schema<Out>(method + "/result");
-      }
+        handler.result_schema = ds::json::build_schema<Out>(method + "/result");
+      };
 
-      auto& handler = install(
-        method,
-        std::forward<F>(f),
-        read_write,
-        require_client_signature,
-        execute_locally);
-
-      handler.params_schema = params_schema;
-      handler.result_schema = result_schema;
       return handler;
     }
 
