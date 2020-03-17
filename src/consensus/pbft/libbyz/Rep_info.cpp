@@ -42,11 +42,14 @@ char* Rep_info::new_reply(
   r->set_size(message_size);
   r->trim();
   char* ret = r->contents() + sizeof(Reply_rep);
-  std::lock_guard<SpinLock> mguard(lock);
-  auto ret_insert = reps.insert({Key{(size_t)pid, rid, n}, std::move(r)});
-  if (ret_insert.second)
   {
-    return ret;
+    std::lock_guard<SpinLock> mguard(lock);
+    auto ret_insert =
+      reps.insert({Key{static_cast<size_t>(pid), rid, n}, std::move(r)});
+    if (ret_insert.second)
+    {
+      return ret;
+    }
   }
 
   return nullptr;
@@ -59,22 +62,23 @@ int Rep_info::new_reply_size() const
 
 void Rep_info::end_reply(int pid, Request_id rid, Seqno n, int size)
 {
-  std::lock_guard<SpinLock> mguard(lock);
-  auto it = reps.find({(size_t)pid, rid, n});
-  if (it != reps.end())
+  Reply* r;
   {
+    std::lock_guard<SpinLock> mguard(lock);
+    auto it = reps.find({static_cast<size_t>(pid), rid, n});
+    if (it == reps.end())
+    {
+      LOG_INFO_FMT(
+        " Attempt to end reply not in this < {}, {}, {} >", pid, rid, n);
+      return;
+    }
     Reply* r = it->second.get();
     Reply_rep& rr = r->rep();
     rr.rid = rid;
     rr.reply_size = size;
-    rr.digest = Digest(r->contents() + sizeof(Reply_rep), size);
     int old_size = sizeof(Reply_rep) + rr.reply_size;
     r->set_size(old_size + MAC_size);
-    return;
   }
-
-  LOG_INFO << " Attempt to end reply not in this < " << pid << "," << rid << ","
-           << n << ">" << std::endl;
 }
 
 Reply* Rep_info::reply(int pid, Request_id rid, Seqno n)
@@ -91,34 +95,40 @@ Reply* Rep_info::reply(int pid, Request_id rid, Seqno n)
 
 void Rep_info::send_reply(int pid, Request_id rid, Seqno n, View v, int id)
 {
-  std::lock_guard<SpinLock> mguard(lock);
-  auto it = reps.find({(size_t)pid, rid, n});
-  if (it != reps.end())
+  std::unique_ptr<Reply> r;
   {
-    Reply* r = it->second.get();
-    Reply_rep& rr = r->rep();
+    std::lock_guard<SpinLock> mguard(lock);
+    auto it = reps.find({(size_t)pid, rid, n});
 
-    PBFT_ASSERT(rr.reply_size != -1, "Invalid state");
-    PBFT_ASSERT(rr.extra == 0 && rr.v == 0 && rr.replica == 0, "Invalid state");
+    if (it == reps.end())
+    {
+      LOG_INFO << " Attempt to send reply not in this < " << pid << "," << rid
+               << "," << n << ">" << std::endl;
+      return;
+    }
 
-    int old_size = sizeof(Reply_rep) + rr.reply_size;
-
-    rr.extra = 1;
-    rr.v = v;
-    rr.replica = id;
-
-    r->auth_type = Auth_type::out;
-    r->auth_len = sizeof(Reply_rep);
-    r->auth_src_offset = 0;
-    r->auth_dst_offset = old_size;
-
-    pbft::GlobalState::get_node().send(r, pid);
+    r = std::move(it->second);
     reps.erase(it);
-    return;
   }
 
-  LOG_INFO << " Attempt to send reply not in this < " << pid << "," << rid
-           << "," << n << ">" << std::endl;
+  Reply_rep& rr = r->rep();
+
+  PBFT_ASSERT(rr.reply_size != -1, "Invalid state");
+  PBFT_ASSERT(rr.extra == 0 && rr.v == 0 && rr.replica == 0, "Invalid state");
+
+  int old_size = sizeof(Reply_rep) + rr.reply_size;
+
+  rr.extra = 1;
+  rr.v = v;
+  rr.replica = id;
+
+  r->auth_type = Auth_type::out;
+  r->auth_len = sizeof(Reply_rep);
+  r->auth_src_offset = 0;
+  r->auth_dst_offset = old_size;
+
+  pbft::GlobalState::get_node().send(r.get(), pid);
+  return;
 }
 
 void Rep_info::clear()
@@ -133,7 +143,6 @@ void Rep_info::dump_state(std::ostream& os)
   for (auto& pair : reps)
   {
     os << " cid: " << pair.first.cid << " rid: " << pair.first.rid
-       << " seqno: " << pair.first.n
-       << " digest hash:" << pair.second->digest().hash() << std::endl;
+       << " seqno: " << pair.first.n << std::endl;
   }
 }

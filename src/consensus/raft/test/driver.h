@@ -217,7 +217,9 @@ public:
   }
 
   void replicate(
-    raft::NodeId node_id, raft::Index idx, const std::vector<uint8_t>& data)
+    raft::NodeId node_id,
+    raft::Index idx,
+    std::shared_ptr<std::vector<uint8_t>> data)
   {
     std::cout << "  KV" << node_id << "->>Node" << node_id
               << ": replicate idx: " << idx << std::endl;

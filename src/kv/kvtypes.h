@@ -27,8 +27,8 @@ namespace kv
   using NodeId = uint64_t;
   static const Version NoVersion = std::numeric_limits<Version>::min();
 
-  using BatchVector =
-    std::vector<std::tuple<kv::Version, std::vector<uint8_t>, bool>>;
+  using BatchVector = std::vector<
+    std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
 
   enum CommitSuccess
   {
@@ -130,6 +130,11 @@ namespace kv
       RequestID id,
       kv::Version version,
       const std::vector<uint8_t>& replicated) = 0;
+    virtual void add_pending(
+      RequestID id,
+      kv::Version version,
+      std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
+    virtual void execute_pending() = 0;
     virtual void add_result(
       RequestID id,
       kv::Version version,
@@ -215,7 +220,7 @@ namespace kv
     virtual SeqNo get_commit_seqno() = 0;
     virtual NodeId primary() = 0;
 
-    virtual void recv_message(const uint8_t* data, size_t size) = 0;
+    virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
       SeqNo seqno,
       std::unordered_set<NodeId> conf,

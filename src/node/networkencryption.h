@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/cryptobox.h"
 #include "tls/25519.h"
 #include "tls/entropy.h"
 
@@ -10,10 +9,6 @@ namespace ccf
 {
   struct NetworkEncryptionKey
   {
-  private:
-    static constexpr auto KEY_SIZE = crypto::BoxKey::KEY_SIZE;
-
-  public:
     std::vector<uint8_t> private_raw;
 
     bool operator==(const NetworkEncryptionKey& other) const
@@ -21,19 +16,10 @@ namespace ccf
       return private_raw == other.private_raw;
     }
 
-    NetworkEncryptionKey(bool random = false)
-    {
-      if (random)
-      {
-        private_raw = tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
-      }
-    }
+    NetworkEncryptionKey() = default;
 
-    std::vector<uint8_t> get_public_pem()
-    {
-      return tls::PublicX25519::write(
-               crypto::BoxKey::public_from_private(private_raw))
-        .raw();
-    }
+    NetworkEncryptionKey(std::vector<uint8_t>&& private_key_raw) :
+      private_raw(std::move(private_key_raw))
+    {}
   };
 }

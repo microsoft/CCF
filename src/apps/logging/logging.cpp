@@ -232,32 +232,24 @@ namespace ccfapp
         args.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
 
-      install_with_auto_schema<LoggingRecord::In, bool>(
-        Procs::LOG_RECORD, json_adapter(record), Write);
-      // SNIPPET: install_get
-      install_with_auto_schema<LoggingGet>(
-        Procs::LOG_GET, json_adapter(get), Read);
+      install(Procs::LOG_RECORD, json_adapter(record), Write)
+        .set_auto_schema<LoggingRecord::In, bool>();
+      // SNIPPET_START: install_get
+      install(Procs::LOG_GET, json_adapter(get), Read)
+        .set_auto_schema<LoggingGet>();
+      // SNIPPET_END: install_get
 
-      install(
-        Procs::LOG_RECORD_PUBLIC,
-        json_adapter(record_public),
-        Write,
-        record_public_params_schema,
-        record_public_result_schema);
-      install(
-        Procs::LOG_GET_PUBLIC,
-        json_adapter(get_public),
-        Read,
-        get_public_params_schema,
-        get_public_result_schema);
+      install(Procs::LOG_RECORD_PUBLIC, json_adapter(record_public), Write)
+        .set_params_schema(record_public_params_schema)
+        .set_result_schema(record_public_result_schema);
+
+      install(Procs::LOG_GET_PUBLIC, json_adapter(get_public), Read)
+        .set_params_schema(get_public_params_schema)
+        .set_result_schema(get_public_result_schema);
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
-      install(
-        Procs::LOG_RECORD_ANONYMOUS_CALLER,
-        log_record_anonymous,
-        Write,
-        false,
-        true);
+      install(Procs::LOG_RECORD_ANONYMOUS_CALLER, log_record_anonymous, Write)
+        .set_caller_auth_disabled(true);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

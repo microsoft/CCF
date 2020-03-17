@@ -13,7 +13,7 @@ namespace kv
   class StubConsensus : public Consensus
   {
   private:
-    std::vector<std::vector<uint8_t>> replica;
+    std::vector<std::shared_ptr<std::vector<uint8_t>>> replica;
     ConsensusType consensus_type;
 
   public:
@@ -35,7 +35,7 @@ namespace kv
     std::pair<std::vector<uint8_t>, bool> get_latest_data()
     {
       if (!replica.empty())
-        return std::make_pair(replica.back(), true);
+        return std::make_pair(*replica.back(), true);
       else
         return std::make_pair(std::vector<uint8_t>(), false);
     }
@@ -44,7 +44,7 @@ namespace kv
     {
       if (!replica.empty())
       {
-        auto pair = std::make_pair(replica.front(), true);
+        auto pair = std::make_pair(*replica.front(), true);
         replica.erase(replica.begin());
         return pair;
       }
@@ -89,7 +89,7 @@ namespace kv
       return 2;
     }
 
-    void recv_message(const uint8_t* data, size_t size) override {}
+    void recv_message(OArray&& oa) override {}
 
     void add_configuration(
       SeqNo seqno,

@@ -33,13 +33,92 @@ namespace ccf
 
     struct Handler
     {
+      std::string method;
       HandleFunction func;
-      ReadWrite rw;
-      nlohmann::json params_schema;
-      nlohmann::json result_schema;
+      ReadWrite read_write = Write;
+      HandlerRegistry* registry;
+
+      nlohmann::json params_schema = nullptr;
+
+      Handler& set_params_schema(const nlohmann::json& j)
+      {
+        params_schema = j;
+        return *this;
+      }
+
+      nlohmann::json result_schema = nullptr;
+
+      Handler& set_result_schema(const nlohmann::json& j)
+      {
+        result_schema = j;
+        return *this;
+      }
+
+      template <typename In, typename Out>
+      Handler& set_auto_schema()
+      {
+        if constexpr (!std::is_same_v<In, void>)
+        {
+          params_schema = ds::json::build_schema<In>(method + "/params");
+        }
+        else
+        {
+          params_schema = nullptr;
+        }
+
+        if constexpr (!std::is_same_v<Out, void>)
+        {
+          result_schema = ds::json::build_schema<Out>(method + "/result");
+        }
+        else
+        {
+          result_schema = nullptr;
+        }
+
+        return *this;
+      }
+
+      template <typename T>
+      Handler& set_auto_schema()
+      {
+        return set_auto_schema<typename T::In, typename T::Out>();
+      }
+
+      // If true, client request must be signed
       bool require_client_signature = false;
+
+      Handler& set_require_client_signature(bool v)
+      {
+        require_client_signature = v;
+        return *this;
+      }
+
+      // If true, caller is not authenticated
       bool caller_auth_disabled = false;
+
+      Handler& set_caller_auth_disabled(bool v)
+      {
+        if (v && registry->certs == nullptr)
+        {
+          LOG_FAIL_FMT(
+            "Failed to disable caller auth on {} handler as its registry does "
+            "not have certificate table (no effect).",
+            method);
+          return *this;
+        }
+
+        caller_auth_disabled = v;
+        return *this;
+      }
+
+      // If true, request is executed without consensus (PBFT only)
       bool execute_locally = false;
+
+      Handler& set_execute_locally(bool v)
+      {
+        execute_locally = v;
+        return *this;
+      }
     };
 
   protected:
@@ -69,97 +148,18 @@ namespace ccf
      *
      * @param method Method name
      * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     * @param params_schema JSON schema for params object in requests
-     * @param result_schema JSON schema for result object in responses
-     * @param require_client_signature If true, client request must be signed
-     * @param caller_auth_disabled If true, any caller can execute this handler
-     * @param execute_locally If true, request is executed without consensus
-     * (PBFT only)
+     * @param read_write Flag if method will Read, Write, MayWrite
+     * @return Returns the installed Handler for further modification
      */
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      const nlohmann::json& params_schema = nlohmann::json::object(),
-      const nlohmann::json& result_schema = nlohmann::json::object(),
-      bool require_client_signature = false,
-      bool caller_auth_disabled = false,
-      bool execute_locally = false)
+    Handler& install(
+      const std::string& method, HandleFunction f, ReadWrite read_write)
     {
-      if (caller_auth_disabled && certs == nullptr)
-      {
-        LOG_FAIL_FMT(
-          "Failed to disable caller auth on {} handler as its registry does "
-          "not have certificate table. Defaulting to not requiring valid "
-          "caller.",
-          method);
-        caller_auth_disabled = false;
-      }
-
-      handlers[method] = {f,
-                          rw,
-                          params_schema,
-                          result_schema,
-                          require_client_signature,
-                          caller_auth_disabled,
-                          execute_locally};
-    }
-
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      bool require_client_signature,
-      bool caller_auth_disabled = false)
-    {
-      install(
-        method,
-        f,
-        rw,
-        nlohmann::json::object(),
-        nlohmann::json::object(),
-        require_client_signature,
-        caller_auth_disabled);
-    }
-
-    template <typename In, typename Out, typename F>
-    void install_with_auto_schema(
-      const std::string& method,
-      F&& f,
-      ReadWrite rw,
-      bool require_client_signature = false,
-      bool caller_auth_disabled = false,
-      bool execute_locally = false)
-    {
-      auto params_schema = nlohmann::json::object();
-      if constexpr (!std::is_same_v<In, void>)
-      {
-        params_schema = ds::json::build_schema<In>(method + "/params");
-      }
-
-      auto result_schema = nlohmann::json::object();
-      if constexpr (!std::is_same_v<Out, void>)
-      {
-        result_schema = ds::json::build_schema<Out>(method + "/result");
-      }
-
-      install(
-        method,
-        std::forward<F>(f),
-        rw,
-        params_schema,
-        result_schema,
-        require_client_signature,
-        caller_auth_disabled,
-        execute_locally);
-    }
-
-    template <typename T, typename... Ts>
-    void install_with_auto_schema(const std::string& method, Ts&&... ts)
-    {
-      install_with_auto_schema<typename T::In, typename T::Out>(
-        method, std::forward<Ts>(ts)...);
+      auto& handler = handlers[method];
+      handler.method = method;
+      handler.func = f;
+      handler.read_write = read_write;
+      handler.registry = this;
+      return handler;
     }
 
     /** Set a default HandleFunction
@@ -168,11 +168,13 @@ namespace ccf
      * was found.
      *
      * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
+     * @param read_write Flag if method will Read, Write, MayWrite
+     * @return Returns the installed Handler for further modification
      */
-    void set_default(HandleFunction f, ReadWrite rw)
+    Handler& set_default(HandleFunction f, ReadWrite read_write)
     {
-      default_handler = {f, rw};
+      default_handler = {"", f, read_write, this};
+      return default_handler.value();
     }
 
     /** Populate out with all supported methods

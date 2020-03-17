@@ -345,6 +345,11 @@ namespace ccf
       return history->get_replicated_state_root();
     }
 
+    void update_merkle_tree() override
+    {
+      history->execute_pending();
+    }
+
     /** Process a serialised input forwarded from another node
      *
      * This function assumes that ctx contains the caller_id as read by the
@@ -474,7 +479,7 @@ namespace ccf
 
       if (!is_primary && consensus->type() == ConsensusType::RAFT)
       {
-        switch (handler->rw)
+        switch (handler->read_write)
         {
           case HandlerRegistry::Read:
           {

@@ -15,12 +15,11 @@ from loguru import logger as LOG
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None, verify=True):
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
-    txs.issue(network=network, number_txs=1, wait_for_sync=args.consensus == "raft")
     txs.issue(
-        network=network,
-        number_txs=1,
-        on_backup=True,
-        wait_for_sync=args.consensus == "raft",
+        network=network, number_txs=1, consensus=args.consensus,
+    )
+    txs.issue(
+        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -77,7 +76,7 @@ def test_cert_prefix(network, args):
 @reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
 def test_anonymous_caller(network, args):
     if args.package == "liblogging":
-        other, primary = network.find_primary_and_any_backup()
+        primary, _ = network.find_primary_and_any_backup()
 
         # Create a new user but do not record its identity in CCF
         network.create_users([4], args.default_curve)

@@ -271,7 +271,8 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
-          network.encryption_key = std::make_unique<NetworkEncryptionKey>(true);
+          network.encryption_key = std::make_unique<NetworkEncryptionKey>(
+            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
           self = 0; // The first node id is always 0
 
@@ -300,7 +301,7 @@ namespace ccf
           return Success<CreateNew::Out>(
             {node_cert,
              network.identity->cert,
-             network.encryption_key->get_public_pem()});
+             get_network_encryption_key_public_pem()});
         }
         case StartType::Join:
         {
@@ -320,7 +321,8 @@ namespace ccf
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
-          network.encryption_key = std::make_unique<NetworkEncryptionKey>(true);
+          network.encryption_key = std::make_unique<NetworkEncryptionKey>(
+            tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
           setup_history();
           setup_encryptor(network.consensus_type);
@@ -336,7 +338,7 @@ namespace ccf
           return Success<CreateNew::Out>(
             {node_cert,
              network.identity->cert,
-             network.encryption_key->get_public_pem()});
+             get_network_encryption_key_public_pem()});
         }
         default:
         {
@@ -408,7 +410,7 @@ namespace ccf
             network.ledger_secrets = std::make_shared<LedgerSecrets>(
               std::move(resp.network_info.ledger_secrets), seal);
             network.encryption_key = std::make_unique<NetworkEncryptionKey>(
-              resp.network_info.encryption_key);
+              std::move(resp.network_info.encryption_key));
 
             self = resp.node_id;
 
@@ -900,18 +902,19 @@ namespace ccf
         return;
       }
 
-      auto p = data.data();
-      auto psize = data.size();
+      OArray oa(std::move(data));
+
       Header header;
-      NodeMsgType msg_type = serialized::overlay<NodeMsgType>(p, psize);
+      NodeMsgType msg_type =
+        serialized::overlay<NodeMsgType>(oa.data(), oa.size());
 
       switch (msg_type)
       {
         case channel_msg:
-          n2n_channels->recv_message(p, psize);
+          n2n_channels->recv_message(std::move(oa));
           break;
         case consensus_msg:
-          consensus->recv_message(p, psize);
+          consensus->recv_message(std::move(oa));
           break;
 
         default:
@@ -1326,6 +1329,13 @@ namespace ccf
       {
         return create_success;
       }
+    }
+
+    std::vector<uint8_t> get_network_encryption_key_public_pem()
+    {
+      return tls::PublicX25519::write(crypto::BoxKey::public_from_private(
+                                        network.encryption_key->private_raw))
+        .raw();
     }
 
     void reset_quote()

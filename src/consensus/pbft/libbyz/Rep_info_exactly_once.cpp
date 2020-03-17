@@ -103,7 +103,6 @@ void Rep_info_exactly_once::end_reply(int pid, Request_id rid, int sz)
   Reply_rep& rr = r->rep();
   rr.rid = rid;
   rr.reply_size = sz;
-  rr.digest = Digest(r->contents() + sizeof(Reply_rep), sz);
 
   int old_size = sizeof(Reply_rep) + rr.reply_size;
   r->set_size(old_size + MAC_size);
@@ -185,7 +184,6 @@ void Rep_info_exactly_once::dump_state(std::ostream& os)
   for (int i = 0; i < reps.size(); i++)
   {
     os << "i: " << i << " rid: " << reps[i]->request_id()
-       << " digest hash:" << reps[i]->digest().hash()
        << " tentative:" << ireps[i].tentative << std::endl;
   }
 }

@@ -46,11 +46,8 @@ namespace pbft
       return serialized_req;
     }
 
-    void deserialise(const std::vector<uint8_t>& serialized_req)
+    void deserialise(const uint8_t* data_, size_t size_)
     {
-      auto data_ = serialized_req.data();
-      auto size_ = serialized_req.size();
-
       caller_id = serialized::read<uint64_t>(data_, size_);
       auto includes_caller = serialized::read<bool>(data_, size_);
       if (includes_caller)

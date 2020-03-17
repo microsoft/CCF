@@ -50,20 +50,15 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install(
-      "empty_function_signed",
-      empty_function_signed,
-      HandlerRegistry::Read,
-      true);
+      "empty_function_signed", empty_function_signed, HandlerRegistry::Read)
+      .set_require_client_signature(true);
 
     auto empty_function_no_auth = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install(
-      "empty_function_no_auth",
-      empty_function_no_auth,
-      HandlerRegistry::Read,
-      false, // does not require signature
-      true); // disable valid caller
+      "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Read)
+      .set_caller_auth_disabled(true);
   }
 };
 
@@ -77,7 +72,7 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("empty_function", empty_function, HandlerRegistry::Read, true);
+    install("empty_function", empty_function, HandlerRegistry::Read);
     disable_request_storing();
   }
 };

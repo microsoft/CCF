@@ -299,12 +299,12 @@ namespace ccf
       };
 
       install(NodeProcs::JOIN, json_adapter(accept), Write);
-      install_with_auto_schema<GetSignedIndex>(
-        NodeProcs::GET_SIGNED_INDEX, json_adapter(get_signed_index), Read);
-      install_with_auto_schema<GetQuotes>(
-        NodeProcs::GET_NODE_QUOTE, json_adapter(get_quote), Read);
-      install_with_auto_schema<GetQuotes>(
-        NodeProcs::GET_QUOTES, json_adapter(get_quotes), Read);
+      install(NodeProcs::GET_SIGNED_INDEX, json_adapter(get_signed_index), Read)
+        .set_auto_schema<GetSignedIndex>();
+      install(NodeProcs::GET_NODE_QUOTE, json_adapter(get_quote), Read)
+        .set_auto_schema<GetQuotes>();
+      install(NodeProcs::GET_QUOTES, json_adapter(get_quotes), Read)
+        .set_auto_schema<GetQuotes>();
     }
   };
 
