@@ -197,9 +197,10 @@ namespace ccfapp
 
       install(Procs::LOG_RECORD, json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
-      // SNIPPET: install_get
+      // SNIPPET_START: install_get
       install(Procs::LOG_GET, json_adapter(get), Read)
         .set_auto_schema<LoggingGet>();
+      // SNIPPET_END: install_get
 
       install(Procs::LOG_RECORD_PUBLIC, json_adapter(record_public), Write)
         .set_params_schema(record_public_params_schema)
