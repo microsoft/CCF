@@ -472,7 +472,7 @@ class Network:
             self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
-    def wait_for_node_commit_sync(self, timeout=3):
+    def wait_for_node_commit_sync(self, consensus, timeout=3):
         """
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.
@@ -486,7 +486,13 @@ class Network:
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(1)
-        assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
+        # in pbft getCommit increments the commit version, so commits will not be the same
+        # but they should be in ascending order
+        assert (
+            [commits[0]] * len(commits) == commits
+            if consensus == "raft"
+            else sorted(commits) == commits
+        ), "All nodes in sync"
 
     def wait_for_sealed_secrets_at_version(self, version, timeout=5):
         """

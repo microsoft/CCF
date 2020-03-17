@@ -14,6 +14,18 @@ sign_app_library(
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 
+if(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
+  set(SMALL_BANK_SIGNED_VERIFICATION_FILE
+      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
+  )
+  set(SMALL_BANK_SIGNED_ITERATIONS 50000)
+else()
+  set(SMALL_BANK_SIGNED_VERIFICATION_FILE
+      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
+  )
+  set(SMALL_BANK_SIGNED_ITERATIONS 2000)
+endif()
+
 if(BUILD_TESTS)
   # Small Bank end to end and performance test
   foreach(CONSENSUS ${CONSENSUSES})
@@ -49,38 +61,24 @@ if(BUILD_TESTS)
         --metrics-file small_bank_${CONSENSUS}_metrics.json
     )
 
+    add_perf_test(
+      NAME small_bank_sigs_client_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
+      CLIENT_BIN ./small_bank_client
+      VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
+      LABEL "SB_sig"
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS
+        --transactions
+        ${SMALL_BANK_SIGNED_ITERATIONS}
+        --max-writes-ahead
+        1000
+        --sign
+        --metrics-file
+        small_bank_${CONSENSUS}_sigs_metrics.json
+    )
+
   endforeach()
-
-  if(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
-    set(SMALL_BANK_SIGNED_VERIFICATION_FILE
-        ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
-    )
-    set(SMALL_BANK_SIGNED_ITERATIONS 50000)
-  else()
-    set(SMALL_BANK_SIGNED_VERIFICATION_FILE
-        ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
-    )
-    set(SMALL_BANK_SIGNED_ITERATIONS 2000)
-  endif()
-
-  # These tests require client-signed signatures: - PBFT doesn't yet verify
-  # these correctly - HTTP C++ perf clients don't currently sign correctly
-  add_perf_test(
-    NAME small_bank_sigs_client_test
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
-    CLIENT_BIN ./small_bank_client
-    VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
-    LABEL "SB_sig"
-    CONSENSUS raft
-    ADDITIONAL_ARGS
-      --transactions
-      ${SMALL_BANK_SIGNED_ITERATIONS}
-      --max-writes-ahead
-      1000
-      --sign
-      --metrics-file
-      small_bank_sigs_metrics.json
-  )
 
   # It is better to run performance tests with forwarding on different machines
   # (i.e. nodes and clients)

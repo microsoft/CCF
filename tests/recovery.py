@@ -34,7 +34,7 @@ def test(network, args, use_shares=False):
 
     for node in recovered_network.nodes:
         recovered_network.wait_for_state(node, "partOfPublicNetwork")
-        recovered_network.wait_for_node_commit_sync()
+        recovered_network.wait_for_node_commit_sync(args.consensus)
     LOG.info("Public CFTR started")
 
     primary, term = recovered_network.find_primary()

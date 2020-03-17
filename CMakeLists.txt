@@ -460,22 +460,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
   )
 
-  # Receipts end to end test
-  add_e2e_test(
-    NAME receipts_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-    CONSENSUS raft
-  )
-
-  if(QUOTES_ENABLED)
-    add_e2e_test(
-      NAME governance_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSENSUS raft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
-    )
-  endif()
-
   add_e2e_test(
     NAME recovery_tests
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
@@ -499,6 +483,22 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME end_to_end_scenario
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS --scenario
+                    ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+  )
+
+  add_e2e_test(
+    NAME lua_end_to_end_logging
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    CONSENSUS raft
+    ADDITIONAL_ARGS --app-script
+                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+  )
+
+  add_e2e_test(
     NAME lua_end_to_end_batched
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS raft
@@ -512,38 +512,6 @@ if(BUILD_TESTS)
     CONSENSUS raft
     ADDITIONAL_ARGS --js-app-script
                     ${CMAKE_SOURCE_DIR}/src/apps/logging/loggingjs.lua
-  )
-
-  add_e2e_test(
-    NAME lua_end_to_end_logging
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
-  )
-
-  add_e2e_test(
-    NAME end_to_end_scenario
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --scenario
-                    ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-  )
-
-  if(NOT SAN)
-    add_e2e_test(
-      NAME connections
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-      CONSENSUS raft
-    )
-  endif()
-
-  add_e2e_test(
-    NAME schema_tests
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS -p liblogging --schema-dir
-                    ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
   )
 
   if(QUOTES_ENABLED)
@@ -573,6 +541,37 @@ if(BUILD_TESTS)
   endif()
 
   foreach(CONSENSUS ${CONSENSUSES})
+    if(NOT SAN)
+      add_e2e_test(
+        NAME connections_${CONSENSUS}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+        CONSENSUS ${CONSENSUS}
+      )
+    endif()
+
+    if(QUOTES_ENABLED)
+      add_e2e_test(
+        NAME governance_tests_${CONSENSUS}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+        CONSENSUS ${CONSENSUS}
+        ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
+      )
+    endif()
+
+    add_e2e_test(
+      NAME receipts_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+      CONSENSUS ${CONSENSUS}
+    )
+
+    add_e2e_test(
+      NAME schema_tests_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS -p liblogging --schema-dir
+                      ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+    )
+
     add_e2e_test(
       NAME end_to_end_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py

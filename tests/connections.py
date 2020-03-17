@@ -23,7 +23,7 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 1)
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

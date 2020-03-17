@@ -20,13 +20,13 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        primary, (backup,) = network.find_nodes()
+        primary, backups = network.find_nodes()
 
         with primary.node_client() as mc:
             check_commit = infra.checker.Checker(mc)

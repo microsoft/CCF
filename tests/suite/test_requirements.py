@@ -96,6 +96,7 @@ def recover(number_txs=5):
             network.txs.issue(
                 network=network,
                 number_txs=infra.e2e_args.get("msgs_per_recovery") or number_txs,
+                consensus=infra.e2e_args.get("consensus"),
             )
             new_network = func(*args, **kwargs)
             new_network.txs.verify(network=new_network)
