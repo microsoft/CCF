@@ -404,7 +404,7 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      CallerId caller_id_ = 0)
+      CallerId caller_id_ = 0) // TODO: Remove?
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -435,34 +435,33 @@ namespace ccf
         caller_id = INVALID_ID;
       }
 
-      if (handler->require_client_signature)
+      const auto signed_request = ctx->get_signed_request();
+      if (handler->require_client_signature && !signed_request.has_value())
       {
-        const auto signed_request = ctx->get_signed_request();
-        if (signed_request.has_value())
-        {
-          if (
-            !ctx->is_create_request &&
-            !verify_client_signature(
-              ctx->session->caller_cert,
-              caller_id.value(),
-              signed_request.value()))
-          {
-            set_response_unauthorized(ctx);
-            return ctx->serialise_response();
-          }
+        set_response_unauthorized(
+          ctx, fmt::format("'{}' RPC must be signed", method));
+        return ctx->serialise_response();
+      }
 
-          // Client signature is only recorded on the primary
-          if (is_primary)
-          {
-            record_client_signature(
-              tx, caller_id.value(), signed_request.value());
-          }
-        }
-        else
+      // By default, signed requests are verified and recorded, even on handlers
+      // that do not require client signatures
+      if (signed_request.has_value())
+      {
+        if (
+          !ctx->is_create_request &&
+          !verify_client_signature(
+            ctx->session->caller_cert,
+            caller_id.value(),
+            signed_request.value()))
         {
-          set_response_unauthorized(
-            ctx, fmt::format("'{}' RPC must be signed", method));
+          set_response_unauthorized(ctx);
           return ctx->serialise_response();
+        }
+
+        if (is_primary)
+        {
+          record_client_signature(
+            tx, caller_id.value(), signed_request.value());
         }
       }
 

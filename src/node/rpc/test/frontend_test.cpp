@@ -498,9 +498,10 @@ TEST_CASE("process with signatures")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
 
-      // Even though the RPC is signed, the client signature is not recorded
       auto signed_resp = get_signed_req(user_id);
-      CHECK(!signed_resp.has_value());
+      REQUIRE(signed_resp.has_value());
+      auto value = signed_resp.value();
+      CHECK(value == signed_req);
     }
   }
 
