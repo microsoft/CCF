@@ -154,8 +154,8 @@ private:
 
 inline Request_rep& Request::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Request_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((Request_rep*)msg_buf);
 }
 
 inline int Request::client_id() const

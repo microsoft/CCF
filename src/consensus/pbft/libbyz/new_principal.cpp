@@ -45,8 +45,8 @@ bool New_principal::verify()
 
 New_principal_rep& New_principal::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((New_principal_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((New_principal_rep*)msg_buf);
 }
 
 NodeId New_principal::id() const

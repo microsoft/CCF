@@ -55,8 +55,8 @@ private:
 
 inline Data_rep& Data::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Data_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((Data_rep*)msg_buf);
 }
 
 inline size_t Data::index() const

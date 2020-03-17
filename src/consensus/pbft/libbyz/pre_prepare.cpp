@@ -178,8 +178,8 @@ void Pre_prepare::cleanup_after_send()
 
 Pre_prepare* Pre_prepare::clone(View v) const
 {
-  Pre_prepare* ret = (Pre_prepare*)new Message(max_size);
-  memcpy(ret->msg, msg, msg->size);
+  Pre_prepare* ret = (Pre_prepare*)new Message(msg->max_size);
+  memcpy(ret->msg_buf, msg_buf, msg_buf->size);
   ret->rep().view = v;
   return ret;
 }

@@ -98,8 +98,8 @@ private:
 
 inline Meta_data_d_rep& Meta_data_d::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Meta_data_d_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((Meta_data_d_rep*)msg_buf);
 }
 
 inline Request_id Meta_data_d::request_id() const

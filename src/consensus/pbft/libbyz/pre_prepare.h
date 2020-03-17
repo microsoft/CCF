@@ -278,8 +278,8 @@ private:
 
 inline Pre_prepare_rep& Pre_prepare::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Pre_prepare_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((Pre_prepare_rep*)msg_buf);
 }
 
 inline char* Pre_prepare::requests()

@@ -40,8 +40,8 @@ Request::Request(Request_id r, short rr, uint32_t msg_size) :
 
 Request* Request::clone() const
 {
-  Request* ret = (Request*)new Request(max_size);
-  memcpy(ret->msg, msg, msg->size);
+  Request* ret = (Request*)new Request(msg->max_size);
+  memcpy(ret->msg_buf, msg_buf, msg_buf->size);
   return ret;
 }
 

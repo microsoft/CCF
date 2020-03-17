@@ -88,8 +88,8 @@ private:
 
 inline Fetch_rep& Fetch::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Fetch_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((Fetch_rep*)msg_buf);
 }
 
 inline Request_id Fetch::request_id() const

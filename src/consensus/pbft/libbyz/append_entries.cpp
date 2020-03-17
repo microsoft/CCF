@@ -23,6 +23,6 @@ bool Append_entries::verify()
 
 Append_entries_rep& Append_entries::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Append_entries_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((Append_entries_rep*)msg_buf);
 }

@@ -70,8 +70,8 @@ private:
 
 inline Reply_stable_rep& Reply_stable::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Reply_stable_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((Reply_stable_rep*)msg_buf);
 }
 
 inline Seqno Reply_stable::last_checkpoint() const

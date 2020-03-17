@@ -69,8 +69,8 @@ Reply::Reply(
 
 Reply* Reply::copy(int id) const
 {
-  Reply* ret = (Reply*)new Reply(msg->size);
-  memcpy(ret->msg, msg, msg->size);
+  Reply* ret = (Reply*)new Reply(msg_buf->size);
+  memcpy(ret->msg_buf, msg_buf, msg_buf->size);
   ret->rep().replica = id;
   return ret;
 }

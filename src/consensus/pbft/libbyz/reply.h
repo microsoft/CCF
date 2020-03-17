@@ -133,8 +133,8 @@ private:
 
 inline Reply_rep& Reply::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Reply_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg_buf), "Improperly aligned pointer");
+  return *((Reply_rep*)msg_buf);
 }
 
 inline View Reply::view() const

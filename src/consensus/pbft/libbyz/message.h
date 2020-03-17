@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "ds/ref.h"
 #include "message_tags.h"
 #include "pbft_assert.h"
 #include "types.h"
@@ -66,7 +67,7 @@ protected:
   // buffers to receive messages from the network.
 
 public:
-  virtual ~Message();
+  virtual ~Message() = default;
   // Effects: Deallocates all storage associated with this message.
 
   void trim();
@@ -118,6 +119,36 @@ public:
   const char* stag();
   // Effects: Returns a string with tag name
 
+  class MsgBufCounter
+  {
+  public:
+    MsgBufCounter(Message_rep* msg_, int max_size_, bool should_delete_) :
+      msg(msg_),
+      max_size(max_size_),
+      should_delete(should_delete_),
+      counter(0)
+    {}
+    ~MsgBufCounter()
+    {
+      if (should_delete)
+      {
+        free(msg);
+      }
+    }
+
+    Message_rep* msg; // Pointer to the contents of the message.
+    int max_size; // Maximum number of bytes that can be stored in "msg"
+                  // or "-1" if this instance is not responsible for
+                  // deallocating the storage in msg.
+    int32_t counter;
+    bool should_delete = false;
+  };
+
+  Ref<MsgBufCounter> get_msg_buffer()
+  {
+    return msg;
+  }
+
 protected:
   Message(int t, unsigned sz);
   // Effects: Creates a message with tag "t" that can hold up to "sz"
@@ -147,16 +178,12 @@ protected:
   friend class Node;
   friend class Pre_prepare;
 
-  Message_rep* msg; // Pointer to the contents of the message.
+  Ref<MsgBufCounter> msg;
+  Message_rep* msg_buf;
   Auth_type auth_type;
   int auth_len;
   int auth_dst_offset;
   int auth_src_offset;
-  int max_size; // Maximum number of bytes that can be stored in "msg"
-                // or "-1" if this instance is not responsible for
-                // deallocating the storage in msg.
-  // Invariant: max_size <= 0 || 0 < msg->size <= max_size
-  bool should_delete = false;
 
 public:
   Message* next;
@@ -166,20 +193,21 @@ public:
 
 inline int Message::size() const
 {
-  return msg->size;
+  return msg_buf->size;
 }
 
 inline int Message::tag() const
 {
-  return msg->tag;
+  return msg_buf->tag;
 }
 
 inline bool Message::has_tag(int t, int sz) const
 {
-  if (max_size >= 0 && msg->size > max_size)
+  if (msg->max_size >= 0 && msg_buf->size > msg->max_size)
     return false;
 
-  if (!msg || msg->tag != t || msg->size < sz || !ALIGNED(msg->size))
+  if (
+    !msg || msg_buf->tag != t || msg_buf->size < sz || !ALIGNED(msg_buf->size))
     return false;
   return true;
 }
@@ -196,10 +224,10 @@ inline bool Message::full() const
 
 inline int Message::msize() const
 {
-  return (max_size >= 0) ? max_size : msg->size;
+  return (msg->max_size >= 0) ? msg->max_size : msg_buf->size;
 }
 
 inline char* Message::contents()
 {
-  return (char*)msg;
+  return reinterpret_cast<char*>(msg_buf);
 }
