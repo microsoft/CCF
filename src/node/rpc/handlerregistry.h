@@ -141,21 +141,6 @@ namespace ccf
       return handler;
     }
 
-    template <typename In, typename Out, typename F>
-    Handler& install_with_auto_schema(
-      const std::string& method, F&& f, ReadWrite read_write)
-    {
-      return install(method, std::forward<F>(f), read_write)
-        .template set_auto_schema<In, Out>();
-    }
-
-    template <typename T, typename... Ts>
-    Handler& install_with_auto_schema(const std::string& method, Ts&&... ts)
-    {
-      return install_with_auto_schema<typename T::In, typename T::Out>(
-        method, std::forward<Ts>(ts)...);
-    }
-
     /** Set a default HandleFunction
      *
      * The default HandleFunction is only invoked if no specific HandleFunction
