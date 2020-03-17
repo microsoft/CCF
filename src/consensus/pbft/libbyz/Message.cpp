@@ -15,7 +15,7 @@ std::unique_ptr<Log_allocator> thread_allocator = nullptr;
 #else
 thread_local std::unique_ptr<Log_allocator> thread_allocator = nullptr;
 #endif
-Message::Message(unsigned sz) : msg(0), max_size(ALIGNED_SIZE(sz))
+Message::Message(unsigned sz) : msg(0)
 {
   if (sz != 0)
   {
@@ -24,9 +24,10 @@ Message::Message(unsigned sz) : msg(0), max_size(ALIGNED_SIZE(sz))
       thread_allocator = std::make_unique<Log_allocator>();
     }
     auto allocator = thread_allocator.get();
+    int max_size = (ALIGNED_SIZE(sz));
 
     auto m = (Message_rep*)allocator->malloc(max_size);
-    msg = std::move(std::make_shared<MsgBufCounter>(m, allocator));
+    msg = std::move(std::make_shared<MsgBufCounter>(m, max_size, allocator));
     if (m != nullptr)
     {
       PBFT_ASSERT(ALIGNED(m), "Improperly aligned pointer");
@@ -49,9 +50,9 @@ Message::Message(int t, unsigned sz)
   }
   auto allocator = thread_allocator.get();
 
-  max_size = ALIGNED_SIZE(sz);
+  int max_size = ALIGNED_SIZE(sz);
   auto m = (Message_rep*)allocator->malloc(max_size);
-  msg = std::move(std::make_shared<MsgBufCounter>(m, allocator));
+  msg = std::move(std::make_shared<MsgBufCounter>(m, max_size, allocator));
 
   PBFT_ASSERT(ALIGNED(m), "Improperly aligned pointer");
   m->tag = t;
@@ -66,8 +67,8 @@ Message::Message(int t, unsigned sz)
 Message::Message(Message_rep* cont)
 {
   PBFT_ASSERT(ALIGNED(cont), "Improperly aligned pointer");
-  msg = std::move(std::make_shared<MsgBufCounter>(cont, nullptr));
-  max_size = -1; // To prevent contents from being deallocated or trimmed
+  int max_size = -1; // To prevent contents from being deallocated or trimmed
+  msg = std::move(std::make_shared<MsgBufCounter>(cont, max_size, nullptr));
   auth_type = Auth_type::unknown;
   auth_len = 0;
   auth_dst_offset = 0;
@@ -76,30 +77,28 @@ Message::Message(Message_rep* cont)
 
 Message::~Message()
 {
-  if (max_size > 0 && msg != nullptr)
-  {
-    msg->allocator->free((char*)msg->msg, max_size);
-  }
 }
 
 void Message::trim()
 {
-  if (max_size > 0 && msg->allocator->realloc((char*)msg->msg, max_size, msg->msg->size))
+  if (
+    msg->max_size > 0 &&
+    msg->allocator->realloc((char*)msg->msg, msg->max_size, msg->msg->size))
   {
-    max_size = msg->msg->size;
+    msg->max_size = msg->msg->size;
   }
 }
 
 void Message::set_size(int size)
 {
   PBFT_ASSERT(msg->msg && ALIGNED(msg->msg), "Invalid state");
-  if (!(max_size < 0 || ALIGNED_SIZE(size) <= max_size))
+  if (!(msg->max_size < 0 || ALIGNED_SIZE(size) <= msg->max_size))
   {
     LOG_INFO << "Error - size:" << size
              << ", aligned_size:" << ALIGNED_SIZE(size)
-             << ", max_size:" << max_size << std::endl;
+             << ", max_size:" << msg->max_size << std::endl;
   }
-  PBFT_ASSERT(max_size < 0 || ALIGNED_SIZE(size) <= max_size, "Invalid state");
+  PBFT_ASSERT(msg->max_size < 0 || ALIGNED_SIZE(size) <= msg->max_size, "Invalid state");
   int aligned = ALIGNED_SIZE(size);
   for (int i = size; i < aligned; i++)
   {

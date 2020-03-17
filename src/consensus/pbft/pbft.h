@@ -68,13 +68,13 @@ namespace pbft
   class PbftEnclaveNetwork : public INetwork
   {
   private:
-    void serialize_message(uint8_t*& data, size_t& size, Message* msg)
+    void serialize_message(uint8_t*& data, size_t& size, const uint8_t* d, size_t s)
     {
       serialized::write(
         data,
         size,
-        reinterpret_cast<const uint8_t*>(msg->contents()),
-        msg->size());
+        d,
+        s);
     }
 
     void send_append_entries(NodeId to, Index start_idx)
@@ -131,8 +131,6 @@ namespace pbft
         .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
     }
 
-    std::vector<uint8_t> serialized_msg;
-
   public:
     PbftEnclaveNetwork(
       NodeId id,
@@ -186,27 +184,39 @@ namespace pbft
     struct SendAuthenticatedMsg
     {
       SendAuthenticatedMsg(
-        std::vector<uint8_t> data_,
+        std::shared_ptr<Message::MsgBufCounter> msg_buffer_,
+        PbftHeader hdr_,
         PbftEnclaveNetwork* self_,
         ccf::NodeMsgType type_,
         pbft::NodeId to_) :
-        data(std::move(data_)),
-        self(self_),
-        type(type_),
-        to(to_)
+        msg_buffer(msg_buffer_), self(self_), type(type_), to(to_), hdr(hdr_)
       {}
 
-      std::vector<uint8_t> data;
+      std::shared_ptr<Message::MsgBufCounter> msg_buffer;
       ccf::NodeMsgType type;
       pbft::NodeId to;
       PbftEnclaveNetwork* self;
+      PbftHeader hdr;
     };
 
     static void send_authenticated_msg_cb(
       std::unique_ptr<enclave::Tmsg<SendAuthenticatedMsg>> msg)
     {
+      std::vector<uint8_t> serialized_msg;
+      //PbftHeader hdr = {PbftMsgType::pbft_message, id};
+
+      auto space = (sizeof(PbftHeader) + msg->data.msg_buffer->msg->size);
+      serialized_msg.resize(space);
+      auto data_ = serialized_msg.data();
+      serialized::write<PbftHeader>(data_, space, msg->data.hdr);
+
+      msg->data.self->serialize_message(
+        data_,
+        space,
+        (const uint8_t*)msg->data.msg_buffer->msg,
+        msg->data.msg_buffer->msg->size);
       msg->data.self->n2n_channels->send_authenticated(
-        msg->data.type, msg->data.to, msg->data.data);
+        msg->data.type, msg->data.to, serialized_msg);
     }
 
     int Send(Message* msg, IPrincipal& principal) override
@@ -239,15 +249,17 @@ namespace pbft
       }
 
       PbftHeader hdr = {PbftMsgType::pbft_message, id};
-      auto space = (sizeof(PbftHeader) + msg->size());
-      serialized_msg.resize(space);
-      auto data_ = serialized_msg.data();
-      serialized::write<PbftHeader>(data_, space, hdr);
-      serialize_message(data_, space, msg);
+      //auto space = (sizeof(PbftHeader) + msg->size());
+      //serialized_msg.resize(space);
+      //auto data_ = serialized_msg.data();
+      //serialized::write<PbftHeader>(data_, space, hdr);
+      //serialize_message(data_, space, msg);
 
       auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedMsg>>(
         &send_authenticated_msg_cb,
-        std::move(serialized_msg),
+        //std::move(serialized_msg),
+        msg->get_msg_buffer(),
+        hdr,
         this,
         ccf::NodeMsgType::consensus_msg,
         to);

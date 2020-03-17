@@ -122,12 +122,31 @@ public:
   class MsgBufCounter
   {
     public:
-    MsgBufCounter(Message_rep* msg_, Log_allocator* allocator_) : msg(msg_), allocator(allocator_) {}
-    ~MsgBufCounter() {}
+      MsgBufCounter(
+        Message_rep* msg_, int max_size_, Log_allocator* allocator_) :
+        msg(msg_), max_size(max_size_), allocator(allocator_)
+      {}
+      ~MsgBufCounter()
+      {
+        if (max_size > 0 && msg != nullptr)
+        {
+          allocator->free((char*)msg, max_size);
+        }
+    }
 
     Message_rep* msg; // Pointer to the contents of the message.
     Log_allocator* allocator;
+    int max_size; // Maximum number of bytes that can be stored in "msg"
+                  // or "-1" if this instance is not responsible for
+                  // deallocating the storage in msg.
+    // Invariant: max_size <= 0 || 0 < msg->size <= max_size
   };
+
+  std::shared_ptr<MsgBufCounter> get_msg_buffer()
+  {
+    return msg;
+  }
+
 
   protected : Message(int t, unsigned sz);
   // Effects: Creates a message with tag "t" that can hold up to "sz"
@@ -162,10 +181,6 @@ public:
   int auth_len;
   int auth_dst_offset;
   int auth_src_offset;
-  int max_size; // Maximum number of bytes that can be stored in "msg"
-                // or "-1" if this instance is not responsible for
-                // deallocating the storage in msg.
-  // Invariant: max_size <= 0 || 0 < msg->size <= max_size
 public:
   Message* next;
 };
@@ -184,7 +199,7 @@ inline int Message::tag() const
 
 inline bool Message::has_tag(int t, int sz) const
 {
-  if (max_size >= 0 && msg->msg->size > max_size)
+  if (msg->max_size >= 0 && msg->msg->size > msg->max_size)
     return false;
 
   if (!msg || msg->msg->tag != t || msg->msg->size < sz || !ALIGNED(msg->msg->size))
@@ -204,7 +219,7 @@ inline bool Message::full() const
 
 inline int Message::msize() const
 {
-  return (max_size >= 0) ? max_size : msg->msg->size;
+  return (msg->max_size >= 0) ? msg->max_size : msg->msg->size;
 }
 
 inline char* Message::contents()
