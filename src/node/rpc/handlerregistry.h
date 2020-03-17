@@ -34,9 +34,9 @@ namespace ccf
     struct Handler
     {
       HandleFunction func;
-      ReadWrite rw;
-      nlohmann::json params_schema;
-      nlohmann::json result_schema;
+      ReadWrite read_write = Write;
+      nlohmann::json params_schema = nullptr;
+      nlohmann::json result_schema = nullptr;
       bool require_client_signature = false;
       bool execute_locally = false;
     };
@@ -68,50 +68,31 @@ namespace ccf
      *
      * @param method Method name
      * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
-     * @param params_schema JSON schema for params object in requests
-     * @param result_schema JSON schema for result object in responses
+     * @param read_write Flag if method will Read, Write, MayWrite
      * @param require_client_signature If true, client request must be signed
      * @param execute_locally If true, request is executed without consensus
      * (PBFT only)
      */
-    void install(
+    Handler& install(
       const std::string& method,
       HandleFunction f,
-      ReadWrite rw,
-      const nlohmann::json& params_schema = nlohmann::json::object(),
-      const nlohmann::json& result_schema = nlohmann::json::object(),
+      ReadWrite read_write,
       bool require_client_signature = false,
       bool execute_locally = false)
     {
-      handlers[method] = {f,
-                          rw,
-                          params_schema,
-                          result_schema,
-                          require_client_signature,
-                          execute_locally};
-    }
-
-    void install(
-      const std::string& method,
-      HandleFunction f,
-      ReadWrite rw,
-      bool require_client_signature)
-    {
-      install(
-        method,
-        f,
-        rw,
-        nlohmann::json::object(),
-        nlohmann::json::object(),
-        require_client_signature);
+      auto& handler = handlers[method];
+      handler.func = f;
+      handler.read_write = read_write;
+      handler.require_client_signature = require_client_signature;
+      handler.execute_locally = execute_locally;
+      return handler;
     }
 
     template <typename In, typename Out, typename F>
-    void install_with_auto_schema(
+    Handler& install_with_auto_schema(
       const std::string& method,
       F&& f,
-      ReadWrite rw,
+      ReadWrite read_write,
       bool require_client_signature = false,
       bool execute_locally = false)
     {
@@ -127,20 +108,22 @@ namespace ccf
         result_schema = ds::json::build_schema<Out>(method + "/result");
       }
 
-      install(
+      auto& handler = install(
         method,
         std::forward<F>(f),
-        rw,
-        params_schema,
-        result_schema,
+        read_write,
         require_client_signature,
         execute_locally);
+
+      handler.params_schema = params_schema;
+      handler.result_schema = result_schema;
+      return handler;
     }
 
     template <typename T, typename... Ts>
-    void install_with_auto_schema(const std::string& method, Ts&&... ts)
+    Handler& install_with_auto_schema(const std::string& method, Ts&&... ts)
     {
-      install_with_auto_schema<typename T::In, typename T::Out>(
+      return install_with_auto_schema<typename T::In, typename T::Out>(
         method, std::forward<Ts>(ts)...);
     }
 
@@ -150,11 +133,12 @@ namespace ccf
      * was found.
      *
      * @param f Method implementation
-     * @param rw Flag if method will Read, Write, MayWrite
+     * @param read_write Flag if method will Read, Write, MayWrite
      */
-    void set_default(HandleFunction f, ReadWrite rw)
+    Handler& set_default(HandleFunction f, ReadWrite read_write)
     {
-      default_handler = {f, rw};
+      default_handler = {f, read_write};
+      return default_handler.value();
     }
 
     /** Populate out with all supported methods
