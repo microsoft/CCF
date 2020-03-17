@@ -719,10 +719,11 @@ namespace ccf
 
           return make_success(ma.value());
         };
-      install_with_auto_schema<void, StateDigest>(
+      install(
         MemberProcs::UPDATE_ACK_STATE_DIGEST,
         json_adapter(update_state_digest),
-        Write);
+        Write)
+        .set_auto_schema<void, StateDigest>();
 
       auto get_encrypted_recovery_share =
         [this](RequestArgs& args, const nlohmann::json& params) {
@@ -761,10 +762,11 @@ namespace ccf
 
           return make_success(enc_s.value());
         };
-      install_with_auto_schema<void, EncryptedShare>(
+      install(
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
         json_adapter(get_encrypted_recovery_share),
-        Read);
+        Read)
+        .set_auto_schema<void, EncryptedShare>();
 
       auto submit_recovery_share = [this](
                                      RequestArgs& args,
@@ -812,10 +814,11 @@ namespace ccf
         pending_shares.clear();
         return make_success(true);
       };
-      install_with_auto_schema<SubmitRecoveryShare, bool>(
+      install(
         MemberProcs::SUBMIT_RECOVERY_SHARE,
         json_adapter(submit_recovery_share),
-        Write);
+        Write)
+        .set_auto_schema<SubmitRecoveryShare, bool>();
 
       auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
         LOG_DEBUG_FMT("Processing create RPC");
