@@ -49,9 +49,9 @@ public:
     auto empty_function_signed = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    auto& signed_handler = install(
-      "empty_function_signed", empty_function_signed, HandlerRegistry::Read);
-    signed_handler.require_client_signature = true;
+    install(
+      "empty_function_signed", empty_function_signed, HandlerRegistry::Read)
+      .set_require_client_signature(true);
   }
 };
 

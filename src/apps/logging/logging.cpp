@@ -195,11 +195,11 @@ namespace ccfapp
       };
       // SNIPPET_END: log_record_prefix_cert
 
-      install_with_auto_schema<LoggingRecord::In, bool>(
-        Procs::LOG_RECORD, json_adapter(record), Write);
+      install(Procs::LOG_RECORD, json_adapter(record), Write)
+        .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET: install_get
-      install_with_auto_schema<LoggingGet>(
-        Procs::LOG_GET, json_adapter(get), Read);
+      install(Procs::LOG_GET, json_adapter(get), Read)
+        .set_auto_schema<LoggingGet>();
 
       install(Procs::LOG_RECORD_PUBLIC, json_adapter(record_public), Write)
         .set_params_schema(record_public_params_schema)

@@ -492,8 +492,8 @@ namespace ccf
 
         return make_success(value);
       };
-      install_with_auto_schema<KVRead>(
-        MemberProcs::READ, json_adapter(read), Read);
+      install(MemberProcs::READ, json_adapter(read), Read)
+        .set_auto_schema<KVRead>();
 
       auto query =
         [this](
@@ -507,8 +507,8 @@ namespace ccf
           return make_success(tsr.run<nlohmann::json>(
             tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
         };
-      install_with_auto_schema<Script, nlohmann::json>(
-        MemberProcs::QUERY, json_adapter(query), Read);
+      install(MemberProcs::QUERY, json_adapter(query), Read)
+        .set_auto_schema<Script, nlohmann::json>();
 
       auto propose = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -531,8 +531,8 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
-      install_with_auto_schema<Propose>(
-        MemberProcs::PROPOSE, json_adapter(propose), Write);
+      install(MemberProcs::PROPOSE, json_adapter(propose), Write)
+        .set_auto_schema<Propose>();
 
       auto withdraw = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -582,10 +582,9 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      auto& withdraw_handler =
-        install_with_auto_schema<ProposalAction, ProposalInfo>(
-          MemberProcs::WITHDRAW, json_adapter(withdraw), Write);
-      withdraw_handler.require_client_signature = true;
+      install(MemberProcs::WITHDRAW, json_adapter(withdraw), Write)
+        .set_auto_schema<ProposalAction, ProposalInfo>()
+        .set_require_client_signature(true);
 
       auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
         if (!check_member_active(args.tx, args.caller_id))
@@ -630,9 +629,9 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, vote.id, proposal.value()));
       };
-      auto& vote_handler = install_with_auto_schema<Vote, ProposalInfo>(
-        MemberProcs::VOTE, json_adapter(vote), Write);
-      vote_handler.require_client_signature = true;
+      install(MemberProcs::VOTE, json_adapter(vote), Write)
+        .set_auto_schema<Vote, ProposalInfo>()
+        .set_require_client_signature(true);
 
       auto complete =
         [this](
@@ -657,10 +656,9 @@ namespace ccf
           return make_success(
             complete_proposal(tx, proposal_id, proposal.value()));
         };
-      auto& complete_handler =
-        install_with_auto_schema<ProposalAction, ProposalInfo>(
-          MemberProcs::COMPLETE, json_adapter(complete), Write);
-      complete_handler.require_client_signature = true;
+      install(MemberProcs::COMPLETE, json_adapter(complete), Write)
+        .set_auto_schema<ProposalAction, ProposalInfo>()
+        .set_require_client_signature(true);
 
       //! A member acknowledges state
       auto ack = [this](RequestArgs& args, const nlohmann::json& params) {
@@ -697,9 +695,9 @@ namespace ccf
         members->put(args.caller_id, *member);
         return make_success(true);
       };
-      auto& ack_handler = install_with_auto_schema<StateDigest, bool>(
-        MemberProcs::ACK, json_adapter(ack), Write);
-      ack_handler.require_client_signature = true;
+      install(MemberProcs::ACK, json_adapter(ack), Write)
+        .set_auto_schema<StateDigest, bool>()
+        .set_require_client_signature(true);
 
       //! A member asks for a fresher state digest
       auto update_state_digest =
