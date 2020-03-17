@@ -34,6 +34,6 @@ int Network_open::id() const
 
 Network_open_rep& Network_open::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Network_open_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((Network_open_rep*)msg->msg);
 }

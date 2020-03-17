@@ -119,8 +119,17 @@ public:
   const char* stag();
   // Effects: Returns a string with tag name
 
-protected:
-  Message(int t, unsigned sz);
+  class MsgBufCounter
+  {
+    public:
+    MsgBufCounter(Message_rep* msg_, Log_allocator* allocator_) : msg(msg_), allocator(allocator_) {}
+    ~MsgBufCounter() {}
+
+    Message_rep* msg; // Pointer to the contents of the message.
+    Log_allocator* allocator;
+  };
+
+  protected : Message(int t, unsigned sz);
   // Effects: Creates a message with tag "t" that can hold up to "sz"
   // bytes. Useful to create messages to send to the network.
 
@@ -148,7 +157,7 @@ protected:
   friend class Node;
   friend class Pre_prepare;
 
-  Message_rep* msg; // Pointer to the contents of the message.
+  std::shared_ptr<MsgBufCounter> msg;
   Auth_type auth_type;
   int auth_len;
   int auth_dst_offset;
@@ -157,8 +166,6 @@ protected:
                 // or "-1" if this instance is not responsible for
                 // deallocating the storage in msg.
   // Invariant: max_size <= 0 || 0 < msg->size <= max_size
-  Log_allocator* allocator;
-
 public:
   Message* next;
 };
@@ -167,20 +174,20 @@ public:
 
 inline int Message::size() const
 {
-  return msg->size;
+  return msg->msg->size;
 }
 
 inline int Message::tag() const
 {
-  return msg->tag;
+  return msg->msg->tag;
 }
 
 inline bool Message::has_tag(int t, int sz) const
 {
-  if (max_size >= 0 && msg->size > max_size)
+  if (max_size >= 0 && msg->msg->size > max_size)
     return false;
 
-  if (!msg || msg->tag != t || msg->size < sz || !ALIGNED(msg->size))
+  if (!msg || msg->msg->tag != t || msg->msg->size < sz || !ALIGNED(msg->msg->size))
     return false;
   return true;
 }
@@ -197,10 +204,10 @@ inline bool Message::full() const
 
 inline int Message::msize() const
 {
-  return (max_size >= 0) ? max_size : msg->size;
+  return (max_size >= 0) ? max_size : msg->msg->size;
 }
 
 inline char* Message::contents()
 {
-  return (char*)msg;
+  return (char*)msg->msg;
 }

@@ -57,8 +57,8 @@ bool New_principal::convert(Message* m1, New_principal*& m2)
 
 New_principal_rep& New_principal::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((New_principal_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((New_principal_rep*)msg->msg);
 }
 
 NodeId New_principal::id() const

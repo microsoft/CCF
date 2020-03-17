@@ -88,8 +88,8 @@ private:
 
 inline Commit_rep& Commit::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Commit_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((Commit_rep*)msg->msg);
 }
 
 inline View Commit::view() const

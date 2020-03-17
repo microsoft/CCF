@@ -144,8 +144,8 @@ private:
 
 inline New_view_rep& New_view::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((New_view_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((New_view_rep*)msg->msg);
 }
 
 inline VC_info* New_view::vc_info()

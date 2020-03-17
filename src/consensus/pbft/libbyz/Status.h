@@ -226,8 +226,8 @@ private:
 
 inline Status_rep& Status::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Status_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((Status_rep*)msg->msg);
 }
 
 inline char* Status::prepared()

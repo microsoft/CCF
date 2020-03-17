@@ -80,8 +80,8 @@ private:
 
 inline View_change_ack_rep& View_change_ack::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((View_change_ack_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((View_change_ack_rep*)msg->msg);
 }
 
 inline View View_change_ack::view() const

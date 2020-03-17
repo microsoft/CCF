@@ -83,8 +83,8 @@ private:
 
 inline Checkpoint_rep& Checkpoint::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Checkpoint_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((Checkpoint_rep*)msg->msg);
 }
 
 inline Seqno Checkpoint::seqno() const

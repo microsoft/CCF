@@ -165,7 +165,7 @@ Pre_prepare::Pre_prepare(
 Pre_prepare* Pre_prepare::clone(View v) const
 {
   Pre_prepare* ret = (Pre_prepare*)new Message(max_size);
-  memcpy(ret->msg, msg, msg->size);
+  memcpy(ret->msg->msg, msg->msg, msg->msg->size);
   ret->rep().view = v;
   return ret;
 }

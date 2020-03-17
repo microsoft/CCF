@@ -64,8 +64,8 @@ private:
 
 inline Query_stable_rep& Query_stable::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Query_stable_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((Query_stable_rep*)msg->msg);
 }
 
 inline int Query_stable::id() const

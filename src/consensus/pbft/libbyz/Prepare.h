@@ -102,8 +102,8 @@ private:
 
 inline Prepare_rep& Prepare::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Prepare_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((Prepare_rep*)msg->msg);
 }
 
 inline View Prepare::view() const

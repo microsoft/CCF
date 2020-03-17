@@ -35,6 +35,6 @@ bool Append_entries::convert(Message* m1, Append_entries*& m2)
 
 Append_entries_rep& Append_entries::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
-  return *((Append_entries_rep*)msg);
+  PBFT_ASSERT(ALIGNED(msg->msg), "Improperly aligned pointer");
+  return *((Append_entries_rep*)msg->msg);
 }

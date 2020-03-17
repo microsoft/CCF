@@ -33,7 +33,7 @@ Request::Request(Request_id r, short rr) :
 Request* Request::clone() const
 {
   Request* ret = (Request*)new Request(max_size);
-  memcpy(ret->msg, msg, msg->size);
+  memcpy(ret->msg->msg, msg->msg, msg->msg->size);
   return ret;
 }
 
