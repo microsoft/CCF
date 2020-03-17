@@ -16,17 +16,10 @@ from loguru import logger as LOG
 def test(network, args, notifications_queue=None, verify=True):
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
     txs.issue(
-        network=network,
-        number_txs=1,
-        wait_for_sync=args.consensus == "raft",
-        consensus=args.consensus,
+        network=network, number_txs=1, consensus=args.consensus,
     )
     txs.issue(
-        network=network,
-        number_txs=1,
-        on_backup=True,
-        wait_for_sync=args.consensus == "raft",
-        consensus=args.consensus,
+        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
     )
     if verify:
         txs.verify(network)

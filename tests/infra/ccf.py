@@ -486,7 +486,7 @@ class Network:
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(1)
-        # in pbft getCommit acts as a write, so commits will not be the same
+        # in pbft getCommit increments the commit version, so commits will not be the same
         # but they should be in ascending order
         assert (
             [commits[0]] * len(commits) == commits

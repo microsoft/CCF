@@ -61,8 +61,6 @@ if(BUILD_TESTS)
         --metrics-file small_bank_${CONSENSUS}_metrics.json
     )
 
-    # These tests require client-signed signatures: - HTTP C++ perf clients
-    # don't currently sign correctly
     add_perf_test(
       NAME small_bank_sigs_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
