@@ -47,10 +47,14 @@ def test(network, args, notifications_queue=None):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
-        notifications_queue = notifications.get_queue()
+        notifications_queue = (
+            notifications.get_queue()
+            if (args.package == "liblogging" and args.consensus == "raft")
+            else None
+        )
 
         with infra.ccf.network(
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

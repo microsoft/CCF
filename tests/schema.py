@@ -17,7 +17,7 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []

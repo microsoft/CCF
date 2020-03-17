@@ -21,6 +21,8 @@ def run(args):
         scenario = json.load(f)
 
     hosts = scenario.get("hosts", ["localhost", "localhost"])
+    if args.consensus == "pbft":
+        hosts = ["localhost"] * 4
     args.package = scenario["package"]
     # SNIPPET_END: parsing
 
@@ -70,7 +72,7 @@ def run(args):
                         else:
                             check_commit(r, result=lambda res: res is not None)
 
-                network.wait_for_node_commit_sync()
+                network.wait_for_node_commit_sync(args.consensus)
 
     if args.network_only:
         LOG.info("Keeping network alive with the following nodes:")

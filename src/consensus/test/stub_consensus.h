@@ -89,7 +89,7 @@ namespace kv
       return 2;
     }
 
-    void recv_message(const uint8_t* data, size_t size) override {}
+    void recv_message(OArray&& oa) override {}
 
     void add_configuration(
       SeqNo seqno,
