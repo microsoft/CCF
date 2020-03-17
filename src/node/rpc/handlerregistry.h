@@ -35,14 +35,40 @@ namespace ccf
     {
       HandleFunction func;
       ReadWrite read_write = Write;
+
       nlohmann::json params_schema = nullptr;
+
+      Handler& set_params_schema(const nlohmann::json& j)
+      {
+        params_schema = j;
+        return *this;
+      }
+
       nlohmann::json result_schema = nullptr;
+
+      Handler& set_result_schema(const nlohmann::json& j)
+      {
+        result_schema = j;
+        return *this;
+      }
 
       // If true, client request must be signed
       bool require_client_signature = false;
 
+      Handler& set_require_client_signature(bool v)
+      {
+        require_client_signature = v;
+        return *this;
+      }
+
       // If true, request is executed without consensus (PBFT only)
       bool execute_locally = false;
+
+      Handler& set_execute_locally(bool v)
+      {
+        execute_locally = v;
+        return *this;
+      }
     };
 
   protected:
