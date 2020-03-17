@@ -130,6 +130,7 @@ namespace ccf
      * @param method Method name
      * @param f Method implementation
      * @param read_write Flag if method will Read, Write, MayWrite
+     * @return Returns the installed Handler for further modification
      */
     Handler& install(
       const std::string& method, HandleFunction f, ReadWrite read_write)
@@ -148,6 +149,7 @@ namespace ccf
      *
      * @param f Method implementation
      * @param read_write Flag if method will Read, Write, MayWrite
+     * @return Returns the installed Handler for further modification
      */
     Handler& set_default(HandleFunction f, ReadWrite read_write)
     {
