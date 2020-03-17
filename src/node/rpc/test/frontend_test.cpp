@@ -321,6 +321,8 @@ auto kp_other = tls::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
 auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
+auto anonymous_caller_der = std::vector<uint8_t>();
+
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto user_session = make_shared<enclave::SessionContext>(
@@ -331,6 +333,8 @@ auto invalid_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, invalid_caller_der);
 auto member_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, member_caller_der);
+auto anonymous_session = make_shared<enclave::SessionContext>(
+  enclave::InvalidSessionId, anonymous_caller_der);
 
 UserId user_id = INVALID_ID;
 UserId invalid_user_id = INVALID_ID;
@@ -578,8 +582,10 @@ TEST_CASE("process with caller")
       enclave::make_rpc_context(user_session, serialized_simple_call);
     auto invalid_rpc_ctx =
       enclave::make_rpc_context(invalid_session, serialized_simple_call);
+    auto anonymous_rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
 
-    INFO("Valid authentication");
+    INFO("Valid authentication"); // (2)
     {
       const auto serialized_response =
         frontend.process(authenticated_rpc_ctx).value();
@@ -590,10 +596,18 @@ TEST_CASE("process with caller")
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
 
-    INFO("Invalid authentication");
+    INFO("Invalid authentication"); // (4)
     {
       const auto serialized_response =
         frontend.process(invalid_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Anonymous caller"); // (10)
+    {
+      const auto serialized_response =
+        frontend.process(anonymous_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
@@ -607,8 +621,10 @@ TEST_CASE("process with caller")
       enclave::make_rpc_context(user_session, serialized_simple_call);
     auto invalid_rpc_ctx =
       enclave::make_rpc_context(invalid_session, serialized_simple_call);
+    auto anonymous_rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
 
-    INFO("Valid authentication");
+    INFO("Valid authentication"); // (1)
     {
       const auto serialized_response =
         frontend.process(authenticated_rpc_ctx).value();
@@ -616,10 +632,22 @@ TEST_CASE("process with caller")
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
 
-    INFO("Invalid authentication");
+    INFO("Invalid authentication"); // (3)
     {
       const auto serialized_response =
         frontend.process(invalid_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(
+        error_msg.find("Could not find matching user certificate") !=
+        std::string::npos);
+    }
+
+    INFO("Anonymous caller"); // (9)
+    {
+      const auto serialized_response =
+        frontend.process(anonymous_rpc_ctx).value();
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
       const std::string error_msg(response.body.begin(), response.body.end());

@@ -218,11 +218,18 @@ namespace ccf
 
       Store::Tx tx;
 
+      auto caller_id = handlers.get_caller_id(tx, ctx->session->caller_cert);
+
       if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
-        // TODO: Fix this
-        std::optional<CallerId> caller_id;
-        auto rep = process_if_local_node_rpc(ctx, tx);
+        if (!caller_id.has_value())
+        {
+          ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          ctx->set_response_body(invalid_caller_error_message());
+          return ctx->serialise_response();
+        }
+
+        auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
         {
           return rep.value();
@@ -262,10 +269,7 @@ namespace ccf
       }
       else
       {
-        auto rep = process_command(ctx, tx);
-
-        // TODO: Fix this
-        std::optional<CallerId> caller_id;
+        auto rep = process_command(ctx, tx, caller_id);
 
         // If necessary, forward the RPC to the current primary
         if (!rep.has_value())
@@ -389,14 +393,16 @@ namespace ccf
     }
 
     std::optional<nlohmann::json> process_if_local_node_rpc(
-      std::shared_ptr<enclave::RpcContext> ctx, Store::Tx& tx)
+      std::shared_ptr<enclave::RpcContext> ctx,
+      Store::Tx& tx,
+      std::optional<CallerId> caller_id)
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
       auto handler = handlers.find_handler(local_method);
       if (handler != nullptr && handler->execute_locally)
       {
-        return process_command(ctx, tx);
+        return process_command(ctx, tx, caller_id);
       }
       return std::nullopt;
     }
@@ -404,7 +410,7 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      CallerId caller_id_ = 0) // TODO: Remove?
+      std::optional<CallerId> caller_id)
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -418,21 +424,31 @@ namespace ccf
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      std::optional<CallerId> caller_id;
-      if (handler->require_valid_caller)
-      {
-        caller_id = handlers.valid_caller(tx, ctx->session->caller_cert);
+      // If the frontend has a caller table (e.g. userfrontend):
+      //  - if the caller is unknown (caller_id = {})
+      //    ==> if the handler requires auth, fails
+      //    ==> if the handler does not require auth, continue with caller_id =
+      //    INVALID_ID
+      //
+      // If the frontend has no caller table (e.g. nodefrontend):
+      //  - if the caller is anonymous (caller_id = INVALID_ID)
+      //    ==> if the handler requires auth, impossible
+      //    ==> if the handler does not require auth, continue
 
-        if (!caller_id.has_value())
+      if (!caller_id.has_value())
+      {
+        if (handler->require_valid_caller)
         {
           ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx->set_response_body(invalid_caller_error_message());
           return ctx->serialise_response();
         }
-      }
-      else
-      {
-        caller_id = INVALID_ID;
+        else
+        {
+          // Even though the caller is unknown, proceed with an invalid caller
+          // id as the handler does not require a valid caller
+          caller_id = INVALID_ID;
+        }
       }
 
       const auto signed_request = ctx->get_signed_request();

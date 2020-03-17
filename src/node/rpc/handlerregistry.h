@@ -87,6 +87,14 @@ namespace ccf
       bool require_valid_caller = true,
       bool execute_locally = false)
     {
+      if (require_valid_caller && certs == nullptr)
+      {
+        throw std::logic_error(fmt::format(
+          "{} handler requires valid caller but registry does not have "
+          "certificates table",
+          method));
+      }
+
       handlers[method] = {f,
                           rw,
                           params_schema,
@@ -198,7 +206,7 @@ namespace ccf
 
     virtual void tick(std::chrono::milliseconds elapsed, size_t tx_count) {}
 
-    virtual std::optional<CallerId> valid_caller(
+    virtual std::optional<CallerId> get_caller_id(
       Store::Tx& tx, const std::vector<uint8_t>& caller)
     {
       if (certs == nullptr)
