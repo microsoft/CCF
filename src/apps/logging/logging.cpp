@@ -26,9 +26,7 @@ namespace ccfapp
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
 
     static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
-
-    static constexpr auto LOG_SELF_REGISTER_WITH_QUOTE =
-      "LOG_self_register_with_quote";
+    static constexpr auto LOG_RECORD_ANONYMOUS_CALLER = "LOG_record_anonymous";
   };
 
   // SNIPPET: table_definition
@@ -198,6 +196,42 @@ namespace ccfapp
       };
       // SNIPPET_END: log_record_prefix_cert
 
+      auto log_record_anonymous = [this](RequestArgs& args) {
+        const auto& cert_data = args.rpc_ctx->session->caller_cert;
+
+        const auto body_j =
+          nlohmann::json::parse(args.rpc_ctx->get_request_body());
+
+        if (args.caller_id != INVALID_ID)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(
+            "Only anonymous callers can record anonymous messages");
+          return;
+        }
+
+        const auto in = body_j.get<LoggingRecord::In>();
+        if (in.msg.empty())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body("Cannot record an empty log message");
+          return;
+        }
+
+        const auto log_line = fmt::format("Anonymous: {}", in.msg);
+        auto view = args.tx.get_view(records);
+        view->put(in.id, log_line);
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        args.rpc_ctx->set_response_body(nlohmann::json(true).dump());
+      };
+
       install_with_auto_schema<LoggingRecord::In, bool>(
         Procs::LOG_RECORD, json_adapter(record), Write);
       // SNIPPET: install_get
@@ -218,6 +252,12 @@ namespace ccfapp
         get_public_result_schema);
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
+      install(
+        Procs::LOG_RECORD_ANONYMOUS_CALLER,
+        log_record_anonymous,
+        Write,
+        false,
+        true);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

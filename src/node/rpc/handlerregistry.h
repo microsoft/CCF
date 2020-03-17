@@ -89,7 +89,6 @@ namespace ccf
     {
       if (disable_caller_auth && certs == nullptr)
       {
-        std::cout << "Install failed: " << method << std::endl;
         LOG_FAIL_FMT(
           "Failed to disable caller auth on {} handler as its registry does "
           "not have certificate table. Defaulting to not requiring valid "

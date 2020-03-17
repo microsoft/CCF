@@ -149,9 +149,6 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     handlers.install("empty_function", empty_function, HandlerRegistry::Read);
-    // false, // no client signature
-    // false // does not require valid caller (since no certs)
-    // );
   }
 };
 
@@ -365,7 +362,6 @@ void prepare_callers()
   GenesisGenerator g(network, tx);
   g.init_values();
   user_id = g.add_user(user_caller);
-  // invalid_user_id = g.add_user(invalid_caller);
   nos_id = g.add_user(nos_caller);
   member_id = g.add_member(member_caller, dummy_key_share);
   invalid_member_id = g.add_member(invalid_caller, dummy_key_share);
