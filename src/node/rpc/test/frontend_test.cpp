@@ -16,6 +16,7 @@
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
 #include "node/rpc/userfrontend.h"
+#include "node/rpc/verbrestrictions.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
@@ -103,6 +104,32 @@ public:
         return make_success(true);
       };
     install("failable", json_adapter(failable_function), HandlerRegistry::Read);
+  }
+};
+
+class TestRestrictedVerbsFrontend : public SimpleUserRpcFrontend
+{
+public:
+  TestRestrictedVerbsFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
+  {
+    open();
+
+    auto get_only = get_only_adapter([this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    });
+    install("get_only", get_only, HandlerRegistry::Read);
+
+    auto post_only = post_only_adapter([this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    });
+    install("post_only", post_only, HandlerRegistry::Read);
+
+    auto put_or_delete = restrict_verbs_adapter(
+      [this](RequestArgs& args) {
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      },
+      {HTTP_PUT, HTTP_DELETE});
+    install("put_or_delete", put_or_delete, HandlerRegistry::Read);
   }
 };
 
@@ -630,6 +657,80 @@ TEST_CASE("MinimalHandleFunction")
         http::headervalues::contenttype::TEXT);
       const std::string body_s(response.body.begin(), response.body.end());
       CHECK(body_s == msg);
+    }
+  }
+}
+
+TEST_CASE("Restricted verbs")
+{
+  prepare_callers();
+  TestRestrictedVerbsFrontend frontend(*network.tables);
+
+  for (auto verb = HTTP_DELETE; verb <= HTTP_SOURCE;
+       verb = (http_method)(size_t(verb) + 1))
+  {
+    INFO(http_method_str(verb));
+
+    {
+      http::Request get("get_only", verb);
+      const auto serialized_get = get.build_request();
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_get);
+      const auto serialized_response = frontend.process(rpc_ctx).value();
+      const auto response = parse_response(serialized_response);
+      if (verb == HTTP_GET)
+      {
+        CHECK(response.status == HTTP_STATUS_OK);
+      }
+      else
+      {
+        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        const auto it = response.headers.find(http::headers::ALLOW);
+        REQUIRE(it != response.headers.end());
+        const auto v = it->second;
+        CHECK(v.find(http_method_str(HTTP_GET)) != std::string::npos);
+      }
+    }
+
+    {
+      http::Request get("post_only", verb);
+      const auto serialized_post = get.build_request();
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_post);
+      const auto serialized_response = frontend.process(rpc_ctx).value();
+      const auto response = parse_response(serialized_response);
+      if (verb == HTTP_POST)
+      {
+        CHECK(response.status == HTTP_STATUS_OK);
+      }
+      else
+      {
+        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        const auto it = response.headers.find(http::headers::ALLOW);
+        REQUIRE(it != response.headers.end());
+        const auto v = it->second;
+        CHECK(v.find(http_method_str(HTTP_POST)) != std::string::npos);
+      }
+    }
+
+    {
+      http::Request get("put_or_delete", verb);
+      const auto serialized_put_or_delete = get.build_request();
+      auto rpc_ctx =
+        enclave::make_rpc_context(user_session, serialized_put_or_delete);
+      const auto serialized_response = frontend.process(rpc_ctx).value();
+      const auto response = parse_response(serialized_response);
+      if (verb == HTTP_PUT || verb == HTTP_DELETE)
+      {
+        CHECK(response.status == HTTP_STATUS_OK);
+      }
+      else
+      {
+        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        const auto it = response.headers.find(http::headers::ALLOW);
+        REQUIRE(it != response.headers.end());
+        const auto v = it->second;
+        CHECK(v.find(http_method_str(HTTP_PUT)) != std::string::npos);
+        CHECK(v.find(http_method_str(HTTP_DELETE)) != std::string::npos);
+      }
     }
   }
 }
