@@ -198,10 +198,6 @@ namespace ccfapp
       };
       // SNIPPET_END: log_record_prefix_cert
 
-      auto self_register_with_quote = [this](RequestArgs& args) {
-        return make_error(HTTP_STATUS_BAD_REQUEST, "Not yet implemented");
-      };
-
       install_with_auto_schema<LoggingRecord::In, bool>(
         Procs::LOG_RECORD, json_adapter(record), Write);
       // SNIPPET: install_get
@@ -222,12 +218,6 @@ namespace ccfapp
         get_public_result_schema);
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
-      install_with_auto_schema<SelfRegister::In, bool>(
-        Procs::LOG_SELF_REGISTER_WITH_QUOTE,
-        json_adapter(self_register_with_quote),
-        Write,
-        false, // does not require client signature
-        false); // does not require valid caller
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

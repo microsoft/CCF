@@ -424,20 +424,9 @@ namespace ccf
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      // If the frontend has a caller table (e.g. userfrontend):
-      //  - if the caller is unknown (caller_id = {})
-      //    ==> if the handler requires auth, fails
-      //    ==> if the handler does not require auth, continue with caller_id =
-      //    INVALID_ID
-      //
-      // If the frontend has no caller table (e.g. nodefrontend):
-      //  - if the caller is anonymous (caller_id = INVALID_ID)
-      //    ==> if the handler requires auth, impossible
-      //    ==> if the handler does not require auth, continue
-
       if (!caller_id.has_value())
       {
-        if (handler->require_valid_caller)
+        if (!handler->disable_caller_auth)
         {
           ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx->set_response_body(invalid_caller_error_message());

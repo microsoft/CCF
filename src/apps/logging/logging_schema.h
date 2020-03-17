@@ -30,14 +30,6 @@ namespace ccf
     };
   };
 
-  struct SelfRegister
-  {
-    struct In
-    {
-      std::vector<uint8_t> quote;
-    };
-  };
-
   DECLARE_JSON_TYPE(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
 

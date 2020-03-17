@@ -63,7 +63,7 @@ public:
       empty_function_no_auth,
       HandlerRegistry::Read,
       false, // does not require signature
-      false); // does not require valid caller
+      true); // disable valid caller
   }
 };
 
@@ -149,6 +149,9 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     handlers.install("empty_function", empty_function, HandlerRegistry::Read);
+    // false, // no client signature
+    // false // does not require valid caller (since no certs)
+    // );
   }
 };
 
@@ -658,6 +661,60 @@ TEST_CASE("process with caller")
   }
 }
 
+TEST_CASE("No certs table")
+{
+  prepare_callers();
+  TestNoCertsFrontend frontend(*network.tables);
+  auto simple_call = create_simple_request();
+  std::vector<uint8_t> serialized_call = simple_call.build_request();
+
+  INFO("Authenticated caller"); // (6)
+  {
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    std::vector<uint8_t> serialized_response =
+      frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+
+  INFO("Anonymous caller"); // (12)
+  {
+    auto rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_call);
+    std::vector<uint8_t> serialized_response =
+      frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+}
+
+TEST_CASE("Member caller")
+{
+  prepare_callers();
+  auto simple_call = create_simple_request();
+  std::vector<uint8_t> serialized_call = simple_call.build_request();
+  TestMemberFrontend frontend(network, stub_node);
+
+  SUBCASE("valid caller")
+  {
+    auto member_rpc_ctx =
+      enclave::make_rpc_context(member_session, serialized_call);
+    std::vector<uint8_t> serialized_response =
+      frontend.process(member_rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+
+  SUBCASE("invalid caller")
+  {
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    std::vector<uint8_t> serialized_response =
+      frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
+  }
+}
+
 TEST_CASE("MinimalHandleFunction")
 {
   prepare_callers();
@@ -757,76 +814,6 @@ TEST_CASE("MinimalHandleFunction")
       CHECK(body_s == msg);
     }
   }
-}
-
-// callers
-
-TEST_CASE("User caller")
-{
-  prepare_callers();
-  auto simple_call = create_simple_request();
-  std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestUserFrontend frontend(*network.tables);
-
-  SUBCASE("valid caller")
-  {
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-    std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_OK);
-  }
-
-  SUBCASE("invalid caller")
-  {
-    auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
-    std::vector<uint8_t> serialized_response =
-      frontend.process(member_rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
-  }
-}
-
-TEST_CASE("Member caller")
-{
-  prepare_callers();
-  auto simple_call = create_simple_request();
-  std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, stub_node);
-
-  SUBCASE("valid caller")
-  {
-    auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
-    std::vector<uint8_t> serialized_response =
-      frontend.process(member_rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_OK);
-  }
-
-  SUBCASE("invalid caller")
-  {
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-    std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
-  }
-}
-
-TEST_CASE("No certs table")
-{
-  prepare_callers();
-
-  auto simple_call = create_simple_request();
-  std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestNoCertsFrontend frontend(*network.tables);
-
-  auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-  std::vector<uint8_t> serialized_response = frontend.process(rpc_ctx).value();
-  auto response = parse_response(serialized_response);
-  CHECK(response.status == HTTP_STATUS_OK);
 }
 
 TEST_CASE("Signed read requests can be executed on backup")
