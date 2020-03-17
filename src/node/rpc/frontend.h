@@ -218,50 +218,10 @@ namespace ccf
 
       Store::Tx tx;
 
-      // // Retrieve id of caller
-      std::optional<CallerId> caller_id;
-      // if (ctx->is_create_request)
-      // {
-      //   caller_id = INVALID_ID;
-      // }
-      // else
-      // {
-      //   caller_id = handlers.valid_caller(tx, ctx->session->caller_cert);
-      // }
-
-      // if (!caller_id.has_value())
-      // {
-      //   ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-      //   ctx->set_response_body(invalid_caller_error_message());
-      //   return ctx->serialise_response();
-      // }
-
-      // const auto signed_request = ctx->get_signed_request();
-      // if (signed_request.has_value())
-      // {
-      //   if (
-      //     !ctx->is_create_request &&
-      //     !verify_client_signature(
-      //       ctx->session->caller_cert,
-      //       caller_id.value(),
-      //       signed_request.value()))
-      //   {
-      //     set_response_unauthorized(ctx);
-      //     return ctx->serialise_response();
-      //   }
-
-      //   // Client signature is only recorded on the primary
-      //   if (
-      //     consensus == nullptr || consensus->is_primary() ||
-      //     ctx->is_create_request)
-      //   {
-      //     record_client_signature(
-      //       tx, caller_id.value(), signed_request.value());
-      //   }
-      // }
-
       if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
+        // TODO: Fix this
+        std::optional<CallerId> caller_id;
         auto rep = process_if_local_node_rpc(ctx, tx);
         if (rep.has_value())
         {
@@ -303,6 +263,9 @@ namespace ccf
       else
       {
         auto rep = process_command(ctx, tx);
+
+        // TODO: Fix this
+        std::optional<CallerId> caller_id;
 
         // If necessary, forward the RPC to the current primary
         if (!rep.has_value())

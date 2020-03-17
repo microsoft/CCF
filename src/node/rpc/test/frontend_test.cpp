@@ -62,8 +62,8 @@ public:
       "empty_function_no_auth",
       empty_function_no_auth,
       HandlerRegistry::Read,
-      false,
-      true);
+      false, // does not require signature
+      false); // does not require valid caller
   }
 };
 
@@ -358,7 +358,7 @@ void prepare_callers()
   GenesisGenerator g(network, tx);
   g.init_values();
   user_id = g.add_user(user_caller);
-  invalid_user_id = g.add_user(invalid_caller);
+  // invalid_user_id = g.add_user(invalid_caller);
   nos_id = g.add_user(nos_caller);
   member_id = g.add_member(member_caller, dummy_key_share);
   invalid_member_id = g.add_member(invalid_caller, dummy_key_share);
@@ -498,6 +498,7 @@ TEST_CASE("process with signatures")
       auto response = parse_response(serialized_response);
       REQUIRE(response.status == HTTP_STATUS_OK);
 
+      // Even though the RPC is signed, the client signature is not recorded
       auto signed_resp = get_signed_req(user_id);
       CHECK(!signed_resp.has_value());
     }
@@ -560,6 +561,71 @@ TEST_CASE("process with signatures")
     auto value = signed_resp.value();
     CHECK(value.req.empty());
     CHECK(value.sig == signed_req.sig);
+  }
+}
+
+TEST_CASE("process with caller")
+{
+  prepare_callers();
+  TestUserFrontend frontend(*network.tables);
+
+  SUBCASE("handler does not require valid caller")
+  {
+    const auto simple_call = create_simple_request("empty_function_no_auth");
+    const auto serialized_simple_call = simple_call.build_request();
+    auto authenticated_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto invalid_rpc_ctx =
+      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+
+    INFO("Valid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(authenticated_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+
+      // Even though the RPC does not require authenticated caller, an
+      // authenticated RPC succeeds
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Invalid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(invalid_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+  }
+
+  SUBCASE("handler requires valid caller")
+  {
+    const auto simple_call = create_simple_request("empty_function");
+    const auto serialized_simple_call = simple_call.build_request();
+    auto authenticated_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto invalid_rpc_ctx =
+      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+
+    INFO("Valid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(authenticated_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Invalid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(invalid_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(
+        error_msg.find("Could not find matching user certificate") !=
+        std::string::npos);
+    }
   }
 }
 
