@@ -38,7 +38,7 @@ namespace ccf
       nlohmann::json params_schema;
       nlohmann::json result_schema;
       bool require_client_signature = false;
-      bool disable_caller_auth = false;
+      bool caller_auth_disabled = false;
       bool execute_locally = false;
     };
 
@@ -73,7 +73,7 @@ namespace ccf
      * @param params_schema JSON schema for params object in requests
      * @param result_schema JSON schema for result object in responses
      * @param require_client_signature If true, client request must be signed
-     * @param disable_caller_auth If true, any caller can execute this handler
+     * @param caller_auth_disabled If true, any caller can execute this handler
      * @param execute_locally If true, request is executed without consensus
      * (PBFT only)
      */
@@ -84,17 +84,17 @@ namespace ccf
       const nlohmann::json& params_schema = nlohmann::json::object(),
       const nlohmann::json& result_schema = nlohmann::json::object(),
       bool require_client_signature = false,
-      bool disable_caller_auth = false,
+      bool caller_auth_disabled = false,
       bool execute_locally = false)
     {
-      if (disable_caller_auth && certs == nullptr)
+      if (caller_auth_disabled && certs == nullptr)
       {
         LOG_FAIL_FMT(
           "Failed to disable caller auth on {} handler as its registry does "
           "not have certificate table. Defaulting to not requiring valid "
           "caller.",
           method);
-        disable_caller_auth = false;
+        caller_auth_disabled = false;
       }
 
       handlers[method] = {f,
@@ -102,7 +102,7 @@ namespace ccf
                           params_schema,
                           result_schema,
                           require_client_signature,
-                          disable_caller_auth,
+                          caller_auth_disabled,
                           execute_locally};
     }
 
@@ -111,7 +111,7 @@ namespace ccf
       HandleFunction f,
       ReadWrite rw,
       bool require_client_signature,
-      bool disable_caller_auth = false)
+      bool caller_auth_disabled = false)
     {
       install(
         method,
@@ -120,7 +120,7 @@ namespace ccf
         nlohmann::json::object(),
         nlohmann::json::object(),
         require_client_signature,
-        disable_caller_auth);
+        caller_auth_disabled);
     }
 
     template <typename In, typename Out, typename F>
@@ -129,7 +129,7 @@ namespace ccf
       F&& f,
       ReadWrite rw,
       bool require_client_signature = false,
-      bool disable_caller_auth = false,
+      bool caller_auth_disabled = false,
       bool execute_locally = false)
     {
       auto params_schema = nlohmann::json::object();
@@ -151,7 +151,7 @@ namespace ccf
         params_schema,
         result_schema,
         require_client_signature,
-        disable_caller_auth,
+        caller_auth_disabled,
         execute_locally);
     }
 

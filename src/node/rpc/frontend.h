@@ -426,7 +426,7 @@ namespace ccf
 
       if (!caller_id.has_value())
       {
-        if (!handler->disable_caller_auth)
+        if (!handler->caller_auth_disabled)
         {
           ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx->set_response_body(invalid_caller_error_message());
@@ -434,7 +434,7 @@ namespace ccf
         }
         else
         {
-          // Even though the caller is unknown, proceed with an invalid caller
+          // Even though the caller is unknown, proceed with the invalid caller
           // id as the handler does not require a valid caller
           caller_id = INVALID_ID;
         }
