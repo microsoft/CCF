@@ -50,10 +50,8 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install(
-      "empty_function_signed",
-      empty_function_signed,
-      HandlerRegistry::Read,
-      true);
+      "empty_function_signed", empty_function_signed, HandlerRegistry::Read)
+      .set_require_client_signature(true);
   }
 };
 

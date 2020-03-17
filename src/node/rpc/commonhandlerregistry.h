@@ -237,32 +237,31 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
       };
 
-      install_with_auto_schema<GetCommit>(
-        GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read);
-      install_with_auto_schema<void, GetMetrics::Out>(
-        GeneralProcs::GET_METRICS,
-        json_adapter(get_metrics),
-        Read,
-        false, // does not require client signature
-        true); // executed locally
-      install_with_auto_schema<void, bool>(
-        GeneralProcs::MK_SIGN, json_adapter(make_signature), Write);
-      install_with_auto_schema<void, WhoAmI::Out>(
-        GeneralProcs::WHO_AM_I, json_adapter(who_am_i), Read);
-      install_with_auto_schema<WhoIs::In, WhoIs::Out>(
-        GeneralProcs::WHO_IS, json_adapter(who_is), Read);
-      install_with_auto_schema<void, GetPrimaryInfo::Out>(
-        GeneralProcs::GET_PRIMARY_INFO, json_adapter(get_primary_info), Read);
-      install_with_auto_schema<void, GetNetworkInfo::Out>(
-        GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read);
-      install_with_auto_schema<void, ListMethods::Out>(
-        GeneralProcs::LIST_METHODS, json_adapter(list_methods_fn), Read);
-      install_with_auto_schema<GetSchema>(
-        GeneralProcs::GET_SCHEMA, json_adapter(get_schema), Read);
-      install_with_auto_schema<GetReceipt>(
-        GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read);
-      install_with_auto_schema<VerifyReceipt>(
-        GeneralProcs::VERIFY_RECEIPT, json_adapter(verify_receipt), Read);
+      install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
+        .set_auto_schema<GetCommit>();
+      install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
+        .set_auto_schema<void, GetMetrics::Out>()
+        .set_execute_locally(true);
+      install(GeneralProcs::MK_SIGN, json_adapter(make_signature), Write)
+        .set_auto_schema<void, bool>();
+      install(GeneralProcs::WHO_AM_I, json_adapter(who_am_i), Read)
+        .set_auto_schema<void, WhoAmI::Out>();
+      install(GeneralProcs::WHO_IS, json_adapter(who_is), Read)
+        .set_auto_schema<WhoIs::In, WhoIs::Out>();
+      install(
+        GeneralProcs::GET_PRIMARY_INFO, json_adapter(get_primary_info), Read)
+        .set_auto_schema<void, GetPrimaryInfo::Out>();
+      install(
+        GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read)
+        .set_auto_schema<void, GetNetworkInfo::Out>();
+      install(GeneralProcs::LIST_METHODS, json_adapter(list_methods_fn), Read)
+        .set_auto_schema<void, ListMethods::Out>();
+      install(GeneralProcs::GET_SCHEMA, json_adapter(get_schema), Read)
+        .set_auto_schema<GetSchema>();
+      install(GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read)
+        .set_auto_schema<GetReceipt>();
+      install(GeneralProcs::VERIFY_RECEIPT, json_adapter(verify_receipt), Read)
+        .set_auto_schema<VerifyReceipt>();
     }
 
     void tick(std::chrono::milliseconds elapsed, size_t tx_count) override

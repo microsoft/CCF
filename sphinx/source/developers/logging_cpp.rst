@@ -61,8 +61,8 @@ Each function is installed as the handler for a specific RPC ``method``, optiona
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp
-    :start-after: SNIPPET: install_get
-    :lines: 1
+    :start-after: SNIPPET_START: install_get
+    :end-before: SNIPPET_END: install_get
     :dedent: 6
 
 These handlers use the simple signature provided by the ``handler_adapter`` wrapper function, which pre-parses a JSON params object from the HTTP request body.

@@ -475,7 +475,7 @@ namespace ccf
 
       if (!is_primary && consensus->type() == ConsensusType::RAFT)
       {
-        switch (handler->rw)
+        switch (handler->read_write)
         {
           case HandlerRegistry::Read:
           {

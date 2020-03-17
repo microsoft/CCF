@@ -57,9 +57,9 @@ namespace ccf
     // This is simply so apps can write install(...); rather than
     // handlers.install(...);
     template <typename... Ts>
-    void install(Ts&&... ts)
+    ccf::HandlerRegistry::Handler& install(Ts&&... ts)
     {
-      handlers.install(std::forward<Ts>(ts)...);
+      return handlers.install(std::forward<Ts>(ts)...);
     }
   };
 
