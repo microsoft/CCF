@@ -33,6 +33,7 @@ namespace ccf
 
     struct Handler
     {
+      std::string method;
       HandleFunction func;
       ReadWrite read_write = Write;
 
@@ -50,6 +51,36 @@ namespace ccf
       {
         result_schema = j;
         return *this;
+      }
+
+      template <typename In, typename Out>
+      Handler& set_auto_schema()
+      {
+        if constexpr (!std::is_same_v<In, void>)
+        {
+          params_schema = ds::json::build_schema<In>(method + "/params");
+        }
+        else
+        {
+          params_schema = nullptr;
+        }
+
+        if constexpr (!std::is_same_v<Out, void>)
+        {
+          result_schema = ds::json::build_schema<Out>(method + "/result");
+        }
+        else
+        {
+          result_schema = nullptr;
+        }
+
+        return *this;
+      }
+
+      template <typename T>
+      Handler& set_auto_schema()
+      {
+        return set_auto_schema<typename T::In, typename T::Out>();
       }
 
       // If true, client request must be signed
@@ -104,6 +135,7 @@ namespace ccf
       const std::string& method, HandleFunction f, ReadWrite read_write)
     {
       auto& handler = handlers[method];
+      handler.method = method;
       handler.func = f;
       handler.read_write = read_write;
       return handler;
@@ -113,19 +145,8 @@ namespace ccf
     Handler& install_with_auto_schema(
       const std::string& method, F&& f, ReadWrite read_write)
     {
-      auto& handler = install(method, std::forward<F>(f), read_write);
-
-      if constexpr (!std::is_same_v<In, void>)
-      {
-        handler.params_schema = ds::json::build_schema<In>(method + "/params");
-      }
-
-      if constexpr (!std::is_same_v<Out, void>)
-      {
-        handler.result_schema = ds::json::build_schema<Out>(method + "/result");
-      };
-
-      return handler;
+      return install(method, std::forward<F>(f), read_write)
+        .template set_auto_schema<In, Out>();
     }
 
     template <typename T, typename... Ts>
@@ -145,7 +166,7 @@ namespace ccf
      */
     Handler& set_default(HandleFunction f, ReadWrite read_write)
     {
-      default_handler = {f, read_write};
+      default_handler = {"", f, read_write};
       return default_handler.value();
     }
 
