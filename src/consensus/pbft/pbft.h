@@ -209,6 +209,8 @@ namespace pbft
         msg->data.type, msg->data.to, msg->data.data);
     }
 
+    uint32_t foobar = 0;
+
     int Send(Message* msg, IPrincipal& principal) override
     {
       NodeId to = principal.pid();
@@ -252,7 +254,7 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
+      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(++foobar);
       enclave::ThreadMessaging::thread_messaging.add_task<SendAuthenticatedMsg>(
         tid, std::move(tmsg));
 

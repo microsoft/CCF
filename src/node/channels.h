@@ -79,9 +79,10 @@ namespace ccf
       {
         // If the nonce received has already been processed, return
         LOG_FAIL_FMT(
-          "Invalid nonce, possible replay attack, received:{}, last_seen:{}",
+          "Invalid nonce, possible replay attack, received:{}, last_seen:{}, recv_nonce.tid:{}",
           recv_nonce.nonce,
-          local_nonce);
+          local_nonce,
+          recv_nonce.tid);
         return false;
       }
 
