@@ -886,7 +886,7 @@ namespace ccf
         return make_success(true);
       };
       install(MemberProcs::CREATE, json_adapter(create), Write)
-        .set_caller_auth_disabled(true);
+        .set_caller_auth(true);
     }
   };
 

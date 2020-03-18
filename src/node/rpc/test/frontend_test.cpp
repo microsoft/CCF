@@ -58,7 +58,7 @@ public:
     };
     install(
       "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Read)
-      .set_caller_auth_disabled(true);
+      .set_caller_auth(true);
   }
 };
 

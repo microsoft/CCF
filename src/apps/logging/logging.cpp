@@ -249,7 +249,7 @@ namespace ccfapp
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
       install(Procs::LOG_RECORD_ANONYMOUS_CALLER, log_record_anonymous, Write)
-        .set_caller_auth_disabled(true);
+        .set_caller_auth(true);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

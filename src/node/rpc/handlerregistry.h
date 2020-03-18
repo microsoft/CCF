@@ -96,7 +96,7 @@ namespace ccf
       // If true, caller does not need to be authenticated
       bool caller_auth_disabled = false;
 
-      Handler& set_caller_auth_disabled(bool v)
+      Handler& set_caller_auth(bool v)
       {
         if (v && registry->certs == nullptr)
         {
