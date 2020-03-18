@@ -6,8 +6,6 @@
 
 #include <doctest/doctest.h>
 
-enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-
 using namespace ccf;
 
 TEST_CASE("Client/Server key exchange")
