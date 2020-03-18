@@ -435,11 +435,12 @@ namespace ccf
       // handlers that do not require client signatures
       if (signed_request.has_value())
       {
-        // For forwarded requests (Raft only), skip verification as it is
+        // For forwarded requests (raft only), skip verification as it is
         // assumed that the verification was done by the forwarder node.
         if (
           (!ctx->is_create_request &&
-           (!(consensus->type() == ConsensusType::RAFT) ||
+           (!(consensus != nullptr &&
+              consensus->type() == ConsensusType::RAFT) ||
             !ctx->session->fwd.has_value())) &&
           !verify_client_signature(
             ctx->session->caller_cert, caller_id, signed_request.value()))
