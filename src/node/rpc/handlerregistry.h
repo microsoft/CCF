@@ -100,9 +100,9 @@ namespace ccf
       {
         if (v && registry->certs == nullptr)
         {
-          LOG_FAIL_FMT(
-            "Failed to disable caller auth on {} handler as its registry does "
-            "not have certificate table (no effect).",
+          LOG_INFO_FMT(
+            "Disabling caller auth on {} handler has no effect since its "
+            "registry does not have certificates table",
             method);
           return *this;
         }
