@@ -91,7 +91,7 @@ public:
       "get_caller", json_adapter(get_caller_function), HandlerRegistry::Read);
 
     auto failable_function =
-      [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         const auto it = params.find("error");
         if (it != params.end())
         {
