@@ -49,11 +49,10 @@ namespace pbft
     virtual kv::Version current_version() = 0;
     virtual kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp,
-      int primary,
-      kv::Consensus::View view,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
       ccf::Signatures& signatures) = 0;
-    virtual kv::Version commit_tx(ccf::Store::Tx& tx) = 0;
+    virtual kv::Version commit_tx(
+      ccf::Store::Tx& tx, CBuffer pp_sig, ccf::Signatures& signatures) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
 
@@ -81,8 +80,6 @@ namespace pbft
 
     kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp,
-      int primary,
-      kv::Consensus::View view,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
       ccf::Signatures& signatures)
     {
@@ -104,8 +101,7 @@ namespace pbft
                 {CBuffer{pp.digest_sig.data(), pp.digest_sig.size()}});
               // we only need the hash of the pre prepare as the pre-prepare
               // which contains the root of the merkle tree will be stored in
-              // the pbft_pre_prepares map along with all relevant information
-              // (view, seqno, etc)
+              // the pbft_pre_prepares map
               ccf::Signature sig_value(sig_hash);
               sig_view->put(0, sig_value);
               return tx.commit_reserved();
@@ -119,13 +115,21 @@ namespace pbft
       }
     }
 
-    kv::Version commit_tx(ccf::Store::Tx& tx)
+    kv::Version commit_tx(
+      ccf::Store::Tx& tx, CBuffer pp_sig, ccf::Signatures& signatures)
     {
       while (true)
       {
         auto p = x.lock();
         if (p)
         {
+          auto sig_view = tx.get_view(signatures);
+          crypto::Sha256Hash sig_hash({pp_sig});
+          // we only need the hash of the pre prepare as the pre-prepare
+          // which contains the root of the merkle tree will be stored in
+          // the pbft_pre_prepares map
+          ccf::Signature sig_value(sig_hash);
+          sig_view->put(0, sig_value);
           auto success = tx.commit();
           if (success == kv::CommitSuccess::OK)
           {

@@ -534,7 +534,6 @@ if(BUILD_TESTS)
   endif()
 
   foreach(CONSENSUS ${CONSENSUSES})
-    # Member client end to end tests
     add_e2e_test(
       NAME member_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py

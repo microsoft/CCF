@@ -296,7 +296,7 @@ TEST_CASE("Test Ledger Replay")
 
       pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
 
-      ledger_writer.write_pre_prepare(pp.get(), 0, 0);
+      ledger_writer.write_pre_prepare(pp.get());
     }
     // remove the requests that were not processed, only written to the ledger
     pbft::GlobalState::get_replica().big_reqs()->clear();

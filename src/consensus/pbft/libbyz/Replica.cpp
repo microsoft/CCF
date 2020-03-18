@@ -485,7 +485,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
 
-    last_te_version = ledger_writer->write_pre_prepare(tx);
+    last_te_version = ledger_writer->write_pre_prepare(tx, executable_pp.get());
 
     last_executed++;
 
@@ -851,8 +851,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
       if (self->ledger_writer)
       {
-        self->last_te_version = self->ledger_writer->write_pre_prepare(
-          pp, self->primary(), self->view());
+        self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
       }
       if (pbft::GlobalState::get_node().f() > 0)
       {
@@ -1022,8 +1021,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
         if (self->ledger_writer && !self->is_primary())
         {
-          self->last_te_version = self->ledger_writer->write_pre_prepare(
-            pp, self->primary(), self->view());
+          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
         }
 
         Prepare* p = new Prepare(
@@ -1961,8 +1959,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          last_te_version =
-            ledger_writer->write_pre_prepare(pp, primary(), view());
+          last_te_version = ledger_writer->write_pre_prepare(pp);
         }
       }
     }
@@ -1975,8 +1972,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          last_te_version =
-            ledger_writer->write_pre_prepare(pp, primary(), view());
+          last_te_version = ledger_writer->write_pre_prepare(pp);
         }
       }
 
@@ -2369,8 +2365,7 @@ void Replica::execute_committed(bool was_f_0)
               pp->seqno());
             return;
           }
-          last_te_version =
-            ledger_writer->write_pre_prepare(pp, primary(), view());
+          last_te_version = ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(
             executed_ok,
             "tentative execution while executing committed failed");

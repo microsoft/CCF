@@ -13,13 +13,13 @@ LedgerWriter::LedgerWriter(
   signatures(signatures_)
 {}
 
-kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
+kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx, Pre_prepare* pp)
 {
-  return store.commit_tx(tx);
+  return store.commit_tx(
+    tx, {pp->get_digest_sig().data(), pp->get_digest_sig().size()}, signatures);
 }
 
-kv::Version LedgerWriter::write_pre_prepare(
-  Pre_prepare* pp, int primary, View view)
+kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
   LOG_TRACE_FMT(
     "Writing pre prepare with seqno {}, num big reqs {}, view {}",
@@ -33,8 +33,6 @@ kv::Version LedgerWriter::write_pre_prepare(
      pp->get_digest_sig(),
      {(const uint8_t*)pp->contents(),
       (const uint8_t*)pp->contents() + pp->size()}},
-    view,
-    primary,
     pbft_pre_prepares_map,
     signatures);
 }

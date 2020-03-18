@@ -25,7 +25,7 @@ public:
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
     ccf::Signatures& signatures_);
   virtual ~LedgerWriter() = default;
-  kv::Version write_pre_prepare(Pre_prepare* pp, int primary, View view);
-  kv::Version write_pre_prepare(ccf::Store::Tx& tx);
+  kv::Version write_pre_prepare(Pre_prepare* pp);
+  kv::Version write_pre_prepare(ccf::Store::Tx& tx, Pre_prepare* pp);
   void write_view_change(View_change* vc);
 };
