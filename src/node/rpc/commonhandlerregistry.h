@@ -6,6 +6,7 @@
 #include "handlerregistry.h"
 #include "jsonhandler.h"
 #include "metrics.h"
+#include "verbrestrictions.h"
 
 namespace ccf
 {
@@ -83,8 +84,7 @@ namespace ccf
       };
 
       auto who_am_i =
-        [this](
-          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           if (certs == nullptr)
           {
             return make_error(
@@ -244,7 +244,8 @@ namespace ccf
         .set_execute_locally(true);
       install(GeneralProcs::MK_SIGN, json_adapter(make_signature), Write)
         .set_auto_schema<void, bool>();
-      install(GeneralProcs::WHO_AM_I, json_adapter(who_am_i), Read)
+      install(
+        GeneralProcs::WHO_AM_I, get_only_adapter(json_adapter(who_am_i)), Read)
         .set_auto_schema<void, WhoAmI::Out>();
       install(GeneralProcs::WHO_IS, json_adapter(who_is), Read)
         .set_auto_schema<WhoIs::In, WhoIs::Out>();
