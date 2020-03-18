@@ -22,6 +22,7 @@ namespace ccf
     uint8_t tid;
     uint64_t nonce : (sizeof(uint64_t) - sizeof(uint8_t)) * CHAR_BIT;
 
+    RecvNonce() : RecvNonce(0) {}
     RecvNonce(uint64_t nonce_, uint8_t tid_) : nonce(nonce_), tid(tid_) {}
     RecvNonce(const uint64_t header)
     {
@@ -80,7 +81,8 @@ namespace ccf
       {
         // If the nonce received has already been processed, return
         LOG_FAIL_FMT(
-          "Invalid nonce, possible replay attack, received:{}, last_seen:{}, recv_nonce.tid:{}",
+          "Invalid nonce, possible replay attack, received:{}, last_seen:{}, "
+          "recv_nonce.tid:{}",
           recv_nonce.nonce,
           local_nonce,
           recv_nonce.tid);
@@ -174,7 +176,6 @@ namespace ccf
       return true;
     }
 
-
     void tag(GcmHdr& header, CBuffer aad)
     {
       if (status != ESTABLISHED)
@@ -188,10 +189,10 @@ namespace ccf
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
     }
 
-    bool verify(const GcmHdr& header, CBuffer aad, bool should_verify_nonce = true)
+    bool verify(
+      const GcmHdr& header, CBuffer aad, bool should_verify_nonce = true)
     {
       return verify_or_decrypt(header, aad, nullb, {}, should_verify_nonce);
-
     }
 
     void encrypt(GcmHdr& header, CBuffer aad, CBuffer plain, Buffer cipher)
@@ -209,10 +210,7 @@ namespace ccf
     }
 
     bool decrypt(
-      const GcmHdr& header,
-      CBuffer aad,
-      CBuffer cipher,
-      Buffer plain)
+      const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
     {
       return verify_or_decrypt(header, aad, cipher, plain);
     }
