@@ -5,6 +5,7 @@
 #include "consensus/pbft/pbftpreprepares.h"
 #include "ds/ringbuffer_types.h"
 #include "kv/kvtypes.h"
+#include "node/signatures.h"
 
 namespace pbft
 {
@@ -48,7 +49,10 @@ namespace pbft
     virtual kv::Version current_version() = 0;
     virtual kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp,
-      pbft::PrePreparesMap& pbft_pre_prepares_map) = 0;
+      int primary,
+      kv::Consensus::View view,
+      pbft::PrePreparesMap& pbft_pre_prepares_map,
+      ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(ccf::Store::Tx& tx) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
@@ -76,7 +80,11 @@ namespace pbft
     }
 
     kv::Version commit_pre_prepare(
-      const pbft::PrePrepare& pp, pbft::PrePreparesMap& pbft_pre_prepares_map)
+      const pbft::PrePrepare& pp,
+      int primary,
+      kv::Consensus::View view,
+      pbft::PrePreparesMap& pbft_pre_prepares_map,
+      ccf::Signatures& signatures)
     {
       while (true)
       {
@@ -91,6 +99,15 @@ namespace pbft
               ccf::Store::Tx tx(version);
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
+              auto sig_view = tx.get_view(signatures);
+              crypto::Sha256Hash sig_hash(
+                {CBuffer{pp.digest_sig.data(), pp.digest_sig.size()}});
+              // we only need the hash of the pre prepare as the pre-prepare
+              // which contains the root of the merkle tree will be stored in
+              // the pbft_pre_prepares map along with all relevant information
+              // (view, seqno, etc)
+              ccf::Signature sig_value(sig_hash);
+              sig_view->put(0, sig_value);
               return tx.commit_reserved();
             },
             false);

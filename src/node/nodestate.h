@@ -1651,6 +1651,7 @@ namespace ccf
         *network.tables->get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS),
         *network.tables->get<pbft::PrePreparesMap>(
           pbft::Tables::PBFT_PRE_PREPARES),
+        network.signatures,
         node_sign_kp->private_key_pem().str(),
         node_cert,
         consensus_config);

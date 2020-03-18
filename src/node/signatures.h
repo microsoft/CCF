@@ -32,6 +32,8 @@ namespace ccf
       commit(0)
     {}
 
+    Signature(crypto::Sha256Hash root_) : root(root_) {}
+
     Signature(
       NodeId node_,
       ObjectId index_,

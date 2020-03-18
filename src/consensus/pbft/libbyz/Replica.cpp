@@ -55,6 +55,7 @@ Replica::Replica(
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  ccf::Signatures& signatures,
   pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
@@ -165,7 +166,8 @@ Replica::Replica(
 
   exec_command = nullptr;
 
-  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
+  ledger_writer =
+    std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map, signatures);
   encryptor = store.get_encryptor();
 }
 
@@ -849,7 +851,8 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
 
       if (self->ledger_writer)
       {
-        self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+        self->last_te_version = self->ledger_writer->write_pre_prepare(
+          pp, self->primary(), self->view());
       }
       if (pbft::GlobalState::get_node().f() > 0)
       {
@@ -1019,7 +1022,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
         if (self->ledger_writer && !self->is_primary())
         {
-          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+          self->last_te_version = self->ledger_writer->write_pre_prepare(
+            pp, self->primary(), self->view());
         }
 
         Prepare* p = new Prepare(
@@ -1957,7 +1961,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          last_te_version = ledger_writer->write_pre_prepare(pp);
+          last_te_version =
+            ledger_writer->write_pre_prepare(pp, primary(), view());
         }
       }
     }
@@ -1970,7 +1975,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          last_te_version = ledger_writer->write_pre_prepare(pp);
+          last_te_version =
+            ledger_writer->write_pre_prepare(pp, primary(), view());
         }
       }
 
@@ -2363,7 +2369,8 @@ void Replica::execute_committed(bool was_f_0)
               pp->seqno());
             return;
           }
-          last_te_version = ledger_writer->write_pre_prepare(pp);
+          last_te_version =
+            ledger_writer->write_pre_prepare(pp, primary(), view());
           PBFT_ASSERT(
             executed_ok,
             "tentative execution while executing committed failed");

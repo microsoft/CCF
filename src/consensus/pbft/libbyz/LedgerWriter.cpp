@@ -5,9 +5,12 @@
 #include "Request.h"
 
 LedgerWriter::LedgerWriter(
-  pbft::PbftStore& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_) :
+  pbft::PbftStore& store_,
+  pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  ccf::Signatures& signatures_) :
   store(store_),
-  pbft_pre_prepares_map(pbft_pre_prepares_map_)
+  pbft_pre_prepares_map(pbft_pre_prepares_map_),
+  signatures(signatures_)
 {}
 
 kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
@@ -15,7 +18,8 @@ kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
   return store.commit_tx(tx);
 }
 
-kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
+kv::Version LedgerWriter::write_pre_prepare(
+  Pre_prepare* pp, int primary, View view)
 {
   LOG_TRACE_FMT(
     "Writing pre prepare with seqno {}, num big reqs {}, view {}",
@@ -29,7 +33,10 @@ kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
      pp->get_digest_sig(),
      {(const uint8_t*)pp->contents(),
       (const uint8_t*)pp->contents() + pp->size()}},
-    pbft_pre_prepares_map);
+    view,
+    primary,
+    pbft_pre_prepares_map,
+    signatures);
 }
 
 void LedgerWriter::write_view_change(View_change* vc)

@@ -18,7 +18,7 @@ namespace crypto
     Sha256Hash();
     Sha256Hash(std::initializer_list<CBuffer> il);
 
-    std::array<uint8_t, SIZE> h;
+    std::array<uint8_t, SIZE> h = {};
 
     static void mbedtls_sha256(std::initializer_list<CBuffer> il, uint8_t* h);
     static void evercrypt_sha256(std::initializer_list<CBuffer> il, uint8_t* h);
