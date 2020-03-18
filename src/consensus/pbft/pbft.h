@@ -203,7 +203,6 @@ namespace pbft
       std::unique_ptr<enclave::Tmsg<SendAuthenticatedMsg>> msg)
     {
       std::vector<uint8_t> serialized_msg;
-      //PbftHeader hdr = {PbftMsgType::pbft_message, id};
 
       auto space = (sizeof(PbftHeader) + msg->data.msg_buffer->msg->size);
       serialized_msg.resize(space);
@@ -249,15 +248,8 @@ namespace pbft
       }
 
       PbftHeader hdr = {PbftMsgType::pbft_message, id};
-      //auto space = (sizeof(PbftHeader) + msg->size());
-      //serialized_msg.resize(space);
-      //auto data_ = serialized_msg.data();
-      //serialized::write<PbftHeader>(data_, space, hdr);
-      //serialize_message(data_, space, msg);
-
       auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedMsg>>(
         &send_authenticated_msg_cb,
-        //std::move(serialized_msg),
         msg->get_msg_buffer(),
         hdr,
         this,
