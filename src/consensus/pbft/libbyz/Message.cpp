@@ -75,9 +75,7 @@ Message::Message(Message_rep* cont)
   next = nullptr;
 }
 
-Message::~Message()
-{
-}
+Message::~Message() {}
 
 void Message::trim()
 {
@@ -98,7 +96,8 @@ void Message::set_size(int size)
              << ", aligned_size:" << ALIGNED_SIZE(size)
              << ", max_size:" << msg->max_size << std::endl;
   }
-  PBFT_ASSERT(msg->max_size < 0 || ALIGNED_SIZE(size) <= msg->max_size, "Invalid state");
+  PBFT_ASSERT(
+    msg->max_size < 0 || ALIGNED_SIZE(size) <= msg->max_size, "Invalid state");
   int aligned = ALIGNED_SIZE(size);
   for (int i = size; i < aligned; i++)
   {

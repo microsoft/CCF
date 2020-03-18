@@ -68,13 +68,13 @@ namespace pbft
   class PbftEnclaveNetwork : public INetwork
   {
   private:
-    void serialize_message(uint8_t*& output_data, size_t& output_size, const uint8_t* input_data, size_t input_size)
+    void serialize_message(
+      uint8_t*& output_data,
+      size_t& output_size,
+      const uint8_t* input_data,
+      size_t input_size)
     {
-      serialized::write(
-        output_data,
-        output_size,
-        input_data,
-        input_size);
+      serialized::write(output_data, output_size, input_data, input_size);
     }
 
     void send_append_entries(NodeId to, Index start_idx)
@@ -189,7 +189,11 @@ namespace pbft
         PbftEnclaveNetwork* self_,
         ccf::NodeMsgType type_,
         pbft::NodeId to_) :
-        msg_buffer(msg_buffer_), self(self_), type(type_), to(to_), hdr(hdr_)
+        msg_buffer(msg_buffer_),
+        self(self_),
+        type(type_),
+        to(to_),
+        hdr(hdr_)
       {}
 
       std::shared_ptr<Message::MsgBufCounter> msg_buffer;

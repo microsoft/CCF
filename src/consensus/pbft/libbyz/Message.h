@@ -121,17 +121,18 @@ public:
 
   class MsgBufCounter
   {
-    public:
-      MsgBufCounter(
-        Message_rep* msg_, int max_size_, Log_allocator* allocator_) :
-        msg(msg_), max_size(max_size_), allocator(allocator_)
-      {}
-      ~MsgBufCounter()
+  public:
+    MsgBufCounter(Message_rep* msg_, int max_size_, Log_allocator* allocator_) :
+      msg(msg_),
+      max_size(max_size_),
+      allocator(allocator_)
+    {}
+    ~MsgBufCounter()
+    {
+      if (max_size > 0 && msg != nullptr)
       {
-        if (max_size > 0 && msg != nullptr)
-        {
-          allocator->free((char*)msg, max_size);
-        }
+        allocator->free((char*)msg, max_size);
+      }
     }
 
     Message_rep* msg; // Pointer to the contents of the message.
@@ -146,8 +147,8 @@ public:
     return msg;
   }
 
-
-  protected : Message(int t, unsigned sz);
+protected:
+  Message(int t, unsigned sz);
   // Effects: Creates a message with tag "t" that can hold up to "sz"
   // bytes. Useful to create messages to send to the network.
 
@@ -180,6 +181,7 @@ public:
   int auth_len;
   int auth_dst_offset;
   int auth_src_offset;
+
 public:
   Message* next;
 };
@@ -201,7 +203,9 @@ inline bool Message::has_tag(int t, int sz) const
   if (msg->max_size >= 0 && msg->msg->size > msg->max_size)
     return false;
 
-  if (!msg || msg->msg->tag != t || msg->msg->size < sz || !ALIGNED(msg->msg->size))
+  if (
+    !msg || msg->msg->tag != t || msg->msg->size < sz ||
+    !ALIGNED(msg->msg->size))
     return false;
   return true;
 }
