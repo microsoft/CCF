@@ -194,6 +194,11 @@ namespace enclave
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
     }
 
+    bool is_main_thread()
+    {
+      return thread_ids[std::this_thread::get_id()] == main_thread;
+    }
+
     template <typename RetType, typename InputType>
     static std::unique_ptr<Tmsg<RetType>> ConvertMessage(
       std::unique_ptr<Tmsg<InputType>> msg,
