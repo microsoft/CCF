@@ -76,7 +76,7 @@ def test_cert_prefix(network, args):
 @reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
 def test_anonymous_caller(network, args):
     if args.package == "liblogging":
-        primary, _ = network.find_primary_and_any_backup()
+        other, primary = network.find_primary_and_any_backup()
 
         # Create a new user but do not record its identity in CCF
         network.create_users([4], args.default_curve)

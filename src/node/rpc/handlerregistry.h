@@ -210,23 +210,28 @@ namespace ccf
 
     virtual void tick(std::chrono::milliseconds elapsed, size_t tx_count) {}
 
-    virtual std::optional<CallerId> get_caller_id(
+    bool has_certs()
+    {
+      return certs != nullptr;
+    }
+
+    virtual CallerId get_caller_id(
       Store::Tx& tx, const std::vector<uint8_t>& caller)
     {
-      if (certs == nullptr)
+      if (certs == nullptr || caller.empty())
       {
         return INVALID_ID;
-      }
-
-      if (caller.empty())
-      {
-        return {};
       }
 
       auto certs_view = tx.get_view(*certs);
       auto caller_id = certs_view->get(caller);
 
-      return caller_id;
+      if (!caller_id.has_value())
+      {
+        return INVALID_ID;
+      }
+
+      return caller_id.value();
     }
 
     void set_consensus(kv::Consensus* c)

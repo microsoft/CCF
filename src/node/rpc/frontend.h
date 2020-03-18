@@ -222,12 +222,12 @@ namespace ccf
 
       if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
-        if (!caller_id.has_value())
-        {
-          ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-          ctx->set_response_body(invalid_caller_error_message());
-          return ctx->serialise_response();
-        }
+        // if (!caller_id.has_value())
+        // {
+        //   ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+        //   ctx->set_response_body(invalid_caller_error_message());
+        //   return ctx->serialise_response();
+        // }
 
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
@@ -237,14 +237,13 @@ namespace ccf
         kv::TxHistory::RequestID reqid;
 
         update_history();
-        reqid = {caller_id.value(),
-                 ctx->session->client_session_id,
-                 ctx->get_request_index()};
+        reqid = {
+          caller_id, ctx->session->client_session_id, ctx->get_request_index()};
         if (history)
         {
           if (!history->add_request(
                 reqid,
-                caller_id.value(),
+                caller_id,
                 ctx->session->caller_cert,
                 ctx->get_serialised_request()))
           {
@@ -281,7 +280,7 @@ namespace ccf
             if (
               primary_id != NoNode && cmd_forwarder &&
               cmd_forwarder->forward_command(
-                ctx, primary_id, caller_id.value(), get_cert_to_forward(ctx)))
+                ctx, primary_id, caller_id, get_cert_to_forward(ctx)))
             {
               // Indicate that the RPC has been forwarded to primary
               LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
@@ -370,13 +369,7 @@ namespace ccf
 
       Store::Tx tx;
 
-      if (!lookup_forwarded_caller_cert(ctx, tx))
-      {
-        ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-        ctx->set_response_body(invalid_caller_error_message());
-        return ctx->serialise_response();
-      }
-
+      // TODO: This should go
       // Store client signature. It is assumed that the forwarder node has
       // already verified the client signature.
       const auto signed_request = ctx->get_signed_request();
@@ -400,7 +393,7 @@ namespace ccf
     std::optional<nlohmann::json> process_if_local_node_rpc(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      std::optional<CallerId> caller_id)
+      CallerId caller_id)
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -415,7 +408,7 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      std::optional<CallerId> caller_id)
+      CallerId caller_id)
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -429,19 +422,19 @@ namespace ccf
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      if (!caller_id.has_value())
+      if (!handler->caller_auth_disabled && handlers.has_certs())
       {
-        if (!handler->caller_auth_disabled)
+        // Only if handler requires auth.
+        // If a request is forwarded, check that the caller is known. Otherwise,
+        // only check that the caller id is valid.
+        if (
+          (ctx->session->fwd.has_value() &&
+           !lookup_forwarded_caller_cert(ctx, tx)) ||
+          caller_id == INVALID_ID)
         {
           ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx->set_response_body(invalid_caller_error_message());
           return ctx->serialise_response();
-        }
-        else
-        {
-          // Even though the caller is unknown, proceed with the invalid caller
-          // id as the handler does not require a valid caller
-          caller_id = INVALID_ID;
         }
       }
 
@@ -453,16 +446,14 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      // By default, signed requests are verified and recorded, even on handlers
-      // that do not require client signatures
+      // By default, signed requests are verified and recorded, even on
+      // handlers that do not require client signatures
       if (signed_request.has_value())
       {
         if (
           !ctx->is_create_request &&
           !verify_client_signature(
-            ctx->session->caller_cert,
-            caller_id.value(),
-            signed_request.value()))
+            ctx->session->caller_cert, caller_id, signed_request.value()))
         {
           set_response_unauthorized(ctx);
           return ctx->serialise_response();
@@ -470,8 +461,7 @@ namespace ccf
 
         if (is_primary)
         {
-          record_client_signature(
-            tx, caller_id.value(), signed_request.value());
+          record_client_signature(tx, caller_id, signed_request.value());
         }
       }
 
@@ -483,7 +473,7 @@ namespace ccf
         {
           case HandlerRegistry::Read:
           {
-            if (ctx->session->is_forwarded)
+            if (ctx->session->forward)
             {
               return forward_or_redirect_json(ctx);
             }
@@ -492,7 +482,7 @@ namespace ccf
 
           case HandlerRegistry::Write:
           {
-            ctx->session->is_forwarded = true;
+            ctx->session->forward = true;
             return forward_or_redirect_json(ctx);
           }
 
@@ -502,10 +492,10 @@ namespace ccf
               ctx->get_request_header(http::headers::CCF_READ_ONLY);
             if (!read_only_it.has_value() || (read_only_it.value() != "true"))
             {
-              ctx->session->is_forwarded = true;
+              ctx->session->forward = true;
               return forward_or_redirect_json(ctx);
             }
-            else if (ctx->session->is_forwarded)
+            else if (ctx->session->forward)
             {
               return forward_or_redirect_json(ctx);
             }
@@ -515,7 +505,7 @@ namespace ccf
       }
 
       auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller_id.value()};
+      auto args = RequestArgs{ctx, tx, caller_id};
 
       tx_count++;
 

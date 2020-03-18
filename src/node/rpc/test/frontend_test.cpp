@@ -860,7 +860,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  backup_ctx->session->is_forwarded = false;
+  backup_ctx->session->forward = false;
 
   {
     INFO("Read command is not forwarded to primary");
@@ -971,7 +971,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   // On a session that was previously forwarded, and is now primary,
   // commands should still succeed
-  ctx->session->is_forwarded = true;
+  ctx->session->forward = true;
   {
     INFO("Write command primary on a forwarded session succeeds");
     REQUIRE(channel_stub->is_empty());

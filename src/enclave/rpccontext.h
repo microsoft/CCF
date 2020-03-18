@@ -16,7 +16,7 @@ namespace enclave
   {
     size_t client_session_id = InvalidSessionId;
     std::vector<uint8_t> caller_cert = {};
-    bool is_forwarded = false;
+    bool forward = false;
 
     //
     // Only set in the case of a forwarded RPC
