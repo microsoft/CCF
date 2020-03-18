@@ -360,6 +360,8 @@ namespace ccf
           "Processing forwarded command with unitialised forwarded context");
       }
 
+      update_consensus();
+
       Store::Tx tx;
 
       auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
