@@ -196,41 +196,28 @@ namespace ccfapp
       };
       // SNIPPET_END: log_record_prefix_cert
 
-      auto log_record_anonymous = [this](RequestArgs& args) {
-        const auto& cert_data = args.rpc_ctx->session->caller_cert;
+      auto log_record_anonymous =
+        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+          if (caller_id != INVALID_ID)
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              "Only anonymous callers can record anonymous messages");
+          }
 
-        const auto body_j =
-          nlohmann::json::parse(args.rpc_ctx->get_request_body());
+          const auto in = params.get<LoggingRecord::In>();
 
-        if (args.caller_id != INVALID_ID)
-        {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(
-            "Only anonymous callers can record anonymous messages");
-          return;
-        }
+          if (in.msg.empty())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+          }
 
-        const auto in = body_j.get<LoggingRecord::In>();
-        if (in.msg.empty())
-        {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body("Cannot record an empty log message");
-          return;
-        }
-
-        const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto view = args.tx.get_view(records);
-        view->put(in.id, log_line);
-
-        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        args.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        args.rpc_ctx->set_response_body(nlohmann::json(true).dump());
-      };
+          const auto log_line = fmt::format("Anonymous: {}", in.msg);
+          auto view = tx.get_view(records);
+          view->put(in.id, log_line);
+          return make_success(true);
+        };
 
       install(Procs::LOG_RECORD, json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
@@ -248,7 +235,11 @@ namespace ccfapp
         .set_result_schema(get_public_result_schema);
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
-      install(Procs::LOG_RECORD_ANONYMOUS_CALLER, log_record_anonymous, Write)
+      install(
+        Procs::LOG_RECORD_ANONYMOUS_CALLER,
+        json_adapter(log_record_anonymous),
+        Write)
+        .set_auto_schema<LoggingRecord::In, bool>()
         .set_caller_auth(true);
 
       nwt.signatures.set_global_hook([this, &notifier](

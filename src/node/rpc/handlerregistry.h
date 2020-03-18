@@ -98,7 +98,7 @@ namespace ccf
 
       Handler& set_caller_auth(bool v)
       {
-        if (v && registry->certs == nullptr)
+        if (v && registry != nullptr && !registry->has_certs())
         {
           LOG_INFO_FMT(
             "Disabling caller auth on {} handler has no effect since its "
