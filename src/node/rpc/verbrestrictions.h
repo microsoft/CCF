@@ -37,11 +37,11 @@ namespace ccf
 
   static HandleFunction get_only_adapter(const HandleFunction& f)
   {
-      return restrict_verbs_adapter(f, {HTTP_GET});
+    return restrict_verbs_adapter(f, {HTTP_GET});
   }
 
   static HandleFunction post_only_adapter(const HandleFunction& f)
   {
-      return restrict_verbs_adapter(f, {HTTP_POST});
+    return restrict_verbs_adapter(f, {HTTP_POST});
   }
 }
