@@ -68,13 +68,13 @@ namespace pbft
   class PbftEnclaveNetwork : public INetwork
   {
   private:
-    void serialize_message(uint8_t*& data, size_t& size, const uint8_t* d, size_t s)
+    void serialize_message(uint8_t*& output_data, size_t& output_size, const uint8_t* input_data, size_t input_size)
     {
       serialized::write(
-        data,
-        size,
-        d,
-        s);
+        output_data,
+        output_size,
+        input_data,
+        input_size);
     }
 
     void send_append_entries(NodeId to, Index start_idx)

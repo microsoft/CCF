@@ -139,7 +139,6 @@ public:
     int max_size; // Maximum number of bytes that can be stored in "msg"
                   // or "-1" if this instance is not responsible for
                   // deallocating the storage in msg.
-    // Invariant: max_size <= 0 || 0 < msg->size <= max_size
   };
 
   std::shared_ptr<MsgBufCounter> get_msg_buffer()
