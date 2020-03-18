@@ -414,8 +414,7 @@ int main(int argc, char** argv)
     pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
   auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
     pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
-  auto& signatures = store->create<ccf::Signatures>(
-    ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+  auto& signatures = store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
   auto replica_store =
     std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(store);
 

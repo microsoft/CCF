@@ -211,8 +211,8 @@ TEST_CASE("Test Ledger Replay")
     write_store->set_consensus(write_consensus);
     auto& write_pbft_requests_map = write_store->create<pbft::RequestsMap>(
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
-    auto& signatures = write_store->create<ccf::Signatures>(
-      ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+    auto& signatures =
+      write_store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto& write_pbft_pre_prepares_map =
       write_store->create<pbft::PrePreparesMap>(
         pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
@@ -259,8 +259,8 @@ TEST_CASE("Test Ledger Replay")
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
     auto& corr_pp_map = corrupt_store->create<pbft::PrePreparesMap>(
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
-    auto& signatures = corrupt_store->create<ccf::Signatures>(
-      ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+    auto& signatures =
+      corrupt_store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto corr_pbft_store =
       std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
         corrupt_store);
@@ -314,8 +314,7 @@ TEST_CASE("Test Ledger Replay")
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
     auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
-    auto& signatures = store->create<ccf::Signatures>(
-      ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
+    auto& signatures = store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto& derived_map = store->create<std::string, std::string>(
       "derived_map", kv::SecurityDomain::PUBLIC);
 
