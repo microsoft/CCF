@@ -19,6 +19,7 @@
 #include "host/ledger.h"
 #include "kv/kvtypes.h"
 #include "node/nodetypes.h"
+#include "libbyz/stacktrace_utils.h"
 
 #include <list>
 #include <memory>
@@ -582,7 +583,7 @@ namespace pbft
       {
         auto r = msg->data.self->channels
                    ->template recv_authenticated_with_load<PbftHeader>(
-                     msg->data.d.data(), msg->data.d.size());
+                     msg->data.d.data(), msg->data.d.size(), false);
         msg->data.d.data() = r.p;
         msg->data.d.size() = r.n;
         msg->data.result = true;
@@ -619,8 +620,19 @@ namespace pbft
           auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
             &recv_authenticated_msg_cb, std::move(d), this);
 
-          uint16_t tid =
-            enclave::ThreadMessaging::get_execution_thread(hdr.from_node);
+          ccf::RecvNonce recv_nonce(0);
+
+          bool result = channels->template GetRecvNonce<PbftHeader>(
+            tmsg->data.d.data(), tmsg->data.d.size(), recv_nonce);
+          if (!result)
+          {
+            break;
+          }
+
+          int tid = recv_nonce.tid;
+          if (tid > enclave::ThreadMessaging::thread_count){
+            break;
+          }
           enclave::ThreadMessaging::thread_messaging
             .add_task<RecvAuthenticatedMsg>(tid, std::move(tmsg));
 

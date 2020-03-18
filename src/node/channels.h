@@ -64,7 +64,8 @@ namespace ccf
       const GcmHdr& header,
       CBuffer aad,
       CBuffer cipher = nullb,
-      Buffer plain = {})
+      Buffer plain = {},
+      bool should_verify_nonce = true)
     {
       if (status != ESTABLISHED)
       {
@@ -75,7 +76,7 @@ namespace ccf
       auto tid = recv_nonce.tid;
       auto local_nonce = local_recv_nonce[tid].load();
 
-      if (recv_nonce.nonce <= local_nonce)
+      if (should_verify_nonce && recv_nonce.nonce <= local_nonce)
       {
         // If the nonce received has already been processed, return
         LOG_FAIL_FMT(
@@ -88,7 +89,7 @@ namespace ccf
 
       auto ret =
         key->decrypt(header.get_iv(), header.tag, cipher, aad, plain.p);
-      if (ret)
+      if (should_verify_nonce && ret)
       {
         // Set local recv nonce to received nonce only if verification is
         // successful
@@ -150,6 +151,30 @@ namespace ccf
       ctx.free_ctx();
     }
 
+    bool GetAndUpdateNonce(const GcmHdr& header, RecvNonce& nonce)
+    {
+      RecvNonce recv_nonce(header.get_iv_int());
+      nonce = recv_nonce;
+      auto tid = recv_nonce.tid;
+      auto local_nonce = local_recv_nonce[tid].load();
+
+      if (recv_nonce.nonce <= local_nonce)
+      {
+        // If the nonce received has already been processed, return
+        LOG_FAIL_FMT(
+          "Invalid nonce, possible replay attack, received:{}, last_seen:{}, "
+          "recv_nonce.tid:{}",
+          recv_nonce.nonce,
+          local_nonce,
+          recv_nonce.tid);
+        return false;
+      }
+
+      local_recv_nonce[tid].exchange(recv_nonce.nonce);
+      return true;
+    }
+
+
     void tag(GcmHdr& header, CBuffer aad)
     {
       if (status != ESTABLISHED)
@@ -163,9 +188,10 @@ namespace ccf
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
     }
 
-    bool verify(const GcmHdr& header, CBuffer aad)
+    bool verify(const GcmHdr& header, CBuffer aad, bool should_verify_nonce = true)
     {
-      return verify_or_decrypt(header, aad);
+      return verify_or_decrypt(header, aad, nullb, {}, should_verify_nonce);
+
     }
 
     void encrypt(GcmHdr& header, CBuffer aad, CBuffer plain, Buffer cipher)
@@ -183,7 +209,10 @@ namespace ccf
     }
 
     bool decrypt(
-      const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
+      const GcmHdr& header,
+      CBuffer aad,
+      CBuffer cipher,
+      Buffer plain)
     {
       return verify_or_decrypt(header, aad, cipher, plain);
     }
