@@ -579,7 +579,7 @@ TEST_CASE("process with caller")
     auto anonymous_rpc_ctx =
       enclave::make_rpc_context(anonymous_session, serialized_simple_call);
 
-    INFO("Valid authentication"); // (2)
+    INFO("Valid authentication");
     {
       const auto serialized_response =
         frontend.process(authenticated_rpc_ctx).value();
@@ -590,7 +590,7 @@ TEST_CASE("process with caller")
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
 
-    INFO("Invalid authentication"); // (4)
+    INFO("Invalid authentication");
     {
       const auto serialized_response =
         frontend.process(invalid_rpc_ctx).value();
@@ -598,7 +598,7 @@ TEST_CASE("process with caller")
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
 
-    INFO("Anonymous caller"); // (10)
+    INFO("Anonymous caller");
     {
       const auto serialized_response =
         frontend.process(anonymous_rpc_ctx).value();
@@ -618,7 +618,7 @@ TEST_CASE("process with caller")
     auto anonymous_rpc_ctx =
       enclave::make_rpc_context(anonymous_session, serialized_simple_call);
 
-    INFO("Valid authentication"); // (1)
+    INFO("Valid authentication");
     {
       const auto serialized_response =
         frontend.process(authenticated_rpc_ctx).value();
@@ -626,7 +626,7 @@ TEST_CASE("process with caller")
       REQUIRE(response.status == HTTP_STATUS_OK);
     }
 
-    INFO("Invalid authentication"); // (3)
+    INFO("Invalid authentication");
     {
       const auto serialized_response =
         frontend.process(invalid_rpc_ctx).value();
@@ -638,7 +638,7 @@ TEST_CASE("process with caller")
         std::string::npos);
     }
 
-    INFO("Anonymous caller"); // (9)
+    INFO("Anonymous caller");
     {
       const auto serialized_response =
         frontend.process(anonymous_rpc_ctx).value();
@@ -659,7 +659,7 @@ TEST_CASE("No certs table")
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
 
-  INFO("Authenticated caller"); // (6)
+  INFO("Authenticated caller");
   {
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
@@ -668,7 +668,7 @@ TEST_CASE("No certs table")
     CHECK(response.status == HTTP_STATUS_OK);
   }
 
-  INFO("Anonymous caller"); // (12)
+  INFO("Anonymous caller");
   {
     auto rpc_ctx =
       enclave::make_rpc_context(anonymous_session, serialized_call);

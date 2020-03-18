@@ -222,13 +222,6 @@ namespace ccf
 
       if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
-        // if (!caller_id.has_value())
-        // {
-        //   ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-        //   ctx->set_response_body(invalid_caller_error_message());
-        //   return ctx->serialise_response();
-        // }
-
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
         {
@@ -369,16 +362,6 @@ namespace ccf
 
       Store::Tx tx;
 
-      // TODO: This should go
-      // Store client signature. It is assumed that the forwarder node has
-      // already verified the client signature.
-      const auto signed_request = ctx->get_signed_request();
-      if (signed_request.has_value())
-      {
-        record_client_signature(
-          tx, ctx->session->fwd->caller_id, signed_request.value());
-      }
-
       auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
       if (!rep.has_value())
       {
@@ -419,9 +402,6 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
-        ctx->is_create_request;
-
       if (!handler->caller_auth_disabled && handlers.has_certs())
       {
         // Only if handler requires auth.
@@ -438,6 +418,9 @@ namespace ccf
         }
       }
 
+      bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
+        ctx->is_create_request;
+
       const auto signed_request = ctx->get_signed_request();
       if (handler->require_client_signature && !signed_request.has_value())
       {
@@ -450,8 +433,10 @@ namespace ccf
       // handlers that do not require client signatures
       if (signed_request.has_value())
       {
+        // For forwarded requests, skip verification as it is assumed that the
+        // verification was done by the forwarder node.
         if (
-          !ctx->is_create_request &&
+          (!ctx->is_create_request && !ctx->session->fwd.has_value()) &&
           !verify_client_signature(
             ctx->session->caller_cert, caller_id, signed_request.value()))
         {

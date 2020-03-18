@@ -76,10 +76,10 @@ def test_cert_prefix(network, args):
 @reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
 def test_anonymous_caller(network, args):
     if args.package == "liblogging":
-        other, primary = network.find_primary_and_any_backup()
+        primary, _ = network.find_primary()
 
-        # Create a new user but do not record its identity in CCF
-        network.create_users([4], args.default_curve)
+        # Create a new user but do not record its identity
+        network.create_user(4, args.default_curve)
 
         log_id = 101
         msg = "This message is anonymous"
@@ -91,14 +91,14 @@ def test_anonymous_caller(network, args):
                 r.error is not None
             ), "Anonymous user is not authorised to call LOG_get"
 
-        # with primary.user_client(user_id=0) as c:
-        #     r = c.rpc("LOG_record_anonymous", {"id": log_id, "msg": msg})
-        #     assert (
-        #         r.error is not None
-        #     ), "Only anonymous users are authorised to call LOG_record_anonymous"
-        #     r = c.rpc("LOG_get", {"id": log_id})
-        #     assert r.result is not None
-        #     assert f"Anonymous: {msg}" in r.result["msg"]
+        with primary.user_client(user_id=0) as c:
+            r = c.rpc("LOG_record_anonymous", {"id": log_id, "msg": msg})
+            assert (
+                r.error is not None
+            ), "Only anonymous users are authorised to call LOG_record_anonymous"
+            r = c.rpc("LOG_get", {"id": log_id})
+            assert r.result is not None
+            assert f"Anonymous: {msg}" in r.result["msg"]
     else:
         LOG.warning("Skipping test_cert_prefix as application is not C++")
 
@@ -182,16 +182,16 @@ def run(args):
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
-            # network = test(
-            #     network,
-            #     args,
-            #     notifications_queue,
-            #     verify=args.package is not "libjsgeneric",
-            # )
-            # network = test_large_messages(network, args)
-            # network = test_forwarding_frontends(network, args)
-            # network = test_update_lua(network, args)
-            # network = test_cert_prefix(network, args)
+            network = test(
+                network,
+                args,
+                notifications_queue,
+                verify=args.package is not "libjsgeneric",
+            )
+            network = test_large_messages(network, args)
+            network = test_forwarding_frontends(network, args)
+            network = test_update_lua(network, args)
+            network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
 
 

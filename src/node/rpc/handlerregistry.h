@@ -93,7 +93,7 @@ namespace ccf
         return *this;
       }
 
-      // If true, caller is not authenticated
+      // If true, caller does not need to be authenticated
       bool caller_auth_disabled = false;
 
       Handler& set_caller_auth_disabled(bool v)
