@@ -136,7 +136,7 @@ class Consortium:
 
     def update_ack_state_digest(self, member_id, remote_node):
         with remote_node.member_client(member_id=member_id) as mc:
-            res = mc.rpc("updateAckStateDigest", params={})
+            res = mc.rpc("updateAckStateDigest")
             return bytearray(res.result["state_digest"])
 
     def ack(self, member_id, remote_node):
@@ -312,7 +312,7 @@ class Consortium:
     def get_decrypt_and_submit_shares(self, remote_node):
         for m in self.members:
             with remote_node.member_client(member_id=m) as mc:
-                r = mc.rpc("getEncryptedRecoveryShare", params={})
+                r = mc.rpc("getEncryptedRecoveryShare")
 
                 # For now, members rely on a copy of the original network encryption public key
                 ctx = infra.crypto.CryptoBoxCtx(
