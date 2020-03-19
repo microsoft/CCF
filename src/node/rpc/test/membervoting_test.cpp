@@ -534,6 +534,15 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 
   DOCTEST_SUBCASE("ACK from newly added members")
   {
+    {
+      // make sure that there is a signature in the signatures table since ack's
+      // depend on that
+      Store::Tx tx;
+      auto sig_view = tx.get_view(network.signatures);
+      Signature sig_value;
+      sig_view->put(0, sig_value);
+      DOCTEST_REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
     // iterate over all new_members, except for the last one
     for (auto new_member = new_members.cbegin(); new_member !=
          new_members.cend() - (initial_members + n_new_members - max_members);
