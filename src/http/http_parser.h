@@ -32,6 +32,51 @@ namespace http
       http_status status, HeaderMap&& headers, std::vector<uint8_t>&& body) = 0;
   };
 
+  static uint8_t hex_char_to_int(char c)
+  {
+    if (c <= '9')
+    {
+      return c - '0';
+    }
+    else if (c <= 'F')
+    {
+      return c - 'A' + 10;
+    }
+    else if (c <= 'f')
+    {
+      return c - 'a' + 10;
+    }
+    return c;
+  }
+
+  static void url_unescape(std::string& s)
+  {
+    char const* src = s.c_str();
+    char const* end = s.c_str() + s.size();
+    char* dst = s.data();
+
+    while (src < end)
+    {
+      char const c = *src++;
+      if (c == '%' && (src + 1) < end && isxdigit(src[0]) && isxdigit(src[1]))
+      {
+        const auto a = hex_char_to_int(*src++);
+        const auto b = hex_char_to_int(*src++);
+        *dst++ = (a << 4) | b;
+      }
+      else if (c == '+')
+      {
+        *dst++ = ' ';
+      }
+      else
+      {
+        *dst++ = c;
+      }
+    }
+
+    s.resize(dst - s.data());
+  }
+
   struct SimpleRequestProcessor : public http::RequestProcessor
   {
   public:
