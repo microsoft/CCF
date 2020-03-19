@@ -118,19 +118,18 @@ namespace ccf
     }
 
     template <class T>
-    bool GetRecvNonce(const uint8_t* data, size_t size, RecvNonce& nonce)
+    void get_recv_nonce(const uint8_t* data, size_t size, RecvNonce& nonce)
     {
       const auto& t = serialized::overlay<T>(data, size);
       serialized::skip(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       auto& n2n_channel = channels->get(t.from_node);
 
-      return n2n_channel.GetAndUpdateNonce(hdr, nonce);
+      n2n_channel.get_and_update_nonce(hdr, nonce);
     }
 
     template <class T>
-    CBuffer recv_authenticated_with_load(
-      const uint8_t*& data, size_t& size, bool should_verify_nonce)
+    CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
     {
       // data contains the message header of type T, the raw data, and the gcm
       // header at the end
@@ -143,8 +142,7 @@ namespace ccf
 
       auto& n2n_channel = channels->get(t.from_node);
 
-      if (!n2n_channel.verify(
-            hdr, {payload_data, payload_size}, should_verify_nonce))
+      if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",

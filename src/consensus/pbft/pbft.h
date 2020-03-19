@@ -582,7 +582,7 @@ namespace pbft
       {
         auto r = msg->data.self->channels
                    ->template recv_authenticated_with_load<PbftHeader>(
-                     msg->data.d.data(), msg->data.d.size(), false);
+                     msg->data.d.data(), msg->data.d.size());
         msg->data.d.data() = r.p;
         msg->data.d.size() = r.n;
         msg->data.result = true;
@@ -620,10 +620,9 @@ namespace pbft
             &recv_authenticated_msg_cb, std::move(d), this);
 
           ccf::RecvNonce recv_nonce;
-          bool result = channels->template GetRecvNonce<PbftHeader>(
+          channels->template get_recv_nonce<PbftHeader>(
             tmsg->data.d.data(), tmsg->data.d.size(), recv_nonce);
-          if (
-            !result || recv_nonce.tid > enclave::ThreadMessaging::thread_count)
+          if (recv_nonce.tid >= enclave::ThreadMessaging::thread_count)
           {
             break;
           }
