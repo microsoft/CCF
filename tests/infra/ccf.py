@@ -350,16 +350,18 @@ class Network:
 
         return new_node
 
-    def create_users(self, users, curve):
-        users = ["user{}".format(u) for u in users]
-        for u in users:
-            infra.proc.ccall(
-                self.key_generator,
-                f"--name={u}",
-                f"--curve={curve.name}",
-                path=self.common_dir,
-                log_output=False,
-            ).check_returncode()
+    def create_user(self, user_id, curve):
+        infra.proc.ccall(
+            self.key_generator,
+            f"--name=user{user_id}",
+            f"--curve={curve.name}",
+            path=self.common_dir,
+            log_output=False,
+        ).check_returncode()
+
+    def create_users(self, user_ids, curve):
+        for user_id in user_ids:
+            self.create_user(user_id, curve)
 
     def get_members(self):
         return self.consortium.members

@@ -885,7 +885,8 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      install(MemberProcs::CREATE, json_adapter(create), Write);
+      install(MemberProcs::CREATE, json_adapter(create), Write)
+        .set_require_client_identity(false);
     }
   };
 
@@ -920,7 +921,7 @@ namespace ccf
     {
       // Lookup the caller member's certificate from the forwarded caller id
       auto members_view = tx.get_view(*members);
-      auto caller = members_view->get(ctx->session->fwd->caller_id);
+      auto caller = members_view->get(ctx->session->original_caller->caller_id);
       if (!caller.has_value())
       {
         return false;

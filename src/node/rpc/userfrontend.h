@@ -44,7 +44,7 @@ namespace ccf
     {
       // Lookup the calling user's certificate from the forwarded caller id
       auto users_view = tx.get_view(*users);
-      auto caller = users_view->get(ctx->session->fwd->caller_id);
+      auto caller = users_view->get(ctx->session->original_caller->caller_id);
       if (!caller.has_value())
       {
         return false;
