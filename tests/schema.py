@@ -26,7 +26,7 @@ def run(args):
     methods_without_schema = set()
 
     def fetch_schema(client):
-        list_response = client.rpc("listMethods", http_verb="GET")
+        list_response = client.get("listMethods")
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
@@ -34,9 +34,7 @@ def run(args):
 
         for method in methods:
             schema_found = False
-            schema_response = client.rpc(
-                f"getSchema", {"method": method}, http_verb="GET"
-            )
+            schema_response = client.get(f"getSchema", params={"method": method})
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,

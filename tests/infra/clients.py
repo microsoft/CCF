@@ -413,6 +413,8 @@ class CCFClient:
         else:
             return self.request(*args, **kwargs)
 
+    def get(self, *args, **kwargs):
+        return self.rpc(*args, http_verb="GET", **kwargs)
 
 @contextlib.contextmanager
 def client(
