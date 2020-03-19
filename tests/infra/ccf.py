@@ -406,7 +406,7 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.do("getPrimaryInfo", {})
+                        res = c.do("getPrimaryInfo", http_verb="GET")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
                             term = res.term
