@@ -197,14 +197,7 @@ namespace ccfapp
       // SNIPPET_END: log_record_prefix_cert
 
       auto log_record_anonymous =
-        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-          if (caller_id != INVALID_ID)
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              "Only anonymous callers can record anonymous messages");
-          }
-
+        [this](Store::Tx& tx, nlohmann::json&& params) {
           const auto in = params.get<LoggingRecord::In>();
 
           if (in.msg.empty())

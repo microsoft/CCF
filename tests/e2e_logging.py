@@ -98,7 +98,7 @@ def test_anonymous_caller(network, args):
             ), "Only anonymous users are authorised to call LOG_record_anonymous"
             r = c.rpc("LOG_get", {"id": log_id})
             assert r.result is not None
-            assert f"Anonymous: {msg}" in r.result["msg"]
+            assert msg in r.result["msg"]
     else:
         LOG.warning("Skipping test_cert_prefix as application is not C++")
 

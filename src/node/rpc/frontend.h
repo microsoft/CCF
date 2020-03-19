@@ -73,10 +73,10 @@ namespace ccf
       handlers.set_history(history);
     }
 
-    std::optional<nlohmann::json> forward_or_redirect_json(
+    std::optional<std::vector<uint8_t>> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx)
     {
-      if (cmd_forwarder && !ctx->session->fwd.has_value())
+      if (cmd_forwarder && !ctx->session->original_caller.has_value())
       {
         return std::nullopt;
       }
@@ -225,7 +225,7 @@ namespace ccf
         auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
         if (rep.has_value())
         {
-          return rep.value();
+          return rep;
         }
         kv::TxHistory::RequestID reqid;
 
@@ -319,13 +319,14 @@ namespace ccf
         auto req_view = tx.get_view(*pbft_requests_map);
         req_view->put(
           0,
-          {ctx->session->fwd.value().caller_id,
+          {ctx->session->original_caller.value().caller_id,
            ctx->session->caller_cert,
            ctx->get_serialised_request(),
            ctx->pbft_raw});
       }
 
-      auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
+      auto rep =
+        process_command(ctx, tx, ctx->session->original_caller->caller_id);
 
       version = tx.get_version();
 
@@ -354,7 +355,7 @@ namespace ccf
     std::vector<uint8_t> process_forwarded(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      if (!ctx->session->fwd.has_value())
+      if (!ctx->session->original_caller.has_value())
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
@@ -364,7 +365,8 @@ namespace ccf
 
       Store::Tx tx;
 
-      auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
+      auto rep =
+        process_command(ctx, tx, ctx->session->original_caller->caller_id);
       if (!rep.has_value())
       {
         // This should never be called when process_command is called with a
@@ -375,7 +377,7 @@ namespace ccf
       return rep.value();
     }
 
-    std::optional<nlohmann::json> process_if_local_node_rpc(
+    std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
       CallerId caller_id)
@@ -410,7 +412,7 @@ namespace ccf
         // If a request is forwarded, check that the caller is known. Otherwise,
         // only check that the caller id is valid.
         if (
-          (ctx->session->fwd.has_value() &&
+          (ctx->session->original_caller.has_value() &&
            !lookup_forwarded_caller_cert(ctx, tx)) ||
           caller_id == INVALID_ID)
         {
@@ -441,7 +443,7 @@ namespace ccf
           (!ctx->is_create_request &&
            (!(consensus != nullptr &&
               consensus->type() == ConsensusType::RAFT) ||
-            !ctx->session->fwd.has_value())) &&
+            !ctx->session->original_caller.has_value())) &&
           !verify_client_signature(
             ctx->session->caller_cert, caller_id, signed_request.value()))
         {
@@ -463,7 +465,7 @@ namespace ccf
         {
           case HandlerRegistry::Read:
           {
-            if (ctx->session->forward)
+            if (ctx->session->is_forwarding)
             {
               return forward_or_redirect_json(ctx);
             }
@@ -472,7 +474,7 @@ namespace ccf
 
           case HandlerRegistry::Write:
           {
-            ctx->session->forward = true;
+            ctx->session->is_forwarding = true;
             return forward_or_redirect_json(ctx);
           }
 
@@ -482,10 +484,10 @@ namespace ccf
               ctx->get_request_header(http::headers::CCF_READ_ONLY);
             if (!read_only_it.has_value() || (read_only_it.value() != "true"))
             {
-              ctx->session->forward = true;
+              ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx);
             }
-            else if (ctx->session->forward)
+            else if (ctx->session->is_forwarding)
             {
               return forward_or_redirect_json(ctx);
             }

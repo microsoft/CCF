@@ -13,6 +13,7 @@ The API can also be retrieved from a running service using the `listMethods`_ an
         "LOG_get",
         "LOG_get_pub",
         "LOG_record",
+        "LOG_record_anonymous",
         "LOG_record_prefix_cert",
         "LOG_record_pub",
         "getCommit",
