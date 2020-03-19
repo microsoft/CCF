@@ -153,7 +153,7 @@ namespace enclave
     static std::atomic<uint16_t> thread_count;
     static const uint16_t main_thread = 0;
 
-    static const uint16_t max_num_threads = 64;
+    static const uint16_t max_num_threads = 24;
 
   public:
     ThreadMessaging(uint16_t num_threads = max_num_threads) :
