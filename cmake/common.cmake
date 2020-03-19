@@ -416,7 +416,7 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} --participants-default-curve
+        ${CCF_NETWORK_TEST_ARGS} --participants-curve
         ${DEFAULT_PARTICIPANTS_CURVE} --consensus ${PARSED_ARGS_CONSENSUS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
     )

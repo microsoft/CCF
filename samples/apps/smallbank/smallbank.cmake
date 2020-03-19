@@ -74,7 +74,7 @@ if(BUILD_TESTS)
         --max-writes-ahead
         1000
         --sign
-        --participants-default-curve "secp256k1"
+        --participants-curve "secp256k1"
         --metrics-file
         small_bank_${CONSENSUS}_sigs_metrics.json
     )
@@ -99,6 +99,6 @@ if(BUILD_TESTS)
       --send-tx-to
       backups
       --sign
-      --participants-default-curve "secp256k1"
+      --participants-curve "secp256k1"
   )
 endif()
