@@ -156,7 +156,7 @@ class Consortium:
         """
 
         with remote_node.member_client(member_id=member_id) as c:
-            rep = c.do("query", {"text": script})
+            rep = c.rpc("query", {"text": script})
             return rep.result
 
     def propose_retire_node(self, member_id, remote_node, node_id):
@@ -356,7 +356,7 @@ class Consortium:
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
         with remote_node.member_client(request_timeout=(30 if pbft_open else 3)) as c:
-            rep = c.do(
+            rep = c.rpc(
                 "query",
                 {
                     "text": """tables = ...
@@ -378,7 +378,7 @@ class Consortium:
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.member_client() as c:
-            rep = c.do("read", {"table": "ccf.nodes", "key": node_id})
+            rep = c.rpc("read", {"table": "ccf.nodes", "key": node_id})
 
             if rep.error is not None or (
                 node_status and rep.result["status"] != node_status.name

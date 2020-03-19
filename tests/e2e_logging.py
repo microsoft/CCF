@@ -81,9 +81,9 @@ def test_forwarding_frontends(network, args):
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
         with backup.node_client() as c:
-            check_commit(c.do("mkSign", params={}), result=True)
+            check_commit(c.rpc("mkSign", params={}), result=True)
         with backup.member_client() as c:
-            check_commit(c.do("mkSign", params={}), result=True)
+            check_commit(c.rpc("mkSign", params={}), result=True)
 
     return network
 

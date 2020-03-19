@@ -407,23 +407,6 @@ class CCFClient:
 
         return self._response(self.client_impl.signed_request(r))
 
-    def do(self, *args, **kwargs):
-        expected_result = None
-        expected_error_code = None
-        if "expected_result" in kwargs:
-            expected_result = kwargs.pop("expected_result")
-        if "expected_error_code" in kwargs:
-            expected_error_code = kwargs.pop("expected_error_code")
-
-        r = self.rpc(*args, **kwargs)
-
-        if expected_result is not None:
-            assert expected_result == r.result
-
-        if expected_error_code is not None:
-            assert expected_error_code == r.error["code"]
-        return r
-
     def rpc(self, *args, **kwargs):
         if "signed" in kwargs and kwargs.pop("signed"):
             return self.signed_request(*args, **kwargs)

@@ -406,7 +406,7 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.do("getPrimaryInfo", http_verb="GET")
+                        res = c.rpc("getPrimaryInfo", http_verb="GET")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
                             term = res.term
@@ -448,7 +448,7 @@ class Network:
         which added the nodes).
         """
         with primary.node_client() as c:
-            res = c.do("getCommit", {})
+            res = c.rpc("getCommit", {})
             local_commit_leader = res.commit
             term_leader = res.term
 

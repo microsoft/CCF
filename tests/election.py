@@ -76,14 +76,18 @@ def run(args):
             )
             commit_index = None
             with primary.user_client() as c:
-                res = c.do(
-                    "LOG_record",
-                    {
-                        "id": current_term,
-                        "msg": "This log is committed in term {}".format(current_term),
-                    },
-                    readonly_hint=None,
-                    expected_result=True,
+                res = check(
+                    c.rpc(
+                        "LOG_record",
+                        {
+                            "id": current_term,
+                            "msg": "This log is committed in term {}".format(
+                                current_term
+                            ),
+                        },
+                        readonly_hint=None,
+                    ),
+                    result=True,
                 )
                 commit_index = res.commit
 
