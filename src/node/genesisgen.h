@@ -117,8 +117,16 @@ namespace ccf
       m->put(
         id, MemberInfo(member_cert_der, member_keyshare_pub, member_status));
       mc->put(member_cert_der, id);
-      ma->put(id, MemberAck(sig->get(0)->root));
 
+      auto s = sig->get(0);
+      if (!s)
+      {
+        ma->put(id, MemberAck());
+      }
+      else
+      {
+        ma->put(id, MemberAck(s->root));
+      }
       return id;
     }
 
