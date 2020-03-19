@@ -16,7 +16,7 @@ namespace enclave
   {
     size_t client_session_id = InvalidSessionId;
     std::vector<uint8_t> caller_cert = {};
-    bool is_forwarded = false;
+    bool is_forwarding = false;
 
     //
     // Only set in the case of a forwarded RPC
@@ -32,7 +32,7 @@ namespace enclave
         caller_id(caller_id_)
       {}
     };
-    std::optional<Forwarded> fwd = std::nullopt;
+    std::optional<Forwarded> original_caller = std::nullopt;
 
     // Constructor used for non-forwarded RPC
     SessionContext(
@@ -46,7 +46,8 @@ namespace enclave
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
       const std::vector<uint8_t>& caller_cert_ = {}) :
-      fwd(std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
+      original_caller(
+        std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
       caller_cert(caller_cert_)
     {}
   };
