@@ -36,10 +36,11 @@ CCF_READ_ONLY_HEADER = "x-ccf-read-only"
 
 
 class Request:
-    def __init__(self, method, params, readonly_hint=None):
+    def __init__(self, method, params=None, readonly_hint=None, http_verb="POST"):
         self.method = method
         self.params = params
         self.readonly_hint = readonly_hint
+        self.http_verb = http_verb
 
 
 def int_or_none(v):
@@ -113,7 +114,7 @@ def human_readable_size(n):
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
-            f"{name} {request.method} "
+            f"{name} {request.http_verb} {request.method} "
             + truncate(f"{request.params}")
             + (
                 f" (RO hint: {request.readonly_hint})"
@@ -145,7 +146,7 @@ class RPCFileLogger(RPCLogger):
 
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
-            f.write(f">> Request: {request.method}" + os.linesep)
+            f.write(f">> Request: {request.http_verb} {request.method}" + os.linesep)
             json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
@@ -190,8 +191,8 @@ class CurlClient:
 
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = json.dumps(request.params).encode()
-            LOG.debug(f"Going to call {request.method} with {msg}")
+            msg = json.dumps(request.params).encode() if request else bytes()
+            LOG.debug(f"Going to call {request.http_verb} {request.method} with {msg}")
             nf.write(msg)
             nf.flush()
             if is_signed:
@@ -201,6 +202,8 @@ class CurlClient:
 
             cmd += [
                 f"https://{self.host}:{self.port}/{request.method}",
+                "-X",
+                request.http_verb,
                 "-H",
                 "Content-Type: application/json",
                 "--data-binary",
@@ -296,8 +299,9 @@ class RequestClient:
         if request.readonly_hint:
             extra_headers[CCF_READ_ONLY_HEADER] = "true"
 
-        response = self.session.post(
-            f"https://{self.host}:{self.port}/{request.method}",
+        response = self.session.request(
+            method=request.http_verb,
+            url=f"https://{self.host}:{self.port}/{request.method}",
             json=request.params,
             timeout=self.request_timeout,
             auth=auth_value,
@@ -382,8 +386,8 @@ class CCFClient:
             logger.log_response(response)
         return response
 
-    def request(self, method, params, *args, **kwargs):
-        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
+    def request(self, method, *args, **kwargs):
+        r = Request(f"{self.prefix}/{method}", *args, **kwargs)
         description = ""
         if self.description:
             description = f" ({self.description})"
@@ -392,8 +396,8 @@ class CCFClient:
 
         return self._response(self.client_impl.request(r))
 
-    def signed_request(self, method, params, *args, **kwargs):
-        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
+    def signed_request(self, method, *args, **kwargs):
+        r = Request(f"{self.prefix}/{method}", *args, **kwargs)
 
         description = ""
         if self.description:
