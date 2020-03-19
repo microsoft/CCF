@@ -233,7 +233,7 @@ namespace ccfapp
         json_adapter(log_record_anonymous),
         Write)
         .set_auto_schema<LoggingRecord::In, bool>()
-        .set_caller_auth(true);
+        .set_require_client_identity(false);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

@@ -92,10 +92,6 @@ def test_anonymous_caller(network, args):
             ), "Anonymous user is not authorised to call LOG_get"
 
         with primary.user_client(user_id=0) as c:
-            r = c.rpc("LOG_record_anonymous", {"id": log_id, "msg": msg})
-            assert (
-                r.error is not None
-            ), "Only anonymous users are authorised to call LOG_record_anonymous"
             r = c.rpc("LOG_get", {"id": log_id})
             assert r.result is not None
             assert msg in r.result["msg"]

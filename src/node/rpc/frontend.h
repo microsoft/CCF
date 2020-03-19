@@ -406,9 +406,9 @@ namespace ccf
         return ctx->serialise_response();
       }
 
-      if (!handler->caller_auth_disabled && handlers.has_certs())
+      if (handler->require_client_identity && handlers.has_certs())
       {
-        // Only if handler requires auth.
+        // Only if handler requires client identity.
         // If a request is forwarded, check that the caller is known. Otherwise,
         // only check that the caller id is valid.
         if (

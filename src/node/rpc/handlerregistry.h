@@ -93,21 +93,21 @@ namespace ccf
         return *this;
       }
 
-      // If true, caller does not need to be authenticated
-      bool caller_auth_disabled = false;
+      // If true, client must be known in certs table
+      bool require_client_identity = true;
 
-      Handler& set_caller_auth(bool v)
+      Handler& set_require_client_identity(bool v)
       {
-        if (v && registry != nullptr && !registry->has_certs())
+        if (!v && registry != nullptr && !registry->has_certs())
         {
           LOG_INFO_FMT(
-            "Disabling caller auth on {} handler has no effect since its "
-            "registry does not have certificates table",
+            "Disabling client identity requirement on {} handler has no effect "
+            "since its registry does not have certificates table",
             method);
           return *this;
         }
 
-        caller_auth_disabled = v;
+        require_client_identity = v;
         return *this;
       }
 
