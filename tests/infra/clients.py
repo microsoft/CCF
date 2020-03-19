@@ -329,12 +329,11 @@ class RequestClient:
         is_get = request.http_verb == "GET"
         if request.params is not None:
             if is_get:
-                request_args["params"] = f"?{build_query_string(request.params)}"
+                request_args["params"] = build_query_string(request.params)
             else:
                 request_args["json"] = request.params
 
         response = self.session.request(**request_args)
-
         return Response.from_requests_response(response)
 
     def _request(self, request, is_signed=False):

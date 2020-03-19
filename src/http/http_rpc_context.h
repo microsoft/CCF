@@ -116,10 +116,11 @@ namespace http
 
         const auto canonical_request_header = fmt::format(
           "{} {} HTTP/1.1\r\n"
-          "{}"
+          "{}{}"
           "\r\n",
           http_method_str(verb),
-          fmt::format("{}{}", whole_path, query),
+          whole_path,
+          query.empty() ? "" : fmt::format("?{}", query),
           http::get_header_string(request_headers));
 
         serialised_request.resize(

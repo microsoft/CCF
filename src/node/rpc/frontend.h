@@ -456,6 +456,9 @@ namespace ccf
       if (handler == nullptr)
       {
         ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+        ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        ctx->set_response_body(fmt::format("Unknown RPC: {}", method));
         return ctx->serialise_response();
       }
 
