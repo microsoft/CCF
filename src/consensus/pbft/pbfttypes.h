@@ -50,9 +50,10 @@ namespace pbft
     virtual kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
+      CBuffer root,
       ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(
-      ccf::Store::Tx& tx, CBuffer pp_sig, ccf::Signatures& signatures) = 0;
+      ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
 
@@ -81,6 +82,7 @@ namespace pbft
     kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
+      CBuffer root,
       ccf::Signatures& signatures)
     {
       while (true)
@@ -97,12 +99,7 @@ namespace pbft
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
               auto sig_view = tx.get_view(signatures);
-              crypto::Sha256Hash sig_hash(
-                {CBuffer{pp.digest_sig.data(), pp.digest_sig.size()}});
-              // we only need the hash of the pre prepare as the pre-prepare
-              // which contains the root of the merkle tree will be stored in
-              // the pbft_pre_prepares map
-              ccf::Signature sig_value(sig_hash);
+              ccf::Signature sig_value({root});
               sig_view->put(0, sig_value);
               return tx.commit_reserved();
             },
@@ -116,7 +113,7 @@ namespace pbft
     }
 
     kv::Version commit_tx(
-      ccf::Store::Tx& tx, CBuffer pp_sig, ccf::Signatures& signatures)
+      ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures)
     {
       while (true)
       {
@@ -124,11 +121,7 @@ namespace pbft
         if (p)
         {
           auto sig_view = tx.get_view(signatures);
-          crypto::Sha256Hash sig_hash({pp_sig});
-          // we only need the hash of the pre prepare as the pre-prepare
-          // which contains the root of the merkle tree will be stored in
-          // the pbft_pre_prepares map
-          ccf::Signature sig_value(sig_hash);
+          ccf::Signature sig_value({root});
           sig_view->put(0, sig_value);
           auto success = tx.commit();
           if (success == kv::CommitSuccess::OK)
