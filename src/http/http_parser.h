@@ -20,7 +20,7 @@ namespace http
     virtual void handle_request(
       http_method method,
       const std::string_view& path,
-      const std::string_view& query,
+      const std::string& query,
       HeaderMap&& headers,
       std::vector<uint8_t>&& body) = 0;
   };
@@ -94,7 +94,7 @@ namespace http
     virtual void handle_request(
       http_method method,
       const std::string_view& path,
-      const std::string_view& query,
+      const std::string& query,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
@@ -387,10 +387,12 @@ namespace http
       else
       {
         const auto [path, query] = parse_url(url);
+        std::string unescaped_query(query);
+        url_unescape(unescaped_query);
         proc.handle_request(
           http_method(parser.method),
           path,
-          query,
+          unescaped_query,
           std::move(headers),
           std::move(body_buf));
       }
