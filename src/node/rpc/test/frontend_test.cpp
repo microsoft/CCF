@@ -16,7 +16,6 @@
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
 #include "node/rpc/userfrontend.h"
-#include "node/rpc/verbrestrictions.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
@@ -114,22 +113,21 @@ public:
   {
     open();
 
-    auto get_only = get_only_adapter([this](RequestArgs& args) {
+    auto get_only = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    });
-    install("get_only", get_only, HandlerRegistry::Read);
+    };
+    install("get_only", get_only, HandlerRegistry::Read).set_http_get_only();
 
-    auto post_only = post_only_adapter([this](RequestArgs& args) {
+    auto post_only = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-    });
-    install("post_only", post_only, HandlerRegistry::Read);
+    };
+    install("post_only", post_only, HandlerRegistry::Read).set_http_post_only();
 
-    auto put_or_delete = restrict_verbs_adapter(
-      [this](RequestArgs& args) {
-        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-      },
-      {HTTP_PUT, HTTP_DELETE});
-    install("put_or_delete", put_or_delete, HandlerRegistry::Read);
+    auto put_or_delete = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    install("put_or_delete", put_or_delete, HandlerRegistry::Read)
+      .restrict_allowed_verbs({HTTP_PUT, HTTP_DELETE});
   }
 };
 

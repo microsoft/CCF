@@ -6,7 +6,6 @@
 #include "handlerregistry.h"
 #include "jsonhandler.h"
 #include "metrics.h"
-#include "verbrestrictions.h"
 
 namespace ccf
 {
@@ -239,39 +238,31 @@ namespace ccf
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
         .set_auto_schema<GetCommit>();
-      install(
-        GeneralProcs::GET_METRICS,
-        get_only_adapter(json_adapter(get_metrics)),
-        Read)
+      install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
         .set_auto_schema<void, GetMetrics::Out>()
-        .set_execute_locally(true);
+        .set_execute_locally(true)
+        .set_http_get_only();
       install(GeneralProcs::MK_SIGN, json_adapter(make_signature), Write)
         .set_auto_schema<void, bool>();
-      install(
-        GeneralProcs::WHO_AM_I, get_only_adapter(json_adapter(who_am_i)), Read)
-        .set_auto_schema<void, WhoAmI::Out>();
+      install(GeneralProcs::WHO_AM_I, json_adapter(who_am_i), Read)
+        .set_auto_schema<void, WhoAmI::Out>()
+        .set_http_get_only();
       install(GeneralProcs::WHO_IS, json_adapter(who_is), Read)
         .set_auto_schema<WhoIs::In, WhoIs::Out>();
       install(
-        GeneralProcs::GET_PRIMARY_INFO,
-        get_only_adapter(json_adapter(get_primary_info)),
-        Read)
-        .set_auto_schema<void, GetPrimaryInfo::Out>();
+        GeneralProcs::GET_PRIMARY_INFO, json_adapter(get_primary_info), Read)
+        .set_auto_schema<void, GetPrimaryInfo::Out>()
+        .set_http_get_only();
       install(
-        GeneralProcs::GET_NETWORK_INFO,
-        get_only_adapter(json_adapter(get_network_info)),
-        Read)
-        .set_auto_schema<void, GetNetworkInfo::Out>();
-      install(
-        GeneralProcs::LIST_METHODS,
-        get_only_adapter(json_adapter(list_methods_fn)),
-        Read)
-        .set_auto_schema<void, ListMethods::Out>();
-      install(
-        GeneralProcs::GET_SCHEMA,
-        get_only_adapter(json_adapter(get_schema)),
-        Read)
-        .set_auto_schema<GetSchema>();
+        GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read)
+        .set_auto_schema<void, GetNetworkInfo::Out>()
+        .set_http_get_only();
+      install(GeneralProcs::LIST_METHODS, json_adapter(list_methods_fn), Read)
+        .set_auto_schema<void, ListMethods::Out>()
+        .set_http_get_only();
+      install(GeneralProcs::GET_SCHEMA, json_adapter(get_schema), Read)
+        .set_auto_schema<GetSchema>()
+        .set_http_get_only();
       install(GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read)
         .set_auto_schema<GetReceipt>();
       install(GeneralProcs::VERIFY_RECEIPT, json_adapter(verify_receipt), Read)
