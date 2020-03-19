@@ -448,7 +448,7 @@ class Network:
         which added the nodes).
         """
         with primary.node_client() as c:
-            res = c.rpc("getCommit", {})
+            res = c.get("getCommit")
             local_commit_leader = res.commit
             term_leader = res.term
 
@@ -456,7 +456,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.request("getCommit", {})
+                    resp = c.get("getCommit")
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -481,7 +481,7 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    r = c.request("getCommit", {})
+                    r = c.get("getCommit")
                     commits.append(r.commit)
             if [commits[0]] * len(commits) == commits:
                 break

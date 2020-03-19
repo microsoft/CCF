@@ -26,7 +26,7 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
             raise RuntimeError(f"mkSign returned an error: {r.error}")
 
     for i in range(timeout * 10):
-        r = node_client.rpc("getCommit", {"commit": commit_index})
+        r = node_client.get("getCommit", {"commit": commit_index})
         if r.global_commit >= commit_index and r.result["term"] == term:
             return
         time.sleep(0.1)

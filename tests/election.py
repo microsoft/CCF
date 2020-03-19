@@ -26,7 +26,7 @@ def wait_for_index_globally_committed(index, term, nodes):
         up_to_date_f = []
         for f in nodes:
             with f.node_client() as c:
-                res = c.request("getCommit", {"commit": index})
+                res = c.get("getCommit", {"commit": index})
                 if res.result["term"] == term and (res.global_commit >= index):
                     up_to_date_f.append(f.node_id)
         if len(up_to_date_f) == len(nodes):

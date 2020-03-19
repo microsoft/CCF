@@ -55,7 +55,7 @@ class TxRates:
 
     def process_next(self):
         with self.primary.user_client() as client:
-            rv = client.rpc("getCommit", {})
+            rv = client.get("getCommit")
             result = rv.to_dict()
             next_commit = result["result"]["commit"]
             more_to_process = self.commit != next_commit
