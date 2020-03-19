@@ -264,7 +264,8 @@ namespace ccf
         .set_auto_schema<GetSchema>()
         .set_http_get_only();
       install(GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read)
-        .set_auto_schema<GetReceipt>();
+        .set_auto_schema<GetReceipt>()
+        .set_http_get_only();
       install(GeneralProcs::VERIFY_RECEIPT, json_adapter(verify_receipt), Read)
         .set_auto_schema<VerifyReceipt>();
     }
