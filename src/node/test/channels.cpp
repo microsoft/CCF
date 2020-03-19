@@ -7,6 +7,7 @@
 #include <doctest/doctest.h>
 
 enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 using namespace ccf;
 

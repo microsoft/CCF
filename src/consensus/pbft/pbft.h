@@ -619,16 +619,13 @@ namespace pbft
           auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
             &recv_authenticated_msg_cb, std::move(d), this);
 
-          ccf::RecvNonce recv_nonce;
-          channels->template get_recv_nonce<PbftHeader>(
-            tmsg->data.d.data(), tmsg->data.d.size(), recv_nonce);
-          if (recv_nonce.tid >= enclave::ThreadMessaging::thread_count)
-          {
-            break;
-          }
+          auto recv_nonce = channels->template get_recv_nonce<PbftHeader>(
+            tmsg->data.d.data(), tmsg->data.d.size());
 
           enclave::ThreadMessaging::thread_messaging
-            .add_task<RecvAuthenticatedMsg>(recv_nonce.tid, std::move(tmsg));
+            .add_task<RecvAuthenticatedMsg>(
+              recv_nonce.tid % enclave::ThreadMessaging::thread_count,
+              std::move(tmsg));
 
           break;
         }

@@ -22,7 +22,6 @@ namespace ccf
     uint8_t tid;
     uint64_t nonce : (sizeof(uint64_t) - sizeof(uint8_t)) * CHAR_BIT;
 
-    RecvNonce() : RecvNonce(0) {}
     RecvNonce(uint64_t nonce_, uint8_t tid_) : nonce(nonce_), tid(tid_) {}
     RecvNonce(const uint64_t header)
     {
@@ -85,7 +84,7 @@ namespace ccf
         enclave::ThreadMessaging::thread_messaging.get_thread_id();
       assert(
         current_tid == enclave::ThreadMessaging::main_thread ||
-        current_tid == tid);
+        current_tid % enclave::ThreadMessaging::thread_count == tid);
 
       SeqNo* local_nonce;
       if (current_tid == enclave::ThreadMessaging::main_thread)
@@ -186,10 +185,9 @@ namespace ccf
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
     }
 
-    void get_and_update_nonce(const GcmHdr& header, RecvNonce& nonce)
+    RecvNonce get_nonce(const GcmHdr& header)
     {
-      RecvNonce recv_nonce(header.get_iv_int());
-      nonce = recv_nonce;
+      return RecvNonce(header.get_iv_int());
     }
 
     bool verify(const GcmHdr& header, CBuffer aad)

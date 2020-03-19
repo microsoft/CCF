@@ -118,14 +118,14 @@ namespace ccf
     }
 
     template <class T>
-    void get_recv_nonce(const uint8_t* data, size_t size, RecvNonce& nonce)
+    RecvNonce get_recv_nonce(const uint8_t* data, size_t size)
     {
       const auto& t = serialized::overlay<T>(data, size);
       serialized::skip(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       auto& n2n_channel = channels->get(t.from_node);
 
-      n2n_channel.get_and_update_nonce(hdr, nonce);
+      return n2n_channel.get_nonce(hdr);
     }
 
     template <class T>
