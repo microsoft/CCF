@@ -130,7 +130,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default="example.com",
     )
     parser.add_argument(
-        "--default-curve",
+        "--participants-curve",
         help="Curve to use for member and user identities",
         default=infra.ccf.ParticipantsCurve.secp384r1.name,
         type=lambda curve: infra.ccf.ParticipantsCurve[curve],

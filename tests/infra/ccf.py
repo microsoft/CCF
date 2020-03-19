@@ -243,10 +243,13 @@ class Network:
 
         initial_members = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
-            initial_members, args.default_curve, self.key_generator, self.common_dir
+            initial_members,
+            args.participants_curve,
+            self.key_generator,
+            self.common_dir,
         )
         self.initial_users = list(range(max(0, args.initial_user_count)))
-        self.create_users(self.initial_users, args.default_curve)
+        self.create_users(self.initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
 
