@@ -115,8 +115,8 @@ namespace http
         }
 
         const auto canonical_request_header = fmt::format(
-          "{} {} HTTP/1.1\r\n"
-          "{}{}"
+          "{} {}{} HTTP/1.1\r\n"
+          "{}"
           "\r\n",
           http_method_str(verb),
           whole_path,
