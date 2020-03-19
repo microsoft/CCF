@@ -50,10 +50,10 @@ def run(args):
                 data = f.readlines()
             script = "".join(data)
 
-        manager = AppUser(network, "manager", "GB", args.default_curve)
-        regulator = AppUser(network, "auditor", "GB", args.default_curve)
+        manager = AppUser(network, "manager", "GB", args.participants_curve)
+        regulator = AppUser(network, "auditor", "GB", args.participants_curve)
         banks = [
-            AppUser(network, f"bank{country}", country, args.default_curve)
+            AppUser(network, f"bank{country}", country, args.participants_curve)
             for country in ("US", "GB", "GR", "FR")
         ]
         transactions = []
