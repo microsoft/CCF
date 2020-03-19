@@ -252,7 +252,8 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
+      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(
+        ++execution_thread_counter);
       enclave::ThreadMessaging::thread_messaging.add_task<SendAuthenticatedMsg>(
         tid, std::move(tmsg));
 
@@ -271,6 +272,7 @@ namespace pbft
     }
 
   private:
+    uint32_t execution_thread_counter = 0;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
@@ -617,10 +619,13 @@ namespace pbft
           auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
             &recv_authenticated_msg_cb, std::move(d), this);
 
-          uint16_t tid =
-            enclave::ThreadMessaging::get_execution_thread(hdr.from_node);
+          auto recv_nonce = channels->template get_recv_nonce<PbftHeader>(
+            tmsg->data.d.data(), tmsg->data.d.size());
+
           enclave::ThreadMessaging::thread_messaging
-            .add_task<RecvAuthenticatedMsg>(tid, std::move(tmsg));
+            .add_task<RecvAuthenticatedMsg>(
+              recv_nonce.tid % enclave::ThreadMessaging::thread_count,
+              std::move(tmsg));
 
           break;
         }

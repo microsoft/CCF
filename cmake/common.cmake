@@ -362,8 +362,6 @@ set(CCF_NETWORK_TEST_ARGS
     ${CCF_DIR}/src/runtime_config/gov.lua
     --worker_threads
     ${WORKER_THREADS}
-    --default-curve
-    ${DEFAULT_PARTICIPANTS_CURVE}
 )
 
 # SNIPPET_START: Lua generic application
@@ -418,8 +416,9 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_ADDITIONAL_ARGS} --consensus
-        ${PARSED_ARGS_CONSENSUS}
+        ${CCF_NETWORK_TEST_ARGS} --participants-curve
+        ${DEFAULT_PARTICIPANTS_CURVE} --consensus ${PARSED_ARGS_CONSENSUS}
+        ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
 
     # Make python test client framework importable
@@ -481,7 +480,7 @@ function(add_perf_test)
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
       --write-tx-times ${VERIFICATION_ARG} --label ${LABEL_ARG}
-      ${PARSED_ARGS_ADDITIONAL_ARGS} ${RELAX_COMMIT_TARGET} ${NODES}
+      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
   )
 
   # Make python test client framework importable

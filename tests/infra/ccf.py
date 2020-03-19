@@ -243,10 +243,13 @@ class Network:
 
         initial_members = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
-            initial_members, args.default_curve, self.key_generator, self.common_dir
+            initial_members,
+            args.participants_curve,
+            self.key_generator,
+            self.common_dir,
         )
         self.initial_users = list(range(max(0, args.initial_user_count)))
-        self.create_users(self.initial_users, args.default_curve)
+        self.create_users(self.initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
 
@@ -350,16 +353,18 @@ class Network:
 
         return new_node
 
-    def create_users(self, users, curve):
-        users = ["user{}".format(u) for u in users]
-        for u in users:
-            infra.proc.ccall(
-                self.key_generator,
-                f"--name={u}",
-                f"--curve={curve.name}",
-                path=self.common_dir,
-                log_output=False,
-            ).check_returncode()
+    def create_user(self, user_id, curve):
+        infra.proc.ccall(
+            self.key_generator,
+            f"--name=user{user_id}",
+            f"--curve={curve.name}",
+            path=self.common_dir,
+            log_output=False,
+        ).check_returncode()
+
+    def create_users(self, user_ids, curve):
+        for user_id in user_ids:
+            self.create_user(user_id, curve)
 
     def get_members(self):
         return self.consortium.members

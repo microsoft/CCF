@@ -26,6 +26,7 @@ namespace ccfapp
     static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
 
     static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
+    static constexpr auto LOG_RECORD_ANONYMOUS_CALLER = "LOG_record_anonymous";
   };
 
   // SNIPPET: table_definition
@@ -195,6 +196,22 @@ namespace ccfapp
       };
       // SNIPPET_END: log_record_prefix_cert
 
+      auto log_record_anonymous =
+        [this](Store::Tx& tx, nlohmann::json&& params) {
+          const auto in = params.get<LoggingRecord::In>();
+
+          if (in.msg.empty())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+          }
+
+          const auto log_line = fmt::format("Anonymous: {}", in.msg);
+          auto view = tx.get_view(records);
+          view->put(in.id, log_line);
+          return make_success(true);
+        };
+
       install(Procs::LOG_RECORD, json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
@@ -211,6 +228,12 @@ namespace ccfapp
         .set_result_schema(get_public_result_schema);
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
+      install(
+        Procs::LOG_RECORD_ANONYMOUS_CALLER,
+        json_adapter(log_record_anonymous),
+        Write)
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .set_require_client_identity(false);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

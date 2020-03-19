@@ -153,7 +153,7 @@ namespace enclave
     static std::atomic<uint16_t> thread_count;
     static const uint16_t main_thread = 0;
 
-    static const uint16_t max_num_threads = 64;
+    static const uint16_t max_num_threads = 24;
 
   public:
     ThreadMessaging(uint16_t num_threads = max_num_threads) :
@@ -192,6 +192,11 @@ namespace enclave
       Task& task = tasks[tid];
 
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
+    }
+
+    uint16_t get_thread_id()
+    {
+      return thread_ids[std::this_thread::get_id()];
     }
 
     template <typename RetType, typename InputType>
