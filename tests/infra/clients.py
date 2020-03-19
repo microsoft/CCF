@@ -114,8 +114,8 @@ def human_readable_size(n):
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
-            f"{name} {request.http_verb} {request.method} "
-            + truncate(f"{request.params}")
+            f"{name} {request.http_verb} /{request.method}"
+            + (truncate(f" {request.params}") if request.params is not None else "")
             + (
                 f" (RO hint: {request.readonly_hint})"
                 if request.readonly_hint is not None
@@ -146,7 +146,7 @@ class RPCFileLogger(RPCLogger):
 
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
-            f.write(f">> Request: {request.http_verb} {request.method}" + os.linesep)
+            f.write(f">> Request: {request.http_verb} /{request.method}" + os.linesep)
             json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
@@ -192,7 +192,7 @@ class CurlClient:
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
             msg = json.dumps(request.params).encode() if request else bytes()
-            LOG.debug(f"Going to call {request.http_verb} {request.method} with {msg}")
+            LOG.debug(f"Writing request body: {msg}")
             nf.write(msg)
             nf.flush()
             if is_signed:
