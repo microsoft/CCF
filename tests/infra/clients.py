@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import base64
 import requests
+import urllib.parse
 from requests_http_signature import HTTPSignatureAuth
 from http.client import HTTPResponse
 from io import BytesIO
@@ -161,6 +162,13 @@ class CCFConnectionException(Exception):
     pass
 
 
+def build_query_string(params):
+    return "&".join(
+        f"{urllib.parse.quote_plus(k)}={urllib.parse.quote_plus(json.dumps(v))}"
+        for k, v in params.items()
+    )
+
+
 class CurlClient:
     """
     We keep this around in a limited fashion still, because
@@ -191,26 +199,38 @@ class CurlClient:
 
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = json.dumps(request.params).encode() if request else bytes()
-            LOG.debug(f"Writing request body: {msg}")
-            nf.write(msg)
-            nf.flush()
             if is_signed:
                 cmd = [os.path.join(self.binary_dir, "scurl.sh")]
             else:
                 cmd = ["curl"]
 
+            url = f"https://{self.host}:{self.port}/{request.method}"
+
+            is_get = request.http_verb == "GET"
+            if is_get:
+                if request.params is not None:
+                    url += f"?{build_query_string(request.params)}"
+
             cmd += [
-                f"https://{self.host}:{self.port}/{request.method}",
+                url,
                 "-X",
                 request.http_verb,
                 "-H",
                 "Content-Type: application/json",
-                "--data-binary",
-                f"@{nf.name}",
                 "-i",
                 f"-m {self.request_timeout}",
             ]
+
+            if not is_get:
+                msg = (
+                    json.dumps(request.params).encode()
+                    if request.params is not None
+                    else bytes()
+                )
+                LOG.debug(f"Writing request body: {msg}")
+                nf.write(msg)
+                nf.flush()
+                cmd.extend(["--data-binary", f"@{nf.name}"])
 
             if request.readonly_hint:
                 cmd.extend(["-H", f"{CCF_READ_ONLY_HEADER}: true"])
@@ -299,14 +319,22 @@ class RequestClient:
         if request.readonly_hint:
             extra_headers[CCF_READ_ONLY_HEADER] = "true"
 
-        response = self.session.request(
-            method=request.http_verb,
-            url=f"https://{self.host}:{self.port}/{request.method}",
-            json=request.params,
-            timeout=self.request_timeout,
-            auth=auth_value,
-            headers=extra_headers,
-        )
+        request_args = {
+            "method": request.http_verb,
+            "url": f"https://{self.host}:{self.port}/{request.method}",
+            "auth": auth_value,
+            "headers": extra_headers,
+        }
+
+        is_get = request.http_verb == "GET"
+        if request.params is not None:
+            if is_get:
+                request_args["params"] = build_query_string(request.params)
+            else:
+                request_args["json"] = request.params
+
+        response = self.session.request(**request_args)
+
         return Response.from_requests_response(response)
 
     def _request(self, request, is_signed=False):
@@ -415,6 +443,7 @@ class CCFClient:
 
     def get(self, *args, **kwargs):
         return self.rpc(*args, http_verb="GET", **kwargs)
+
 
 @contextlib.contextmanager
 def client(
