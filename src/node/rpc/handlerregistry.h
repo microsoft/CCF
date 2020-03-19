@@ -36,6 +36,7 @@ namespace ccf
       std::string method;
       HandleFunction func;
       ReadWrite read_write = Write;
+      HandlerRegistry* registry;
 
       nlohmann::json params_schema = nullptr;
 
@@ -92,6 +93,24 @@ namespace ccf
         return *this;
       }
 
+      // If true, client must be known in certs table
+      bool require_client_identity = true;
+
+      Handler& set_require_client_identity(bool v)
+      {
+        if (!v && registry != nullptr && !registry->has_certs())
+        {
+          LOG_INFO_FMT(
+            "Disabling client identity requirement on {} handler has no effect "
+            "since its registry does not have certificates table",
+            method);
+          return *this;
+        }
+
+        require_client_identity = v;
+        return *this;
+      }
+
       // If true, request is executed without consensus (PBFT only)
       bool execute_locally = false;
 
@@ -139,6 +158,7 @@ namespace ccf
       handler.method = method;
       handler.func = f;
       handler.read_write = read_write;
+      handler.registry = this;
       return handler;
     }
 
@@ -153,7 +173,7 @@ namespace ccf
      */
     Handler& set_default(HandleFunction f, ReadWrite read_write)
     {
-      default_handler = {"", f, read_write};
+      default_handler = {"", f, read_write, this};
       return default_handler.value();
     }
 
@@ -190,23 +210,28 @@ namespace ccf
 
     virtual void tick(std::chrono::milliseconds elapsed, size_t tx_count) {}
 
-    virtual std::optional<CallerId> valid_caller(
+    bool has_certs()
+    {
+      return certs != nullptr;
+    }
+
+    virtual CallerId get_caller_id(
       Store::Tx& tx, const std::vector<uint8_t>& caller)
     {
-      if (certs == nullptr)
+      if (certs == nullptr || caller.empty())
       {
         return INVALID_ID;
-      }
-
-      if (caller.empty())
-      {
-        return {};
       }
 
       auto certs_view = tx.get_view(*certs);
       auto caller_id = certs_view->get(caller);
 
-      return caller_id;
+      if (!caller_id.has_value())
+      {
+        return INVALID_ID;
+      }
+
+      return caller_id.value();
     }
 
     void set_consensus(kv::Consensus* c)

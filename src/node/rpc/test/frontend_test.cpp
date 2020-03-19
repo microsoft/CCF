@@ -52,6 +52,13 @@ public:
     install(
       "empty_function_signed", empty_function_signed, HandlerRegistry::Read)
       .set_require_client_signature(true);
+
+    auto empty_function_no_auth = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    install(
+      "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Read)
+      .set_require_client_identity(false);
   }
 };
 
@@ -309,6 +316,8 @@ auto kp_other = tls::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
 auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
+auto anonymous_caller_der = std::vector<uint8_t>();
+
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto user_session = make_shared<enclave::SessionContext>(
@@ -319,6 +328,8 @@ auto invalid_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, invalid_caller_der);
 auto member_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, member_caller_der);
+auto anonymous_session = make_shared<enclave::SessionContext>(
+  enclave::InvalidSessionId, anonymous_caller_der);
 
 UserId user_id = INVALID_ID;
 UserId invalid_user_id = INVALID_ID;
@@ -346,7 +357,6 @@ void prepare_callers()
   GenesisGenerator g(network, tx);
   g.init_values();
   user_id = g.add_user(user_caller);
-  invalid_user_id = g.add_user(invalid_caller);
   nos_id = g.add_user(nos_caller);
   member_id = g.add_member(member_caller, dummy_key_share);
   invalid_member_id = g.add_member(invalid_caller, dummy_key_share);
@@ -441,12 +451,10 @@ TEST_CASE("process_command")
   REQUIRE(response.status == HTTP_STATUS_OK);
 }
 
-TEST_CASE("process")
+TEST_CASE("process with signatures")
 {
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
-  const auto simple_call = create_simple_request();
-  const auto [signed_call, signed_req] = create_signed_request(simple_call);
 
   SUBCASE("missing rpc")
   {
@@ -460,41 +468,90 @@ TEST_CASE("process")
     REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
   }
 
-  SUBCASE("without signature")
+  SUBCASE("handler does not require signature")
   {
-    const auto serialized_call = simple_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request();
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_simple_call = simple_call.build_request();
+    const auto serialized_signed_call = signed_call.build_request();
 
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    REQUIRE(response.status == HTTP_STATUS_OK);
+    auto simple_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    auto signed_resp = get_signed_req(user_id);
-    CHECK(!signed_resp.has_value());
+    INFO("Unsigned RPC");
+    {
+      const auto serialized_response = frontend.process(simple_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      CHECK(!signed_resp.has_value());
+    }
+
+    INFO("Signed RPC");
+    {
+      const auto serialized_response = frontend.process(signed_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      REQUIRE(signed_resp.has_value());
+      auto value = signed_resp.value();
+      CHECK(value == signed_req);
+    }
   }
 
-  SUBCASE("with signature")
+  SUBCASE("handler requires signature")
   {
-    const auto serialized_call = signed_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request("empty_function_signed");
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_simple_call = simple_call.build_request();
+    const auto serialized_signed_call = signed_call.build_request();
 
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    REQUIRE(response.status == HTTP_STATUS_OK);
+    auto simple_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    auto signed_resp = get_signed_req(user_id);
-    REQUIRE(signed_resp.has_value());
-    auto value = signed_resp.value();
-    CHECK(value == signed_req);
+    INFO("Unsigned RPC");
+    {
+      const auto serialized_response = frontend.process(simple_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+
+      CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(error_msg.find("RPC must be signed") != std::string::npos);
+
+      auto signed_resp = get_signed_req(user_id);
+      CHECK(!signed_resp.has_value());
+    }
+
+    INFO("Signed RPC");
+    {
+      const auto serialized_response = frontend.process(signed_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      REQUIRE(signed_resp.has_value());
+      auto value = signed_resp.value();
+      CHECK(value == signed_req);
+    }
   }
 
   SUBCASE("request with signature but do not store")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
-    const auto serialized_call = signed_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request("empty_function");
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_signed_call = signed_call.build_request();
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    const auto serialized_response = frontend_nostore.process(rpc_ctx).value();
+    const auto serialized_response =
+      frontend_nostore.process(signed_rpc_ctx).value();
     const auto response = parse_response(serialized_response);
     REQUIRE(response.status == HTTP_STATUS_OK);
 
@@ -504,32 +561,148 @@ TEST_CASE("process")
     CHECK(value.req.empty());
     CHECK(value.sig == signed_req.sig);
   }
+}
 
-  SUBCASE("request without signature on sign-only handler")
+TEST_CASE("process with caller")
+{
+  prepare_callers();
+  TestUserFrontend frontend(*network.tables);
+
+  SUBCASE("handler does not require valid caller")
   {
-    const auto unsigned_call = create_simple_request("empty_function_signed");
-    const auto serialized_call = unsigned_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request("empty_function_no_auth");
+    const auto serialized_simple_call = simple_call.build_request();
+    auto authenticated_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto invalid_rpc_ctx =
+      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+    auto anonymous_rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
 
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
+    INFO("Valid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(authenticated_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
 
-    CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
-    const std::string error_msg(response.body.begin(), response.body.end());
-    CHECK(error_msg.find("RPC must be signed") != std::string::npos);
+      // Even though the RPC does not require authenticated caller, an
+      // authenticated RPC succeeds
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Invalid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(invalid_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Anonymous caller");
+    {
+      const auto serialized_response =
+        frontend.process(anonymous_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
   }
 
-  SUBCASE("request with signature on sign-only handler")
+  SUBCASE("handler requires valid caller")
   {
-    const auto unsigned_call = create_simple_request("empty_function_signed");
-    const auto [signed_call, signed_req] = create_signed_request(unsigned_call);
-    const auto serialized_call = signed_call.build_request();
+    const auto simple_call = create_simple_request("empty_function");
+    const auto serialized_simple_call = simple_call.build_request();
+    auto authenticated_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto invalid_rpc_ctx =
+      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+    auto anonymous_rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
+
+    INFO("Valid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(authenticated_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Invalid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(invalid_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(
+        error_msg.find("Could not find matching user certificate") !=
+        std::string::npos);
+    }
+
+    INFO("Anonymous caller");
+    {
+      const auto serialized_response =
+        frontend.process(anonymous_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(
+        error_msg.find("Could not find matching user certificate") !=
+        std::string::npos);
+    }
+  }
+}
+
+TEST_CASE("No certs table")
+{
+  prepare_callers();
+  TestNoCertsFrontend frontend(*network.tables);
+  auto simple_call = create_simple_request();
+  std::vector<uint8_t> serialized_call = simple_call.build_request();
+
+  INFO("Authenticated caller");
+  {
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-
-    const auto serialized_response = frontend.process(rpc_ctx).value();
+    std::vector<uint8_t> serialized_response =
+      frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-
     CHECK(response.status == HTTP_STATUS_OK);
+  }
+
+  INFO("Anonymous caller");
+  {
+    auto rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_call);
+    std::vector<uint8_t> serialized_response =
+      frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+}
+
+TEST_CASE("Member caller")
+{
+  prepare_callers();
+  auto simple_call = create_simple_request();
+  std::vector<uint8_t> serialized_call = simple_call.build_request();
+  TestMemberFrontend frontend(network, stub_node);
+
+  SUBCASE("valid caller")
+  {
+    auto member_rpc_ctx =
+      enclave::make_rpc_context(member_session, serialized_call);
+    std::vector<uint8_t> serialized_response =
+      frontend.process(member_rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+
+  SUBCASE("invalid caller")
+  {
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    std::vector<uint8_t> serialized_response =
+      frontend.process(rpc_ctx).value();
+    auto response = parse_response(serialized_response);
+    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
   }
 }
 
@@ -634,76 +807,6 @@ TEST_CASE("MinimalHandleFunction")
   }
 }
 
-// callers
-
-TEST_CASE("User caller")
-{
-  prepare_callers();
-  auto simple_call = create_simple_request();
-  std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestUserFrontend frontend(*network.tables);
-
-  SUBCASE("valid caller")
-  {
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-    std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_OK);
-  }
-
-  SUBCASE("invalid caller")
-  {
-    auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
-    std::vector<uint8_t> serialized_response =
-      frontend.process(member_rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
-  }
-}
-
-TEST_CASE("Member caller")
-{
-  prepare_callers();
-  auto simple_call = create_simple_request();
-  std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, stub_node);
-
-  SUBCASE("valid caller")
-  {
-    auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
-    std::vector<uint8_t> serialized_response =
-      frontend.process(member_rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_OK);
-  }
-
-  SUBCASE("invalid caller")
-  {
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-    std::vector<uint8_t> serialized_response =
-      frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
-  }
-}
-
-TEST_CASE("No certs table")
-{
-  prepare_callers();
-
-  auto simple_call = create_simple_request();
-  std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestNoCertsFrontend frontend(*network.tables);
-
-  auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-  std::vector<uint8_t> serialized_response = frontend.process(rpc_ctx).value();
-  auto response = parse_response(serialized_response);
-  CHECK(response.status == HTTP_STATUS_OK);
-}
-
 TEST_CASE("Signed read requests can be executed on backup")
 {
   prepare_callers();
@@ -757,7 +860,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  backup_ctx->session->is_forwarded = false;
+  backup_ctx->session->is_forwarding = false;
 
   {
     INFO("Read command is not forwarded to primary");
@@ -868,7 +971,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   // On a session that was previously forwarded, and is now primary,
   // commands should still succeed
-  ctx->session->is_forwarded = true;
+  ctx->session->is_forwarding = true;
   {
     INFO("Write command primary on a forwarded session succeeds");
     REQUIRE(channel_stub->is_empty());
