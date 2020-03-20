@@ -306,7 +306,8 @@ namespace ccfapp
           tls::raw_from_b64("9i7qNjDIO8tNb57+f/lBoT9jmCwVMYoJWHZoUqBzjh4=");
 
         CodeDigest array_digest;
-        std::copy_n(digest_raw.begin(), CODE_DIGEST_BYTES, array_digest.begin());
+        std::copy_n(
+          digest_raw.begin(), CODE_DIGEST_BYTES, array_digest.begin());
 
         auto uc_view = args.tx.get_view(user_code_ids);
         uc_view->put(array_digest, CodeStatus::ACCEPTED);
