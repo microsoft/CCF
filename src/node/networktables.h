@@ -20,6 +20,7 @@
 #include "service.h"
 #include "shares.h"
 #include "signatures.h"
+#include "usercodeid.h"
 #include "users.h"
 #include "values.h"
 #include "whitelists.h"
@@ -56,6 +57,7 @@ namespace ccf
     Users& users;
     Certs& user_certs;
 
+    UserCodeIds& user_code_ids;
     ClientSignatures& user_client_signatures;
 
     //
@@ -112,6 +114,7 @@ namespace ccf
         tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<Certs>(Tables::USER_CERTS)),
+      user_code_ids(tables->create<UserCodeIds>(Tables::USER_CODE_IDS)),
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
       nodes(tables->create<Nodes>(Tables::NODES, kv::SecurityDomain::PUBLIC)),

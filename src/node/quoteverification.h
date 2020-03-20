@@ -4,6 +4,7 @@
 
 #ifdef GET_QUOTE
 
+#  include "codeid.h"
 #  include "enclave/oe_shim.h"
 #  include "entities.h"
 #  include "networktables.h"
@@ -20,26 +21,51 @@ namespace ccf
     FAIL_VERIFY_OE,
     FAIL_VERIFY_CODE_ID_RETIRED,
     FAIL_VERIFY_CODE_ID_NOT_FOUND,
-    FAIL_VERIFY_INVALID_HASH,
+    FAIL_VERIFY_INVALID_QUOTED_CERT,
   };
+
+  inline CodeDigest get_digest_from_parsed_quote(
+    const oe_report_t& parsed_quote)
+  {
+    CodeDigest ret;
+    std::copy(
+      std::begin(parsed_quote.identity.unique_id),
+      std::end(parsed_quote.identity.unique_id),
+      ret.begin());
+    return ret;
+  }
 
   class QuoteVerifier
   {
   private:
-    static QuoteVerificationResult verify_enclave_measurement(
+    static QuoteVerificationResult verify_oe_quote(
+      const std::vector<uint8_t>& quote, oe_report_t& parsed_quote)
+    {
+      oe_result_t result =
+        oe_verify_report(quote.data(), quote.size(), &parsed_quote);
+
+      if (result != OE_OK)
+      {
+        LOG_FAIL_FMT("Quote verification failed: {}", oe_result_str(result));
+        return QuoteVerificationResult::FAIL_VERIFY_OE;
+      }
+      return QuoteVerificationResult::VERIFIED;
+    }
+
+    static QuoteVerificationResult verify_enclave_measurement_against_store(
       Store::Tx& tx,
       const NetworkTables& network,
-      const Cert& cert,
       const oe_report_t& parsed_quote)
     {
-      // Verify enclave measurement
       auto codeid_view = tx.get_view(network.code_ids);
       CodeStatus code_id_status = CodeStatus::UNKNOWN;
 
       auto code_digest = get_digest_from_parsed_quote(parsed_quote);
       auto status = codeid_view->get(code_digest);
       if (status)
+      {
         code_id_status = *status;
+      }
 
       if (code_id_status != CodeStatus::ACCEPTED)
       {
@@ -48,50 +74,82 @@ namespace ccf
           QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
       }
 
-      // Verify quote data
-      crypto::Sha256Hash hash{cert};
+      return QuoteVerificationResult::VERIFIED;
+    }
+
+    static QuoteVerificationResult verify_quoted_certificate(
+      const Cert& raw_cert_pem, const oe_report_t& parsed_quote)
+    {
+      crypto::Sha256Hash hash{raw_cert_pem};
+
       if (
         parsed_quote.report_data_size != crypto::Sha256Hash::SIZE &&
         memcmp(
           hash.h.data(), parsed_quote.report_data, crypto::Sha256Hash::SIZE) !=
           0)
       {
-        return QuoteVerificationResult::FAIL_VERIFY_INVALID_HASH;
+        return QuoteVerificationResult::FAIL_VERIFY_INVALID_QUOTED_CERT;
       }
+
       return QuoteVerificationResult::VERIFIED;
     }
 
-    static bool verify_quote_oe(
-      const std::vector<uint8_t>& quote, oe_report_t& parsed_quote)
-    {
-      // Parse quote and verify quote data
-      oe_result_t result =
-        oe_verify_report(quote.data(), quote.size(), &parsed_quote);
-
-      if (result != OE_OK)
-      {
-        LOG_FAIL_FMT("Quote could not be verified: {}", oe_result_str(result));
-        return false;
-      }
-      return true;
-    }
-
   public:
-    static QuoteVerificationResult verify_quote(
+    static QuoteVerificationResult verify_joiner_node_quote(
       Store::Tx& tx,
       const NetworkTables& network,
-      const std::vector<uint8_t>& quote,
-      const Cert& cert)
+      const std::vector<uint8_t>& raw_quote,
+      const Cert& raw_cert_pem)
     {
-      // Parse quote and verify quote data
       oe_report_t parsed_quote = {0};
 
-      if (!verify_quote_oe(quote, parsed_quote))
+      auto rc = verify_oe_quote(raw_quote, parsed_quote);
+      if (rc != QuoteVerificationResult::VERIFIED)
       {
-        return QuoteVerificationResult::FAIL_VERIFY_OE;
+        return rc;
       }
 
-      return verify_enclave_measurement(tx, network, cert, parsed_quote);
+      rc = verify_enclave_measurement_against_store(tx, network, parsed_quote);
+      if (rc != QuoteVerificationResult::VERIFIED)
+      {
+        return rc;
+      }
+
+      rc = verify_quoted_certificate(raw_cert_pem, parsed_quote);
+      if (rc != QuoteVerificationResult::VERIFIED)
+      {
+        return rc;
+      }
+
+      return QuoteVerificationResult::VERIFIED;
+    }
+
+    static QuoteVerificationResult verify_quote(
+      const std::vector<uint8_t>& raw_quote,
+      const Cert& raw_cert_pem,
+      std::set<CodeDigest> allowed_code_ids)
+    {
+      oe_report_t parsed_quote = {0};
+
+      auto rc = verify_oe_quote(raw_quote, parsed_quote);
+      if (rc != QuoteVerificationResult::VERIFIED)
+      {
+        return rc;
+      }
+
+      auto code_digest = get_digest_from_parsed_quote(parsed_quote);
+      if (allowed_code_ids.find(code_digest) == allowed_code_ids.end())
+      {
+        return FAIL_VERIFY_CODE_ID_NOT_FOUND;
+      }
+
+      rc = verify_quoted_certificate(raw_cert_pem, parsed_quote);
+      if (rc != QuoteVerificationResult::VERIFIED)
+      {
+        return rc;
+      }
+
+      return QuoteVerificationResult::VERIFIED;
     }
 
     static std::pair<http_status, std::string> quote_verification_error(
@@ -112,10 +170,10 @@ namespace ccf
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "CODE_ID_NOT_FOUND: Quote does not contain known enclave "
             "measurement");
-        case FAIL_VERIFY_INVALID_HASH:
+        case FAIL_VERIFY_INVALID_QUOTED_CERT:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Quote does not contain joining node certificate hash");
+            "Quote report data does not contain correct certificate hash");
         default:
           return std::make_pair(
             HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unknown error");

@@ -87,8 +87,9 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-        tx, this->network, in.quote, caller_pem_raw);
+      QuoteVerificationResult verify_result =
+        QuoteVerifier::verify_joiner_node_quote(
+          tx, this->network, in.quote, caller_pem_raw);
 
       if (verify_result != QuoteVerificationResult::VERIFIED)
       {

@@ -62,6 +62,7 @@ namespace ccf
     static constexpr auto GOV_HISTORY = "ccf.governance.history";
     static constexpr auto SERVICE = "ccf.service";
     static constexpr auto SHARES = "ccf.shares";
+    static constexpr auto USER_CODE_IDS = "ccf.user_code_ids";
   };
 
   using StoreSerialiser = kv::KvStoreSerialiser;
