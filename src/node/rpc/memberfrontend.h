@@ -724,9 +724,9 @@ namespace ccf
           {
             ma->state_digest =
               std::vector<uint8_t>(s->root.h.begin(), s->root.h.end());
-          }
 
-          ma_view->put(caller_id, ma.value());
+            ma_view->put(caller_id, ma.value());
+          }
 
           return make_success(ma.value());
         };
