@@ -212,6 +212,46 @@ namespace ccfapp
           return make_success(true);
         };
 
+      // SNIPPET_START: log_record_text
+      auto log_record_text = [this](RequestArgs& args) {
+        const auto expected = http::headervalues::contenttype::TEXT;
+        const auto actual =
+          args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
+            .value_or("");
+        if (expected != actual)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Expected content-type '{}'. Got '{}'.", expected, actual));
+          return;
+        }
+
+        constexpr auto log_id_header = "x-log-id";
+        const auto id_it = args.rpc_ctx->get_request_header(log_id_header);
+        if (!id_it.has_value())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(
+            fmt::format("Missing ID header '{}'", log_id_header));
+          return;
+        }
+
+        const auto id = strtoul(id_it.value().c_str(), nullptr, 10);
+
+        const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
+        const std::string log_line(content.begin(), content.end());
+
+        auto view = args.tx.get_view(records);
+        view->put(id, log_line);
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      };
+      // SNIPPET_START: log_record_text
+
       install(Procs::LOG_RECORD, json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
