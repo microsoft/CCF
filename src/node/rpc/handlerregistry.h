@@ -22,7 +22,7 @@ namespace ccf
     CallerId caller_id;
   };
 
-  uint64_t verb_to_mask(size_t verb)
+  static uint64_t verb_to_mask(size_t verb)
   {
     return 1ul << verb;
   }
