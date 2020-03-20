@@ -892,7 +892,7 @@ namespace ccf
       consensus->periodic(elapsed);
     }
 
-    void node_msg(const std::vector<uint8_t> data)
+    void node_msg(const std::vector<uint8_t>& data)
     {
       // Only process messages once part of network
       if (
