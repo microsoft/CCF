@@ -1648,9 +1648,9 @@ namespace ccf
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         rpc_map,
         rpcsessions,
-        *network.tables->get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS),
-        *network.tables->get<pbft::PrePreparesMap>(
-          pbft::Tables::PBFT_PRE_PREPARES),
+        network.pbft_requests_map,
+        network.pbft_pre_prepares_map,
+        network.signatures,
         node_sign_kp->private_key_pem().str(),
         node_cert,
         consensus_config);

@@ -329,6 +329,7 @@ namespace pbft
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
+      ccf::Signatures& signatures,
       const std::string& privk_pem,
       const std::vector<uint8_t>& cert,
       const consensus::Config& consensus_config) :
@@ -382,6 +383,7 @@ namespace pbft
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,
+        signatures,
         *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);

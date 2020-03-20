@@ -55,6 +55,7 @@ Replica::Replica(
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  ccf::Signatures& signatures,
   pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
@@ -165,7 +166,8 @@ Replica::Replica(
 
   exec_command = nullptr;
 
-  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
+  ledger_writer =
+    std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map, signatures);
   encryptor = store.get_encryptor();
 }
 
@@ -482,7 +484,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
 
-    last_te_version = ledger_writer->write_pre_prepare(tx);
+    last_te_version = ledger_writer->write_pre_prepare(tx, executable_pp.get());
 
     last_executed++;
 
