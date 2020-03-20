@@ -681,10 +681,16 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, "Submitted state digest is not valid");
         }
 
-        ma_view->put(
-          args.caller_id,
-          MemberAck(sig_view->get(0)->root, signed_request.value()));
-
+        const auto s = sig_view->get(0);
+        if (!s)
+        {
+          ma_view->put(args.caller_id, MemberAck({}, signed_request.value()));
+        }
+        else
+        {
+          ma_view->put(
+            args.caller_id, MemberAck(s->root, signed_request.value()));
+        }
         // update member status to ACTIVE
         auto members = args.tx.get_view(this->network.members);
         auto member = members->get(args.caller_id);
@@ -713,9 +719,14 @@ namespace ccf
               fmt::format("No ACK record exists for caller {}", caller_id));
           }
 
-          auto root = sig_view->get(0)->root;
-          ma->state_digest = std::vector<uint8_t>(root.h.begin(), root.h.end());
-          ma_view->put(caller_id, ma.value());
+          auto s = sig_view->get(0);
+          if (s)
+          {
+            ma->state_digest =
+              std::vector<uint8_t>(s->root.h.begin(), s->root.h.end());
+
+            ma_view->put(caller_id, ma.value());
+          }
 
           return make_success(ma.value());
         };

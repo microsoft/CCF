@@ -5,14 +5,21 @@
 #include "Request.h"
 
 LedgerWriter::LedgerWriter(
-  pbft::PbftStore& store_, pbft::PrePreparesMap& pbft_pre_prepares_map_) :
+  pbft::PbftStore& store_,
+  pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  ccf::Signatures& signatures_) :
   store(store_),
-  pbft_pre_prepares_map(pbft_pre_prepares_map_)
+  pbft_pre_prepares_map(pbft_pre_prepares_map_),
+  signatures(signatures_)
 {}
 
-kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx)
+kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx, Pre_prepare* pp)
 {
-  return store.commit_tx(tx);
+  return store.commit_tx(
+    tx,
+    {pp->get_replicated_state_merkle_root().data(),
+     pp->get_replicated_state_merkle_root().size()},
+    signatures);
 }
 
 kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
@@ -29,7 +36,10 @@ kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
      pp->get_digest_sig(),
      {(const uint8_t*)pp->contents(),
       (const uint8_t*)pp->contents() + pp->size()}},
-    pbft_pre_prepares_map);
+    pbft_pre_prepares_map,
+    {pp->get_replicated_state_merkle_root().data(),
+     pp->get_replicated_state_merkle_root().size()},
+    signatures);
 }
 
 void LedgerWriter::write_view_change(View_change* vc)
