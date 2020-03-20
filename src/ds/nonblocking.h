@@ -104,7 +104,7 @@ namespace ringbuffer
           const auto buffer_end = it.buffer.data() + it.buffer.size();
           if (
             it.marker == marker.value() &&
-            marker.value() != (uint64_t)buffer_end)
+            marker.value() != reinterpret_cast<uint64_t>(buffer_end))
           {
             // This is a pending write - dump data directly to write marker,
             // which should be within the appropriate buffer
