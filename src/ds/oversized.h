@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../src/consensus/pbft/libbyz/stacktrace_utils.h"
 #include "messaging.h"
 #include "ringbuffer.h"
 #include "serialized.h"
@@ -63,7 +62,6 @@ namespace oversized
           auto& partial = it->second;
           if (size + partial.received > partial.total_size)
           {
-              logger::print_stacktrace();
             throw ringbuffer::message_error(
               message_id,
               fmt::format(
@@ -195,18 +193,13 @@ namespace oversized
         OversizedMessage::fragment, max_fragment_size, wait, &outer_id);
       if (!marker.has_value())
       {
-        LOG_INFO << "OOOOOOOOOOOOOO - 3" << std::endl;
         return {};
       }
 
-
-
       // Write the header
       InitialFragmentHeader header = {outer_id, m, total_size};
-      LOG_INFO << "OOOOOOOOOOOOOO - 1 marker=>" << marker.value() << std::endl;
       auto next = underlying_writer->write_bytes(
         marker, (const uint8_t*)&header, sizeof(header));
-      LOG_INFO << "OOOOOOOOOOOOOO - 2" << std::endl;
 
       // Track progress in current oversized message
       fragment_progress = {

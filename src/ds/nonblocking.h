@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ringbuffer.h"
-#include "../src/consensus/pbft/libbyz/stacktrace_utils.h"
 
 #include <deque>
 #include <fmt/format_header_only.h>
@@ -19,8 +18,6 @@ namespace ringbuffer
   // pending queue. These pending message must be flushed regularly, attempting
   // again to write to the ringbuffer.
 
-  uint64_t counter = 0;
-
   class NonBlockingWriter : public AbstractWriter
   {
   private:
@@ -32,14 +29,12 @@ namespace ringbuffer
       size_t marker;
       bool finished;
       std::vector<uint8_t> buffer;
-      uint64_t tttt;
 
-      PendingMessage(Message m_, std::vector<uint8_t>&& buffer_, uint64_t aaaa) :
+      PendingMessage(Message m_, std::vector<uint8_t>&& buffer_) :
         m(m_),
         buffer(buffer_),
         marker(0),
-        finished(false),
-        tttt(aaaa)
+        finished(false)
       {}
     };
 
@@ -67,12 +62,8 @@ namespace ringbuffer
 
         // Prepare failed, no space in buffer - so add to queue
       }
-      uint64_t counter_value = ++counter;
-      auto v = std::vector<uint8_t>(total_size);
-      LOG_INFO << "AAAAAA - total_size:" << total_size
-               << ", buffer:" << (uint64_t)v.data()
-               << ", counter:" << counter_value << std::endl;
-      pending.emplace_back(m, std::move(v), counter_value);
+
+      pending.emplace_back(m, std::vector<uint8_t>(total_size));
 
       auto& msg = pending.back();
       msg.marker = (size_t)msg.buffer.data();
@@ -120,10 +111,6 @@ namespace ringbuffer
             auto dest = (uint8_t*)marker.value();
             if (dest < it.buffer.data())
             {
-              LOG_INFO_FMT("Invalid pending marker - writing before buffer: {} < {}",
-                (size_t)dest,
-                (size_t)it.buffer.data());
-              logger::print_stacktrace();
               throw std::runtime_error(fmt::format(
                 "Invalid pending marker - writing before buffer: {} < {}",
                 (size_t)dest,
@@ -132,15 +119,6 @@ namespace ringbuffer
 
             if (dest + size > buffer_end)
             {
-              LOG_INFO_FMT("Invalid pending marker - write extends beyond buffer: {} + {} "
-                "> {}, starting:{}, size:{}, counter_value:{}",
-                (size_t)dest,
-                (size_t)size,
-                (size_t)buffer_end,
-                (uint64_t)it.buffer.data(),
-                it.buffer.size(),
-                it.tttt);
-              logger::print_stacktrace();
               throw std::runtime_error(fmt::format(
                 "Invalid pending marker - write extends beyond buffer: {} + {} "
                 "> {}",
@@ -152,8 +130,6 @@ namespace ringbuffer
             std::memcpy(dest, bytes, size);
             dest += size;
             it.marker = (size_t)dest;
-            LOG_INFO << "setting marker:" << (size_t)dest
-                     << ", counter_value:" << it.tttt << std::endl;
             return {it.marker};
           }
         }
@@ -193,7 +169,6 @@ namespace ringbuffer
         underlying_writer->finish(marker);
 
         // This pending message was successfully written - pop it and continue
-        LOG_INFO << "BBBBBBB popping - " << pending.front().tttt << std::endl;
         pending.pop_front();
       }
 
