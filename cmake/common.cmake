@@ -270,8 +270,18 @@ if("sgx" IN_LIST TARGET)
 endif()
 
 if("virtual" IN_LIST TARGET)
+  if(SAN)
+    set(SNMALLOC_LIB)
+    set(SNMALLOC_CPP)
+  else()
+    set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+    add_subdirectory(3rdparty/snmalloc EXCLUDE_FROM_ALL)
+    set(SNMALLOC_LIB snmalloc_lib)
+    set(SNMALLOC_CPP src/enclave/snmalloc.cpp)
+  endif()
+
   # Virtual Host Executable
-  add_executable(cchost.virtual ${CCF_DIR}/src/host/main.cpp)
+  add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
   use_client_mbedtls(cchost.virtual)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
@@ -283,6 +293,7 @@ if("virtual" IN_LIST TARGET)
   target_link_libraries(
     cchost.virtual
     PRIVATE uv
+            ${SNMALLOC_LIB}
             ${CRYPTO_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
