@@ -901,6 +901,7 @@ TEST_CASE("Restricted verbs")
         const auto v = it->second;
         CHECK(v.find(http_method_str(HTTP_PUT)) != std::string::npos);
         CHECK(v.find(http_method_str(HTTP_DELETE)) != std::string::npos);
+        CHECK(v.find(http_method_str(verb)) == std::string::npos);
       }
     }
   }
