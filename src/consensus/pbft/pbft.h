@@ -126,9 +126,16 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
-      enclave::ThreadMessaging::thread_messaging
-        .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
+      }
+      else
+      {
+        tmsg->cb(std::move(tmsg));
+      }
     }
 
     std::vector<uint8_t> serialized_msg;
@@ -252,10 +259,17 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(
-        ++execution_thread_counter);
-      enclave::ThreadMessaging::thread_messaging.add_task<SendAuthenticatedMsg>(
-        tid, std::move(tmsg));
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        uint16_t tid = enclave::ThreadMessaging::get_execution_thread(
+          ++execution_thread_counter);
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<SendAuthenticatedMsg>(tid, std::move(tmsg));
+      }
+      else
+      {
+        tmsg->cb(std::move(tmsg));
+      }
 
       return msg->size();
     }
@@ -595,8 +609,16 @@ namespace pbft
 
       enclave::ThreadMessaging::ChangeTmsgCallback(
         msg, &recv_authenticated_msg_process_cb);
-      enclave::ThreadMessaging::thread_messaging.add_task<RecvAuthenticatedMsg>(
-        enclave::ThreadMessaging::main_thread, std::move(msg));
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<RecvAuthenticatedMsg>(
+            enclave::ThreadMessaging::main_thread, std::move(msg));
+      }
+      else
+      {
+        msg->cb(std::move(msg));
+      }
     }
 
     static void recv_authenticated_msg_process_cb(
@@ -622,10 +644,17 @@ namespace pbft
           auto recv_nonce = channels->template get_recv_nonce<PbftHeader>(
             tmsg->data.d.data(), tmsg->data.d.size());
 
-          enclave::ThreadMessaging::thread_messaging
-            .add_task<RecvAuthenticatedMsg>(
-              recv_nonce.tid % enclave::ThreadMessaging::thread_count,
-              std::move(tmsg));
+          if (enclave::ThreadMessaging::thread_count > 1)
+          {
+            enclave::ThreadMessaging::thread_messaging
+              .add_task<RecvAuthenticatedMsg>(
+                recv_nonce.tid % enclave::ThreadMessaging::thread_count,
+                std::move(tmsg));
+          }
+          else
+          {
+            tmsg->cb(std::move(tmsg));
+          }
 
           break;
         }

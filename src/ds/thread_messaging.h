@@ -199,17 +199,6 @@ namespace enclave
       return thread_ids[std::this_thread::get_id()];
     }
 
-    template <typename RetType, typename InputType>
-    static std::unique_ptr<Tmsg<RetType>> ConvertMessage(
-      std::unique_ptr<Tmsg<InputType>> msg,
-      void (*cb)(std::unique_ptr<Tmsg<RetType>>))
-    {
-      auto ret = std::unique_ptr<enclave::Tmsg<RetType>>(
-        (enclave::Tmsg<RetType>*)msg.release());
-      new (ret.get()) enclave::Tmsg<RetType>(cb);
-      return ret;
-    }
-
     static uint16_t get_execution_thread(uint32_t i)
     {
       uint16_t tid = 0;
