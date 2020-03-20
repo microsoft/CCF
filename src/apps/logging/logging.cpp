@@ -27,6 +27,7 @@ namespace ccfapp
 
     static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
     static constexpr auto LOG_RECORD_ANONYMOUS_CALLER = "LOG_record_anonymous";
+    static constexpr auto LOG_RECORD_RAW_TEXT = "LOG_record_raw_text";
   };
 
   // SNIPPET: table_definition
@@ -274,6 +275,7 @@ namespace ccfapp
         Write)
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false);
+      install(Procs::LOG_RECORD_RAW_TEXT, log_record_text, Write);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,
