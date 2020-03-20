@@ -185,19 +185,6 @@ bool Big_req_table::add_unmatched(BR_entry* e, Request*& old_req)
   auto& centry = unmatched[e->r->client_id()];
   old_req = 0;
 
-  if (
-    !centry.list.is_empty() &&
-    centry.last_value_seen[e->r->user_id()] >= e->r->request_id())
-  {
-    // client is expected to send requests in request id order
-    LOG_FAIL_FMT(
-      "client is expected to send requests in request id order {}, last seen "
-      "{}",
-      e->r->client_id(),
-      centry.last_value_seen[e->r->user_id()]);
-    return false;
-  }
-
   if (centry.num_requests >= Max_unmatched_requests_per_client)
   {
     LOG_FAIL_FMT(
@@ -209,7 +196,6 @@ bool Big_req_table::add_unmatched(BR_entry* e, Request*& old_req)
     centry.num_requests++;
   }
 
-  centry.last_value_seen[e->r->user_id()] = e->r->request_id();
   centry.list.insert(e);
   return true;
 }

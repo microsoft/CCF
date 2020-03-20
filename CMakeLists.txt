@@ -440,13 +440,6 @@ if(BUILD_TESTS)
     CONSENSUS raft
   )
 
-  # Member client end to end tests
-  add_e2e_test(
-    NAME member_client_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-    CONSENSUS raft
-  )
-
   # Lua sample app (tx regulator) end to end test
   add_e2e_test(
     NAME lua_txregulator_test
@@ -541,6 +534,12 @@ if(BUILD_TESTS)
   endif()
 
   foreach(CONSENSUS ${CONSENSUSES})
+    add_e2e_test(
+      NAME member_client_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+      CONSENSUS ${CONSENSUS}
+    )
+
     if(NOT SAN)
       add_e2e_test(
         NAME connections_${CONSENSUS}

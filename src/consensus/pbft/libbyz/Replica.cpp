@@ -55,6 +55,7 @@ Replica::Replica(
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  ccf::Signatures& signatures,
   pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
@@ -165,7 +166,8 @@ Replica::Replica(
 
   exec_command = nullptr;
 
-  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
+  ledger_writer =
+    std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map, signatures);
   encryptor = store.get_encryptor();
 }
 
@@ -212,9 +214,8 @@ static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
   Message* m = req->data.m;
   Replica* self = req->data.self;
 
-  auto resp = enclave::ThreadMessaging::
-    ConvertMessage<PreVerifyResultCbMsg, PreVerifyCbMsg>(
-      std::move(req), pre_verify_reply_cb);
+  auto resp =
+    std::make_unique<enclave::Tmsg<PreVerifyResultCbMsg>>(&pre_verify_reply_cb);
 
   resp->data.m = m;
   resp->data.self = self;
@@ -483,7 +484,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
 
-    last_te_version = ledger_writer->write_pre_prepare(tx);
+    last_te_version = ledger_writer->write_pre_prepare(tx, executable_pp.get());
 
     last_executed++;
 

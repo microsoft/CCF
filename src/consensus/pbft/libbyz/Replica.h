@@ -62,6 +62,7 @@ public:
     INetwork* network,
     pbft::RequestsMap& pbft_requests_map_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
+    ccf::Signatures& signatures,
     pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.

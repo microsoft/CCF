@@ -113,6 +113,7 @@ int Byz_init_replica(
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
+  ccf::Signatures& signatures,
   pbft::PbftStore& store,
   IMessageReceiveBase** message_receiver)
 {
@@ -124,6 +125,7 @@ int Byz_init_replica(
     network,
     pbft_requests_map,
     pbft_pre_prepares_map,
+    signatures,
     store));
 
   if (message_receiver != nullptr)
