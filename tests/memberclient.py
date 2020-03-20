@@ -61,7 +61,7 @@ def run(args):
             0,
             primary,
             new_member_id=3,
-            curve=infra.ccf.ParticipantsCurve(args.default_curve).next(),
+            curve=infra.ccf.ParticipantsCurve(args.participants_curve).next(),
         )
         assert response.status == http.HTTPStatus.OK.value
 
