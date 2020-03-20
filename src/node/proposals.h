@@ -7,7 +7,7 @@
 #include "entities.h"
 #include "script.h"
 
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <unordered_map>
 #include <vector>
 
