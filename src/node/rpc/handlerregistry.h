@@ -22,6 +22,11 @@ namespace ccf
     CallerId caller_id;
   };
 
+  uint64_t verb_to_mask(size_t verb)
+  {
+    return 1ul << verb;
+  }
+
   using HandleFunction = std::function<void(RequestArgs& args)>;
 
   class HandlerRegistry
@@ -123,41 +128,32 @@ namespace ccf
         return *this;
       }
 
-      Handler& restrict_allowed_verbs(std::set<http_method>&& allowed_verbs)
-      {
-        func = [prev_func = func,
-                verbs = std::move(allowed_verbs)](ccf::RequestArgs& args) {
-          const auto verb = (http_method)args.rpc_ctx->get_request_verb();
-          if (verbs.find(verb) == verbs.end())
-          {
-            args.rpc_ctx->set_response_status(HTTP_STATUS_METHOD_NOT_ALLOWED);
-            std::string allow_header_value;
-            for (auto it = verbs.begin(); it != verbs.end(); ++it)
-            {
-              allow_header_value += fmt::format(
-                "{}{}",
-                (it == verbs.begin() ? "" : ", "),
-                http_method_str(*it));
-            }
-            args.rpc_ctx->set_response_header(
-              http::headers::ALLOW, allow_header_value);
-            return;
-          }
+      // Bit mask. Bit i is 1 iff the http_method with value i is allowed.
+      // Default is that all verbs are allowed
+      uint64_t allowed_verbs_mask = ~0;
 
-          prev_func(args);
-        };
+      Handler& set_allowed_verbs(std::set<http_method>&& allowed_verbs)
+      {
+        // Reset mask to disallow everything
+        allowed_verbs_mask = 0;
+
+        // Set bit for each allowed verb
+        for (const auto& verb : allowed_verbs)
+        {
+          allowed_verbs_mask |= verb_to_mask(verb);
+        }
 
         return *this;
       }
 
       Handler& set_http_get_only()
       {
-        return restrict_allowed_verbs({HTTP_GET});
+        return set_allowed_verbs({HTTP_GET});
       }
 
       Handler& set_http_post_only()
       {
-        return restrict_allowed_verbs({HTTP_POST});
+        return set_allowed_verbs({HTTP_POST});
       }
     };
 

@@ -409,6 +409,25 @@ namespace ccf
         return ctx->serialise_response();
       }
 
+      if (!(handler->allowed_verbs_mask &
+            verb_to_mask(ctx->get_request_verb())))
+      {
+        ctx->set_response_status(HTTP_STATUS_METHOD_NOT_ALLOWED);
+        std::string allow_header_value;
+        bool first = true;
+        for (size_t verb = 0; verb <= HTTP_SOURCE; ++verb)
+        {
+          if (handler->allowed_verbs_mask & verb_to_mask(verb))
+          {
+            allow_header_value += fmt::format(
+              "{}{}", (first ? "" : ", "), http_method_str((http_method)verb));
+            first = false;
+          }
+        }
+        ctx->set_response_header(http::headers::ALLOW, allow_header_value);
+        return ctx->serialise_response();
+      }
+
       if (handler->require_client_identity && handlers.has_certs())
       {
         // Only if handler requires client identity.

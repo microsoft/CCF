@@ -134,7 +134,7 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install("put_or_delete", put_or_delete, HandlerRegistry::Read)
-      .restrict_allowed_verbs({HTTP_PUT, HTTP_DELETE});
+      .set_allowed_verbs({HTTP_PUT, HTTP_DELETE});
   }
 };
 
