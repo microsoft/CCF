@@ -88,8 +88,8 @@ namespace ccf
 
 #ifdef GET_QUOTE
       QuoteVerificationResult verify_result =
-        QuoteVerifier::verify_joiner_node_quote(
-          tx, this->network, in.quote, caller_pem_raw);
+        QuoteVerifier::verify_quote_against_store(
+          tx, this->network.node_code_ids, in.quote, caller_pem_raw);
 
       if (verify_result != QuoteVerificationResult::VERIFIED)
       {
@@ -181,10 +181,8 @@ namespace ccf
 
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
-        auto caller_pem =
-          tls::make_verifier(args.rpc_ctx->session->caller_cert)->cert_pem();
-        std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
-                                               caller_pem.str().end()};
+        auto caller_pem_raw =
+          tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
 
         if (active_service->status == ServiceStatus::OPENING)
         {

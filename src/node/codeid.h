@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/json.h"
 #include "entities.h"
 
 #include <msgpack.hpp>
@@ -12,9 +13,10 @@ namespace ccf
   {
     ACCEPTED = 0,
     RETIRED = 1,
-    // not to be used
-    UNKNOWN
   };
+  DECLARE_JSON_ENUM(
+    CodeStatus,
+    {{CodeStatus::ACCEPTED, "ACCEPTED"}, {CodeStatus::RETIRED, "RETIRED"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::CodeStatus);

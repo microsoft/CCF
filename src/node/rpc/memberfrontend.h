@@ -203,7 +203,7 @@ namespace ccf
          [this](
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
-           auto code_ids = tx.get_view(this->network.code_ids);
+           auto code_ids = tx.get_view(this->network.node_code_ids);
            auto existing_code_id = code_ids->get(id);
            if (existing_code_id)
            {
@@ -869,7 +869,7 @@ namespace ccf
           std::begin(in.code_digest),
           CODE_DIGEST_BYTES,
           std::begin(node_code_id));
-        g.trust_code_id(node_code_id);
+        g.trust_node_code_id(node_code_id);
 #endif
 
         for (const auto& wl : default_whitelists)

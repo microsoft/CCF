@@ -24,6 +24,8 @@ namespace ccf
       std::begin(parsed_quote.identity.unique_id),
       std::end(parsed_quote.identity.unique_id),
       ret.begin());
+
+    auto raw_digest = std::vector<uint8_t>(ret.begin(), ret.end());
     return ret;
   }
 
@@ -74,7 +76,6 @@ namespace ccf
       raw_quote.assign(quote, quote + quote_len);
       oe_free_report(quote);
 
-      std::cout << tls::b64_from_raw(raw_quote) << std::endl;
       return raw_quote;
     }
   };
@@ -106,25 +107,20 @@ namespace ccf
     }
 
     static QuoteVerificationResult verify_enclave_measurement_against_store(
-      Store::Tx& tx,
-      const NetworkTables& network,
-      const oe_report_t& parsed_quote)
+      Store::Tx& tx, CodeIDs& code_ids_table, const oe_report_t& parsed_quote)
     {
-      auto codeid_view = tx.get_view(network.code_ids);
-      CodeStatus code_id_status = CodeStatus::UNKNOWN;
-
       auto code_digest = get_digest_from_parsed_quote(parsed_quote);
-      auto status = codeid_view->get(code_digest);
-      if (status)
+
+      auto codeid_view = tx.get_view(code_ids_table);
+      auto code_id_status = codeid_view->get(code_digest);
+      if (!code_id_status.has_value())
       {
-        code_id_status = *status;
+        return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
       }
 
-      if (code_id_status != CodeStatus::ACCEPTED)
+      if (code_id_status.value() != CodeStatus::ACCEPTED)
       {
-        return code_id_status == CodeStatus::RETIRED ?
-          QuoteVerificationResult::FAIL_VERIFY_CODE_ID_RETIRED :
-          QuoteVerificationResult::FAIL_VERIFY_CODE_ID_NOT_FOUND;
+        return QuoteVerificationResult::FAIL_VERIFY_CODE_ID_RETIRED;
       }
 
       return QuoteVerificationResult::VERIFIED;
@@ -148,9 +144,9 @@ namespace ccf
     }
 
   public:
-    static QuoteVerificationResult verify_joiner_node_quote(
+    static QuoteVerificationResult verify_quote_against_store(
       Store::Tx& tx,
-      const NetworkTables& network,
+      CodeIDs& code_ids,
       const std::vector<uint8_t>& raw_quote,
       const Cert& raw_cert_pem)
     {
@@ -162,38 +158,10 @@ namespace ccf
         return rc;
       }
 
-      rc = verify_enclave_measurement_against_store(tx, network, parsed_quote);
+      rc = verify_enclave_measurement_against_store(tx, code_ids, parsed_quote);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
         return rc;
-      }
-
-      rc = verify_quoted_certificate(raw_cert_pem, parsed_quote);
-      if (rc != QuoteVerificationResult::VERIFIED)
-      {
-        return rc;
-      }
-
-      return QuoteVerificationResult::VERIFIED;
-    }
-
-    static QuoteVerificationResult verify_quote(
-      const std::vector<uint8_t>& raw_quote,
-      const Cert& raw_cert_pem,
-      std::set<CodeDigest> allowed_code_ids)
-    {
-      oe_report_t parsed_quote = {0};
-
-      auto rc = verify_oe_quote(raw_quote, parsed_quote);
-      if (rc != QuoteVerificationResult::VERIFIED)
-      {
-        return rc;
-      }
-
-      auto code_digest = get_digest_from_parsed_quote(parsed_quote);
-      if (allowed_code_ids.find(code_digest) == allowed_code_ids.end())
-      {
-        return FAIL_VERIFY_CODE_ID_NOT_FOUND;
       }
 
       rc = verify_quoted_certificate(raw_cert_pem, parsed_quote);

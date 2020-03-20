@@ -20,7 +20,6 @@
 #include "service.h"
 #include "shares.h"
 #include "signatures.h"
-#include "usercodeid.h"
 #include "users.h"
 #include "values.h"
 #include "whitelists.h"
@@ -44,7 +43,7 @@ namespace ccf
     Scripts& gov_scripts;
     Proposals& proposals;
     Whitelists& whitelists;
-    CodeIDs& code_ids;
+    CodeIDs& node_code_ids;
     MemberAcks& member_acks;
     GovernanceHistory& governance_history;
     ClientSignatures& member_client_signatures;
@@ -57,7 +56,7 @@ namespace ccf
     Users& users;
     Certs& user_certs;
 
-    UserCodeIds& user_code_ids;
+    CodeIDs& user_code_ids;
     ClientSignatures& user_client_signatures;
 
     //
@@ -102,8 +101,8 @@ namespace ccf
         Tables::PROPOSALS, kv::SecurityDomain::PUBLIC)),
       whitelists(tables->create<Whitelists>(
         Tables::WHITELISTS, kv::SecurityDomain::PUBLIC)),
-      code_ids(
-        tables->create<CodeIDs>(Tables::CODE_IDS, kv::SecurityDomain::PUBLIC)),
+      node_code_ids(tables->create<CodeIDs>(
+        Tables::NODE_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       member_acks(tables->create<MemberAcks>(
         Tables::MEMBER_ACKS, kv::SecurityDomain::PUBLIC)),
       governance_history(tables->create<GovernanceHistory>(
@@ -114,7 +113,8 @@ namespace ccf
         tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<Certs>(Tables::USER_CERTS)),
-      user_code_ids(tables->create<UserCodeIds>(Tables::USER_CODE_IDS)),
+      user_code_ids(tables->create<CodeIDs>(
+        Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
       nodes(tables->create<Nodes>(Tables::NODES, kv::SecurityDomain::PUBLIC)),
@@ -148,7 +148,8 @@ namespace ccf
         std::ref(gov_scripts),
         std::ref(proposals),
         std::ref(whitelists),
-        std::ref(code_ids),
+        std::ref(node_code_ids),
+        std::ref(user_code_ids),
         std::ref(member_acks),
         std::ref(governance_history),
         std::ref(member_client_signatures),

@@ -629,7 +629,7 @@ namespace ccf
       g.trust_node(self);
 
 #ifdef GET_QUOTE
-      g.trust_code_id(node_code_id);
+      g.trust_node_code_id(node_code_id);
 #endif
 
       if (g.finalize() != kv::CommitSuccess::OK)
