@@ -78,22 +78,6 @@ def test_anonymous_caller(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
-        # TODO: Members raw_puts
-        add_user_code_id_script = """local tables, param = ...
-        local member_id = param
-        local STATE_ACCEPTED = "ACCEPTED"
-        local member_info = {cert = {}, keyshare = {}, status = STATE_ACCEPTED}
-        local p = Puts:new()
-        p:put("ccf.members", member_id, member_info)
-        return Calls:call("raw_puts", p)
-        """
-        network.consortium.propose(
-            member_id=0,
-            remote_node=primary,
-            script=add_user_code_id_script,
-            params=None,
-        )
-
         # Create a new user but do not record its identity
         network.create_user(4, args.default_curve)
 
