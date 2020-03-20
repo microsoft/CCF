@@ -38,7 +38,7 @@ namespace ccf
       term(0),
       commit(0),
       root(root_),
-      tree({0})
+      tree{0}
     {}
 
     Signature(
