@@ -153,7 +153,7 @@ namespace enclave
     static std::atomic<uint16_t> thread_count;
     static const uint16_t main_thread = 0;
 
-    static const uint16_t max_num_threads = 64;
+    static const uint16_t max_num_threads = 24;
 
   public:
     ThreadMessaging(uint16_t num_threads = max_num_threads) :
@@ -194,15 +194,9 @@ namespace enclave
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
     }
 
-    template <typename RetType, typename InputType>
-    static std::unique_ptr<Tmsg<RetType>> ConvertMessage(
-      std::unique_ptr<Tmsg<InputType>> msg,
-      void (*cb)(std::unique_ptr<Tmsg<RetType>>))
+    uint16_t get_thread_id()
     {
-      auto ret = std::unique_ptr<enclave::Tmsg<RetType>>(
-        (enclave::Tmsg<RetType>*)msg.release());
-      new (ret.get()) enclave::Tmsg<RetType>(cb);
-      return ret;
+      return thread_ids[std::this_thread::get_id()];
     }
 
     static uint16_t get_execution_thread(uint32_t i)

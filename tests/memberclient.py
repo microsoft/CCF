@@ -21,7 +21,7 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -61,7 +61,7 @@ def run(args):
             0,
             primary,
             new_member_id=3,
-            curve=infra.ccf.ParticipantsCurve(args.default_curve).next(),
+            curve=infra.ccf.ParticipantsCurve(args.participants_curve).next(),
         )
         assert response.status == http.HTTPStatus.OK.value
 

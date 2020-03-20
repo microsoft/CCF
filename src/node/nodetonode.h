@@ -118,6 +118,17 @@ namespace ccf
     }
 
     template <class T>
+    RecvNonce get_recv_nonce(const uint8_t* data, size_t size)
+    {
+      const auto& t = serialized::overlay<T>(data, size);
+      serialized::skip(data, size, (size - sizeof(GcmHdr)));
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      auto& n2n_channel = channels->get(t.from_node);
+
+      return n2n_channel.get_nonce(hdr);
+    }
+
+    template <class T>
     CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
     {
       // data contains the message header of type T, the raw data, and the gcm

@@ -126,9 +126,16 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
-      enclave::ThreadMessaging::thread_messaging
-        .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
+      }
+      else
+      {
+        tmsg->cb(std::move(tmsg));
+      }
     }
 
     std::vector<uint8_t> serialized_msg;
@@ -252,9 +259,17 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
-      enclave::ThreadMessaging::thread_messaging.add_task<SendAuthenticatedMsg>(
-        tid, std::move(tmsg));
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        uint16_t tid = enclave::ThreadMessaging::get_execution_thread(
+          ++execution_thread_counter);
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<SendAuthenticatedMsg>(tid, std::move(tmsg));
+      }
+      else
+      {
+        tmsg->cb(std::move(tmsg));
+      }
 
       return msg->size();
     }
@@ -271,6 +286,7 @@ namespace pbft
     }
 
   private:
+    uint32_t execution_thread_counter = 0;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
@@ -313,6 +329,7 @@ namespace pbft
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
+      ccf::Signatures& signatures,
       const std::string& privk_pem,
       const std::vector<uint8_t>& cert,
       const consensus::Config& consensus_config) :
@@ -366,6 +383,7 @@ namespace pbft
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,
+        signatures,
         *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
@@ -593,8 +611,16 @@ namespace pbft
 
       enclave::ThreadMessaging::ChangeTmsgCallback(
         msg, &recv_authenticated_msg_process_cb);
-      enclave::ThreadMessaging::thread_messaging.add_task<RecvAuthenticatedMsg>(
-        enclave::ThreadMessaging::main_thread, std::move(msg));
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<RecvAuthenticatedMsg>(
+            enclave::ThreadMessaging::main_thread, std::move(msg));
+      }
+      else
+      {
+        msg->cb(std::move(msg));
+      }
     }
 
     static void recv_authenticated_msg_process_cb(
@@ -617,10 +643,20 @@ namespace pbft
           auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
             &recv_authenticated_msg_cb, std::move(d), this);
 
-          uint16_t tid =
-            enclave::ThreadMessaging::get_execution_thread(hdr.from_node);
-          enclave::ThreadMessaging::thread_messaging
-            .add_task<RecvAuthenticatedMsg>(tid, std::move(tmsg));
+          auto recv_nonce = channels->template get_recv_nonce<PbftHeader>(
+            tmsg->data.d.data(), tmsg->data.d.size());
+
+          if (enclave::ThreadMessaging::thread_count > 1)
+          {
+            enclave::ThreadMessaging::thread_messaging
+              .add_task<RecvAuthenticatedMsg>(
+                recv_nonce.tid % enclave::ThreadMessaging::thread_count,
+                std::move(tmsg));
+          }
+          else
+          {
+            tmsg->cb(std::move(tmsg));
+          }
 
           break;
         }

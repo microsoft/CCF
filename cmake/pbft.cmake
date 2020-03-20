@@ -154,6 +154,7 @@ if("virtual" IN_LIST TARGET)
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_test.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
   )
+  target_link_libraries(replica-test PRIVATE ccfcrypto.host)
   pbft_add_executable(replica-test)
 
   add_executable(

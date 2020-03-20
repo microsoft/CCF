@@ -544,6 +544,20 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
         read_params(new_member->id, Tables::MEMBER_ACKS), "read");
       const auto ack0 = parse_response_body<StateDigest>(
         frontend_process(frontend, read_state_digest_req, new_member->cert));
+      DOCTEST_REQUIRE(std::all_of(
+        ack0.state_digest.begin(), ack0.state_digest.end(), [](uint8_t i) {
+          return i == 0;
+        }));
+
+      {
+        // make sure that there is a signature in the signatures table since
+        // ack's depend on that
+        Store::Tx tx;
+        auto sig_view = tx.get_view(network.signatures);
+        Signature sig_value;
+        sig_view->put(0, sig_value);
+        DOCTEST_REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      }
 
       // (2) ask for a fresher digest of state
       const auto freshen_state_digest_req =
