@@ -11,19 +11,11 @@
 
 #  include <openenclave/bits/report.h>
 #  include <openenclave/bits/result.h>
+#  include <optional>
 #  include <vector>
 
 namespace ccf
 {
-  enum QuoteVerificationResult : uint32_t
-  {
-    VERIFIED = 0,
-    FAIL_VERIFY_OE,
-    FAIL_VERIFY_CODE_ID_RETIRED,
-    FAIL_VERIFY_CODE_ID_NOT_FOUND,
-    FAIL_VERIFY_INVALID_QUOTED_CERT,
-  };
-
   inline CodeDigest get_digest_from_parsed_quote(
     const oe_report_t& parsed_quote)
   {
@@ -34,6 +26,67 @@ namespace ccf
       ret.begin());
     return ret;
   }
+
+  class QuoteGenerator
+  {
+  public:
+    static std::optional<CodeDigest> get_code_id(
+      const std::vector<uint8_t>& raw_quote)
+    {
+      oe_report_t parsed_quote = {0};
+
+      auto rc =
+        oe_parse_report(raw_quote.data(), raw_quote.size(), &parsed_quote);
+      if (rc != OE_OK)
+      {
+        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(rc));
+        return {};
+      }
+
+      return get_digest_from_parsed_quote(parsed_quote);
+    }
+
+    static std::optional<std::vector<uint8_t>> get_quote(
+      const Cert& raw_cert_pem)
+    {
+      std::vector<uint8_t> raw_quote;
+      crypto::Sha256Hash h{raw_cert_pem};
+      uint8_t* quote;
+      size_t quote_len = 0;
+      oe_report_t parsed_quote = {0};
+
+      auto rc = oe_get_report(
+        OE_REPORT_FLAGS_REMOTE_ATTESTATION,
+        h.h.data(),
+        h.SIZE,
+        nullptr,
+        0,
+        &quote,
+        &quote_len);
+
+      if (rc != OE_OK)
+      {
+        oe_free_report(quote);
+        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(rc));
+        return {};
+      }
+
+      raw_quote.assign(quote, quote + quote_len);
+      oe_free_report(quote);
+
+      std::cout << tls::b64_from_raw(raw_quote) << std::endl;
+      return raw_quote;
+    }
+  };
+
+  enum QuoteVerificationResult : uint32_t
+  {
+    VERIFIED = 0,
+    FAIL_VERIFY_OE,
+    FAIL_VERIFY_CODE_ID_RETIRED,
+    FAIL_VERIFY_CODE_ID_NOT_FOUND,
+    FAIL_VERIFY_INVALID_QUOTED_CERT,
+  };
 
   class QuoteVerifier
   {
@@ -181,5 +234,5 @@ namespace ccf
     }
   };
 
-} // namespace ccf
-#endif // GET_QUOTE
+}
+#endif

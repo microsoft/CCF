@@ -6,7 +6,7 @@
 #include "frontend.h"
 #include "node/entities.h"
 #include "node/networkstate.h"
-#include "node/quoteverification.h"
+#include "node/quote.h"
 #include "nodeinterface.h"
 
 namespace ccf

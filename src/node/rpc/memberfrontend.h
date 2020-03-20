@@ -6,7 +6,7 @@
 #include "node/genesisgen.h"
 #include "node/members.h"
 #include "node/nodes.h"
-#include "node/quoteverification.h"
+#include "node/quote.h"
 #include "node/secretshare.h"
 #include "node/sharemanager.h"
 #include "nodeinterface.h"
