@@ -112,6 +112,7 @@ namespace pbft
         }
       }
     }
+
     static void Execute(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
     {
       ExecutionCtx& execution_ctx = c->data;
@@ -193,7 +194,6 @@ namespace pbft
     };
 
     bool is_first_request = true;
-
     ExecCommand exec_command =
       [this](
         std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>&
