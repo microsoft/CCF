@@ -333,7 +333,7 @@ class RequestClient:
             else:
                 request_args["json"] = request.params
 
-        response = self.session.request(**request_args)
+        response = self.session.request(timeout=self.request_timeout, **request_args)
         return Response.from_requests_response(response)
 
     def _request(self, request, is_signed=False):
