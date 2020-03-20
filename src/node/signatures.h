@@ -32,7 +32,14 @@ namespace ccf
       commit(0)
     {}
 
-    Signature(crypto::Sha256Hash root_) : root(root_) {}
+    Signature(crypto::Sha256Hash root_) :
+      node(0),
+      index(0),
+      term(0),
+      commit(0),
+      root(root_),
+      tree({0})
+    {}
 
     Signature(
       NodeId node_,
