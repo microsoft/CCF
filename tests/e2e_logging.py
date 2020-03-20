@@ -73,7 +73,7 @@ def test_cert_prefix(network, args):
 
 
 @reqs.description("Write as anonymous caller")
-@reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
+@reqs.supports_methods("LOG_record_anonymous", "LOG_get")
 def test_anonymous_caller(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
@@ -95,6 +95,30 @@ def test_anonymous_caller(network, args):
             r = c.rpc("LOG_get", {"id": log_id})
             assert r.result is not None
             assert msg in r.result["msg"]
+    else:
+        LOG.warning("Skipping test_cert_prefix as application is not C++")
+
+    return network
+
+
+@reqs.description("Write non-JSON body")
+@reqs.supports_methods("LOG_record_raw_text", "LOG_get")
+def test_raw_text(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        # Create a new user but do not record its identity
+        network.create_user(4, args.participants_curve)
+
+        log_id = 101
+        msg = "This message is not in JSON"
+        with primary.user_client() as c:
+            r = c.rpc("LOG_record_raw_text", {"id": log_id, "msg": msg})
+            assert r.result == True
+            r = c.rpc("LOG_get", {"id": log_id})
+            assert r.result is not None
+            assert msg in r.result["msg"]
+
     else:
         LOG.warning("Skipping test_cert_prefix as application is not C++")
 
@@ -178,17 +202,18 @@ def run(args):
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
-            network = test(
-                network,
-                args,
-                notifications_queue,
-                verify=args.package is not "libjsgeneric",
-            )
-            network = test_large_messages(network, args)
-            network = test_forwarding_frontends(network, args)
-            network = test_update_lua(network, args)
-            network = test_cert_prefix(network, args)
-            network = test_anonymous_caller(network, args)
+            # network = test(
+            #    network,
+            #    args,
+            #    notifications_queue,
+            #    verify=args.package is not "libjsgeneric",
+            # )
+            # network = test_large_messages(network, args)
+            # network = test_forwarding_frontends(network, args)
+            # network = test_update_lua(network, args)
+            # network = test_cert_prefix(network, args)
+            # network = test_anonymous_caller(network, args)
+            network = test_raw_text(network, args)
 
 
 if __name__ == "__main__":
