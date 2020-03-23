@@ -520,9 +520,9 @@ if(BUILD_TESTS)
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 10000
     )
-    
+
     add_e2e_test(
-      NAME governance_tests_${CONSENSUS}
+      NAME governance_tests
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
