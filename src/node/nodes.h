@@ -5,7 +5,7 @@
 #include "kv/kvtypes.h"
 #include "nodeinfonetwork.h"
 
-#include <msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 

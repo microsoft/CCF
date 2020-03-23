@@ -5,6 +5,6 @@
 #############################################################################
 # Ignore msgpack 3rdparty
 
-src:*/3rdparty/msgpack-c/msgpack/v2/create_object_visitor.hpp
+src:*/3rdparty/msgpack/v2/create_object_visitor.hpp
 
 #############################################################################

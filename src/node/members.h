@@ -6,7 +6,7 @@
 #include "entities.h"
 #include "rawsignature.h"
 
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace ccf

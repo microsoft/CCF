@@ -8,7 +8,7 @@
 #include "node/encryptor.h"
 
 #include <doctest/doctest.h>
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
