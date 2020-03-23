@@ -4,7 +4,6 @@ parameters:
 
   env:
     Checks:
-      container: nosgx
       pool: TestPool
     NoSGX:
       container: nosgx
