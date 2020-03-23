@@ -275,3 +275,37 @@ DOCTEST_TEST_CASE("Pessimal transport")
     sp.received.pop();
   }
 }
+
+DOCTEST_TEST_CASE("Escaping")
+{
+  {
+    const std::string unescaped =
+      "This has many@many+many \\% \" AWKWARD :;-=?!& ++ characters %20%20";
+    const std::string escaped =
+      "This+has+many%40many%2Bmany+%5C%25+%22+AWKWARD+%3A%3B-%3D%3F%21%26+%2B%"
+      "2b+"
+      "characters+%2520%2520";
+
+    std::string s = escaped;
+    http::url_unescape(s);
+    DOCTEST_REQUIRE(s == unescaped);
+  }
+
+  {
+    const std::string request =
+      "GET /foo/bar?this=that&awkward=escaped+string+%3A%3B-%3D%3F%21%22 "
+      "HTTP/1.1\r\n\r\n";
+
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp);
+
+    const std::vector<uint8_t> req(request.begin(), request.end());
+    auto parsed = p.execute(req.data(), req.size());
+
+    DOCTEST_CHECK(!sp.received.empty());
+    const auto& m = sp.received.front();
+    DOCTEST_CHECK(m.method == HTTP_GET);
+    DOCTEST_CHECK(m.path == "/foo/bar");
+    DOCTEST_CHECK(m.query == "this=that&awkward=escaped string :;-=?!\"");
+  }
+}
