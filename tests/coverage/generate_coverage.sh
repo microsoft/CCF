@@ -12,8 +12,13 @@ LLVM_PROFDATA=llvm-profdata-${LLVM_VER}
 
 objects=()
 for f in *_test; do
-    objects+=( -object "$f")
-    echo "$f".profraw >> prof_files
+    PROF_PATH="$f".profraw
+    if [ -f "$PROF_PATH" ]; then
+        objects+=( -object "$f")
+        echo "$PROF_PATH" >> prof_files
+    else
+        echo "Ignoring $PROF_PATH - no corresponding .profraw file"
+    fi
 done
 
 # Merge coverage report for all unit tests

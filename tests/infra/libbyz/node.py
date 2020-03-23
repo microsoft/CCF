@@ -12,8 +12,8 @@ class Node:
         self.port = port
         self.private_key = private_key
         self.is_replica = is_replica
-        self.client_exe = "client-test"
-        self.server_exe = "replica-test"
+        self.client_exe = "pbft_client_test"
+        self.server_exe = "pbft_replica_test"
         self.proc = None
         self.cmd = None
 
