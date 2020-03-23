@@ -23,7 +23,7 @@ class AppUser:
         network.consortium.add_users(primary, [self.name])
 
         with primary.user_client(user_id=self.name) as client:
-            self.ccf_id = client.rpc("whoAmI", {}).result["caller_id"]
+            self.ccf_id = client.get("whoAmI").result["caller_id"]
 
     def __str__(self):
         return f"{self.ccf_id} ({self.name})"

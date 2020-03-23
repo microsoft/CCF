@@ -7,17 +7,18 @@ namespace http
   namespace headers
   {
     // All HTTP headers are expected to be lowercase
+    static constexpr auto ALLOW = "allow";
     static constexpr auto AUTHORIZATION = "authorization";
-    static constexpr auto DIGEST = "digest";
-    static constexpr auto CONTENT_TYPE = "content-type";
     static constexpr auto CONTENT_LENGTH = "content-length";
+    static constexpr auto CONTENT_TYPE = "content-type";
+    static constexpr auto DIGEST = "digest";
     static constexpr auto LOCATION = "location";
     static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
     static constexpr auto CCF_COMMIT = "x-ccf-commit";
-    static constexpr auto CCF_TERM = "x-ccf-term";
     static constexpr auto CCF_GLOBAL_COMMIT = "x-ccf-global-commit";
     static constexpr auto CCF_READ_ONLY = "x-ccf-read-only";
+    static constexpr auto CCF_TERM = "x-ccf-term";
   }
 
   namespace headervalues

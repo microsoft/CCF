@@ -26,7 +26,7 @@ def wait_for_index_globally_committed(index, term, nodes):
         up_to_date_f = []
         for f in nodes:
             with f.node_client() as c:
-                res = c.request("getCommit", {"commit": index})
+                res = c.get("getCommit", {"commit": index})
                 if res.result["term"] == term and (res.global_commit >= index):
                     up_to_date_f.append(f.node_id)
         if len(up_to_date_f) == len(nodes):
@@ -45,6 +45,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
+        check = infra.checker.Checker()
 
         network.start_and_join(args)
         current_term = None
@@ -76,15 +77,15 @@ def run(args):
             )
             commit_index = None
             with primary.user_client() as c:
-                res = c.do(
+                res = c.rpc(
                     "LOG_record",
                     {
                         "id": current_term,
                         "msg": "This log is committed in term {}".format(current_term),
                     },
                     readonly_hint=None,
-                    expected_result=True,
                 )
+                check(res, result=True)
                 commit_index = res.commit
 
             LOG.debug("Waiting for transaction to be committed by all nodes")

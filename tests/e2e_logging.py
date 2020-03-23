@@ -110,9 +110,9 @@ def test_forwarding_frontends(network, args):
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
         with backup.node_client() as c:
-            check_commit(c.do("mkSign", params={}), result=True)
+            check_commit(c.rpc("mkSign"), result=True)
         with backup.member_client() as c:
-            check_commit(c.do("mkSign", params={}), result=True)
+            check_commit(c.rpc("mkSign"), result=True)
 
     return network
 
@@ -143,7 +143,7 @@ def test_update_lua(network, args):
             member_id=1, remote_node=primary, app_script=new_app_file
         )
         with primary.user_client() as c:
-            check(c.rpc("ping", params={}), result="pong")
+            check(c.rpc("ping"), result="pong")
 
             LOG.debug("Check that former endpoints no longer exists")
             for endpoint in [
@@ -153,7 +153,7 @@ def test_update_lua(network, args):
                 "LOG_get_pub",
             ]:
                 check(
-                    c.rpc(endpoint, params={}),
+                    c.rpc(endpoint),
                     error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value,
                 )
     else:

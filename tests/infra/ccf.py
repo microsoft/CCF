@@ -376,7 +376,7 @@ class Network:
         for _ in range(timeout):
             try:
                 with node.node_client() as c:
-                    r = c.request("getSignedIndex", {})
+                    r = c.get("getSignedIndex")
                     if r.result["state"] == state:
                         break
             except ConnectionRefusedError:
@@ -411,7 +411,7 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.do("getPrimaryInfo", {})
+                        res = c.get("getPrimaryInfo")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
                             term = res.term
@@ -453,7 +453,7 @@ class Network:
         which added the nodes).
         """
         with primary.node_client() as c:
-            res = c.do("getCommit", {})
+            res = c.get("getCommit")
             local_commit_leader = res.commit
             term_leader = res.term
 
@@ -461,7 +461,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.request("getCommit", {})
+                    resp = c.get("getCommit")
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -486,7 +486,7 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    r = c.request("getCommit", {})
+                    r = c.get("getCommit")
                     commits.append(r.commit)
             if [commits[0]] * len(commits) == commits:
                 break

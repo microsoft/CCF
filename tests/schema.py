@@ -4,6 +4,7 @@ import os
 import sys
 import getpass
 import json
+import http
 import time
 import logging
 import multiprocessing
@@ -25,14 +26,19 @@ def run(args):
     methods_without_schema = set()
 
     def fetch_schema(client):
-        list_response = client.rpc("listMethods", {})
-        check(list_response)
+        list_response = client.get("listMethods")
+        check(
+            list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
+        )
         methods = list_response.result["methods"]
 
         for method in methods:
             schema_found = False
-            schema_response = client.rpc("getSchema", {"method": method})
-            check(schema_response)
+            schema_response = client.get(f"getSchema", params={"method": method})
+            check(
+                schema_response,
+                error=lambda status, msg: status == http.HTTPStatus.OK.value,
+            )
 
             if schema_response.result is not None:
                 for schema_type in ["params", "result"]:
