@@ -107,14 +107,15 @@ def test_raw_text(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
-        # Create a new user but do not record its identity
-        network.create_user(4, args.participants_curve)
-
         log_id = 101
         msg = "This message is not in JSON"
         with primary.user_client() as c:
-            r = c.rpc("LOG_record_raw_text", {"id": log_id, "msg": msg})
-            assert r.result == True
+            r = c.rpc(
+                "LOG_record_raw_text",
+                msg,
+                headers={"content-type": "text/plain", "x-log-id": str(log_id)},
+            )
+            assert r.status == http.HTTPStatus.OK.value
             r = c.rpc("LOG_get", {"id": log_id})
             assert r.result is not None
             assert msg in r.result["msg"]
