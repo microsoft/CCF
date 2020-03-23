@@ -70,7 +70,7 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id):
         for x in range(0, 5):
             try:
                 check(
-                    c.rpc("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
+                    c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
                 )
                 return
             except TimeoutError:

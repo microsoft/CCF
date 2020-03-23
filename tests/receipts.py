@@ -32,7 +32,7 @@ def test(network, args, notifications_queue=None):
         LOG.info("Write/Read on primary")
         with primary.user_client() as c:
             check_commit(c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True)
-            r = c.rpc("LOG_get", {"id": 42})
+            r = c.get("LOG_get", {"id": 42})
             check(r, result={"msg": msg})
             r = c.get("getReceipt", {"commit": r.commit})
             check(
