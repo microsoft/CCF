@@ -258,10 +258,22 @@ namespace ccf
       open_node_frontend();
 
 #ifdef GET_QUOTE
-      auto quote_opt = get_quote();
-      if (!quote_opt.has_value())
-        return Fail<CreateNew::Out>("Quote could not be retrieved");
-      quote = quote_opt.value();
+      if (network.consensus_type != ConsensusType::PBFT)
+      {
+        auto quote_opt = QuoteGenerator::get_quote(node_cert);
+        if (!quote_opt.has_value())
+        {
+          return Fail<CreateNew::Out>("Quote could not be retrieved");
+        }
+        quote = quote_opt.value();
+        auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
+        if (!node_code_id_opt.has_value())
+        {
+          return Fail<CreateNew::Out>(
+            "Code ID could not be retrieved from quote");
+        }
+        node_code_id = node_code_id_opt.value();
+      }
 #endif
 
       switch (args.start_type)
@@ -305,8 +317,8 @@ namespace ccf
         }
         case StartType::Join:
         {
-          // TLS connections are not endorsed by the network until the node has
-          // joined
+          // TLS connections are not endorsed by the network until the node
+          // has joined
           accept_node_tls_connections();
 
           sm.advance(State::pending);
@@ -327,8 +339,8 @@ namespace ccf
           setup_history();
           setup_encryptor(network.consensus_type);
 
-          // Accept members connections for members to finish recovery once the
-          // public ledger has been read
+          // Accept members connections for members to finish recovery once
+          // the public ledger has been read
           open_member_frontend();
 
           accept_network_tls_connections(args.config);
@@ -620,7 +632,10 @@ namespace ccf
       g.trust_node(self);
 
 #ifdef GET_QUOTE
-      g.trust_code_id(node_code_id);
+      if (network.consensus_type != ConsensusType::PBFT)
+      {
+        g.trust_node_code_id(node_code_id);
+      }
 #endif
 
       if (g.finalize() != kv::CommitSuccess::OK)
@@ -953,53 +968,6 @@ namespace ccf
       return sm.check(State::partOfPublicNetwork);
     }
 
-    std::optional<std::vector<uint8_t>> get_quote()
-    {
-      std::vector<uint8_t> q;
-
-#ifdef GET_QUOTE
-      // Quote is over the DER-encoded node certificate
-      crypto::Sha256Hash h{node_cert};
-      uint8_t* report;
-      size_t report_len = 0;
-
-      oe_result_t res = oe_get_report(
-        OE_REPORT_FLAGS_REMOTE_ATTESTATION,
-        h.h.data(),
-        h.SIZE,
-        nullptr,
-        0,
-        &report,
-        &report_len);
-
-      if (res != OE_OK)
-      {
-        LOG_FAIL_FMT("Failed to get quote: {}", oe_result_str(res));
-        return {};
-      }
-
-      q.assign(report, report + report_len);
-      oe_free_report(report);
-
-      // Set own code version
-      oe_report_t parsed_quote = {0};
-      res = oe_parse_report(q.data(), q.size(), &parsed_quote);
-      if (res != OE_OK)
-      {
-        LOG_FAIL_FMT("Failed to parse quote: {}", oe_result_str(res));
-        return {};
-      }
-
-      std::copy(
-        std::begin(parsed_quote.identity.unique_id),
-        std::end(parsed_quote.identity.unique_id),
-        std::begin(node_code_id));
-#else
-      throw std::logic_error("Quote retrieval is not yet implemented");
-#endif
-      return q;
-    }
-
     bool open_network(Store::Tx& tx) override
     {
       GenesisGenerator g(network, tx);
@@ -1028,8 +996,8 @@ namespace ccf
     {
       auto nodes_view = tx.get_view(network.nodes);
 
-      nodes_view->foreach([&result,
-                           &filter](const NodeId& nid, const NodeInfo& ni) {
+      nodes_view->foreach([&result, &filter, this](
+                            const NodeId& nid, const NodeInfo& ni) {
         if (!filter.has_value() || (filter->find(nid) != filter->end()))
         {
           if (ni.status == ccf::NodeStatus::TRUSTED)
@@ -1039,18 +1007,18 @@ namespace ccf
             q.raw = ni.quote;
 
 #ifdef GET_QUOTE
-            oe_report_t parsed_quote = {0};
-            auto res =
-              oe_parse_report(ni.quote.data(), ni.quote.size(), &parsed_quote);
-            if (res != OE_OK)
+            if (this->network.consensus_type != ConsensusType::PBFT)
             {
-              q.error =
-                fmt::format("Failed to parse quote: {}", oe_result_str(res));
-            }
-            else
-            {
-              q.mrenclave = fmt::format(
-                "{:02x}", fmt::join(parsed_quote.identity.unique_id, ""));
+              auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
+              if (!code_id_opt.has_value())
+              {
+                q.error = fmt::format("Failed to retrieve code ID from quote");
+              }
+              else
+              {
+                q.mrenclave =
+                  fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+              }
             }
 #endif
             result.quotes.push_back(q);

@@ -31,7 +31,7 @@ def run(args):
         with primary.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
-            r = mc.rpc("getQuotes", {})
+            r = mc.get("getQuotes")
             quotes = r.result["quotes"]
             assert len(quotes) == len(hosts)
             primary_quote = quotes[0]
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add=add)
 
     if args.enclave_type != "debug":
-        LOG.error("This test can only run in real enclaves, skipping")
+        LOG.warning("This test can only run in real enclaves, skipping")
         sys.exit(0)
 
     args.package = "liblogging"

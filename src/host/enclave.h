@@ -8,7 +8,7 @@
 #include "tls/keypair.h"
 
 #include <dlfcn.h>
-#include <msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #ifdef VIRTUAL_ENCLAVE
 #  include "enclave/ccf_v.h"
 #else

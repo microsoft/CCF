@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import base64
 import requests
+import urllib.parse
 from requests_http_signature import HTTPSignatureAuth
 from http.client import HTTPResponse
 from io import BytesIO
@@ -36,10 +37,11 @@ CCF_READ_ONLY_HEADER = "x-ccf-read-only"
 
 
 class Request:
-    def __init__(self, method, params, readonly_hint=None):
+    def __init__(self, method, params=None, readonly_hint=None, http_verb="POST"):
         self.method = method
         self.params = params
         self.readonly_hint = readonly_hint
+        self.http_verb = http_verb
 
 
 def int_or_none(v):
@@ -113,8 +115,8 @@ def human_readable_size(n):
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
-            f"{name} {request.method} "
-            + truncate(f"{request.params}")
+            f"{name} {request.http_verb} /{request.method}"
+            + (truncate(f" {request.params}") if request.params is not None else "")
             + (
                 f" (RO hint: {request.readonly_hint})"
                 if request.readonly_hint is not None
@@ -145,7 +147,7 @@ class RPCFileLogger(RPCLogger):
 
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
-            f.write(f">> Request: {request.method}" + os.linesep)
+            f.write(f">> Request: {request.http_verb} /{request.method}" + os.linesep)
             json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
@@ -158,6 +160,13 @@ class RPCFileLogger(RPCLogger):
 
 class CCFConnectionException(Exception):
     pass
+
+
+def build_query_string(params):
+    return "&".join(
+        f"{urllib.parse.quote_plus(k)}={urllib.parse.quote_plus(json.dumps(v))}"
+        for k, v in params.items()
+    )
 
 
 class CurlClient:
@@ -190,24 +199,38 @@ class CurlClient:
 
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
-            msg = json.dumps(request.params).encode()
-            LOG.debug(f"Going to call {request.method} with {msg}")
-            nf.write(msg)
-            nf.flush()
             if is_signed:
                 cmd = [os.path.join(self.binary_dir, "scurl.sh")]
             else:
                 cmd = ["curl"]
 
+            url = f"https://{self.host}:{self.port}/{request.method}"
+
+            is_get = request.http_verb == "GET"
+            if is_get:
+                if request.params is not None:
+                    url += f"?{build_query_string(request.params)}"
+
             cmd += [
-                f"https://{self.host}:{self.port}/{request.method}",
+                url,
+                "-X",
+                request.http_verb,
                 "-H",
                 "Content-Type: application/json",
-                "--data-binary",
-                f"@{nf.name}",
                 "-i",
                 f"-m {self.request_timeout}",
             ]
+
+            if not is_get:
+                msg = (
+                    json.dumps(request.params).encode()
+                    if request.params is not None
+                    else bytes()
+                )
+                LOG.debug(f"Writing request body: {msg}")
+                nf.write(msg)
+                nf.flush()
+                cmd.extend(["--data-binary", f"@{nf.name}"])
 
             if request.readonly_hint:
                 cmd.extend(["-H", f"{CCF_READ_ONLY_HEADER}: true"])
@@ -296,13 +319,21 @@ class RequestClient:
         if request.readonly_hint:
             extra_headers[CCF_READ_ONLY_HEADER] = "true"
 
-        response = self.session.post(
-            f"https://{self.host}:{self.port}/{request.method}",
-            json=request.params,
-            timeout=self.request_timeout,
-            auth=auth_value,
-            headers=extra_headers,
-        )
+        request_args = {
+            "method": request.http_verb,
+            "url": f"https://{self.host}:{self.port}/{request.method}",
+            "auth": auth_value,
+            "headers": extra_headers,
+        }
+
+        is_get = request.http_verb == "GET"
+        if request.params is not None:
+            if is_get:
+                request_args["params"] = build_query_string(request.params)
+            else:
+                request_args["json"] = request.params
+
+        response = self.session.request(timeout=self.request_timeout, **request_args)
         return Response.from_requests_response(response)
 
     def _request(self, request, is_signed=False):
@@ -382,8 +413,8 @@ class CCFClient:
             logger.log_response(response)
         return response
 
-    def request(self, method, params, *args, **kwargs):
-        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
+    def request(self, method, *args, **kwargs):
+        r = Request(f"{self.prefix}/{method}", *args, **kwargs)
         description = ""
         if self.description:
             description = f" ({self.description})"
@@ -392,8 +423,8 @@ class CCFClient:
 
         return self._response(self.client_impl.request(r))
 
-    def signed_request(self, method, params, *args, **kwargs):
-        r = Request(f"{self.prefix}/{method}", params, *args, **kwargs)
+    def signed_request(self, method, *args, **kwargs):
+        r = Request(f"{self.prefix}/{method}", *args, **kwargs)
 
         description = ""
         if self.description:
@@ -403,28 +434,14 @@ class CCFClient:
 
         return self._response(self.client_impl.signed_request(r))
 
-    def do(self, *args, **kwargs):
-        expected_result = None
-        expected_error_code = None
-        if "expected_result" in kwargs:
-            expected_result = kwargs.pop("expected_result")
-        if "expected_error_code" in kwargs:
-            expected_error_code = kwargs.pop("expected_error_code")
-
-        r = self.rpc(*args, **kwargs)
-
-        if expected_result is not None:
-            assert expected_result == r.result
-
-        if expected_error_code is not None:
-            assert expected_error_code == r.error["code"]
-        return r
-
     def rpc(self, *args, **kwargs):
         if "signed" in kwargs and kwargs.pop("signed"):
             return self.signed_request(*args, **kwargs)
         else:
             return self.request(*args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        return self.rpc(*args, http_verb="GET", **kwargs)
 
 
 @contextlib.contextmanager

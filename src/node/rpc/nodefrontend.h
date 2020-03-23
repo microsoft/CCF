@@ -6,7 +6,7 @@
 #include "frontend.h"
 #include "node/entities.h"
 #include "node/networkstate.h"
-#include "node/quoteverification.h"
+#include "node/quote.h"
 #include "nodeinterface.h"
 
 namespace ccf
@@ -87,14 +87,18 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      QuoteVerificationResult verify_result = QuoteVerifier::verify_quote(
-        tx, this->network, in.quote, caller_pem_raw);
-
-      if (verify_result != QuoteVerificationResult::VERIFIED)
+      if (network.consensus_type != ConsensusType::PBFT)
       {
-        const auto [code, message] =
-          QuoteVerifier::quote_verification_error(verify_result);
-        return make_error(code, message);
+        QuoteVerificationResult verify_result =
+          QuoteVerifier::verify_quote_against_store(
+            tx, this->network.node_code_ids, in.quote, caller_pem_raw);
+
+        if (verify_result != QuoteVerificationResult::VERIFIED)
+        {
+          const auto [code, message] =
+            QuoteVerifier::quote_verification_error(verify_result);
+          return make_error(code, message);
+        }
       }
 #else
       LOG_INFO_FMT("Skipped joining node quote verification");
@@ -180,10 +184,8 @@ namespace ccf
 
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
-        auto caller_pem =
-          tls::make_verifier(args.rpc_ctx->session->caller_cert)->cert_pem();
-        std::vector<uint8_t> caller_pem_raw = {caller_pem.str().begin(),
-                                               caller_pem.str().end()};
+        auto caller_pem_raw =
+          tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
 
         if (active_service->status == ServiceStatus::OPENING)
         {
@@ -300,11 +302,14 @@ namespace ccf
 
       install(NodeProcs::JOIN, json_adapter(accept), Write);
       install(NodeProcs::GET_SIGNED_INDEX, json_adapter(get_signed_index), Read)
-        .set_auto_schema<GetSignedIndex>();
+        .set_auto_schema<GetSignedIndex>()
+        .set_http_get_only();
       install(NodeProcs::GET_NODE_QUOTE, json_adapter(get_quote), Read)
-        .set_auto_schema<GetQuotes>();
+        .set_auto_schema<GetQuotes>()
+        .set_http_get_only();
       install(NodeProcs::GET_QUOTES, json_adapter(get_quotes), Read)
-        .set_auto_schema<GetQuotes>();
+        .set_auto_schema<GetQuotes>()
+        .set_http_get_only();
     }
   };
 

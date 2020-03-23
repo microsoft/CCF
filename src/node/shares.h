@@ -5,7 +5,7 @@
 #include "entities.h"
 
 #include <map>
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace ccf

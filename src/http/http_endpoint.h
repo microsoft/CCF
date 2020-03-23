@@ -179,7 +179,7 @@ namespace http
     void handle_request(
       http_method verb,
       const std::string_view& path,
-      const std::string_view& query,
+      const std::string& query,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
