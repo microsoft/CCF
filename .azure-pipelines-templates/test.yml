@@ -26,7 +26,7 @@ steps:
   condition: failed()
   displayName: 'Upload logs (only on failure)'
 
-- script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml > JUnit.xml'
+- script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml | sed -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g"> JUnit.xml'
   displayName: XSLT
   workingDirectory: build
   condition: succeededOrFailed()
