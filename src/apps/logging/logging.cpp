@@ -253,7 +253,7 @@ namespace ccfapp
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
-      // SNIPPET_START: log_record_text
+      // SNIPPET_END: log_record_text
 
       install(Procs::LOG_RECORD, json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();

@@ -59,7 +59,7 @@ The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and i
 
 This handler uses the simple signatures provided by the ``json_adapter`` wrapper function, which handles parsing of a JSON params object from the HTTP request body.
 
-Each function is installed as the handler for a specific RPC ``method``, the name of the HTTP at which your handler will be invoked:
+Each function is installed as the handler for a specific RPC ``method``, the name of the HTTP resource at which your handler will be invoked:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp
@@ -67,7 +67,7 @@ Each function is installed as the handler for a specific RPC ``method``, the nam
     :end-before: SNIPPET_END: install_get
     :dedent: 6
 
-The return value from ``install`` is a ``Handler&`` object which can be used to alter how a handler is executed. For example, the handler for ``LOG_get`` shown above sets a _schema_ for the handler, which will be used in calls to the ``/getSchema`` endpoint. It also marks the handler as _GET-only_, so the framework will return a ``405 Method now allowed`` for any requests which are not HTTP ``GET``.
+The return value from ``install`` is a ``Handler&`` object which can be used to alter how the handler is executed. For example, the handler for ``LOG_get`` shown above sets a `schema` for the handler, which will be used in calls to the ``/getSchema`` endpoint. It also marks the handler as `GET-only`, so the framework will return a ``405 Method Not Allowed`` for any requests which are not HTTP ``GET``.
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``RequestArgs&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
@@ -77,9 +77,9 @@ To process the raw body directly, a handler should use the general lambda signat
     :end-before: SNIPPET_END: log_record_text
     :dedent: 6
 
-Rather than parsing the request body as JSON, in this case the entire body _is_ the request to be logged, and the ID to associate it with is passed as a request header.
+Rather than parsing the request body as JSON and extracting the message from it, in this case `the entire body` is the message to be logged, and the ID to associate it with is passed as a request header.
 
-This general form of handler (taking a single ``RequestArgs&`` parameter) also allows a handler to see additional caller context, and to manually fill in headers on the HTTP response. An example of this is the ``log_record_prefix_cert`` handler:
+This general form of handler (taking a single ``RequestArgs&`` parameter) also allows a handler to see additional caller context. An example of this is the ``log_record_prefix_cert`` handler:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp
