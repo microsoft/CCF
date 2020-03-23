@@ -87,15 +87,18 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      QuoteVerificationResult verify_result =
-        QuoteVerifier::verify_quote_against_store(
-          tx, this->network.node_code_ids, in.quote, caller_pem_raw);
-
-      if (verify_result != QuoteVerificationResult::VERIFIED)
+      if (network.consensus_type != ConsensusType::PBFT)
       {
-        const auto [code, message] =
-          QuoteVerifier::quote_verification_error(verify_result);
-        return make_error(code, message);
+        QuoteVerificationResult verify_result =
+          QuoteVerifier::verify_quote_against_store(
+            tx, this->network.node_code_ids, in.quote, caller_pem_raw);
+
+        if (verify_result != QuoteVerificationResult::VERIFIED)
+        {
+          const auto [code, message] =
+            QuoteVerifier::quote_verification_error(verify_result);
+          return make_error(code, message);
+        }
       }
 #else
       LOG_INFO_FMT("Skipped joining node quote verification");
