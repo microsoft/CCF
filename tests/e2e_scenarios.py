@@ -57,7 +57,11 @@ def run(args):
                             txs += json.load(f)
 
                     for tx in txs:
-                        r = client.rpc(tx["method"], tx["params"])
+                        r = client.rpc(
+                            tx["method"],
+                            params=tx["params"],
+                            http_verb=tx.get("verb", "POST"),
+                        )
 
                         if tx.get("expected_error") is not None:
                             check(

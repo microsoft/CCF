@@ -28,6 +28,7 @@ namespace ccfapp
 
     static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
     static constexpr auto LOG_RECORD_ANONYMOUS_CALLER = "LOG_record_anonymous";
+    static constexpr auto LOG_RECORD_RAW_TEXT = "LOG_record_raw_text";
   };
 
   // SNIPPET: table_definition
@@ -214,11 +215,52 @@ namespace ccfapp
           return make_success(true);
         };
 
+      // SNIPPET_START: log_record_text
+      auto log_record_text = [this](RequestArgs& args) {
+        const auto expected = http::headervalues::contenttype::TEXT;
+        const auto actual =
+          args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
+            .value_or("");
+        if (expected != actual)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Expected content-type '{}'. Got '{}'.", expected, actual));
+          return;
+        }
+
+        constexpr auto log_id_header = "x-log-id";
+        const auto id_it = args.rpc_ctx->get_request_header(log_id_header);
+        if (!id_it.has_value())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(
+            fmt::format("Missing ID header '{}'", log_id_header));
+          return;
+        }
+
+        const auto id = strtoul(id_it.value().c_str(), nullptr, 10);
+
+        const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
+        const std::string log_line(content.begin(), content.end());
+
+        auto view = args.tx.get_view(records);
+        view->put(id, log_line);
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+      };
+      // SNIPPET_END: log_record_text
+
       install(Procs::LOG_RECORD, json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
       install(Procs::LOG_GET, json_adapter(get), Read)
-        .set_auto_schema<LoggingGet>();
+        .set_auto_schema<LoggingGet>()
+        .set_http_get_only();
       // SNIPPET_END: install_get
 
       install(Procs::LOG_RECORD_PUBLIC, json_adapter(record_public), Write)
@@ -227,7 +269,8 @@ namespace ccfapp
 
       install(Procs::LOG_GET_PUBLIC, json_adapter(get_public), Read)
         .set_params_schema(get_public_params_schema)
-        .set_result_schema(get_public_result_schema);
+        .set_result_schema(get_public_result_schema)
+        .set_http_get_only();
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
       install(
@@ -236,6 +279,7 @@ namespace ccfapp
         Write)
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false);
+      install(Procs::LOG_RECORD_RAW_TEXT, log_record_text, Write);
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,

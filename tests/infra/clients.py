@@ -37,11 +37,14 @@ CCF_READ_ONLY_HEADER = "x-ccf-read-only"
 
 
 class Request:
-    def __init__(self, method, params=None, readonly_hint=None, http_verb="POST"):
+    def __init__(
+        self, method, params=None, readonly_hint=None, http_verb="POST", headers={}
+    ):
         self.method = method
         self.params = params
         self.readonly_hint = readonly_hint
         self.http_verb = http_verb
+        self.headers = headers
 
 
 def int_or_none(v):
@@ -78,10 +81,20 @@ class Response:
         return d
 
     def from_requests_response(rr):
+        content_type = rr.headers.get("content-type")
+        if content_type == "application/json":
+            parsed_body = rr.json()
+        elif content_type == "text/plain":
+            parsed_body = rr.text
+        elif content_type is None:
+            parsed_body = None
+        else:
+            raise ValueError(f"Unhandled content type: {content_type}")
+
         return Response(
             status=rr.status_code,
-            result=rr.json() if rr.ok else None,
-            error=None if rr.ok else rr.text,
+            result=parsed_body if rr.ok else None,
+            error=None if rr.ok else parsed_body,
             commit=int_or_none(rr.headers.get(CCF_COMMIT_HEADER)),
             term=int_or_none(rr.headers.get(CCF_TERM_HEADER)),
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
@@ -93,10 +106,21 @@ class Response:
         response.begin()
         raw_body = response.read(raw)
         ok = response.status == 200
+
+        content_type = response.headers.get("content-type")
+        if content_type == "application/json":
+            parsed_body = json.loads(raw_body)
+        elif content_type == "text/plain":
+            parsed_body = raw_body.decode()
+        elif content_type is None:
+            parsed_body = None
+        else:
+            raise ValueError(f"Unhandled content type: {content_type}")
+
         return Response(
             status=response.status,
-            result=json.loads(raw_body) if ok else None,
-            error=None if ok else raw_body.decode(),
+            result=parsed_body if ok else None,
+            error=None if ok else parsed_body,
             commit=int_or_none(response.getheader(CCF_COMMIT_HEADER)),
             term=int_or_none(response.getheader(CCF_TERM_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
@@ -215,22 +239,27 @@ class CurlClient:
                 url,
                 "-X",
                 request.http_verb,
-                "-H",
-                "Content-Type: application/json",
                 "-i",
                 f"-m {self.request_timeout}",
             ]
 
             if not is_get:
-                msg = (
-                    json.dumps(request.params).encode()
-                    if request.params is not None
-                    else bytes()
-                )
-                LOG.debug(f"Writing request body: {msg}")
-                nf.write(msg)
+                if request.params is None:
+                    msg_bytes = bytes()
+                elif isinstance(request.params, bytes):
+                    msg_bytes = request.params
+                else:
+                    msg_bytes = json.dumps(request.params).encode()
+                LOG.debug(f"Writing request body: {msg_bytes}")
+                nf.write(msg_bytes)
                 nf.flush()
                 cmd.extend(["--data-binary", f"@{nf.name}"])
+
+            # Set requested headers first - so they take precedence over defaults
+            for k, v in request.headers.items():
+                cmd.extend(["-H", f"{k}: {v}"])
+
+            cmd.extend(["-H", "Content-Type: application/json"])
 
             if request.readonly_hint:
                 cmd.extend(["-H", f"{CCF_READ_ONLY_HEADER}: true"])
@@ -241,6 +270,7 @@ class CurlClient:
                 cmd.extend(["--key", self.key])
             if self.cert:
                 cmd.extend(["--cert", self.cert])
+
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True)
 
@@ -318,6 +348,8 @@ class RequestClient:
         extra_headers = {}
         if request.readonly_hint:
             extra_headers[CCF_READ_ONLY_HEADER] = "true"
+
+        extra_headers.update(request.headers)
 
         request_args = {
             "method": request.http_verb,

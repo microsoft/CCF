@@ -57,7 +57,9 @@ The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and i
     :end-before: SNIPPET_END: get
     :dedent: 6
 
-Each function is installed as the handler for a specific RPC ``method``, optionally with schema included:
+This handler uses the simple signatures provided by the ``json_adapter`` wrapper function, which handles parsing of a JSON params object from the HTTP request body.
+
+Each function is installed as the handler for a specific RPC ``method``, the name of the HTTP resource at which your handler will be invoked:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp
@@ -65,9 +67,19 @@ Each function is installed as the handler for a specific RPC ``method``, optiona
     :end-before: SNIPPET_END: install_get
     :dedent: 6
 
-These handlers use the simple signature provided by the ``handler_adapter`` wrapper function, which pre-parses a JSON params object from the HTTP request body.
+The return value from ``install`` is a ``Handler&`` object which can be used to alter how the handler is executed. For example, the handler for ``LOG_get`` shown above sets a `schema` for the handler, which will be used in calls to the ``/getSchema`` endpoint. It also marks the handler as `GET-only`, so the framework will return a ``405 Method Not Allowed`` for any requests which are not HTTP ``GET``.
 
-For direct access to the request and response objects, the handler signature should take a single ``RequestArgs&`` argument. An example of this is included in the logging app:
+To process the raw body directly, a handler should use the general lambda signature which takes a single ``RequestArgs&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
+
+.. literalinclude:: ../../../src/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: log_record_text
+    :end-before: SNIPPET_END: log_record_text
+    :dedent: 6
+
+Rather than parsing the request body as JSON and extracting the message from it, in this case `the entire body` is the message to be logged, and the ID to associate it with is passed as a request header.
+
+This general form of handler (taking a single ``RequestArgs&`` parameter) also allows a handler to see additional caller context. An example of this is the ``log_record_prefix_cert`` handler:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
     :language: cpp

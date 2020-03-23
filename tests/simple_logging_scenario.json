@@ -16,6 +16,7 @@
           "expected_result": true
         },
         {
+          "verb": "GET",
           "method": "LOG_get",
           "params": {
             "id": 42
@@ -38,6 +39,7 @@
           "expected_result": true
         },
         {
+          "verb": "GET",
           "method": "LOG_get",
           "params": {
             "id": 42
