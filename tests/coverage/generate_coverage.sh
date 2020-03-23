@@ -12,7 +12,7 @@ LLVM_PROFDATA=llvm-profdata-${LLVM_VER}
 
 objects=()
 for f in *_test; do
-    PROF_PATH = "$f".profraw
+    PROF_PATH="$f".profraw
     if [ -f "$PROF_PATH" ]; then
         objects+=( -object "$f")
         echo "$PROF_PATH" >> prof_files
