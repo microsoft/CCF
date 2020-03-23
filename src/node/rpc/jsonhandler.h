@@ -182,7 +182,10 @@ namespace ccf
       const auto pack = detect_json_pack(ctx);
 
       nlohmann::json params = nullptr;
-      if (!ctx->get_request_body().empty())
+      if (
+        !ctx->get_request_body().empty()
+        // Body of GET is ignored
+        && ctx->get_request_verb() != HTTP_GET)
       {
         params = get_params_from_body(ctx, pack);
       }

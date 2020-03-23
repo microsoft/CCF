@@ -23,7 +23,7 @@ class AppUser:
         network.consortium.add_users(primary, [self.name])
 
         with primary.user_client(user_id=self.name) as client:
-            self.ccf_id = client.rpc("whoAmI", {}).result["caller_id"]
+            self.ccf_id = client.get("whoAmI").result["caller_id"]
 
     def __str__(self):
         return f"{self.ccf_id} ({self.name})"
@@ -99,20 +99,20 @@ def run(args):
         # Check permissions are enforced
         with primary.user_client(user_id=regulator.name) as c:
             check(
-                c.rpc("REG_register", {}),
+                c.rpc("REG_register"),
                 error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
-                c.rpc("BK_register", {}), error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("BK_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
         with primary.user_client(user_id=banks[0].name) as c:
             check(
-                c.rpc("REG_register", {}),
+                c.rpc("REG_register"),
                 error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
-                c.rpc("BK_register", {}), error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("BK_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
         # As permissioned manager, register regulator and banks
@@ -227,7 +227,7 @@ def run(args):
         with primary.user_client(user_id=bank.name) as c:
             # try to poll flagged but fail as you are not a regulator
             check(
-                c.rpc("REG_poll_flagged", {}),
+                c.rpc("REG_poll_flagged"),
                 error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
@@ -248,7 +248,7 @@ def run(args):
         with primary.node_client() as mc:
             with primary.user_client(user_id=regulator.name) as c:
                 # assert that the flagged txs that we poll for are correct
-                resp = c.rpc("REG_poll_flagged", {})
+                resp = c.rpc("REG_poll_flagged")
                 poll_flagged_ids = []
                 for poll_flagged in resp.result:
                     # poll flagged is a list [tx_id, regulator_id]

@@ -4,11 +4,14 @@
 
 #include "ds/json_schema.h"
 #include "enclave/rpccontext.h"
+#include "http/http_consts.h"
 #include "node/certs.h"
 #include "serialization.h"
 
 #include <functional>
+#include <http-parser/http_parser.h>
 #include <nlohmann/json.hpp>
+#include <set>
 
 namespace ccf
 {
@@ -18,6 +21,11 @@ namespace ccf
     Store::Tx& tx;
     CallerId caller_id;
   };
+
+  static uint64_t verb_to_mask(size_t verb)
+  {
+    return 1ul << verb;
+  }
 
   using HandleFunction = std::function<void(RequestArgs& args)>;
 
@@ -118,6 +126,34 @@ namespace ccf
       {
         execute_locally = v;
         return *this;
+      }
+
+      // Bit mask. Bit i is 1 iff the http_method with value i is allowed.
+      // Default is that all verbs are allowed
+      uint64_t allowed_verbs_mask = ~0;
+
+      Handler& set_allowed_verbs(std::set<http_method>&& allowed_verbs)
+      {
+        // Reset mask to disallow everything
+        allowed_verbs_mask = 0;
+
+        // Set bit for each allowed verb
+        for (const auto& verb : allowed_verbs)
+        {
+          allowed_verbs_mask |= verb_to_mask(verb);
+        }
+
+        return *this;
+      }
+
+      Handler& set_http_get_only()
+      {
+        return set_allowed_verbs({HTTP_GET});
+      }
+
+      Handler& set_http_post_only()
+      {
+        return set_allowed_verbs({HTTP_POST});
       }
     };
 
