@@ -17,7 +17,7 @@ def check_can_progress(node):
     with node.node_client() as mc:
         check_commit = infra.checker.Checker(mc)
         with node.node_client() as c:
-            check_commit(c.rpc("mkSign", params={}), result=True)
+            check_commit(c.rpc("mkSign"), result=True)
 
 
 @reqs.description("Adding a valid node from primary")

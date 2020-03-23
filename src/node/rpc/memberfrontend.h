@@ -465,7 +465,7 @@ namespace ccf
       auto read = [this](
                     Store::Tx& tx,
                     CallerId caller_id,
-                    const nlohmann::json& params) {
+                    nlohmann::json&& params) {
         if (!check_member_status(
               tx, caller_id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {
@@ -496,8 +496,7 @@ namespace ccf
         .set_auto_schema<KVRead>();
 
       auto query =
-        [this](
-          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           if (!check_member_accepted(tx, caller_id))
           {
             return make_error(HTTP_STATUS_FORBIDDEN, "Member is not accepted");
@@ -510,7 +509,7 @@ namespace ccf
       install(MemberProcs::QUERY, json_adapter(query), Read)
         .set_auto_schema<Script, nlohmann::json>();
 
-      auto propose = [this](RequestArgs& args, const nlohmann::json& params) {
+      auto propose = [this](RequestArgs& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -534,7 +533,7 @@ namespace ccf
       install(MemberProcs::PROPOSE, json_adapter(propose), Write)
         .set_auto_schema<Propose>();
 
-      auto withdraw = [this](RequestArgs& args, const nlohmann::json& params) {
+      auto withdraw = [this](RequestArgs& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -586,7 +585,7 @@ namespace ccf
         .set_auto_schema<ProposalAction, ProposalInfo>()
         .set_require_client_signature(true);
 
-      auto vote = [this](RequestArgs& args, const nlohmann::json& params) {
+      auto vote = [this](RequestArgs& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -634,8 +633,7 @@ namespace ccf
         .set_require_client_signature(true);
 
       auto complete =
-        [this](
-          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           if (!check_member_active(tx, caller_id))
           {
             return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -661,7 +659,7 @@ namespace ccf
         .set_require_client_signature(true);
 
       //! A member acknowledges state
-      auto ack = [this](RequestArgs& args, const nlohmann::json& params) {
+      auto ack = [this](RequestArgs& args, nlohmann::json&& params) {
         const auto signed_request = args.rpc_ctx->get_signed_request();
 
         auto [ma_view, sig_view] =
@@ -707,8 +705,7 @@ namespace ccf
 
       //! A member asks for a fresher state digest
       auto update_state_digest =
-        [this](
-          Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           auto [ma_view, sig_view] =
             tx.get_view(this->network.member_acks, this->network.signatures);
           auto ma = ma_view->get(caller_id);
@@ -737,7 +734,7 @@ namespace ccf
         .set_auto_schema<void, StateDigest>();
 
       auto get_encrypted_recovery_share =
-        [this](RequestArgs& args, const nlohmann::json& params) {
+        [this](RequestArgs& args, nlohmann::json&& params) {
           // This check should depend on whether new shares are emitted when a
           // new member is added (status = Accepted) or when the new member acks
           // (status = Active).
@@ -781,7 +778,7 @@ namespace ccf
 
       auto submit_recovery_share = [this](
                                      RequestArgs& args,
-                                     const nlohmann::json& params) {
+                                     nlohmann::json&& params) {
         // Only active members can submit their shares for recovery
         if (!check_member_active(args.tx, args.caller_id))
         {
@@ -831,7 +828,7 @@ namespace ccf
         Write)
         .set_auto_schema<SubmitRecoveryShare, bool>();
 
-      auto create = [this](Store::Tx& tx, const nlohmann::json& params) {
+      auto create = [this](Store::Tx& tx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 

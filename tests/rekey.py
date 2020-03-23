@@ -18,7 +18,7 @@ def test(network, args):
     # Retrieve current index version to check for sealed secrets later
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
-        res = nc.rpc("mkSign", params={})
+        res = nc.rpc("mkSign")
         check_commit(res, result=True)
         version_before_rekey = res.commit
 
