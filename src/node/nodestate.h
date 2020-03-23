@@ -996,37 +996,36 @@ namespace ccf
     {
       auto nodes_view = tx.get_view(network.nodes);
 
-      nodes_view->foreach(
-        [&result, &filter, this](const NodeId& nid, const NodeInfo& ni) {
-          if (!filter.has_value() || (filter->find(nid) != filter->end()))
+      nodes_view->foreach([&result, &filter, this](
+                            const NodeId& nid, const NodeInfo& ni) {
+        if (!filter.has_value() || (filter->find(nid) != filter->end()))
+        {
+          if (ni.status == ccf::NodeStatus::TRUSTED)
           {
-            if (ni.status == ccf::NodeStatus::TRUSTED)
-            {
-              GetQuotes::Quote q;
-              q.node_id = nid;
-              q.raw = ni.quote;
+            GetQuotes::Quote q;
+            q.node_id = nid;
+            q.raw = ni.quote;
 
 #ifdef GET_QUOTE
-              if (this->network.consensus_type != ConsensusType::PBFT)
+            if (this->network.consensus_type != ConsensusType::PBFT)
+            {
+              auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
+              if (!code_id_opt.has_value())
               {
-                auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
-                if (!code_id_opt.has_value())
-                {
-                  q.error =
-                    fmt::format("Failed to retrieve code ID from quote");
-                }
-                else
-                {
-                  q.mrenclave =
-                    fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
-                }
+                q.error = fmt::format("Failed to retrieve code ID from quote");
               }
-#endif
-              result.quotes.push_back(q);
+              else
+              {
+                q.mrenclave =
+                  fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
+              }
             }
+#endif
+            result.quotes.push_back(q);
           }
-          return true;
-        });
+        }
+        return true;
+      });
     };
 
     bool split_ledger_secrets(Store::Tx& tx) override
