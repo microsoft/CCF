@@ -896,12 +896,15 @@ namespace ccf
         }
 
 #ifdef GET_QUOTE
-        CodeDigest node_code_id;
-        std::copy_n(
-          std::begin(in.code_digest),
-          CODE_DIGEST_BYTES,
-          std::begin(node_code_id));
-        g.trust_node_code_id(node_code_id);
+        if (in.consensus_type != ConsensusType::PBFT)
+        {
+          CodeDigest node_code_id;
+          std::copy_n(
+            std::begin(in.code_digest),
+            CODE_DIGEST_BYTES,
+            std::begin(node_code_id));
+          g.trust_node_code_id(node_code_id);
+        }
 #endif
 
         for (const auto& wl : default_whitelists)
