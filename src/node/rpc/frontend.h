@@ -237,7 +237,7 @@ namespace ccf
           if (!history->add_request(
                 reqid,
                 caller_id,
-                ctx->session->caller_cert,
+                get_cert_to_forward(ctx),
                 ctx->get_serialised_request()))
           {
             LOG_FAIL_FMT(
