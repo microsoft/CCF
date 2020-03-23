@@ -370,7 +370,22 @@ class Consortium:
                 "query",
                 {
                     "text": """tables = ...
-                    return tables["ccf.service"]:get(0)"""
+                    service = tables["ccf.service"]:get(0)
+                    if service == nil then
+                        LOG_DEBUG("Service is nil")
+                    else
+                        LOG_DEBUG("Service version: ", tostring(service.version))
+                        LOG_DEBUG("Service status: ", tostring(service.status))
+                        cert_len = #service.cert
+                        LOG_DEBUG("Service cert len: ", tostring(cert_len))
+                        LOG_DEBUG("Service cert bytes: " ..
+                            tostring(service.cert[math.ceil(cert_len / 4)]) .. " " ..
+                            tostring(service.cert[math.ceil(cert_len / 3)]) .. " " ..
+                            tostring(service.cert[math.ceil(cert_len / 2)])
+                        )
+                    end
+                    return service
+                    """
                 },
             )
             current_status = rep.result["status"]
