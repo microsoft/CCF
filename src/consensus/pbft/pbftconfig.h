@@ -54,16 +54,19 @@ namespace pbft
       ExecutionCtx(
         std::unique_ptr<ExecCommandMsg> msg_,
         ByzInfo& info_,
-        PbftConfigCcf* self_) :
+        PbftConfigCcf* self_,
+        bool is_first_request_) :
         msg(std::move(msg_)),
         info(info_),
-        self(self_)
+        self(self_),
+        is_first_request(is_first_request_)
       {}
 
       std::unique_ptr<ExecCommandMsg> msg;
       ByzInfo& info;
       std::shared_ptr<enclave::RpcHandler> frontend;
       PbftConfigCcf* self;
+      bool is_first_request;
     };
 
     static void ExecuteCb(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
@@ -136,6 +139,7 @@ namespace pbft
 
       auto ctx = enclave::make_rpc_context(
         session, request.raw, {req_start, req_start + req_size});
+      ctx->is_create_request = c->data.is_first_request;
 
       const auto actor_opt = http::extract_actor(*ctx);
       if (!actor_opt.has_value())
@@ -189,6 +193,7 @@ namespace pbft
       }
     };
 
+    bool is_first_request = true;
     ExecCommand exec_command =
       [this](
         std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>&
@@ -201,7 +206,8 @@ namespace pbft
           std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
           uint16_t reply_thread = msg->reply_thread;
           auto execution_ctx = std::make_unique<enclave::Tmsg<ExecutionCtx>>(
-            &Execute, std::move(msg), info, this);
+            &Execute, std::move(msg), info, this, is_first_request);
+          is_first_request = false;
 
           if (info.cb != nullptr)
           {
