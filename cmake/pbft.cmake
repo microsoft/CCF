@@ -158,11 +158,11 @@ if("virtual" IN_LIST TARGET)
   pbft_add_executable(replica-test)
 
   add_executable(
-    test-controller
+    controller-test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_controller_main.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
   )
-  pbft_add_executable(test-controller)
+  pbft_add_executable(controller-test)
 
   add_executable(
     client-test
@@ -173,17 +173,17 @@ if("virtual" IN_LIST TARGET)
 
   # Unit tests
   add_unit_test(
-    test_ledger_replay
+    ledger_replay_test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_ledger_replay.cpp
   )
   target_include_directories(
-    test_ledger_replay
+    ledger_replay_test
     PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks
   )
-  target_link_libraries(test_ledger_replay PRIVATE libcommontest.mock)
-  use_libbyz(test_ledger_replay)
-  add_san(test_ledger_replay)
-  set_property(TEST test_ledger_replay PROPERTY LABELS pbft)
+  target_link_libraries(ledger_replay_test PRIVATE libcommontest.mock)
+  use_libbyz(ledger_replay_test)
+  add_san(ledger_replay_test)
+  set_property(TEST ledger_replay_test PROPERTY LABELS pbft)
 
   add_test(
     NAME test_UDP_with_delay
