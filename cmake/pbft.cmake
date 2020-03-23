@@ -150,26 +150,26 @@ if("virtual" IN_LIST TARGET)
   endfunction()
 
   add_executable(
-    replica-test
+    pbft_replica_test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_test.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
   )
-  target_link_libraries(replica-test PRIVATE ccfcrypto.host)
-  pbft_add_executable(replica-test)
+  target_link_libraries(pbft_replica_test PRIVATE ccfcrypto.host)
+  pbft_add_executable(pbft_replica_test)
 
   add_executable(
-    controller-test
+    pbft_controller_test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_controller_main.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
   )
-  pbft_add_executable(controller-test)
+  pbft_add_executable(pbft_controller_test)
 
   add_executable(
-    client-test
+    pbft_client_test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/client_test.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
   )
-  pbft_add_executable(client-test)
+  pbft_add_executable(pbft_client_test)
 
   # Unit tests
   add_unit_test(
