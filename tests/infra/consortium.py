@@ -357,7 +357,6 @@ class Consortium:
         assert response.status == http.HTTPStatus.OK.value
         self.vote_using_majority(remote_node, response.result["proposal_id"])
 
-
     def check_for_service(self, remote_node, status, pbft_open=False):
         """
         Check via the member frontend of the given node that the certificate
