@@ -368,9 +368,9 @@ class Consortium:
                         LOG_DEBUG("Service status: ", tostring(service.status))
                         cert_len = #service.cert
                         LOG_DEBUG("Service cert len: ", tostring(cert_len))
-                        LOG_DEBUG("Service cert bytes: ",
-                            tostring(service.cert[math.ceil(cert_len / 4)]),
-                            tostring(service.cert[math.ceil(cert_len / 3)]),
+                        LOG_DEBUG("Service cert bytes: " ..
+                            tostring(service.cert[math.ceil(cert_len / 4)]) .. " " ..
+                            tostring(service.cert[math.ceil(cert_len / 3)]) .. " " ..
                             tostring(service.cert[math.ceil(cert_len / 2)])
                         )
                     end
