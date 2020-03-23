@@ -362,13 +362,13 @@ class Consortium:
                     "text": """tables = ...
                     service = tables["ccf.service"]:get(0)
                     if service == nil then
-                        LOG_INFO("Service is nil")
+                        LOG_DEBUG("Service is nil")
                     else
-                        LOG_INFO("Service version: ", tostring(service.version))
-                        LOG_INFO("Service status: ", tostring(service.status))
+                        LOG_DEBUG("Service version: ", tostring(service.version))
+                        LOG_DEBUG("Service status: ", tostring(service.status))
                         cert_len = #service.cert
-                        LOG_INFO("Service cert len: ", tostring(cert_len))
-                        LOG_INFO("Service cert bytes: ",
+                        LOG_DEBUG("Service cert len: ", tostring(cert_len))
+                        LOG_DEBUG("Service cert bytes: ",
                             tostring(service.cert[math.ceil(cert_len / 4)]),
                             tostring(service.cert[math.ceil(cert_len / 3)]),
                             tostring(service.cert[math.ceil(cert_len / 2)])
