@@ -6,7 +6,7 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <ostream>
 
 namespace crypto

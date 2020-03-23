@@ -5,7 +5,7 @@
 #include "entities.h"
 
 #include <mbedtls/md.h>
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <vector>
 
 MSGPACK_ADD_ENUM(mbedtls_md_type_t);
