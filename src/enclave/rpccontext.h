@@ -15,7 +15,7 @@ namespace enclave
   struct SessionContext
   {
     size_t client_session_id = InvalidSessionId;
-    std::vector<uint8_t> caller_cert = {};
+    std::vector<uint8_t> caller_cert = {}; // DER certificate
     bool is_forwarding = false;
 
     //

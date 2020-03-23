@@ -3,6 +3,7 @@
 #include "enclave/appinterface.h"
 #include "formatters.h"
 #include "logging_schema.h"
+#include "node/quote.h"
 #include "node/rpc/userfrontend.h"
 
 #include <fmt/format_header_only.h>
@@ -38,6 +39,7 @@ namespace ccfapp
   private:
     Table& records;
     Table& public_records;
+    CodeIDs& user_code_ids;
 
     const nlohmann::json record_public_params_schema;
     const nlohmann::json record_public_result_schema;
@@ -74,6 +76,7 @@ namespace ccfapp
       public_records(nwt.tables->create<Table>(
         "public_records", kv::SecurityDomain::PUBLIC)),
       // SNIPPET_END: constructor
+      user_code_ids(*nwt.tables->get<CodeIDs>(Tables::USER_CODE_IDS)),
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
@@ -197,9 +200,8 @@ namespace ccfapp
       // SNIPPET_END: log_record_prefix_cert
 
       auto log_record_anonymous =
-        [this](Store::Tx& tx, nlohmann::json&& params) {
+        [this](RequestArgs& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingRecord::In>();
-
           if (in.msg.empty())
           {
             return make_error(
@@ -207,7 +209,7 @@ namespace ccfapp
           }
 
           const auto log_line = fmt::format("Anonymous: {}", in.msg);
-          auto view = tx.get_view(records);
+          auto view = args.tx.get_view(records);
           view->put(in.id, log_line);
           return make_success(true);
         };
