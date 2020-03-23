@@ -56,7 +56,7 @@ parameters:
         ctest_args: '-LE "benchmark|perf|suite|pbft"'
     SGX:
       BFT:
-        ctest_args: '-LE "benchmark|perf|raft" --repeat-until-fail 100 -R election'
+        ctest_args: '-LE "benchmark|perf|raft"'
       CFT:
         ctest_args: '-LE "benchmark|perf|pbft"'
     Release:
