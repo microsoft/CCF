@@ -896,7 +896,7 @@ namespace ccf
         }
 
 #ifdef GET_QUOTE
-        if (this->network.consensus_type != ConsensusType::PBFT)
+        if (in.consensus_type != ConsensusType::PBFT)
         {
           CodeDigest node_code_id;
           std::copy_n(
