@@ -73,6 +73,8 @@ def run(args):
         network.start_and_join(args)
         primary, term = network.find_primary()
 
+        assert False, "DELIBERATE FAILURE TO TEST CI BEHAVIOUR, DO NOT MERGE"
+
         check = infra.checker.Checker()
 
         with primary.user_client() as user_client:
