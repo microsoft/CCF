@@ -21,7 +21,7 @@ return {
   operator_calls = {
     trust_node=true,
     retire_node=true,
-    new_code=true
+    new_node_code=true
   }
 
   -- count member votes

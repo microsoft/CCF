@@ -5,7 +5,7 @@
 
 #include "ds/json.h"
 
-#include <msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <string>
 
 namespace ccf

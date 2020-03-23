@@ -6,7 +6,7 @@
 #include "node/genesisgen.h"
 #include "node/members.h"
 #include "node/nodes.h"
-#include "node/quoteverification.h"
+#include "node/quote.h"
 #include "node/secretshare.h"
 #include "node/sharemanager.h"
 #include "nodeinterface.h"
@@ -85,6 +85,26 @@ namespace ccf
       {
         tx_scripts->put(rs.first, {rs.second});
       }
+    }
+
+    bool add_new_code_id(
+      Store::Tx& tx,
+      const CodeDigest& new_code_id,
+      CodeIDs& code_id_table,
+      ObjectId proposal_id)
+    {
+      auto code_ids = tx.get_view(code_id_table);
+      auto existing_code_id = code_ids->get(new_code_id);
+      if (existing_code_id)
+      {
+        LOG_FAIL_FMT(
+          "Proposal {}: Code signature already exists with digest: {:02x}",
+          proposal_id,
+          fmt::join(new_code_id, ""));
+        return false;
+      }
+      code_ids->put(new_code_id, CodeStatus::ACCEPTED);
+      return true;
     }
 
     //! Table of functions that proposal scripts can propose to invoke
@@ -198,23 +218,27 @@ namespace ccf
            LOG_INFO_FMT("Node {} is now {}", id, node_info->status);
            return true;
          }},
-        // accept new code
-        {"new_code",
+        // accept new node code ID
+        {"new_node_code",
          [this](
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
-           auto code_ids = tx.get_view(this->network.code_ids);
-           auto existing_code_id = code_ids->get(id);
-           if (existing_code_id)
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Code signature already exists with digest: {:02x}",
-               proposal_id,
-               fmt::join(id, ""));
-             return false;
-           }
-           code_ids->put(id, CodeStatus::ACCEPTED);
-           return true;
+           return this->add_new_code_id(
+             tx,
+             args.get<CodeDigest>(),
+             this->network.node_code_ids,
+             proposal_id);
+         }},
+        // accept new user code ID
+        {"new_user_code",
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           const auto id = args.get<CodeDigest>();
+           return this->add_new_code_id(
+             tx,
+             args.get<CodeDigest>(),
+             this->network.user_code_ids,
+             proposal_id);
          }},
         {"accept_recovery",
          [this](
@@ -877,7 +901,7 @@ namespace ccf
           std::begin(in.code_digest),
           CODE_DIGEST_BYTES,
           std::begin(node_code_id));
-        g.trust_code_id(node_code_id);
+        g.trust_node_code_id(node_code_id);
 #endif
 
         for (const auto& wl : default_whitelists)
