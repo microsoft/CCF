@@ -305,9 +305,9 @@ namespace ccf
       set_scripts(scripts, tables.app_scripts, true);
     }
 
-    void trust_code_id(CodeDigest& node_code_id)
+    void trust_node_code_id(CodeDigest& node_code_id)
     {
-      auto codeid_view = tx.get_view(tables.code_ids);
+      auto codeid_view = tx.get_view(tables.node_code_ids);
       codeid_view->put(node_code_id, CodeStatus::ACCEPTED);
     }
 
