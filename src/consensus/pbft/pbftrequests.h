@@ -4,7 +4,7 @@
 
 #include "node/entities.h"
 
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace pbft

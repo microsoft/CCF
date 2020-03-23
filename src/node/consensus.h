@@ -3,7 +3,7 @@
 #pragma once
 #include "entities.h"
 
-#include <msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 
 namespace ccf
 {

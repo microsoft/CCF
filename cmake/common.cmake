@@ -114,7 +114,7 @@ include_directories(${CCF_DIR}/src)
 
 include_directories(
   SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star
-  ${CCF_DIR}/3rdparty/msgpack-c ${CCF_DIR}/3rdparty/flatbuffers/include
+  ${CCF_DIR}/3rdparty/flatbuffers/include
 )
 
 set(TARGET

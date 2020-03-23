@@ -4,7 +4,7 @@
 
 #include "entities.h"
 
-#include <msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #ifdef GET_QUOTE
 #  include <openenclave/bits/report.h>
 #endif
