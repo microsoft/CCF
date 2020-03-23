@@ -9,6 +9,9 @@ jobs:
       clean: true
       submodules: true
 
+    - script: lsmod
+      displayName: 'Module check'
+
     - script: find . -type f -regex ".*\.sh$" | egrep -v "^./3rdparty/" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
       displayName: 'Shell Check'
 

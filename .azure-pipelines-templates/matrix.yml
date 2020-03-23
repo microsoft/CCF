@@ -5,7 +5,7 @@ parameters:
   env:
     Checks:
       container: nosgx
-      pool: Ubuntu-1804-D8s_v3
+      pool: TestPool
     NoSGX:
       container: nosgx
       pool: Ubuntu-1804-D8s_v3
