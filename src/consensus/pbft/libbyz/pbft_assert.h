@@ -9,6 +9,12 @@
 #  include "stacktrace_utils.h"
 #endif
 
+#define PBFT_ASSERT_FMT_FAIL(...) \
+  PBFT_ASSERT(false, fmt::format(__VA_ARGS__).c_str())
+
+#define PBFT_ASSERT_FMT(expr, ...) \
+  PBFT_ASSERT(expr, fmt::format(__VA_ARGS__).c_str())
+
 #ifndef INSIDE_ENCLAVE
 #  ifndef NDEBUG
 #    define PBFT_ASSERT(expr, msg) \
