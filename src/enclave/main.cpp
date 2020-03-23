@@ -5,7 +5,7 @@
 #include "enclave.h"
 
 #include <chrono>
-#include <msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <thread>
 
 // the central enclave object

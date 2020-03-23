@@ -8,7 +8,7 @@
 #include "kvtypes.h"
 
 #include <iterator>
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <type_traits>
