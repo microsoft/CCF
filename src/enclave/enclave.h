@@ -43,7 +43,7 @@ namespace enclave
       EnclaveConfig* enclave_config,
       const CCFConfig::SignatureIntervals& signature_intervals,
       const ConsensusType& consensus_type_,
-      const raft::Config& raft_config) :
+      const consensus::Config& consensus_config) :
       circuit(enclave_config->circuit),
       basic_writer_factory(*circuit),
       writer_factory(basic_writer_factory, enclave_config->writer_config),
@@ -78,7 +78,7 @@ namespace enclave
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
-      node.initialize(raft_config, n2n_channels, rpc_map, cmd_forwarder);
+      node.initialize(consensus_config, n2n_channels, rpc_map, cmd_forwarder);
     }
 
     bool create_new_node(
@@ -89,7 +89,10 @@ namespace enclave
       size_t* node_cert_len,
       uint8_t* network_cert,
       size_t network_cert_size,
-      size_t* network_cert_len)
+      size_t* network_cert_len,
+      uint8_t* network_enc_pubk,
+      size_t network_enc_pubk_size,
+      size_t* network_enc_pubk_len)
     {
       // node_cert_size and network_cert_size are ignored here, but we pass them
       // in because it allows us to set EDL an annotation so that node_cert_len
@@ -98,7 +101,7 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node.create({start_type, consensus_type, ccf_config});
+      auto r = node.create({start_type, ccf_config});
       if (!r.second)
         return false;
 
@@ -131,6 +134,20 @@ namespace enclave
           r.first.network_cert.data(),
           r.first.network_cert.size());
         *network_cert_len = r.first.network_cert.size();
+
+        if (r.first.network_enc_pubk.size() > network_enc_pubk_size)
+        {
+          LOG_FAIL_FMT(
+            "Insufficient space ({}) to copy network enc pubk out ({})",
+            network_enc_pubk_size,
+            r.first.network_enc_pubk.size());
+          return false;
+        }
+        ::memcpy(
+          network_enc_pubk,
+          r.first.network_enc_pubk.data(),
+          r.first.network_enc_pubk.size());
+        *network_enc_pubk_len = r.first.network_enc_pubk.size();
       }
 
       return true;
@@ -191,7 +208,7 @@ namespace enclave
             }
             else
             {
-              node.node_msg(body);
+              node.node_msg(std::move(body));
             }
           });
 

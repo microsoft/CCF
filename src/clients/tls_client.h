@@ -160,6 +160,11 @@ public:
     return true;
   }
 
+  bool bytes_available()
+  {
+    return mbedtls_ssl_get_bytes_avail(&ssl) > 0;
+  }
+
   std::vector<uint8_t> read_all()
   {
     constexpr auto read_size = 4096;

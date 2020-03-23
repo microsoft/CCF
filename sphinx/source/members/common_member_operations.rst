@@ -17,7 +17,7 @@ Updating Code Version
 
 For new nodes to be able to join the network, the version of the code they run (as specified by the ``--enclave-file``) should be first trusted by the consortium of members.
 
-If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create a ``new_code`` proposal, specifying the new code version.
+If the version of the code being executed needs to be updated (for example, to support additional endpoints), members can create a ``new_node_code`` proposal, specifying the new code version.
 
 .. note:: For a given :term:`Open Enclave` enclave library, the version of the code (``mrenclave``) can be found by running the ``oesign`` utility:
 
@@ -55,25 +55,23 @@ The first member proposes to recover the network, passing the sealed ledger secr
 
     $ cat accept_recovery.json
     {
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "members/propose",
-        "params": {
-            "parameter": [<sealed secrets>],
-            "script": {
-                "text": "tables, sealed_secrets = ...; return Calls:call(\"accept_recovery\", sealed_secrets)"
-            }
+        "parameter": [<sealed secrets>],
+        "script": {
+            "text": "tables, sealed_secrets = ...; return Calls:call(\"accept_recovery\", sealed_secrets)"
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json
-    {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json -H "content-type: application/json"
+    {
+        "completed": false,
+        "id": 1
+    }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json
-    {"commit":102,"global_commit":101,"id":0,"jsonrpc":"2.0","result":false,"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    false
 
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json
-    {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    true
 
 Once the proposal to recover the network has passed under the rules of the :term:`constitution`, the ledger secrets are unsealed and each node begins recovery of the private ledger entries.
 
@@ -118,24 +116,22 @@ To limit the scope of key compromise, members of the consortium can refresh the 
 
     $ cat rekey_ledger.json
     {
-        "jsonrpc": "2.0",
-        "id": 0,
-        "method": "members/propose",
-        "params": {
-            "parameter": [<sealed secrets>],
-            "script": {
-                "text": "return Calls:call(\"rekey_ledger\")"
-            }
+        "parameter": [<sealed secrets>],
+        "script": {
+            "text": "return Calls:call(\"rekey_ledger\")"
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @rekey_ledger.json
-    {"commit":100,"global_commit":99,"id":0,"jsonrpc":"2.0","result":{"completed":false,"id":1},"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @rekey_ledger.json -H "content-type: application/json"
+    {
+        "completed": false,
+        "id": 1
+    }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json
-    {"commit":102,"global_commit":101,"id":0,"jsonrpc":"2.0","result":false,"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    false
 
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json
-    {"commit":104,"global_commit":103,"id":0,"jsonrpc":"2.0","result":true,"term":2}
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    true
 
 Once the proposal is accepted (``"result":true``), all subsequent transactions (in this case, with a ``commit`` index greater than ``104``) will be encrypted with a fresh new ledger encryption key. This key is sealed to disk once the rekey transaction is globally committed.

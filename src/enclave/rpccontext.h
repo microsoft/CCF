@@ -4,7 +4,6 @@
 
 #include "node/clientsignatures.h"
 #include "node/entities.h"
-#include "node/rpc/jsonrpc.h"
 
 #include <variant>
 #include <vector>
@@ -16,8 +15,8 @@ namespace enclave
   struct SessionContext
   {
     size_t client_session_id = InvalidSessionId;
-    std::vector<uint8_t> caller_cert = {};
-    bool is_forwarded = false;
+    std::vector<uint8_t> caller_cert = {}; // DER certificate
+    bool is_forwarding = false;
 
     //
     // Only set in the case of a forwarded RPC
@@ -33,7 +32,7 @@ namespace enclave
         caller_id(caller_id_)
       {}
     };
-    std::optional<Forwarded> fwd = std::nullopt;
+    std::optional<Forwarded> original_caller = std::nullopt;
 
     // Constructor used for non-forwarded RPC
     SessionContext(
@@ -47,30 +46,14 @@ namespace enclave
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
       const std::vector<uint8_t>& caller_cert_ = {}) :
-      fwd(std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
+      original_caller(
+        std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
       caller_cert(caller_cert_)
     {}
   };
 
-  struct ErrorDetails
-  {
-    int code;
-    std::string msg;
-  };
-
-  struct RpcResponse
-  {
-    std::variant<ErrorDetails, nlohmann::json> result;
-  };
-
   class RpcContext
   {
-  protected:
-    size_t request_index = 0;
-
-    std::unordered_map<std::string, nlohmann::json> response_headers;
-    RpcResponse response;
-
   public:
     std::shared_ptr<SessionContext> session;
 
@@ -78,8 +61,6 @@ namespace enclave
     std::vector<uint8_t> pbft_raw = {};
 
     bool is_create_request = false;
-
-    bool read_only_hint = true;
 
     RpcContext(std::shared_ptr<SessionContext> s) : session(s) {}
 
@@ -93,78 +74,37 @@ namespace enclave
     virtual ~RpcContext() {}
 
     /// Request details
-    void set_request_index(size_t ri)
-    {
-      request_index = ri;
-    }
-
-    size_t get_request_index() const
-    {
-      return request_index;
-    }
+    virtual size_t get_request_index() const = 0;
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
-    virtual nlohmann::json get_params() const = 0;
+    virtual const std::string& get_request_query() const = 0;
+    virtual size_t get_request_verb() const = 0;
 
     virtual std::string get_method() const = 0;
     virtual void set_method(const std::string_view& method) = 0;
+
+    virtual std::optional<std::string> get_request_header(
+      const std::string_view& name) = 0;
 
     virtual const std::vector<uint8_t>& get_serialised_request() = 0;
     virtual std::optional<ccf::SignedReq> get_signed_request() = 0;
 
     /// Response details
-    void set_response_error(int code, const std::string& msg = "")
+    virtual void set_response_body(const std::vector<uint8_t>& body) = 0;
+    virtual void set_response_body(std::vector<uint8_t>&& body) = 0;
+    virtual void set_response_body(std::string&& body) = 0;
+
+    virtual void set_response_status(int status) = 0;
+
+    virtual void set_response_header(
+      const std::string_view& name, const std::string_view& value) = 0;
+    virtual void set_response_header(const std::string_view& name, size_t n)
     {
-      response.result = ErrorDetails{code, msg};
+      set_response_header(name, fmt::format("{}", n));
     }
 
-    const ErrorDetails* get_response_error() const
-    {
-      return std::get_if<ErrorDetails>(&response.result);
-    }
-
-    ErrorDetails* get_response_error()
-    {
-      return std::get_if<ErrorDetails>(&response.result);
-    }
-
-    bool response_is_error() const
-    {
-      return get_response_error() != nullptr;
-    }
-
-    void set_response_result(nlohmann::json&& j)
-    {
-      response.result = std::move(j);
-    }
-
-    const nlohmann::json* get_response_result() const
-    {
-      return std::get_if<nlohmann::json>(&response.result);
-    }
-
-    nlohmann::json* get_response_result()
-    {
-      return std::get_if<nlohmann::json>(&response.result);
-    }
-
-    void set_response(RpcResponse&& r)
-    {
-      response = std::move(r);
-    }
+    virtual bool response_is_error() const = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
-
-    virtual std::vector<uint8_t> result_response(
-      const nlohmann::json& result) const = 0;
-
-    virtual std::vector<uint8_t> error_response(
-      int error, const std::string& msg = "") const = 0;
-
-    virtual void set_response_headers(
-      const std::string& name, const nlohmann::json& value)
-    {
-      response_headers[name] = value;
-    }
   };
 }

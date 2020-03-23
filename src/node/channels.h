@@ -57,7 +57,12 @@ namespace ccf
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
-    std::array<std::atomic<SeqNo>, enclave::ThreadMessaging::max_num_threads>
+    struct ChannelSeqno
+    {
+      SeqNo main_thread_seqno;
+      SeqNo tid_seqno;
+    };
+    std::array<ChannelSeqno, enclave::ThreadMessaging::max_num_threads>
       local_recv_nonce = {0};
 
     bool verify_or_decrypt(
@@ -73,15 +78,33 @@ namespace ccf
 
       RecvNonce recv_nonce(header.get_iv_int());
       auto tid = recv_nonce.tid;
-      auto local_nonce = local_recv_nonce[tid].load();
+      auto& channel_nonce = local_recv_nonce[tid];
 
-      if (recv_nonce.nonce <= local_nonce)
+      uint16_t current_tid =
+        enclave::ThreadMessaging::thread_messaging.get_thread_id();
+      assert(
+        current_tid == enclave::ThreadMessaging::main_thread ||
+        current_tid % enclave::ThreadMessaging::thread_count == tid);
+
+      SeqNo* local_nonce;
+      if (current_tid == enclave::ThreadMessaging::main_thread)
+      {
+        local_nonce = &local_recv_nonce[tid].main_thread_seqno;
+      }
+      else
+      {
+        local_nonce = &local_recv_nonce[tid].tid_seqno;
+      }
+
+      if (recv_nonce.nonce <= *local_nonce)
       {
         // If the nonce received has already been processed, return
         LOG_FAIL_FMT(
-          "Invalid nonce, possible replay attack, received:{}, last_seen:{}",
+          "Invalid nonce, possible replay attack, received:{}, last_seen:{}, "
+          "recv_nonce.tid:{}",
           recv_nonce.nonce,
-          local_nonce);
+          *local_nonce,
+          recv_nonce.tid);
         return false;
       }
 
@@ -91,7 +114,7 @@ namespace ccf
       {
         // Set local recv nonce to received nonce only if verification is
         // successful
-        local_recv_nonce[tid].exchange(recv_nonce.nonce);
+        *local_nonce = recv_nonce.nonce;
       }
 
       return ret;
@@ -160,6 +183,11 @@ namespace ccf
 
       header.set_iv_seq(nonce.get_val());
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
+    }
+
+    RecvNonce get_nonce(const GcmHdr& header)
+    {
+      return RecvNonce(header.get_iv_int());
     }
 
     bool verify(const GcmHdr& header, CBuffer aad)

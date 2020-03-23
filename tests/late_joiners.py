@@ -67,12 +67,19 @@ def timeout(node, suspend, election_timeout):
 
 def assert_node_up_to_date(check, node, final_msg, final_msg_id):
     with node.user_client() as c:
-        try:
-            check(
-                c.rpc("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
-            )
-        except TimeoutError:
-            LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
+        for x in range(0, 5):
+            try:
+                check(
+                    c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
+                )
+                return
+            except TimeoutError:
+                LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
+            except AssertionError as e:
+                LOG.error(
+                    f"Assertion error for LOG_get on node {node.node_id}, error:{e.message}"
+                )
+        raise AssertionError(f"{node.nodeid} is not up to date")
 
 
 def wait_for_nodes(nodes, final_msg, final_msg_id):
@@ -185,7 +192,12 @@ def run(args):
                     suspended_nodes.append(node.node_id)
 
                 for t, node in timeouts:
-                    et = args.election_timeout / 1000
+                    et = (
+                        args.pbft_view_change_timeout / 1000
+                        if args.consensus == "pbft"
+                        else args.raft_election_timeout / 1000
+                    )
+
                     # if pbft suspend the primary more than the other suspended nodes
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
                         et += et * 0.5

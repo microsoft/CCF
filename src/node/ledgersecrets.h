@@ -24,6 +24,8 @@ namespace ccf
 
   struct LedgerSecret
   {
+    static constexpr auto MASTER_KEY_SIZE = crypto::GCM_SIZE_KEY;
+
     std::vector<uint8_t> master; // Referred to as "sd" in TR
 
     bool operator==(const LedgerSecret& other) const
@@ -35,13 +37,11 @@ namespace ccf
     {
       if (random)
       {
-        master = tls::create_entropy()->random(crypto::GCM_SIZE_KEY);
+        master = tls::create_entropy()->random(MASTER_KEY_SIZE);
       }
     }
 
-    LedgerSecret(const std::vector<uint8_t>& ledger_master_) :
-      master(ledger_master_)
-    {}
+    LedgerSecret(const std::vector<uint8_t>& master_) : master(master_) {}
   };
 
   class LedgerSecrets

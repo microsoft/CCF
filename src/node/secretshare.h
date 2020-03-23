@@ -33,10 +33,10 @@ namespace ccf
     static constexpr size_t MAX_NUMBER_SHARES = 255; // As per sss documentation
 
     using Share = std::array<uint8_t, SHARE_LENGTH>;
-    using SecretToSplit = std::array<uint8_t, SECRET_TO_SPLIT_LENGTH>;
+    using SplitSecret = std::array<uint8_t, SECRET_TO_SPLIT_LENGTH>;
 
     static std::vector<Share> split(
-      const SecretToSplit& secret_to_share, size_t n, size_t k)
+      const SplitSecret& secret_to_split, size_t n, size_t k)
     {
       if (n == 0 || n > MAX_NUMBER_SHARES)
       {
@@ -53,14 +53,14 @@ namespace ccf
 
       sss_create_shares(
         reinterpret_cast<sss_Share*>(shares.data()),
-        secret_to_share.data(),
+        secret_to_split.data(),
         n,
         k);
 
       return shares;
     }
 
-    static SecretToSplit combine(const std::vector<Share>& shares, size_t k)
+    static SplitSecret combine(const std::vector<Share>& shares, size_t k)
     {
       if (k == 0 || k > shares.size())
       {
@@ -68,7 +68,7 @@ namespace ccf
           fmt::format("k not in 1-n range (n: {})", shares.size()));
       }
 
-      SecretToSplit restored_secret;
+      SplitSecret restored_secret;
 
       if (
         sss_combine_shares(

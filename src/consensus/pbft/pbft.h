@@ -11,6 +11,7 @@
 #include "consensus/pbft/libbyz/network.h"
 #include "consensus/pbft/libbyz/receive_message_base.h"
 #include "consensus/pbft/pbftconfig.h"
+#include "consensus/pbft/pbftglobals.h"
 #include "consensus/pbft/pbfttypes.h"
 #include "ds/logger.h"
 #include "enclave/rpcmap.h"
@@ -18,7 +19,6 @@
 #include "host/ledger.h"
 #include "kv/kvtypes.h"
 #include "node/nodetypes.h"
-#include "node/rpc/jsonrpc.h"
 
 #include <list>
 #include <memory>
@@ -67,75 +67,14 @@ namespace pbft
 
   class PbftEnclaveNetwork : public INetwork
   {
-  public:
-    PbftEnclaveNetwork(
-      NodeId id,
-      std::shared_ptr<ccf::NodeToNode> n2n_channels,
-      NodesMap& nodes_,
-      Index& latest_stable_ae_index_) :
-      n2n_channels(n2n_channels),
-      id(id),
-      nodes(nodes_),
-      latest_stable_ae_index(latest_stable_ae_index_)
-    {}
-
-    virtual ~PbftEnclaveNetwork() = default;
-
-    bool Initialize(in_port_t port) override
+  private:
+    void serialize_message(uint8_t*& data, size_t& size, Message* msg)
     {
-      return true;
-    }
-
-    void set_receiver(IMessageReceiveBase* receiver)
-    {
-      message_receiver_base = receiver;
-    }
-
-    std::vector<uint8_t> serialized_msg;
-
-    int Send(Message* msg, IPrincipal& principal) override
-    {
-      NodeId to = principal.pid();
-      if (to == id)
-      {
-        // If a replica sends a message to itself (e.g. if f == 0), handle
-        // the message straight away without writing it to the ringbuffer
-        message_receiver_base->receive_message(
-          (const uint8_t*)(msg->contents()), msg->size());
-        return msg->size();
-      }
-
-      PbftHeader hdr = {PbftMsgType::pbft_message, id};
-
-      auto space = (sizeof(PbftHeader) + msg->size());
-      serialized_msg.resize(space);
-      auto data_ = serialized_msg.data();
-      serialized::write<PbftHeader>(data_, space, hdr);
       serialized::write(
-        data_,
-        space,
+        data,
+        size,
         reinterpret_cast<const uint8_t*>(msg->contents()),
         msg->size());
-
-      if (msg->tag() == Append_entries_tag)
-      {
-        auto node = nodes.find(to);
-
-        Index match_idx = 0;
-        if (node != nodes.end())
-        {
-          match_idx = node->second;
-        }
-
-        if (match_idx < latest_stable_ae_index)
-        {
-          send_append_entries(to, match_idx + 1);
-        }
-        return msg->size();
-      }
-      n2n_channels->send_authenticated(
-        ccf::NodeMsgType::consensus_msg, to, serialized_msg);
-      return msg->size();
     }
 
     void send_append_entries(NodeId to, Index start_idx)
@@ -162,7 +101,7 @@ namespace pbft
       const auto prev_idx = start_idx - 1;
 
       LOG_INFO_FMT(
-        "Send append entried from {} to {}: {} to {}",
+        "Send append entries from {} to {}: {} to {}",
         id,
         to,
         start_idx,
@@ -180,9 +119,159 @@ namespace pbft
         nodes[to] = end_idx;
       }
 
-      // The host will append log entries to this message when it is
-      // sent to the destination node.
-      n2n_channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
+      auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedAEMsg>>(
+        &send_authenticated_ae_msg_cb,
+        ae,
+        this,
+        ccf::NodeMsgType::consensus_msg,
+        to);
+
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
+      }
+      else
+      {
+        tmsg->cb(std::move(tmsg));
+      }
+    }
+
+    std::vector<uint8_t> serialized_msg;
+
+  public:
+    PbftEnclaveNetwork(
+      NodeId id,
+      std::shared_ptr<ccf::NodeToNode> n2n_channels,
+      NodesMap& nodes_,
+      Index& latest_stable_ae_index_) :
+      n2n_channels(n2n_channels),
+      id(id),
+      nodes(nodes_),
+      latest_stable_ae_index(latest_stable_ae_index_)
+    {}
+
+    virtual ~PbftEnclaveNetwork() = default;
+
+    bool Initialize(in_port_t port) override
+    {
+      return true;
+    }
+
+    void set_receiver(IMessageReceiveBase* receiver)
+    {
+      message_receiver_base = receiver;
+    }
+
+    struct SendAuthenticatedAEMsg
+    {
+      SendAuthenticatedAEMsg(
+        AppendEntries ae_,
+        PbftEnclaveNetwork* self_,
+        ccf::NodeMsgType type_,
+        pbft::NodeId to_) :
+        ae(std::move(ae_)),
+        self(self_),
+        type(type_),
+        to(to_)
+      {}
+
+      AppendEntries ae;
+      ccf::NodeMsgType type;
+      pbft::NodeId to;
+      PbftEnclaveNetwork* self;
+    };
+
+    static void send_authenticated_ae_msg_cb(
+      std::unique_ptr<enclave::Tmsg<SendAuthenticatedAEMsg>> msg)
+    {
+      msg->data.self->n2n_channels->send_authenticated(
+        msg->data.type, msg->data.to, msg->data.ae);
+    }
+
+    struct SendAuthenticatedMsg
+    {
+      SendAuthenticatedMsg(
+        std::vector<uint8_t> data_,
+        PbftEnclaveNetwork* self_,
+        ccf::NodeMsgType type_,
+        pbft::NodeId to_) :
+        data(std::move(data_)),
+        self(self_),
+        type(type_),
+        to(to_)
+      {}
+
+      std::vector<uint8_t> data;
+      ccf::NodeMsgType type;
+      pbft::NodeId to;
+      PbftEnclaveNetwork* self;
+    };
+
+    static void send_authenticated_msg_cb(
+      std::unique_ptr<enclave::Tmsg<SendAuthenticatedMsg>> msg)
+    {
+      msg->data.self->n2n_channels->send_authenticated(
+        msg->data.type, msg->data.to, msg->data.data);
+    }
+
+    int Send(Message* msg, IPrincipal& principal) override
+    {
+      NodeId to = principal.pid();
+      if (to == id)
+      {
+        // If a replica sends a message to itself (e.g. if f == 0), handle
+        // the message straight away without writing it to the ringbuffer
+        message_receiver_base->receive_message(
+          (const uint8_t*)(msg->contents()), msg->size());
+        return msg->size();
+      }
+
+      if (msg->tag() == Append_entries_tag)
+      {
+        auto node = nodes.find(to);
+
+        Index match_idx = 0;
+        if (node != nodes.end())
+        {
+          match_idx = node->second;
+        }
+
+        if (match_idx < latest_stable_ae_index)
+        {
+          send_append_entries(to, match_idx + 1);
+        }
+        return msg->size();
+      }
+
+      PbftHeader hdr = {PbftMsgType::pbft_message, id};
+      auto space = (sizeof(PbftHeader) + msg->size());
+      serialized_msg.resize(space);
+      auto data_ = serialized_msg.data();
+      serialized::write<PbftHeader>(data_, space, hdr);
+      serialize_message(data_, space, msg);
+
+      auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedMsg>>(
+        &send_authenticated_msg_cb,
+        std::move(serialized_msg),
+        this,
+        ccf::NodeMsgType::consensus_msg,
+        to);
+
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        uint16_t tid = enclave::ThreadMessaging::get_execution_thread(
+          ++execution_thread_counter);
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<SendAuthenticatedMsg>(tid, std::move(tmsg));
+      }
+      else
+      {
+        tmsg->cb(std::move(tmsg));
+      }
+
+      return msg->size();
     }
 
     virtual Message* GetNextMessage() override
@@ -197,6 +286,7 @@ namespace pbft
     }
 
   private:
+    uint32_t execution_thread_counter = 0;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     IMessageReceiveBase* message_receiver_base = nullptr;
     NodeId id;
@@ -239,8 +329,10 @@ namespace pbft
       std::shared_ptr<enclave::RPCSessions> rpcsessions_,
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
+      ccf::Signatures& signatures,
       const std::string& privk_pem,
-      const std::vector<uint8_t>& cert) :
+      const std::vector<uint8_t>& cert,
+      const consensus::Config& consensus_config) :
       Consensus(id),
       channels(channels_),
       rpcsessions(rpcsessions_),
@@ -257,8 +349,8 @@ namespace pbft
       general_info.max_faulty = 0;
       general_info.service_name = "generic";
       general_info.auth_timeout = 1800000;
-      general_info.view_timeout = 5000;
-      general_info.status_timeout = 100;
+      general_info.view_timeout = consensus_config.pbft_view_change_timeout;
+      general_info.status_timeout = consensus_config.pbft_status_interval;
       general_info.recovery_timeout = 9999250000;
       general_info.max_requests_between_signatures =
         sig_max_tx / Max_requests_in_batch;
@@ -291,6 +383,7 @@ namespace pbft
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,
+        signatures,
         *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
@@ -484,14 +577,87 @@ namespace pbft
       return true;
     }
 
-    void recv_message(const uint8_t* data, size_t size) override
+    struct RecvAuthenticatedMsg
     {
-      switch (serialized::peek<PbftMsgType>(data, size))
+      RecvAuthenticatedMsg(
+        OArray&& d_, Pbft<LedgerProxy, ChannelProxy>* self_) :
+        d(std::move(d_)),
+        self(self_),
+        result(false)
+      {}
+
+      OArray d;
+      Pbft<LedgerProxy, ChannelProxy>* self;
+      bool result;
+    };
+
+    static void recv_authenticated_msg_cb(
+      std::unique_ptr<enclave::Tmsg<RecvAuthenticatedMsg>> msg)
+    {
+      try
+      {
+        auto r = msg->data.self->channels
+                   ->template recv_authenticated_with_load<PbftHeader>(
+                     msg->data.d.data(), msg->data.d.size());
+        msg->data.d.data() = r.p;
+        msg->data.d.size() = r.n;
+        msg->data.result = true;
+      }
+      catch (const std::logic_error& err)
+      {
+        LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+        return;
+      }
+
+      enclave::ThreadMessaging::ChangeTmsgCallback(
+        msg, &recv_authenticated_msg_process_cb);
+      if (enclave::ThreadMessaging::thread_count > 1)
+      {
+        enclave::ThreadMessaging::thread_messaging
+          .add_task<RecvAuthenticatedMsg>(
+            enclave::ThreadMessaging::main_thread, std::move(msg));
+      }
+      else
+      {
+        msg->cb(std::move(msg));
+      }
+    }
+
+    static void recv_authenticated_msg_process_cb(
+      std::unique_ptr<enclave::Tmsg<RecvAuthenticatedMsg>> msg)
+    {
+      assert(msg->data.result);
+      msg->data.self->message_receiver_base->receive_message(
+        msg->data.d.data(), msg->data.d.size());
+    }
+
+    void recv_message(OArray&& d) override
+    {
+      const uint8_t* data = d.data();
+      size_t size = d.size();
+      PbftHeader hdr = serialized::peek<PbftHeader>(data, size);
+      switch (hdr.msg)
       {
         case pbft_message:
         {
-          serialized::skip(data, size, sizeof(PbftHeader));
-          message_receiver_base->receive_message(data, size);
+          auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
+            &recv_authenticated_msg_cb, std::move(d), this);
+
+          auto recv_nonce = channels->template get_recv_nonce<PbftHeader>(
+            tmsg->data.d.data(), tmsg->data.d.size());
+
+          if (enclave::ThreadMessaging::thread_count > 1)
+          {
+            enclave::ThreadMessaging::thread_messaging
+              .add_task<RecvAuthenticatedMsg>(
+                recv_nonce.tid % enclave::ThreadMessaging::thread_count,
+                std::move(tmsg));
+          }
+          else
+          {
+            tmsg->cb(std::move(tmsg));
+          }
+
           break;
         }
         case pbft_append_entries:
@@ -621,7 +787,7 @@ namespace pbft
 
     ConsensusType type() override
     {
-      return ConsensusType::Pbft;
+      return ConsensusType::PBFT;
     }
   };
 }

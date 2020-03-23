@@ -149,6 +149,7 @@ class SSHRemote(CmdMixin):
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
         self.suspension_proc = None
+        self._pid = None
 
     def _rc(self, cmd):
         LOG.info("[{}] {}".format(self.hostname, cmd))
@@ -253,19 +254,33 @@ class SSHRemote(CmdMixin):
         """
         cmd = self._cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
-        stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
-        _, stdout_, _ = self.proc_client.exec_command(f'ps -ef | pgrep -f "{cmd}"')
-        self.pid = stdout_.readline()
+        self.client.exec_command(cmd, get_pty=True)
+        self.pid()
+
+    def pid(self):
+        if self._pid is None:
+            pid_path = os.path.join(self.root, "cchost.pid")
+            time_left = 3
+            while time_left > 0:
+                _, stdout, _ = self.proc_client.exec_command(f'cat "{pid_path}"')
+                self._pid = stdout.read().strip()
+                if self._pid:
+                    break
+                time_left = max(time_left - 0.1, 0)
+                if not time_left:
+                    raise TimeoutError("Failed to read PID from file")
+                time.sleep(0.1)
+        return self._pid
 
     def suspend(self):
-        _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid}")
+        _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid()}")
         if stdout.channel.recv_exit_status() == 0:
             LOG.info(f"Node {self.name} suspended...")
         else:
             raise RuntimeError(f"Node {self.name} could not be suspended")
 
     def resume(self):
-        _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid}")
+        _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid()}")
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Could not resume node {self.name} from suspension!")
         LOG.info(f"Node {self.name} resuming from suspension...")
@@ -531,7 +546,8 @@ class CCFRemote(object):
         host_log_level="info",
         sig_max_tx=1000,
         sig_max_ms=1000,
-        election_timeout=1000,
+        raft_election_timeout=1000,
+        pbft_view_change_timeout=5000,
         consensus="raft",
         worker_threads=0,
         memory_reserve_startup=0,
@@ -569,6 +585,12 @@ class CCFRemote(object):
         # to reference the destination file locally in the target workspace.
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
+        election_timeout_arg = (
+            f"--pbft_view-change-timeout-ms={pbft_view_change_timeout}"
+            if consensus == "pbft"
+            else f"--raft-election-timeout-ms={raft_election_timeout}"
+        )
+
         cmd = [
             self.BIN,
             f"--enclave-file={enclave_path}",
@@ -579,7 +601,7 @@ class CCFRemote(object):
             f"--ledger-file={self.ledger_file_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
-            f"--raft-election-timeout-ms={election_timeout}",
+            election_timeout_arg,
             f"--consensus={consensus}",
             f"--worker_threads={worker_threads}",
         ]
@@ -683,6 +705,7 @@ class CCFRemote(object):
         self.remote.get(self.pem, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
+            self.remote.get("network_enc_pubk.pem", dst_path)
 
     def debug_node_cmd(self):
         return self.remote._dbg()

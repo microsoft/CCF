@@ -330,7 +330,7 @@ namespace raft
           committable_indices.push_back(index);
 
         last_idx = index;
-        auto s = write_to_ledger(data);
+        auto s = write_to_ledger(*data);
         entry_size_not_limited += s;
         entry_count++;
 
@@ -997,7 +997,9 @@ namespace raft
       // since we have no signature for them. Except at startup,
       // where we do not want to roll back the genesis transaction.
       if (commit_idx)
+      {
         rollback(commit_idx);
+      }
 
       committable_indices.clear();
       state = Leader;

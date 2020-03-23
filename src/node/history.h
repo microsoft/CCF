@@ -4,6 +4,7 @@
 
 #include "consensus/pbft/pbfttypes.h"
 #include "crypto/hash.h"
+#include "ds/dllist.h"
 #include "ds/logger.h"
 #include "entities.h"
 #include "kv/kvtypes.h"
@@ -147,6 +148,14 @@ namespace ccf
       kv::Version version,
       const std::vector<uint8_t>& replicated) override
     {}
+
+    void add_pending(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      std::shared_ptr<std::vector<uint8_t>> replicated) override
+    {}
+
+    void execute_pending() override {}
 
     virtual void add_result(
       RequestID id,
@@ -486,7 +495,6 @@ namespace ccf
 
     void emit_signature() override
     {
-#ifndef PBFT
       // Signatures are only emitted when there is a consensus
       auto consensus = store.get_consensus();
       if (!consensus)
@@ -494,30 +502,33 @@ namespace ccf
         return;
       }
 
-      auto version = store.next_version();
-      auto view = consensus->get_view();
-      auto commit = consensus->get_commit_seqno();
-      LOG_DEBUG_FMT("Issuing signature at {}", version);
-      LOG_DEBUG_FMT("Signed at {} view: {} commit: {}", version, view, commit);
-      store.commit(
-        version,
-        [version, view, commit, this]() {
-          Store::Tx sig(version);
-          auto sig_view = sig.get_view(signatures);
-          crypto::Sha256Hash root = replicated_state_tree.get_root();
-          Signature sig_value(
-            id,
-            version,
-            view,
-            commit,
-            root,
-            kp.sign_hash(root.h.data(), root.h.size()),
-            replicated_state_tree.serialise());
-          sig_view->put(0, sig_value);
-          return sig.commit_reserved();
-        },
-        true);
-#endif
+      if (consensus->type() == ConsensusType::RAFT)
+      {
+        auto version = store.next_version();
+        auto view = consensus->get_view();
+        auto commit = consensus->get_commit_seqno();
+        LOG_DEBUG_FMT("Issuing signature at {}", version);
+        LOG_DEBUG_FMT(
+          "Signed at {} view: {} commit: {}", version, view, commit);
+        store.commit(
+          version,
+          [version, view, commit, this]() {
+            Store::Tx sig(version);
+            auto sig_view = sig.get_view(signatures);
+            crypto::Sha256Hash root = replicated_state_tree.get_root();
+            Signature sig_value(
+              id,
+              version,
+              view,
+              commit,
+              root,
+              kp.sign_hash(root.h.data(), root.h.size()),
+              replicated_state_tree.serialise());
+            sig_view->put(0, sig_value);
+            return sig.commit_reserved();
+          },
+          true);
+      }
     }
 
     bool add_request(
@@ -538,6 +549,62 @@ namespace ccf
       return consensus->on_request({id, request, caller_id, caller_cert});
     }
 
+    struct PendingInsert
+    {
+      PendingInsert(
+        kv::TxHistory::RequestID i,
+        kv::Version v,
+        std::shared_ptr<std::vector<uint8_t>> r) :
+        id(i),
+        version(v),
+        replicated(std::move(r)),
+        next(nullptr),
+        prev(nullptr)
+      {}
+
+      kv::TxHistory::RequestID id;
+      kv::Version version;
+      std::shared_ptr<std::vector<uint8_t>> replicated;
+      PendingInsert* next;
+      PendingInsert* prev;
+    };
+
+    SpinLock version_lock;
+    snmalloc::DLList<PendingInsert, std::nullptr_t, true> pending_inserts;
+
+    void add_pending(
+      kv::TxHistory::RequestID id,
+      kv::Version version,
+      std::shared_ptr<std::vector<uint8_t>> replicated) override
+    {
+      auto consensus = store.get_consensus();
+      if (consensus->type() == ConsensusType::RAFT)
+      {
+        add_result(id, version, replicated->data(), replicated->size());
+      }
+      else
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        pending_inserts.insert_back(new PendingInsert(id, version, replicated));
+      }
+    }
+
+    void execute_pending() override
+    {
+      snmalloc::DLList<PendingInsert, std::nullptr_t, true> pi;
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        pi = std::move(pending_inserts);
+      }
+
+      PendingInsert* p = pi.get_head();
+      while (p != nullptr)
+      {
+        add_result(p->id, p->version, *p->replicated);
+        p = p->next;
+      }
+    }
+
     void add_result(
       kv::TxHistory::RequestID id,
       kv::Version version,
@@ -553,28 +620,35 @@ namespace ccf
       size_t replicated_size) override
     {
       append(replicated, replicated_size);
-#ifdef PBFT
-      if (on_result.has_value())
+
+      auto consensus = store.get_consensus();
+
+      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
-        auto root = get_replicated_state_root();
-        LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-        results[id] = {version, root};
-        on_result.value()({id, version, root});
+        if (on_result.has_value())
+        {
+          auto root = get_replicated_state_root();
+          LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
+          results[id] = {version, root};
+          on_result.value()({id, version, root});
+        }
       }
-#endif
     }
 
     void add_result(kv::TxHistory::RequestID id, kv::Version version) override
     {
-#ifdef PBFT
-      if (on_result.has_value())
+      auto consensus = store.get_consensus();
+
+      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
-        auto root = get_replicated_state_root();
-        LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
-        results[id] = {version, root};
-        on_result.value()({id, version, root});
+        if (on_result.has_value())
+        {
+          auto root = get_replicated_state_root();
+          LOG_DEBUG_FMT("HISTORY: add_result {0} {1} {2}", id, version, root);
+          results[id] = {version, root};
+          on_result.value()({id, version, root});
+        }
       }
-#endif
     }
 
     void add_response(

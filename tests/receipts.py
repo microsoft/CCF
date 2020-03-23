@@ -32,9 +32,9 @@ def test(network, args, notifications_queue=None):
         LOG.info("Write/Read on primary")
         with primary.user_client() as c:
             check_commit(c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True)
-            r = c.rpc("LOG_get", {"id": 42})
+            r = c.get("LOG_get", {"id": 42})
             check(r, result={"msg": msg})
-            r = c.rpc("getReceipt", {"commit": r.commit})
+            r = c.get("getReceipt", {"commit": r.commit})
             check(
                 c.rpc("verifyReceipt", {"receipt": r.result["receipt"]}),
                 result={"valid": True},
@@ -47,10 +47,14 @@ def test(network, args, notifications_queue=None):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
-        notifications_queue = notifications.get_queue()
+        notifications_queue = (
+            notifications.get_queue()
+            if (args.package == "liblogging" and args.consensus == "raft")
+            else None
+        )
 
         with infra.ccf.network(
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

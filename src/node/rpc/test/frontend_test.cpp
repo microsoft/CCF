@@ -1,16 +1,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "doctest/doctest.h"
+#include "consensus/pbft/pbftrequests.h"
+#include "consensus/test/stub_consensus.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
-#include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/genesisgen.h"
+#include "node/history.h"
 #include "node/networkstate.h"
-#include "node/rpc/handleradapter.h"
+#include "node/rpc/jsonhandler.h"
 #include "node/rpc/jsonrpc.h"
 #include "node/rpc/memberfrontend.h"
 #include "node/rpc/nodefrontend.h"
@@ -18,10 +19,7 @@
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
 
-#ifdef PBFT
-#  include "consensus/pbft/pbftrequests.h"
-#  include "node/history.h"
-#endif
+#include <doctest/doctest.h>
 #include <iostream>
 #include <string>
 
@@ -44,18 +42,23 @@ public:
     open();
 
     auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install("empty_function", empty_function, HandlerRegistry::Read);
 
     auto empty_function_signed = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install(
-      "empty_function_signed",
-      empty_function_signed,
-      HandlerRegistry::Read,
-      true);
+      "empty_function_signed", empty_function_signed, HandlerRegistry::Read)
+      .set_require_client_signature(true);
+
+    auto empty_function_no_auth = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    install(
+      "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Read)
+      .set_require_client_identity(false);
   }
 };
 
@@ -67,7 +70,7 @@ public:
     open();
 
     auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install("empty_function", empty_function, HandlerRegistry::Read);
     disable_request_storing();
@@ -81,36 +84,57 @@ public:
   {
     open();
 
-    auto echo_function = [this](Store::Tx& tx, const nlohmann::json& params) {
-      auto j = params;
-      return make_success(std::move(j));
+    auto echo_function = [this](Store::Tx& tx, nlohmann::json&& params) {
+      return make_success(std::move(params));
     };
-    install("echo", handler_adapter(echo_function), HandlerRegistry::Read);
+    install("echo", json_adapter(echo_function), HandlerRegistry::Read);
 
     auto get_caller_function =
-      [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         return make_success(caller_id);
       };
     install(
-      "get_caller",
-      handler_adapter(get_caller_function),
-      HandlerRegistry::Read);
+      "get_caller", json_adapter(get_caller_function), HandlerRegistry::Read);
 
     auto failable_function =
-      [this](Store::Tx& tx, CallerId caller_id, const nlohmann::json& params) {
+      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         const auto it = params.find("error");
         if (it != params.end())
         {
-          const size_t error_code = (*it)["code"];
+          const http_status error_code = (*it)["code"];
           const std::string error_msg = (*it)["message"];
 
-          return make_error(error_code, error_msg);
+          return make_error((http_status)error_code, error_msg);
         }
 
         return make_success(true);
       };
-    install(
-      "failable", handler_adapter(failable_function), HandlerRegistry::Read);
+    install("failable", json_adapter(failable_function), HandlerRegistry::Read);
+  }
+};
+
+class TestRestrictedVerbsFrontend : public SimpleUserRpcFrontend
+{
+public:
+  TestRestrictedVerbsFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
+  {
+    open();
+
+    auto get_only = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    install("get_only", get_only, HandlerRegistry::Read).set_http_get_only();
+
+    auto post_only = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    install("post_only", post_only, HandlerRegistry::Read).set_http_post_only();
+
+    auto put_or_delete = [this](RequestArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    install("put_or_delete", put_or_delete, HandlerRegistry::Read)
+      .set_allowed_verbs({HTTP_PUT, HTTP_DELETE});
   }
 };
 
@@ -123,7 +147,7 @@ public:
     open();
 
     auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     member_handlers.install(
       "empty_function", empty_function, HandlerRegistry::Read);
@@ -142,7 +166,7 @@ public:
     open();
 
     auto empty_function = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     handlers.install("empty_function", empty_function, HandlerRegistry::Read);
   }
@@ -175,7 +199,7 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -195,7 +219,7 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
@@ -215,44 +239,11 @@ public:
 
     auto empty_function = [this](RequestArgs& args) {
       record_ctx(args);
-      args.rpc_ctx->set_response_result(true);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     handlers.install("empty_function", empty_function, HandlerRegistry::Write);
-  }
-};
-
-namespace userapp
-{
-  enum AppError : jsonrpc::ErrorBaseType
-  {
-    Foo = static_cast<jsonrpc::ErrorBaseType>(
-      jsonrpc::CCFErrorCodes::APP_ERROR_START),
-    Bar = Foo - 1
-  };
-}
-
-class TestAppErrorFrontEnd : public RpcFrontend
-{
-  HandlerRegistry handlers;
-
-public:
-  static constexpr auto bar_msg = "Bar is broken";
-
-  TestAppErrorFrontEnd(Store& tables) :
-    RpcFrontend(tables, handlers),
-    handlers(tables)
-  {
-    auto foo = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_error(userapp::AppError::Foo);
-    };
-    handlers.install("foo", foo, HandlerRegistry::Read);
-
-    auto bar = [this](RequestArgs& args) {
-      args.rpc_ctx->set_response_error(userapp::AppError::Bar, bar_msg);
-    };
-    handlers.install("bar", bar, HandlerRegistry::Read);
   }
 };
 
@@ -262,8 +253,7 @@ NetworkState network;
 NetworkState network2;
 auto encryptor = std::make_shared<NullTxEncryptor>();
 
-#ifdef PBFT
-NetworkState pbft_network(ConsensusType::Pbft);
+NetworkState pbft_network(ConsensusType::PBFT);
 auto history_kp = tls::make_key_pair();
 
 auto history = std::make_shared<NullTxHistory>(
@@ -272,8 +262,6 @@ auto history = std::make_shared<NullTxHistory>(
   *history_kp,
   pbft_network.signatures,
   pbft_network.nodes);
-
-#endif
 
 StubNodeState stub_node;
 
@@ -289,11 +277,7 @@ auto create_simple_request(
 {
   http::Request request(method);
   request.set_header(
-    http::headers::CONTENT_TYPE,
-    pack == jsonrpc::Pack::Text ? http::headervalues::contenttype::JSON :
-                                  (pack == jsonrpc::Pack::MsgPack ?
-                                     http::headervalues::contenttype::MSGPACK :
-                                     "unknown"));
+    http::headers::CONTENT_TYPE, details::pack_to_content_type(pack));
   return request;
 }
 
@@ -315,17 +299,22 @@ std::pair<http::Request, ccf::SignedReq> create_signed_request(
   return {s, signed_req};
 }
 
-nlohmann::json parse_response(
-  const vector<uint8_t>& v, jsonrpc::Pack pack = default_pack)
+http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
 {
-  http::SimpleMsgProcessor processor;
-  http::Parser parser(HTTP_RESPONSE, processor);
+  http::SimpleResponseProcessor processor;
+  http::ResponseParser parser(processor);
 
   const auto parsed_count = parser.execute(v.data(), v.size());
   REQUIRE(parsed_count == v.size());
   REQUIRE(processor.received.size() == 1);
 
-  return jsonrpc::unpack(processor.received.front().body, pack);
+  return processor.received.front();
+}
+
+nlohmann::json parse_response_body(
+  const vector<uint8_t>& body, jsonrpc::Pack pack = default_pack)
+{
+  return jsonrpc::unpack(body, pack);
 }
 
 std::optional<SignedReq> get_signed_req(CallerId caller_id)
@@ -352,6 +341,8 @@ auto kp_other = tls::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name");
 auto invalid_caller_der = tls::make_verifier(invalid_caller) -> der_cert_data();
 
+auto anonymous_caller_der = std::vector<uint8_t>();
+
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto user_session = make_shared<enclave::SessionContext>(
@@ -362,6 +353,8 @@ auto invalid_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, invalid_caller_der);
 auto member_session = make_shared<enclave::SessionContext>(
   enclave::InvalidSessionId, member_caller_der);
+auto anonymous_session = make_shared<enclave::SessionContext>(
+  enclave::InvalidSessionId, anonymous_caller_der);
 
 UserId user_id = INVALID_ID;
 UserId invalid_user_id = INVALID_ID;
@@ -389,7 +382,6 @@ void prepare_callers()
   GenesisGenerator g(network, tx);
   g.init_values();
   user_id = g.add_user(user_caller);
-  invalid_user_id = g.add_user(invalid_caller);
   nos_id = g.add_user(nos_caller);
   member_id = g.add_member(member_caller, dummy_key_share);
   invalid_member_id = g.add_member(invalid_caller, dummy_key_share);
@@ -407,14 +399,15 @@ void add_callers_primary_store()
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
-#ifdef PBFT
-
 void add_callers_pbft_store()
 {
   Store::Tx gen_tx;
   pbft_network.tables->set_encryptor(encryptor);
   pbft_network.tables->clear();
   pbft_network.tables->set_history(history);
+  auto backup_consensus =
+    std::make_shared<kv::PrimaryStubConsensus>(ConsensusType::PBFT);
+  pbft_network.tables->set_consensus(backup_consensus);
 
   GenesisGenerator g(pbft_network, gen_tx);
   g.init_values();
@@ -451,7 +444,6 @@ TEST_CASE("process_pbft")
   REQUIRE(deserialised_req.caller_cert == user_caller_der);
   REQUIRE(deserialised_req.raw == serialized_call);
 }
-#else
 
 TEST_CASE("SignedReq to and from json")
 {
@@ -477,73 +469,116 @@ TEST_CASE("process_command")
 
   Store::Tx tx;
   CallerId caller_id(0);
-  auto response = frontend.process_command(rpc_ctx, tx, caller_id);
-  REQUIRE(response.has_value());
+  auto response_raw = frontend.process_command(rpc_ctx, tx, caller_id);
+  REQUIRE(response_raw.has_value());
 
-  auto j_result = parse_response(response.value());
-  CHECK(j_result[jsonrpc::RESULT] == true);
+  const auto response = parse_response(response_raw.value());
+  REQUIRE(response.status == HTTP_STATUS_OK);
 }
 
-TEST_CASE("process")
+TEST_CASE("process with signatures")
 {
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
-  const auto simple_call = create_simple_request();
-  const auto [signed_call, signed_req] = create_signed_request(simple_call);
 
-  SUBCASE("invalid method")
+  SUBCASE("missing rpc")
   {
-    constexpr auto method_name = "this_method_doesnt_exist";
-    const auto invalid_call = create_simple_request(method_name);
+    constexpr auto rpc_name = "this_rpc_doesnt_exist";
+    const auto invalid_call = create_simple_request(rpc_name);
     const auto serialized_call = invalid_call.build_request();
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
 
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    const auto err_it = response.find(jsonrpc::ERR);
-    REQUIRE(err_it != response.end());
-    const auto error_message =
-      err_it->find(jsonrpc::MESSAGE)->get<std::string>();
-    CHECK(error_message.find(method_name) != std::string::npos);
+    REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
   }
 
-  SUBCASE("without signature")
+  SUBCASE("handler does not require signature")
   {
-    const auto serialized_call = simple_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request();
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_simple_call = simple_call.build_request();
+    const auto serialized_signed_call = signed_call.build_request();
 
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response[jsonrpc::RESULT] == true);
+    auto simple_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    auto signed_resp = get_signed_req(user_id);
-    CHECK(!signed_resp.has_value());
+    INFO("Unsigned RPC");
+    {
+      const auto serialized_response = frontend.process(simple_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      CHECK(!signed_resp.has_value());
+    }
+
+    INFO("Signed RPC");
+    {
+      const auto serialized_response = frontend.process(signed_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      REQUIRE(signed_resp.has_value());
+      auto value = signed_resp.value();
+      CHECK(value == signed_req);
+    }
   }
 
-  SUBCASE("with signature")
+  SUBCASE("handler requires signature")
   {
-    const auto serialized_call = signed_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request("empty_function_signed");
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_simple_call = simple_call.build_request();
+    const auto serialized_signed_call = signed_call.build_request();
 
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-    CHECK(response[jsonrpc::RESULT] == true);
+    auto simple_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    auto signed_resp = get_signed_req(user_id);
-    REQUIRE(signed_resp.has_value());
-    auto value = signed_resp.value();
-    CHECK(value == signed_req);
+    INFO("Unsigned RPC");
+    {
+      const auto serialized_response = frontend.process(simple_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+
+      CHECK(response.status == HTTP_STATUS_UNAUTHORIZED);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(error_msg.find("RPC must be signed") != std::string::npos);
+
+      auto signed_resp = get_signed_req(user_id);
+      CHECK(!signed_resp.has_value());
+    }
+
+    INFO("Signed RPC");
+    {
+      const auto serialized_response = frontend.process(signed_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+
+      auto signed_resp = get_signed_req(user_id);
+      REQUIRE(signed_resp.has_value());
+      auto value = signed_resp.value();
+      CHECK(value == signed_req);
+    }
   }
 
   SUBCASE("request with signature but do not store")
   {
     TestReqNotStoredFrontend frontend_nostore(*network.tables);
-    const auto serialized_call = signed_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    const auto simple_call = create_simple_request("empty_function");
+    const auto [signed_call, signed_req] = create_signed_request(simple_call);
+    const auto serialized_signed_call = signed_call.build_request();
+    auto signed_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_signed_call);
 
-    const auto serialized_response = frontend_nostore.process(rpc_ctx).value();
+    const auto serialized_response =
+      frontend_nostore.process(signed_rpc_ctx).value();
     const auto response = parse_response(serialized_response);
-    CHECK(response[jsonrpc::RESULT] == true);
+    REQUIRE(response.status == HTTP_STATUS_OK);
 
     auto signed_resp = get_signed_req(user_id);
     REQUIRE(signed_resp.has_value());
@@ -551,131 +586,121 @@ TEST_CASE("process")
     CHECK(value.req.empty());
     CHECK(value.sig == signed_req.sig);
   }
-
-  SUBCASE("request without signature on sign-only handler")
-  {
-    const auto unsigned_req = create_simple_request("empty_function_signed");
-    const auto serialized_call = unsigned_req.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-
-    const auto serialized_response = frontend.process(rpc_ctx).value();
-    auto response = parse_response(serialized_response);
-
-    const auto err_it = response.find(jsonrpc::ERR);
-    REQUIRE(err_it != response.end());
-    const auto error = *err_it;
-    CHECK(error[jsonrpc::CODE] == jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED);
-    const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
-    CHECK(error_msg.find("RPC must be signed") != std::string::npos);
-  }
 }
 
-TEST_CASE("MinimalHandleFunction")
+TEST_CASE("process with caller")
 {
   prepare_callers();
-  TestMinimalHandleFunction frontend(*network.tables);
-  for (const auto pack_type : {jsonrpc::Pack::Text, jsonrpc::Pack::MsgPack})
-  {
-    {
-      auto echo_call = create_simple_request("echo", pack_type);
-      const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
-                                     {"other", "Another string"}};
-      const auto serialized_body = jsonrpc::pack(j_body, pack_type);
-
-      auto [signed_call, signed_req] =
-        create_signed_request(echo_call, &serialized_body);
-      const auto serialized_call = signed_call.build_request();
-
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-      auto response =
-        parse_response(frontend.process(rpc_ctx).value(), pack_type);
-      CHECK(response[jsonrpc::RESULT] == j_body);
-    }
-
-    {
-      auto get_caller = create_simple_request("get_caller", pack_type);
-
-      const auto [signed_call, signed_req] = create_signed_request(get_caller);
-      const auto serialized_call = signed_call.build_request();
-
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-      auto response =
-        parse_response(frontend.process(rpc_ctx).value(), pack_type);
-      CHECK(response[jsonrpc::RESULT] == user_id);
-    }
-  }
-
-  {
-    auto dont_fail = create_simple_request("failable");
-
-    const auto [signed_call, signed_req] = create_signed_request(dont_fail);
-    const auto serialized_call = signed_call.build_request();
-
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-    auto response =
-      parse_response(frontend.process(rpc_ctx).value(), default_pack);
-    CHECK(response[jsonrpc::RESULT] == true);
-  }
-
-  {
-    for (const size_t err :
-         {(size_t)jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          (size_t)jsonrpc::CCFErrorCodes::SCRIPT_ERROR,
-          (size_t)42u})
-    {
-      const auto msg = fmt::format("An error message about {}", err);
-      auto fail = create_simple_request("failable");
-      const nlohmann::json j_body = {
-        {"error", {{"code", err}, {"message", msg}}}};
-      const auto serialized_body = jsonrpc::pack(j_body, default_pack);
-
-      const auto [signed_call, signed_req] =
-        create_signed_request(fail, &serialized_body);
-      const auto serialized_call = signed_call.build_request();
-
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-      auto response =
-        parse_response(frontend.process(rpc_ctx).value(), default_pack);
-
-      const auto err_it = response.find(jsonrpc::ERR);
-      REQUIRE(err_it != response.end());
-      const auto error = *err_it;
-      CHECK(error[jsonrpc::CODE] == err);
-      const auto error_msg = error[jsonrpc::MESSAGE].get<std::string>();
-      CHECK(error_msg.find(msg) != std::string::npos);
-    }
-  }
-}
-
-// callers
-
-TEST_CASE("User caller")
-{
-  prepare_callers();
-  auto simple_call = create_simple_request();
-  std::vector<uint8_t> serialized_call = simple_call.build_request();
   TestUserFrontend frontend(*network.tables);
 
-  SUBCASE("valid caller")
+  SUBCASE("handler does not require valid caller")
+  {
+    const auto simple_call = create_simple_request("empty_function_no_auth");
+    const auto serialized_simple_call = simple_call.build_request();
+    auto authenticated_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto invalid_rpc_ctx =
+      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+    auto anonymous_rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
+
+    INFO("Valid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(authenticated_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+
+      // Even though the RPC does not require authenticated caller, an
+      // authenticated RPC succeeds
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Invalid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(invalid_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Anonymous caller");
+    {
+      const auto serialized_response =
+        frontend.process(anonymous_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+  }
+
+  SUBCASE("handler requires valid caller")
+  {
+    const auto simple_call = create_simple_request("empty_function");
+    const auto serialized_simple_call = simple_call.build_request();
+    auto authenticated_rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_simple_call);
+    auto invalid_rpc_ctx =
+      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+    auto anonymous_rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
+
+    INFO("Valid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(authenticated_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_OK);
+    }
+
+    INFO("Invalid authentication");
+    {
+      const auto serialized_response =
+        frontend.process(invalid_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(
+        error_msg.find("Could not find matching user certificate") !=
+        std::string::npos);
+    }
+
+    INFO("Anonymous caller");
+    {
+      const auto serialized_response =
+        frontend.process(anonymous_rpc_ctx).value();
+      auto response = parse_response(serialized_response);
+      REQUIRE(response.status == HTTP_STATUS_FORBIDDEN);
+      const std::string error_msg(response.body.begin(), response.body.end());
+      CHECK(
+        error_msg.find("Could not find matching user certificate") !=
+        std::string::npos);
+    }
+  }
+}
+
+TEST_CASE("No certs table")
+{
+  prepare_callers();
+  TestNoCertsFrontend frontend(*network.tables);
+  auto simple_call = create_simple_request();
+  std::vector<uint8_t> serialized_call = simple_call.build_request();
+
+  INFO("Authenticated caller");
   {
     auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 
-  SUBCASE("invalid caller")
+  INFO("Anonymous caller");
   {
-    auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
+    auto rpc_ctx =
+      enclave::make_rpc_context(anonymous_session, serialized_call);
     std::vector<uint8_t> serialized_response =
-      frontend.process(member_rpc_ctx).value();
+      frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    CHECK(
-      response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 }
 
@@ -693,7 +718,7 @@ TEST_CASE("Member caller")
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 
   SUBCASE("invalid caller")
@@ -702,25 +727,184 @@ TEST_CASE("Member caller")
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
-    CHECK(
-      response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
+    CHECK(response.status == HTTP_STATUS_FORBIDDEN);
   }
 }
 
-TEST_CASE("No certs table")
+TEST_CASE("MinimalHandleFunction")
 {
   prepare_callers();
+  TestMinimalHandleFunction frontend(*network.tables);
+  for (const auto pack_type : {jsonrpc::Pack::Text, jsonrpc::Pack::MsgPack})
+  {
+    {
+      INFO("Calling echo, with params in body");
+      auto echo_call = create_simple_request("echo", pack_type);
+      const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
+                                     {"other", "Another string"}};
+      const auto serialized_body = jsonrpc::pack(j_body, pack_type);
 
-  auto simple_call = create_simple_request();
-  std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestNoCertsFrontend frontend(*network.tables);
+      auto [signed_call, signed_req] =
+        create_signed_request(echo_call, &serialized_body);
+      const auto serialized_call = signed_call.build_request();
 
-  auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-  std::vector<uint8_t> serialized_response = frontend.process(rpc_ctx).value();
-  auto response = parse_response(serialized_response);
-  CHECK(response[jsonrpc::RESULT] == true);
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto response = parse_response(frontend.process(rpc_ctx).value());
+      CHECK(response.status == HTTP_STATUS_OK);
+
+      const auto response_body = parse_response_body(response.body, pack_type);
+      CHECK(response_body == j_body);
+    }
+
+    {
+      INFO("Calling echo, with params in query");
+      auto echo_call = create_simple_request("echo", pack_type);
+      const nlohmann::json j_params = {{"foo", "helloworld"},
+                                       {"bar", 1},
+                                       {"fooz", "2"},
+                                       {"baz", "\"awkward\"\"escapes"}};
+      echo_call.set_query_params(j_params);
+      const auto serialized_call = echo_call.build_request();
+
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto response = parse_response(frontend.process(rpc_ctx).value());
+      CHECK(response.status == HTTP_STATUS_OK);
+
+      const auto response_body = parse_response_body(response.body, pack_type);
+      CHECK(response_body == j_params);
+    }
+
+    {
+      INFO("Calling get_caller");
+      auto get_caller = create_simple_request("get_caller", pack_type);
+
+      const auto [signed_call, signed_req] = create_signed_request(get_caller);
+      const auto serialized_call = signed_call.build_request();
+
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto response = parse_response(frontend.process(rpc_ctx).value());
+      CHECK(response.status == HTTP_STATUS_OK);
+
+      const auto response_body = parse_response_body(response.body, pack_type);
+      CHECK(response_body == user_id);
+    }
+  }
+
+  {
+    INFO("Calling failable, without failing");
+    auto dont_fail = create_simple_request("failable");
+
+    const auto [signed_call, signed_req] = create_signed_request(dont_fail);
+    const auto serialized_call = signed_call.build_request();
+
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+
+  {
+    for (const auto err : {
+           HTTP_STATUS_INTERNAL_SERVER_ERROR,
+           HTTP_STATUS_BAD_REQUEST,
+           (http_status)418 // Teapot
+         })
+    {
+      INFO("Calling failable, with error");
+      const auto msg = fmt::format("An error message about {}", err);
+      auto fail = create_simple_request("failable");
+      const nlohmann::json j_body = {
+        {"error", {{"code", err}, {"message", msg}}}};
+      const auto serialized_body = jsonrpc::pack(j_body, default_pack);
+
+      const auto [signed_call, signed_req] =
+        create_signed_request(fail, &serialized_body);
+      const auto serialized_call = signed_call.build_request();
+
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto response = parse_response(frontend.process(rpc_ctx).value());
+      CHECK(response.status == err);
+      CHECK(
+        response.headers[http::headers::CONTENT_TYPE] ==
+        http::headervalues::contenttype::TEXT);
+      const std::string body_s(response.body.begin(), response.body.end());
+      CHECK(body_s == msg);
+    }
+  }
+}
+
+TEST_CASE("Restricted verbs")
+{
+  prepare_callers();
+  TestRestrictedVerbsFrontend frontend(*network.tables);
+
+  for (auto verb = HTTP_DELETE; verb <= HTTP_SOURCE;
+       verb = (http_method)(size_t(verb) + 1))
+  {
+    INFO(http_method_str(verb));
+
+    {
+      http::Request get("get_only", verb);
+      const auto serialized_get = get.build_request();
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_get);
+      const auto serialized_response = frontend.process(rpc_ctx).value();
+      const auto response = parse_response(serialized_response);
+      if (verb == HTTP_GET)
+      {
+        CHECK(response.status == HTTP_STATUS_OK);
+      }
+      else
+      {
+        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        const auto it = response.headers.find(http::headers::ALLOW);
+        REQUIRE(it != response.headers.end());
+        const auto v = it->second;
+        CHECK(v.find(http_method_str(HTTP_GET)) != std::string::npos);
+      }
+    }
+
+    {
+      http::Request get("post_only", verb);
+      const auto serialized_post = get.build_request();
+      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_post);
+      const auto serialized_response = frontend.process(rpc_ctx).value();
+      const auto response = parse_response(serialized_response);
+      if (verb == HTTP_POST)
+      {
+        CHECK(response.status == HTTP_STATUS_OK);
+      }
+      else
+      {
+        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        const auto it = response.headers.find(http::headers::ALLOW);
+        REQUIRE(it != response.headers.end());
+        const auto v = it->second;
+        CHECK(v.find(http_method_str(HTTP_POST)) != std::string::npos);
+      }
+    }
+
+    {
+      http::Request get("put_or_delete", verb);
+      const auto serialized_put_or_delete = get.build_request();
+      auto rpc_ctx =
+        enclave::make_rpc_context(user_session, serialized_put_or_delete);
+      const auto serialized_response = frontend.process(rpc_ctx).value();
+      const auto response = parse_response(serialized_response);
+      if (verb == HTTP_PUT || verb == HTTP_DELETE)
+      {
+        CHECK(response.status == HTTP_STATUS_OK);
+      }
+      else
+      {
+        CHECK(response.status == HTTP_STATUS_METHOD_NOT_ALLOWED);
+        const auto it = response.headers.find(http::headers::ALLOW);
+        REQUIRE(it != response.headers.end());
+        const auto v = it->second;
+        CHECK(v.find(http_method_str(HTTP_PUT)) != std::string::npos);
+        CHECK(v.find(http_method_str(HTTP_DELETE)) != std::string::npos);
+        CHECK(v.find(http_method_str(verb)) == std::string::npos);
+      }
+    }
+  }
 }
 
 TEST_CASE("Signed read requests can be executed on backup")
@@ -737,8 +921,7 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto rpc_ctx =
     enclave::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
-
-  CHECK(response[jsonrpc::RESULT] == true);
+  CHECK(response.status == HTTP_STATUS_OK);
 }
 
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
@@ -773,14 +956,11 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->is_empty());
 
     const auto response = parse_response(r.value());
-    CHECK(
-      response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
+    CHECK(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
   }
 
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  backup_ctx->session->is_forwarded = false;
+  backup_ctx->session->is_forwarding = false;
 
   {
     INFO("Read command is not forwarded to primary");
@@ -792,7 +972,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->is_empty());
 
     const auto response = parse_response(r.value());
-    CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 
   {
@@ -813,10 +993,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       INFO("Invalid caller");
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(
-        response[jsonrpc::ERR][jsonrpc::CODE] ==
-        static_cast<jsonrpc::ErrorBaseType>(
-          jsonrpc::CCFErrorCodes::INVALID_CALLER_ID));
+      CHECK(response.status == HTTP_STATUS_FORBIDDEN);
     };
 
     {
@@ -824,12 +1001,12 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       add_callers_primary_store();
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
-      CHECK(response[jsonrpc::RESULT] == true);
+      CHECK(response.status == HTTP_STATUS_OK);
     }
   }
 
   {
-    INFO("Forwarding write command to a backup return TX_NOT_PRIMARY");
+    INFO("Forwarding write command to a backup returns error");
     REQUIRE(channel_stub->is_empty());
 
     const auto r = user_frontend_backup.process(backup_ctx);
@@ -847,10 +1024,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto response =
       parse_response(user_frontend_backup.process_forwarded(fwd_ctx));
 
-    CHECK(
-      response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
+    CHECK(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
   }
 
   {
@@ -865,10 +1039,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     REQUIRE(channel_stub->is_empty());
 
     const auto response = parse_response(r.value());
-    CHECK(
-      response[jsonrpc::ERR][jsonrpc::CODE] ==
-      static_cast<jsonrpc::ErrorBaseType>(
-        jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY));
+    CHECK(response.status == HTTP_STATUS_TEMPORARY_REDIRECT);
   }
 
   {
@@ -900,7 +1071,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
   // On a session that was previously forwarded, and is now primary,
   // commands should still succeed
-  ctx->session->is_forwarded = true;
+  ctx->session->is_forwarding = true;
   {
     INFO("Write command primary on a forwarded session succeeds");
     REQUIRE(channel_stub->is_empty());
@@ -909,7 +1080,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     CHECK(r.has_value());
     add_callers_primary_store();
     auto response = parse_response(r.value());
-    CHECK(response[jsonrpc::RESULT] == true);
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 }
 
@@ -948,6 +1119,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto response =
     parse_response(node_frontend_primary.process_forwarded(fwd_ctx));
+  CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(node_frontend_primary.last_caller_cert == node_caller);
   CHECK(node_frontend_primary.last_caller_id == INVALID_ID);
@@ -987,6 +1159,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto response =
     parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
+  CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
   CHECK(user_frontend_primary.last_caller_id == 0);
@@ -1028,55 +1201,11 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto response =
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));
+  CHECK(response.status == HTTP_STATUS_OK);
 
   CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
   CHECK(member_frontend_primary.last_caller_id == 0);
 }
-
-TEST_CASE("App-defined errors")
-{
-  prepare_callers();
-
-  TestAppErrorFrontEnd frontend(*network.tables);
-  {
-    auto foo_call = create_simple_request("foo");
-    auto serialized_foo = foo_call.build_request();
-
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_foo);
-    std::vector<uint8_t> serialized_foo_response =
-      frontend.process(rpc_ctx).value();
-    auto foo_response = parse_response(serialized_foo_response);
-
-    CHECK(foo_response[jsonrpc::ERR] != nullptr);
-    CHECK(
-      foo_response[jsonrpc::ERR][jsonrpc::CODE].get<userapp::AppError>() ==
-      userapp::AppError::Foo);
-
-    const auto msg =
-      foo_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-  }
-
-  {
-    auto bar_call = create_simple_request("bar");
-    auto serialized_bar = bar_call.build_request();
-
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_bar);
-    std::vector<uint8_t> serialized_bar_response =
-      frontend.process(rpc_ctx).value();
-    auto bar_response = parse_response(serialized_bar_response);
-
-    CHECK(bar_response[jsonrpc::ERR] != nullptr);
-    CHECK(
-      bar_response[jsonrpc::ERR][jsonrpc::CODE].get<userapp::AppError>() ==
-      userapp::AppError::Bar);
-
-    const auto msg =
-      bar_response[jsonrpc::ERR][jsonrpc::MESSAGE].get<std::string>();
-    CHECK(msg.find(TestAppErrorFrontEnd::bar_msg) != std::string::npos);
-  }
-}
-
-#endif
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)

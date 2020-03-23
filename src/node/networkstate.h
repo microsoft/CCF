@@ -4,6 +4,7 @@
 
 #include "identity.h"
 #include "ledgersecrets.h"
+#include "networkencryption.h"
 #include "networktables.h"
 
 namespace ccf
@@ -12,10 +13,13 @@ namespace ccf
   {
     std::unique_ptr<NetworkIdentity> identity;
     std::shared_ptr<LedgerSecrets> ledger_secrets;
-    std::vector<uint8_t> encryption_priv_key;
+    std::unique_ptr<NetworkEncryptionKey> encryption_key;
+    // default set to Raft
+    ConsensusType consensus_type = ConsensusType::RAFT;
 
-    NetworkState(const ConsensusType& consensus_type) :
-      NetworkTables(consensus_type)
+    NetworkState(const ConsensusType& consensus_type_) :
+      consensus_type(consensus_type_),
+      NetworkTables(consensus_type_)
     {}
     NetworkState() = default;
   };

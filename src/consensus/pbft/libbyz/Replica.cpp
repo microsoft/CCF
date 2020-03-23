@@ -55,6 +55,7 @@ Replica::Replica(
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
+  ccf::Signatures& signatures,
   pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
@@ -165,7 +166,9 @@ Replica::Replica(
 
   exec_command = nullptr;
 
-  ledger_writer = std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map);
+  ledger_writer =
+    std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map, signatures);
+  encryptor = store.get_encryptor();
 }
 
 void Replica::register_exec(ExecCommand e)
@@ -211,9 +214,8 @@ static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
   Message* m = req->data.m;
   Replica* self = req->data.self;
 
-  auto resp = enclave::ThreadMessaging::
-    ConvertMessage<PreVerifyResultCbMsg, PreVerifyCbMsg>(
-      std::move(req), pre_verify_reply_cb);
+  auto resp =
+    std::make_unique<enclave::Tmsg<PreVerifyResultCbMsg>>(&pre_verify_reply_cb);
 
   resp->data.m = m;
   resp->data.self = self;
@@ -313,7 +315,9 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
 
     default:
       // Unknown message type.
-      delete m;
+      auto err = fmt::format("Unknown message type:{}", Message::get_tag(data));
+      LOG_FAIL_FMT(err);
+      throw std::logic_error(err);
       return nullptr;
   }
 
@@ -324,11 +328,12 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
 
 void Replica::receive_message(const uint8_t* data, uint32_t size)
 {
-  if (size > Max_message_size)
-  {
-    LOG_FAIL << "Received message size exceeds message: " << size << std::endl;
-  }
   Message* m = create_message(data, size);
+  if (m == nullptr)
+  {
+    return;
+  }
+
   uint32_t target_thread = 0;
 
   if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
@@ -364,6 +369,13 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 bool Replica::compare_execution_results(
   const ByzInfo& info, Pre_prepare* pre_prepare)
 {
+  // We are currently not ordering the execution on the backups correctly.
+  // This will be resolved in the immediate future.
+  if (enclave::ThreadMessaging::thread_count > 2)
+  {
+    return true;
+  }
+
   auto& r_pp_root = pre_prepare->get_replicated_state_merkle_root();
 
   auto execution_match = true;
@@ -438,11 +450,10 @@ void Replica::playback_request(ccf::Store::Tx& tx)
 
   waiting_for_playback_pp = true;
 
-  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
-  cmds.emplace_back(execute_tentative_request(
+  vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, true));
 
-  exec_command(cmds, playback_byz_info);
+  exec_command(vec_exec_cmds, playback_byz_info, 1);
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -473,7 +484,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
 
-    last_te_version = ledger_writer->write_pre_prepare(tx);
+    last_te_version = ledger_writer->write_pre_prepare(tx, executable_pp.get());
 
     last_executed++;
 
@@ -501,9 +512,9 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
   }
   else
   {
-    LOG_INFO_FMT(
+    throw std::logic_error(fmt::format(
       "Merkle roots don't match in playback pre-prepare for seqno {}",
-      executable_pp->seqno());
+      executable_pp->seqno()));
   }
 }
 
@@ -998,10 +1009,9 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
                   std::unique_ptr<ExecTentativeCbCtx> msg) {
         if (!self->compare_execution_results(msg->info, pp))
         {
-          LOG_INFO_FMT(
+          PBFT_ASSERT_FMT_FAIL(
             "Merkle roots don't match in send prepare for seqno {}",
             msg->seqno);
-          PBFT_ASSERT(false, "should not be here");
 
           self->try_send_prepare();
           return;
@@ -1678,6 +1688,10 @@ void Replica::handle(View_change* m)
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
+    if (encryptor)
+    {
+      encryptor->set_view(v);
+    }
     vc_recovering = true;
     send_view_change();
   }
@@ -1727,6 +1741,10 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
+  if (encryptor)
+  {
+    encryptor->set_view(v);
+  }
   cur_primary = v % num_replicas;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
@@ -2163,6 +2181,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     last_tentative_execute,
     max_local_commit_value,
     stash_replier,
+    request.user_id(),
     &Replica::execute_tentative_request_end,
     tx);
 
@@ -2200,7 +2219,8 @@ void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
 bool Replica::create_execute_commands(
   Pre_prepare* pp,
   int64_t& max_local_commit_value,
-  std::vector<std::unique_ptr<ExecCommandMsg>>& cmds)
+  std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& cmds,
+  uint32_t& num_requests)
 {
   if (
     pp->seqno() == last_tentative_execute + 1 && !state.in_fetch_state() &&
@@ -2213,6 +2233,7 @@ bool Replica::create_execute_commands(
     Pre_prepare::Requests_iter iter(pp);
     Request request;
 
+    num_requests = 0;
     while (iter.get(request))
     {
       auto cmd = execute_tentative_request(
@@ -2221,7 +2242,8 @@ bool Replica::create_execute_commands(
         !iter.has_more_requests(),
         nullptr,
         pp->seqno());
-      cmds.push_back(std::move(cmd));
+      cmds[num_requests] = std::move(cmd);
+      ++num_requests;
     }
     return true;
   }
@@ -2235,10 +2257,11 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
     pp->seqno(),
     last_tentative_execute);
 
-  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
-  if (create_execute_commands(pp, info.max_local_commit_value, cmds))
+  uint32_t num_requests;
+  if (create_execute_commands(
+        pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
-    exec_command(cmds, info);
+    exec_command(vec_exec_cmds, info, num_requests);
     return true;
   }
   return false;
@@ -2256,8 +2279,9 @@ bool Replica::execute_tentative(
   void(cb)(Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>),
   std::unique_ptr<ExecTentativeCbCtx> ctx)
 {
-  std::vector<std::unique_ptr<ExecCommandMsg>> cmds;
-  if (create_execute_commands(pp, ctx->info.max_local_commit_value, cmds))
+  uint32_t num_requests;
+  if (create_execute_commands(
+        pp, ctx->info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
     ByzInfo& info = ctx->info;
     if (cb != nullptr)
@@ -2279,7 +2303,7 @@ bool Replica::execute_tentative(
       }
     }
 
-    exec_command(cmds, info);
+    exec_command(vec_exec_cmds, info, num_requests);
     if (!node_info.general_info.support_threading)
     {
       cb(pp, this, std::move(ctx));

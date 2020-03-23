@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.ccf
-import infra.jsonrpc
 import infra.notification
 import suite.test_requirements as reqs
 import infra.e2e_args
@@ -19,7 +18,7 @@ def test(network, args):
     # Retrieve current index version to check for sealed secrets later
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
-        res = nc.rpc("mkSign", params={})
+        res = nc.rpc("mkSign")
         check_commit(res, result=True)
         version_before_rekey = res.commit
 

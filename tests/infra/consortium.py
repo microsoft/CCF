@@ -5,12 +5,14 @@ import array
 import os
 import json
 import time
+import http
 from enum import Enum
 import infra.ccf
 import infra.proc
 import infra.checker
 import infra.node
 import infra.crypto
+from infra.proposal_state import ProposalState
 
 from loguru import logger as LOG
 
@@ -62,7 +64,7 @@ class Consortium:
                 {"parameter": params, "script": {"text": script}},
                 signed=True,
             )
-            return r.result, r.error
+            return r
 
     def vote(
         self,
@@ -78,26 +80,28 @@ class Consortium:
         return true
         """
         with remote_node.member_client(member_id=member_id) as mc:
-            res = mc.rpc(
+            response = mc.rpc(
                 "vote",
                 {"ballot": {"text": script}, "id": proposal_id},
                 signed=not force_unsigned,
             )
-            j_result = res.to_dict()
 
-        if "error" in j_result:
-            return (False, j_result["error"])
+        if response.error is not None:
+            return response
 
         # If the proposal was accepted, wait for it to be globally committed
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
-        if j_result["result"] and should_wait_for_global_commit:
+        if (
+            response.result["state"] == ProposalState.Accepted.value
+            and should_wait_for_global_commit
+        ):
             with remote_node.node_client() as mc:
                 infra.checker.wait_for_global_commit(
-                    mc, j_result["commit"], j_result["term"], True
+                    mc, response.commit, response.term, True
                 )
 
-        return (True, j_result["result"])
+        return response
 
     def vote_using_majority(
         self, remote_node, proposal_id, should_wait_for_global_commit=True
@@ -111,7 +115,7 @@ class Consortium:
         for i, member in enumerate(self.members):
             if i >= majority_count:
                 break
-            res = self.vote(
+            response = self.vote(
                 member,
                 remote_node,
                 proposal_id,
@@ -119,12 +123,12 @@ class Consortium:
                 False,
                 should_wait_for_global_commit,
             )
-            assert res[0]
-            if res[1]:
+            assert response.status == http.HTTPStatus.OK.value
+            if response.result["state"] == ProposalState.Accepted.value:
                 break
 
-        assert res
-        return res[1]
+        assert response is not None
+        return response
 
     def withdraw(self, member_id, remote_node, proposal_id):
         with remote_node.member_client(member_id=member_id) as c:
@@ -132,8 +136,8 @@ class Consortium:
 
     def update_ack_state_digest(self, member_id, remote_node):
         with remote_node.member_client(member_id=member_id) as mc:
-            res = mc.rpc("updateAckStateDigest", params={})
-            return bytearray(res.result)
+            res = mc.rpc("updateAckStateDigest")
+            return bytearray(res.result["state_digest"])
 
     def ack(self, member_id, remote_node):
         state_digest = self.update_ack_state_digest(member_id, remote_node)
@@ -152,7 +156,7 @@ class Consortium:
         """
 
         with remote_node.member_client(member_id=member_id) as c:
-            rep = c.do("query", {"text": script})
+            rep = c.rpc("query", {"text": script})
             return rep.result
 
     def propose_retire_node(self, member_id, remote_node, node_id):
@@ -164,10 +168,11 @@ class Consortium:
 
     def retire_node(self, remote_node, node_to_retire):
         member_id = 1
-        result, error = self.propose_retire_node(
+        response = self.propose_retire_node(
             member_id, remote_node, node_to_retire.node_id
         )
-        self.vote_using_majority(remote_node, result["id"])
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
 
         with remote_node.member_client() as c:
             r = c.request("read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
@@ -186,8 +191,9 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        result, error = self.propose_trust_node(member_id, remote_node, node_id)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose_trust_node(member_id, remote_node, node_id)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
 
         if not self._check_node_exists(
             remote_node, node_id, infra.node.NodeStatus.TRUSTED
@@ -222,8 +228,11 @@ class Consortium:
         tables = ...
         return Calls:call("open_network")
         """
-        result, error = self.propose(member_id, remote_node, script)
-        self.vote_using_majority(remote_node, result["id"], not pbft_open)
+        response = self.propose(member_id, remote_node, script)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(
+            remote_node, response.result["proposal_id"], not pbft_open
+        )
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, member_id, remote_node):
@@ -231,11 +240,14 @@ class Consortium:
         tables = ...
         return Calls:call("rekey_ledger")
         """
-        result, error = self.propose(member_id, remote_node, script)
+        response = self.propose(member_id, remote_node, script)
+        assert response.status == http.HTTPStatus.OK.value
         # Wait for global commit since sealed secrets are disclosed only
         # when the rekey transaction is globally committed.
         self.vote_using_majority(
-            remote_node, result["id"], should_wait_for_global_commit=True
+            remote_node,
+            response.result["proposal_id"],
+            should_wait_for_global_commit=True,
         )
 
     def add_users(self, remote_node, users):
@@ -247,8 +259,9 @@ class Consortium:
             tables, user_cert = ...
             return Calls:call("new_user", user_cert)
             """
-            result, error = self.propose(0, remote_node, script, user_cert)
-            self.vote_using_majority(remote_node, result["id"])
+            response = self.propose(0, remote_node, script, user_cert)
+            assert response.status == http.HTTPStatus.OK.value
+            self.vote_using_majority(remote_node, response.result["proposal_id"])
 
     def set_lua_app(self, member_id, remote_node, app_script):
         script = """
@@ -257,8 +270,9 @@ class Consortium:
         """
         with open(app_script) as app:
             new_lua_app = app.read()
-        result, error = self.propose(member_id, remote_node, script, new_lua_app)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose(member_id, remote_node, script, new_lua_app)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
 
     def set_js_app(self, member_id, remote_node, app_script):
         script = """
@@ -267,25 +281,81 @@ class Consortium:
         """
         with open(app_script) as app:
             new_js_app = app.read()
-        result, error = self.propose(member_id, remote_node, script, new_js_app)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose(member_id, remote_node, script, new_js_app)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
 
     def accept_recovery(self, member_id, remote_node, sealed_secrets):
         script = """
         tables, sealed_secrets = ...
         return Calls:call("accept_recovery", sealed_secrets)
         """
-        result, error = self.propose(member_id, remote_node, script, sealed_secrets)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose(member_id, remote_node, script, sealed_secrets)
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
+
+    def accept_recovery_with_shares(self, member_id, remote_node):
+        script = """
+        tables = ...
+        return Calls:call("accept_recovery_with_shares")
+        """
+        response = self.propose(member_id, remote_node, script)
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
+
+    def store_current_network_encryption_key(self):
+        cmd = [
+            "cp",
+            os.path.join(self.common_dir, f"network_enc_pubk.pem"),
+            os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+        ]
+        infra.proc.ccall(*cmd).check_returncode()
+
+    def get_decrypt_and_submit_shares(self, remote_node):
+        for m in self.members:
+            with remote_node.member_client(member_id=m) as mc:
+                r = mc.rpc("getEncryptedRecoveryShare")
+
+                # For now, members rely on a copy of the original network encryption public key
+                ctx = infra.crypto.CryptoBoxCtx(
+                    os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"),
+                    os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+                )
+
+                nonce_bytes = bytes(r.result["nonce"])
+                encrypted_share_bytes = bytes(r.result["encrypted_share"])
+                decrypted_share = ctx.decrypt(encrypted_share_bytes, nonce_bytes,)
+
+                r = mc.rpc(
+                    "submitRecoveryShare", params={"share": list(decrypted_share)}
+                )
+                assert r.error is None, f"Error submitting recovery share: {r.error}"
+                if m == 2:
+                    assert (
+                        r.result == True
+                    ), "Shares should be combined when all members have submitted their shares"
+                else:
+                    assert (
+                        r.result == False
+                    ), "Shares should not be combined until all members have submitted their shares"
 
     def add_new_code(self, member_id, remote_node, new_code_id):
         script = """
         tables, code_digest = ...
-        return Calls:call("new_code", code_digest)
+        return Calls:call("new_node_code", code_digest)
         """
         code_digest = list(bytearray.fromhex(new_code_id))
-        result, error = self.propose(member_id, remote_node, script, code_digest)
-        self.vote_using_majority(remote_node, result["id"])
+        response = self.propose(member_id, remote_node, script, code_digest)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
+
+    def add_new_user_code(self, member_id, remote_node, new_code_id):
+        script = """
+        tables, code_digest = ...
+        return Calls:call("new_user_code", code_digest)
+        """
+        code_digest = list(bytearray.fromhex(new_code_id))
+        response = self.propose(member_id, remote_node, script, code_digest)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
 
     def check_for_service(self, remote_node, status, pbft_open=False):
         """
@@ -296,11 +366,26 @@ class Consortium:
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
         with remote_node.member_client(request_timeout=(30 if pbft_open else 3)) as c:
-            rep = c.do(
+            rep = c.rpc(
                 "query",
                 {
                     "text": """tables = ...
-                    return tables["ccf.service"]:get(0)"""
+                    service = tables["ccf.service"]:get(0)
+                    if service == nil then
+                        LOG_DEBUG("Service is nil")
+                    else
+                        LOG_DEBUG("Service version: ", tostring(service.version))
+                        LOG_DEBUG("Service status: ", tostring(service.status))
+                        cert_len = #service.cert
+                        LOG_DEBUG("Service cert len: ", tostring(cert_len))
+                        LOG_DEBUG("Service cert bytes: " ..
+                            tostring(service.cert[math.ceil(cert_len / 4)]) .. " " ..
+                            tostring(service.cert[math.ceil(cert_len / 3)]) .. " " ..
+                            tostring(service.cert[math.ceil(cert_len / 2)])
+                        )
+                    end
+                    return service
+                    """
                 },
             )
             current_status = rep.result["status"]
@@ -318,7 +403,7 @@ class Consortium:
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.member_client() as c:
-            rep = c.do("read", {"table": "ccf.nodes", "key": node_id})
+            rep = c.rpc("read", {"table": "ccf.nodes", "key": node_id})
 
             if rep.error is not None or (
                 node_status and rep.result["status"] != node_status.name

@@ -21,6 +21,8 @@ namespace pbft
 
   class PbftConfigCcf : public AbstractPbftConfig
   {
+    static constexpr uint32_t max_update_merkle_tree_interval = 50;
+
   public:
     PbftConfigCcf(std::shared_ptr<enclave::RPCMap> rpc_map_) : rpc_map(rpc_map_)
     {}
@@ -52,21 +54,19 @@ namespace pbft
       ExecutionCtx(
         std::unique_ptr<ExecCommandMsg> msg_,
         ByzInfo& info_,
-        std::shared_ptr<enclave::RpcHandler> frontend_,
-        std::shared_ptr<enclave::RpcContext> ctx_,
-        PbftConfigCcf* self_) :
+        PbftConfigCcf* self_,
+        bool is_first_request_) :
         msg(std::move(msg_)),
         info(info_),
-        frontend(frontend_),
-        ctx(ctx_),
-        self(self_)
+        self(self_),
+        is_first_request(is_first_request_)
       {}
 
       std::unique_ptr<ExecCommandMsg> msg;
       ByzInfo& info;
       std::shared_ptr<enclave::RpcHandler> frontend;
-      std::shared_ptr<enclave::RpcContext> ctx;
       PbftConfigCcf* self;
+      bool is_first_request;
     };
 
     static void ExecuteCb(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
@@ -78,6 +78,22 @@ namespace pbft
       execution_ctx.msg->cb(*execution_ctx.msg.get(), info);
 
       --info.pending_cmd_callbacks;
+
+      if (
+        info.pending_cmd_callbacks %
+          PbftConfigCcf::max_update_merkle_tree_interval ==
+        0)
+      {
+        try
+        {
+          frontend->update_merkle_tree();
+        }
+        catch (const std::exception& e)
+        {
+          LOG_TRACE_FMT("Failed to insert into merkle tree", e.what());
+          abort();
+        }
+      }
 
       if (info.pending_cmd_callbacks == 0)
       {
@@ -100,14 +116,48 @@ namespace pbft
     static void Execute(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
     {
       ExecutionCtx& execution_ctx = c->data;
-      ccf::Store::Tx* tx = execution_ctx.msg->tx;
-      ByzInfo& info = execution_ctx.info;
-      std::shared_ptr<enclave::RpcHandler> frontend = execution_ctx.frontend;
-      std::shared_ptr<enclave::RpcContext> ctx = execution_ctx.ctx;
-      Byz_rep& outb = execution_ctx.msg->outb;
-      int client = execution_ctx.msg->client;
-      Request_id rid = execution_ctx.msg->rid;
+      std::unique_ptr<ExecCommandMsg>& msg = execution_ctx.msg;
       PbftConfigCcf* self = execution_ctx.self;
+      ByzInfo& info = execution_ctx.info;
+
+      Byz_req* inb = &msg->inb;
+      Byz_rep& outb = msg->outb;
+      int client = msg->client;
+      Request_id rid = msg->rid;
+      uint8_t* req_start = msg->req_start;
+      size_t req_size = msg->req_size;
+      Seqno total_requests_executed = msg->total_requests_executed;
+      ccf::Store::Tx* tx = msg->tx;
+      int replier = msg->replier;
+      uint16_t reply_thread = msg->reply_thread;
+
+      pbft::Request request;
+      request.deserialise((uint8_t*)inb->contents, inb->size);
+
+      auto session = std::make_shared<enclave::SessionContext>(
+        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+
+      auto ctx = enclave::make_rpc_context(
+        session, request.raw, {req_start, req_start + req_size});
+      ctx->is_create_request = c->data.is_first_request;
+
+      const auto actor_opt = http::extract_actor(*ctx);
+      if (!actor_opt.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to extract actor from PBFT request. Method is '{}'",
+          ctx->get_method()));
+      }
+
+      const auto& actor_s = actor_opt.value();
+      const auto actor = self->rpc_map->resolve(actor_s);
+      auto handler = self->rpc_map->find(actor);
+      if (!handler.has_value())
+        throw std::logic_error(
+          fmt::format("No frontend associated with actor {}", actor_s));
+
+      auto frontend = handler.value();
+      execution_ctx.frontend = frontend;
 
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)
@@ -143,55 +193,25 @@ namespace pbft
       }
     };
 
+    bool is_first_request = true;
     ExecCommand exec_command =
       [this](
-        std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
-        info.pending_cmd_callbacks = msgs.size();
-        for (auto& msg : msgs)
+        std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>&
+          msgs,
+        ByzInfo& info,
+        uint32_t num_requests) {
+        info.pending_cmd_callbacks = num_requests;
+        for (uint32_t i = 0; i < num_requests; ++i)
         {
-          Byz_req* inb = &msg->inb;
-          Byz_rep& outb = msg->outb;
-          int client = msg->client;
-          Request_id rid = msg->rid;
-          uint8_t* req_start = msg->req_start;
-          size_t req_size = msg->req_size;
-          Seqno total_requests_executed = msg->total_requests_executed;
-          ccf::Store::Tx* tx = msg->tx;
-
-          pbft::Request request;
-          request.deserialise({inb->contents, inb->contents + inb->size});
-
-          auto session = std::make_shared<enclave::SessionContext>(
-            enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-          auto ctx = enclave::make_rpc_context(
-            session, request.raw, {req_start, req_start + req_size});
-
-          const auto actor_opt = http::extract_actor(*ctx);
-          if (!actor_opt.has_value())
-          {
-            throw std::logic_error(fmt::format(
-              "Failed to extract actor from PBFT request. Method is '{}'",
-              ctx->get_method()));
-          }
-
-          const auto& actor_s = actor_opt.value();
-          const auto actor = rpc_map->resolve(actor_s);
-          auto handler = rpc_map->find(actor);
-          if (!handler.has_value())
-            throw std::logic_error(
-              fmt::format("No frontend associated with actor {}", actor_s));
-
-          auto frontend = handler.value();
-
-          LOG_DEBUG_FMT("PBFT exec_command() for frontend {}", actor_s);
-
+          std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
+          uint16_t reply_thread = msg->reply_thread;
           auto execution_ctx = std::make_unique<enclave::Tmsg<ExecutionCtx>>(
-            &Execute, std::move(msg), info, frontend, ctx, this);
+            &Execute, std::move(msg), info, this, is_first_request);
+          is_first_request = false;
 
           if (info.cb != nullptr)
           {
-            uint16_t tid =
-              (enclave::ThreadMessaging::thread_count <= 1) ? 0 : 1;
+            int tid = reply_thread;
             enclave::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
               tid, std::move(execution_ctx));
           }

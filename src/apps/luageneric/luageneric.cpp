@@ -38,12 +38,11 @@ namespace ccfapp
       // Create error_codes table
       lua_newtable(l);
 
-#define XX(Name, Value) \
-  lua_pushinteger(l, Value); \
+#define XX(Num, Name, String) \
+  lua_pushinteger(l, Num); \
   lua_setfield(l, -2, #Name);
 
-      XX_STANDARD_ERROR_CODES;
-      XX_CCF_ERROR_CODES;
+      HTTP_STATUS_MAP(XX);
 
 #undef XX
 
@@ -62,13 +61,6 @@ namespace ccfapp
       // Create env table
       lua_newtable(l);
       lua_setglobal(l, env_table_name);
-
-      // Register global logging functions
-      lua_register(l, "LOG_TRACE", lua_log_trace);
-      lua_register(l, "LOG_DEBUG", lua_log_debug);
-      lua_register(l, "LOG_INFO", lua_log_info);
-      lua_register(l, "LOG_FAIL", lua_log_fail);
-      lua_register(l, "LOG_FATAL", lua_log_fatal);
 
       add_error_codes(li.get_state());
 
@@ -115,15 +107,14 @@ namespace ccfapp
       }
       tsr = std::make_unique<AppTsr>(network, app_tables);
 
-      auto default_handler = [this](RequestArgs& args) {
+      auto default_handler = [this](RequestArgs& args, nlohmann::json&&) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
         if (local_method == UserScriptIds::ENV_HANDLER)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
             fmt::format("Cannot call environment script ('{}')", local_method));
-          return;
         }
 
         const auto scripts = args.tx.get_view(this->network.app_scripts);
@@ -132,11 +123,10 @@ namespace ccfapp
         auto handler_script = scripts->get(local_method);
         if (!handler_script)
         {
-          args.rpc_ctx->set_response_error(
-            jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND,
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
             fmt::format(
               "No handler script found for method '{}'", local_method));
-          return;
         }
 
         auto response = tsr->run<nlohmann::json>(
@@ -156,19 +146,17 @@ namespace ccfapp
           {
             // Response contains neither result nor error. It may not even be an
             // object. We assume the entire response is a successful result.
-            args.rpc_ctx->set_response_result(std::move(response));
-            return;
+            return make_success(std::move(response));
           }
           else
           {
-            args.rpc_ctx->set_response_result(std::move(*result_it));
-            return;
+            return make_success(std::move(*result_it));
           }
         }
         else
         {
-          int err_code = jsonrpc::CCFErrorCodes::SCRIPT_ERROR;
-          std::string msg = "";
+          http_status err_code = HTTP_STATUS_INTERNAL_SERVER_ERROR;
+          std::string msg;
 
           if (err_it->is_object())
           {
@@ -185,12 +173,11 @@ namespace ccfapp
             }
           }
 
-          args.rpc_ctx->set_response_error(err_code, msg);
-          return;
+          return make_error(err_code, std::move(msg));
         }
       };
 
-      set_default(default_handler, Write);
+      set_default(json_adapter(default_handler), Write);
     }
 
     // Since we do our own dispatch within the default handler, report the

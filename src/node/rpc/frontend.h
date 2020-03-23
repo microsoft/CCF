@@ -9,10 +9,9 @@
 #include "ds/spinlock.h"
 #include "enclave/rpchandler.h"
 #include "forwarder.h"
-#include "jsonrpc.h"
 #include "node/clientsignatures.h"
 #include "node/nodes.h"
-#include "nodeinterface.h"
+#include "notifierinterface.h"
 #include "rpcexception.h"
 #include "tls/verifier.h"
 
@@ -74,10 +73,10 @@ namespace ccf
       handlers.set_history(history);
     }
 
-    std::optional<nlohmann::json> forward_or_redirect_json(
+    std::optional<std::vector<uint8_t>> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx)
     {
-      if (cmd_forwarder && !ctx->session->fwd.has_value())
+      if (cmd_forwarder && !ctx->session->original_caller.has_value())
       {
         return std::nullopt;
       }
@@ -85,6 +84,7 @@ namespace ccf
       {
         // If this frontend is not allowed to forward or the command has already
         // been forwarded, redirect to the current primary
+        ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
@@ -94,15 +94,13 @@ namespace ccf
 
           if (info)
           {
-            return ctx->error_response(
-              jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
-              info->pubhost + ":" + info->rpcport);
+            ctx->set_response_header(
+              http::headers::LOCATION,
+              fmt::format("{}:{}", info->pubhost, info->rpcport));
           }
         }
 
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::TX_NOT_PRIMARY,
-          "Not primary, primary unknown.");
+        return ctx->serialise_response();
       }
     }
 
@@ -146,6 +144,20 @@ namespace ccf
       }
 
       return true;
+    }
+
+    void set_response_unauthorized(
+      std::shared_ptr<enclave::RpcContext>& ctx,
+      std::string&& msg = "Failed to verify client signature") const
+    {
+      ctx->set_response_status(HTTP_STATUS_UNAUTHORIZED);
+      ctx->set_response_header(
+        http::headers::WWW_AUTHENTICATE,
+        fmt::format(
+          "Signature realm=\"Signed request access\", "
+          "headers=\"(request-target) {}",
+          http::headers::DIGEST));
+      ctx->set_response_body(std::move(msg));
     }
 
   public:
@@ -206,115 +218,74 @@ namespace ccf
 
       Store::Tx tx;
 
-      // Retrieve id of caller
-      std::optional<CallerId> caller_id;
-      if (ctx->is_create_request)
+      auto caller_id = handlers.get_caller_id(tx, ctx->session->caller_cert);
+
+      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
-        caller_id = INVALID_ID;
+        auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
+        if (rep.has_value())
+        {
+          return rep;
+        }
+        kv::TxHistory::RequestID reqid;
+
+        update_history();
+        reqid = {
+          caller_id, ctx->session->client_session_id, ctx->get_request_index()};
+        if (history)
+        {
+          if (!history->add_request(
+                reqid,
+                caller_id,
+                get_cert_to_forward(ctx),
+                ctx->get_serialised_request()))
+          {
+            LOG_FAIL_FMT(
+              "Adding request failed: {}, {}, {}",
+              std::get<0>(reqid),
+              std::get<1>(reqid),
+              std::get<2>(reqid));
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+            ctx->set_response_body("PBFT could not process request.");
+            return ctx->serialise_response();
+          }
+          tx.set_req_id(reqid);
+          return std::nullopt;
+        }
+        else
+        {
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx->set_response_body("PBFT is not yet ready.");
+          return ctx->serialise_response();
+        }
       }
       else
       {
-        caller_id = handlers.valid_caller(tx, ctx->session->caller_cert);
-      }
+        auto rep = process_command(ctx, tx, caller_id);
 
-      if (!caller_id.has_value())
-      {
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-          invalid_caller_error_message());
-      }
-
-      const auto signed_request = ctx->get_signed_request();
-      if (signed_request.has_value())
-      {
-        if (
-          !ctx->is_create_request &&
-          !verify_client_signature(
-            ctx->session->caller_cert,
-            caller_id.value(),
-            signed_request.value()))
+        // If necessary, forward the RPC to the current primary
+        if (!rep.has_value())
         {
-          return ctx->error_response(
-            jsonrpc::CCFErrorCodes::INVALID_CLIENT_SIGNATURE,
-            "Failed to verify client signature.");
-        }
+          if (consensus != nullptr)
+          {
+            auto primary_id = consensus->primary();
 
-        // Client signature is only recorded on the primary
-        if (
-          consensus == nullptr || consensus->is_primary() ||
-          ctx->is_create_request)
-        {
-          record_client_signature(
-            tx, caller_id.value(), signed_request.value());
+            if (
+              primary_id != NoNode && cmd_forwarder &&
+              cmd_forwarder->forward_command(
+                ctx, primary_id, caller_id, get_cert_to_forward(ctx)))
+            {
+              // Indicate that the RPC has been forwarded to primary
+              LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
+              return std::nullopt;
+            }
+          }
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx->set_response_body("RPC could not be forwarded to primary.");
+          return ctx->serialise_response();
         }
-      }
-
-#ifdef PBFT
-      auto rep = process_if_local_node_rpc(ctx, tx, caller_id.value());
-      if (rep.has_value())
-      {
         return rep.value();
       }
-      kv::TxHistory::RequestID reqid;
-
-      update_history();
-      reqid = {caller_id.value(),
-               ctx->session->client_session_id,
-               ctx->get_request_index()};
-      if (history)
-      {
-        if (!history->add_request(
-              reqid,
-              caller_id.value(),
-              ctx->session->caller_cert,
-              ctx->get_serialised_request()))
-        {
-          LOG_FAIL_FMT(
-            "Adding request failed: {}, {}, {}",
-            std::get<0>(reqid),
-            std::get<1>(reqid),
-            std::get<2>(reqid));
-          return ctx->error_response(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-            "PBFT could not process request.");
-        }
-        tx.set_req_id(reqid);
-        return std::nullopt;
-      }
-      else
-      {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::INTERNAL_ERROR,
-          "PBFT is not yet ready.");
-      }
-#else
-      auto rep = process_command(ctx, tx, caller_id.value());
-
-      // If necessary, forward the RPC to the current primary
-      if (!rep.has_value())
-      {
-        if (consensus != nullptr)
-        {
-          auto primary_id = consensus->primary();
-
-          if (
-            primary_id != NoNode && cmd_forwarder &&
-            cmd_forwarder->forward_command(
-              ctx, primary_id, caller_id.value(), get_cert_to_forward(ctx)))
-          {
-            // Indicate that the RPC has been forwarded to primary
-            LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
-            return std::nullopt;
-          }
-        }
-
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::RPC_NOT_FORWARDED,
-          "RPC could not be forwarded to primary.");
-      }
-
-      return rep.value();
-#endif
     }
 
     virtual std::vector<uint8_t> get_cert_to_forward(
@@ -348,13 +319,14 @@ namespace ccf
         auto req_view = tx.get_view(*pbft_requests_map);
         req_view->put(
           0,
-          {ctx->session->fwd.value().caller_id,
+          {ctx->session->original_caller.value().caller_id,
            ctx->session->caller_cert,
            ctx->get_serialised_request(),
            ctx->pbft_raw});
       }
 
-      auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
+      auto rep =
+        process_command(ctx, tx, ctx->session->original_caller->caller_id);
 
       version = tx.get_version();
 
@@ -364,6 +336,11 @@ namespace ccf
     crypto::Sha256Hash get_merkle_root() override
     {
       return history->get_replicated_state_root();
+    }
+
+    void update_merkle_tree() override
+    {
+      history->execute_pending();
     }
 
     /** Process a serialised input forwarded from another node
@@ -378,31 +355,18 @@ namespace ccf
     std::vector<uint8_t> process_forwarded(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      if (!ctx->session->fwd.has_value())
+      if (!ctx->session->original_caller.has_value())
       {
         throw std::logic_error(
           "Processing forwarded command with unitialised forwarded context");
       }
 
+      update_consensus();
+
       Store::Tx tx;
 
-      if (!lookup_forwarded_caller_cert(ctx, tx))
-      {
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::INVALID_CALLER_ID,
-          invalid_caller_error_message());
-      }
-
-      // Store client signature. It is assumed that the forwarder node has
-      // already verified the client signature.
-      const auto signed_request = ctx->get_signed_request();
-      if (signed_request.has_value())
-      {
-        record_client_signature(
-          tx, ctx->session->fwd->caller_id, signed_request.value());
-      }
-
-      auto rep = process_command(ctx, tx, ctx->session->fwd->caller_id);
+      auto rep =
+        process_command(ctx, tx, ctx->session->original_caller->caller_id);
       if (!rep.has_value())
       {
         // This should never be called when process_command is called with a
@@ -413,7 +377,7 @@ namespace ccf
       return rep.value();
     }
 
-    std::optional<nlohmann::json> process_if_local_node_rpc(
+    std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
       CallerId caller_id)
@@ -438,33 +402,92 @@ namespace ccf
       auto handler = handlers.find_handler(local_method);
       if (handler == nullptr)
       {
-        return ctx->error_response(
-          jsonrpc::StandardErrorCodes::METHOD_NOT_FOUND, method);
+        ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+        ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        ctx->set_response_body(fmt::format("Unknown RPC: {}", method));
+        return ctx->serialise_response();
       }
 
-      if (
-        handler->require_client_signature &&
-        !ctx->get_signed_request().has_value())
+      if (!(handler->allowed_verbs_mask &
+            verb_to_mask(ctx->get_request_verb())))
       {
-        return ctx->error_response(
-          jsonrpc::CCFErrorCodes::RPC_NOT_SIGNED,
-          fmt::format("{} RPC must be signed", method));
+        ctx->set_response_status(HTTP_STATUS_METHOD_NOT_ALLOWED);
+        std::string allow_header_value;
+        bool first = true;
+        for (size_t verb = 0; verb <= HTTP_SOURCE; ++verb)
+        {
+          if (handler->allowed_verbs_mask & verb_to_mask(verb))
+          {
+            allow_header_value += fmt::format(
+              "{}{}", (first ? "" : ", "), http_method_str((http_method)verb));
+            first = false;
+          }
+        }
+        ctx->set_response_header(http::headers::ALLOW, allow_header_value);
+        return ctx->serialise_response();
       }
 
-      update_history();
-      update_consensus();
+      if (handler->require_client_identity && handlers.has_certs())
+      {
+        // Only if handler requires client identity.
+        // If a request is forwarded, check that the caller is known. Otherwise,
+        // only check that the caller id is valid.
+        if (
+          (ctx->session->original_caller.has_value() &&
+           !lookup_forwarded_caller_cert(ctx, tx)) ||
+          caller_id == INVALID_ID)
+        {
+          ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          ctx->set_response_body(invalid_caller_error_message());
+          return ctx->serialise_response();
+        }
+      }
 
-#ifndef PBFT
       bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
         ctx->is_create_request;
 
-      if (!is_primary)
+      const auto signed_request = ctx->get_signed_request();
+      if (handler->require_client_signature && !signed_request.has_value())
       {
-        switch (handler->rw)
+        set_response_unauthorized(
+          ctx, fmt::format("'{}' RPC must be signed", method));
+        return ctx->serialise_response();
+      }
+
+      // By default, signed requests are verified and recorded, even on
+      // handlers that do not require client signatures
+      if (signed_request.has_value())
+      {
+        // For forwarded requests (raft only), skip verification as it is
+        // assumed that the verification was done by the forwarder node.
+        if (
+          (!ctx->is_create_request &&
+           (!(consensus != nullptr &&
+              consensus->type() == ConsensusType::RAFT) ||
+            !ctx->session->original_caller.has_value())) &&
+          !verify_client_signature(
+            ctx->session->caller_cert, caller_id, signed_request.value()))
+        {
+          set_response_unauthorized(ctx);
+          return ctx->serialise_response();
+        }
+
+        if (is_primary)
+        {
+          record_client_signature(tx, caller_id, signed_request.value());
+        }
+      }
+
+      update_history();
+
+      if (!is_primary && consensus->type() == ConsensusType::RAFT)
+      {
+        switch (handler->read_write)
         {
           case HandlerRegistry::Read:
           {
-            if (ctx->session->is_forwarded)
+            if (ctx->session->is_forwarding)
             {
               return forward_or_redirect_json(ctx);
             }
@@ -473,18 +496,20 @@ namespace ccf
 
           case HandlerRegistry::Write:
           {
-            ctx->session->is_forwarded = true;
+            ctx->session->is_forwarding = true;
             return forward_or_redirect_json(ctx);
           }
 
           case HandlerRegistry::MayWrite:
           {
-            if (!ctx->read_only_hint)
+            const auto read_only_it =
+              ctx->get_request_header(http::headers::CCF_READ_ONLY);
+            if (!read_only_it.has_value() || (read_only_it.value() != "true"))
             {
-              ctx->session->is_forwarded = true;
+              ctx->session->is_forwarding = true;
               return forward_or_redirect_json(ctx);
             }
-            else if (ctx->session->is_forwarded)
+            else if (ctx->session->is_forwarding)
             {
               return forward_or_redirect_json(ctx);
             }
@@ -492,7 +517,6 @@ namespace ccf
           }
         }
       }
-#endif
 
       auto func = handler->func;
       auto args = RequestArgs{ctx, tx, caller_id};
@@ -519,18 +543,20 @@ namespace ccf
                 cv = tx.get_read_version();
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
-              ctx->set_response_headers(COMMIT, cv);
+              ctx->set_response_header(http::headers::CCF_COMMIT, cv);
               if (consensus != nullptr)
               {
-                ctx->set_response_headers(TERM, consensus->get_view());
-                ctx->set_response_headers(
-                  GLOBAL_COMMIT, consensus->get_commit_seqno());
+                ctx->set_response_header(
+                  http::headers::CCF_TERM, consensus->get_view());
+                ctx->set_response_header(
+                  http::headers::CCF_GLOBAL_COMMIT,
+                  consensus->get_commit_seqno());
 
                 if (
                   history && consensus->is_primary() &&
                   (cv % sig_max_tx == sig_max_tx / 2))
                 {
-                  if (consensus->type() == ConsensusType::Raft)
+                  if (consensus->type() == ConsensusType::RAFT)
                   {
                     history->emit_signature();
                   }
@@ -551,35 +577,38 @@ namespace ccf
 
             case kv::CommitSuccess::NO_REPLICATE:
             {
-              return ctx->error_response(
-                jsonrpc::CCFErrorCodes::TX_FAILED_TO_REPLICATE,
-                "Transaction failed to replicate.");
+              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              ctx->set_response_body("Transaction failed to replicate.");
+              return ctx->serialise_response();
             }
           }
         }
         catch (const RpcException& e)
         {
-          return ctx->error_response((int)e.error_id, e.msg);
+          ctx->set_response_status(e.status);
+          ctx->set_response_body(e.what());
+          return ctx->serialise_response();
         }
         catch (JsonParseError& e)
         {
-          e.pointer_elements.push_back(jsonrpc::PARAMS);
-          const auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
-          return ctx->error_response(
-            jsonrpc::StandardErrorCodes::PARSE_ERROR, err);
+          auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
+          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          ctx->set_response_body(std::move(err));
+          return ctx->serialise_response();
         }
         catch (const kv::KvSerialiserException& e)
         {
-          // If serialising the committed transaction fails, there is no way to
-          // recover safely (https://github.com/microsoft/CCF/issues/338).
+          // If serialising the committed transaction fails, there is no way
+          // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
           LOG_FATAL_FMT("Failed to serialise: {}", e.what());
           abort();
         }
         catch (const std::exception& e)
         {
-          return ctx->error_response(
-            jsonrpc::StandardErrorCodes::INTERNAL_ERROR, e.what());
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx->set_response_body(e.what());
+          return ctx->serialise_response();
         }
       }
     }
@@ -604,7 +633,7 @@ namespace ccf
         ms_to_sig = sig_max_ms;
         if (history && tables.commit_gap() > 0)
         {
-          if (consensus->type() == ConsensusType::Raft)
+          if (consensus->type() == ConsensusType::RAFT)
           {
             history->emit_signature();
           }

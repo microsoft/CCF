@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "rpc/jsonrpc.h"
 
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <optional>
 #include <stdint.h>
 #include <string>

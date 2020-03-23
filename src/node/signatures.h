@@ -5,7 +5,7 @@
 #include "entities.h"
 #include "rawsignature.h"
 
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -30,6 +30,15 @@ namespace ccf
       index(index_),
       term(0),
       commit(0)
+    {}
+
+    Signature(crypto::Sha256Hash root_) :
+      node(0),
+      index(0),
+      term(0),
+      commit(0),
+      root(root_),
+      tree{0}
     {}
 
     Signature(

@@ -20,18 +20,18 @@ from loguru import logger as LOG
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        primary, (backup,) = network.find_nodes()
+        primary, backups = network.find_nodes()
 
         with primary.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
             check = infra.checker.Checker()
-            r = mc.rpc("getQuotes", {})
+            r = mc.get("getQuotes")
             quotes = r.result["quotes"]
             assert len(quotes) == len(hosts)
             primary_quote = quotes[0]
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args(add=add)
 
     if args.enclave_type != "debug":
-        LOG.error("This test can only run in real enclaves, skipping")
+        LOG.warning("This test can only run in real enclaves, skipping")
         sys.exit(0)
 
     args.package = "liblogging"

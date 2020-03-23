@@ -12,9 +12,9 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-import infra.jsonrpc
 import ssl
 import random
+import http
 from math import ceil
 
 from loguru import logger as LOG
@@ -60,7 +60,8 @@ class Network:
         "host_log_level",
         "sig_max_tx",
         "sig_max_ms",
-        "election_timeout",
+        "raft_election_timeout",
+        "pbft_view_change_timeout",
         "consensus",
         "memory_reserve_startup",
         "notify_server",
@@ -242,10 +243,13 @@ class Network:
 
         initial_members = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
-            initial_members, args.default_curve, self.key_generator, self.common_dir
+            initial_members,
+            args.participants_curve,
+            self.key_generator,
+            self.common_dir,
         )
         self.initial_users = list(range(max(0, args.initial_user_count)))
-        self.create_users(self.initial_users, args.default_curve)
+        self.create_users(self.initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
 
@@ -349,16 +353,18 @@ class Network:
 
         return new_node
 
-    def create_users(self, users, curve):
-        users = ["user{}".format(u) for u in users]
-        for u in users:
-            infra.proc.ccall(
-                self.key_generator,
-                f"--name={u}",
-                f"--curve={curve.name}",
-                path=self.common_dir,
-                log_output=False,
-            ).check_returncode()
+    def create_user(self, user_id, curve):
+        infra.proc.ccall(
+            self.key_generator,
+            f"--name=user{user_id}",
+            f"--curve={curve.name}",
+            path=self.common_dir,
+            log_output=False,
+        ).check_returncode()
+
+    def create_users(self, user_ids, curve):
+        for user_id in user_ids:
+            self.create_user(user_id, curve)
 
     def get_members(self):
         return self.consortium.members
@@ -370,7 +376,7 @@ class Network:
         for _ in range(timeout):
             try:
                 with node.node_client() as c:
-                    r = c.request("getSignedIndex", {})
+                    r = c.get("getSignedIndex")
                     if r.result["state"] == state:
                         break
             except ConnectionRefusedError:
@@ -405,16 +411,13 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.do("getPrimaryInfo", {})
+                        res = c.get("getPrimaryInfo")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
                             term = res.term
                             break
                         else:
-                            assert (
-                                res.error["code"]
-                                == infra.jsonrpc.ErrorCode.TX_PRIMARY_UNKNOWN
-                            ), "RPC error code is not TX_NOT_PRIMARY"
+                            assert "Primary unknown" in res.error, res.error
                     except TimeoutError:
                         pass
             if primary_id is not None:
@@ -450,7 +453,7 @@ class Network:
         which added the nodes).
         """
         with primary.node_client() as c:
-            res = c.do("getCommit", {})
+            res = c.get("getCommit")
             local_commit_leader = res.commit
             term_leader = res.term
 
@@ -458,7 +461,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.request("getCommit", {})
+                    resp = c.get("getCommit")
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -474,7 +477,7 @@ class Network:
             self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
 
-    def wait_for_node_commit_sync(self, timeout=3):
+    def wait_for_node_commit_sync(self, consensus, timeout=3):
         """
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.
@@ -483,12 +486,18 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    r = c.request("getCommit", {})
+                    r = c.get("getCommit")
                     commits.append(r.commit)
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(1)
-        assert [commits[0]] * len(commits) == commits, "All nodes at the same commit"
+        # in pbft getCommit increments the commit version, so commits will not be the same
+        # but they should be in ascending order
+        assert (
+            [commits[0]] * len(commits) == commits
+            if consensus == "raft"
+            else sorted(commits) == commits
+        ), "All nodes in sync"
 
     def wait_for_sealed_secrets_at_version(self, version, timeout=5):
         """

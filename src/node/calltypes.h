@@ -10,13 +10,13 @@ namespace ccf
     struct In
     {
       StartType start_type;
-      ConsensusType consensus_type;
       CCFConfig config;
     };
     struct Out
     {
       std::vector<uint8_t> node_cert;
       std::vector<uint8_t> network_cert;
+      std::vector<uint8_t> network_enc_pubk;
     };
   };
 

@@ -18,7 +18,10 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args, txs=None):
+def test(network, args, use_shares=False):
+    if use_shares:
+        LOG.warning("Using member key shares for recovery (experimental)")
+
     primary, backups = network.find_nodes()
 
     ledger = primary.get_ledger()
@@ -31,7 +34,7 @@ def test(network, args, txs=None):
 
     for node in recovered_network.nodes:
         recovered_network.wait_for_state(node, "partOfPublicNetwork")
-        recovered_network.wait_for_node_commit_sync()
+        recovered_network.wait_for_node_commit_sync(args.consensus)
     LOG.info("Public CFTR started")
 
     primary, term = recovered_network.find_primary()
@@ -39,10 +42,17 @@ def test(network, args, txs=None):
     LOG.info("Members verify that the new nodes have joined the network")
     recovered_network.wait_for_all_nodes_to_be_trusted()
 
-    LOG.info("Members vote to complete the recovery")
-    recovered_network.consortium.accept_recovery(
-        member_id=1, remote_node=primary, sealed_secrets=sealed_secrets
-    )
+    if use_shares:
+        LOG.warning("Retrieve and submit recovery shares")
+        recovered_network.consortium.accept_recovery_with_shares(
+            member_id=1, remote_node=primary
+        )
+        recovered_network.consortium.get_decrypt_and_submit_shares(remote_node=primary)
+    else:
+        LOG.info("Members vote to complete the recovery")
+        recovered_network.consortium.accept_recovery(
+            member_id=1, remote_node=primary, sealed_secrets=sealed_secrets
+        )
 
     for node in recovered_network.nodes:
         recovered_network.wait_for_state(node, "partOfNetwork")
@@ -67,8 +77,11 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
+        if args.use_shares:
+            network.consortium.store_current_network_encryption_key()
+
         for recovery_idx in range(args.recovery):
-            recovered_network = test(network, args)
+            recovered_network = test(network, args, use_shares=args.use_shares)
             network.stop_all_nodes()
             network = recovered_network
 
@@ -94,7 +107,13 @@ checked. Note that the key for each logging message is unique (per table).
             type=int,
             default=5,
         )
+        parser.add_argument(
+            "--use-shares",
+            help="Use member key shares (experimental)",
+            action="store_true",
+        )
 
     args = infra.e2e_args.cli_args(add)
     args.package = "liblogging"
+
     run(args)

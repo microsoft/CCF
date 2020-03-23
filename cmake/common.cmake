@@ -95,18 +95,6 @@ option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 
-option(PBFT "Enable PBFT" OFF)
-if(PBFT)
-  add_definitions(-DPBFT)
-  add_definitions(
-    -DUSE_NULL_ENCRYPTOR
-  ) # for now do not encrypt the ledger as the current implementation does not
-    # work for PBFT
-  set(PBFT_BUILD_ENCLAVE TRUE)
-  set(PBFT_BUILD_HOST TRUE)
-  set(PBFT_USE_LIBC TRUE)
-endif()
-
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
 )
@@ -122,11 +110,11 @@ endif()
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-include_directories(${CCF_DIR}/src ${CCF_GENERATED_DIR})
+include_directories(${CCF_DIR}/src)
 
 include_directories(
   SYSTEM ${CCF_DIR}/3rdparty ${CCF_DIR}/3rdparty/hacl-star
-  ${CCF_DIR}/3rdparty/msgpack-c ${CCF_DIR}/3rdparty/flatbuffers/include
+  ${CCF_DIR}/3rdparty/flatbuffers/include
 )
 
 set(TARGET
@@ -185,14 +173,6 @@ if("sgx" IN_LIST TARGET)
   endif()
 else()
   set(TEST_ENCLAVE_TYPE -e virtual)
-endif()
-
-# Test-only option to enable extensive tests
-option(EXTENSIVE_TESTS "Enable extensive tests" OFF)
-if(EXTENSIVE_TESTS)
-  set(RECOVERY_ARGS --recovery 5 --msgs-per-recovery 10)
-else()
-  set(RECOVERY_ARGS --recovery 2 --msgs-per-recovery 5)
 endif()
 
 # Lua module
@@ -267,7 +247,9 @@ if("sgx" IN_LIST TARGET)
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
   use_client_mbedtls(cchost)
-  target_include_directories(cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_include_directories(
+    cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CCF_GENERATED_DIR}
+  )
   add_san(cchost)
 
   target_link_libraries(
@@ -288,8 +270,18 @@ if("sgx" IN_LIST TARGET)
 endif()
 
 if("virtual" IN_LIST TARGET)
+  if(SAN)
+    set(SNMALLOC_LIB)
+    set(SNMALLOC_CPP)
+  else()
+    set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+    add_subdirectory(3rdparty/snmalloc EXCLUDE_FROM_ALL)
+    set(SNMALLOC_LIB snmalloc_lib)
+    set(SNMALLOC_CPP src/enclave/snmalloc.cpp)
+  endif()
+
   # Virtual Host Executable
-  add_executable(cchost.virtual ${CCF_DIR}/src/host/main.cpp)
+  add_executable(cchost.virtual ${SNMALLOC_CPP} ${CCF_DIR}/src/host/main.cpp)
   use_client_mbedtls(cchost.virtual)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
@@ -301,6 +293,7 @@ if("virtual" IN_LIST TARGET)
   target_link_libraries(
     cchost.virtual
     PRIVATE uv
+            ${SNMALLOC_LIB}
             ${CRYPTO_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
@@ -362,12 +355,6 @@ install(
 )
 
 # Common test args for Python scripts starting up CCF networks
-if(PBFT)
-  set(CONSENSUS_ARG "pbft")
-else()
-  set(CONSENSUS_ARG "raft")
-endif()
-
 if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT SAN)
   set(DEFAULT_WORKER_THREADS 0)
 else()
@@ -384,12 +371,8 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_HOST_LOGGING_LEVEL}
     -g
     ${CCF_DIR}/src/runtime_config/gov.lua
-    --consensus
-    ${CONSENSUS_ARG}
     --worker_threads
     ${WORKER_THREADS}
-    --default-curve
-    ${DEFAULT_PARTICIPANTS_CURVE}
 )
 
 # SNIPPET_START: Lua generic application
@@ -435,8 +418,8 @@ endfunction()
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS "" "NAME;PYTHON_SCRIPT;IS_SUITE;CURL_CLIENT"
-    "ADDITIONAL_ARGS"
+    PARSE_ARGV 0 PARSED_ARGS ""
+    "NAME;PYTHON_SCRIPT;IS_SUITE;CURL_CLIENT;CONSENSUS;" "ADDITIONAL_ARGS"
   )
 
   if(BUILD_END_TO_END_TESTS)
@@ -444,15 +427,15 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${CCF_NETWORK_TEST_ARGS} --participants-curve
+        ${DEFAULT_PARTICIPANTS_CURVE} --consensus ${PARSED_ARGS_CONSENSUS}
+        ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
 
     # Make python test client framework importable
     set_property(
       TEST ${PARSED_ARGS_NAME} APPEND
-      PROPERTY
-        ENVIRONMENT
-        "PYTHONPATH=${CCF_DIR}/tests:${CCF_GENERATED_DIR}:$ENV{PYTHONPATH}"
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
     if(${PARSED_ARGS_IS_SUITE})
       set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS suite)
@@ -465,6 +448,9 @@ function(add_e2e_test)
         TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
+    set_property(
+      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    )
   endif()
 endfunction()
 
@@ -473,7 +459,8 @@ function(add_perf_test)
 
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;" "ADDITIONAL_ARGS"
+    "NAME;PYTHON_SCRIPT;CLIENT_BIN;VERIFICATION_FILE;LABEL;CONSENSUS"
+    "ADDITIONAL_ARGS"
   )
 
   if(PARSED_ARGS_VERIFICATION_FILE)
@@ -482,19 +469,29 @@ function(add_perf_test)
     unset(VERIFICATION_ARG)
   endif()
 
+  set(TESTS_SUFFIX "")
+  if("sgx" IN_LIST TARGET)
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_SGX")
+  endif()
+  if("raft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_CFT")
+  elseif("pbft" STREQUAL ${PARSED_ARGS_CONSENSUS})
+    set(TESTS_SUFFIX "${TESTS_SUFFIX}_BFT")
+  endif()
+
   if(PARSED_ARGS_LABEL)
-    set(LABEL_ARG "${PARSED_ARGS_LABEL}_${TESTS_SUFFIX}^")
+    set(LABEL_ARG "${PARSED_ARGS_LABEL}${TESTS_SUFFIX}^")
   else()
-    set(LABEL_ARG "${PARSED_ARGS_NAME}_${TESTS_SUFFIX}^")
+    set(LABEL_ARG "${PARSED_ARGS_NAME}${TESTS_SUFFIX}^")
   endif()
 
   add_test(
     NAME ${PARSED_ARGS_NAME}
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
-      ${CCF_NETWORK_TEST_ARGS} --write-tx-times ${VERIFICATION_ARG} --label
-      ${LABEL_ARG} ${PARSED_ARGS_ADDITIONAL_ARGS} ${RELAX_COMMIT_TARGET}
-      ${NODES}
+      ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
+      --write-tx-times ${VERIFICATION_ARG} --label ${LABEL_ARG}
+      ${PARSED_ARGS_ADDITIONAL_ARGS} ${NODES}
   )
 
   # Make python test client framework importable
@@ -505,6 +502,9 @@ function(add_perf_test)
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
+  set_property(
+    TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+  )
 endfunction()
 
 # Picobench wrapper

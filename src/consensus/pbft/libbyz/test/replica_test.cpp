@@ -189,9 +189,13 @@ static char* service_mem = 0;
 static IMessageReceiveBase* message_receive_base;
 
 ExecCommand exec_command =
-  [](std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
-    for (auto& msg : msgs)
+  [](
+    std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
+    ByzInfo& info,
+    uint32_t num_requests) {
+    for (uint32_t i = 0; i < num_requests; ++i)
     {
+      std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
       Byz_req* inb = &msg->inb;
       Byz_rep& outb = msg->outb;
       int client = msg->client;
@@ -410,6 +414,7 @@ int main(int argc, char** argv)
     pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
   auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
     pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+  auto& signatures = store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
   auto replica_store =
     std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(store);
 
@@ -421,6 +426,7 @@ int main(int argc, char** argv)
     network,
     pbft_requests_map,
     pbft_pre_prepares_map,
+    signatures,
     *replica_store,
     &message_receive_base);
 

@@ -20,7 +20,9 @@
 #include <iostream>
 #include <locale>
 #include <string>
+#include <sys/types.h>
 #include <thread>
+#include <unistd.h>
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -110,6 +112,13 @@ int main(int argc, char** argv)
     "Path to which the node certificate will be written",
     true);
 
+  std::string node_pid_file("cchost.pid");
+  app.add_option(
+    "--node-pid-file",
+    node_pid_file,
+    "Path to which the node PID will be written",
+    true);
+
   size_t sig_max_tx = 5000;
   app.add_option(
     "--sig-max-tx",
@@ -138,15 +147,6 @@ int main(int argc, char** argv)
     "--notify-server-address",
     "Server address to notify progress to");
 
-  size_t raft_election_timeout = 5000;
-  app.add_option(
-    "--raft-election-timeout-ms",
-    raft_election_timeout,
-    "Raft election timeout in milliseconds. If a Raft follower does not "
-    "receive any heartbeat from the leader after this timeout, the "
-    "follower triggers a new election.",
-    true);
-
   size_t raft_timeout = 100;
   app.add_option(
     "--raft-timeout-ms",
@@ -154,6 +154,33 @@ int main(int argc, char** argv)
     "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
     "followers at regular intervals defined by this timeout. This should be "
     "set to a significantly lower value than --raft-election-timeout-ms.",
+    true);
+
+  size_t raft_election_timeout = 5000;
+  app.add_option(
+    "--raft-election-timeout-ms",
+    raft_election_timeout,
+    "Raft election timeout in milliseconds. If a follower does not receive any "
+    "heartbeat from the leader after this timeout, the follower triggers a new "
+    "election.",
+    true);
+
+  size_t pbft_view_change_timeout = 5000;
+  app.add_option(
+    "--pbft_view-change-timeout-ms",
+    pbft_view_change_timeout,
+    "Pbft view change timeout in milliseconds. If a backup does not receive "
+    "the pre-prepare message for a request forwarded to the primary after this "
+    "timeout, the backup triggers a new view change.",
+    true);
+
+  size_t pbft_status_interval = 100;
+  app.add_option(
+    "--pbft-status-interval-ms",
+    pbft_status_interval,
+    "Pbft status timer interval in milliseconds. All pbft nodes send messages "
+    "containing their status to all other known nodes at regular intervals "
+    "defined by this timer interval.",
     true);
 
   size_t max_msg_size = 24;
@@ -201,13 +228,22 @@ int main(int argc, char** argv)
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
   std::string network_cert_file = "networkcert.pem";
+  std::string network_enc_pubk_file = "network_enc_pubk.pem";
 
   auto start = app.add_subcommand("start", "Start new network");
   start
     ->add_option(
       "--network-cert-file",
       network_cert_file,
-      "Destination path where fresh network certificate will be created",
+      "Destination path to freshly created network certificate",
+      true)
+    ->check(CLI::NonexistentPath);
+
+  start
+    ->add_option(
+      "--network-enc-pubk-file",
+      network_enc_pubk_file,
+      "Destination path to freshly created network encryption public key",
       true)
     ->check(CLI::NonexistentPath);
 
@@ -264,6 +300,14 @@ int main(int argc, char** argv)
       true)
     ->check(CLI::NonexistentPath);
 
+  recover
+    ->add_option(
+      "--network-enc-pubk-file",
+      network_enc_pubk_file,
+      "Destination path to freshly created network encryption public key",
+      true)
+    ->check(CLI::NonexistentPath);
+
   CLI11_PARSE(app, argc, argv);
 
   if (!(*public_rpc_address_option))
@@ -291,6 +335,9 @@ int main(int argc, char** argv)
   auto host_log_level_ = logger::config::to_level(host_log_level.c_str());
   if (!host_log_level_)
     throw std::logic_error("No such logging level: "s + host_log_level);
+
+  // Write PID to disk
+  files::dump(fmt::format("{}", ::getpid()), node_pid_file);
 
   // set the host log level
   logger::config::level() = host_log_level_.value();
@@ -335,8 +382,10 @@ int main(int argc, char** argv)
 
   // Initialise the enclave and create a CCF node in it
   const size_t certificate_size = 4096;
+  const size_t pubk_size = 1024;
   std::vector<uint8_t> node_cert(certificate_size);
   std::vector<uint8_t> network_cert(certificate_size);
+  std::vector<uint8_t> network_enc_pubk(certificate_size);
 
   StartType start_type;
   ConsensusType consensus_type;
@@ -349,7 +398,10 @@ int main(int argc, char** argv)
 #endif
 
   CCFConfig ccf_config;
-  ccf_config.raft_config = {raft_timeout, raft_election_timeout};
+  ccf_config.consensus_config = {raft_timeout,
+                                 raft_election_timeout,
+                                 pbft_view_change_timeout,
+                                 pbft_status_interval};
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
@@ -359,11 +411,11 @@ int main(int argc, char** argv)
   ccf_config.domain = domain;
   if (consensus == "raft")
   {
-    consensus_type = ConsensusType::Raft;
+    consensus_type = ConsensusType::RAFT;
   }
   else if (consensus == "pbft")
   {
-    consensus_type = ConsensusType::Pbft;
+    consensus_type = ConsensusType::PBFT;
   }
 
   if (*start)
@@ -404,6 +456,7 @@ int main(int argc, char** argv)
     ccf_config,
     node_cert,
     network_cert,
+    network_enc_pubk,
     start_type,
     consensus_type,
     num_worker_threads);
@@ -432,6 +485,7 @@ int main(int argc, char** argv)
   if (*start || *recover)
   {
     files::dump(network_cert, network_cert_file);
+    files::dump(network_enc_pubk, network_enc_pubk_file);
   }
 
   auto enclave_thread_start = [&]() {

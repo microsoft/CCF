@@ -4,12 +4,8 @@
 #include "../ds/spinlock.h"
 #include "enclave.h"
 
-#ifdef PBFT
-#  include "../src/consensus/pbft/pbftglobals.h"
-#endif
-
 #include <chrono>
-#include <msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <thread>
 
 // the central enclave object
@@ -35,6 +31,9 @@ extern "C"
     uint8_t* network_cert,
     size_t network_cert_size,
     size_t* network_cert_len,
+    uint8_t* network_enc_pubk,
+    size_t network_enc_pubk_size,
+    size_t* network_enc_pubk_len,
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_threads)
@@ -67,7 +66,7 @@ extern "C"
 #endif
 
     auto enclave = new enclave::Enclave(
-      ec, cc.signature_intervals, consensus_type, cc.raft_config);
+      ec, cc.signature_intervals, consensus_type, cc.consensus_config);
 
     bool result = enclave->create_new_node(
       start_type,
@@ -77,7 +76,10 @@ extern "C"
       node_cert_len,
       network_cert,
       network_cert_size,
-      network_cert_len);
+      network_cert_len,
+      network_enc_pubk,
+      network_enc_pubk_size,
+      network_enc_pubk_len);
     e.store(enclave);
 
     return result;
@@ -96,14 +98,14 @@ extern "C"
         thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
           std::this_thread::get_id(), tid));
 
-        LOG_DEBUG_FMT("Starting thread: {}", tid);
+        LOG_INFO_FMT("Starting thread: {}", tid);
       }
 
       while (num_pending_threads != 0)
       {
       }
 
-      LOG_DEBUG_FMT("All threads are ready!");
+      LOG_INFO_FMT("All threads are ready!");
 
       if (tid == 0)
       {

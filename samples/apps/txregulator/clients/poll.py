@@ -44,7 +44,7 @@ def run(args):
         ) as c:
             while True:
                 time.sleep(1)
-                resp = reg_c.rpc("REG_poll_flagged", {}).to_dict()
+                resp = reg_c.rpc("REG_poll_flagged").to_dict()
 
                 if "result" in resp:
                     flagged_txs = resp["result"]

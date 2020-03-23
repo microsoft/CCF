@@ -5,6 +5,7 @@
 #include "certs.h"
 #include "clientsignatures.h"
 #include "codeid.h"
+#include "consensus.h"
 #include "consensus/pbft/pbftpreprepares.h"
 #include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttables.h"
@@ -42,7 +43,7 @@ namespace ccf
     Scripts& gov_scripts;
     Proposals& proposals;
     Whitelists& whitelists;
-    CodeIDs& code_ids;
+    CodeIDs& node_code_ids;
     MemberAcks& member_acks;
     GovernanceHistory& governance_history;
     ClientSignatures& member_client_signatures;
@@ -55,6 +56,7 @@ namespace ccf
     Users& users;
     Certs& user_certs;
 
+    CodeIDs& user_code_ids;
     ClientSignatures& user_client_signatures;
 
     //
@@ -74,6 +76,7 @@ namespace ccf
     Values& values;
     Secrets& secrets;
     Signatures& signatures;
+    ConsensusTable& consensus;
 
     //
     // Pbft related tables
@@ -81,9 +84,9 @@ namespace ccf
     pbft::RequestsMap& pbft_requests_map;
     pbft::PrePreparesMap& pbft_pre_prepares_map;
 
-    NetworkTables(const ConsensusType& consensus_type = ConsensusType::Raft) :
+    NetworkTables(const ConsensusType& consensus_type = ConsensusType::RAFT) :
       tables(
-        (consensus_type == ConsensusType::Raft) ?
+        (consensus_type == ConsensusType::RAFT) ?
           std::make_shared<Store>(
             raft::replicate_type_raft, raft::replicated_tables_raft) :
           std::make_shared<Store>(
@@ -98,8 +101,8 @@ namespace ccf
         Tables::PROPOSALS, kv::SecurityDomain::PUBLIC)),
       whitelists(tables->create<Whitelists>(
         Tables::WHITELISTS, kv::SecurityDomain::PUBLIC)),
-      code_ids(
-        tables->create<CodeIDs>(Tables::CODE_IDS, kv::SecurityDomain::PUBLIC)),
+      node_code_ids(tables->create<CodeIDs>(
+        Tables::NODE_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       member_acks(tables->create<MemberAcks>(
         Tables::MEMBER_ACKS, kv::SecurityDomain::PUBLIC)),
       governance_history(tables->create<GovernanceHistory>(
@@ -110,6 +113,8 @@ namespace ccf
         tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS)),
       user_certs(tables->create<Certs>(Tables::USER_CERTS)),
+      user_code_ids(tables->create<CodeIDs>(
+        Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       user_client_signatures(
         tables->create<ClientSignatures>(Tables::USER_CLIENT_SIGNATURES)),
       nodes(tables->create<Nodes>(Tables::NODES, kv::SecurityDomain::PUBLIC)),
@@ -123,6 +128,8 @@ namespace ccf
         tables->create<Secrets>(Tables::SECRETS, kv::SecurityDomain::PUBLIC)),
       signatures(tables->create<Signatures>(
         Tables::SIGNATURES, kv::SecurityDomain::PUBLIC)),
+      consensus(tables->create<ConsensusTable>(
+        Tables::CONSENSUS, kv::SecurityDomain::PUBLIC)),
       pbft_requests_map(
         tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       pbft_pre_prepares_map(
@@ -141,7 +148,8 @@ namespace ccf
         std::ref(gov_scripts),
         std::ref(proposals),
         std::ref(whitelists),
-        std::ref(code_ids),
+        std::ref(node_code_ids),
+        std::ref(user_code_ids),
         std::ref(member_acks),
         std::ref(governance_history),
         std::ref(member_client_signatures),

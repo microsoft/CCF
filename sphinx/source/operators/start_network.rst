@@ -108,8 +108,8 @@ The following diagram summarises the steps required to bootstrap a CCF network:
         Note over Node 1: Part Of Network
 
         loop Governance transactions (e.g. adding a user)
-            Members->>+Node 0: JSON-RPC Request (any node)
-            Node 0-->>Members: JSON-RPC Response (any node)
+            Members->>+Node 0: HTTP Request (any node)
+            Node 0-->>Members: HTTP Response (any node)
         end
 
         Members->>+Node 0: Propose to open network (any node)
@@ -118,8 +118,8 @@ The following diagram summarises the steps required to bootstrap a CCF network:
 
 
         loop Business transactions
-            Users->>+Node 0: JSON-RPC Request (any node)
-            Node 0-->>Users: JSON-RPC Response (any node)
+            Users->>+Node 0: HTTP Request (any node)
+            Node 0-->>Users: HTTP Response (any node)
         end
 
 .. rubric:: Footnotes

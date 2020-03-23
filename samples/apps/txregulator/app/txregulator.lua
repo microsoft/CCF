@@ -95,7 +95,7 @@ return {
     function env.record_transaction()
       bank_v = env.bank_table():get(args.caller_id)
       if not bank_v then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a bank")
+        return env.jerr(env.error_codes.FORBIDDEN, "User is not registered as a bank")
       end
 
       table_entries = {bank_id=args.caller_id}
@@ -123,10 +123,10 @@ return {
     function env.get_transaction()
       tx_v = env.tx_table():get(args.params.tx_id)
       if not tx_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
+        return env.jerr(env.error_codes.BAD_REQUEST, "No such transaction")
       end
       if tx_v.bank_id ~= args.caller_id then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you.")
+        return env.jerr(env.error_codes.FORBIDDEN, "Transaction was not issued by you.")
       end
       return env.jsucc(tx_v)
     end
@@ -136,11 +136,11 @@ return {
       flagged_table = env.flagged_tx()
       flagged_v = flagged_table:get(tx_id)
       if not flagged_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "Transaction has not been flagged")
+        return env.jerr(env.error_codes.BAD_REQUEST, "Transaction has not been flagged")
       end
 
       if not flagged_v[2] then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "Transaction has not been revealed")
+        return env.jerr(env.error_codes.BAD_REQUEST, "Transaction has not been revealed")
       end
 
       tx_v = env.tx_table():get(tx_id)
@@ -158,13 +158,13 @@ return {
 
     function env.register_bank()
       if not env.can_register_banks(args.caller_id) then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User " .. args.caller_id .. " is not permitted to register new banks")
+        return env.jerr(env.error_codes.FORBIDDEN, "User " .. args.caller_id .. " is not permitted to register new banks")
       end
 
       local bank_id = args.params.bank_id
       reg_v = env.reg_table():get(bank_id)
       if reg_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "User " .. bank_id .. " is already registered as a regulator - not permitted to also be a bank")
+        return env.jerr(env.error_codes.BAD_REQUEST, "User " .. bank_id .. " is already registered as a regulator - not permitted to also be a bank")
       end
       env.bank_table():put(bank_id, args.params.country)
       return env.jsucc(bank_id)
@@ -173,7 +173,7 @@ return {
     function env.get_bank()
       bank_v = env.bank_table():get(args.params.id)
       if not bank_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "No such bank")
+        return env.jerr(env.error_codes.BAD_REQUEST, "No such bank")
       end
       return env.jsucc(bank_v)
     end
@@ -182,18 +182,18 @@ return {
       tx_id = args.params.tx_id
       tx_v = env.tx_table():get(tx_id)
       if not tx_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
+        return env.jerr(env.error_codes.BAD_REQUEST, "No such transaction")
       end
 
       -- TODO: For now, anyone can reveal transactions
       -- if tx_v[1] ~= args.caller_id then
-      --   return env.jerr(env.error_codes.INVALID_CALLER_ID, "Transaction was not issued by you")
+      --   return env.jerr(env.error_codes.FORBIDDEN, "Transaction was not issued by you")
       -- end
 
       flagged_table = env.flagged_tx()
       flagged_v = flagged_table:get(tx_id)
       if not flagged_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "Transaction has not been flagged")
+        return env.jerr(env.error_codes.BAD_REQUEST, "Transaction has not been flagged")
       end
       flagged_v[2] = true
       flagged_table:put(tx_id, flagged_v)
@@ -206,13 +206,13 @@ return {
 
     function env.register_regulator()
       if not env.can_register_regulators(args.caller_id) then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User " .. args.caller_id .. " is not permitted to register new regulators")
+        return env.jerr(env.error_codes.FORBIDDEN, "User " .. args.caller_id .. " is not permitted to register new regulators")
       end
 
       local reg_id = args.params.regulator_id
       bank_v = env.bank_table():get(reg_id)
       if bank_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "User " .. reg_id .. " is already registered as a bank - not permitted to also be a regulator")
+        return env.jerr(env.error_codes.BAD_REQUEST, "User " .. reg_id .. " is already registered as a bank - not permitted to also be a regulator")
       end
       env.reg_table():put(reg_id, {args.params.country, args.params.script, args.params.name})
       return env.jsucc(reg_id)
@@ -221,7 +221,7 @@ return {
     function env.get_regulator()
       reg_v = env.reg_table():get(args.params.id)
       if not reg_v then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "No such regulator")
+        return env.jerr(env.error_codes.BAD_REQUEST, "No such regulator")
       end
       return env.jsucc(reg_v)
     end
@@ -239,7 +239,7 @@ return {
     function env.poll_flagged()
       reg_v = env.reg_table():get(args.caller_id)
       if not reg_v then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a regulator")
+        return env.jerr(env.error_codes.FORBIDDEN, "User is not registered as a regulator")
       end
       tx_ids = {}
       env.flagged_tx():foreach(
@@ -251,7 +251,7 @@ return {
     function env.get_revealed()
       reg_v = env.reg_table():get(args.caller_id)
       if not reg_v then
-        return env.jerr(env.error_codes.INVALID_CALLER_ID, "User is not registered as a regulator")
+        return env.jerr(env.error_codes.FORBIDDEN, "User is not registered as a regulator")
       end
       return(env.get_revealed_transaction())
     end
@@ -263,7 +263,7 @@ return {
     function env.get_flagged_tx()
       flagged_tx = env.flagged_tx():get(args.params.tx_id)
       if not flagged_tx then
-        return env.jerr(env.error_codes.INVALID_PARAMS, "No such transaction")
+        return env.jerr(env.error_codes.BAD_REQUEST, "No such transaction")
       end
       return env.jsucc(flagged_tx)
     end

@@ -62,6 +62,7 @@ public:
     INetwork* network,
     pbft::RequestsMap& pbft_requests_map_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
+    ccf::Signatures& signatures,
     pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
@@ -318,11 +319,14 @@ private:
 
   bool is_exec_pending = false;
   std::list<Message*> pending_recv_msgs;
+  std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>
+    vec_exec_cmds;
 
   bool create_execute_commands(
     Pre_prepare* pp,
     int64_t& max_local_commit_value,
-    std::vector<std::unique_ptr<ExecCommandMsg>>& cmds);
+    std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& cmds,
+    uint32_t& num_requests);
 
   bool execute_tentative(Pre_prepare* pp, ByzInfo& info);
 
@@ -514,6 +518,7 @@ private:
   // Used to rollback the kv to the right version and truncate the ledger
 
   std::unique_ptr<LedgerWriter> ledger_writer;
+  std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
   // State abstraction manages state checkpointing and digesting
   State state;

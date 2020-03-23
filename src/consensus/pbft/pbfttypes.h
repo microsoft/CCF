@@ -5,6 +5,7 @@
 #include "consensus/pbft/pbftpreprepares.h"
 #include "ds/ringbuffer_types.h"
 #include "kv/kvtypes.h"
+#include "node/signatures.h"
 
 namespace pbft
 {
@@ -48,8 +49,12 @@ namespace pbft
     virtual kv::Version current_version() = 0;
     virtual kv::Version commit_pre_prepare(
       const pbft::PrePrepare& pp,
-      pbft::PrePreparesMap& pbft_pre_prepares_map) = 0;
-    virtual kv::Version commit_tx(ccf::Store::Tx& tx) = 0;
+      pbft::PrePreparesMap& pbft_pre_prepares_map,
+      CBuffer root,
+      ccf::Signatures& signatures) = 0;
+    virtual kv::Version commit_tx(
+      ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
+    virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
 
   template <typename T, typename S>
@@ -75,7 +80,10 @@ namespace pbft
     }
 
     kv::Version commit_pre_prepare(
-      const pbft::PrePrepare& pp, pbft::PrePreparesMap& pbft_pre_prepares_map)
+      const pbft::PrePrepare& pp,
+      pbft::PrePreparesMap& pbft_pre_prepares_map,
+      CBuffer root,
+      ccf::Signatures& signatures)
     {
       while (true)
       {
@@ -90,6 +98,9 @@ namespace pbft
               ccf::Store::Tx tx(version);
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
+              auto sig_view = tx.get_view(signatures);
+              ccf::Signature sig_value({root});
+              sig_view->put(0, sig_value);
               return tx.commit_reserved();
             },
             false);
@@ -101,13 +112,17 @@ namespace pbft
       }
     }
 
-    kv::Version commit_tx(ccf::Store::Tx& tx)
+    kv::Version commit_tx(
+      ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures)
     {
       while (true)
       {
         auto p = x.lock();
         if (p)
         {
+          auto sig_view = tx.get_view(signatures);
+          ccf::Signature sig_value({root});
+          sig_view->put(0, sig_value);
           auto success = tx.commit();
           if (success == kv::CommitSuccess::OK)
           {
@@ -147,6 +162,18 @@ namespace pbft
         return p->current_version();
       }
       return kv::NoVersion;
+    }
+
+    std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor()
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          return p->get_encryptor();
+        }
+      }
     }
   };
 

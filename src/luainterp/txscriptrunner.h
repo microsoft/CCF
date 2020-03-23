@@ -151,8 +151,7 @@ namespace ccf
       {
         std::stringstream ss;
         ss << "Script failed: " << e.what();
-        throw RpcException(
-          ss.str(), static_cast<int>(jsonrpc::CCFErrorCodes::SCRIPT_ERROR));
+        throw RpcException(ss.str(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
       }
 
       static std::string get_var_string_from_args(lua_State* l)
@@ -207,6 +206,15 @@ namespace ccf
       virtual void setup_environment(
         lua::Interpreter& li, const std::optional<Script>& env_script) const
       {
+        auto l = li.get_state();
+
+        // Register global logging functions
+        lua_register(l, "LOG_TRACE", lua_log_trace);
+        lua_register(l, "LOG_DEBUG", lua_log_debug);
+        lua_register(l, "LOG_INFO", lua_log_info);
+        lua_register(l, "LOG_FAIL", lua_log_fail);
+        lua_register(l, "LOG_FATAL", lua_log_fatal);
+
         if (env_script)
         {
           load(li, *env_script);

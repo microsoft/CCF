@@ -50,7 +50,7 @@ def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
         primary, term = network.find_primary()
         with primary.user_client() as c:
-            response = c.rpc("listMethods", {})
+            response = c.get("listMethods")
             supported_methods = response.result["methods"]
             missing = {*methods}.difference(supported_methods)
             if missing:
@@ -96,6 +96,7 @@ def recover(number_txs=5):
             network.txs.issue(
                 network=network,
                 number_txs=infra.e2e_args.get("msgs_per_recovery") or number_txs,
+                consensus=infra.e2e_args.get("consensus"),
             )
             new_network = func(*args, **kwargs)
             new_network.txs.verify(network=new_network)

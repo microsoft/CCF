@@ -8,33 +8,47 @@ import coincurve
 from coincurve._libsecp256k1 import ffi, lib
 from coincurve.context import GLOBAL_CONTEXT
 
+from nacl.public import PrivateKey, PublicKey, Box
+from nacl.encoding import RawEncoder
+
 from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.serialization import (
+    load_pem_private_key,
+    load_pem_public_key,
+    Encoding,
+    PrivateFormat,
+    PublicFormat,
+    NoEncryption,
+)
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
 
-class Cert:
-    def __init__(self, cert_path):
-        with open(cert_path, "rb") as cert:
-            self.cert = load_pem_x509_certificate(
-                cert.read(), backend=default_backend()
-            )
-
-    def get_hash_alg(self):
-        return self.cert.signature_hash_algorithm
-
-
-class PrivateKey:
-    def __init__(self, privk_path, password=None):
+class CryptoBoxCtx:
+    def __init__(self, privk_path, pubk_path):
         with open(privk_path, "rb") as privk:
-            self.privk = load_pem_private_key(
-                privk.read(), password=None, backend=default_backend()
+            self.privk = PrivateKey(
+                load_pem_private_key(
+                    privk.read(), password=None, backend=default_backend(),
+                ).private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption()),
+                RawEncoder,
             )
 
-    def sign(self, bytes_to_sign, hash_alg):
-        return self.privk.sign(bytes_to_sign, ec.ECDSA(hash_alg))
+        with open(pubk_path, "rb") as pubk:
+            self.pubk = PublicKey(
+                load_pem_public_key(
+                    pubk.read(), backend=default_backend(),
+                ).public_bytes(Encoding.Raw, PublicFormat.Raw),
+                RawEncoder,
+            )
+        self.box = Box(self.privk, self.pubk)
+
+    def encrypt(self, plain, nonce):
+        return self.box.encrypt(plain, nonce)
+
+    def decrypt(self, cipher, nonce):
+        return self.box.decrypt(cipher, nonce)
 
 
 # As per mbedtls md_type_t

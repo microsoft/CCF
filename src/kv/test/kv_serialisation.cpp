@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "consensus/test/stub_consensus.h"
 #include "ds/logger.h"
 #include "enclave/appinterface.h"
 #include "kv/kv.h"
 #include "kv/kvserialiser.h"
 #include "node/encryptor.h"
-#include "stub_consensus.h"
 
 #include <doctest/doctest.h>
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <string>
 #include <vector>
 
@@ -328,7 +328,7 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     // transactions
     auto secrets = std::make_shared<ccf::LedgerSecrets>();
     secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
-    auto encryptor = std::make_shared<ccf::TxEncryptor>(1, secrets);
+    auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
 
     Store kv_store(consensus);
     Store kv_store_target;

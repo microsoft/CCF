@@ -140,43 +140,40 @@ namespace timing
       size_t& term,
       bool record = false)
     {
+      const auto r = client->call("getCommit", nlohmann::json::object());
+
       if (record)
       {
-        record_send("getCommit", client->id, false);
+        record_send("getCommit", r.id, false);
       }
 
-      const auto j = client->call("getCommit");
+      if (r.status != HTTP_STATUS_OK)
+      {
+        const auto body = client->unpack_body(r);
+        throw runtime_error("getCommit failed with error: " + body.dump());
+      }
 
-      if (!j.is_object())
+      const auto& h = r.headers;
+
+      const auto local_commit_it = h.find(http::headers::CCF_COMMIT);
+      if (local_commit_it == h.end())
         return false;
 
-      const auto error_it = j.find("error");
-      if (error_it != j.end())
-        throw runtime_error("getCommit failed with error: " + error_it->dump());
-
-      const auto local_commit_it = j.find("commit");
-      if (local_commit_it == j.end())
+      const auto global_commit_it = h.find(http::headers::CCF_GLOBAL_COMMIT);
+      if (global_commit_it == h.end())
         return false;
 
-      const auto global_commit_it = j.find("global_commit");
-      if (global_commit_it == j.end())
+      const auto term_it = h.find(http::headers::CCF_TERM);
+      if (term_it == h.end())
         return false;
 
-      const auto term_it = j.find("term");
-      if (term_it == j.end())
-        return false;
-
-      local = *local_commit_it;
-      global = *global_commit_it;
-      term = *term_it;
-
-      const auto id_it = j.find("id");
-      if (id_it == j.end())
-        return false;
+      local = std::atoi(local_commit_it->second.c_str());
+      global = std::atoi(global_commit_it->second.c_str());
+      term = std::atoi(term_it->second.c_str());
 
       if (record)
       {
-        record_receive(*id_it, {{local, global, term}});
+        record_receive(r.id, {{local, global, term}});
       }
 
       return true;

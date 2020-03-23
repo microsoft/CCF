@@ -3,9 +3,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "node/history.h"
 
+#include "consensus/test/stub_consensus.h"
 #include "enclave/appinterface.h"
 #include "kv/kv.h"
-#include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/nodes.h"
@@ -32,7 +32,7 @@ public:
     if (store)
     {
       REQUIRE(entries.size() == 1);
-      return store->deserialise(std::get<1>(entries[0]));
+      return store->deserialise(*std::get<1>(entries[0]));
     }
     return true;
   }
@@ -109,13 +109,11 @@ TEST_CASE("Check signature verification")
     REQUIRE(txs.commit() == kv::CommitSuccess::OK);
   }
 
-#ifndef PBFT
   INFO("Issue signature, and verify successfully on backup");
   {
     primary_history->emit_signature();
     REQUIRE(backup_store.current_version() == 2);
   }
-#endif
 
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
@@ -184,7 +182,7 @@ TEST_CASE("Check signing works across rollback")
   }
 
   primary_store.rollback(1);
-  if (consensus->type() == ConsensusType::Pbft)
+  if (consensus->type() == ConsensusType::PBFT)
   {
     backup_store.rollback(1);
   }
@@ -192,7 +190,7 @@ TEST_CASE("Check signing works across rollback")
   INFO("Issue signature, and verify successfully on backup");
   {
     primary_history->emit_signature();
-    if (consensus->type() == ConsensusType::Pbft)
+    if (consensus->type() == ConsensusType::PBFT)
     {
       REQUIRE(backup_store.current_version() == 1);
     }

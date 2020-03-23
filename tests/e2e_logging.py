@@ -5,6 +5,7 @@ import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
+import http
 
 from loguru import logger as LOG
 
@@ -14,12 +15,11 @@ from loguru import logger as LOG
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None, verify=True):
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
-    txs.issue(network=network, number_txs=1, wait_for_sync=args.consensus == "raft")
     txs.issue(
-        network=network,
-        number_txs=1,
-        on_backup=True,
-        wait_for_sync=args.consensus == "raft",
+        network=network, number_txs=1, consensus=args.consensus,
+    )
+    txs.issue(
+        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
     )
     if verify:
         txs.verify(network)
@@ -45,7 +45,7 @@ def test_large_messages(network, args):
                 check_commit(
                     c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
                 )
-                check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
+                check(c.get("LOG_get", {"id": id}), result={"msg": long_msg})
                 id += 1
 
     return network
@@ -62,9 +62,63 @@ def test_cert_prefix(network, args):
                 log_id = 101
                 msg = "This message will be prefixed"
                 c.rpc("LOG_record_prefix_cert", {"id": log_id, "msg": msg})
-                r = c.rpc("LOG_get", {"id": log_id})
+                r = c.get("LOG_get", {"id": log_id})
                 assert r.result is not None
                 assert f"CN=user{user_id}" in r.result["msg"]
+
+    else:
+        LOG.warning("Skipping test_cert_prefix as application is not C++")
+
+    return network
+
+
+@reqs.description("Write as anonymous caller")
+@reqs.supports_methods("LOG_record_anonymous", "LOG_get")
+def test_anonymous_caller(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        # Create a new user but do not record its identity
+        network.create_user(4, args.participants_curve)
+
+        log_id = 101
+        msg = "This message is anonymous"
+        with primary.user_client(user_id=4) as c:
+            r = c.rpc("LOG_record_anonymous", {"id": log_id, "msg": msg})
+            assert r.result == True
+            r = c.get("LOG_get", {"id": log_id})
+            assert (
+                r.error is not None
+            ), "Anonymous user is not authorised to call LOG_get"
+
+        with primary.user_client(user_id=0) as c:
+            r = c.get("LOG_get", {"id": log_id})
+            assert r.result is not None
+            assert msg in r.result["msg"]
+    else:
+        LOG.warning("Skipping test_cert_prefix as application is not C++")
+
+    return network
+
+
+@reqs.description("Write non-JSON body")
+@reqs.supports_methods("LOG_record_raw_text", "LOG_get")
+def test_raw_text(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        log_id = 101
+        msg = "This message is not in JSON"
+        with primary.user_client() as c:
+            r = c.rpc(
+                "LOG_record_raw_text",
+                msg,
+                headers={"content-type": "text/plain", "x-log-id": str(log_id)},
+            )
+            assert r.status == http.HTTPStatus.OK.value
+            r = c.get("LOG_get", {"id": log_id})
+            assert r.result is not None
+            assert msg in r.result["msg"]
 
     else:
         LOG.warning("Skipping test_cert_prefix as application is not C++")
@@ -81,9 +135,9 @@ def test_forwarding_frontends(network, args):
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
         with backup.node_client() as c:
-            check_commit(c.do("mkSign", params={}), result=True)
+            check_commit(c.rpc("mkSign"), result=True)
         with backup.member_client() as c:
-            check_commit(c.do("mkSign", params={}), result=True)
+            check_commit(c.rpc("mkSign"), result=True)
 
     return network
 
@@ -114,7 +168,7 @@ def test_update_lua(network, args):
             member_id=1, remote_node=primary, app_script=new_app_file
         )
         with primary.user_client() as c:
-            check(c.rpc("ping", params={}), result="pong")
+            check(c.rpc("ping"), result="pong")
 
             LOG.debug("Check that former endpoints no longer exists")
             for endpoint in [
@@ -124,9 +178,8 @@ def test_update_lua(network, args):
                 "LOG_get_pub",
             ]:
                 check(
-                    c.rpc(endpoint, params={}),
-                    error=lambda e: e is not None
-                    and e["code"] == infra.jsonrpc.ErrorCode.METHOD_NOT_FOUND.value,
+                    c.rpc(endpoint),
+                    error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value,
                 )
     else:
         LOG.warning("Skipping Lua app update as application is not Lua")
@@ -160,6 +213,8 @@ def run(args):
             network = test_forwarding_frontends(network, args)
             network = test_update_lua(network, args)
             network = test_cert_prefix(network, args)
+            network = test_anonymous_caller(network, args)
+            network = test_raw_text(network, args)
 
 
 if __name__ == "__main__":

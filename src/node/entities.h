@@ -49,6 +49,7 @@ namespace ccf
     static constexpr auto NODES = "ccf.nodes";
     static constexpr auto VALUES = "ccf.values";
     static constexpr auto SIGNATURES = "ccf.signatures";
+    static constexpr auto CONSENSUS = "ccf.consensus";
     static constexpr auto USER_CLIENT_SIGNATURES = "ccf.user_client_signatures";
     static constexpr auto MEMBER_CLIENT_SIGNATURES =
       "ccf.member_client_signatures";
@@ -57,10 +58,11 @@ namespace ccf
     static constexpr auto GOV_SCRIPTS = "ccf.governance.scripts";
     static constexpr auto APP_SCRIPTS = "ccf.app_scripts";
     static constexpr auto SECRETS = "ccf.secrets";
-    static constexpr auto CODE_IDS = "ccf.code_ids";
+    static constexpr auto NODE_CODE_IDS = "ccf.nodes.code_ids";
     static constexpr auto GOV_HISTORY = "ccf.governance.history";
     static constexpr auto SERVICE = "ccf.service";
     static constexpr auto SHARES = "ccf.shares";
+    static constexpr auto USER_CODE_IDS = "ccf.users.code_ids";
   };
 
   using StoreSerialiser = kv::KvStoreSerialiser;

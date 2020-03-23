@@ -4,10 +4,9 @@
 
 #include "consensus/pbft/libbyz/parameters.h"
 #include "node/entities.h"
-#include "node/rpc/jsonrpc.h"
 
 #include <array>
-#include <msgpack-c/msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace pbft

@@ -55,11 +55,6 @@ struct Pre_prepare_rep : public Message_rep
   // Digest's variable length signature in the above order.
 };
 #pragma pack(pop)
-static_assert(
-  sizeof(Pre_prepare_rep) + sizeof(Digest) * Max_requests_in_batch +
-      pbft_max_signature_size <
-    Max_message_size,
-  "Invalid size");
 
 class Prepare;
 

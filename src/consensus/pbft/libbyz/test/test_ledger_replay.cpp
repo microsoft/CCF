@@ -11,8 +11,8 @@
 #include "consensus/pbft/pbftrequests.h"
 #include "consensus/pbft/pbfttables.h"
 #include "consensus/pbft/pbfttypes.h"
+#include "consensus/test/stub_consensus.h"
 #include "host/ledger.h"
-#include "kv/test/stub_consensus.h"
 #include "network_mock.h"
 #include "tls/keypair.h"
 
@@ -37,9 +37,13 @@ public:
   };
 
   ExecCommand exec_command =
-    [this](std::vector<std::unique_ptr<ExecCommandMsg>>& msgs, ByzInfo& info) {
-      for (auto& msg : msgs)
+    [this](
+      std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
+      ByzInfo& info,
+      uint32_t num_requests) {
+      for (uint32_t i = 0; i < num_requests; ++i)
       {
+        std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
         Byz_req* inb = &msg->inb;
         Byz_rep& outb = msg->outb;
         int client = msg->client;
@@ -109,7 +113,8 @@ void create_replica(
   std::vector<char>& service_mem,
   pbft::PbftStore& store,
   pbft::RequestsMap& pbft_requests_map,
-  pbft::PrePreparesMap& pbft_pre_prepares_map)
+  pbft::PrePreparesMap& pbft_pre_prepares_map,
+  ccf::Signatures& signatures)
 {
   Log_allocator::should_use_malloc(true);
   auto node_info = get_node_info();
@@ -121,6 +126,7 @@ void create_replica(
     Create_Mock_Network(),
     pbft_requests_map,
     pbft_pre_prepares_map,
+    signatures,
     store));
 
   pbft::GlobalState::get_replica().init_state();
@@ -196,7 +202,8 @@ void populate_entries(
 TEST_CASE("Test Ledger Replay")
 {
   // initiate replica with stub consensus to be used on replay
-  auto write_consensus = std::make_shared<kv::StubConsensus>();
+  auto write_consensus =
+    std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
   INFO("Create dummy pre-prepares and write them to ledger");
   {
     auto write_store = std::make_shared<ccf::Store>(
@@ -204,6 +211,8 @@ TEST_CASE("Test Ledger Replay")
     write_store->set_consensus(write_consensus);
     auto& write_pbft_requests_map = write_store->create<pbft::RequestsMap>(
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
+    auto& signatures =
+      write_store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto& write_pbft_pre_prepares_map =
       write_store->create<pbft::PrePreparesMap>(
         pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
@@ -222,7 +231,8 @@ TEST_CASE("Test Ledger Replay")
       service_mem,
       *write_pbft_store,
       write_pbft_requests_map,
-      write_pbft_pre_prepares_map);
+      write_pbft_pre_prepares_map,
+      signatures);
     pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
 
     for (size_t i = 1; i < total_requests; i++)
@@ -236,7 +246,8 @@ TEST_CASE("Test Ledger Replay")
     pbft::GlobalState::get_replica().big_reqs()->clear();
   }
 
-  auto corrupt_consensus = std::make_shared<kv::StubConsensus>();
+  auto corrupt_consensus =
+    std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
   INFO("Create dummy corrupt pre-prepares and write them to ledger");
   {
     // initialise a corrupt store that will follow the write store but with
@@ -248,6 +259,8 @@ TEST_CASE("Test Ledger Replay")
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
     auto& corr_pp_map = corrupt_store->create<pbft::PrePreparesMap>(
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+    auto& signatures =
+      corrupt_store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto corr_pbft_store =
       std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
         corrupt_store);
@@ -257,10 +270,11 @@ TEST_CASE("Test Ledger Replay")
     ExecutionMock exec_mock(0);
     exec_mock.command_counter++;
 
-    create_replica(service_mem, *corr_pbft_store, corr_req_map, corr_pp_map);
+    create_replica(
+      service_mem, *corr_pbft_store, corr_req_map, corr_pp_map, signatures);
     pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
 
-    LedgerWriter ledger_writer(*corr_pbft_store, corr_pp_map);
+    LedgerWriter ledger_writer(*corr_pbft_store, corr_pp_map, signatures);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)
@@ -294,12 +308,13 @@ TEST_CASE("Test Ledger Replay")
   {
     auto store = std::make_shared<ccf::Store>(
       pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
-    auto consensus = std::make_shared<kv::StubConsensus>();
+    auto consensus = std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
     store->set_consensus(consensus);
     auto& pbft_requests_map = store->create<pbft::RequestsMap>(
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
     auto& pbft_pre_prepares_map = store->create<pbft::PrePreparesMap>(
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
+    auto& signatures = store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto& derived_map = store->create<std::string, std::string>(
       "derived_map", kv::SecurityDomain::PUBLIC);
 
@@ -312,7 +327,11 @@ TEST_CASE("Test Ledger Replay")
     ExecutionMock exec_mock(0);
 
     create_replica(
-      service_mem, *replica_store, pbft_requests_map, pbft_pre_prepares_map);
+      service_mem,
+      *replica_store,
+      pbft_requests_map,
+      pbft_pre_prepares_map,
+      signatures);
     pbft::GlobalState::get_replica().register_exec(exec_mock.exec_command);
 
     // create rollback cb
@@ -374,7 +393,9 @@ TEST_CASE("Test Ledger Replay")
         REQUIRE(
           store->deserialise_views(corrupt_entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
-        pbft::GlobalState::get_replica().playback_pre_prepare(tx);
+        REQUIRE_THROWS_AS(
+          pbft::GlobalState::get_replica().playback_pre_prepare(tx),
+          std::logic_error);
         count_rollbacks++;
 
         // rolled back latest request so need to re-execute

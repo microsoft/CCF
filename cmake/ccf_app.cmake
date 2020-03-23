@@ -90,10 +90,6 @@ function(use_oe_mbedtls name)
   )
 endfunction()
 
-if(NOT CCF_GENERATED_DIR)
-  set(CCF_GENERATED_DIR ${CCF_DIR}/generated)
-endif()
-
 # Enclave library wrapper
 function(add_ccf_app name)
 
