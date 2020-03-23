@@ -347,6 +347,17 @@ class Consortium:
         assert response.status == http.HTTPStatus.OK.value
         self.vote_using_majority(remote_node, response.result["proposal_id"])
 
+    def add_new_user_code(self, member_id, remote_node, new_code_id):
+        script = """
+        tables, code_digest = ...
+        return Calls:call("new_user_code", code_digest)
+        """
+        code_digest = list(bytearray.fromhex(new_code_id))
+        response = self.propose(member_id, remote_node, script, code_digest)
+        assert response.status == http.HTTPStatus.OK.value
+        self.vote_using_majority(remote_node, response.result["proposal_id"])
+
+
     def check_for_service(self, remote_node, status, pbft_open=False):
         """
         Check via the member frontend of the given node that the certificate
