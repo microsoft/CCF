@@ -122,11 +122,8 @@ find_package(MbedTLS REQUIRED)
 set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
 set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
-find_package(OpenEnclave CONFIG REQUIRED)
-# As well as pulling in openenclave:: targets, this sets variables which can be
-# used for our edge cases (eg - for virtual libraries). These do not follow the
-# standard naming patterns, for example use OE_INCLUDEDIR rather than
-# OpenEnclave_INCLUDE_DIRS
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
 add_custom_command(
   COMMAND openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir
@@ -137,9 +134,6 @@ add_custom_command(
   OUTPUT ${CCF_GENERATED_DIR}/ccf_t.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   COMMENT "Generating code from EDL, and renaming to .cpp"
 )
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
 # Copy utilities from tests directory
 set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh

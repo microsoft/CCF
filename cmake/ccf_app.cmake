@@ -27,6 +27,12 @@ if((NOT ${IS_VALID_TARGET}))
   )
 endif()
 
+find_package(OpenEnclave 0.8 CONFIG REQUIRED)
+# As well as pulling in openenclave:: targets, this sets variables which can be
+# used for our edge cases (eg - for virtual libraries). These do not follow the
+# standard naming patterns, for example use OE_INCLUDEDIR rather than
+# OpenEnclave_INCLUDE_DIRS
+
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   if(TARGET ${name})
