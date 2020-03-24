@@ -1,6 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+set(TARGET
+    "sgx;virtual"
+    CACHE STRING "One of sgx, virtual, or 'sgx;virtual'"
+)
+
 set(ALLOWED_TARGETS "sgx;virtual")
 set(IS_VALID_TARGET "FALSE")
 foreach(REQUESTED_TARGET ${TARGET})

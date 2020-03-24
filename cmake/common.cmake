@@ -117,11 +117,6 @@ include_directories(
   ${CCF_DIR}/3rdparty/flatbuffers/include
 )
 
-set(TARGET
-    "sgx;virtual"
-    CACHE STRING "One of sgx, virtual, or 'sgx;virtual'"
-)
-
 find_package(MbedTLS REQUIRED)
 
 set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
