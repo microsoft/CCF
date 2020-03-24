@@ -1,11 +1,9 @@
 - name: Include vars
   include_vars: common.yml
 
-- name: Download Open Enclave source
-  get_url:
-    url: "{{ oe_url }}"
-    dest: "{{ workspace }}/{{ oe_src }}"
-    force: yes
+- name: Install git
+  apt:
+    name: git
   become: true
 
 - name: Remove Pre-existing Open Enclave source on the remote
@@ -18,13 +16,11 @@
     path: "{{ workspace }}/openenclave-{{ oe_ver }}"
     state: directory
 
-- name: Expand Open Enclave
-  unarchive:
-    src: "{{ workspace }}/{{ oe_src }}"
+- name: Check out Open Enclave source
+  git:
+    repo: "{{ oe_repo }}"
     dest: "{{ workspace }}/openenclave-{{ oe_ver }}"
-    copy: no
-    extra_opts: [--strip-components=1]
-    creates: "{{ workspace }}/openenclave-{{ oe_ver }}/CMakeLists.txt"
+    version: "{{ oe_ver }}"
 
 - name: Make Open Enclave build dir
   file:
@@ -67,7 +63,7 @@
 
 - name: Build Open Enclave
   shell: |
-    cmake -GNinja -DCMAKE_INSTALL_PREFIX:PATH={{ oe_prefix }} -DCMAKE_BUILD_TYPE=RelWithDebInfo {{ oe_build_opts }} ..
+    cmake -GNinja -DCMAKE_INSTALL_PREFIX:PATH={{ oe_prefix }} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_SNMALLOC=ON {{ oe_build_opts }} ..
     ninja
   args:
     chdir: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
