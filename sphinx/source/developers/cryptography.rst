@@ -44,8 +44,13 @@ Algorithms and Curves
 
 Authenticated encryption in CCF relies on AES256-GCM. Ledger authentication relies on Merkle trees using SHA2-256. These algorithms are provided by `project Everest <https://project-everest.github.io/>`_.
 
-Public-key certificates, signatures, and ephemeral Diffie-Hellman key exchanges all rely on
-elliptic curves. They can be configured to use one of the following implementations:
+Public-key certificates, signatures, and ephemeral Diffie-Hellman key exchanges all rely on elliptic curves. The supported curves are listed in `tls/curve.h`:
 
- * secp384r1 from `mbedTLS <https://tls.mbed.org/>`_.
- * secp256k1 from `bitcoin core <https://github.com/bitcoin-core/secp256k1>`_.
+    .. literalinclude:: ../../../src/tls/curve.h
+        :language: cpp
+        :start-after: SNIPPET_START: supported_curves
+        :end-before: SNIPPET_END: supported_curves
+        :lines: 1
+        :dedent: 2
+
+The ``service_identity_curve_choice`` determines the curve used by CCF itself, and can be changed to another value if a different curve is preferred. User and member certificates do not need to match this, and can be created on any supported curve.

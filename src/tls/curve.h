@@ -12,6 +12,7 @@
 
 namespace tls
 {
+  // SNIPPET_START: supported_curves
   enum class CurveImpl
   {
     secp384r1 = 1,
@@ -23,6 +24,7 @@ namespace tls
 
     service_identity_curve_choice = secp384r1,
   };
+  // SNIPPET_END: supported_curves
 
   // 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
   // can be asked for explicitly via the CurveImpl enum. For cases where we
