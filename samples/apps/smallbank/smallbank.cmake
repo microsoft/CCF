@@ -103,8 +103,7 @@ if(BUILD_TESTS)
       backups
       --sign
       --participants-curve
-      "secp256k1
-   "
+      "secp256k1"
   )
 
 endif()
