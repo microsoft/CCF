@@ -3,16 +3,16 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "ds/files.h"
 #include "ds/logger.h"
-#include "enclave/appinterface.h"
+#include "enclave/app_interface.h"
 #include "http/http_rpc_context.h"
-#include "luainterp/luainterp.h"
+#include "luainterp/lua_interp.h"
 #include "node/encryptor.h"
-#include "node/genesisgen.h"
-#include "node/rpc/jsonhandler.h"
-#include "node/rpc/jsonrpc.h"
+#include "node/genesis_gen.h"
+#include "node/rpc/json_handler.h"
+#include "node/rpc/json_rpc.h"
 #include "node/rpc/test/node_stub.h"
 #include "runtime_config/default_whitelists.h"
-#include "tls/keypair.h"
+#include "tls/key_pair.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

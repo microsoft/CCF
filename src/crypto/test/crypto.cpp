@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "../cryptobox.h"
+#include "../crypto_box.h"
 #include "../hash.h"
-#include "../symmkey.h"
-#include "tls/base64.h"
+#include "../symmetric_key.h"
+#include "tls/base_64.h"
 #include "tls/entropy.h"
 
 #include <doctest/doctest.h>

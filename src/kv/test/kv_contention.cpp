@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "../kv.h"
-#include "../kvserialiser.h"
+#include "../kv_serialiser.h"
 #include "ds/logger.h"
-#include "enclave/appinterface.h"
+#include "enclave/app_interface.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 

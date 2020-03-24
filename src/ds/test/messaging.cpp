@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "../messaging.h"
 
-#include "../nonblocking.h"
-#include "../ringbuffer.h"
+#include "../non_blocking.h"
+#include "../ring_buffer.h"
 #include "../serialized.h"
 
 #include <array>

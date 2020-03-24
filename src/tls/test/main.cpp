@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../25519.h"
-#include "../base64.h"
-#include "../keypair.h"
+#include "../base_64.h"
+#include "../key_pair.h"
 #include "../verifier.h"
 
 #include <chrono>

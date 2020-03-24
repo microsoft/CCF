@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "../secretshare.h"
+#include "../secret_share.h"
 
 #include <doctest/doctest.h>
 #include <iomanip>

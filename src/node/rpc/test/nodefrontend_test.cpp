@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "crypto/cryptobox.h"
+#include "crypto/crypto_box.h"
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
-#include "node/genesisgen.h"
-#include "node/rpc/jsonrpc.h"
-#include "node/rpc/nodefrontend.h"
+#include "node/genesis_gen.h"
+#include "node/rpc/json_rpc.h"
+#include "node/rpc/node_frontend.h"
 #include "node_stub.h"
 #include "tls/pem.h"
 #include "tls/verifier.h"

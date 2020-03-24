@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 #define PICOBENCH_DONT_BIND_TO_ONE_CORE
-#include "../ringbuffer.h"
+#include "../ring_buffer.h"
 
 #include <picobench/picobench.hpp>
 #include <thread>
