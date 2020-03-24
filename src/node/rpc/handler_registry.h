@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/json_schema.h"
-#include "enclave/rpccontext.h"
+#include "enclave/rpc_context.h"
 #include "http/http_consts.h"
 #include "node/certs.h"
 #include "serialization.h"

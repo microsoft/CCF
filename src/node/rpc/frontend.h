@@ -1,18 +1,18 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "commonhandlerregistry.h"
-#include "consensus/pbft/pbftrequests.h"
-#include "consensus/pbft/pbfttables.h"
+#include "commonhandler_registry.h"
+#include "consensus/pbft/pbft_requests.h"
+#include "consensus/pbft/pbft_tables.h"
 #include "consts.h"
 #include "ds/buffer.h"
-#include "ds/spinlock.h"
-#include "enclave/rpchandler.h"
+#include "ds/spin_lock.h"
+#include "enclave/rpc_handler.h"
 #include "forwarder.h"
-#include "node/clientsignatures.h"
+#include "node/client_signatures.h"
 #include "node/nodes.h"
-#include "notifierinterface.h"
-#include "rpcexception.h"
+#include "notifier_interface.h"
+#include "rpc_exception.h"
 #include "tls/verifier.h"
 
 #include <fmt/format_header_only.h>

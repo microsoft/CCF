@@ -3,7 +3,7 @@
 #pragma once
 #include "consensus/pbft/libbyz/ITimer.h"
 #include "consensus/pbft/libbyz/Statistics.h"
-#include "node/nodetonode.h"
+#include "node/node_to_node.h"
 
 #include <signal.h>
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/messaging.h"
-#include "everyio.h"
+#include "every_io.h"
 #include "tcp.h"
 
 #include <curl/curl.h>

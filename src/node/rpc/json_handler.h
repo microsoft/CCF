@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/rpccontext.h"
-#include "handlerregistry.h"
+#include "enclave/rpc_context.h"
+#include "handler_registry.h"
 #include "http/http_consts.h"
-#include "node/rpc/jsonrpc.h"
+#include "node/rpc/json_rpc.h"
 
 #include <http-parser/http_parser.h>
 

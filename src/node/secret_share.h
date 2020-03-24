@@ -12,7 +12,7 @@
 
 extern "C"
 {
-#include "tls/randombytes.h"
+#include "tls/random_bytes.h"
 
 #include <sss/sss.h>
 }

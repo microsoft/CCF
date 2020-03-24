@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/logger.h"
-#include "ds/spinlock.h"
+#include "ds/spin_lock.h"
 
 #include <chrono>
 #include <functional>

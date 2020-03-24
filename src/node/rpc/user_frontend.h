@@ -3,7 +3,7 @@
 #pragma once
 
 #include "frontend.h"
-#include "node/clientsignatures.h"
+#include "node/client_signatures.h"
 #include "node/networktables.h"
 
 namespace ccf

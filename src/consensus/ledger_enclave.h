@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/ledgerenclavetypes.h"
+#include "consensus/ledger_enclave_types.h"
 #include "ds/serialized.h"
 
 #include <algorithm>

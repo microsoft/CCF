@@ -291,13 +291,13 @@ if(BUILD_TESTS)
 
   add_unit_test(
     secretsharing_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secretshare.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
   )
   target_link_libraries(secretsharing_test PRIVATE sss.host)
 
   add_unit_test(
     encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmetric_key.cpp
   )
   use_client_mbedtls(encryptor_test)
   target_link_libraries(encryptor_test PRIVATE secp256k1.host)
@@ -313,7 +313,7 @@ if(BUILD_TESTS)
   )
 
   add_unit_test(
-    keyexchange_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/keyexchange.cpp
+    keyexchange_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
   )
   use_client_mbedtls(keyexchange_test)
   target_link_libraries(keyexchange_test PRIVATE secp256k1.host)
@@ -366,8 +366,8 @@ if(BUILD_TESTS)
 
   add_unit_test(
     luageneric_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/test/luageneric_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/test/lua_generic_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/lua_generic.cpp
   )
   target_include_directories(luageneric_test PRIVATE ${LUA_DIR})
   target_link_libraries(
@@ -376,7 +376,7 @@ if(BUILD_TESTS)
 
   add_unit_test(
     lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/luakv.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_kv.cpp
   )
   target_include_directories(lua_test PRIVATE ${LUA_DIR})
   target_link_libraries(lua_test PRIVATE lua.host)
@@ -404,7 +404,7 @@ if(BUILD_TESTS)
     INCLUDE_DIRS ${EVERCRYPT_INC}
   )
   add_picobench(
-    kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp
+    kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
 
@@ -504,7 +504,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS raft
     ADDITIONAL_ARGS --js-app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/loggingjs.lua
+                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
   )
 
   if(QUOTES_ENABLED)

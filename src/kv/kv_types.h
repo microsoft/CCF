@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensustypes.h"
+#include "consensus/consensus_types.h"
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
 

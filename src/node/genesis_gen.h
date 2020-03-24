@@ -1,13 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "codeid.h"
+#include "code_id.h"
 #include "entities.h"
-#include "luainterp/luainterp.h"
-#include "luainterp/luautil.h"
+#include "luainterp/lua_interp.h"
+#include "luainterp/lua_util.h"
 #include "members.h"
 #include "networktables.h"
-#include "nodeinfonetwork.h"
+#include "node_info_network.h"
 #include "nodes.h"
 #include "rpc/consts.h"
 #include "runtime_config/default_whitelists.h"

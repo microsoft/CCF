@@ -2,15 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "frontend.h"
-#include "luainterp/txscriptrunner.h"
-#include "node/genesisgen.h"
+#include "luainterp/tx_script_runner.h"
+#include "node/genesis_gen.h"
 #include "node/members.h"
 #include "node/nodes.h"
 #include "node/quote.h"
-#include "node/secretshare.h"
-#include "node/sharemanager.h"
-#include "nodeinterface.h"
-#include "tls/keypair.h"
+#include "node/secret_share.h"
+#include "node/share_manager.h"
+#include "node_interface.h"
+#include "tls/key_pair.h"
 
 #include <exception>
 #include <initializer_list>

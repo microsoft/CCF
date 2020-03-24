@@ -3,9 +3,9 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "node/identity.h"
-#include "node/ledgersecrets.h"
+#include "node/ledger_secrets.h"
 #include "node/nodes.h"
-#include "nodecalltypes.h"
+#include "nodecall_types.h"
 
 #include <nlohmann/json.hpp>
 

@@ -3,9 +3,9 @@
 #pragma once
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/pbft_assert.h"
-#include "enclave/rpchandler.h"
-#include "enclave/rpcmap.h"
-#include "pbftdeps.h"
+#include "enclave/rpc_handler.h"
+#include "enclave/rpc_map.h"
+#include "pbft_deps.h"
 
 namespace pbft
 {

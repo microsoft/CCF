@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "luautil.h"
+#include "lua_util.h"
 
 #include <typeinfo>
 
 /**
- * @file luauserdata.h
+ * @file lua_user_data.h
  * @brief Helper to hide common lua boilerplate
  *
  * To pass data from C++ to lua, we push userdata onto the stack. This
@@ -130,7 +130,7 @@ namespace ccf
     /**
      * @brief specialization of push_raw() that 'boxes' pointers.
      * Disabled for const char* as we want to treat those as strings (see
-     * luautil.h).
+     * lua_util.h).
      *
      * @tparam T object type of the pointer
      * @param l Lua context

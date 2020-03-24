@@ -3,8 +3,8 @@
 #pragma once
 
 #include "node/entities.h"
-#include "node/secretshare.h"
-#include "nodecalltypes.h"
+#include "node/secret_share.h"
+#include "nodecall_types.h"
 
 namespace ccf
 {

@@ -4,8 +4,8 @@
 
 #include "../ds/msgpack_adaptor_nlohmann.h"
 #include "../ds/serialized.h"
-#include "genericserialisewrapper.h"
-#include "kvtypes.h"
+#include "generic_serialise_wrapper.h"
+#include "kv_types.h"
 
 #include <iterator>
 #include <msgpack/msgpack.hpp>

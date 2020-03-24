@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/pbftpreprepares.h"
+#include "consensus/pbft/pbft_pre_prepares.h"
 #include "ds/ringbuffer_types.h"
-#include "kv/kvtypes.h"
+#include "kv/kv_types.h"
 #include "node/signatures.h"
 
 namespace pbft

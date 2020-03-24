@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "luauserdata.h"
+#include "lua_user_data.h"
 
 #include <nlohmann/json.hpp>
 
 /**
- * @file luajson.h
+ * @file lua_json.h
  * @brief Convert between nlohmann::json and lua
  */
 namespace ccf

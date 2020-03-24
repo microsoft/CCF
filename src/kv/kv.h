@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/champmap.h"
-#include "ds/dllist.h"
+#include "ds/champ_map.h"
+#include "ds/dl_list.h"
 #include "ds/logger.h"
-#include "ds/spinlock.h"
-#include "kvtypes.h"
+#include "ds/spin_lock.h"
+#include "kv_types.h"
 
 #include <functional>
 #include <iostream>

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "consts.h"
-#include "handlerregistry.h"
-#include "jsonhandler.h"
+#include "handler_registry.h"
+#include "json_handler.h"
 #include "metrics.h"
 
 namespace ccf

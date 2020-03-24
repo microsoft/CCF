@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmkey.h"
+#include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "entities.h"
 #include "tls/keyexchange.h"
-#include "tls/keypair.h"
+#include "tls/key_pair.h"
 
 #include <iostream>
 #include <map>

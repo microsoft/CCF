@@ -4,7 +4,7 @@
 
 #include "ds/logger.h"
 #include "ds/messaging.h"
-#include "ds/ringbuffer.h"
+#include "ds/ring_buffer.h"
 #include "endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"

@@ -5,7 +5,7 @@
 #include "ds/logger.h"
 #include "tls/entropy.h"
 #include "tls/error_string.h"
-#include "tls/keypair.h"
+#include "tls/key_pair.h"
 
 #ifdef MOD_MBEDTLS
 #  include <everest/x25519.h>

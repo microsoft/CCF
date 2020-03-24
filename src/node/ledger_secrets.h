@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmkey.h"
+#include "crypto/symmetric_key.h"
 #include "ds/logger.h"
-#include "kv/kvtypes.h"
+#include "kv/kv_types.h"
 #include "tls/entropy.h"
 
 #include <algorithm>

@@ -9,7 +9,7 @@
 #include "Partition.h"
 #include "Reply.h"
 #include "Time.h"
-#include "ds/spinlock.h"
+#include "ds/spin_lock.h"
 #include "types.h"
 
 #include <memory>

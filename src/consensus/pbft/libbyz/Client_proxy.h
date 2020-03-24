@@ -11,7 +11,7 @@
 #include "Reply.h"
 #include "Request.h"
 #include "ds/logger.h"
-#include "ds/spinlock.h"
+#include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
 #include "libbyz.h"
 #include "pbft_assert.h"

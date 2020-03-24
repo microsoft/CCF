@@ -3,7 +3,7 @@
 #pragma once
 
 #include "node/entities.h"
-#include "rpchandler.h"
+#include "rpc_handler.h"
 
 namespace enclave
 {

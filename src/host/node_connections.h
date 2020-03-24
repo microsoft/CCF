@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensustypes.h"
-#include "consensus/pbft/pbfttypes.h"
-#include "consensus/raft/rafttypes.h"
+#include "consensus/consensus_types.h"
+#include "consensus/pbft/pbft_types.h"
+#include "consensus/raft/raft_types.h"
 #include "ledger.h"
 #include "node/nodetypes.h"
 #include "tcp.h"

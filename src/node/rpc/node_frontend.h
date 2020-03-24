@@ -5,9 +5,9 @@
 #include "crypto/hash.h"
 #include "frontend.h"
 #include "node/entities.h"
-#include "node/networkstate.h"
+#include "node/network_state.h"
 #include "node/quote.h"
-#include "nodeinterface.h"
+#include "node_interface.h"
 
 namespace ccf
 {

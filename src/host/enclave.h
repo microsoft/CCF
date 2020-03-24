@@ -5,7 +5,7 @@
 #include "crypto/hash.h"
 #include "ds/logger.h"
 #include "enclave/interface.h"
-#include "tls/keypair.h"
+#include "tls/key_pair.h"
 
 #include <dlfcn.h>
 #include <msgpack/msgpack.hpp>

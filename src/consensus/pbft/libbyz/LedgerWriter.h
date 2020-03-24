@@ -4,9 +4,9 @@
 
 #include "Prepared_cert.h"
 #include "View_change.h"
-#include "consensus/pbft/pbftpreprepares.h"
-#include "consensus/pbft/pbftrequests.h"
-#include "consensus/pbft/pbfttypes.h"
+#include "consensus/pbft/pbft_pre_prepares.h"
+#include "consensus/pbft/pbft_requests.h"
+#include "consensus/pbft/pbft_types.h"
 #include "kv/kv.h"
 #include "ledger.h"
 #include "node/signatures.h"

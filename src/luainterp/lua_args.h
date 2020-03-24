@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "luajson.h"
-#include "luautil.h"
+#include "lua_json.h"
+#include "lua_util.h"
 #include "node/rpc/frontend.h"
-#include "node/rpc/jsonhandler.h"
+#include "node/rpc/json_handler.h"
 
 /**
  * @file luarpcargs.h

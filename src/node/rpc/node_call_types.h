@@ -3,10 +3,10 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "node/identity.h"
-#include "node/ledgersecrets.h"
+#include "node/ledger_secrets.h"
 #include "node/members.h"
-#include "node/networkencryption.h"
-#include "node/nodeinfonetwork.h"
+#include "node/network_encryption.h"
+#include "node/node_info_network.h"
 
 #include <nlohmann/json.hpp>
 

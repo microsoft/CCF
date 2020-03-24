@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/rpc/userfrontend.h"
+#include "node/rpc/user_frontend.h"
 
 namespace ccfapp
 {

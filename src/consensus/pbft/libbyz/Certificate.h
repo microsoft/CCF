@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "../src/consensus/consensustypes.h"
+#include "../src/consensus/consensus_types.h"
 #include "Message.h"
 #include "Node.h"
 #include "Time.h"

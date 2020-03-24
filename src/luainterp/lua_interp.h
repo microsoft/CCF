@@ -12,10 +12,10 @@ extern "C"
 {
 #include "../../3rdparty/lua/lualib.h"
 }
-#include "luajson.h"
+#include "lua_json.h"
 
 /**
- * @file luainterp.h
+ * @file lua_interp.h
  * @brief Lua interpreter and associated helpers
  */
 namespace ccf

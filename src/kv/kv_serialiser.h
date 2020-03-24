@@ -4,7 +4,7 @@
 #pragma once
 
 #ifdef USE_NLJSON_KV_SERIALISER
-#  include "kv/nljsonserialise.h"
+#  include "kv/nljson_serialise.h"
 #else
-#  include "kv/msgpackserialise.h"
+#  include "kv/msg_pack_serialise.h"
 #endif

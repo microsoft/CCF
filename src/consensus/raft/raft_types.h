@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensustypes.h"
+#include "consensus/consensus_types.h"
 #include "ds/ringbuffer_types.h"
 
 #include <chrono>

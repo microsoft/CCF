@@ -8,7 +8,7 @@
 #include "Digest.h"
 #include "Message.h"
 #include "Prepare.h"
-#include "tls/keypair.h"
+#include "tls/key_pair.h"
 #include "types.h"
 
 class Principal;

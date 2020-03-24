@@ -7,8 +7,8 @@
 #include "consensus/pbft/libbyz/Statistics.h"
 #include "consensus/pbft/libbyz/Time.h"
 #include "consensus/pbft/libbyz/types.h"
-#include "node/nodetonode.h"
-#include "pbfttypes.h"
+#include "node/node_to_node.h"
+#include "pbft_types.h"
 
 #include <signal.h>
 
