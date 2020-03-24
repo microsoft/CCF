@@ -42,7 +42,7 @@ option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   # enclave version
   add_library(
     ccf.enclave STATIC
@@ -94,7 +94,7 @@ if("sgx" IN_LIST TARGET)
   add_dependencies(ccf ccf.enclave)
 endif()
 
-if("virtual" IN_LIST TARGET)
+if("virtual" IN_LIST COMPILE_TARGETS)
   # virtual version
   add_library(
     ccf.virtual STATIC ${CCF_DIR}/src/enclave/main.cpp

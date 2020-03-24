@@ -156,7 +156,7 @@ install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
         DESTINATION bin
 )
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
   if(OE_SGX)
     message(STATUS "Linking SGX")
@@ -236,7 +236,7 @@ function(add_unit_test name)
   set_property(TEST ${name} APPEND PROPERTY LABELS unit_test)
 endfunction()
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   # Host Executable
   add_executable(
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
@@ -264,7 +264,7 @@ if("sgx" IN_LIST TARGET)
   install(TARGETS cchost DESTINATION bin)
 endif()
 
-if("virtual" IN_LIST TARGET)
+if("virtual" IN_LIST COMPILE_TARGETS)
   if(SAN)
     set(SNMALLOC_LIB)
     set(SNMALLOC_CPP)
@@ -465,7 +465,7 @@ function(add_perf_test)
   endif()
 
   set(TESTS_SUFFIX "")
-  if("sgx" IN_LIST TARGET)
+  if("sgx" IN_LIST COMPILE_TARGETS)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_SGX")
   endif()
   if("raft" STREQUAL ${PARSED_ARGS_CONSENSUS})

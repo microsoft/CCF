@@ -54,7 +54,7 @@ set(PBFT_SRC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/Append_entries.cpp
 )
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(libbyz.enclave STATIC ${PBFT_SRC})
   target_compile_options(libbyz.enclave PRIVATE -nostdinc)
   target_compile_definitions(
@@ -76,7 +76,7 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if("virtual" IN_LIST TARGET)
+if("virtual" IN_LIST COMPILE_TARGETS)
 
   add_library(libbyz.host STATIC ${PBFT_SRC})
   target_compile_options(libbyz.host PRIVATE -stdlib=libc++)

@@ -11,7 +11,7 @@ set(SSS_SRC ${SSS_PREFIX}/sss.c ${SSS_PREFIX}/hazmat.c
             ${SSS_PREFIX}/tweetnacl.c
 )
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(sss.enclave STATIC ${SSS_SRC})
   set_property(TARGET sss.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   install(
