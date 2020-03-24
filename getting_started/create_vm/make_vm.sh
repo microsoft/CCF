@@ -5,8 +5,7 @@
 set -e
 
 if [ "$#" -lt 1 ]; then
-  echo "Usage: $0 takes at least an Azure subscription name,"
-  echo "       and an optional path to an SSH public key"
+  echo "Usage: $0 SUBSCRIPTION_NAME [path/to/ssh/public/key]"
   exit 1
 fi
 
