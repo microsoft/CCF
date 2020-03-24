@@ -16,15 +16,25 @@ sign_app_library(
 
 function(get_verification_file iterations output_var)
   math(EXPR thousand_iterations "${iterations} / 1000")
-  set(proposed_name ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_${thousand_iterations}k.json)
+  set(proposed_name
+      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_${thousand_iterations}k.json
+  )
   if(NOT EXISTS "${proposed_name}")
-    message(FATAL_ERROR "Could not find verification file for ${iterations} iterations (looking for ${proposed_name})")
+    message(
+      FATAL_ERROR
+        "Could not find verification file for ${iterations} iterations (looking for ${proposed_name})"
+    )
   endif()
-  set(${output_var} ${proposed_name} PARENT_SCOPE)
+  set(${output_var}
+      ${proposed_name}
+      PARENT_SCOPE
+  )
 endfunction()
 
 set(SMALL_BANK_SIGNED_ITERATIONS 50000)
-get_verification_file(${SMALL_BANK_SIGNED_ITERATIONS} SMALL_BANK_SIGNED_VERIFICATION_FILE)
+get_verification_file(
+  ${SMALL_BANK_SIGNED_ITERATIONS} SMALL_BANK_SIGNED_VERIFICATION_FILE
+)
 
 if(BUILD_TESTS)
   # Small Bank end to end and performance test
