@@ -28,7 +28,7 @@ else
   echo "Checking file format in" "$@"
 fi
 
-file_name_regex="[a-z0-9_]+"
+file_name_regex="[[[:lower:]]0-9_]+"
 unformatted_files=""
 badly_named_files=""
 for file in $(find "$@" -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -name "*.c"); do
