@@ -6,7 +6,11 @@ RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 RUN mkdir -p /etc/init
 
 COPY getting_started/setup_vm/ /setup_vm/
-RUN apt update && apt install -y ansible software-properties-common
-RUN cd setup_vm; ansible-playbook ccf-dependencies-no-driver.yml ci-dependencies.yml
-
-RUN rm -rf /tmp/* && apt clean
+RUN apt update \
+    && apt install -y ansible software-properties-common \
+    && cd setup_vm \
+    && ansible-playbook ccf-dependencies-no-driver.yml ci-dependencies.yml \
+    && rm -rf /tmp/* \
+    && apt remove -y software-properties-common \
+    && apt -y autoremove \
+    && apt -y clean

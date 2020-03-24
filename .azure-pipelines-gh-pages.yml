@@ -3,7 +3,7 @@ trigger:
 
 jobs:
 - job: build_and_publish_docs
-  container: ccfciteam/ccf-ci-18.04-oe-0.7.0-sgx:latest
+  container: ccfciteam/ccf-ci-18.04-oe-8fe3697:latest
   pool: Ubuntu-1804-D16s_v3
 
   steps:
