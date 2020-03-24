@@ -4,7 +4,7 @@
 #include "../crypto_box.h"
 #include "../hash.h"
 #include "../symmetric_key.h"
-#include "tls/base_64.h"
+#include "tls/base64.h"
 #include "tls/entropy.h"
 
 #include <doctest/doctest.h>

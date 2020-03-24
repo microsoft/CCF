@@ -5,7 +5,7 @@
 #include "rpc_tls_client.h"
 
 #include <nlohmann/json.hpp>
-#include <tls/base_64.h>
+#include <tls/base64.h>
 
 class SigHttpRpcTlsClient : public HttpRpcTlsClient
 {
