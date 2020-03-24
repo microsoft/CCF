@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include <string>
 #include <functional>
-#include <msgpack.hpp>
+#include <msgpack/msgpack.hpp>
 #include "crypto/hash.h"
 
 namespace ccfapp

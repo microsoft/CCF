@@ -88,7 +88,7 @@ namespace tpcc
                     << " To: " 
                     << date_to_str 
                     << std::endl;
-          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Could not parse date_from");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Could not parse date_from");
         }
         
         std::time_t date_from = mktime(&date_from_tm);
@@ -96,7 +96,7 @@ namespace tpcc
 
         if (std::difftime(date_to, date_from) < 0) {
           std::cout << "Error! From date:\n\t" << date_from_str << "must be before To date:\n\t" << date_to_str << std::endl;
-          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS,
+          return make_error(HTTP_STATUS_BAD_REQUEST,
             "From date must be before To date");
         }
 
@@ -152,7 +152,7 @@ namespace tpcc
         if (!d_result.has_value())
         {
           std::cout << "Error! District not found" << std::endl;
-          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "District Not Found");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "District Not Found");
         }
 
         District d = d_result.value();
@@ -174,7 +174,7 @@ namespace tpcc
         
         if (!w_result.has_value())
         {
-          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Warehouse Not Found");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Warehouse Not Found");
         }
 
         Warehouse w = w_result.value();
@@ -191,7 +191,7 @@ namespace tpcc
         if (!c_result.has_value())
         {
           std::cout << "Error! Customer not found" << std::endl;
-          return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Customer Not Found");
+          return make_error(HTTP_STATUS_BAD_REQUEST, "Customer Not Found");
         }
 
         Customer c = c_result.value();
@@ -256,7 +256,7 @@ namespace tpcc
           {
             // 'not-found' signal, item was not found in store
             std::cout << "Error! Item not found. Key: " << i_id << std::endl;
-            return make_error(jsonrpc::StandardErrorCodes::INTERNAL_ERROR, "Item Not Found");
+            return make_error(HTTP_STATUS_INTERNAL_SERVER_ERROR, "Item Not Found");
           }
 
           Item item = i_result.value();
@@ -274,7 +274,7 @@ namespace tpcc
           if (!s_result.has_value())
           {
             std::cout << "Error! Stock not found. Key: (" << i_w_id << ", " << i_id << ")" << std::endl;
-            return make_error(jsonrpc::StandardErrorCodes::INVALID_PARAMS, "Stock Not Found");
+            return make_error(HTTP_STATUS_BAD_REQUEST, "Stock Not Found");
           }
 
           Stock stock = s_result.value();
@@ -580,17 +580,17 @@ namespace tpcc
         return make_success(load_count);
       };
 
-      install(Procs::TPCC_QUERY_ORDER_HISTORY, handler_adapter(queryOrderHistory), HandlerRegistry::Read);
-      install(Procs::TPCC_NEW_ORDER, handler_adapter(newOrder), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_ITEMS, handler_adapter(loadItems), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_WAREHOUSE, handler_adapter(loadWarehouse), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_STOCKS, handler_adapter(loadStocks), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_DISTRICT, handler_adapter(loadDistrict), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_CUSTOMER, handler_adapter(loadCustomer), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_HISTORY, handler_adapter(loadHistory), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_ORDER, handler_adapter(loadOrder), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_ORDER_LINES, handler_adapter(loadOrderLines), HandlerRegistry::Write);
-      install(Procs::TPCC_LOAD_NEW_ORDERS, handler_adapter(loadNewOrders), HandlerRegistry::Write);
+      install(Procs::TPCC_QUERY_ORDER_HISTORY, json_adapter(queryOrderHistory), HandlerRegistry::Read);
+      install(Procs::TPCC_NEW_ORDER, json_adapter(newOrder), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_ITEMS, json_adapter(loadItems), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_WAREHOUSE, json_adapter(loadWarehouse), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_STOCKS, json_adapter(loadStocks), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_DISTRICT, json_adapter(loadDistrict), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_CUSTOMER, json_adapter(loadCustomer), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_HISTORY, json_adapter(loadHistory), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_ORDER, json_adapter(loadOrder), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_ORDER_LINES, json_adapter(loadOrderLines), HandlerRegistry::Write);
+      install(Procs::TPCC_LOAD_NEW_ORDERS, json_adapter(loadNewOrders), HandlerRegistry::Write);
     }
   };
 
@@ -609,7 +609,7 @@ namespace tpcc
   };
 } // namespace tpcc
 
-  std::shared_ptr<enclave::RpcHandler> get_rpc_handler(
+  std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
     NetworkTables& nwt, AbstractNotifier& notifier)
   {
     return std::make_shared<tpcc::Tpcc>(*nwt.tables);

@@ -95,10 +95,11 @@ private:
     for (decltype(num_transactions) i = 0; i < num_transactions - 1; i++)
     {
       // Add new order transactions
-      // json params = generate_new_order_params();
-      // add_prepared_tx("TPCC_new_order", params, true, i);
-      json query_params = generate_query_history_params();
-      add_prepared_tx("TPCC_query_order_history", query_params, true, i);
+      json params = generate_new_order_params();
+      add_prepared_tx("TPCC_new_order", params, true, i);
+
+      // json query_params = generate_query_history_params();
+      // add_prepared_tx("TPCC_query_order_history", query_params, true, i);
     }
 
     // Add History query transactions (after new orders)
@@ -106,10 +107,15 @@ private:
     // add_prepared_tx("TPCC_query_order_history", query_params, true, num_transactions - 1);
   }
 
-  bool check_response(const json& j) override {
-    cout << "Response: " << j << endl;
+  bool check_response(const RpcTlsClient::Response& r) override {
+    if (r.status != HTTP_STATUS_OK)
+    {
+      const std::string error_msg(r.body.begin(), r.body.end());
+      throw logic_error(error_msg);
+      return false;
+    }
 
-    return j.find("error") == j.end();
+    return true;
   }
 
   json generate_new_order_params()
@@ -208,7 +214,7 @@ private:
     }
 
     auto response = connection->call("TPCC_load_items", items_array);
-    handle_response(response, "TPCC_load_items");
+    handle_response(response, "TPCC_load_items", connection);
   }
 
   void load_warehouse(const ConnPtr& connection, std::uint64_t w_id)
@@ -219,7 +225,7 @@ private:
     warehouse["value"] = make_warehouse();
 
     auto response = connection->call("TPCC_load_warehouse", warehouse);
-    handle_response(response, "TPCC_load_warehouse");
+    handle_response(response, "TPCC_load_warehouse", connection);
   }
 
   void load_stocks(const ConnPtr& connection, std::uint64_t w_id)
@@ -244,7 +250,7 @@ private:
     }
 
     auto response = connection->call("TPCC_load_stocks", stocks_array);
-    handle_response(response, "TPCC_load_stocks");
+    handle_response(response, "TPCC_load_stocks", connection);
   }
 
   void load_district(const ConnPtr& connection, uint64_t d_id, uint64_t w_id)
@@ -258,7 +264,7 @@ private:
     district["value"] = make_district();
 
     auto response = connection->call("TPCC_load_district", district);
-    handle_response(response, "TPCC_load_district");
+    handle_response(response, "TPCC_load_district", connection);
   }
   
   void load_customer(const ConnPtr& connection, uint64_t c_id, uint64_t d_id, uint64_t w_id, bool bad_credit)
@@ -273,7 +279,7 @@ private:
     customer["value"] = make_customer(c_id, bad_credit);
 
     auto response = connection->call("TPCC_load_customer", customer);
-    handle_response(response, "TPCC_load_customer");
+    handle_response(response, "TPCC_load_customer", connection);
   }
 
   void load_history(const ConnPtr& connection, uint64_t c_id, uint64_t d_id, uint64_t w_id)
@@ -283,7 +289,7 @@ private:
     history["value"] = make_history(c_id, d_id, w_id);
 
     auto response = connection->call("TPCC_load_history", history);
-    handle_response(response, "TPCC_load_history");
+    handle_response(response, "TPCC_load_history", connection);
   }
 
   void load_order(const ConnPtr& connection, uint64_t o_id, uint64_t o_ol_cnt, uint64_t d_id, uint64_t w_id, uint64_t c_id)
@@ -298,7 +304,7 @@ private:
     order["value"] = make_order(o_ol_cnt, c_id, o_id >= 2101);
 
     auto response = connection->call("TPCC_load_order", order);
-    handle_response(response, "TPCC_load_order");
+    handle_response(response, "TPCC_load_order", connection);
   }
 
   void load_order_lines(const ConnPtr& connection, uint64_t o_id, uint64_t o_ol_cnt, uint64_t d_id, uint64_t w_id)
@@ -320,7 +326,7 @@ private:
     }
 
     auto response = connection->call("TPCC_load_order_lines", order_lines_array);
-    handle_response(response, "TPCC_load_order_lines");
+    handle_response(response, "TPCC_load_order_lines", connection);
   }
 
   void load_new_orders(const ConnPtr& connection, uint64_t start, uint64_t end, uint64_t d_id, uint64_t w_id)
@@ -347,7 +353,7 @@ private:
     }
 
     auto response = connection->call("TPCC_load_new_orders", new_orders_array);
-    handle_response(response, "TPCC_load_new_orders");
+    handle_response(response, "TPCC_load_new_orders", connection);
   }
 
   /* Individual tuple generators */
@@ -515,10 +521,11 @@ private:
     return rand_nstring(4, 4) + "11111";
   }
 
-  void handle_response(json response, std::string rpc_endpoint) {
-    if (response.find("result") == response.end())
+  void handle_response(HttpRpcTlsClient::Response response, std::string rpc_endpoint, const ConnPtr& conn) {
+    auto response_body = conn->unpack_body(response);
+    if (response_body.find("result") == response_body.end())
     {
-      throw std::runtime_error("[" + rpc_endpoint + "] Response Error: " + response.dump());
+      throw std::runtime_error("[" + rpc_endpoint + "] Response Error: " + response_body.dump());
     }
   }
 
