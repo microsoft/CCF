@@ -711,6 +711,8 @@ namespace ccf
       if (consensus->is_primary())
       {
         Store::Tx tx;
+        share_manager.create(tx);
+
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
