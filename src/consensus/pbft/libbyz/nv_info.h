@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Pre_prepare_info.h"
-#include "Time.h"
+#include "digest.h"
+#include "pre_prepare_info.h"
+#include "time.h"
 #include "parameters.h"
 #include "types.h"
 

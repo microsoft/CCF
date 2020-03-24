@@ -3,9 +3,9 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Message.h"
+#include "message.h"
 
-#include "Node.h"
+#include "node.h"
 #include "pbft_assert.h"
 
 #include <stdlib.h>

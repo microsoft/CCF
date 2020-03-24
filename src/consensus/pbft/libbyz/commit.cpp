@@ -3,12 +3,12 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Commit.h"
+#include "commit.h"
 
-#include "Message_tags.h"
-#include "Node.h"
-#include "Principal.h"
-#include "Replica.h"
+#include "message_tags.h"
+#include "node.h"
+#include "principal.h"
+#include "replica.h"
 #include "pbft_assert.h"
 
 Commit::Commit(View v, Seqno s) :

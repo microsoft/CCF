@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "Certificate.h"
-#include "Node.h"
+#include "certificate.h"
+#include "node.h"
 #include "libbyz.h"
 #include "types.h"
 

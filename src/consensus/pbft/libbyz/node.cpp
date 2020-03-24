@@ -3,13 +3,13 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Node.h"
+#include "node.h"
 
-#include "ITimer.h"
-#include "Message.h"
-#include "Message_tags.h"
-#include "Principal.h"
-#include "Time.h"
+#include "itimer.h"
+#include "message.h"
+#include "message_tags.h"
+#include "principal.h"
+#include "time.h"
 #include "crypt.h"
 #include "ds/logger.h"
 #include "parameters.h"
@@ -33,7 +33,7 @@
 #endif
 
 // Enable statistics
-#include "Statistics.h"
+#include "statistics.h"
 
 Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
 {

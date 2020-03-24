@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Message.h"
+#include "digest.h"
+#include "message.h"
 #include "tls/key_pair.h"
 #include "types.h"
 

@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Log.h"
-#include "NV_info.h"
-#include "Node.h"
-#include "Pre_prepare.h"
+#include "digest.h"
+#include "log.h"
+#include "nv_info.h"
+#include "node.h"
+#include "pre_prepare.h"
 #include "types.h"
 
 #include <memory>

@@ -3,9 +3,9 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "ITimer.h"
+#include "itimer.h"
 
-#include "Cycle_counter.h"
+#include "cycle_counter.h"
 #include "types.h"
 
 #include <signal.h>

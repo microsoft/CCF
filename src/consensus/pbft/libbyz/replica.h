@@ -5,29 +5,29 @@
 
 #pragma once
 
-#include "Big_req_table.h"
-#include "Certificate.h"
-#include "Digest.h"
-#include "LedgerWriter.h"
-#include "Log.h"
-#include "Network_open.h"
-#include "New_principal.h"
-#include "Node.h"
-#include "Partition.h"
-#include "Prepared_cert.h"
-#include "Req_queue.h"
-#include "Stable_estimator.h"
-#include "State.h"
-#include "View_info.h"
-#include "globalstate.h"
+#include "big_req_table.h"
+#include "certificate.h"
+#include "digest.h"
+#include "ledger_writer.h"
+#include "log.h"
+#include "network_open.h"
+#include "new_principal.h"
+#include "node.h"
+#include "partition.h"
+#include "prepared_cert.h"
+#include "req_queue.h"
+#include "stable_estimator.h"
+#include "state.h"
+#include "view_info.h"
+#include "global_state.h"
 #include "libbyz.h"
 #include "receive_message_base.h"
 #include "types.h"
 
 #ifdef ENFORCE_EXACTLY_ONCE
-#  include "Rep_info_exactly_once.h"
+#  include "rep_info_exactly_once.h"
 #else
-#  include "Rep_info.h"
+#  include "rep_info.h"
 #endif
 
 class Request;

@@ -3,11 +3,11 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Query_stable.h"
+#include "query_stable.h"
 
-#include "Message_tags.h"
-#include "Principal.h"
-#include "Replica.h"
+#include "message_tags.h"
+#include "principal.h"
+#include "replica.h"
 #include "pbft_assert.h"
 
 Query_stable::Query_stable() :

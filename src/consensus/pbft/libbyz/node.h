@@ -4,13 +4,13 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "ITimer.h"
-#include "Message.h"
-#include "Message_tags.h"
-#include "Principal.h"
-#include "Statistics.h"
+#include "itimer.h"
+#include "message.h"
+#include "message_tags.h"
+#include "principal.h"
+#include "statistics.h"
 #include "consensus/consensus_types.h"
-#include "globalstate.h"
+#include "global_state.h"
 #include "key_format.h"
 #include "network.h"
 #include "nodeinfo.h"

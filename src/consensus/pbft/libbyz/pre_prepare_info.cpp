@@ -3,10 +3,10 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Pre_prepare_info.h"
+#include "pre_prepare_info.h"
 
-#include "Pre_prepare.h"
-#include "Replica.h"
+#include "pre_prepare.h"
+#include "replica.h"
 
 Pre_prepare_info::~Pre_prepare_info()
 {

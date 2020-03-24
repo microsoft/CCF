@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Message.h"
-#include "Principal.h"
+#include "digest.h"
+#include "message.h"
+#include "principal.h"
 #include "bits.h"
 #include "parameters.h"
 #include "types.h"

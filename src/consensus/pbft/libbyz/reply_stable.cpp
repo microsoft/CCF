@@ -3,11 +3,11 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Reply_stable.h"
+#include "reply_stable.h"
 
-#include "Message_tags.h"
-#include "Principal.h"
-#include "Replica.h"
+#include "message_tags.h"
+#include "principal.h"
+#include "replica.h"
 #include "pbft_assert.h"
 
 Reply_stable::Reply_stable(Seqno lc, Seqno lp, int n, Principal* p) :

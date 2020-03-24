@@ -5,12 +5,12 @@
 
 #include "libbyz.h"
 
-#include "Client.h"
-#include "Replica.h"
-#include "Reply.h"
-#include "Request.h"
-#include "Statistics.h"
-#include "globalstate.h"
+#include "client.h"
+#include "replica.h"
+#include "reply.h"
+#include "request.h"
+#include "statistics.h"
+#include "global_state.h"
 #include "receive_message_base.h"
 
 #include <random>

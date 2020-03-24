@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "Message.h"
-#include "Partition.h"
+#include "message.h"
+#include "partition.h"
 #include "types.h"
 
 //

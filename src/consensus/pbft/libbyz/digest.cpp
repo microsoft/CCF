@@ -3,9 +3,9 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Digest.h"
+#include "digest.h"
 
-#include "Statistics.h"
+#include "statistics.h"
 #include "ds/logger.h"
 #include "pbft_assert.h"
 

@@ -3,12 +3,12 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Rep_info.h"
+#include "rep_info.h"
 
-#include "Replica.h"
-#include "Reply.h"
-#include "Req_queue.h"
-#include "Statistics.h"
+#include "replica.h"
+#include "reply.h"
+#include "req_queue.h"
+#include "statistics.h"
 
 #include <stdlib.h>
 #include <string.h>

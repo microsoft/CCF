@@ -3,11 +3,11 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Meta_data_cert.h"
+#include "meta_data_cert.h"
 
-#include "K_max.h"
-#include "Meta_data_d.h"
-#include "Node.h"
+#include "k_max.h"
+#include "meta_data_d.h"
+#include "node.h"
 
 Meta_data_cert::Meta_data_cert(size_t num_replicas, size_t f) :
   num_replicas(num_replicas)

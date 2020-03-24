@@ -3,11 +3,11 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Stable_estimator.h"
+#include "stable_estimator.h"
 
-#include "K_max.h"
-#include "Replica.h"
-#include "Reply_stable.h"
+#include "k_max.h"
+#include "replica.h"
+#include "reply_stable.h"
 
 Stable_estimator::Stable_estimator(size_t num_of_replicas)
 {

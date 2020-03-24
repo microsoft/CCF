@@ -3,10 +3,10 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "Message.h"
-#include "Node.h"
-#include "Replica.h"
-#include "Request.h"
+#include "message.h"
+#include "node.h"
+#include "replica.h"
+#include "request.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"

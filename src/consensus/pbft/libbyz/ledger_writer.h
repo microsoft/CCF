@@ -2,8 +2,8 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "Prepared_cert.h"
-#include "View_change.h"
+#include "prepared_cert.h"
+#include "view_change.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_types.h"

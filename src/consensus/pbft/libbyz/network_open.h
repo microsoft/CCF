@@ -4,7 +4,7 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "Message.h"
+#include "message.h"
 
 //
 // Network open messages have the following format:

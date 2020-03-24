@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Reply.h"
-#include "Time.h"
+#include "digest.h"
+#include "reply.h"
+#include "time.h"
 #include "types.h"
 
 #include <sys/time.h>

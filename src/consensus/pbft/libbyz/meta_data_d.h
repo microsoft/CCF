@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Message.h"
+#include "digest.h"
+#include "message.h"
 #include "parameters.h"
 #include "types.h"
 class Principal;

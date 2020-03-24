@@ -3,11 +3,11 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Statistics.h"
+#include "statistics.h"
 
-#include "Message_tags.h"
-#include "Time.h"
-#include "Timer.h"
+#include "message_tags.h"
+#include "time.h"
+#include "timer.h"
 #include "pbft_assert.h"
 
 #include <stdio.h>

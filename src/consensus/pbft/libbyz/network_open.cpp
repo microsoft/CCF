@@ -2,10 +2,10 @@
 // Copyright (c) 1999 Miguel Castro, Barbara Liskov.
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
-#include "Network_open.h"
+#include "network_open.h"
 
-#include "Message_tags.h"
-#include "Node.h"
+#include "message_tags.h"
+#include "node.h"
 #include "ds/logger.h"
 #include "pbft_assert.h"
 

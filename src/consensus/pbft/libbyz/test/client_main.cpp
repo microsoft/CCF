@@ -16,8 +16,8 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-#include "Statistics.h"
-#include "Timer.h"
+#include "statistics.h"
+#include "timer.h"
 #include "ds/file.h"
 #include "libbyz.h"
 #include "network_impl.h"

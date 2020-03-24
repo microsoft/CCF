@@ -3,9 +3,9 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Prepared_cert.h"
+#include "prepared_cert.h"
 
-#include "Node.h"
+#include "node.h"
 
 Prepared_cert::Prepared_cert() :
   prepare_cert(

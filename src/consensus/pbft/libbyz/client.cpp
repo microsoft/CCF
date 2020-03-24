@@ -3,12 +3,12 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Client.h"
+#include "client.h"
 
-#include "ITimer.h"
-#include "Message.h"
-#include "Reply.h"
-#include "Request.h"
+#include "itimer.h"
+#include "message.h"
+#include "reply.h"
+#include "request.h"
 #include "ds/logger.h"
 #include "network.h"
 #include "pbft_assert.h"

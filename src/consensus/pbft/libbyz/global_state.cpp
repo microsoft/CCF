@@ -3,11 +3,11 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "globalstate.h"
+#include "global_state.h"
 
-#include "Client.h"
-#include "Node.h"
-#include "Replica.h"
+#include "client.h"
+#include "node.h"
+#include "replica.h"
 
 namespace pbft
 {

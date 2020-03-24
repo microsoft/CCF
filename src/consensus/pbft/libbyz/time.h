@@ -17,7 +17,7 @@
 
 typedef long long Time;
 
-#include "Cycle_counter.h"
+#include "cycle_counter.h"
 
 extern long long clock_mhz;
 // Clock frequency in MHz

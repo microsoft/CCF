@@ -2,9 +2,9 @@
 // Copyright (c) 1999 Miguel Castro, Barbara Liskov.
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
-#include "Append_entries.h"
+#include "append_entries.h"
 
-#include "Message_tags.h"
+#include "message_tags.h"
 #include "ds/logger.h"
 #include "pbft_assert.h"
 

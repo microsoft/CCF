@@ -3,12 +3,12 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Status.h"
+#include "status.h"
 
-#include "Append_entries.h"
-#include "Message_tags.h"
-#include "Node.h"
-#include "Principal.h"
+#include "append_entries.h"
+#include "message_tags.h"
+#include "node.h"
+#include "principal.h"
 #include "pbft_assert.h"
 
 #include <string.h>

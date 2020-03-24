@@ -3,8 +3,8 @@
 
 #pragma once
 #include "../network_impl.h"
-#include "Message.h"
-#include "Node.h"
+#include "message.h"
+#include "node.h"
 #include "ds/logger.h"
 
 class MockNetwork : public INetwork

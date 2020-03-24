@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "Digest.h"
+#include "digest.h"
 #include "parameters.h"
 #include "types.h"
 

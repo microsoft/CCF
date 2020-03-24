@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "Log_allocator.h"
-#include "Message_tags.h"
+#include "log_allocator.h"
+#include "message_tags.h"
 #include "pbft_assert.h"
 #include "types.h"
 

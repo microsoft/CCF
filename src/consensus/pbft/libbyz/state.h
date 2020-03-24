@@ -5,12 +5,12 @@
 
 #pragma once
 
-#include "Bitmap.h"
-#include "Digest.h"
-#include "ITimer.h"
-#include "Log.h"
-#include "Partition.h"
-#include "Time.h"
+#include "bitmap.h"
+#include "digest.h"
+#include "itimer.h"
+#include "log.h"
+#include "partition.h"
+#include "time.h"
 #include "pbft_assert.h"
 #include "types.h"
 

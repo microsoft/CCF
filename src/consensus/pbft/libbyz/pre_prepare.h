@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Message.h"
-#include "Prepare.h"
+#include "digest.h"
+#include "message.h"
+#include "prepare.h"
 #include "tls/key_pair.h"
 #include "types.h"
 

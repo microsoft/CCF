@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "Time.h"
+#include "time.h"
 #include "types.h"
 
 #include <chrono>

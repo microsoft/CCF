@@ -3,13 +3,13 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Meta_data_d.h"
+#include "meta_data_d.h"
 
-#include "Message_tags.h"
-#include "Node.h"
-#include "Partition.h"
-#include "Principal.h"
-#include "Replica.h"
+#include "message_tags.h"
+#include "node.h"
+#include "partition.h"
+#include "principal.h"
+#include "replica.h"
 #include "pbft_assert.h"
 
 Meta_data_d::Meta_data_d(Request_id r, int l, size_t i, Seqno ls) :

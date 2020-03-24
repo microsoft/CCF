@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "Message.h"
+#include "message.h"
 #include "types.h"
 class Principal;
 

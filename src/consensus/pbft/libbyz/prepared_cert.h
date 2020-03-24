@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include "Certificate.h"
-#include "Node.h"
-#include "Pre_prepare.h"
-#include "Pre_prepare_info.h"
-#include "Prepare.h"
+#include "certificate.h"
+#include "node.h"
+#include "pre_prepare.h"
+#include "pre_prepare_info.h"
+#include "prepare.h"
 #include "parameters.h"
 #include "types.h"
 

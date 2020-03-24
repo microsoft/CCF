@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "Bitmap.h"
-#include "Message.h"
-#include "Pre_prepare.h"
+#include "bitmap.h"
+#include "message.h"
+#include "pre_prepare.h"
 #include "parameters.h"
 #include "types.h"
 

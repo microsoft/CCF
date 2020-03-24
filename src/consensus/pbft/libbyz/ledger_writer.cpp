@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-#include "LedgerWriter.h"
+#include "ledger_writer.h"
 
-#include "Request.h"
+#include "request.h"
 
 LedgerWriter::LedgerWriter(
   pbft::PbftStore& store_,

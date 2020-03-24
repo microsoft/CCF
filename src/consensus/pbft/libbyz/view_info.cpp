@@ -3,16 +3,16 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "View_info.h"
+#include "view_info.h"
 
-#include "Big_req_table.h"
-#include "K_max.h"
-#include "New_view.h"
-#include "Pre_prepare.h"
-#include "Replica.h"
-#include "Status.h"
-#include "View_change.h"
-#include "View_change_ack.h"
+#include "big_req_table.h"
+#include "k_max.h"
+#include "new_view.h"
+#include "pre_prepare.h"
+#include "replica.h"
+#include "status.h"
+#include "view_change.h"
+#include "view_change_ack.h"
 #include "pbft_assert.h"
 
 View_info::VCA_info::VCA_info(size_t num_of_replicas) :

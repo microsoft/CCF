@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Message.h"
-#include "Node.h"
+#include "digest.h"
+#include "message.h"
+#include "node.h"
 #include "types.h"
 
 //

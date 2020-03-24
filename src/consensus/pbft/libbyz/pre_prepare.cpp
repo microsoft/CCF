@@ -3,15 +3,15 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Pre_prepare.h"
+#include "pre_prepare.h"
 
-#include "Message_tags.h"
-#include "Prepare.h"
-#include "Prepared_cert.h"
-#include "Principal.h"
-#include "Replica.h"
-#include "Req_queue.h"
-#include "Request.h"
+#include "message_tags.h"
+#include "prepare.h"
+#include "prepared_cert.h"
+#include "principal.h"
+#include "replica.h"
+#include "req_queue.h"
+#include "request.h"
 #include "pbft_assert.h"
 
 Pre_prepare::Pre_prepare(

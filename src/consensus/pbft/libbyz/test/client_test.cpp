@@ -16,8 +16,8 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-#include "Statistics.h"
-#include "Timer.h"
+#include "statistics.h"
+#include "timer.h"
 #include "ds/files.h"
 #include "ds/thread_messaging.h"
 #include "libbyz.h"

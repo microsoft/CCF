@@ -4,12 +4,12 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "Certificate.h"
-#include "ITimer.h"
-#include "Message.h"
-#include "Node.h"
-#include "Reply.h"
-#include "Request.h"
+#include "certificate.h"
+#include "itimer.h"
+#include "message.h"
+#include "node.h"
+#include "reply.h"
+#include "request.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"

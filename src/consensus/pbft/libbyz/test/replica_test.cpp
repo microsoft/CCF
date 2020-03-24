@@ -17,12 +17,12 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-#include "Big_req_table.h"
-#include "Client_proxy.h"
-#include "ITimer.h"
-#include "Replica.h"
-#include "Statistics.h"
-#include "Timer.h"
+#include "big_req_table.h"
+#include "client_proxy.h"
+#include "itimer.h"
+#include "replica.h"
+#include "statistics.h"
+#include "timer.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "ds/files.h"
 #include "ds/thread_messaging.h"

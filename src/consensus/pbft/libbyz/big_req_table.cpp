@@ -3,11 +3,11 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Big_req_table.h"
+#include "big_req_table.h"
 
-#include "Pre_prepare.h"
-#include "Replica.h"
-#include "Request.h"
+#include "pre_prepare.h"
+#include "replica.h"
+#include "request.h"
 #include "ds/logger.h"
 
 Big_req_table::Big_req_table(size_t num_of_replicas) :

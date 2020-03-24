@@ -3,10 +3,10 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Principal.h"
+#include "principal.h"
 
-#include "Node.h"
-#include "Reply.h"
+#include "node.h"
+#include "reply.h"
 #include "crypt.h"
 
 #include <stdlib.h>

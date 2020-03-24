@@ -3,12 +3,12 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Prepare.h"
+#include "prepare.h"
 
-#include "Message_tags.h"
-#include "Node.h"
-#include "Principal.h"
-#include "Replica.h"
+#include "message_tags.h"
+#include "node.h"
+#include "principal.h"
+#include "replica.h"
 #include "pbft_assert.h"
 
 Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :

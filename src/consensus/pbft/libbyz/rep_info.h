@@ -5,10 +5,10 @@
 
 #pragma once
 
-#include "Digest.h"
-#include "Partition.h"
-#include "Reply.h"
-#include "Time.h"
+#include "digest.h"
+#include "partition.h"
+#include "reply.h"
+#include "time.h"
 #include "ds/spin_lock.h"
 #include "types.h"
 

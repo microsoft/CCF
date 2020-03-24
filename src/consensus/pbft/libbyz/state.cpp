@@ -3,15 +3,15 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "State.h"
+#include "state.h"
 
-#include "Data.h"
-#include "Fetch.h"
-#include "Meta_data.h"
-#include "Meta_data_cert.h"
-#include "Meta_data_d.h"
-#include "Replica.h"
-#include "Statistics.h"
+#include "data.h"
+#include "fetch.h"
+#include "meta_data.h"
+#include "meta_data_cert.h"
+#include "meta_data_d.h"
+#include "replica.h"
+#include "statistics.h"
 #include "ds/logger.h"
 #include "pbft_assert.h"
 

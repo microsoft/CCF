@@ -3,11 +3,11 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "Req_queue.h"
+#include "req_queue.h"
 
-#include "Node.h"
-#include "Pre_prepare.h"
-#include "Request.h"
+#include "node.h"
+#include "pre_prepare.h"
+#include "request.h"
 
 Req_queue::Req_queue() : reqs(Max_num_replicas), nelems(0), nbytes(0) {}
 

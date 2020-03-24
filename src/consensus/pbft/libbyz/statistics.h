@@ -7,8 +7,8 @@
 
 //#include <sys/time.h>
 //#include <sys/resource.h>
-#include "Cycle_counter.h"
-#include "Message_tags.h"
+#include "cycle_counter.h"
+#include "message_tags.h"
 #include "types.h"
 
 #include <unistd.h>

@@ -6,9 +6,9 @@
 #pragma once
 
 #include "../src/consensus/consensus_types.h"
-#include "Message.h"
-#include "Node.h"
-#include "Time.h"
+#include "message.h"
+#include "node.h"
+#include "time.h"
 #include "ds/logger.h"
 #include "parameters.h"
 #include "types.h"
