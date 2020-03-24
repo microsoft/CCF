@@ -23,6 +23,7 @@
 #include "state.h"
 #include "types.h"
 #include "view_info.h"
+#include "governance_update_tracking.h"
 
 #ifdef ENFORCE_EXACTLY_ONCE
 #  include "rep_info_exactly_once.h"
@@ -478,6 +479,7 @@ private:
 #endif
 
   ByzInfo playback_byz_info;
+  bool did_exec_gov_req = false;
   size_t playback_before_f = 0;
   // Latest byz info when we are in playback mode. Used to compare the latest
   // execution mt roots and version with the ones in the pre prepare we will get
@@ -496,6 +498,10 @@ private:
   void* rep_cb_ctx;
   // used to register a callback for a client proxy to collect replies sent to
   // this replica
+
+  GovernanceRequestTracking gov_req_track;
+  // used to track the last series of pre-prepares that had requests that
+  // affected the governance of the service
 
   pbft::RequestsMap& pbft_requests_map;
   pbft::PrePreparesMap& pbft_pre_prepares_map;

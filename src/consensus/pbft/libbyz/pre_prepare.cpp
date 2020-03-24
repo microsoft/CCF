@@ -34,6 +34,8 @@ Pre_prepare::Pre_prepare(
   rep().view = v;
   rep().seqno = s;
   rep().replicated_state_merkle_root.fill(0);
+  rep().contains_gov_req = false;
+  rep().last_gov_req_updated = 0;
 
   START_CC(pp_digest_cycles);
   INCR_OP(pp_digest);
@@ -254,6 +256,8 @@ bool Pre_prepare::calculate_digest(Digest& d)
       context,
       (const char*)rep().replicated_state_merkle_root.data(),
       rep().replicated_state_merkle_root.size());
+    d.update_last(context, (char*)&rep().contains_gov_req, sizeof(uint64_t));
+    d.update_last(context, (char*)&rep().last_gov_req_updated, sizeof(Seqno));
     d.update_last(context, (char*)&rep().ctx, sizeof(rep().ctx));
     d.update_last(context, (char*)&rep().rset_size, sizeof(rep().rset_size));
     d.update_last(context, (char*)&rep().n_big_reqs, sizeof(rep().n_big_reqs));
@@ -452,6 +456,13 @@ void Pre_prepare::set_merkle_roots_and_ctx(
     std::end(replicated_state_merkle_root),
     std::begin(rep().replicated_state_merkle_root));
   rep().ctx = ctx;
+}
+
+void Pre_prepare::set_last_gov_request(
+  Seqno last_seqno_with_gov_req, bool did_exec_gov_req)
+{
+  rep().contains_gov_req = did_exec_gov_req;
+  rep().last_gov_req_updated = last_seqno_with_gov_req;
 }
 
 const std::array<uint8_t, MERKLE_ROOT_SIZE>& Pre_prepare::

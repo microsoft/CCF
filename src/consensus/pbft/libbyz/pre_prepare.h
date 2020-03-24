@@ -35,6 +35,8 @@ struct Pre_prepare_rep : public Message_rep
   View view;
   Seqno seqno;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
+  uint64_t contains_gov_req;
+  Seqno last_gov_req_updated;
   int64_t ctx; // a context provided when a the batch is executed
                // the contents are opaque
   Digest digest; // digest of request set concatenated with
@@ -105,9 +107,18 @@ public:
   Digest& digest() const;
   // Effects: Fetches the digest from the message.
 
+  bool did_exec_gov_req() const;
+  // Effects: Fetches if a governance request was executed.
+
+  Seqno last_exec_gov_req() const;
+  // Effects: The last pp that executed a governance request.
+
   void set_merkle_roots_and_ctx(
     const std::array<uint8_t, MERKLE_ROOT_SIZE>& replicated_state_merkle_root,
     int64_t ctx);
+
+  void set_last_gov_request(
+    Seqno last_seqno_with_gov_req, bool did_exec_gov_req);
 
   const std::array<uint8_t, MERKLE_ROOT_SIZE>&
   get_replicated_state_merkle_root() const;
@@ -258,4 +269,14 @@ inline Digest& Pre_prepare::big_req_digest(int i)
 {
   PBFT_ASSERT(i >= 0 && i < num_big_reqs(), "Invalid argument");
   return *(big_reqs() + i);
+}
+
+inline Seqno Pre_prepare::last_exec_gov_req() const
+{
+  return rep().last_gov_req_updated;
+}
+
+inline bool Pre_prepare::did_exec_gov_req() const
+{
+  return rep().contains_gov_req;
 }
