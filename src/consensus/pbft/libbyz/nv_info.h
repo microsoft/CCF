@@ -7,7 +7,7 @@
 
 #include "digest.h"
 #include "pre_prepare_info.h"
-#include "time.h"
+#include "time_types.h"
 #include "parameters.h"
 #include "types.h"
 

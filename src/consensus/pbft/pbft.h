@@ -3,10 +3,10 @@
 #pragma once
 
 #include "consensus/ledger_enclave.h"
-#include "consensus/pbft/libbyz/Append_entries.h"
-#include "consensus/pbft/libbyz/Big_req_table.h"
-#include "consensus/pbft/libbyz/Client_proxy.h"
-#include "consensus/pbft/libbyz/Message_tags.h"
+#include "consensus/pbft/libbyz/append_entries.h"
+#include "consensus/pbft/libbyz/big_req_table.h"
+#include "consensus/pbft/libbyz/client_proxy.h"
+#include "consensus/pbft/libbyz/message_tags.h"
 #include "consensus/pbft/libbyz/libbyz.h"
 #include "consensus/pbft/libbyz/network.h"
 #include "consensus/pbft/libbyz/receive_message_base.h"

@@ -95,7 +95,7 @@ if("virtual" IN_LIST TARGET)
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp_mt.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/itimer.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/time.cpp
+    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/time_types.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/statistics.cpp
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)

@@ -7,7 +7,7 @@
 
 #include "digest.h"
 #include "reply.h"
-#include "time.h"
+#include "time_types.h"
 #include "types.h"
 
 #include <sys/time.h>

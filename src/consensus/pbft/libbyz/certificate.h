@@ -8,7 +8,7 @@
 #include "../src/consensus/consensus_types.h"
 #include "message.h"
 #include "node.h"
-#include "time.h"
+#include "time_types.h"
 #include "ds/logger.h"
 #include "parameters.h"
 #include "types.h"

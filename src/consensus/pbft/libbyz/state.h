@@ -10,7 +10,7 @@
 #include "itimer.h"
 #include "log.h"
 #include "partition.h"
-#include "time.h"
+#include "time_types.h"
 #include "pbft_assert.h"
 #include "types.h"
 

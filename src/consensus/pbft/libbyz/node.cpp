@@ -9,7 +9,7 @@
 #include "message.h"
 #include "message_tags.h"
 #include "principal.h"
-#include "time.h"
+#include "time_types.h"
 #include "crypt.h"
 #include "ds/logger.h"
 #include "parameters.h"

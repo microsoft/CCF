@@ -6,7 +6,7 @@
 #include "statistics.h"
 
 #include "message_tags.h"
-#include "time.h"
+#include "time_types.h"
 #include "timer.h"
 #include "pbft_assert.h"
 

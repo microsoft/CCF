@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "consensus/pbft/libbyz/Cycle_counter.h"
-#include "consensus/pbft/libbyz/ITimer.h"
-#include "consensus/pbft/libbyz/Message.h"
-#include "consensus/pbft/libbyz/Statistics.h"
-#include "consensus/pbft/libbyz/Time.h"
+#include "consensus/pbft/libbyz/cycle_counter.h"
+#include "consensus/pbft/libbyz/itimer.h"
+#include "consensus/pbft/libbyz/message.h"
+#include "consensus/pbft/libbyz/statistics.h"
+#include "consensus/pbft/libbyz/time_types.h"
 #include "consensus/pbft/libbyz/types.h"
 #include "node/node_to_node.h"
 #include "pbft_types.h"

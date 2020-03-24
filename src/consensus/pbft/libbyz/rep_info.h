@@ -8,7 +8,7 @@
 #include "digest.h"
 #include "partition.h"
 #include "reply.h"
-#include "time.h"
+#include "time_types.h"
 #include "ds/spin_lock.h"
 #include "types.h"
 

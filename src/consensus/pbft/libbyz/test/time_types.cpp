@@ -3,7 +3,7 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 
-#include "time.h"
+#include "time_types.h"
 
 long long clock_mhz = 0;
 
