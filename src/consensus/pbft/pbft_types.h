@@ -3,7 +3,7 @@
 #pragma once
 
 #include "consensus/pbft/pbft_pre_prepares.h"
-#include "ds/ringbuffer_types.h"
+#include "ds/ring_buffer_types.h"
 #include "kv/kv_types.h"
 #include "node/signatures.h"
 

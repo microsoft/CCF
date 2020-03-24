@@ -9,7 +9,7 @@
 #include "ds/buffer.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
-#include "ds/ringbuffer_types.h"
+#include "ds/ring_buffer_types.h"
 #include "kv/kv_types.h"
 #include "node/members.h"
 #include "node/node_info_network.h"

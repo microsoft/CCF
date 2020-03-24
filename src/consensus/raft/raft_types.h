@@ -3,7 +3,7 @@
 #pragma once
 
 #include "consensus/consensus_types.h"
-#include "ds/ringbuffer_types.h"
+#include "ds/ring_buffer_types.h"
 
 #include <chrono>
 #include <cstdint>

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/logger.h"
-#include "ds/ringbuffer_types.h"
+#include "ds/ring_buffer_types.h"
 #include "enclave/interface.h"
 #include "kv/kv_types.h"
 #include "rpc/frontend.h"

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ringbuffer_types.h"
+#include "ring_buffer_types.h"
 
 #include <atomic>
 #include <cstring>

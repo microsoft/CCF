@@ -249,7 +249,7 @@ if(BUILD_TESTS)
 
   add_unit_test(
     ds_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ringbuffer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
@@ -385,7 +385,7 @@ if(BUILD_TESTS)
   add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
   add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
   add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
-  add_picobench(ringbuffer_bench SRCS src/ds/test/ringbuffer_bench.cpp)
+  add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
   add_picobench(
     tls_bench
     SRCS src/tls/test/bench.cpp
