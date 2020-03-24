@@ -5,7 +5,9 @@ set(ALLOWED_TARGETS "sgx;virtual")
 
 set(COMPILE_TARGETS
     "sgx;virtual"
-    CACHE STRING "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
+    CACHE
+      STRING
+      "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
 )
 
 set(IS_VALID_TARGET "FALSE")
