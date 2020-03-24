@@ -6,12 +6,12 @@
 #include "libbyz.h"
 
 #include "client.h"
+#include "global_state.h"
+#include "receive_message_base.h"
 #include "replica.h"
 #include "reply.h"
 #include "request.h"
 #include "statistics.h"
-#include "global_state.h"
-#include "receive_message_base.h"
 
 #include <random>
 #include <signal.h>

@@ -6,11 +6,11 @@
 #pragma once
 
 #include "../src/consensus/consensus_types.h"
+#include "ds/logger.h"
 #include "message.h"
 #include "node.h"
-#include "time_types.h"
-#include "ds/logger.h"
 #include "parameters.h"
+#include "time_types.h"
 #include "types.h"
 
 #include <bitset>

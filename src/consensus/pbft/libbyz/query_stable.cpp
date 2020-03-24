@@ -6,9 +6,9 @@
 #include "query_stable.h"
 
 #include "message_tags.h"
+#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
-#include "pbft_assert.h"
 
 Query_stable::Query_stable() :
   Message(

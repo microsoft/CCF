@@ -6,10 +6,10 @@
 #include "view_change.h"
 
 #include "message_tags.h"
-#include "principal.h"
-#include "replica.h"
 #include "parameters.h"
 #include "pbft_assert.h"
+#include "principal.h"
+#include "replica.h"
 
 #include <string.h>
 

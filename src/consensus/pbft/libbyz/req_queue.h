@@ -5,10 +5,10 @@
 
 #pragma once
 
-#include "request.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
 #include "pbft_assert.h"
+#include "request.h"
 #include "types.h"
 
 #include <algorithm>

@@ -5,10 +5,10 @@
 
 #include "big_req_table.h"
 
+#include "ds/logger.h"
 #include "pre_prepare.h"
 #include "replica.h"
 #include "request.h"
-#include "ds/logger.h"
 
 Big_req_table::Big_req_table(size_t num_of_replicas) :
   breqs(max_out),

@@ -3,17 +3,17 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "message.h"
-#include "node.h"
-#include "replica.h"
-#include "request.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
 #include "consensus/test/stub_consensus.h"
 #include "host/ledger.h"
+#include "message.h"
 #include "network_mock.h"
+#include "node.h"
+#include "replica.h"
+#include "request.h"
 #include "tls/key_pair.h"
 
 #include <cstdio>

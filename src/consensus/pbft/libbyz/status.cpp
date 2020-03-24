@@ -8,8 +8,8 @@
 #include "append_entries.h"
 #include "message_tags.h"
 #include "node.h"
-#include "principal.h"
 #include "pbft_assert.h"
+#include "principal.h"
 
 #include <string.h>
 

@@ -7,9 +7,9 @@
 
 #include "message_tags.h"
 #include "node.h"
+#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
-#include "pbft_assert.h"
 
 Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   Message(

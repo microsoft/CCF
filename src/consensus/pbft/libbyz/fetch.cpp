@@ -8,9 +8,9 @@
 #include "message_tags.h"
 #include "node.h"
 #include "partition.h"
+#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
-#include "pbft_assert.h"
 
 Fetch::Fetch(
   Request_id rid, Seqno lu, int level, size_t index, Seqno rc, int repid) :

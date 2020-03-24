@@ -4,8 +4,8 @@
 // Licensed under the MIT license.
 #include "append_entries.h"
 
-#include "message_tags.h"
 #include "ds/logger.h"
+#include "message_tags.h"
 #include "pbft_assert.h"
 
 Append_entries::Append_entries() :

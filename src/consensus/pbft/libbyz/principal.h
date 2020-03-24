@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "time_types.h"
 #include "network.h"
+#include "time_types.h"
 #include "tls/key_pair.h"
 #include "types.h"
 

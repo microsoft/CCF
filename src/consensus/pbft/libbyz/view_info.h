@@ -7,8 +7,8 @@
 
 #include "digest.h"
 #include "log.h"
-#include "nv_info.h"
 #include "node.h"
+#include "nv_info.h"
 #include "pre_prepare.h"
 #include "types.h"
 

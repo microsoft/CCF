@@ -3,9 +3,9 @@
 
 #pragma once
 #include "../network_impl.h"
+#include "ds/logger.h"
 #include "message.h"
 #include "node.h"
-#include "ds/logger.h"
 
 class MockNetwork : public INetwork
 {

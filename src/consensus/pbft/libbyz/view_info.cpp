@@ -8,12 +8,12 @@
 #include "big_req_table.h"
 #include "k_max.h"
 #include "new_view.h"
+#include "pbft_assert.h"
 #include "pre_prepare.h"
 #include "replica.h"
 #include "status.h"
 #include "view_change.h"
 #include "view_change_ack.h"
-#include "pbft_assert.h"
 
 View_info::VCA_info::VCA_info(size_t num_of_replicas) :
   v(0),

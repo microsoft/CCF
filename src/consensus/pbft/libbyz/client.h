@@ -6,8 +6,8 @@
 #pragma once
 
 #include "certificate.h"
-#include "node.h"
 #include "libbyz.h"
+#include "node.h"
 #include "types.h"
 
 class Reply;

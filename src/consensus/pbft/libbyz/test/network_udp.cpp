@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-#include "itimer.h"
-#include "message.h"
-#include "replica.h"
 #include "ds/logger.h"
+#include "itimer.h"
 #include "libbyz.h"
+#include "message.h"
 #include "network.h"
+#include "replica.h"
 
 #include <fcntl.h>
 

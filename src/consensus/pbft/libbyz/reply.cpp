@@ -7,9 +7,9 @@
 
 #include "message_tags.h"
 #include "node.h"
+#include "pbft_assert.h"
 #include "principal.h"
 #include "statistics.h"
-#include "pbft_assert.h"
 
 Reply::Reply(
   View view, Request_id req, Seqno n, int replica, uint32_t reply_size) :

@@ -5,11 +5,11 @@
 
 #include "view_change_ack.h"
 
+#include "ds/logger.h"
 #include "message_tags.h"
 #include "node.h"
-#include "principal.h"
-#include "ds/logger.h"
 #include "pbft_assert.h"
+#include "principal.h"
 
 View_change_ack::View_change_ack(View v, int id, int vcid, Digest const& vcd) :
   Message(View_change_ack_tag, sizeof(View_change_ack_rep) + MAC_size)

@@ -4,11 +4,11 @@
 // Licensed under the MIT license.
 #include "new_principal.h"
 
+#include "ds/logger.h"
 #include "message_tags.h"
 #include "node.h"
-#include "principal.h"
-#include "ds/logger.h"
 #include "pbft_assert.h"
+#include "principal.h"
 
 New_principal::New_principal(
   NodeId id,

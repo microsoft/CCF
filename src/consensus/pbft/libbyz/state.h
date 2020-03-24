@@ -10,8 +10,8 @@
 #include "itimer.h"
 #include "log.h"
 #include "partition.h"
-#include "time_types.h"
 #include "pbft_assert.h"
+#include "time_types.h"
 #include "types.h"
 
 #include <memory>

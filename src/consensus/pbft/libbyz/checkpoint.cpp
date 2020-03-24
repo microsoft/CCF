@@ -6,10 +6,10 @@
 #include "checkpoint.h"
 
 #include "message_tags.h"
-#include "principal.h"
-#include "replica.h"
 #include "parameters.h"
 #include "pbft_assert.h"
+#include "principal.h"
+#include "replica.h"
 
 Checkpoint::Checkpoint(Seqno s, Digest& d, bool stable) :
 #ifndef USE_PKEY_CHECKPOINTS

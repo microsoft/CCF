@@ -5,13 +5,13 @@
 
 #include "client.h"
 
+#include "ds/logger.h"
 #include "itimer.h"
 #include "message.h"
-#include "reply.h"
-#include "request.h"
-#include "ds/logger.h"
 #include "network.h"
 #include "pbft_assert.h"
+#include "reply.h"
+#include "request.h"
 
 Client::Client(const NodeInfo& node_info, INetwork* network) :
   Node(node_info),

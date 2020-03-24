@@ -6,13 +6,13 @@
 #include "pre_prepare.h"
 
 #include "message_tags.h"
+#include "pbft_assert.h"
 #include "prepare.h"
 #include "prepared_cert.h"
 #include "principal.h"
 #include "replica.h"
 #include "req_queue.h"
 #include "request.h"
-#include "pbft_assert.h"
 
 Pre_prepare::Pre_prepare(
   View v,

@@ -2,15 +2,15 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "prepared_cert.h"
-#include "view_change.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_types.h"
 #include "kv/kv.h"
 #include "ledger.h"
 #include "node/signatures.h"
+#include "prepared_cert.h"
 #include "types.h"
+#include "view_change.h"
 
 class LedgerWriter
 {

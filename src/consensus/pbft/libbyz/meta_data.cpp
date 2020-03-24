@@ -8,9 +8,9 @@
 #include "message_tags.h"
 #include "node.h"
 #include "partition.h"
+#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
-#include "pbft_assert.h"
 
 Meta_data::Meta_data(
   Request_id r, int l, size_t i, Seqno lu, Seqno lm, Digest& d) :

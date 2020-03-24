@@ -5,11 +5,11 @@
 
 #pragma once
 
+#include "bits.h"
 #include "digest.h"
 #include "message.h"
-#include "principal.h"
-#include "bits.h"
 #include "parameters.h"
+#include "principal.h"
 #include "types.h"
 
 //

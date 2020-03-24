@@ -16,8 +16,6 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-#include "statistics.h"
-#include "timer.h"
 #include "ds/file.h"
 #include "libbyz.h"
 #include "network_impl.h"
@@ -25,6 +23,8 @@ extern "C"
 #include "pbft_assert.h"
 #include "simple.h"
 #include "stacktrace_utils.h"
+#include "statistics.h"
+#include "timer.h"
 
 enum class MeasureState : int
 {

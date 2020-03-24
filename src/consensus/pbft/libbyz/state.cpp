@@ -6,14 +6,14 @@
 #include "state.h"
 
 #include "data.h"
+#include "ds/logger.h"
 #include "fetch.h"
 #include "meta_data.h"
 #include "meta_data_cert.h"
 #include "meta_data_d.h"
+#include "pbft_assert.h"
 #include "replica.h"
 #include "statistics.h"
-#include "ds/logger.h"
-#include "pbft_assert.h"
 
 #include <limits.h>
 #include <stdio.h>

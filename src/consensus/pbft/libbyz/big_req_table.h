@@ -6,9 +6,9 @@
 #pragma once
 
 #include "digest.h"
-#include "req_queue.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
+#include "req_queue.h"
 #include "types.h"
 
 #include <list>

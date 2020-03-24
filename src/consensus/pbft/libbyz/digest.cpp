@@ -5,9 +5,9 @@
 
 #include "digest.h"
 
-#include "statistics.h"
 #include "ds/logger.h"
 #include "pbft_assert.h"
+#include "statistics.h"
 
 #include <string.h>
 

@@ -7,9 +7,9 @@
 
 #include "message_tags.h"
 #include "node.h"
+#include "pbft_assert.h"
 #include "principal.h"
 #include "statistics.h"
-#include "pbft_assert.h"
 
 #include <stdlib.h>
 #include <strings.h>

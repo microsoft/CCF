@@ -5,15 +5,15 @@
 
 #include "node.h"
 
+#include "crypt.h"
+#include "ds/logger.h"
 #include "itimer.h"
 #include "message.h"
 #include "message_tags.h"
-#include "principal.h"
-#include "time_types.h"
-#include "crypt.h"
-#include "ds/logger.h"
 #include "parameters.h"
 #include "pbft_assert.h"
+#include "principal.h"
+#include "time_types.h"
 
 #include <arpa/inet.h>
 #include <fcntl.h>

@@ -5,17 +5,17 @@
 #pragma once
 
 #include "certificate.h"
-#include "itimer.h"
-#include "message.h"
-#include "node.h"
-#include "reply.h"
-#include "request.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
+#include "itimer.h"
 #include "libbyz.h"
+#include "message.h"
+#include "node.h"
 #include "pbft_assert.h"
 #include "receive_message_base.h"
+#include "reply.h"
+#include "request.h"
 #include "request_id_gen.h"
 #include "types.h"
 

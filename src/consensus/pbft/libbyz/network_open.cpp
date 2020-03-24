@@ -4,9 +4,9 @@
 // Licensed under the MIT license.
 #include "network_open.h"
 
+#include "ds/logger.h"
 #include "message_tags.h"
 #include "node.h"
-#include "ds/logger.h"
 #include "pbft_assert.h"
 
 Network_open::Network_open(int id) :

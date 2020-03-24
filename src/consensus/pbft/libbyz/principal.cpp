@@ -5,9 +5,9 @@
 
 #include "principal.h"
 
+#include "crypt.h"
 #include "node.h"
 #include "reply.h"
-#include "crypt.h"
 
 #include <stdlib.h>
 #include <strings.h>

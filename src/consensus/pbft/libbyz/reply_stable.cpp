@@ -6,9 +6,9 @@
 #include "reply_stable.h"
 
 #include "message_tags.h"
+#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
-#include "pbft_assert.h"
 
 Reply_stable::Reply_stable(Seqno lc, Seqno lp, int n, Principal* p) :
   Message(Reply_stable_tag, sizeof(Reply_stable_rep) + MAC_size)

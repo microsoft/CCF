@@ -6,10 +6,10 @@
 #pragma once
 
 #include "digest.h"
+#include "ds/spin_lock.h"
 #include "partition.h"
 #include "reply.h"
 #include "time_types.h"
-#include "ds/spin_lock.h"
 #include "types.h"
 
 #include <memory>
