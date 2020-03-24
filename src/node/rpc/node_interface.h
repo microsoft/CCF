@@ -4,7 +4,7 @@
 
 #include "node/entities.h"
 #include "node/secret_share.h"
-#include "nodecall_types.h"
+#include "node_call_types.h"
 
 namespace ccf
 {

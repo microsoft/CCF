@@ -5,7 +5,7 @@
 #include "ds/logger.h"
 #include "error_string.h"
 
-#include <mbedtls/base_64.h>
+#include <mbedtls/base64.h>
 #include <string>
 #include <vector>
 
