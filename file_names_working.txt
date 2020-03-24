@@ -9,15 +9,8 @@
 ./src/apps/logging/loggingjs.lua=./src/apps/logging/logging_js.lua
 ./src/apps/luageneric/test/luageneric_test.cpp=./src/apps/luageneric/test/lua_generic_test.cpp
 ./src/apps/luageneric/luageneric.cpp=./src/apps/luageneric/lua_generic.cpp
-./src/apps/batched/batched.lua=./src/apps/batched/batched.lua
-./src/apps/batched/oe_sign.conf=./src/apps/batched/oe_sign.conf
-./src/apps/jsgeneric/oe_sign.conf=./src/apps/jsgeneric/oe_sign.conf
 ./src/apps/jsgeneric/jsgeneric.cpp=./src/apps/jsgeneric/js_generic.cpp
-./src/crypto/error.h=./src/crypto/error.h
-./src/crypto/hash.cpp=./src/crypto/hash.cpp
-./src/crypto/hash.h=./src/crypto/hash.h
 ./src/crypto/symmkey.h=./src/crypto/symmetric_key.h
-./src/crypto/test/crypto.cpp=./src/crypto/test/crypto.cpp
 ./src/crypto/symmkey.cpp=./src/crypto/symmetric_key.cpp
 ./src/crypto/cryptobox.h=./src/crypto/crypto_box.h
 ./src/host/everyio.h=./src/host/every_io.h
@@ -31,7 +24,6 @@
 ./src/ds/champmap.h=./src/ds/champ_map.h
 ./src/ds/dllist.h=./src/ds/dl_list.h
 ./src/ds/test/siphash_knownhashes.h=./src/ds/test/siphash_known_hashes.h
-./src/ds/test/logger_json_test.cpp=./src/ds/test/logger_json_test.cpp
 ./src/ds/rbmap.h=./src/ds/rb_map.h
 ./src/ds/nonblocking.h=./src/ds/non_blocking.h
 ./src/tls/keypair.h=./src/tls/key_pair.h
