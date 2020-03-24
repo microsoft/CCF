@@ -5,7 +5,7 @@
 set -e
 
 if [ "$#" -ne 1 ]; then
-  echo "make_vm.sh takes an Azure subscription name"
+  echo "Usage: $0 takes an Azure subscription name"
   exit 1
 fi
 

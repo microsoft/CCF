@@ -5,14 +5,14 @@
 set -e
 
 if [ "$#" -lt 1 ]; then
-  echo "make_vm.sh takes at least an Azure subscription name,"
-  echo "and an optional path to an SSH public key"
+  echo "Usage: $0 takes at least an Azure subscription name,"
+  echo "       and an optional path to an SSH public key"
   exit 1
 fi
 
 # Azure Resource Group
 RG=ccf-dev-rg
-# Region, only eastus and westeurope are supported at the moment
+# Region, only uksouth is supports DC*_v2 at the moment
 REGION=uksouth
 CFG=vm.json
 
