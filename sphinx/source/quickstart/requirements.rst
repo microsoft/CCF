@@ -66,7 +66,7 @@ Then, to quickly get a VM up and running (in the East US region), you can run th
 
 .. code-block:: bash
 
-    $ SUBSCRIPTION=$AZURE_SUBSCRIPTION_NAME ./make_vm.sh [path_to_ssh_public_key]
+    $ ./make_vm.sh $AZURE_SUBSCRIPTION_NAME [path_to_ssh_public_key]
 
 After signing in to your Azure account, the script will create a default ``ccf`` user on the VM, authenticated by the public key specified by ``path_to_ssh_public_key`` (defaults to ``~/.ssh/id_rsa.pub``). See :ref:`quickstart/oeengine:OE Engine Walkthrough` for further details about how to deploy an ACC VM.
 
@@ -74,7 +74,7 @@ Then, you should ssh into your newly created vm and clone the CCF repository:
 
 .. code-block:: bash
 
-    $ ssh ccf@ccf-dev.eastus.cloudapp.azure.com
+    $ ssh ccf@ccf-dev-vm.uksouth.cloudapp.azure.com
     $ git clone https://github.com/microsoft/CCF.git
 
 The `SSH Remote`_ extension to `Visual Studio Code`_ makes it possible to develop your application directly on this VM.
