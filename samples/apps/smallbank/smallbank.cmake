@@ -14,17 +14,10 @@ sign_app_library(
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 
-if(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
-  set(SMALL_BANK_SIGNED_VERIFICATION_FILE
-      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
-  )
-  set(SMALL_BANK_SIGNED_ITERATIONS 50000)
-else()
-  set(SMALL_BANK_SIGNED_VERIFICATION_FILE
-      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
-  )
-  set(SMALL_BANK_SIGNED_ITERATIONS 2000)
-endif()
+set(SMALL_BANK_SIGNED_VERIFICATION_FILE
+    ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
+)
+set(SMALL_BANK_SIGNED_ITERATIONS 2000)
 
 if(BUILD_TESTS)
   # Small Bank end to end and performance test

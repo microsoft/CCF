@@ -21,19 +21,7 @@ namespace tls
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
-#if SERVICE_IDENTITY_CURVE_CHOICE_SECP384R1
     service_identity_curve_choice = secp384r1,
-#elif SERVICE_IDENTITY_CURVE_CHOICE_ED25519
-    service_identity_curve_choice = ed25519,
-#elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS
-    service_identity_curve_choice = secp256k1_mbedtls,
-#elif SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN
-    service_identity_curve_choice = secp256k1_bitcoin,
-#else
-#  pragma message( \
-    "No service identity curve specified - defaulting to secp384r1")
-    service_identity_curve_choice = secp384r1,
-#endif
   };
 
   // 2 implementations of secp256k1 are available - mbedtls and bitcoin. Either
