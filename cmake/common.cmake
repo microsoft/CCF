@@ -68,7 +68,7 @@ if(USE_NULL_ENCRYPTOR)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
-option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
+option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" ON)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 
