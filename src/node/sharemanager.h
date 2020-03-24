@@ -8,10 +8,12 @@
 #include "genesisgen.h"
 #include "ledgersecrets.h"
 #include "networkstate.h"
+#include "node/rpc/serialization.h" // TODO: I don't like this here
 #include "secretshare.h"
 #include "tls/25519.h"
 #include "tls/entropy.h"
 
+#include <nlohmann/json.hpp>
 #include <vector>
 
 namespace ccf
@@ -49,13 +51,18 @@ namespace ccf
       // current ledger secrets with it
       auto ls_wrapping_key = LedgerSecretWrappingKey();
 
-      crypto::GcmCipher encrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
+      std::cout << "Creating shares....." << std::endl;
+
+      nlohmann::json ls_j = *network.ledger_secrets.get();
+      auto serialised_ls = nlohmann::json::to_msgpack(ls_j);
+
+      crypto::GcmCipher encrypted_ls(serialised_ls.size());
       crypto::KeyAesGcm(ls_wrapping_key.data)
         .encrypt(
           encrypted_ls.hdr
             .get_iv(), // iv is always 0 here as the share wrapping
                        // key is never re-used for encryption
-          network.ledger_secrets->get_secret(1)->master,
+          serialised_ls,
           nullb,
           encrypted_ls.cipher.data(),
           encrypted_ls.hdr.tag);
@@ -104,7 +111,7 @@ namespace ccf
 
     // For now, the shares are passed directly to this function. Shares should
     // be retrieved from the KV instead.
-    LedgerSecret restore(
+    std::vector<kv::Version> restore(
       Store::Tx& tx, const std::vector<SecretSharing::Share>& shares)
     {
       // First, re-assemble the ledger secrets wrapping key from the given
@@ -120,9 +127,9 @@ namespace ccf
         throw std::logic_error("Failed to retrieve current key share info");
       }
 
-      std::vector<uint8_t> decrypted_ls(LedgerSecret::MASTER_KEY_SIZE);
       crypto::GcmCipher encrypted_ls;
       encrypted_ls.deserialise(key_share_info->encrypted_ledger_secret);
+      std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher);
 
       if (!crypto::KeyAesGcm(ls_wrapping_key.data)
              .decrypt(
@@ -135,7 +142,19 @@ namespace ccf
         throw std::logic_error("Decryption of ledger secrets failed");
       }
 
-      return LedgerSecret(std::move(decrypted_ls));
+      // TODO: This is not good. The encryptor still holds a shared pointer to
+      // the old ledger secrets
+      LedgerSecrets restored_secrets =
+        nlohmann::json::from_msgpack(decrypted_ls);
+      std::cout << "\n\n\n***** Restored secrets:" << std::endl;
+      std::cout << nlohmann::json::from_msgpack(decrypted_ls).dump()
+                << std::endl;
+
+      return network.ledger_secrets->restore(std::move(restored_secrets));
+
+      // return new_ls;
+
+      // return LedgerSecret(std::move(decrypted_ls));
     }
   };
 }

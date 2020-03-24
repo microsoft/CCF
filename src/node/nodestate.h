@@ -664,7 +664,9 @@ namespace ccf
       }
 
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+      {
         recovery_store->compact(ledger_idx);
+      }
 
       if (recovery_store->current_version() == recovery_v)
       {
@@ -800,6 +802,8 @@ namespace ccf
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       recovery_root = h->get_replicated_state_root();
 
+      LOG_FAIL_FMT("Recovery version is {}", recovery_v);
+
       LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }
 
@@ -860,12 +864,12 @@ namespace ccf
     }
 
     bool finish_recovery_with_shares(
-      Store::Tx& tx, const LedgerSecret& ledger_secret)
+      Store::Tx& tx, const std::vector<kv::Version>& restored_versions)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      // For now, this only supports one recovery
+      // TODO: working on multiple recoveries...
 
       LOG_INFO_FMT("Initiating end of recovery with shares (primary)");
 
@@ -873,9 +877,12 @@ namespace ccf
       // network
       history->emit_signature();
 
-      network.ledger_secrets->set_secret(0, ledger_secret.master);
-
-      broadcast_ledger_secret(tx, ledger_secret, 0, true);
+      for (auto const& v : restored_versions)
+      {
+        LOG_FAIL_FMT("Broadcast ledger secrets at version {}", v);
+        broadcast_ledger_secret(
+          tx, network.ledger_secrets->get_secret(v).value(), v, true);
+      }
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
@@ -1036,11 +1043,9 @@ namespace ccf
     bool combine_recovery_shares(
       Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
-      LedgerSecret restored_ledger_secret;
       try
       {
-        restored_ledger_secret = share_manager.restore(tx, shares);
-        finish_recovery_with_shares(tx, restored_ledger_secret);
+        finish_recovery_with_shares(tx, share_manager.restore(tx, shares));
       }
       catch (const std::logic_error& e)
       {
@@ -1395,13 +1400,18 @@ namespace ccf
 
               if (is_part_of_public_network())
               {
+                LOG_FAIL_FMT(
+                  "Setting new secrets at version {}", secret_version);
                 // When recovering, set the past secret as a ledger secret to
                 // be sealed at the end of the recovery
                 if (!network.ledger_secrets->set_secret(
                       secret_version, plain_secret))
                 {
-                  throw std::logic_error(
-                    "Cannot set ledger secrets because they already exist");
+                  // throw std::logic_error(fmt::format(
+                  //   "Cannot set ledger secrets at version {} because they "
+                  //   "already exist",
+                  //   secret_version));
+                  LOG_FAIL_FMT("Failure");
                 }
               }
               else

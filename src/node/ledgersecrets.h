@@ -140,6 +140,28 @@ namespace ccf
       return restored_versions;
     }
 
+    std::vector<kv::Version> restore(LedgerSecrets&& ledger_secrets)
+    {
+      std::vector<kv::Version> restored_versions;
+
+      for (auto it = ledger_secrets.secrets_map.begin();
+           it != ledger_secrets.secrets_map.end();)
+      {
+        auto it_ = ledger_secrets.secrets_map.extract(it++);
+        if (secrets_map.find(it_.key()) != secrets_map.end())
+        {
+          throw std::logic_error(fmt::format(
+            "Ledger secret at version {} cannot be restored as "
+            "they already exist",
+            it_.key()));
+        }
+        restored_versions.emplace_back(it_.key());
+        secrets_map.insert(std::move(it_));
+      }
+
+      return restored_versions;
+    }
+
     // Called during recovery to promote temporary secret created at startup (v
     // = 1) to new current secret at the latest signed version
     bool promote_secret(kv::Version old_v, kv::Version new_v)
