@@ -2,11 +2,11 @@
 # Licensed under the Apache 2.0 License.
 # PBFT
 
-add_definitions(-DSIGN_BATCH)
+add_compile_definitions(SIGN_BATCH)
 set(SIGN_BATCH ON)
 
 if(SAN)
-  add_definitions(-DUSE_STD_MALLOC)
+  add_compile_definitions(USE_STD_MALLOC)
 endif()
 
 set(PBFT_SRC

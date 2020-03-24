@@ -31,16 +31,16 @@ set(SERVICE_IDENTITY_CURVE_CHOICE
           "One of secp384r1, ed25519, secp256k1_mbedtls, secp256k1_bitcoin"
 )
 if(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp384r1")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP384R1)
+  add_compile_definitions(SERVICE_IDENTITY_CURVE_CHOICE_SECP384R1)
   set(DEFAULT_PARTICIPANTS_CURVE "secp384r1")
 elseif(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "ed25519")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_ED25519)
+  add_compile_definitions(SERVICE_IDENTITY_CURVE_CHOICE_ED25519)
   set(DEFAULT_PARTICIPANTS_CURVE "ed25519")
 elseif(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_mbedtls")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS)
+  add_compile_definitions(SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS)
   set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
 elseif(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN)
+  add_compile_definitions(SERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN)
   set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
 else()
   message(
@@ -72,7 +72,7 @@ endif()
 option(VERBOSE_LOGGING "Enable verbose logging" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
-  add_definitions(-DVERBOSE_LOGGING)
+  add_compile_definitions(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
@@ -80,14 +80,14 @@ option(NO_STRICT_TLS_CIPHERSUITES
        "Disable strict list of valid TLS ciphersuites" OFF
 )
 if(NO_STRICT_TLS_CIPHERSUITES)
-  add_definitions(-DNO_STRICT_TLS_CIPHERSUITES)
+  add_compile_definitions(NO_STRICT_TLS_CIPHERSUITES)
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
        OFF
 )
 if(USE_NULL_ENCRYPTOR)
-  add_definitions(-DUSE_NULL_ENCRYPTOR)
+  add_compile_definitions(USE_NULL_ENCRYPTOR)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
@@ -99,12 +99,12 @@ option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
 )
 if(DEBUG_CONFIG)
-  add_definitions(-DDEBUG_CONFIG)
+  add_compile_definitions(DEBUG_CONFIG)
 endif()
 
 option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
 if(USE_NLJSON_KV_SERIALISER)
-  add_definitions(-DUSE_NLJSON_KV_SERIALISER)
+  add_compile_definitions(USE_NLJSON_KV_SERIALISER)
 endif()
 
 enable_language(ASM)
