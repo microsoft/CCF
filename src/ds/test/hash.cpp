@@ -3,7 +3,7 @@
 #include "../hash.h"
 
 #include "../siphash.h"
-#include "siphash_knownhashes.h"
+#include "siphash_known_hashes.h"
 
 #include <doctest/doctest.h>
 #include <iostream>

@@ -5,7 +5,7 @@
 #include "http/http_builder.h"
 #include "http/http_consts.h"
 #include "http/http_parser.h"
-#include "node/rpc/jsonrpc.h"
+#include "node/rpc/json_rpc.h"
 #include "tls_client.h"
 
 #include <fmt/format_header_only.h>
@@ -13,7 +13,7 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <thread>
-#include <tls/keypair.h>
+#include <tls/key_pair.h>
 
 class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
 {

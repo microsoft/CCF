@@ -3,7 +3,7 @@ Build and Sign Application
 
 Once an application is complete, it needs to be built into a shared object, and signed.
 
-Using `cmake`, an application can be built and then signed using the functions provided by CCF's ``CCF/cmake/ccf.cmake``. For example, for the ``luageneric`` application:
+Using `cmake`, an application can be built and then signed using the functions provided by CCF's ``CCF/cmake/ccf.cmake``. For example, for the ``lua_generic`` application:
 
 .. literalinclude:: ../../../cmake/common.cmake
     :language: cmake
@@ -19,20 +19,20 @@ The :term:`Open Enclave` configuration file (``oe_sign.conf``) should be placed 
 Standalone Signing
 ------------------
 
-It is also possible to sign an existing enclave application (e.g. ``libluageneric.enclave.so``) manually, using a personal signing key (specified by ``--key-file``):
+It is also possible to sign an existing enclave application (e.g. ``liblua_generic.enclave.so``) manually, using a personal signing key (specified by ``--key-file``):
 
 .. code-block:: bash
 
-    $ /opt/openenclave/bin/oesign sign --enclave-image libluageneric.enclave.so  --config-file CCF/src/apps/luageneric/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
-    Created libluageneric.enclave.so.signed
+    $ /opt/openenclave/bin/oesign sign --enclave-image liblua_generic.enclave.so  --config-file CCF/src/apps/lua_generic/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
+    Created liblua_generic.enclave.so.signed
     $ ls *.so.signed
-    libluageneric.enclave.so.signed
+    liblua_generic.enclave.so.signed
 
 It is then possible to inspect the signed enclave library:
 
 .. code-block:: bash
 
-    $ /opt/openenclave/bin/oesign dump --enclave-image libluageneric.enclave.so.signed
+    $ /opt/openenclave/bin/oesign dump --enclave-image liblua_generic.enclave.so.signed
     === Entry point:
     name=_start
     address=00000000008dee48
@@ -55,10 +55,10 @@ For a given application, the ``signature`` field depends on the key used to sign
 Running the Application
 -----------------------
 
-:ref:`Operators should start each CCF node <operators/start_network:Starting the First Node>` with the signed enclave application as enclave file. For example, for the ``luageneric`` application:
+:ref:`Operators should start each CCF node <operators/start_network:Starting the First Node>` with the signed enclave application as enclave file. For example, for the ``lua_generic`` application:
 
 .. code-block:: bash
 
-    $ cchost --enclave-file libluageneric.signed.so [args]
+    $ cchost --enclave-file liblua_generic.signed.so [args]
 
-.. note:: When deploying the ``luageneric`` application, members should also :ref:`register the Lua application <members/open_network:Registering the Lua Application>` before the network is opened to users.
+.. note:: When deploying the ``lua_generic`` application, members should also :ref:`register the Lua application <members/open_network:Registering the Lua Application>` before the network is opened to users.

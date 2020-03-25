@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ds/logger.h"
-#include "enclave/clientendpoint.h"
-#include "enclave/rpcmap.h"
+#include "enclave/client_endpoint.h"
+#include "enclave/rpc_map.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
 #include "ws_upgrade.h"

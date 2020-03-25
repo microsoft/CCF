@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "../oversized.h"
 
-#include "../nonblocking.h"
+#include "../non_blocking.h"
 
 #include <algorithm>
 #include <doctest/doctest.h>

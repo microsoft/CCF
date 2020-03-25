@@ -1,7 +1,7 @@
 Logging (Lua)
 =============
 
-CCF comes with a generic application for running Lua scripts called `luageneric`, implemented in `luageneric.cpp <https://github.com/microsoft/CCF/blob/master/src/apps/luageneric/luageneric.cpp>`_. At runtime, *luageneric* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments.
+CCF comes with a generic application for running Lua scripts called `lua_generic`, implemented in `lua_generic.cpp <https://github.com/microsoft/CCF/blob/master/src/apps/lua_generic/lua_generic.cpp>`_. At runtime, *lua_generic* dispatches incoming RPCs to Lua scripts stored in the table *APP_SCRIPTS*. The RPC method name is used as the key, and if a script exists at this key it is called with the RPC arguments.
 
 The script at key ``__environment`` is special. If set, the corresponding script is invoked before any actual handler script to initialize the Lua environment.
 

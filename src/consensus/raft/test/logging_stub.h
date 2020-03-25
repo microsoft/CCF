@@ -3,7 +3,7 @@
 #pragma once
 
 #include "consensus/raft/raft.h"
-#include "consensus/raft/rafttypes.h"
+#include "consensus/raft/raft_types.h"
 
 #include <map>
 #include <vector>

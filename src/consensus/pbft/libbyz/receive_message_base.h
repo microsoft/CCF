@@ -3,10 +3,10 @@
 // Copyright (c) 2000, 2001 Miguel Castro, Rodrigo Rodrigues, Barbara Liskov.
 // Licensed under the MIT license.
 #pragma once
-#include "LedgerWriter.h"
-#include "Message.h"
-#include "Reply.h"
-#include "Request.h"
+#include "ledger_writer.h"
+#include "message.h"
+#include "reply.h"
+#include "request.h"
 
 namespace pbft
 {

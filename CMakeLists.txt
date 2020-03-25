@@ -249,7 +249,7 @@ if(BUILD_TESTS)
 
   add_unit_test(
     ds_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ringbuffer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
@@ -290,14 +290,14 @@ if(BUILD_TESTS)
   )
 
   add_unit_test(
-    secretsharing_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secretshare.cpp
+    secret_sharing_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
   )
-  target_link_libraries(secretsharing_test PRIVATE sss.host)
+  target_link_libraries(secret_sharing_test PRIVATE sss.host)
 
   add_unit_test(
     encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmkey.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmetric_key.cpp
   )
   use_client_mbedtls(encryptor_test)
   target_link_libraries(encryptor_test PRIVATE secp256k1.host)
@@ -313,10 +313,10 @@ if(BUILD_TESTS)
   )
 
   add_unit_test(
-    keyexchange_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/keyexchange.cpp
+    key_exchange_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
   )
-  use_client_mbedtls(keyexchange_test)
-  target_link_libraries(keyexchange_test PRIVATE secp256k1.host)
+  use_client_mbedtls(key_exchange_test)
+  target_link_libraries(key_exchange_test PRIVATE secp256k1.host)
 
   add_unit_test(
     channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
@@ -339,44 +339,46 @@ if(BUILD_TESTS)
   )
 
   add_unit_test(
-    membervoting_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/membervoting_test.cpp
+    member_voting_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
   )
   target_link_libraries(
-    membervoting_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                              secp256k1.host http_parser.host sss.host
+    member_voting_test
+    PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
+            http_parser.host sss.host
   )
 
   add_unit_test(
-    nodefrontend_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/nodefrontend_test.cpp
+    node_frontend_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
   )
   target_link_libraries(
-    nodefrontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                              secp256k1.host http_parser.host sss.host
+    node_frontend_test
+    PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
+            http_parser.host sss.host
   )
 
   if(NOT ENV{RUNTIME_CONFIG_DIR})
     set_tests_properties(
-      membervoting_test
+      member_voting_test
       PROPERTIES ENVIRONMENT
                  RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
     )
   endif()
 
   add_unit_test(
-    luageneric_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/test/luageneric_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/luageneric.cpp
+    lua_generic_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/test/lua_generic_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/lua_generic.cpp
   )
-  target_include_directories(luageneric_test PRIVATE ${LUA_DIR})
+  target_include_directories(lua_generic_test PRIVATE ${LUA_DIR})
   target_link_libraries(
-    luageneric_test PRIVATE lua.host secp256k1.host http_parser.host
+    lua_generic_test PRIVATE lua.host secp256k1.host http_parser.host
   )
 
   add_unit_test(
-    lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/luakv.cpp
+    lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
   )
   target_include_directories(lua_test PRIVATE ${LUA_DIR})
   target_link_libraries(lua_test PRIVATE lua.host)
@@ -385,7 +387,7 @@ if(BUILD_TESTS)
   add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
   add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
   add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
-  add_picobench(ringbuffer_bench SRCS src/ds/test/ringbuffer_bench.cpp)
+  add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
   add_picobench(
     tls_bench
     SRCS src/tls/test/bench.cpp
@@ -404,7 +406,7 @@ if(BUILD_TESTS)
     INCLUDE_DIRS ${EVERCRYPT_INC}
   )
   add_picobench(
-    kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmkey.cpp
+    kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
 
@@ -504,7 +506,7 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
     CONSENSUS raft
     ADDITIONAL_ARGS --js-app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/loggingjs.lua
+                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
   )
 
   if(QUOTES_ENABLED)

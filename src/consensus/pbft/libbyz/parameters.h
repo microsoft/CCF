@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "tls/keypair.h"
+#include "tls/key_pair.h"
 #include "tls/verifier.h"
 
 #include <cstddef>

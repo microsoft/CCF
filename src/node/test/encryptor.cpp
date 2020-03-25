@@ -4,9 +4,9 @@
 
 #include "../encryptor.h"
 
-#include "../../kv/kvtypes.h"
+#include "../../kv/kv_types.h"
 #include "../entities.h"
-#include "../node/ledgersecrets.h"
+#include "../node/ledger_secrets.h"
 
 #include <doctest/doctest.h>
 #include <random>
