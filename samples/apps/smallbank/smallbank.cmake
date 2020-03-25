@@ -46,8 +46,10 @@ if(BUILD_TESTS)
       else()
         set(SMALL_BANK_ITERATIONS 2000)
       endif()
+      set(NUM_LOCALHOST_CLIENTS 1)
     else()
       set(SMALL_BANK_ITERATIONS 200000)
+      set(NUM_LOCALHOST_CLIENTS 12)
     endif()
     get_verification_file(${SMALL_BANK_ITERATIONS} SMALL_BANK_VERIFICATION_FILE)
 
@@ -66,7 +68,7 @@ if(BUILD_TESTS)
         --metrics-file
         small_bank_${CONSENSUS}_metrics.json
         --num-localhost-clients
-        8
+        ${NUM_LOCALHOST_CLIENTS}
     )
 
     add_perf_test(
@@ -87,7 +89,7 @@ if(BUILD_TESTS)
         --metrics-file
         small_bank_${CONSENSUS}_sigs_metrics.json
         --num-localhost-clients
-        8
+        ${NUM_LOCALHOST_CLIENTS}
     )
 
   endforeach()
@@ -113,7 +115,7 @@ if(BUILD_TESTS)
       --participants-curve
       "secp256k1"
       --num-localhost-clients
-      8
+      ${NUM_LOCALHOST_CLIENTS}
   )
 
 endif()
