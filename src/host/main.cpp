@@ -59,7 +59,7 @@ int main(int argc, char** argv)
 
   size_t num_worker_threads = 0;
   app.add_option(
-    "-w,--worker_threads",
+    "-w,--worker-threads",
     num_worker_threads,
     "number of worker threads inside the enclave",
     true);

@@ -603,7 +603,7 @@ class CCFRemote(object):
             f"--host-log-level={host_log_level}",
             election_timeout_arg,
             f"--consensus={consensus}",
-            f"--worker_threads={worker_threads}",
+            f"--worker-threads={worker_threads}",
         ]
 
         if json_log_path:
