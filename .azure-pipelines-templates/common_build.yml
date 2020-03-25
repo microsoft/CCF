@@ -16,6 +16,13 @@ jobs:
     - template: ninja.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
-    - template: publish_build.yml
+    - template: test.yml
       parameters:
-        artifact_name: ${{ parameters.artifact_name }}
+        ctest_filter: ${{ parameters.ctest_filter }}
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }} tests'
+    - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, 'Coverage')) }}:
+      - template: coverage.yml
+    - ${{ if eq(parameters.suffix, 'Perf') }}:
+      - template: push_perf_data.yml
+        parameters:
+          consensus: ${{ parameters.consensus }}
