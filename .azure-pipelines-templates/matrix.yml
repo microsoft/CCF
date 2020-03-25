@@ -3,6 +3,7 @@ parameters:
 
   env:
     Hosted:
+      container: nosgx
       pool:
         vmImage: ubuntu-18.04
     NoSGX:
