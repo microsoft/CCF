@@ -3,7 +3,7 @@
 #pragma once
 #include "crypto/hash.h"
 #include "entities.h"
-#include "rawsignature.h"
+#include "raw_signature.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>

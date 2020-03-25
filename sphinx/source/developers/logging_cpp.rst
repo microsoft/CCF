@@ -3,7 +3,7 @@ Logging (C++)
 
 A C++ transaction engine exposes itself to CCF by implementing:
 
-.. literalinclude:: ../../../src/enclave/appinterface.h
+.. literalinclude:: ../../../src/enclave/app_interface.h
     :language: cpp
     :start-after: SNIPPET_START: rpc_handler
     :end-before: SNIPPET_END: rpc_handler

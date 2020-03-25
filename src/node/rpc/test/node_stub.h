@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "node/rpc/nodeinterface.h"
-#include "node/secretshare.h"
+#include "node/rpc/node_interface.h"
+#include "node/secret_share.h"
 
 namespace ccf
 {

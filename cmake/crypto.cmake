@@ -48,7 +48,7 @@ install(
 # CCFCrypto, again two versions.
 
 set(CCFCRYPTO_SRC ${CCF_DIR}/src/crypto/hash.cpp
-                  ${CCF_DIR}/src/crypto/symmkey.cpp
+                  ${CCF_DIR}/src/crypto/symmetric_key.cpp
 )
 
 set(CCFCRYPTO_INC ${CCF_DIR}/src/crypto/ ${EVERCRYPT_INC})

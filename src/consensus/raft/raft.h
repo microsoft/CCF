@@ -4,10 +4,10 @@
 
 #include "ds/logger.h"
 #include "ds/serialized.h"
-#include "ds/spinlock.h"
-#include "kv/kvtypes.h"
+#include "ds/spin_lock.h"
+#include "kv/kv_types.h"
 #include "node/nodetypes.h"
-#include "rafttypes.h"
+#include "raft_types.h"
 
 #include <algorithm>
 #include <deque>

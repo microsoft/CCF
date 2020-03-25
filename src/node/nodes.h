@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "entities.h"
-#include "kv/kvtypes.h"
-#include "nodeinfonetwork.h"
+#include "kv/kv_types.h"
+#include "node_info_network.h"
 
 #include <msgpack/msgpack.hpp>
 #include <string>

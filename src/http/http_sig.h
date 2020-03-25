@@ -4,10 +4,10 @@
 
 #include "http_consts.h"
 #include "http_parser.h"
-#include "node/clientsignatures.h"
+#include "node/client_signatures.h"
 #include "tls/base64.h"
 #include "tls/hash.h"
-#include "tls/keypair.h"
+#include "tls/key_pair.h"
 
 #include <fmt/format_header_only.h>
 #include <optional>

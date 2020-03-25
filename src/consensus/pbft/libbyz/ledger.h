@@ -4,6 +4,9 @@
 // Licensed under the MIT license.
 #pragma once
 
+#include "digest.h"
+#include "types.h"
+
 enum class Ledger_header_type : uint32_t
 {
   Pre_prepare_ledger_header = 0,
