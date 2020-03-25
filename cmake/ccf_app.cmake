@@ -2,8 +2,16 @@
 # Licensed under the Apache 2.0 License.
 
 set(ALLOWED_TARGETS "sgx;virtual")
+
+set(COMPILE_TARGETS
+    "sgx;virtual"
+    CACHE
+      STRING
+      "List of target compilation platforms. Choose from: ${ALLOWED_TARGETS}"
+)
+
 set(IS_VALID_TARGET "FALSE")
-foreach(REQUESTED_TARGET ${TARGET})
+foreach(REQUESTED_TARGET ${COMPILE_TARGETS})
   if(${REQUESTED_TARGET} IN_LIST ALLOWED_TARGETS)
     set(IS_VALID_TARGET "TRUE")
   else()
@@ -17,9 +25,15 @@ endforeach()
 if((NOT ${IS_VALID_TARGET}))
   message(
     FATAL_ERROR
-      "Variable list 'TARGET' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
+      "Variable list 'COMPILE_TARGETS' must include at least one supported target. Choose from: ${ALLOWED_TARGETS}"
   )
 endif()
+
+find_package(OpenEnclave 0.8 CONFIG REQUIRED)
+# As well as pulling in openenclave:: targets, this sets variables which can be
+# used for our edge cases (eg - for virtual libraries). These do not follow the
+# standard naming patterns, for example use OE_INCLUDEDIR rather than
+# OpenEnclave_INCLUDE_DIRS
 
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
@@ -100,7 +114,7 @@ function(add_ccf_app name)
 
   add_custom_target(${name} ALL)
 
-  if("sgx" IN_LIST TARGET)
+  if("sgx" IN_LIST COMPILE_TARGETS)
     set(enc_name ${name}.enclave)
 
     add_library(${enc_name} SHARED ${PARSED_ARGS_SRCS})
@@ -125,7 +139,7 @@ function(add_ccf_app name)
     add_dependencies(${name} ${enc_name})
   endif()
 
-  if("virtual" IN_LIST TARGET)
+  if("virtual" IN_LIST COMPILE_TARGETS)
     # Build a virtual enclave, loaded as a shared library without OE
     set(virt_name ${name}.virtual)
 

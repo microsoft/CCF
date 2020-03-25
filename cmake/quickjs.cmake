@@ -23,7 +23,7 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 # We need two versions of libquickjs, because it depends on libc
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(
     quickjs.enclave STATIC ${QUICKJS_SRC} ${CCF_DIR}/3rdparty/stub/stub.c
   )

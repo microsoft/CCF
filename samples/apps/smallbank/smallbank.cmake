@@ -14,17 +14,27 @@ sign_app_library(
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 
-if(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
-  set(SMALL_BANK_SIGNED_VERIFICATION_FILE
-      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
+function(get_verification_file iterations output_var)
+  math(EXPR thousand_iterations "${iterations} / 1000")
+  set(proposed_name
+      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_${thousand_iterations}k.json
   )
-  set(SMALL_BANK_SIGNED_ITERATIONS 50000)
-else()
-  set(SMALL_BANK_SIGNED_VERIFICATION_FILE
-      ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
+  if(NOT EXISTS "${proposed_name}")
+    message(
+      FATAL_ERROR
+        "Could not find verification file for ${iterations} iterations (looking for ${proposed_name})"
+    )
+  endif()
+  set(${output_var}
+      ${proposed_name}
+      PARENT_SCOPE
   )
-  set(SMALL_BANK_SIGNED_ITERATIONS 2000)
-endif()
+endfunction()
+
+set(SMALL_BANK_SIGNED_ITERATIONS 50000)
+get_verification_file(
+  ${SMALL_BANK_SIGNED_ITERATIONS} SMALL_BANK_SIGNED_VERIFICATION_FILE
+)
 
 if(BUILD_TESTS)
   # Small Bank end to end and performance test
@@ -32,22 +42,14 @@ if(BUILD_TESTS)
 
     if(${CONSENSUS} STREQUAL pbft)
       if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(SMALL_BANK_VERIFICATION_FILE
-            ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_50k.json
-        )
         set(SMALL_BANK_ITERATIONS 50000)
       else()
-        set(SMALL_BANK_VERIFICATION_FILE
-            ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank_2k.json
-        )
         set(SMALL_BANK_ITERATIONS 2000)
       endif()
     else()
-      set(SMALL_BANK_VERIFICATION_FILE
-          ${CMAKE_CURRENT_LIST_DIR}/tests/verify_small_bank.json
-      )
       set(SMALL_BANK_ITERATIONS 200000)
     endif()
+    get_verification_file(${SMALL_BANK_ITERATIONS} SMALL_BANK_VERIFICATION_FILE)
 
     add_perf_test(
       NAME small_bank_client_test_${CONSENSUS}
@@ -103,4 +105,5 @@ if(BUILD_TESTS)
       --participants-curve
       "secp256k1"
   )
+
 endif()
