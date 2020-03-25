@@ -457,14 +457,14 @@ if(BUILD_TESTS)
     NAME recovery_tests
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
-    ADDITIONAL_ARGS --recovery 1 --msgs-per-recovery 1
+    ADDITIONAL_ARGS --recovery 2
   )
 
   add_e2e_test(
     NAME recovery_share_tests
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
-    ADDITIONAL_ARGS --recovery 2 --use-shares --msgs-per-recovery 1
+    ADDITIONAL_ARGS --recovery 2 --use-shares
   )
 
   add_e2e_test(
