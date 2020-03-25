@@ -86,7 +86,7 @@ jobs:
       suffix: 'SAN'
       artifact_name: 'Build_NoSGX_SAN'
       depends_on: '${{ parameters.static_check_job_name }}'
-      ctest_filter: '${{ parameters.test[target].ctest_args }}'
+      ctest_filter: '${{ parameters.test.san.ctest_args }}'
 
   # Performance
   - template: common_build.yml
