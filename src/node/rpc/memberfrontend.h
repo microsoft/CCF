@@ -835,7 +835,7 @@ namespace ccf
         LOG_DEBUG_FMT(
           "Reached secret sharing threshold {}", pending_shares.size());
 
-        if (!node.combine_recovery_shares(args.tx, pending_shares))
+        if (!node.restore_ledger_secrets(args.tx, pending_shares))
         {
           pending_shares.clear();
           return make_error(

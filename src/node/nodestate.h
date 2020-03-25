@@ -670,7 +670,9 @@ namespace ccf
       }
 
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+      {
         recovery_store->compact(ledger_idx);
+      }
 
       if (recovery_store->current_version() == recovery_v)
       {
@@ -715,6 +717,8 @@ namespace ccf
       if (consensus->is_primary())
       {
         Store::Tx tx;
+        share_manager.update_key_share_info(tx);
+
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -866,12 +870,10 @@ namespace ccf
     }
 
     bool finish_recovery_with_shares(
-      Store::Tx& tx, const LedgerSecret& ledger_secret)
+      Store::Tx& tx, const std::vector<kv::Version>& restored_versions)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
-
-      // For now, this only supports one recovery
 
       LOG_INFO_FMT("Initiating end of recovery with shares (primary)");
 
@@ -879,9 +881,11 @@ namespace ccf
       // network
       history->emit_signature();
 
-      network.ledger_secrets->set_secret(0, ledger_secret.master);
-
-      broadcast_ledger_secret(tx, ledger_secret, 0, true);
+      for (auto const& v : restored_versions)
+      {
+        broadcast_ledger_secret(
+          tx, network.ledger_secrets->get_secret(v).value(), v, true);
+      }
 
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
@@ -1032,28 +1036,27 @@ namespace ccf
     {
       try
       {
-        share_manager.create(tx);
+        share_manager.update_key_share_info(tx);
       }
       catch (const std::logic_error& e)
       {
-        LOG_FAIL_FMT("Failed to create shares: {}", e.what());
+        LOG_FAIL_FMT("Failed to update key share info: {}", e.what());
         return false;
       }
       return true;
     }
 
-    bool combine_recovery_shares(
+    bool restore_ledger_secrets(
       Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
-      LedgerSecret restored_ledger_secret;
       try
       {
-        restored_ledger_secret = share_manager.restore(tx, shares);
-        finish_recovery_with_shares(tx, restored_ledger_secret);
+        finish_recovery_with_shares(
+          tx, share_manager.restore_key_share_info(tx, shares));
       }
       catch (const std::logic_error& e)
       {
-        LOG_FAIL_FMT("Failed to restore shares: {}", e.what());
+        LOG_FAIL_FMT("Failed to restore key share info: {}", e.what());
         return false;
       }
 
@@ -1409,8 +1412,10 @@ namespace ccf
                 if (!network.ledger_secrets->set_secret(
                       secret_version, plain_secret))
                 {
-                  throw std::logic_error(
-                    "Cannot set ledger secrets because they already exist");
+                  throw std::logic_error(fmt::format(
+                    "Cannot set ledger secrets at version {} because they "
+                    "already exist",
+                    secret_version));
                 }
               }
               else

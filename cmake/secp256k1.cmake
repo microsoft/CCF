@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(
     secp256k1.enclave STATIC ${CCF_DIR}/3rdparty/secp256k1/src/secp256k1.c
   )

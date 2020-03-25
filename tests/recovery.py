@@ -27,6 +27,9 @@ def test(network, args, use_shares=False):
     ledger = primary.get_ledger()
     sealed_secrets = primary.get_sealed_secrets()
 
+    if use_shares:
+        network.consortium.store_current_network_encryption_key()
+
     recovered_network = infra.ccf.Network(
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
@@ -76,9 +79,6 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
-
-        if args.use_shares:
-            network.consortium.store_current_network_encryption_key()
 
         for recovery_idx in range(args.recovery):
             recovered_network = test(network, args, use_shares=args.use_shares)
