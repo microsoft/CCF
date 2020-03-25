@@ -359,7 +359,7 @@ install(
 
 # Common test args for Python scripts starting up CCF networks
 if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT SAN)
-  set(DEFAULT_WORKER_THREADS 0)
+  set(DEFAULT_WORKER_THREADS 2)
 else()
   set(DEFAULT_WORKER_THREADS 0)
 endif()
