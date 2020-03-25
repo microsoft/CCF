@@ -44,7 +44,7 @@ for file in $(find "$@" -name "*.h" -or -name "*.hpp" -or -name "*.cpp" -or -nam
     fi
     unformatted_files+="$file"
   fi
-  file_base_name=`basename ${file%.*}`
+  file_base_name=$(basename "${file%.*}")
   if ! [[ $file_base_name =~ $file_name_regex ]]; then
     if [ "$badly_named_files" != "" ]; then
       badly_named_files+=$'\n'
