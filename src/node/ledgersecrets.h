@@ -151,8 +151,8 @@ namespace ccf
         if (secrets_map.find(it_.key()) != secrets_map.end())
         {
           throw std::logic_error(fmt::format(
-            "Ledger secret at version {} cannot be restored as "
-            "they already exist",
+            "Ledger secret at version {} cannot be restored as they already "
+            "exist",
             it_.key()));
         }
         restored_versions.emplace_back(it_.key());
