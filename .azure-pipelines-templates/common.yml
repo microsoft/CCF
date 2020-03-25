@@ -29,6 +29,7 @@ jobs:
 
     - ${{ if eq(parameters.suffix, 'Perf') }}:
       - template: push_perf_data.yml
+      - template: metrics.yml
 
     - ${{ if eq(parameters.suffix, 'Release') }}:
       - template: publish_build.yml

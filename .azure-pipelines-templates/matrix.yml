@@ -80,12 +80,6 @@ jobs:
       artifact_name: 'SGX_Perf'
       ctest_filter: '${{ parameters.test.perf.ctest_args }}'
 
-  # Collect and Plot metrics
-  - template: metrics.yml
-    parameters:
-      env: ${{ parameters.env.Hosted }}
-      depends_on: 'SGX_Perf'
-
   # Build, test, and publish release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
     # Release build
