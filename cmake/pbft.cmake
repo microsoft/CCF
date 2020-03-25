@@ -2,11 +2,11 @@
 # Licensed under the Apache 2.0 License.
 # PBFT
 
-add_definitions(-DSIGN_BATCH)
+add_compile_definitions(SIGN_BATCH)
 set(SIGN_BATCH ON)
 
 if(SAN)
-  add_definitions(-DUSE_STD_MALLOC)
+  add_compile_definitions(USE_STD_MALLOC)
 endif()
 
 set(PBFT_SRC
@@ -54,7 +54,7 @@ set(PBFT_SRC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/append_entries.cpp
 )
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(libbyz.enclave STATIC ${PBFT_SRC})
   target_compile_options(libbyz.enclave PRIVATE -nostdinc)
   target_compile_definitions(
@@ -76,7 +76,7 @@ endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if("virtual" IN_LIST TARGET)
+if("virtual" IN_LIST COMPILE_TARGETS)
 
   add_library(libbyz.host STATIC ${PBFT_SRC})
   target_compile_options(libbyz.host PRIVATE -stdlib=libc++)
