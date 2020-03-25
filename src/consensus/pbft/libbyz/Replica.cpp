@@ -1009,10 +1009,9 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
                   std::unique_ptr<ExecTentativeCbCtx> msg) {
         if (!self->compare_execution_results(msg->info, pp))
         {
-          LOG_INFO_FMT(
+          PBFT_ASSERT_FMT_FAIL(
             "Merkle roots don't match in send prepare for seqno {}",
             msg->seqno);
-          PBFT_ASSERT(false, "should not be here");
 
           self->try_send_prepare();
           return;

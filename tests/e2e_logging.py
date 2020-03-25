@@ -45,7 +45,7 @@ def test_large_messages(network, args):
                 check_commit(
                     c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
                 )
-                check(c.rpc("LOG_get", {"id": id}), result={"msg": long_msg})
+                check(c.get("LOG_get", {"id": id}), result={"msg": long_msg})
                 id += 1
 
     return network
@@ -62,7 +62,7 @@ def test_cert_prefix(network, args):
                 log_id = 101
                 msg = "This message will be prefixed"
                 c.rpc("LOG_record_prefix_cert", {"id": log_id, "msg": msg})
-                r = c.rpc("LOG_get", {"id": log_id})
+                r = c.get("LOG_get", {"id": log_id})
                 assert r.result is not None
                 assert f"CN=user{user_id}" in r.result["msg"]
 
@@ -73,7 +73,7 @@ def test_cert_prefix(network, args):
 
 
 @reqs.description("Write as anonymous caller")
-@reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
+@reqs.supports_methods("LOG_record_anonymous", "LOG_get")
 def test_anonymous_caller(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
@@ -86,15 +86,40 @@ def test_anonymous_caller(network, args):
         with primary.user_client(user_id=4) as c:
             r = c.rpc("LOG_record_anonymous", {"id": log_id, "msg": msg})
             assert r.result == True
-            r = c.rpc("LOG_get", {"id": log_id})
+            r = c.get("LOG_get", {"id": log_id})
             assert (
                 r.error is not None
             ), "Anonymous user is not authorised to call LOG_get"
 
         with primary.user_client(user_id=0) as c:
-            r = c.rpc("LOG_get", {"id": log_id})
+            r = c.get("LOG_get", {"id": log_id})
             assert r.result is not None
             assert msg in r.result["msg"]
+    else:
+        LOG.warning("Skipping test_cert_prefix as application is not C++")
+
+    return network
+
+
+@reqs.description("Write non-JSON body")
+@reqs.supports_methods("LOG_record_raw_text", "LOG_get")
+def test_raw_text(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        log_id = 101
+        msg = "This message is not in JSON"
+        with primary.user_client() as c:
+            r = c.rpc(
+                "LOG_record_raw_text",
+                msg,
+                headers={"content-type": "text/plain", "x-log-id": str(log_id)},
+            )
+            assert r.status == http.HTTPStatus.OK.value
+            r = c.get("LOG_get", {"id": log_id})
+            assert r.result is not None
+            assert msg in r.result["msg"]
+
     else:
         LOG.warning("Skipping test_cert_prefix as application is not C++")
 
@@ -189,6 +214,7 @@ def run(args):
             network = test_update_lua(network, args)
             network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
+            network = test_raw_text(network, args)
 
 
 if __name__ == "__main__":

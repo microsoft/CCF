@@ -2,9 +2,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set -ex
+set -e
 
-read -p "Are you sure? " -n 1 -r
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 SUBSCRIPTION_NAME"
+  exit 1
+fi
+
+read -p "Are you sure [y/N]? " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]
 then
@@ -12,6 +17,6 @@ then
 fi
 
 # Azure Resource Group
-RG=ccf-dev
+RG=ccf-dev-rg
 
-az group delete --name "$RG" --subscription "$SUBSCRIPTION" -y
+az group delete --name "$RG" --subscription "$1" -y

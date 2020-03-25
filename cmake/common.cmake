@@ -91,7 +91,7 @@ if(USE_NULL_ENCRYPTOR)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
-option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
+option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" ON)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 
@@ -160,6 +160,9 @@ endforeach()
 install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
         DESTINATION bin
 )
+
+# Install getting_started scripts for VM creation and setup
+install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
 
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX

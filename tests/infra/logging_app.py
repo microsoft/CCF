@@ -54,12 +54,12 @@ class LoggingTxs:
 
                 for pub_tx_index in self.pub:
                     check(
-                        uc.rpc("LOG_get_pub", {"id": pub_tx_index}),
+                        uc.get("LOG_get_pub", {"id": pub_tx_index}),
                         result={"msg": self.pub[pub_tx_index]},
                     )
 
                 for priv_tx_index in self.priv:
                     check(
-                        uc.rpc("LOG_get", {"id": priv_tx_index}),
+                        uc.get("LOG_get", {"id": priv_tx_index}),
                         result={"msg": self.priv[priv_tx_index]},
                     )

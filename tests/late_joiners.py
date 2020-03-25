@@ -70,13 +70,15 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id):
         for x in range(0, 5):
             try:
                 check(
-                    c.rpc("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
+                    c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
                 )
                 return
             except TimeoutError:
                 LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
             except AssertionError as e:
-                LOG.error(f"assert error error for LOG_get on node {node.node_id}")
+                LOG.error(
+                    f"Assertion error for LOG_get on node {node.node_id}, error:{e.message}"
+                )
         raise AssertionError(f"{node.nodeid} is not up to date")
 
 

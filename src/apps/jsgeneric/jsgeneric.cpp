@@ -166,10 +166,16 @@ namespace ccfapp
         JS_SetPropertyStr(ctx, tables_, "log", log);
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
+        const auto& request_query = args.rpc_ctx->get_request_query();
+        auto query_str =
+          JS_NewStringLen(ctx, request_query.c_str(), request_query.size());
+        JS_SetPropertyStr(ctx, global_obj, "query", query_str);
+
         const auto& request_body = args.rpc_ctx->get_request_body();
-        auto args_str = JS_NewStringLen(
+        auto body_str = JS_NewStringLen(
           ctx, (const char*)request_body.data(), request_body.size());
-        JS_SetPropertyStr(ctx, global_obj, "args", args_str);
+        JS_SetPropertyStr(ctx, global_obj, "body", body_str);
+
         JS_FreeValue(ctx, global_obj);
 
         if (!handler_script.value().text.has_value())
@@ -208,6 +214,8 @@ namespace ccfapp
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_body(
           jsonrpc::pack(response, jsonrpc::Pack::Text));
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         return;
       };
 

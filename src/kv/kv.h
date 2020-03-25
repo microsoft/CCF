@@ -133,13 +133,13 @@ namespace kv
       local_hook(local_hook_),
       global_hook(global_hook_)
     {
-      roll->insert_back(CreateNewLocalCommit(0, State(), Write()));
+      roll->insert_back(create_new_local_commit(0, State(), Write()));
     }
 
     Map(const Map& that) = delete;
 
     template <typename... Args>
-    LocalCommit* CreateNewLocalCommit(Args&&... args)
+    LocalCommit* create_new_local_commit(Args&&... args)
     {
       LocalCommit* c = empty_commits.pop();
       if (c == nullptr)
@@ -622,7 +622,8 @@ namespace kv
 
           if (changes)
           {
-            map.roll->insert_back(map.CreateNewLocalCommit(v, state, writes));
+            map.roll->insert_back(
+              map.create_new_local_commit(v, state, writes));
           }
         }
       }
@@ -788,7 +789,7 @@ namespace kv
           if (global_hook)
           {
             commit_deltas.insert_back(
-              CreateNewLocalCommit(r->version, r->state, move(r->writes)));
+              create_new_local_commit(r->version, r->state, move(r->writes)));
           }
           return;
         }
@@ -797,7 +798,7 @@ namespace kv
         if (global_hook && !r->writes.empty())
         {
           commit_deltas.insert_back(
-            CreateNewLocalCommit(r->version, r->state, move(r->writes)));
+            create_new_local_commit(r->version, r->state, move(r->writes)));
         }
 
         // Stop if the next state may be rolled back or is the only state.
@@ -815,7 +816,7 @@ namespace kv
       if (global_hook && !r->writes.empty())
       {
         commit_deltas.insert_back(
-          CreateNewLocalCommit(r->version, r->state, move(r->writes)));
+          create_new_local_commit(r->version, r->state, move(r->writes)));
       }
     }
 
@@ -861,7 +862,7 @@ namespace kv
       // This discards all entries in the roll and resets the compacted value
       // and rollback counter. The Map expects to be locked before clearing it.
       roll->clear();
-      roll->insert_back(CreateNewLocalCommit(0, State(), Write()));
+      roll->insert_back(create_new_local_commit(0, State(), Write()));
       rollback_counter = 0;
     }
 

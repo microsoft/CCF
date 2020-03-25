@@ -5,10 +5,10 @@ parameters:
   env:
     Checks:
       container: nosgx
-      pool: Ubuntu-1804-D8s_v3
+      pool: Ubuntu-1804-D16s_v3
     NoSGX:
       container: nosgx
-      pool: Ubuntu-1804-D8s_v3
+      pool: Ubuntu-1804-D16s_v3
     SGX:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
@@ -17,14 +17,14 @@ parameters:
       pool: Ubuntu-1804-D16s_v3
     Release:
       container: sgx
-      pool: Ubuntu-1804-DC4s
+      pool: Ubuntu-1804-DC8_v2
     Metrics:
       container: nosgx
-      pool: Ubuntu-1804-D8s_v3
+      pool: Ubuntu-1804-D16s_v3
       dependsOn: ['Test_SGX_CFT_Perf', 'Test_SGX_BFT_Perf']
     Publish:
       container: nosgx
-      pool: Ubuntu-1804-D8s_v3
+      pool: Ubuntu-1804-D16s_v3
       dependsOn: ['Test_SGX_CFT_Release', 'Test_SGX_BFT_Release']
     Perf:
       pool: CCF-Perf
