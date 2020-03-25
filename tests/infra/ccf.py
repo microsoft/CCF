@@ -373,7 +373,7 @@ class Network:
         return [node for node in self.nodes if node.is_joined()]
 
     def wait_for_state(self, node, state, timeout=3):
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             try:
                 with node.node_client() as c:
                     r = c.get("getSignedIndex")
@@ -381,7 +381,7 @@ class Network:
                         break
             except ConnectionRefusedError:
                 pass
-            time.sleep(1)
+            time.sleep(0.1)
         else:
             raise TimeoutError(
                 f"Timed out waiting for public ledger to be read on node {node.node_id}"
@@ -407,7 +407,7 @@ class Network:
         primary_id = None
         term = None
 
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
@@ -422,7 +422,7 @@ class Network:
                         pass
             if primary_id is not None:
                 break
-            time.sleep(1)
+            time.sleep(0.1)
 
         if primary_id is None:
             raise PrimaryNotFound
@@ -457,7 +457,7 @@ class Network:
             local_commit_leader = res.commit
             term_leader = res.term
 
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
@@ -472,7 +472,7 @@ class Network:
                         caught_up_nodes.append(node)
             if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break
-            time.sleep(1)
+            time.sleep(0.1)
         assert len(caught_up_nodes) == len(
             self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
@@ -482,7 +482,7 @@ class Network:
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.
         """
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
@@ -490,7 +490,7 @@ class Network:
                     commits.append(r.commit)
             if [commits[0]] * len(commits) == commits:
                 break
-            time.sleep(1)
+            time.sleep(0.1)
         # in pbft getCommit increments the commit version, so commits will not be the same
         # but they should be in ascending order
         assert (
@@ -504,7 +504,7 @@ class Network:
         Wait for a sealed secret at a version larger than "version" to be sealed
         on all nodes.
         """
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             rekeyed_nodes = []
             for node in self.get_joined_nodes():
                 max_sealed_version = int(
@@ -514,7 +514,7 @@ class Network:
                     rekeyed_nodes.append(node)
             if len(rekeyed_nodes) == len(self.get_joined_nodes()):
                 break
-            time.sleep(1)
+            time.sleep(0.1)
         assert len(rekeyed_nodes) == len(
             self.get_joined_nodes()
         ), f"Only {len(rekeyed_nodes)} (out of {len(self.get_joined_nodes())}) nodes have been rekeyed"
