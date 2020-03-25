@@ -145,7 +145,7 @@ def test_forwarding_frontends(network, args):
 @reqs.description("Uninstalling Lua application")
 @reqs.lua_generic_app
 def test_update_lua(network, args):
-    if args.package == "libluageneric":
+    if args.package == "liblua_generic":
         LOG.info("Updating Lua application")
         primary, term = network.find_primary()
 
@@ -207,7 +207,7 @@ def run(args):
                 network,
                 args,
                 notifications_queue,
-                verify=args.package is not "libjsgeneric",
+                verify=args.package is not "libjs_generic",
             )
             network = test_large_messages(network, args)
             network = test_forwarding_frontends(network, args)
@@ -221,9 +221,9 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     if args.js_app_script:
-        args.package = "libjsgeneric"
+        args.package = "libjs_generic"
     elif args.app_script:
-        args.package = "libluageneric"
+        args.package = "liblua_generic"
     else:
         args.package = "liblogging"
 

@@ -9,7 +9,7 @@
  * Definitions of various types.
  */
 
-#include "consensus/pbft/pbfttypes.h"
+#include "consensus/pbft/pbft_types.h"
 #include "parameters.h"
 
 #include <array>

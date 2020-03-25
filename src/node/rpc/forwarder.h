@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/forwardertypes.h"
-#include "enclave/rpcmap.h"
+#include "enclave/forwarder_types.h"
+#include "enclave/rpc_map.h"
 #include "http/http_rpc_context.h"
-#include "node/nodetonode.h"
+#include "node/node_to_node.h"
 
 namespace ccf
 {

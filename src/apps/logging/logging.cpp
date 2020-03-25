@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "enclave/appinterface.h"
+#include "enclave/app_interface.h"
 #include "formatters.h"
 #include "logging_schema.h"
 #include "node/quote.h"
-#include "node/rpc/userfrontend.h"
+#include "node/rpc/user_frontend.h"
 
 #include <fmt/format_header_only.h>
 #include <valijson/adapters/nlohmann_json_adapter.hpp>

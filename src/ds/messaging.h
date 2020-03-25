@@ -3,8 +3,8 @@
 #pragma once
 
 #include "logger.h"
-#include "ringbuffer.h"
-#include "spinlock.h"
+#include "ring_buffer.h"
+#include "spin_lock.h"
 #include "thread_messaging.h"
 
 #include <atomic>

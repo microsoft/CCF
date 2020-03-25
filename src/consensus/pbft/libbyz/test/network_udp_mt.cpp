@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-#include "ITimer.h"
-#include "Message.h"
-#include "Replica.h"
 #include "ds/logger.h"
+#include "itimer.h"
+#include "message.h"
 #include "network.h"
 #include "parameters.h"
+#include "replica.h"
 
 #include <atomic>
 #include <cstdlib>

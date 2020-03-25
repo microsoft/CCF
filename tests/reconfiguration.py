@@ -56,7 +56,7 @@ def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
         try:
-            network.create_and_trust_node("libluageneric", "localhost", args)
+            network.create_and_trust_node("liblua_generic", "localhost", args)
             assert False, "Adding node with unknown code id should fail"
         except TimeoutError as err:
             assert "CODE_ID_NOT_FOUND" in err.message, err.message
@@ -101,5 +101,5 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    args.package = args.app_script and "libluageneric" or "liblogging"
+    args.package = args.app_script and "liblua_generic" or "liblogging"
     run(args)

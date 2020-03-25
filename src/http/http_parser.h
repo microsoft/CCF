@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/tlsendpoint.h"
+#include "enclave/tls_endpoint.h"
 #include "http_builder.h"
 
 #include <algorithm>

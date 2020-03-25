@@ -4,7 +4,7 @@
 
 #include "http_parser.h"
 #include "tls/base64.h"
-#include "tls/keypair.h"
+#include "tls/hash.h"
 
 #include <optional>
 #include <string>

@@ -2,22 +2,22 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/ledgerenclave.h"
-#include "consensus/pbft/libbyz/Append_entries.h"
-#include "consensus/pbft/libbyz/Big_req_table.h"
-#include "consensus/pbft/libbyz/Client_proxy.h"
-#include "consensus/pbft/libbyz/Message_tags.h"
+#include "consensus/ledger_enclave.h"
+#include "consensus/pbft/libbyz/append_entries.h"
+#include "consensus/pbft/libbyz/big_req_table.h"
+#include "consensus/pbft/libbyz/client_proxy.h"
 #include "consensus/pbft/libbyz/libbyz.h"
+#include "consensus/pbft/libbyz/message_tags.h"
 #include "consensus/pbft/libbyz/network.h"
 #include "consensus/pbft/libbyz/receive_message_base.h"
-#include "consensus/pbft/pbftconfig.h"
-#include "consensus/pbft/pbftglobals.h"
-#include "consensus/pbft/pbfttypes.h"
+#include "consensus/pbft/pbft_config.h"
+#include "consensus/pbft/pbft_globals.h"
+#include "consensus/pbft/pbft_types.h"
 #include "ds/logger.h"
-#include "enclave/rpcmap.h"
-#include "enclave/rpcsessions.h"
+#include "enclave/rpc_map.h"
+#include "enclave/rpc_sessions.h"
 #include "host/ledger.h"
-#include "kv/kvtypes.h"
+#include "kv/kv_types.h"
 #include "node/nodetypes.h"
 
 #include <list>

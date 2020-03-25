@@ -17,22 +17,22 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-#include "Big_req_table.h"
-#include "Client_proxy.h"
-#include "ITimer.h"
-#include "Replica.h"
-#include "Statistics.h"
-#include "Timer.h"
-#include "consensus/pbft/pbfttables.h"
+#include "big_req_table.h"
+#include "client_proxy.h"
+#include "consensus/pbft/pbft_tables.h"
 #include "ds/files.h"
 #include "ds/thread_messaging.h"
 #include "host/ledger.h"
+#include "itimer.h"
 #include "libbyz.h"
 #include "network_impl.h"
 #include "nodeinfo.h"
 #include "pbft_assert.h"
+#include "replica.h"
 #include "stacktrace_utils.h"
+#include "statistics.h"
 #include "test_message.h"
+#include "timer.h"
 
 using std::cerr;
 

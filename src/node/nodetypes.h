@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/ringbuffer_types.h"
+#include "ds/ring_buffer_types.h"
 #include "entities.h"
 
 #include <cstdint>

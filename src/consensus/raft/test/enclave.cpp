@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "consensus/ledgerenclave.h"
-#include "ds/ringbuffer.h"
-#include "tls/keypair.h"
+#include "consensus/ledger_enclave.h"
+#include "ds/ring_buffer.h"
+#include "tls/key_pair.h"
 
 #include <doctest/doctest.h>
 

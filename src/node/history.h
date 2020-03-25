@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/pbft/pbfttypes.h"
+#include "consensus/pbft/pbft_types.h"
 #include "crypto/hash.h"
-#include "ds/dllist.h"
+#include "ds/dl_list.h"
 #include "ds/logger.h"
 #include "entities.h"
-#include "kv/kvtypes.h"
+#include "kv/kv_types.h"
 #include "nodes.h"
 #include "signatures.h"
 #include "tls/tls.h"
