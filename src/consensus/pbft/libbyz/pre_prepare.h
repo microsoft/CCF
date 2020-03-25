@@ -35,7 +35,8 @@ struct Pre_prepare_rep : public Message_rep
   View view;
   Seqno seqno;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
-  uint64_t contains_gov_req;
+  uint64_t contains_gov_req; // should be a bool, but need to use 8 bytes to
+                             // maintain alignment
   Seqno last_gov_req_updated;
   int64_t ctx; // a context provided when a the batch is executed
                // the contents are opaque
