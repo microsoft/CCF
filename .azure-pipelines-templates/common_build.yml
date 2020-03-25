@@ -1,8 +1,8 @@
 jobs:
-- job: Build_${{ parameters.target }}_${{ parameters.suffix }}
+- job: ${{ parameters.target }}_${{ parameters.suffix }}
   variables:
     skipComponentGovernanceDetection: true
-  displayName: 'Build ${{ parameters.target }} ${{ parameters.suffix }}'
+  displayName: '${{ parameters.target }} ${{ parameters.suffix }}'
   dependsOn: ${{ parameters.depends_on }}
 
   ${{ insert }}: ${{ parameters.env }}
