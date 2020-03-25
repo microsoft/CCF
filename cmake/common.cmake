@@ -379,21 +379,21 @@ set(CCF_NETWORK_TEST_ARGS
 )
 
 # SNIPPET_START: Lua generic application
-add_ccf_app(luageneric SRCS ${CCF_DIR}/src/apps/lua_generic/lua_generic.cpp)
+add_ccf_app(lua_generic SRCS ${CCF_DIR}/src/apps/lua_generic/lua_generic.cpp)
 sign_app_library(
-  luageneric.enclave ${CCF_DIR}/src/apps/lua_generic/oe_sign.conf
+  lua_generic.enclave ${CCF_DIR}/src/apps/lua_generic/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 # SNIPPET_END: Lua generic application
 
 add_ccf_app(
-  jsgeneric
+  js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE quickjs.enclave -lgcc
   LINK_LIBS_VIRTUAL quickjs.host
 )
 sign_app_library(
-  jsgeneric.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
+  js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 

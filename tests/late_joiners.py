@@ -237,9 +237,9 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args(add)
     if args.js_app_script:
-        args.package = "libjsgeneric"
+        args.package = "libjs_generic"
     elif args.app_script:
-        args.package = "libluageneric"
+        args.package = "liblua_generic"
     else:
         args.package = "liblogging"
     run(args)

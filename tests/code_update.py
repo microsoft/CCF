@@ -113,6 +113,6 @@ if __name__ == "__main__":
         LOG.warning("Skipping code update test with virtual enclave")
         sys.exit()
 
-    args.package = args.app_script and "libluageneric" or "liblogging"
+    args.package = args.app_script and "liblua_generic" or "liblogging"
     args.patched_file_name = "{}.patched".format(args.package)
     run(args)

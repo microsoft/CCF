@@ -283,5 +283,5 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    args.package = args.app_script and "libluageneric" or "liblogging"
+    args.package = args.app_script and "liblua_generic" or "liblogging"
     run(args)
