@@ -35,6 +35,7 @@ namespace enclave
       kv::Version version;
     };
 
+    virtual bool is_members_frontend() = 0;
     virtual ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx) = 0;
     virtual ProcessPbftResp process_pbft(

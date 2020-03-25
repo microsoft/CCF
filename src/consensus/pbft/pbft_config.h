@@ -59,7 +59,8 @@ namespace pbft
         msg(std::move(msg_)),
         info(info_),
         self(self_),
-        is_first_request(is_first_request_)
+        is_first_request(is_first_request_),
+        did_exec_gov_req(false)
       {}
 
       std::unique_ptr<ExecCommandMsg> msg;
@@ -67,6 +68,7 @@ namespace pbft
       std::shared_ptr<enclave::RpcHandler> frontend;
       PbftConfigCcf* self;
       bool is_first_request;
+      bool did_exec_gov_req;
     };
 
     static void ExecuteCb(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
@@ -106,6 +108,7 @@ namespace pbft
           std::end(root.h),
           std::begin(info.replicated_state_merkle_root));
 
+        info.did_exec_gov_req = execution_ctx.did_exec_gov_req;
         if (info.cb != nullptr)
         {
           info.cb(info.cb_ctx);
@@ -157,6 +160,9 @@ namespace pbft
           fmt::format("No frontend associated with actor {}", actor_s));
 
       auto frontend = handler.value();
+      c->data.did_exec_gov_req =
+        (c->data.did_exec_gov_req || frontend->is_members_frontend());
+
       execution_ctx.frontend = frontend;
 
       enclave::RpcHandler::ProcessPbftResp rep;
