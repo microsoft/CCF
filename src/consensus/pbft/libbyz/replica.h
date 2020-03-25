@@ -9,6 +9,7 @@
 #include "certificate.h"
 #include "digest.h"
 #include "global_state.h"
+#include "governance_update_tracking.h"
 #include "ledger_writer.h"
 #include "libbyz.h"
 #include "log.h"
@@ -23,7 +24,6 @@
 #include "state.h"
 #include "types.h"
 #include "view_info.h"
-#include "governance_update_tracking.h"
 
 #ifdef ENFORCE_EXACTLY_ONCE
 #  include "rep_info_exactly_once.h"
