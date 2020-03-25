@@ -34,15 +34,15 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|suite"'
+      ctest_args: '-LE "benchmark|perf|suite" -j2'
     SGX:
-      ctest_args: '-LE "benchmark|perf"'
+      ctest_args: '-LE "benchmark|perf" -j2'
     Release:
-      ctest_args: '-LE "benchmark|perf"'
+      ctest_args: '-LE "benchmark|perf" -j2'
     perf:
       ctest_args: '-L "benchmark|perf"'
     san:
-      ctest_args: '-LE "benchmark|perf|suite"'
+      ctest_args: '-LE "benchmark|perf|suite" -j2'
 
 jobs:
   - template: checks.yml
