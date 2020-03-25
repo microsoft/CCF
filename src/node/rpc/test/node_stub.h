@@ -94,7 +94,7 @@ namespace ccf
       return true;
     }
 
-    bool combine_recovery_shares(
+    bool restore_ledger_secrets(
       Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
       return true;
