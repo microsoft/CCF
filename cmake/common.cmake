@@ -161,6 +161,9 @@ install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
         DESTINATION bin
 )
 
+# Install getting_started scripts for VM creation and setup
+install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
+
 if("sgx" IN_LIST TARGET)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
   if(OE_SGX)
