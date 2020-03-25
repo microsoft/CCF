@@ -55,19 +55,25 @@ if(BUILD_TESTS)
       NAME small_bank_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
-      VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
+      # VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
       LABEL SB
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS
-        --transactions ${SMALL_BANK_ITERATIONS} --max-writes-ahead 1000
-        --metrics-file small_bank_${CONSENSUS}_metrics.json
+        --transactions
+        ${SMALL_BANK_ITERATIONS}
+        --max-writes-ahead
+        1000
+        --metrics-file
+        small_bank_${CONSENSUS}_metrics.json
+        --num-localhost-clients
+        8
     )
 
     add_perf_test(
       NAME small_bank_sigs_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
-      VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
+      # VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
       LABEL "SB_sig"
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS
@@ -80,6 +86,8 @@ if(BUILD_TESTS)
         "secp256k1"
         --metrics-file
         small_bank_${CONSENSUS}_sigs_metrics.json
+        --num-localhost-clients
+        8
     )
 
   endforeach()
@@ -104,6 +112,8 @@ if(BUILD_TESTS)
       --sign
       --participants-curve
       "secp256k1"
+      --num-localhost-clients
+      8
   )
 
 endif()
