@@ -26,6 +26,11 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         action="append",
     )
     parser.add_argument(
+        "-nlc",
+        "--num-localhost-clients",
+        help="The number of localhost clients. This argument is cumulative with the client-nodes argument",
+    )
+    parser.add_argument(
         "--send-tx-to",
         choices=["primary", "backups", "all"],
         default="all",
