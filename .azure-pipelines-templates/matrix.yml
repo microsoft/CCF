@@ -48,10 +48,11 @@ jobs:
     parameters:
       env: ${{ parameters.env.Hosted }}
 
+  # Debug
   - ${{ each target in parameters.target }}:
-    - template: common_build.yml
+    - template: common.yml
       parameters:
-        target: '${{ target }}'
+        target: ${{ target }}
         env: ${{ parameters.env[target] }}
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
         suffix: 'Debug'
@@ -59,21 +60,21 @@ jobs:
         ctest_filter: '${{ parameters.test[target].ctest_args }}'
 
   # SAN build (ASAN & UBSAN)
-  - template: common_build.yml
+  - template: common.yml
     parameters:
       target: NoSGX
       env: ${{ parameters.env.NoSGX }}
       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
       suffix: 'SAN'
-      artifact_name: 'Build_NoSGX_SAN'
+      artifact_name: 'NoSGX_SAN'
       ctest_filter: '${{ parameters.test.san.ctest_args }}'
 
   # Performance
-  - template: common_build.yml
+  - template: common.yml
     parameters:
       target: SGX
       env: ${{ parameters.env.Perf }}
-      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
+      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.perf.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
       suffix: 'Perf'
       artifact_name: 'SGX_Perf'
       ctest_filter: '${{ parameters.test.perf.ctest_args }}'
@@ -87,7 +88,7 @@ jobs:
   # Build, test, and publish release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
     # Release build
-    - template: common_build.yml
+    - template: common.yml
       parameters:
         target: SGX
         env: ${{ parameters.env.SGX }}
