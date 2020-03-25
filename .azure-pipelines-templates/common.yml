@@ -10,19 +10,27 @@ jobs:
   steps:
     - checkout: self
       clean: true
+
     - template: cmake.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
+
     - template: ninja.yml
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
+
     - template: test.yml
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
-        suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }} tests'
-    - ${{ if and(eq(parameters.target, 'NoSGX'), eq(parameters.suffix, 'Coverage')) }}:
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }}'
+
+    - ${{ if eq(parameters.suffix, 'Coverage') }}:
       - template: coverage.yml
+
     - ${{ if eq(parameters.suffix, 'Perf') }}:
       - template: push_perf_data.yml
+
+    - ${{ if eq(parameters.suffix, 'Release') }}:
+      - template: publish_build.yml
         parameters:
-          consensus: ${{ parameters.consensus }}
+          artifact_name: ${{ parameters.artifact_name }}
