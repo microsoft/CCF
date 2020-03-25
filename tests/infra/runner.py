@@ -95,7 +95,16 @@ def run(get_command, args):
 
         nodes = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
-        client_hosts = args.client_nodes or ["localhost"]
+        client_hosts = []
+        if args.num_localhost_clients:
+            client_hosts = ["localhost"] * int(args.num_localhost_clients)
+
+        if args.client_nodes:
+            client_hosts.append(args.client_nodes)
+
+        if len(client_hosts) == 0:
+            client_hosts = ["localhost"]
+
         for client_id, client_host in enumerate(client_hosts):
             node = nodes[client_id % len(nodes)]
             remote_client = configure_remote_client(
