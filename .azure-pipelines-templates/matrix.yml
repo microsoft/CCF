@@ -27,8 +27,6 @@ parameters:
     install:
       install_prefix: '/tmp/ccf-install'
       cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
-    san:
-      cmake_args: '-DSAN=ON'
     perf:
       cmake_args: '-DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
 
@@ -41,8 +39,6 @@ parameters:
       ctest_args: '-LE "benchmark|perf" -j2'
     perf:
       ctest_args: '-L "benchmark|perf"'
-    san:
-      ctest_args: '-LE "benchmark|perf|suite" -j2'
 
 jobs:
   - template: checks.yml
@@ -60,16 +56,6 @@ jobs:
         artifact_name: '${{ target }}_Debug'
         ctest_filter: '${{ parameters.test[target].ctest_args }}'
 
-  # SAN build (ASAN & UBSAN)
-  - template: common.yml
-    parameters:
-      target: NoSGX
-      env: ${{ parameters.env.NoSGX }}
-      cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-      suffix: 'SAN'
-      artifact_name: 'NoSGX_SAN'
-      ctest_filter: '${{ parameters.test.san.ctest_args }}'
-
   # Performance
   - template: common.yml
     parameters:
@@ -80,9 +66,8 @@ jobs:
       artifact_name: 'SGX_Perf'
       ctest_filter: '${{ parameters.test.perf.ctest_args }}'
 
-  # Build, test, and publish release
+  # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
-    # Release build
     - template: common.yml
       parameters:
         target: SGX
