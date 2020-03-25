@@ -51,4 +51,4 @@ Public-key certificates, signatures, and ephemeral Diffie-Hellman key exchanges 
         :start-after: SNIPPET_START: supported_curves
         :end-before: SNIPPET_END: supported_curves
 
-The ``service_identity_curve_choice`` determines the curve used by CCF itself, and can be changed to another value if a different curve is preferred. User and member certificates do not need to match this, and can be created on any supported curve.
+The ``service_identity_curve_choice`` determines the curve used by CCF for the service and node identities. User and member certificates do not need to match this, and can be created on any supported curve.
