@@ -23,7 +23,7 @@ It is also possible to sign an existing enclave application (e.g. ``libluageneri
 
 .. code-block:: bash
 
-    $ /opt/openenclave/bin/oesign sign --enclave-image libluageneric.enclave.so  --config-file CCF/src/apps/luageneric/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
+    $ /opt/openenclave/bin/oesign sign --enclave-image libluageneric.enclave.so  --config-file CCF/src/apps/lua_generic/oe_sign.conf --key-file CCF/src/apps/sample_key.pem
     Created libluageneric.enclave.so.signed
     $ ls *.so.signed
     libluageneric.enclave.so.signed

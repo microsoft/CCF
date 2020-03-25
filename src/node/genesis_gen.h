@@ -3,8 +3,8 @@
 #pragma once
 #include "code_id.h"
 #include "entities.h"
-#include "luainterp/lua_interp.h"
-#include "luainterp/lua_util.h"
+#include "lua_interp/lua_interp.h"
+#include "lua_interp/lua_util.h"
 #include "members.h"
 #include "networktables.h"
 #include "node_info_network.h"

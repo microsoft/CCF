@@ -5,7 +5,7 @@
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
 #include "http/http_rpc_context.h"
-#include "luainterp/lua_interp.h"
+#include "lua_interp/lua_interp.h"
 #include "node/encryptor.h"
 #include "node/genesis_gen.h"
 #include "node/rpc/json_handler.h"

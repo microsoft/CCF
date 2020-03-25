@@ -366,8 +366,8 @@ if(BUILD_TESTS)
 
   add_unit_test(
     luageneric_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/test/lua_generic_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/luageneric/lua_generic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/test/lua_generic_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/lua_generic.cpp
   )
   target_include_directories(luageneric_test PRIVATE ${LUA_DIR})
   target_link_libraries(
@@ -375,8 +375,8 @@ if(BUILD_TESTS)
   )
 
   add_unit_test(
-    lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/luainterp/test/lua_kv.cpp
+    lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
   )
   target_include_directories(lua_test PRIVATE ${LUA_DIR})
   target_link_libraries(lua_test PRIVATE lua.host)

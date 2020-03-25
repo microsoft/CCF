@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "luainterp/lua_interp.h"
-#include "luainterp/lua_kv.h"
+#include "lua_interp/lua_interp.h"
+#include "lua_interp/lua_kv.h"
 #include "node/networktables.h"
 #include "node/rpc/rpc_exception.h"
 

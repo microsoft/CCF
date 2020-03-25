@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "frontend.h"
-#include "luainterp/tx_script_runner.h"
+#include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
 #include "node/members.h"
 #include "node/nodes.h"
