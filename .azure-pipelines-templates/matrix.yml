@@ -4,8 +4,8 @@ parameters:
 
   env:
     Checks:
-      container: nosgx
-      pool: Ubuntu-1804-D16s_v3
+      pool:
+        vmImage: ubuntu-18.04
     NoSGX:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
@@ -19,13 +19,13 @@ parameters:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
     Metrics:
-      container: nosgx
-      pool: Ubuntu-1804-D16s_v3
+      pool:
+        vmImage: ubuntu-18.04
       dependsOn: ['Build_SGX_Perf']
     Publish:
       container: nosgx
       pool: Ubuntu-1804-D16s_v3
-      dependsOn: ['Test_SGX_CFT_Release', 'Test_SGX_BFT_Release']
+      dependsOn: ['Build_SGX_Release']
     Perf:
       pool: CCF-Perf
 
@@ -58,8 +58,6 @@ parameters:
     san:
       ctest_args: '-LE "benchmark|perf|suite"'
 
-  static_check_job_name: 'Formatting_and_License_Checks'
-
 jobs:
   - template: checks.yml
     parameters:
@@ -74,7 +72,6 @@ jobs:
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}'
         suffix: 'Debug'
         artifact_name: 'Build_${{ target }}_Debug'
-        depends_on: '${{ parameters.static_check_job_name }}'
         ctest_filter: '${{ parameters.test[target].ctest_args }}'
 
   # SAN build (ASAN & UBSAN)
@@ -85,7 +82,6 @@ jobs:
       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.san.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
       suffix: 'SAN'
       artifact_name: 'Build_NoSGX_SAN'
-      depends_on: '${{ parameters.static_check_job_name }}'
       ctest_filter: '${{ parameters.test.san.ctest_args }}'
 
   # Performance
@@ -96,7 +92,6 @@ jobs:
       cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} ${{ parameters.build.perf.cmake_args }}'
       suffix: 'Perf'
       artifact_name: 'Build_SGX_Perf'
-      depends_on: '${{ parameters.static_check_job_name }}'
       ctest_filter: '${{ parameters.test.perf.ctest_args }}'
 
   # Collect and Plot metrics
