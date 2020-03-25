@@ -25,7 +25,8 @@ namespace ccf
     {
       if (consensus == nullptr)
       {
-        LOG_FAIL_FMT("Unable to send notification - no consensus has been set");
+        LOG_DEBUG_FMT(
+          "Unable to send notification - no consensus has been set");
         return;
       }
 
