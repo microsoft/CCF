@@ -2,8 +2,8 @@ pr:
   branches:
     include:
       - master
-    exclude:
-      - '*'
+#    exclude:
+#      - '*'
 
 schedules:
 - cron: "0 3 * * Mon-Fri"
