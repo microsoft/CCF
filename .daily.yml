@@ -2,16 +2,14 @@ pr:
   branches:
     include:
       - master
-#    exclude:
-#      - '*'
 
 schedules:
-  - cron: "0 3 * * Mon-Fri"
-    displayName: Daily build
-    branches:
-      include:
-        - master
-    always: true
+- cron: "0 3 * * Mon-Fri"
+  displayName: Daily build
+  branches:
+    include:
+    - master
+  always: true
 
 resources:
   containers:
