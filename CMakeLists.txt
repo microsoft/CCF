@@ -37,6 +37,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
 set(CONSENSUSES raft pbft)
 
 option(BUILD_TESTS "Build tests" ON)
+option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
 # Build common library for CCF enclaves
@@ -226,162 +227,189 @@ if(BUILD_TESTS)
   enable_testing()
 
   # Unit tests
-  add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
+  if (BUILD_UNIT_TESTS)
+    add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
-  add_unit_test(
-    json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
-  )
-
-  add_unit_test(
-    logger_json_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
-  )
-
-  add_unit_test(
-    kv_test ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
-  )
-  use_client_mbedtls(kv_test)
-  target_link_libraries(
-    kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
-  )
-
-  add_unit_test(
-    ds_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
-  )
-  target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
-  add_unit_test(
-    ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
-  )
-
-  add_unit_test(
-    raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
-  )
-  target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
-
-  add_unit_test(
-    raft_enclave_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp
-  )
-  target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
-  target_link_libraries(
-    raft_enclave_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
-  )
-
-  add_unit_test(
-    crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
-  )
-  target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
-  target_link_libraries(crypto_test PRIVATE ${CRYPTO_LIBRARY})
-
-  add_unit_test(
-    history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
-  )
-  target_include_directories(history_test PRIVATE ${EVERCRYPT_INC})
-  target_link_libraries(
-    history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host
-  )
-
-  add_unit_test(
-    secret_sharing_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
-  )
-  target_link_libraries(secret_sharing_test PRIVATE sss.host)
-
-  add_unit_test(
-    encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmetric_key.cpp
-  )
-  use_client_mbedtls(encryptor_test)
-  target_link_libraries(encryptor_test PRIVATE secp256k1.host)
-
-  add_unit_test(
-    msgpack_serialization_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp
-  )
-
-  add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
-  target_link_libraries(
-    tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
-  )
-
-  add_unit_test(
-    key_exchange_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
-  )
-  use_client_mbedtls(key_exchange_test)
-  target_link_libraries(key_exchange_test PRIVATE secp256k1.host)
-
-  add_unit_test(
-    channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
-  )
-  use_client_mbedtls(channels_test)
-  target_link_libraries(channels_test PRIVATE secp256k1.host)
-
-  add_unit_test(
-    http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
-  )
-  target_link_libraries(http_test PRIVATE http_parser.host)
-
-  add_unit_test(
-    frontend_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-  )
-  target_link_libraries(
-    frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                          secp256k1.host http_parser.host sss.host
-  )
-
-  add_unit_test(
-    member_voting_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
-  )
-  target_link_libraries(
-    member_voting_test
-    PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
-            http_parser.host sss.host
-  )
-
-  add_unit_test(
-    node_frontend_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-  )
-  target_link_libraries(
-    node_frontend_test
-    PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
-            http_parser.host sss.host
-  )
-
-  if(NOT ENV{RUNTIME_CONFIG_DIR})
-    set_tests_properties(
-      member_voting_test
-      PROPERTIES ENVIRONMENT
-                 RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
+    add_unit_test(
+      json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
     )
+
+    add_unit_test(
+      logger_json_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
+    )
+
+    add_unit_test(
+      kv_test ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
+    )
+    use_client_mbedtls(kv_test)
+    target_link_libraries(
+      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+    )
+
+    add_unit_test(
+      ds_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
+    )
+    target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
+    add_unit_test(
+      ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
+    )
+
+    add_unit_test(
+      raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
+    )
+    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
+
+    add_unit_test(
+      raft_enclave_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp
+    )
+    target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
+    target_link_libraries(
+      raft_enclave_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
+    )
+
+    add_unit_test(
+      crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
+    )
+    target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
+    target_link_libraries(crypto_test PRIVATE ${CRYPTO_LIBRARY})
+
+    add_unit_test(
+      history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
+    )
+    target_include_directories(history_test PRIVATE ${EVERCRYPT_INC})
+    target_link_libraries(
+      history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host
+    )
+
+    add_unit_test(
+      secret_sharing_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
+    )
+    target_link_libraries(secret_sharing_test PRIVATE sss.host)
+
+    add_unit_test(
+      encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmetric_key.cpp
+    )
+    use_client_mbedtls(encryptor_test)
+    target_link_libraries(encryptor_test PRIVATE secp256k1.host)
+
+    add_unit_test(
+      msgpack_serialization_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp
+    )
+
+    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
+    target_link_libraries(
+      tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+    )
+
+    add_unit_test(
+      key_exchange_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
+    )
+    use_client_mbedtls(key_exchange_test)
+    target_link_libraries(key_exchange_test PRIVATE secp256k1.host)
+
+    add_unit_test(
+      channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
+    )
+    use_client_mbedtls(channels_test)
+    target_link_libraries(channels_test PRIVATE secp256k1.host)
+
+    add_unit_test(
+      http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
+    )
+    target_link_libraries(http_test PRIVATE http_parser.host)
+
+    add_unit_test(
+      frontend_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
+    )
+    target_link_libraries(
+      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
+                            secp256k1.host http_parser.host sss.host
+    )
+
+    add_unit_test(
+      member_voting_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
+    )
+    target_link_libraries(
+      member_voting_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
+              http_parser.host sss.host
+    )
+
+    add_unit_test(
+      node_frontend_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
+    )
+    target_link_libraries(
+      node_frontend_test
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
+              http_parser.host sss.host
+    )
+
+    if(NOT ENV{RUNTIME_CONFIG_DIR})
+      set_tests_properties(
+        member_voting_test
+        PROPERTIES ENVIRONMENT
+                  RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
+      )
+    endif()
+
+    add_unit_test(
+      lua_generic_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/test/lua_generic_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/lua_generic.cpp
+    )
+    target_include_directories(lua_generic_test PRIVATE ${LUA_DIR})
+    target_link_libraries(
+      lua_generic_test PRIVATE lua.host secp256k1.host http_parser.host
+    )
+
+    add_unit_test(
+      lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
+    )
+    target_include_directories(lua_test PRIVATE ${LUA_DIR})
+    target_link_libraries(lua_test PRIVATE lua.host)
+
+    # Merkle Tree memory test
+    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
+    target_link_libraries(
+      merkle_mem PRIVATE ccfcrypto.host evercrypt.host secp256k1.host
+                        ${CMAKE_THREAD_LIBS_INIT}
+    )
+    use_client_mbedtls(merkle_mem)
+    target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
+
+    # Raft driver and scenario test
+    add_executable(
+      raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
+    )
+    use_client_mbedtls(raft_driver)
+    target_include_directories(raft_driver PRIVATE src/raft)
+
+    add_test(
+      NAME raft_scenario_test
+      COMMAND
+        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
+        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios
+        ${CMAKE_SOURCE_DIR}
+    )
+    set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
   endif()
-
-  add_unit_test(
-    lua_generic_test
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/test/lua_generic_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/lua_generic.cpp
-  )
-  target_include_directories(lua_generic_test PRIVATE ${LUA_DIR})
-  target_link_libraries(
-    lua_generic_test PRIVATE lua.host secp256k1.host http_parser.host
-  )
-
-  add_unit_test(
-    lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
-  )
-  target_include_directories(lua_test PRIVATE ${LUA_DIR})
-  target_link_libraries(lua_test PRIVATE lua.host)
 
   # Picobench benchmarks
   add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
@@ -409,31 +437,6 @@ if(BUILD_TESTS)
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
-
-  # Merkle Tree memory test
-  add_executable(merkle_mem src/node/test/merkle_mem.cpp)
-  target_link_libraries(
-    merkle_mem PRIVATE ccfcrypto.host evercrypt.host secp256k1.host
-                       ${CMAKE_THREAD_LIBS_INIT}
-  )
-  use_client_mbedtls(merkle_mem)
-  target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
-
-  # Raft driver and scenario test
-  add_executable(
-    raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
-  )
-  use_client_mbedtls(raft_driver)
-  target_include_directories(raft_driver PRIVATE src/raft)
-
-  add_test(
-    NAME raft_scenario_test
-    COMMAND
-      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-      ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios
-      ${CMAKE_SOURCE_DIR}
-  )
-  set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
 
   # Storing signed governance operations
   add_e2e_test(
@@ -473,7 +476,7 @@ if(BUILD_TESTS)
     NAME test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
-    LABEL suite
+    IS_SUITE TRUE
     ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
   )
 
@@ -513,14 +516,12 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      LABEL quote
       CONSENSUS raft
     )
 
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      LABEL quote
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 10000
     )
@@ -528,7 +529,6 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME governance_tests
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      LABEL quote
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
     )
