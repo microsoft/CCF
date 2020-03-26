@@ -17,4 +17,4 @@ resources:
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/
 
 jobs:
-- template: .azure-pipelines-templates/matrix.yml
+- template: .azure-pipelines-templates/daily-matrix.yml
