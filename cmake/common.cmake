@@ -406,7 +406,9 @@ function(add_e2e_test)
       PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
     set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS end_to_end)
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL})
+    set_property(
+      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL}
+    )
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(
