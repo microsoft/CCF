@@ -1,7 +1,7 @@
 pr:
   branches:
     exclude:
-      - *
+      - '*'
 
 schedules:
 - cron: "0 3 * * Mon-Fri"
