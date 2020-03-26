@@ -227,7 +227,7 @@ if(BUILD_TESTS)
   enable_testing()
 
   # Unit tests
-  if (BUILD_UNIT_TESTS)
+  if(BUILD_UNIT_TESTS)
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
     add_unit_test(
@@ -315,7 +315,8 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      key_exchange_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
+      key_exchange_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
     )
     use_client_mbedtls(key_exchange_test)
     target_link_libraries(key_exchange_test PRIVATE secp256k1.host)
@@ -364,7 +365,7 @@ if(BUILD_TESTS)
       set_tests_properties(
         member_voting_test
         PROPERTIES ENVIRONMENT
-                  RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
+                   RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
       )
     endif()
 
@@ -389,14 +390,15 @@ if(BUILD_TESTS)
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
       merkle_mem PRIVATE ccfcrypto.host evercrypt.host secp256k1.host
-                        ${CMAKE_THREAD_LIBS_INIT}
+                         ${CMAKE_THREAD_LIBS_INIT}
     )
     use_client_mbedtls(merkle_mem)
     target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
 
     # Raft driver and scenario test
     add_executable(
-      raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
+      raft_driver
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
     )
     use_client_mbedtls(raft_driver)
     target_include_directories(raft_driver PRIVATE src/raft)
