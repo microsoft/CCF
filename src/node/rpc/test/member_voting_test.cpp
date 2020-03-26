@@ -821,7 +821,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
   logger::config::level() = logger::INFO;
   DOCTEST_SUBCASE("insensitive tables")
   {
-    const auto n_members = 10;
+    const auto n_members = 3;
     for (int pro_votes = 0; pro_votes <= n_members; pro_votes++)
     {
       const bool should_succeed = pro_votes > n_members / 2;
@@ -885,7 +885,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
     // propose changes to sensitive tables; changes must only be accepted
     // unanimously create new network for each case
     const auto sensitive_tables = {Tables::WHITELISTS, Tables::GOV_SCRIPTS};
-    const auto n_members = 10;
+    const auto n_members = 3;
     // let proposer vote/not vote
     for (const auto proposer_vote : {true, false})
     {
