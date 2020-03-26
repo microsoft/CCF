@@ -1,10 +1,23 @@
 trigger:
-  - master
+  batch: true
+  branches:
+    include:
+      - master
+
+pr:
+  autoCancel: true
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - '*'
 
 jobs:
 - job: build_and_publish_docs
   container: ccfciteam/ccf-ci-18.04-oe-8fe3697:latest
-  pool: Ubuntu-1804-D16s_v3
+  pool:
+    vmImage: ubuntu-18.04
 
   steps:
     - checkout: self

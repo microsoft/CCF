@@ -24,16 +24,6 @@ pr:
   paths:
     include:
       - '*'
-    exclude:
-      - 'README.md'
-      - 'CCF-TECHNICAL-REPORT.pdf'
-      - 'Doxyfile'
-      - 'THIRD_PARTY_NOTICES.txt'
-      - 'getting_started/'
-      - 'sphinx/'
-      - '.github/'
-      - '.azure-pipelines-gh-pages.yml'
-      - 'LICENSE'
 
 schedules:
 - cron: "0 3 * * Mon-Fri"
