@@ -34,7 +34,7 @@ parameters:
     NoSGX:
       ctest_args: '-LE "benchmark|perf|suite"'
     SGX:
-      ctest_args: '-LE "benchmark|perf"'
+      ctest_args: '-LE "benchmark|perf|suite"'
     Release:
       ctest_args: ''
     perf:
