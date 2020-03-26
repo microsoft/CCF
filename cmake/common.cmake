@@ -397,7 +397,7 @@ function(add_e2e_test)
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
         ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
-        --sig-max-ms=100 ${PARSED_ARGS_ADDITIONAL_ARGS}
+        ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
 
     # Make python test client framework importable
