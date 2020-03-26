@@ -1,0 +1,21 @@
+parameters:
+  env:
+    NoSGX:
+      container: nosgx
+      pool: Ubuntu-1804-D16s_v3
+
+  build:
+    NoSGX:
+      cmake_args: '-DCOMPILE_TARGETS=virtual'
+    daily:
+      cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DSAN=ON -DCOVERAGE=ON -DBUILD_SMALLBANK=OFF'
+
+jobs:
+  - template: common.yml
+    parameters:
+      target: NoSGX
+      env: parameters.env.NoSGX
+      cmake_args: '${{ parameters.build.common.daily }} ${{ parameters.build.NoSGX.cmake_args }}'
+      suffix: 'Coverage'
+      artifact_name: '${{ target }}_Coverage'
+      ctest_filter: ''
