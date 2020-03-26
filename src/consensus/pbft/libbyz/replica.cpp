@@ -401,6 +401,30 @@ bool Replica::compare_execution_results(
     execution_match = false;
   }
 
+  if (pre_prepare->did_exec_gov_req() != info.did_exec_gov_req)
+  {
+    LOG_FAIL_FMT(
+      "If we executed a governance request between execution and the "
+      "pre_prepare message does not match, seqno:{}, "
+      "{} != {}",
+      pre_prepare->seqno(),
+      (pre_prepare->did_exec_gov_req() ? "true" : "false"),
+      (info.did_exec_gov_req ? "true" : "false"));
+    execution_match = false;
+  }
+
+  if (pre_prepare->last_exec_gov_req() != info.last_exec_gov_req)
+  {
+    LOG_FAIL_FMT(
+      "If we executed a governance request between execution and the "
+      "pre_prepare message does not match, seqno:{}, "
+      "pp=>{} != {}<=info",
+      pre_prepare->seqno(),
+      pre_prepare->last_exec_gov_req(),
+      info.last_exec_gov_req);
+    execution_match = false;
+  }
+
   if (!execution_match)
   {
     if (rollback_cb != nullptr)
@@ -454,6 +478,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
     *req, playback_max_local_commit_value, true, &tx, true));
 
   exec_command(vec_exec_cmds, playback_byz_info, 1);
+  did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -472,6 +497,13 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
   playback_pp_seqno = seqno;
   waiting_for_playback_pp = false;
   playback_max_local_commit_value = INT64_MIN;
+
+  playback_byz_info.last_exec_gov_req = gov_req_track.last_seqno();
+  if (did_exec_gov_req)
+  {
+    gov_req_track.update(executable_pp->seqno());
+    did_exec_gov_req = false;
+  }
 
   if (compare_execution_results(playback_byz_info, executable_pp.get()))
   {
@@ -841,9 +873,17 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
                 std::unique_ptr<ExecTentativeCbCtx> ctx) {
       ByzInfo& info = ctx->info;
 
+      pp->set_last_gov_request(
+        self->gov_req_track.last_seqno(), info.did_exec_gov_req);
       pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
       pp->set_digest(self->signed_version.load());
       self->plog.fetch(self->next_pp_seqno).add_mine(pp);
+
+      info.last_exec_gov_req = self->gov_req_track.last_seqno();
+      if (info.did_exec_gov_req)
+      {
+        self->gov_req_track.update(pp->seqno());
+      }
 
       self->requests_per_batch.insert(
         {self->next_pp_seqno, ctx->requests_in_batch});
@@ -1007,19 +1047,28 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
                   Pre_prepare* pp,
                   Replica* self,
                   std::unique_ptr<ExecTentativeCbCtx> msg) {
-        if (!self->compare_execution_results(msg->info, pp))
-        {
-          PBFT_ASSERT_FMT_FAIL(
-            "Merkle roots don't match in send prepare for seqno {}",
-            msg->seqno);
-
-          self->try_send_prepare();
-          return;
-        }
-
         if (self->ledger_writer && !self->is_primary())
         {
-          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+          msg->info.last_exec_gov_req = self->gov_req_track.last_seqno();
+          if (!self->compare_execution_results(msg->info, pp))
+          {
+            PBFT_ASSERT_FMT_FAIL(
+              "Merkle roots don't match in send prepare for seqno {}",
+              msg->seqno);
+
+            self->try_send_prepare();
+            return;
+          }
+
+          if (msg->info.did_exec_gov_req)
+          {
+            self->gov_req_track.update(pp->seqno());
+          }
+
+          if (self->ledger_writer)
+          {
+            self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+          }
         }
 
         Prepare* p = new Prepare(
@@ -2066,6 +2115,7 @@ void Replica::rollback_to_globally_comitted()
       "Roll back done, last tentative execute and last executed are {} {}",
       last_tentative_execute,
       last_executed);
+    gov_req_track.rollback(rc);
   }
 }
 
@@ -2356,6 +2406,11 @@ void Replica::execute_committed(bool was_f_0)
         {
           ByzInfo info;
           auto executed_ok = execute_tentative(pp, info);
+          PBFT_ASSERT(
+            executed_ok,
+            "tentative execution while executing committed failed");
+
+          info.last_exec_gov_req = gov_req_track.last_seqno();
           if (!compare_execution_results(info, pp))
           {
             LOG_INFO_FMT(
@@ -2364,9 +2419,6 @@ void Replica::execute_committed(bool was_f_0)
             return;
           }
           last_te_version = ledger_writer->write_pre_prepare(pp);
-          PBFT_ASSERT(
-            executed_ok,
-            "tentative execution while executing committed failed");
           PBFT_ASSERT(
             last_executed + 1 == last_tentative_execute,
             "last tentative did not advance with last executed");
@@ -2668,6 +2720,7 @@ void Replica::mark_stable(Seqno n, bool have_state)
   elog.truncate(last_stable);
   state.discard_checkpoints(last_stable, last_executed);
   brt.mark_stable(last_stable, rqueue);
+  gov_req_track.mark_stable(last_stable - 1);
 
   if (mark_stable_cb != nullptr)
   {
