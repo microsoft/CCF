@@ -473,7 +473,7 @@ if(BUILD_TESTS)
     NAME test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
-    IS_SUITE TRUE
+    LABEL suite
     ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
   )
 
@@ -513,12 +513,14 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME reconfiguration_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+      LABEL quote
       CONSENSUS raft
     )
 
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+      LABEL quote
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 10000
     )
@@ -526,6 +528,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME governance_tests
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+      LABEL quote
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
     )
