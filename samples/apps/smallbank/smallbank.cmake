@@ -46,10 +46,8 @@ if(BUILD_TESTS)
       else()
         set(SMALL_BANK_ITERATIONS 2000)
       endif()
-      set(NUM_LOCALHOST_CLIENTS 1)
     else()
       set(SMALL_BANK_ITERATIONS 200000)
-      set(NUM_LOCALHOST_CLIENTS 12)
     endif()
     get_verification_file(${SMALL_BANK_ITERATIONS} SMALL_BANK_VERIFICATION_FILE)
 
@@ -57,7 +55,7 @@ if(BUILD_TESTS)
       NAME small_bank_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
-      # VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
+      VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
       LABEL SB
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS
@@ -69,7 +67,7 @@ if(BUILD_TESTS)
       NAME small_bank_sigs_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client
-      # VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
+      VERIFICATION_FILE ${SMALL_BANK_SIGNED_VERIFICATION_FILE}
       LABEL "SB_sig"
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS
