@@ -1,5 +1,7 @@
 pr:
   branches:
+    include:
+      - daily
     exclude:
       - '*'
 
