@@ -324,13 +324,8 @@ install(
 )
 
 # Common test args for Python scripts starting up CCF networks
-if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT SAN)
-  set(DEFAULT_WORKER_THREADS 2)
-else()
-  set(DEFAULT_WORKER_THREADS 0)
-endif()
 set(WORKER_THREADS
-    "${DEFAULT_WORKER_THREADS}"
+    2
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
