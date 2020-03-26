@@ -67,8 +67,6 @@ if(BUILD_TESTS)
         1000
         --metrics-file
         small_bank_${CONSENSUS}_metrics.json
-        --num-localhost-clients
-        ${NUM_LOCALHOST_CLIENTS}
     )
 
     add_perf_test(
@@ -88,8 +86,6 @@ if(BUILD_TESTS)
         "secp256k1"
         --metrics-file
         small_bank_${CONSENSUS}_sigs_metrics.json
-        --num-localhost-clients
-        ${NUM_LOCALHOST_CLIENTS}
     )
 
   endforeach()
@@ -114,8 +110,6 @@ if(BUILD_TESTS)
       --sign
       --participants-curve
       "secp256k1"
-      --num-localhost-clients
-      ${NUM_LOCALHOST_CLIENTS}
   )
 
 endif()
