@@ -38,6 +38,8 @@ else()
   unset(NODES)
 endif()
 
+option(BUILD_UNIT_TESTS "Build tests" ON)
+
 option(COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
 
 if(${COLORED_OUTPUT})
@@ -196,18 +198,20 @@ find_package(CURL REQUIRED)
 
 # Unit test wrapper
 function(add_unit_test name)
-  add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
-  target_compile_options(${name} PRIVATE -stdlib=libc++)
-  target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
-  enable_coverage(${name})
-  target_link_libraries(
-    ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi ccfcrypto.host
-  )
-  use_client_mbedtls(${name})
-  add_san(${name})
+  if (BUILD_UNIT_TESTS)
+    add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
+    target_compile_options(${name} PRIVATE -stdlib=libc++)
+    target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
+    enable_coverage(${name})
+    target_link_libraries(
+      ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi ccfcrypto.host
+    )
+    use_client_mbedtls(${name})
+    add_san(${name})
 
-  add_test(NAME ${name} COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
-  set_property(TEST ${name} APPEND PROPERTY LABELS unit_test)
+    add_test(NAME ${name} COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
+    set_property(TEST ${name} APPEND PROPERTY LABELS unit_test)
+  endif()
 endfunction()
 
 if("sgx" IN_LIST COMPILE_TARGETS)
