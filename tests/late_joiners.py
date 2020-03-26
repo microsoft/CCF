@@ -93,7 +93,9 @@ def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=5):
                 while timeout > 0:
                     try:
                         check_commit(
-                            c.rpc("LOG_record", {"id": final_msg_id + i, "msg": final_msg}),
+                            c.rpc(
+                                "LOG_record", {"id": final_msg_id + i, "msg": final_msg}
+                            ),
                             result=True,
                         )
                         break
