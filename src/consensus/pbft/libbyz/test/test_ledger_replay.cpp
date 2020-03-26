@@ -40,7 +40,8 @@ public:
     [this](
       std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
       ByzInfo& info,
-      uint32_t num_requests) {
+      uint32_t num_requests,
+      uint64_t nonce) {
       for (uint32_t i = 0; i < num_requests; ++i)
       {
         std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
@@ -58,7 +59,7 @@ public:
 
         outb.contents =
           pbft::GlobalState::get_replica().create_response_message(
-            client, rid, 0);
+            client, rid, 0, nonce);
         outb.size = 0;
         auto request = reinterpret_cast<fake_req*>(inb->contents);
         info.ctx = request->ctx;
@@ -285,7 +286,7 @@ TEST_CASE("Test Ledger Replay")
       // request is compatible but pre-prepare root is different
       rqueue.append(request);
       size_t num_requests = 1;
-      auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests);
+      auto pp = std::make_unique<Pre_prepare>(1, i, rqueue, num_requests, 0);
 
       // imitate exec command
       ByzInfo info;

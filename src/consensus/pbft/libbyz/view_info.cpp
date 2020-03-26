@@ -142,7 +142,7 @@ void View_info::send_proofs(Seqno n, View vi, int dest)
     {
       if (ri.ods[i].v >= vi)
       {
-        Prepare prep(ri.ods[i].v, n, ri.ods[i].d, p.get());
+        Prepare prep(ri.ods[i].v, n, ri.ods[i].d, 0, p.get());
         pbft::GlobalState::get_node().send(&prep, dest);
       }
     }

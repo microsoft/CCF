@@ -73,6 +73,7 @@ Replica::Replica(
 #endif
   rep_cb(nullptr),
   global_commit_cb(nullptr),
+  entropy(tls::create_entropy()),
   state(
     this,
     mem,
@@ -477,7 +478,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, true));
 
-  exec_command(vec_exec_cmds, playback_byz_info, 1);
+  exec_command(vec_exec_cmds, playback_byz_info, 1, 0);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
   brt.add_request(req.release());
 }
@@ -515,6 +516,7 @@ void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
         prev_pp->view(),
         prev_pp->seqno(),
         prev_pp->digest(),
+        prev_pp->get_nonce(),
         nullptr,
         prev_pp->is_signed(),
         p_id);
@@ -527,6 +529,7 @@ void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
         prev_pp->view(),
         prev_pp->seqno(),
         prev_pp->digest(),
+        prev_pp->get_nonce(),
         nullptr,
         prev_pp->is_signed());
       prev_prepared_cert.add_mine(p);
@@ -924,6 +927,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
     auto ctx = std::make_unique<ExecTentativeCbCtx>();
+    ctx->nonce = entropy->random64();
 
     Prepared_cert* ps = nullptr;
     if (next_pp_seqno > congestion_window)
@@ -931,7 +935,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       ps = &plog.fetch(next_pp_seqno - congestion_window);
     }
     Pre_prepare* pp = new Pre_prepare(
-      view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ps);
+      view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ctx->nonce, ps);
 
     auto fn = [](
                 Pre_prepare* pp,
@@ -1145,7 +1149,12 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         }
 
         Prepare* p = new Prepare(
-          self->v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
+          self->v,
+          pp->seqno(),
+          pp->digest(),
+          msg->nonce,
+          nullptr,
+          pp->is_signed());
         int send_node_id =
           (msg->send_only_to_self ? self->node_id : All_replicas);
         self->send(p, send_node_id);
@@ -1168,6 +1177,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       msg->seqno = seqno;
       msg->send_only_to_self = send_only_to_self;
       msg->orig_byzinfo = byz_info;
+      msg->nonce = entropy->random64();
       if (byz_info.has_value())
       {
         msg->info = byz_info.value();
@@ -1497,9 +1507,10 @@ int Replica::my_id() const
 }
 
 char* Replica::create_response_message(
-  int client_id, Request_id request_id, uint32_t size)
+  int client_id, Request_id request_id, uint32_t size, uint64_t nonce)
 {
-  return replies.new_reply(client_id, request_id, last_tentative_execute, size);
+  return replies.new_reply(
+    client_id, request_id, last_tentative_execute, nonce, size);
 }
 
 void Replica::handle(Status* m)
@@ -2069,7 +2080,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     {
       ByzInfo info;
       pc.add_mine(pp);
-      if (execute_tentative(pp, info))
+      if (execute_tentative(pp, info, pp->get_nonce()))
       {
         if (ledger_writer && req_in_pp > 0)
         {
@@ -2081,7 +2092,9 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     {
       ByzInfo info;
       pc.add_old(pp);
-      if (execute_tentative(pp, info))
+      uint64_t nonce = entropy->random64();
+
+      if (execute_tentative(pp, info, nonce))
       {
         if (ledger_writer && req_in_pp > 0)
         {
@@ -2089,7 +2102,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
         }
       }
 
-      Prepare* p = new Prepare(v, i, d, nullptr, pp->is_signed());
+      Prepare* p = new Prepare(v, i, d, nonce, nullptr, pp->is_signed());
       pc.add_mine(p);
       send(p, All_replicas);
     }
@@ -2375,7 +2388,7 @@ bool Replica::create_execute_commands(
   return false;
 }
 
-bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
+bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce)
 {
   LOG_DEBUG_FMT(
     "in execute tentative for seqno {} and last_tentnative_execute {}",
@@ -2386,7 +2399,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
   if (create_execute_commands(
         pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
-    exec_command(vec_exec_cmds, info, num_requests);
+    exec_command(vec_exec_cmds, info, num_requests, nonce);
     return true;
   }
   return false;
@@ -2408,6 +2421,7 @@ bool Replica::execute_tentative(
   if (create_execute_commands(
         pp, ctx->info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
+    uint64_t nonce = ctx->nonce;
     ByzInfo& info = ctx->info;
     if (cb != nullptr)
     {
@@ -2428,7 +2442,7 @@ bool Replica::execute_tentative(
       }
     }
 
-    exec_command(vec_exec_cmds, info, num_requests);
+    exec_command(vec_exec_cmds, info, num_requests, nonce);
     if (!node_info.general_info.support_threading)
     {
       cb(pp, this, std::move(ctx));
@@ -2480,7 +2494,7 @@ void Replica::execute_committed(bool was_f_0)
         if (last_executed + 1 > last_tentative_execute)
         {
           ByzInfo info;
-          auto executed_ok = execute_tentative(pp, info);
+          auto executed_ok = execute_tentative(pp, info, pp->get_nonce());
           PBFT_ASSERT(
             executed_ok,
             "tentative execution while executing committed failed");
@@ -3134,8 +3148,9 @@ void Replica::send_null()
         ps = &plog.fetch(next_pp_seqno - 1);
       }
 
-      Pre_prepare* pp =
-        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch, ps);
+      uint64_t nonce = entropy->random64();
+      Pre_prepare* pp = new Pre_prepare(
+        view(), next_pp_seqno, empty, requests_in_batch, nonce, ps);
       pp->set_digest();
       send(pp, All_replicas);
       plog.fetch(next_pp_seqno).add_mine(pp);
