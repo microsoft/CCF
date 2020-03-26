@@ -65,9 +65,9 @@ def timeout(node, suspend, election_timeout):
         node.resume()
 
 
-def assert_node_up_to_date(check, node, final_msg, final_msg_id):
+def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=5):
     with node.user_client() as c:
-        for x in range(0, 5):
+        while timeout > 0:
             try:
                 check(
                     c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
@@ -79,20 +79,28 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id):
                 LOG.error(
                     f"Assertion error for LOG_get on node {node.node_id}, error:{e}"
                 )
+                time.sleep(0.1)
+                timeout -= 1
         raise AssertionError(f"{node.nodeid} is not up to date")
 
 
-def wait_for_nodes(nodes, final_msg, final_msg_id):
+def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=5):
     with nodes[0].node_client() as mc:
         check_commit = infra.checker.Checker(mc)
         check = infra.checker.Checker()
         for i, node in enumerate(nodes):
             with node.user_client() as c:
-                check_commit(
-                    c.rpc("LOG_record", {"id": final_msg_id + i, "msg": final_msg}),
-                    result=True,
-                )
-
+                while timeout > 0:
+                    try:
+                        check_commit(
+                            c.rpc("LOG_record", {"id": final_msg_id + i, "msg": final_msg}),
+                            result=True,
+                        )
+                        break
+                    except TimeoutError:
+                        LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
+                        time.sleep(0.1)
+                        timeout -= 1
         # assert all nodes are caught up
         for node in nodes:
             assert_node_up_to_date(check, node, final_msg, final_msg_id)
@@ -127,7 +135,7 @@ def run_requests(
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost", "localhost"]
+    hosts = ["localhost", "localhost", "localhost"]
 
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -153,19 +161,19 @@ def run(args):
 
             # check that a new node can catch up after all the requests
             LOG.info("Adding a very late joiner")
-            last_joiner_node = network.create_and_trust_node(
+            late_joiner = network.create_and_trust_node(
                 lib_name=args.package, host="localhost", args=args,
             )
-            assert last_joiner_node
-            nodes_to_keep.append(last_joiner_node)
+            assert late_joiner
+            nodes_to_keep.append(late_joiner)
 
             # some requests to be processed while the late joiner catches up
             # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
             run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
             term_info.update(find_primary(network))
 
-            assert_node_up_to_date(check, last_joiner_node, first_msg, 1000)
-            assert_node_up_to_date(check, last_joiner_node, second_msg, 2000)
+            assert_node_up_to_date(check, late_joiner, first_msg, 1000)
+            assert_node_up_to_date(check, late_joiner, second_msg, 2000)
 
             if not args.skip_suspension:
                 # kill the old node(s) and ensure we are still making progress with the new one(s)
@@ -186,7 +194,7 @@ def run(args):
                     if i % 2 != 0 and args.consensus == "pbft":
                         continue
                     LOG.success(f"Will suspend node with id {node.node_id}")
-                    t = random.uniform(1, 10)
+                    t = random.uniform(1, 2)
                     LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
                     timeouts.append((t, node))
                     suspended_nodes.append(node.node_id)
@@ -200,7 +208,7 @@ def run(args):
 
                     # if pbft suspend the primary more than the other suspended nodes
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
-                        et += et * 0.5
+                        et += et
                     tm = Timer(t, timeout, args=[node, True, et])
                     tm.start()
 

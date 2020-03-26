@@ -869,7 +869,7 @@ bool NV_info::check_new_view()
   return true;
 }
 
-Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d)
+Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d, View& prev_view)
 {
   PBFT_ASSERT(is_complete, "Invalid state");
   PBFT_ASSERT(n > nv->min() && n < nv->max(), "Invalid arguments");
@@ -877,13 +877,14 @@ Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d)
   Pre_prepare* pp = 0;
   Digest null;
   View pv = vcs[nv->which_picked(n)].vc->req(n, d);
+  prev_view = v;
 
   if (pv >= 0 && d != null)
   {
     // Normal request
     pp = reqs[n - base][comp_reqs[n - base]].pp_info.pre_prepare();
     reqs[n - base][comp_reqs[n - base]].pp_info.zero();
-
+    prev_view = pv;
     PBFT_ASSERT(pp != 0, "Invalid state");
   }
   else

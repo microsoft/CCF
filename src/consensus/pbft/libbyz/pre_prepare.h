@@ -95,6 +95,8 @@ public:
   View view() const;
   // Effects: Fetches the view number from the message.
 
+  void set_view(View v);
+
   Seqno seqno() const;
   // Effects: Fetches the sequence number from the message.
 
@@ -243,6 +245,11 @@ inline Digest* Pre_prepare::big_reqs()
 inline View Pre_prepare::view() const
 {
   return rep().view;
+}
+
+inline void Pre_prepare::set_view(View v)
+{
+  rep().view = v;
 }
 
 inline Seqno Pre_prepare::seqno() const

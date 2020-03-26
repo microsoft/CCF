@@ -434,6 +434,7 @@ namespace pbft
         {
           gb_info->view_change_list->emplace_back(view, version);
         }
+        gb_info->store->get_history()->execute_pending();
         gb_info->store->compact(version);
       };
 
@@ -446,6 +447,7 @@ namespace pbft
         global_commit_cb, &register_global_commit_ctx);
 
       auto rollback_cb = [](kv::Version version, RollbackInfo* rollback_info) {
+        rollback_info->store->get_history()->discard_pending();
         LOG_TRACE_FMT(
           "Rolling back to version {} and truncating ledger", version);
         rollback_info->store->rollback(version);

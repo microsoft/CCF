@@ -134,6 +134,7 @@ namespace kv
       RequestID id,
       kv::Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) = 0;
+    virtual void discard_pending() = 0;
     virtual void execute_pending() = 0;
     virtual void add_result(
       RequestID id,

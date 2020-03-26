@@ -155,6 +155,8 @@ namespace ccf
       std::shared_ptr<std::vector<uint8_t>> replicated) override
     {}
 
+    void discard_pending() override {}
+
     void execute_pending() override {}
 
     virtual void add_result(
@@ -587,6 +589,11 @@ namespace ccf
         std::lock_guard<SpinLock> vguard(version_lock);
         pending_inserts.insert_back(new PendingInsert(id, version, replicated));
       }
+    }
+
+    void discard_pending() override
+    {
+      pending_inserts.clear();
     }
 
     void execute_pending() override

@@ -1737,10 +1737,6 @@ void Replica::handle(View_change* m)
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
-    if (encryptor)
-    {
-      encryptor->set_view(v);
-    }
     vc_recovering = true;
     send_view_change();
   }
@@ -1790,10 +1786,7 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
-  if (encryptor)
-  {
-    encryptor->set_view(v);
-  }
+
   cur_primary = v % num_replicas;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
@@ -1984,7 +1977,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   for (Seqno i = min + 1; i < max; i++)
   {
     Digest d;
-    Pre_prepare* pp = vi.fetch_request(i, d);
+    View prev_view;
+    auto pp = vi.fetch_request(i, d, prev_view);
     Prepared_cert& pc = plog.fetch(i);
     PBFT_ASSERT(pp != 0 && pp->digest() == d, "Invalid state");
 
@@ -2006,7 +2000,9 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
+          pp->set_view(prev_view);
           last_te_version = ledger_writer->write_pre_prepare(pp);
+          pp->set_view(v);
         }
       }
     }
@@ -2014,12 +2010,13 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     {
       ByzInfo info;
       pc.add_old(pp);
-
       if (execute_tentative(pp, info))
       {
         if (ledger_writer && req_in_pp > 0)
         {
+          pp->set_view(prev_view);
           last_te_version = ledger_writer->write_pre_prepare(pp);
+          pp->set_view(v);
         }
       }
 
@@ -2057,6 +2054,10 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   if (primary() != id() && rqueue.size() > 0)
   {
     start_vtimer_if_request_waiting();
+  }
+  if (encryptor)
+  {
+    encryptor->set_view(v);
   }
   LOG_INFO << "Done with process new view " << v << std::endl;
 }
@@ -2123,15 +2124,17 @@ void Replica::global_commit(Pre_prepare* pp)
 {
   if (pp->is_signed())
   {
-    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
-    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
-
-    state.checkpoint(pp->seqno());
-    last_gb_version = pp->get_ctx();
-    last_gb_seqno = pp->seqno();
-    if (global_commit_cb != nullptr)
+    if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
     {
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+      LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+      LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+      state.checkpoint(pp->seqno());
+      last_gb_version = pp->get_ctx();
+      last_gb_seqno = pp->seqno();
+      if (global_commit_cb != nullptr)
+      {
+        global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+      }
     }
     signed_version = 0;
   }
@@ -2205,7 +2208,10 @@ void Replica::execute_prepared(bool committed)
         }
       }
     }
-    global_commit(pp);
+    if (f() == 0)
+    {
+      global_commit(pp);
+    }
   }
 }
 
@@ -2430,6 +2436,7 @@ void Replica::execute_committed(bool was_f_0)
         set_min_pre_prepare_batch_size();
 
         execute_prepared(true);
+        global_commit(pp);
         last_executed = last_executed + 1;
         stats.last_executed = last_executed;
         PBFT_ASSERT(pp->seqno() == last_executed, "Invalid execution");
