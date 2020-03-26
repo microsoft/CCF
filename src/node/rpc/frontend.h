@@ -653,5 +653,10 @@ namespace ccf
     {
       return true;
     }
+
+    virtual bool is_members_frontend() override
+    {
+      return false;
+    }
   };
 }
