@@ -30,13 +30,13 @@ LOG.info(f"setting seed to {s}")
 random.seed(s)
 
 
-def timeout(node, suspend, election_timeout):
+def timeout_handler(node, suspend, election_timeout):
     if suspend:
         # We want to suspend the nodes' process so we need to initiate a new timer to wake it up eventually
         node.suspend()
         next_timeout = random.uniform(2 * election_timeout, 3 * election_timeout)
         LOG.info(f"New timer set for node {node.node_id} is {next_timeout} seconds")
-        t = Timer(next_timeout, timeout, args=[node, False, 0])
+        t = Timer(next_timeout, timeout_handler, args=[node, False, 0])
         t.start()
     else:
         node.resume()
@@ -51,18 +51,6 @@ def find_primary(network):
     except TimeoutError:
         LOG.info("Trying to access a suspended network")
     return term_info
-
-
-def timeout(node, suspend, election_timeout):
-    if suspend:
-        # We want to suspend the nodes' process so we need to initiate a new timer to wake it up eventually
-        node.suspend()
-        next_timeout = random.uniform(2 * election_timeout, 3 * election_timeout)
-        LOG.info(f"New timer set for node {node.node_id} is {next_timeout} seconds")
-        t = Timer(next_timeout, timeout, args=[node, False, 0])
-        t.start()
-    else:
-        node.resume()
 
 
 def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=5):
@@ -80,7 +68,7 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=5):
                     f"Assertion error for LOG_get on node {node.node_id}, error:{e}"
                 )
                 time.sleep(0.1)
-                timeout -= 1
+                timeout = timeout - 1
         raise AssertionError(f"{node.nodeid} is not up to date")
 
 
@@ -90,7 +78,8 @@ def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=5):
         check = infra.checker.Checker()
         for i, node in enumerate(nodes):
             with node.user_client() as c:
-                while timeout > 0:
+                t = timeout
+                while t > 0:
                     try:
                         check_commit(
                             c.rpc(
@@ -102,7 +91,7 @@ def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=5):
                     except TimeoutError:
                         LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
                         time.sleep(0.1)
-                        timeout -= 1
+                        t = t - 1
         # assert all nodes are caught up
         for node in nodes:
             assert_node_up_to_date(check, node, final_msg, final_msg_id)
@@ -211,7 +200,7 @@ def run(args):
                     # if pbft suspend the primary more than the other suspended nodes
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
                         et += et
-                    tm = Timer(t, timeout, args=[node, True, et])
+                    tm = Timer(t, timeout_handler, args=[node, True, et])
                     tm.start()
 
                 run_requests(
