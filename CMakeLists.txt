@@ -39,7 +39,6 @@ set(CONSENSUSES raft pbft)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-option(EXPERIMENTAL_PBFT_TESTS "Experimental PBFT TESTS" OFF)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
