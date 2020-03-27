@@ -69,6 +69,8 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=5):
                 LOG.error(
                     f"Assertion error for LOG_get on node {node.node_id}, error:{e}"
                 )
+                time.sleep(0.1)
+                timeout = timeout - 1
         raise AssertionError(f"{node.nodeid} is not up to date")
 
 

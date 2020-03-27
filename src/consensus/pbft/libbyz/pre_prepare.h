@@ -128,6 +128,8 @@ public:
 
   int64_t get_ctx() const;
 
+  std::vector<int> get_prev_pp_valid_principals();
+
   class Requests_iter
   {
     // An iterator for yielding the Requests in a Pre_prepare message.

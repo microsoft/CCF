@@ -479,6 +479,44 @@ void Replica::playback_request(ccf::Store::Tx& tx)
 
   exec_command(vec_exec_cmds, playback_byz_info, 1);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
+  brt.add_request(req.release());
+}
+
+void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
+{
+  if (pp->seqno() <= 0)
+  {
+    // first pre prepare will not contain proofs for a previous pre prepare
+    return;
+  }
+
+  auto principals_with_proofs = pp->get_prev_pp_valid_principals();
+  auto prev_seqno = pp->seqno() - 1;
+  if (!plog.within_range(prev_seqno))
+  {
+    LOG_DEBUG_FMT("seqno {} is out of range, can not add prepare proofs to plog", prev_seqno);
+    return;
+  }
+  auto& prev_prepared_cert = plog.fetch(prev_seqno);
+  auto prev_pp = prev_prepared_cert.pre_prepare();
+  if (prev_pp != 0)
+  {
+    for (auto& p_id : principals_with_proofs)
+    {
+      LOG_DEBUG_FMT("Adding prepare for principal with id {} for seqno {}", p_id, prev_seqno);
+      Prepare* p = new Prepare(
+          prev_pp->view(), prev_pp->seqno(), prev_pp->digest(), nullptr, prev_pp->is_signed());
+      p->set_id(p_id);
+      prev_prepared_cert.add(p);
+    }
+    if (add_mine)
+    {
+      LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_seqno);
+      Prepare* p = new Prepare(
+            prev_pp->view(), prev_pp->seqno(), prev_pp->digest(), nullptr, prev_pp->is_signed());
+        prev_prepared_cert.add_mine(p);
+    }
+  }
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -527,6 +565,11 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
       "last_executed and pre prepares seqno don't match in playback pre "
       "prepare");
 
+    populate_certificates(executable_pp.get(), true);
+
+    auto& prepared_cert = plog.fetch(executable_pp->seqno());
+    prepared_cert.add(executable_pp.release());
+
     if (f() > 0 && (last_executed % checkpoint_interval == 0))
     {
       Seqno stable_point = std::max(
@@ -539,8 +582,6 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
       Network_open no(Node::id());
       send(&no, primary());
     }
-
-    plog.fetch(executable_pp->seqno()).add(executable_pp.release());
 
     rqueue.clear();
   }
@@ -1006,6 +1047,12 @@ void Replica::handle(Pre_prepare* m)
     // for the same view and sequence number and the message is valid.
     if (pc.add(m))
     {
+      if (ms == playback_pp_seqno + 1)
+      {
+        // previous pre prepare was executed during playback, we need to add the prepares for it
+        // the prepare proofs for the previous pre-prepare are in the next pre prepare message
+        populate_certificates(m);
+      }
       send_prepare(ms);
     }
     return;
