@@ -19,18 +19,17 @@ steps:
       -v
   displayName: Test installed CCF
 
-- ${{ if eq(parameters.suffix, 'Release') }}:
-  - task: ArchiveFiles@2
-    inputs:
-      rootFolderOrFile: ${{ parameters.install_prefix }}
-      archiveType: 'tar'
-      tarCompression: 'gz'
-      archiveFile: '$(Build.ArtifactStagingDirectory)/ccf.tar.gz'
-      verbose: true
-    displayName: 'Create Install Tarball'
+- task: ArchiveFiles@2
+  inputs:
+    rootFolderOrFile: ${{ parameters.install_prefix }}
+    archiveType: 'tar'
+    tarCompression: 'gz'
+    archiveFile: '$(Build.ArtifactStagingDirectory)/ccf.tar.gz'
+    verbose: true
+  displayName: 'Create Install Tarball'
 
-  - task: PublishPipelineArtifact@1
-    inputs:
-      path: $(Build.ArtifactStagingDirectory)/ccf.tar.gz
-      artifact: ccf.tar.gz
-      displayName: 'Publish CCF Install'
+- task: PublishPipelineArtifact@1
+  inputs:
+    path: $(Build.ArtifactStagingDirectory)/ccf.tar.gz
+    artifact: ccf.tar.gz
+    displayName: 'Publish CCF Install'

@@ -324,13 +324,8 @@ install(
 )
 
 # Common test args for Python scripts starting up CCF networks
-if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT SAN)
-  set(DEFAULT_WORKER_THREADS 0)
-else()
-  set(DEFAULT_WORKER_THREADS 0)
-endif()
 set(WORKER_THREADS
-    "${DEFAULT_WORKER_THREADS}"
+    0
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
@@ -340,7 +335,7 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_HOST_LOGGING_LEVEL}
     -g
     ${CCF_DIR}/src/runtime_config/gov.lua
-    --worker_threads
+    --worker-threads
     ${WORKER_THREADS}
 )
 

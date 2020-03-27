@@ -1,3 +1,7 @@
+pr: none
+
+trigger: none
+
 schedules:
 - cron: "0 3 * * Mon-Fri"
   displayName: Daily build
@@ -17,4 +21,4 @@ resources:
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/
 
 jobs:
-- template: .azure-pipelines-templates/matrix.yml
+- template: .azure-pipelines-templates/daily-matrix.yml

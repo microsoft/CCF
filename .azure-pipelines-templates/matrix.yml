@@ -75,9 +75,10 @@ jobs:
         cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
         suffix: 'Release'
         artifact_name: 'SGX_Release'
+        install_prefix: '${{ parameters.build.install.install_prefix }}'
 
     - template: release.yml
       parameters:
         env: ${{ parameters.env.Hosted }}
-        depends_on: 'SGX_Publish'
+        depends_on: 'SGX_Release'
 

@@ -373,7 +373,8 @@ class Network:
         return [node for node in self.nodes if node.is_joined()]
 
     def wait_for_state(self, node, state, timeout=3):
-        for _ in range(timeout * 10):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             try:
                 with node.node_client() as c:
                     r = c.get("getSignedIndex")
@@ -407,7 +408,8 @@ class Network:
         primary_id = None
         term = None
 
-        for _ in range(timeout * 10):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
@@ -457,7 +459,8 @@ class Network:
             local_commit_leader = res.commit
             term_leader = res.term
 
-        for _ in range(timeout * 10):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
@@ -482,7 +485,8 @@ class Network:
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.
         """
-        for _ in range(timeout * 10):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
@@ -504,7 +508,8 @@ class Network:
         Wait for a sealed secret at a version larger than "version" to be sealed
         on all nodes.
         """
-        for _ in range(timeout * 10):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             rekeyed_nodes = []
             for node in self.get_joined_nodes():
                 max_sealed_version = int(
