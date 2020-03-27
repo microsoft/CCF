@@ -39,6 +39,7 @@ set(CONSENSUSES raft pbft)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
+option(EXPERIMENTAL_PBFT_TESTS "Experimental PBFT TESTS" OFF)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
@@ -589,12 +590,16 @@ if(BUILD_TESTS)
       set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "2000")
     endif()
 
-    add_e2e_test(
-      NAME election_tests_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
+    if((${CONSENSUS} STREQUAL raft) OR (EXPERIMENTAL_PBFT_TESTS
+                                        AND (${CONSENSUS} STREQUAL pbft))
     )
+      add_e2e_test(
+        NAME election_tests_${CONSENSUS}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+        CONSENSUS ${CONSENSUS}
+        ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
+      )
+    endif()
   endforeach()
 
   # Logging scenario perf test
