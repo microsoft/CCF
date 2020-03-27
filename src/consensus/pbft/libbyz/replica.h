@@ -212,7 +212,8 @@ public:
   // Effects: The pre-prepare contains the prepare proofs
   // of the previous seqno. It uses the proofs to create
   // "Prepare" messages for the previous seqno and adds those prepares
-  // to the plog. If add_mine is true, it also creates and adds the "Prepare" message for the caller
+  // to the plog. If add_mine is true, it also creates and adds the "Prepare"
+  // message for the caller
   void playback_pre_prepare(ccf::Store::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback

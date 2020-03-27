@@ -486,7 +486,7 @@ std::vector<int> Pre_prepare::get_prev_pp_valid_principals()
   std::vector<int> principals_with_proof;
   // signatures start at
   uint8_t* sigs = (uint8_t*)contents() + sizeof(Pre_prepare_rep) +
-      rep().rset_size + rep().n_big_reqs * sizeof(Digest);
+    rep().rset_size + rep().n_big_reqs * sizeof(Digest);
   auto s = sigs;
   for (size_t i = 0; i < rep().num_prev_pp_sig; ++i)
   {
