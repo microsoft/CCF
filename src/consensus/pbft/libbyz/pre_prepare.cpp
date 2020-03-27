@@ -478,7 +478,6 @@ int64_t Pre_prepare::get_ctx() const
 
 std::vector<int> Pre_prepare::get_prev_pp_valid_principals()
 {
-  // TODO verify the proof signatures
   if (rep().num_prev_pp_sig == 0)
   {
     return {};
