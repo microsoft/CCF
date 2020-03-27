@@ -588,16 +588,12 @@ if(BUILD_TESTS)
       set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "2000")
     endif()
 
-    if((${CONSENSUS} STREQUAL raft) OR (EXPERIMENTAL_PBFT_TESTS
-                                        AND (${CONSENSUS} STREQUAL pbft))
+    add_e2e_test(
+      NAME election_tests_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
     )
-      add_e2e_test(
-        NAME election_tests_${CONSENSUS}
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-        CONSENSUS ${CONSENSUS}
-        ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
-      )
-    endif()
   endforeach()
 
   # Logging scenario perf test
