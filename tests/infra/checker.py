@@ -25,7 +25,8 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
         if r.error is not None:
             raise RuntimeError(f"mkSign returned an error: {r.error}")
 
-    for i in range(timeout * 10):
+    end_time = time.time() + timeout
+    while time.time() < end_time:
         r = node_client.get("getCommit", {"commit": commit_index})
         if r.global_commit >= commit_index and r.result["term"] == term:
             return
@@ -65,7 +66,8 @@ class Checker:
                 )
 
             if self.notification_queue:
-                for i in range(timeout * 10):
+                end_time = time.time() + timeout
+                while time.time() < end_time:
                     while self.notification_queue.not_empty:
                         notification = self.notification_queue.get()
                         n = json.loads(notification)["commit"]
