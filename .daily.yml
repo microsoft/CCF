@@ -1,7 +1,4 @@
-pr:
-  branches:
-    include:
-      - master
+pr: none
 
 schedules:
 - cron: "0 3 * * Mon-Fri"
