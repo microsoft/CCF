@@ -518,14 +518,14 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     last_te_version = ledger_writer->write_pre_prepare(tx, executable_pp.get());
 
+    global_commit(executable_pp.get());
+
     last_executed++;
 
     PBFT_ASSERT(
       last_executed <= executable_pp->seqno(),
       "last_executed and pre prepares seqno don't match in playback pre "
       "prepare");
-
-    global_commit(executable_pp.get());
 
     if (f() > 0 && (last_executed % checkpoint_interval == 0))
     {
@@ -539,6 +539,8 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
       Network_open no(Node::id());
       send(&no, primary());
     }
+
+    plog.fetch(executable_pp->seqno()).add(executable_pp.release());
 
     rqueue.clear();
   }
