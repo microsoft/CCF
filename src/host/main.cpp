@@ -61,7 +61,7 @@ int main(int argc, char** argv)
   app.add_option(
     "-w,--worker-threads",
     num_worker_threads,
-    "number of worker threads inside the enclave",
+    "Number of worker threads inside the enclave",
     true);
 
   cli::ParsedAddress node_address;
