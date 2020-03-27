@@ -95,22 +95,11 @@ bool Req_queue::remove(int cid, Request_id rid)
   nelems--;
   nbytes -= rn->r->size();
 
-  bool ret = false;
-  if (rn->prev == nullptr)
-  {
-    PBFT_ASSERT(
-      rnodes[rn->r->user_id()].get_head() == rn.get(), "Invalid state");
-    rnodes[rn->r->user_id()].remove(rn.get());
-    ret = true;
-  }
-  else
-  {
-    rn->prev->next = rn->next;
-  }
+  rnodes[rn->r->user_id()].remove(rn.get());
 
   reqs.erase(it);
 
-  return ret;
+  return true;
 }
 
 void Req_queue::clear()

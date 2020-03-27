@@ -100,7 +100,7 @@ def run(get_command, args):
             client_hosts = ["localhost"] * int(args.num_localhost_clients)
 
         if args.client_nodes:
-            client_hosts.append(args.client_nodes)
+            client_hosts.extend(args.client_nodes)
 
         if len(client_hosts) == 0:
             client_hosts = ["localhost"]
