@@ -195,7 +195,7 @@ class SSHRemote(CmdMixin):
         the main cmd that may be running.
         """
         with sftp_session(self.hostname) as session:
-            for seconds in range(timeout):
+            for seconds in range(timeout * 10):
                 try:
                     target_name = target_name or file_name
                     session.get(
@@ -209,20 +209,20 @@ class SSHRemote(CmdMixin):
                     )
                     break
                 except FileNotFoundError:
-                    time.sleep(1)
+                    time.sleep(0.1)
             else:
                 raise ValueError(file_name)
 
     def list_files(self, timeout=60):
         files = []
         with sftp_session(self.hostname) as session:
-            for seconds in range(timeout):
+            for seconds in range(timeout * 10):
                 try:
                     files = session.listdir(self.root)
 
                     break
                 except Exception:
-                    time.sleep(1)
+                    time.sleep(0.1)
 
             else:
                 raise ValueError(self.root)
@@ -325,22 +325,22 @@ class SSHRemote(CmdMixin):
     def wait_for_stdout_line(self, line, timeout):
         client = self._connect_new()
         try:
-            for _ in range(timeout):
+            for _ in range(timeout * 10):
                 _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
                 if stdout.channel.recv_exit_status() == 0:
                     return
-                time.sleep(1)
+                time.sleep(0.1)
             raise ValueError(f"{line} not found in stdout after {timeout} seconds")
         finally:
             client.close()
 
     def check_for_stdout_line(self, line, timeout):
         client = self._connect_new()
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
             if stdout.channel.recv_exit_status() == 0:
                 return True
-            time.sleep(1)
+            time.sleep(0.1)
         return False
 
     def print_and_upload_result(self, name, metrics, lines):
@@ -418,10 +418,10 @@ class LocalRemote(CmdMixin):
 
     def get(self, file_name, dst_path, timeout=60, target_name=None):
         path = os.path.join(self.root, file_name)
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             if os.path.exists(path):
                 break
-            time.sleep(1)
+            time.sleep(0.1)
         else:
             raise ValueError(path)
         target_name = target_name or file_name
@@ -486,23 +486,23 @@ class LocalRemote(CmdMixin):
         return f"cd {self.root} && {DBG} --args {cmd}"
 
     def wait_for_stdout_line(self, line, timeout):
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             with open(self.out, "rb") as out:
                 for out_line in out:
                     if line in out_line.decode():
                         return
-            time.sleep(1)
+            time.sleep(0.1)
         raise ValueError(
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
 
     def check_for_stdout_line(self, line, timeout):
-        for _ in range(timeout):
+        for _ in range(timeout * 10):
             with open(self.out, "rb") as out:
                 for out_line in out:
                     if line in out_line.decode():
                         return True
-            time.sleep(1)
+            time.sleep(0.1)
         return False
 
     def print_and_upload_result(self, name, metrics, line):
