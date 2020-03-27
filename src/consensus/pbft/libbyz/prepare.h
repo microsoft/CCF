@@ -53,7 +53,12 @@ public:
   Prepare(uint32_t msg_size = 0) : Message(msg_size) {}
 
   Prepare(
-    View v, Seqno s, Digest& d, Principal* dst = 0, bool is_signed = false);
+    View v,
+    Seqno s,
+    Digest& d,
+    Principal* dst = 0,
+    bool is_signed = false,
+    int id = -1);
   // Effects: Creates a new signed Prepare message with view number
   // "v", sequence number "s" and digest "d". "dst" should be non-null
   // iff prepare is sent to a single replica "dst" as proof of

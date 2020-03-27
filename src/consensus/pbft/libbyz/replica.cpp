@@ -514,8 +514,8 @@ void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
         prev_pp->seqno(),
         prev_pp->digest(),
         nullptr,
-        prev_pp->is_signed());
-      p->set_id(p_id);
+        prev_pp->is_signed(),
+        p_id);
       prev_prepared_cert.add(p);
     }
     if (add_mine)
