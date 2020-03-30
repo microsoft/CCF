@@ -318,7 +318,7 @@ class Network:
             if errors:
                 for error in errors:
                     if "An error occurred while joining the network" in error:
-                        err.message = f"TimeoutError: {error.split('|', 1)[1]}"
+                        err.args = err.args + (error.split("|", 1)[1],)
             self.nodes.remove(new_node)
             raise
 

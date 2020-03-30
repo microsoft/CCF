@@ -50,9 +50,13 @@ def run(args):
                 False
             ), f"Adding a node with unsupported code id {new_code_id} should fail"
         except TimeoutError as err:
-            assert "CODE_ID_NOT_FOUND" in err.message, err.message
+            strerr = str(err)
+            assert "CODE_ID_NOT_FOUND" in strerr, strerr
 
-        network.consortium.add_new_code(1, primary, new_code_id)
+        # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
+        primary, others = network.find_primary()
+
+        network.consortium.add_new_code(0, primary, new_code_id)
 
         new_nodes = set()
         old_nodes_count = len(network.nodes)
@@ -67,10 +71,6 @@ def run(args):
             )
             assert new_node
             new_nodes.add(new_node)
-
-        for node in new_nodes:
-            new_primary = node
-            break
 
         LOG.info("Stopping all original nodes")
         old_nodes = set(network.nodes).difference(new_nodes)

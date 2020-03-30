@@ -59,7 +59,8 @@ def test_add_node_untrusted_code(network, args):
             network.create_and_add_pending_node("liblua_generic", "localhost", args, timeout=3)
             assert False, "Adding node with unknown code id should fail"
         except TimeoutError as err:
-            assert "CODE_ID_NOT_FOUND" in err.message, err.message
+            strerr = str(err)
+            assert "CODE_ID_NOT_FOUND" in strerr, strerr
     else:
         LOG.warning("Skipping unknown code id test with virtual enclave")
     return network
