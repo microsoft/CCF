@@ -316,9 +316,13 @@ class Network:
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
             errors = new_node.stop()
             if errors:
+                # Add error lines from file as custom field on this error
+                err.joining_errors = []
                 for error in errors:
                     if "An error occurred while joining the network" in error:
-                        err.args = err.args + (error.split("|", 1)[1],)
+                        err.joining_errors.append(error.split("|", 1)[1])
+                # Flatten into a single string for easier searching upstack
+                err.joining_errors = '\n'.join(err.joining_errors)
             self.nodes.remove(new_node)
             raise
 

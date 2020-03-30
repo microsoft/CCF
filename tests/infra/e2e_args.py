@@ -138,9 +138,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--join-timer",
-        help="Timer period when tyring to join an existing network (ms)",
+        help="Timer period when trying to join an existing network (ms)",
         type=int,
-        default=4000,
+        default=1000,
     )
     parser.add_argument(
         "--initial-member-count",

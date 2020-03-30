@@ -50,8 +50,11 @@ def run(args):
                 False
             ), f"Adding a node with unsupported code id {new_code_id} should fail"
         except TimeoutError as err:
-            strerr = str(err)
-            assert "CODE_ID_NOT_FOUND" in strerr, strerr
+            joining_errors = getattr(err, 'joining_errors', None)
+            if joining_errors is not None:
+                assert "CODE_ID_NOT_FOUND" in joining_errors, joining_errors
+            else:
+                raise
 
         # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
         primary, others = network.find_primary()

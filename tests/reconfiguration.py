@@ -56,11 +56,17 @@ def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
         try:
-            network.create_and_add_pending_node("liblua_generic", "localhost", args, timeout=3)
+            network.create_and_add_pending_node(
+                "liblua_generic", "localhost", args, timeout=3
+            )
             assert False, "Adding node with unknown code id should fail"
         except TimeoutError as err:
-            strerr = str(err)
-            assert "CODE_ID_NOT_FOUND" in strerr, strerr
+            joining_errors = getattr(err, "joining_errors", None)
+            if joining_errors is not None:
+                assert "CODE_ID_NOT_FOUND" in joining_errors, joining_errors
+            else:
+                raise
+
     else:
         LOG.warning("Skipping unknown code id test with virtual enclave")
     return network
