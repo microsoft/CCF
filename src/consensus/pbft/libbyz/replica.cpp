@@ -1063,8 +1063,8 @@ void Replica::handle(Pre_prepare* m)
       if (ms == playback_pp_seqno + 1)
       {
         // previous pre prepare was executed during playback, we need to add the
-        // prepares for it the prepare proofs for the previous pre-prepare are
-        // in the next pre prepare message
+        // prepares for it, as the prepare proofs for the previous pre-prepare
+        // are in the next pre prepare message
         populate_certificates(m);
       }
       send_prepare(ms);

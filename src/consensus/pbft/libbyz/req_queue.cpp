@@ -96,6 +96,7 @@ bool Req_queue::remove(int cid, Request_id rid)
   nbytes -= rn->r->size();
 
   rnodes[rn->r->user_id()].remove(rn.get());
+
   reqs.erase(it);
 
   return true;

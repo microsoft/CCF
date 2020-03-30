@@ -74,6 +74,9 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
 
 
 def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
+    # in the unlikely event of an early view change this might
+    # take longer than usual to complete and we don't want the test to break here
+    timeout = timeout * len(nodes)
     with nodes[0].node_client() as mc:
         check_commit = infra.checker.Checker(mc)
         check = infra.checker.Checker()
