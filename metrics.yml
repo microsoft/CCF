@@ -2,4 +2,6 @@ db: 'ccf'
 collection: 'perf'
 view: 'trend'
 columns: 3
-span: 30
+span: 50
+ewma_span: 5
+pr_user: 'ccf-bot'
