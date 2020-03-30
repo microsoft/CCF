@@ -381,21 +381,6 @@ namespace ccf
     std::optional<ResultCallbackHandler> on_result;
     std::optional<ResponseCallbackHandler> on_response;
 
-    void execute_pending(kv::Version v)
-    {
-      auto* p = pending_inserts.get_head();
-      while (p != nullptr)
-      {
-        auto* next = p->next;
-        if (p->version <= v)
-        {
-          add_result(p->id, p->version, *p->replicated);
-          pending_inserts.remove(p);
-        }
-        p = next;
-      }
-    }
-
     void discard_pending(kv::Version v)
     {
       auto* p = pending_inserts.get_head();
@@ -516,7 +501,7 @@ namespace ccf
 
     void compact(kv::Version v) override
     {
-      execute_pending(v);
+      execute_pending();
       if (v > MAX_HISTORY_LEN)
       {
         replicated_state_tree.flush(v - MAX_HISTORY_LEN);

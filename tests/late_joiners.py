@@ -53,9 +53,10 @@ def find_primary(network):
     return term_info
 
 
-def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=5):
+def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
     with node.user_client() as c:
-        while timeout > 0:
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             try:
                 check(
                     c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
@@ -64,23 +65,22 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=5):
             except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
                 LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
                 time.sleep(0.1)
-                timeout = timeout - 1
             except AssertionError as e:
                 LOG.error(
                     f"Assertion error for LOG_get on node {node.node_id}, error:{e}"
                 )
                 time.sleep(0.1)
-                timeout = timeout - 1
         raise AssertionError(f"{node.nodeid} is not up to date")
 
 
-def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=5):
+def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
     with nodes[0].node_client() as mc:
         check_commit = infra.checker.Checker(mc)
         check = infra.checker.Checker()
         for i, node in enumerate(nodes):
             with node.user_client() as c:
-                while timeout > 0:
+                end_time = time.time() + timeout
+                while time.time() < end_time:
                     try:
                         check_commit(
                             c.rpc(
@@ -92,7 +92,6 @@ def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=5):
                     except TimeoutError:
                         LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
                         time.sleep(0.1)
-                        timeout = timeout - 1
         # assert all nodes are caught up
         for node in nodes:
             assert_node_up_to_date(check, node, final_msg, final_msg_id)
