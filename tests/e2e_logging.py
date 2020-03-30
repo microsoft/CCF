@@ -96,7 +96,7 @@ def test_anonymous_caller(network, args):
             assert r.result is not None
             assert msg in r.result["msg"]
     else:
-        LOG.warning("Skipping test_cert_prefix as application is not C++")
+        LOG.warning("Skipping test_anonymous_caller as application is not C++")
 
     return network
 
@@ -121,7 +121,7 @@ def test_raw_text(network, args):
             assert msg in r.result["msg"]
 
     else:
-        LOG.warning("Skipping test_cert_prefix as application is not C++")
+        LOG.warning("Skipping test_raw_text as application is not C++")
 
     return network
 
