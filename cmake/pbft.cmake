@@ -184,15 +184,4 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   use_libbyz(ledger_replay_test)
   add_san(ledger_replay_test)
   set_property(TEST ledger_replay_test PROPERTY LABELS pbft)
-
-  if(EXPERIMENTAL_PBFT_TESTS)
-    add_test(
-      NAME test_UDP_with_delay
-      COMMAND
-        python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip
-        127.0.0.1 --servers 4 --clients 2 --test-config
-        ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --with-delays
-    )
-    set_property(TEST test_UDP_with_delay PROPERTY LABELS pbft)
-  endif()
 endif()
