@@ -155,8 +155,6 @@ namespace ccf
       std::shared_ptr<std::vector<uint8_t>> replicated) override
     {}
 
-    void discard_pending() override {}
-
     void execute_pending() override {}
 
     virtual void add_result(
@@ -383,6 +381,35 @@ namespace ccf
     std::optional<ResultCallbackHandler> on_result;
     std::optional<ResponseCallbackHandler> on_response;
 
+    void execute_pending(kv::Version v)
+    {
+      auto* p = pending_inserts.get_head();
+      while (p != nullptr)
+      {
+        auto* next = p->next;
+        if (p->version <= v)
+        {
+          add_result(p->id, p->version, *p->replicated);
+          pending_inserts.remove(p);
+        }
+        p = next;
+      }
+    }
+
+    void discard_pending(kv::Version v)
+    {
+      auto* p = pending_inserts.get_head();
+      while (p != nullptr)
+      {
+        auto* next = p->next;
+        if (p->version > v)
+        {
+          pending_inserts.remove(p);
+        }
+        p = next;
+      }
+    }
+
   public:
     HashedTxHistory(
       Store& store_,
@@ -482,12 +509,14 @@ namespace ccf
 
     void rollback(kv::Version v) override
     {
+      discard_pending(v);
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 
     void compact(kv::Version v) override
     {
+      execute_pending(v);
       if (v > MAX_HISTORY_LEN)
       {
         replicated_state_tree.flush(v - MAX_HISTORY_LEN);
@@ -589,11 +618,6 @@ namespace ccf
         std::lock_guard<SpinLock> vguard(version_lock);
         pending_inserts.insert_back(new PendingInsert(id, version, replicated));
       }
-    }
-
-    void discard_pending() override
-    {
-      pending_inserts.clear();
     }
 
     void execute_pending() override

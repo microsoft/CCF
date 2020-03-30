@@ -55,7 +55,6 @@ namespace pbft
     virtual kv::Version commit_tx(
       ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
-    virtual std::shared_ptr<kv::TxHistory> get_history() = 0;
   };
 
   template <typename T, typename S>
@@ -173,18 +172,6 @@ namespace pbft
         if (p)
         {
           return p->get_encryptor();
-        }
-      }
-    }
-
-    std::shared_ptr<kv::TxHistory> get_history()
-    {
-      while (true)
-      {
-        auto p = x.lock();
-        if (p)
-        {
-          return p->get_history();
         }
       }
     }

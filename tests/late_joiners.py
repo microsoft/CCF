@@ -61,7 +61,7 @@ def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=5):
                     c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
                 )
                 return
-            except TimeoutError:
+            except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
                 LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
                 time.sleep(0.1)
                 timeout = timeout - 1
@@ -156,7 +156,6 @@ def run(args):
             late_joiner = network.create_and_trust_node(
                 lib_name=args.package, host="localhost", args=args,
             )
-            assert late_joiner
             nodes_to_keep.append(late_joiner)
 
             # some requests to be processed while the late joiner catches up
