@@ -549,9 +549,11 @@ namespace raft
       {
         // Reply false, since our term is later than the received term.
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but our term is later",
+          "Recv append entries to {} from {} but our term is later ({} > {})",
           local_id,
-          r.from_node);
+          r.from_node,
+          current_term,
+          r.term);
         send_append_entries_response(r.from_node, false);
         return;
       }
