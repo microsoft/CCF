@@ -322,7 +322,7 @@ class Network:
                     if "An error occurred while joining the network" in error:
                         err.joining_errors.append(error.split("|", 1)[1])
                 # Flatten into a single string for easier searching upstack
-                err.joining_errors = '\n'.join(err.joining_errors)
+                err.joining_errors = "\n".join(err.joining_errors)
             self.nodes.remove(new_node)
             raise
 

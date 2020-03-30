@@ -50,7 +50,7 @@ def run(args):
                 False
             ), f"Adding a node with unsupported code id {new_code_id} should fail"
         except TimeoutError as err:
-            joining_errors = getattr(err, 'joining_errors', None)
+            joining_errors = getattr(err, "joining_errors", None)
             if joining_errors is not None:
                 assert "CODE_ID_NOT_FOUND" in joining_errors, joining_errors
             else:
