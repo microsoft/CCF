@@ -35,3 +35,7 @@ jobs:
       - template: publish_build.yml
         parameters:
           artifact_name: ${{ parameters.artifact_name }}
+
+      - template: install.yml
+        parameters:
+          install_prefix: ${{ parameters.install_prefix }}
