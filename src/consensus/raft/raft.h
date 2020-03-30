@@ -153,7 +153,7 @@ namespace raft
       ledger(std::move(ledger_)),
       channels(channels_),
 
-      distrib(-(int)election_timeout_.count(), 0),
+      distrib(0, (int)election_timeout_.count() / 2),
       rand((int)(uintptr_t)this)
     {}
 
@@ -969,8 +969,8 @@ namespace raft
 
     void restart_election_timeout()
     {
-      // Randomise timeout_elapsed to get an election timeout that is
-      // effectively between zero and double the configured election timeout.
+      // Randomise timeout_elapsed to get a random election timeout
+      // between 0.5x and 1x the configured election timeout.
       timeout_elapsed = std::chrono::milliseconds(distrib(rand));
     }
 
