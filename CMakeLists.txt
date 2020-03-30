@@ -526,7 +526,7 @@ if(BUILD_TESTS)
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS raft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 10000
+      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 5000
     )
 
     add_e2e_test(
