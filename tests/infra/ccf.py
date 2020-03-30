@@ -174,10 +174,6 @@ class Network:
         }
 
         for i, node in enumerate(self.nodes):
-            dict_args = vars(args)
-            forwarded_args = {
-                arg: dict_args[arg] for arg in Network.node_args_to_forward
-            }
             try:
                 if i == 0:
                     if not recovery:
