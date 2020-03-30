@@ -118,6 +118,8 @@ namespace asynchost
 
     class OutgoingBehaviour : public ConnectionBehaviour
     {
+      uv_timer_t reconnect_timer;
+
     public:
       OutgoingBehaviour(NodeConnections& parent, ccf::NodeId node) :
         ConnectionBehaviour(parent, node)
@@ -143,10 +145,33 @@ namespace asynchost
 
       void reconnect()
       {
-        auto s = parent.find(node);
+        // Use uv_timer_t to reconnect after a short delay
+        int rc;
+        if ((rc = uv_timer_init(uv_default_loop(), &reconnect_timer)) < 0)
+        {
+          LOG_FAIL_FMT("reconnect: uv_timer_init failed: {}", uv_strerror(rc));
+          return;
+        }
+
+        reconnect_timer.data = this;
+
+        if (
+          (rc = uv_timer_start(&reconnect_timer, on_reconnect_timer, 50, 0)) <
+          0)
+        {
+          LOG_FAIL_FMT("reconnect: uv_timer_start failed: {}", uv_strerror(rc));
+        }
+      }
+
+      static void on_reconnect_timer(uv_timer_t* timer)
+      {
+        auto behaviour = static_cast<OutgoingBehaviour*>(timer->data);
+        auto s = behaviour->parent.find(behaviour->node);
 
         if (s)
+        {
           s.value()->reconnect();
+        }
       }
     };
 
