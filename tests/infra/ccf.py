@@ -293,7 +293,9 @@ class Network:
             node.stop()
         LOG.info("All remotes stopped...")
 
-    def create_and_add_pending_node(self, lib_name, host, args, target_node=None):
+    def create_and_add_pending_node(
+        self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
+    ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
@@ -305,7 +307,7 @@ class Network:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
                 new_node.node_id,
-                timeout=JOIN_TIMEOUT,
+                timeout=timeout,
                 node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN

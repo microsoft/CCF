@@ -56,7 +56,7 @@ def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
         try:
-            network.create_and_trust_node("liblua_generic", "localhost", args)
+            network.create_and_add_pending_node("liblua_generic", "localhost", args, timeout=3)
             assert False, "Adding node with unknown code id should fail"
         except TimeoutError as err:
             assert "CODE_ID_NOT_FOUND" in err.message, err.message

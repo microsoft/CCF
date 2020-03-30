@@ -43,7 +43,9 @@ def run(args):
 
         LOG.info(f"Adding a node with unsupported code id {new_code_id}")
         try:
-            network.create_and_trust_node(args.patched_file_name, "localhost", args)
+            network.create_and_add_pending_node(
+                args.patched_file_name, "localhost", args, timeout=3
+            )
             assert (
                 False
             ), f"Adding a node with unsupported code id {new_code_id} should fail"
@@ -76,12 +78,12 @@ def run(args):
             LOG.debug(f"Stopping old node {node.node_id}")
             node.stop()
 
-        LOG.info("Waiting for a new primary to be elected...")
         sleep_time = (
-            args.pbft_view_change_timeout * 6 / 1000
+            args.pbft_view_change_timeout * 4 / 1000
             if args.consensus == "pbft"
-            else args.raft_election_timeout * 6 / 1000
+            else args.raft_election_timeout * 4 / 1000
         )
+        LOG.info(f"Waiting {sleep_time}s for a new primary to be elected...")
         time.sleep(sleep_time)
 
         new_primary, _ = network.find_primary()
