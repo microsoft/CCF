@@ -155,7 +155,7 @@ namespace ccf
       std::shared_ptr<std::vector<uint8_t>> replicated) override
     {}
 
-    void execute_pending() override {}
+    void flush_pending() override {}
 
     virtual void add_result(
       RequestID id,
@@ -501,7 +501,7 @@ namespace ccf
 
     void compact(kv::Version v) override
     {
-      execute_pending();
+      flush_pending();
       if (v > MAX_HISTORY_LEN)
       {
         replicated_state_tree.flush(v - MAX_HISTORY_LEN);
@@ -605,7 +605,7 @@ namespace ccf
       }
     }
 
-    void execute_pending() override
+    void flush_pending() override
     {
       snmalloc::DLList<PendingInsert, std::nullptr_t, true> pi;
       {

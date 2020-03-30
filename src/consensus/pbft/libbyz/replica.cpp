@@ -490,7 +490,6 @@ void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
     return;
   }
 
-  auto principals_with_proofs = pp->get_prev_pp_valid_principals();
   auto prev_seqno = pp->seqno() - 1;
   if (!plog.within_range(prev_seqno))
   {
@@ -503,7 +502,7 @@ void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
   auto prev_pp = prev_prepared_cert.pre_prepare();
   if (prev_pp != 0)
   {
-    for (auto& p_id : principals_with_proofs)
+    for (auto& p_id : pp->get_prev_pp_valid_principals())
     {
       LOG_DEBUG_FMT(
         "Adding prepare for principal with id {} for seqno {}",

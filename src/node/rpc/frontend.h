@@ -340,7 +340,7 @@ namespace ccf
 
     void update_merkle_tree() override
     {
-      history->execute_pending();
+      history->flush_pending();
     }
 
     /** Process a serialised input forwarded from another node
