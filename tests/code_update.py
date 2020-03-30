@@ -79,9 +79,9 @@ def run(args):
             node.stop()
 
         sleep_time = (
-            args.pbft_view_change_timeout * 4 / 1000
+            args.pbft_view_change_timeout * 2 / 1000
             if args.consensus == "pbft"
-            else args.raft_election_timeout * 4 / 1000
+            else args.raft_election_timeout * 2 / 1000
         )
         LOG.info(f"Waiting {sleep_time}s for a new primary to be elected...")
         time.sleep(sleep_time)
