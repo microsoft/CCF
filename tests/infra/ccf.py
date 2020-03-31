@@ -49,6 +49,10 @@ class PrimaryNotFound(Exception):
     pass
 
 
+class CodeIdNotFound(Exception):
+    pass
+
+
 def get_common_folder_name(workspace, label):
     return os.path.join(workspace, f"{label}_{COMMON_FOLDER}")
 
@@ -315,15 +319,12 @@ class Network:
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
             errors = new_node.stop()
-            if errors:
-                # Add error lines from file as custom field on this error
-                err.joining_errors = []
-                for error in errors:
-                    if "An error occurred while joining the network" in error:
-                        err.joining_errors.append(error.split("|", 1)[1])
-                # Flatten into a single string for easier searching upstack
-                err.joining_errors = "\n".join(err.joining_errors)
             self.nodes.remove(new_node)
+            if errors:
+                # Throw accurate exceptions if known errors found in
+                for error in errors:
+                    if "CODE_ID_NOT_FOUND" in error:
+                        raise CodeIdNotFound
             raise
 
         return new_node

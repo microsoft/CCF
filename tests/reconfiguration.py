@@ -55,17 +55,17 @@ def test_add_as_many_pending_nodes(network, args):
 def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
+        code_not_found_exception = None
         try:
             network.create_and_add_pending_node(
                 "liblua_generic", "localhost", args, timeout=3
             )
-            assert False, "Adding node with unknown code id should fail"
-        except TimeoutError as err:
-            joining_errors = getattr(err, "joining_errors", None)
-            if joining_errors is not None:
-                assert "CODE_ID_NOT_FOUND" in joining_errors, joining_errors
-            else:
-                raise
+        except infra.ccf.CodeIdNotFound as err:
+            code_not_found_exception = err
+
+        assert (
+            code_not_found_exception is not None
+        ), "Adding node with unknown code id should fail"
 
     else:
         LOG.warning("Skipping unknown code id test with virtual enclave")

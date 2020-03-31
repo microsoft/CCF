@@ -42,19 +42,15 @@ def run(args):
         new_code_id = get_code_id(infra.path.build_lib_path(args.patched_file_name))
 
         LOG.info(f"Adding a node with unsupported code id {new_code_id}")
+        code_not_found_exception = None
         try:
             network.create_and_add_pending_node(
                 args.patched_file_name, "localhost", args, timeout=3
             )
-            assert (
-                False
-            ), f"Adding a node with unsupported code id {new_code_id} should fail"
-        except TimeoutError as err:
-            joining_errors = getattr(err, "joining_errors", None)
-            if joining_errors is not None:
-                assert "CODE_ID_NOT_FOUND" in joining_errors, joining_errors
-            else:
-                raise
+        except infra.ccf.CodeIdNotFound as err:
+            code_not_found_exception = err
+
+        assert code_not_found_exception is not None, f"Adding a node with unsupported code id {new_code_id} should fail"
 
         # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
         primary, others = network.find_primary()
