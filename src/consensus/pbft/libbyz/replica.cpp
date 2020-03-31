@@ -2070,9 +2070,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          pp->set_view(prev_view);
-          last_te_version = ledger_writer->write_pre_prepare(pp);
-          pp->set_view(v);
+          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
         }
       }
     }
@@ -2084,9 +2082,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          pp->set_view(prev_view);
-          last_te_version = ledger_writer->write_pre_prepare(pp);
-          pp->set_view(v);
+          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
         }
       }
 

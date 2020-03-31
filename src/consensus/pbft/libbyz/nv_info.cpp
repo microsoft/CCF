@@ -877,7 +877,6 @@ Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d, View& prev_view)
   Pre_prepare* pp = 0;
   Digest null;
   View pv = vcs[nv->which_picked(n)].vc->req(n, d);
-  prev_view = v;
 
   if (pv >= 0 && d != null)
   {
@@ -895,6 +894,7 @@ Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d, View& prev_view)
     pp = new Pre_prepare(v, n, empty, requests_in_batch);
     pp->set_digest();
     d = pp->digest();
+    prev_view = v;
   }
 
   if (
