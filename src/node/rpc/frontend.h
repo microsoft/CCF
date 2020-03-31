@@ -79,7 +79,7 @@ namespace ccf
     {
       // Only forward the certificate if the certificate cannot be looked up
       // from the caller ID on the receiving frontend or if the handler does not
-      // require client identity
+      // require a known client identity
       if (
         !handlers.has_certs() ||
         (handler != nullptr && !handler->require_client_identity))
@@ -107,7 +107,7 @@ namespace ccf
               ctx, primary_id, caller_id, get_cert_to_forward(ctx, handler)))
           {
             // Indicate that the RPC has been forwarded to primary
-            LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
+            LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id);
             return std::nullopt;
           }
         }

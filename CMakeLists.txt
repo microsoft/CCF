@@ -68,8 +68,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
-  target_link_libraries(ccf.enclave PUBLIC libbyz.enclave)
-
   target_link_libraries(
     ccf.enclave
     PUBLIC openenclave::oeenclave
@@ -81,6 +79,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            secp256k1.enclave
            sss.enclave
+           byz.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -120,8 +119,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
-  target_link_libraries(ccf.virtual PUBLIC libbyz.host)
-
   target_link_libraries(
     ccf.virtual
     PUBLIC -stdlib=libc++
@@ -134,6 +131,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
+           byz.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
