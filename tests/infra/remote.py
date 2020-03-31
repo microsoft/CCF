@@ -172,16 +172,14 @@ class SSHRemote(CmdMixin):
             tgt_path = os.path.join(self.root, os.path.basename(path))
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
             session.put(path, tgt_path)
+            stat = os.stat(path)
+            session.chmod(tgt_path, stat.st_mode)
         for path in self.data_files:
             src_path = os.path.join(self.common_dir, path)
             tgt_path = os.path.join(self.root, os.path.basename(src_path))
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, src_path))
             session.put(src_path, tgt_path)
         session.close()
-        executable = self.cmd[0]
-        if executable.startswith("./"):
-            executable = executable[2:]
-        assert self._rc("chmod +x {}".format(os.path.join(self.root, executable))) == 0
 
     def get(self, file_name, dst_path, timeout=60, target_name=None):
         """
@@ -588,9 +586,11 @@ class CCFRemote(object):
         exe_files = [self.BIN, lib_path] + self.DEPS
         data_files = [self.ledger_file] if self.ledger_file else []
 
-        # lib_path may be relative or absolute. The remote implementation should
+        # exe_files may be relative or absolute. The remote implementation should
         # copy (or symlink) to the target workspace, and then node will be able
         # to reference the destination file locally in the target workspace.
+        bin_path = os.path.join(".", os.path.basename(self.BIN))
+        LOG.warning(f"bin_path is {bin_path}")
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
         election_timeout_arg = (
@@ -600,7 +600,7 @@ class CCFRemote(object):
         )
 
         cmd = [
-            self.BIN,
+            bin_path,
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
             f"--node-address={host}:{node_port}",
