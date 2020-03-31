@@ -73,6 +73,41 @@ If the network has already been opened to users, members need to trust the joini
 .. note:: When starting up the network or when joining an existing network, the secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`operators/recovery:Catastrophic Recovery` for more details on how to recover a crashed network.
 .. note:: If starting up the network with PBFT enabled as the consensus protocol, be sure to add the ``--consensus pbft`` CLI argument when starting up the node. For more info on the provided consensus protocols please see :ref:`here <developers/consensus:Consensus Protocols>`
 
+Using a Configuration File
+-----------------------
+
+``cchost`` can be started using a configuration file in TOML or INI format. 
+
+.. code-block:: toml
+    # config.toml
+    enclave-file = <enclave-file>
+    enclave-type = debug
+    consensus = raft
+    node-address = <node-address>
+    rpc-address = <rpc-address>
+    public-rpc-address = <public-rpc-address>
+
+    [<subcommand, one of [start, join, recover]>]
+    network-cert-file = <network-cert-file-name>
+    member-info = "<member_cert.pem>,<member_kshare_pub.pem>"
+    gov-script = <gov-script-name>
+
+.. code-block:: ini
+    ; config.ini
+    enclave-file = <enclave-file>
+    enclave-type = debug
+    consensus = raft
+    node-address = <node-address>
+    rpc-address = <rpc-address>
+    public-rpc-address = <public-rpc-address>
+
+    [<subcommand, one of [start, join, recover]>]
+    network-cert-file = <network-cert-file-name>
+    member-info = "<member_cert.pem>,<member_kshare_pub.pem>"
+    gov-script = <gov-script-name>
+
+To pass configuration files, use the ``--config`` option: ``./cchost --config=config.ini``. An error will be generated if the configuration file contains extra fields. Options in the configuration file will be read along with normal command line arguments. Additional information for configuration files in CLI11 can be found `here <https://cliutils.github.io/CLI11/book/chapters/config.html>`_.
+
 Opening a Network to Users
 --------------------------
 
