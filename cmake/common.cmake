@@ -201,7 +201,7 @@ function(add_unit_test name)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi ccfcrypto.host
+    ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi -lc++fs ccfcrypto.host
   )
   use_client_mbedtls(${name})
   add_san(${name})
@@ -268,6 +268,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${CMAKE_THREAD_LIBS_INIT}
             -lc++
             -lc++abi
+            -lc++fs
             -stdlib=libc++
             ccfcrypto.host
             evercrypt.host
