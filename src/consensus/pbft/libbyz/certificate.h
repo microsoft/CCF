@@ -393,7 +393,7 @@ bool Certificate<T>::add(T* msg)
       // add msg to the certificate
       if (id != pbft::GlobalState::get_node().id())
       {
-        LOG_DEBUG(
+        LOG_DEBUG_FMT(
           "Adding certificate for replica other than myself, replica id {}",
           id);
       }
