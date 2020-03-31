@@ -311,7 +311,7 @@ class SSHRemote(CmdMixin):
     def _cmd(self):
         env = " ".join(f"{key}={value}" for key, value in self.env.items())
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {env} ./{cmd} 1>{self.out} 2>{self.err} 0</dev/null"
+        return f"cd {self.root} && {env} {cmd} 1>{self.out} 2>{self.err} 0</dev/null"
 
     def _dbg(self):
         cmd = " ".join(self.cmd)
