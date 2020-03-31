@@ -5,6 +5,7 @@ import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
+import inspect
 import http
 
 from loguru import logger as LOG
@@ -67,7 +68,9 @@ def test_cert_prefix(network, args):
                 assert f"CN=user{user_id}" in r.result["msg"]
 
     else:
-        LOG.warning("Skipping test_cert_prefix as application is not C++")
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
 
     return network
 
@@ -96,7 +99,9 @@ def test_anonymous_caller(network, args):
             assert r.result is not None
             assert msg in r.result["msg"]
     else:
-        LOG.warning("Skipping test_cert_prefix as application is not C++")
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
 
     return network
 
@@ -121,7 +126,9 @@ def test_raw_text(network, args):
             assert msg in r.result["msg"]
 
     else:
-        LOG.warning("Skipping test_cert_prefix as application is not C++")
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
 
     return network
 
@@ -145,7 +152,7 @@ def test_forwarding_frontends(network, args):
 @reqs.description("Uninstalling Lua application")
 @reqs.lua_generic_app
 def test_update_lua(network, args):
-    if args.package == "libluageneric":
+    if args.package == "liblua_generic":
         LOG.info("Updating Lua application")
         primary, term = network.find_primary()
 
@@ -207,7 +214,7 @@ def run(args):
                 network,
                 args,
                 notifications_queue,
-                verify=args.package is not "libjsgeneric",
+                verify=args.package is not "libjs_generic",
             )
             network = test_large_messages(network, args)
             network = test_forwarding_frontends(network, args)
@@ -221,9 +228,9 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     if args.js_app_script:
-        args.package = "libjsgeneric"
+        args.package = "libjs_generic"
     elif args.app_script:
-        args.package = "libluageneric"
+        args.package = "liblua_generic"
     else:
         args.package = "liblogging"
 

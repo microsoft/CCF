@@ -1,21 +1,21 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "appinterface.h"
+#include "app_interface.h"
 #include "crypto/hash.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
 #include "interface.h"
 #include "node/entities.h"
-#include "node/networkstate.h"
-#include "node/nodestate.h"
+#include "node/network_state.h"
+#include "node/node_state.h"
 #include "node/nodetypes.h"
 #include "node/notifier.h"
 #include "node/rpc/forwarder.h"
-#include "node/rpc/nodefrontend.h"
+#include "node/rpc/node_frontend.h"
 #include "node/timer.h"
-#include "rpcmap.h"
-#include "rpcsessions.h"
+#include "rpc_map.h"
+#include "rpc_sessions.h"
 
 namespace enclave
 {

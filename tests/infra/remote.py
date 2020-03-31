@@ -195,7 +195,9 @@ class SSHRemote(CmdMixin):
         the main cmd that may be running.
         """
         with sftp_session(self.hostname) as session:
-            for seconds in range(timeout):
+            end_time = time.time() + timeout
+            start_time = time.time()
+            while time.time() < end_time:
                 try:
                     target_name = target_name or file_name
                     session.get(
@@ -204,25 +206,26 @@ class SSHRemote(CmdMixin):
                     )
                     LOG.debug(
                         "[{}] found {} after {}s".format(
-                            self.hostname, file_name, seconds
+                            self.hostname, file_name, int(time.time() - start_time)
                         )
                     )
                     break
                 except FileNotFoundError:
-                    time.sleep(1)
+                    time.sleep(0.1)
             else:
                 raise ValueError(file_name)
 
     def list_files(self, timeout=60):
         files = []
         with sftp_session(self.hostname) as session:
-            for seconds in range(timeout):
+            end_time = time.time() + timeout
+            while time.time() < end_time:
                 try:
                     files = session.listdir(self.root)
 
                     break
                 except Exception:
-                    time.sleep(1)
+                    time.sleep(0.1)
 
             else:
                 raise ValueError(self.root)
@@ -325,22 +328,24 @@ class SSHRemote(CmdMixin):
     def wait_for_stdout_line(self, line, timeout):
         client = self._connect_new()
         try:
-            for _ in range(timeout):
+            end_time = time.time() + timeout
+            while time.time() < end_time:
                 _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
                 if stdout.channel.recv_exit_status() == 0:
                     return
-                time.sleep(1)
+                time.sleep(0.1)
             raise ValueError(f"{line} not found in stdout after {timeout} seconds")
         finally:
             client.close()
 
     def check_for_stdout_line(self, line, timeout):
         client = self._connect_new()
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
             if stdout.channel.recv_exit_status() == 0:
                 return True
-            time.sleep(1)
+            time.sleep(0.1)
         return False
 
     def print_and_upload_result(self, name, metrics, lines):
@@ -418,10 +423,11 @@ class LocalRemote(CmdMixin):
 
     def get(self, file_name, dst_path, timeout=60, target_name=None):
         path = os.path.join(self.root, file_name)
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             if os.path.exists(path):
                 break
-            time.sleep(1)
+            time.sleep(0.1)
         else:
             raise ValueError(path)
         target_name = target_name or file_name
@@ -486,23 +492,25 @@ class LocalRemote(CmdMixin):
         return f"cd {self.root} && {DBG} --args {cmd}"
 
     def wait_for_stdout_line(self, line, timeout):
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             with open(self.out, "rb") as out:
                 for out_line in out:
                     if line in out_line.decode():
                         return
-            time.sleep(1)
+            time.sleep(0.1)
         raise ValueError(
             "{} not found in stdout after {} seconds".format(line, timeout)
         )
 
     def check_for_stdout_line(self, line, timeout):
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             with open(self.out, "rb") as out:
                 for out_line in out:
                     if line in out_line.decode():
                         return True
-            time.sleep(1)
+            time.sleep(0.1)
         return False
 
     def print_and_upload_result(self, name, metrics, line):
@@ -603,7 +611,7 @@ class CCFRemote(object):
             f"--host-log-level={host_log_level}",
             election_timeout_arg,
             f"--consensus={consensus}",
-            f"--worker_threads={worker_threads}",
+            f"--worker-threads={worker_threads}",
         ]
 
         if json_log_path:

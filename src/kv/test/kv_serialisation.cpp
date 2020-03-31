@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "consensus/test/stub_consensus.h"
 #include "ds/logger.h"
-#include "enclave/appinterface.h"
+#include "enclave/app_interface.h"
 #include "kv/kv.h"
-#include "kv/kvserialiser.h"
+#include "kv/kv_serialiser.h"
 #include "node/encryptor.h"
 
 #include <doctest/doctest.h>

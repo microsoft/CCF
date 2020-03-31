@@ -16,7 +16,7 @@ file(GLOB_RECURSE EVERCRYPT_SRC "${EVERCRYPT_PREFIX}/*.[cS]")
 
 # We need two versions of EverCrypt, because it depends on libc
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(evercrypt.enclave STATIC ${EVERCRYPT_SRC})
   target_compile_options(
     evercrypt.enclave PRIVATE -Wno-implicit-function-declaration
@@ -48,12 +48,12 @@ install(
 # CCFCrypto, again two versions.
 
 set(CCFCRYPTO_SRC ${CCF_DIR}/src/crypto/hash.cpp
-                  ${CCF_DIR}/src/crypto/symmkey.cpp
+                  ${CCF_DIR}/src/crypto/symmetric_key.cpp
 )
 
 set(CCFCRYPTO_INC ${CCF_DIR}/src/crypto/ ${EVERCRYPT_INC})
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   add_library(ccfcrypto.enclave STATIC ${CCFCRYPTO_SRC})
   target_compile_definitions(
     ccfcrypto.enclave PRIVATE INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD

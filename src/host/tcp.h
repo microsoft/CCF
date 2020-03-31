@@ -126,8 +126,8 @@ namespace asynchost
 
         default:
         {
-          throw std::logic_error(
-            fmt::format("Unexpected status during reconnect: {}", status));
+          LOG_DEBUG_FMT(
+            "Unexpected status during reconnect, ignoring: {}", status);
         }
       }
 

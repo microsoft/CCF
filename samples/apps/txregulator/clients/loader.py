@@ -203,5 +203,5 @@ if __name__ == "__main__":
         parser.add_argument("--run-poll", help="Run the poller", action="store_true")
 
     args = infra.e2e_args.cli_args(add)
-    args.package = args.app_script and "libluageneric" or "liblogging"
+    args.package = args.app_script and "liblua_generic" or "liblogging"
     run(args)

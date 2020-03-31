@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
-#include "../keypair.h"
+#include "../key_pair.h"
 
 #include <picobench/picobench.hpp>
 

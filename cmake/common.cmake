@@ -25,29 +25,6 @@ find_package(Threads REQUIRED)
 
 set(PYTHON unbuffer python3)
 
-set(SERVICE_IDENTITY_CURVE_CHOICE
-    "secp384r1"
-    CACHE STRING
-          "One of secp384r1, ed25519, secp256k1_mbedtls, secp256k1_bitcoin"
-)
-if(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp384r1")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP384R1)
-  set(DEFAULT_PARTICIPANTS_CURVE "secp384r1")
-elseif(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "ed25519")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_ED25519)
-  set(DEFAULT_PARTICIPANTS_CURVE "ed25519")
-elseif(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_mbedtls")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_MBEDTLS)
-  set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
-elseif(${SERVICE_IDENTITY_CURVE_CHOICE} STREQUAL "secp256k1_bitcoin")
-  add_definitions(-DSERVICE_IDENTITY_CURVE_CHOICE_SECP256K1_BITCOIN)
-  set(DEFAULT_PARTICIPANTS_CURVE "secp256k1")
-else()
-  message(
-    FATAL_ERROR "Unsupported curve choice ${SERVICE_IDENTITY_CURVE_CHOICE}"
-  )
-endif()
-
 set(DISTRIBUTE_PERF_TESTS
     ""
     CACHE
@@ -72,7 +49,7 @@ endif()
 option(VERBOSE_LOGGING "Enable verbose logging" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
-  add_definitions(-DVERBOSE_LOGGING)
+  add_compile_definitions(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
@@ -80,14 +57,14 @@ option(NO_STRICT_TLS_CIPHERSUITES
        "Disable strict list of valid TLS ciphersuites" OFF
 )
 if(NO_STRICT_TLS_CIPHERSUITES)
-  add_definitions(-DNO_STRICT_TLS_CIPHERSUITES)
+  add_compile_definitions(NO_STRICT_TLS_CIPHERSUITES)
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
        OFF
 )
 if(USE_NULL_ENCRYPTOR)
-  add_definitions(-DUSE_NULL_ENCRYPTOR)
+  add_compile_definitions(USE_NULL_ENCRYPTOR)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
@@ -99,12 +76,12 @@ option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
 )
 if(DEBUG_CONFIG)
-  add_definitions(-DDEBUG_CONFIG)
+  add_compile_definitions(DEBUG_CONFIG)
 endif()
 
 option(USE_NLJSON_KV_SERIALISER "Use nlohmann JSON as the KV serialiser" OFF)
 if(USE_NLJSON_KV_SERIALISER)
-  add_definitions(-DUSE_NLJSON_KV_SERIALISER)
+  add_compile_definitions(USE_NLJSON_KV_SERIALISER)
 endif()
 
 enable_language(ASM)
@@ -117,21 +94,13 @@ include_directories(
   ${CCF_DIR}/3rdparty/flatbuffers/include
 )
 
-set(TARGET
-    "sgx;virtual"
-    CACHE STRING "One of sgx, virtual, or 'sgx;virtual'"
-)
-
 find_package(MbedTLS REQUIRED)
 
 set(CLIENT_MBEDTLS_INCLUDE_DIR "${MBEDTLS_INCLUDE_DIRS}")
 set(CLIENT_MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARIES}")
 
-find_package(OpenEnclave CONFIG REQUIRED)
-# As well as pulling in openenclave:: targets, this sets variables which can be
-# used for our edge cases (eg - for virtual libraries). These do not follow the
-# standard naming patterns, for example use OE_INCLUDEDIR rather than
-# OpenEnclave_INCLUDE_DIRS
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
 add_custom_command(
   COMMAND openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir
@@ -142,9 +111,6 @@ add_custom_command(
   OUTPUT ${CCF_GENERATED_DIR}/ccf_t.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   COMMENT "Generating code from EDL, and renaming to .cpp"
 )
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
 # Copy utilities from tests directory
 set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh
@@ -164,7 +130,7 @@ install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
 # Install getting_started scripts for VM creation and setup
 install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   # If OE was built with LINK_SGX=1, then we also need to link SGX
   if(OE_SGX)
     message(STATUS "Linking SGX")
@@ -235,7 +201,7 @@ function(add_unit_test name)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
   target_link_libraries(
-    ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi ccfcrypto.host
+    ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi -lc++fs ccfcrypto.host
   )
   use_client_mbedtls(${name})
   add_san(${name})
@@ -244,7 +210,7 @@ function(add_unit_test name)
   set_property(TEST ${name} APPEND PROPERTY LABELS unit_test)
 endfunction()
 
-if("sgx" IN_LIST TARGET)
+if("sgx" IN_LIST COMPILE_TARGETS)
   # Host Executable
   add_executable(
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
@@ -272,7 +238,7 @@ if("sgx" IN_LIST TARGET)
   install(TARGETS cchost DESTINATION bin)
 endif()
 
-if("virtual" IN_LIST TARGET)
+if("virtual" IN_LIST COMPILE_TARGETS)
   if(SAN)
     set(SNMALLOC_LIB)
     set(SNMALLOC_CPP)
@@ -302,6 +268,7 @@ if("virtual" IN_LIST TARGET)
             ${CMAKE_THREAD_LIBS_INIT}
             -lc++
             -lc++abi
+            -lc++fs
             -stdlib=libc++
             ccfcrypto.host
             evercrypt.host
@@ -358,13 +325,8 @@ install(
 )
 
 # Common test args for Python scripts starting up CCF networks
-if((NOT CMAKE_BUILD_TYPE STREQUAL "Debug") AND NOT SAN)
-  set(DEFAULT_WORKER_THREADS 0)
-else()
-  set(DEFAULT_WORKER_THREADS 0)
-endif()
 set(WORKER_THREADS
-    "${DEFAULT_WORKER_THREADS}"
+    0
     CACHE STRING "Number of worker threads to start on each CCF node"
 )
 
@@ -374,26 +336,26 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_HOST_LOGGING_LEVEL}
     -g
     ${CCF_DIR}/src/runtime_config/gov.lua
-    --worker_threads
+    --worker-threads
     ${WORKER_THREADS}
 )
 
 # SNIPPET_START: Lua generic application
-add_ccf_app(luageneric SRCS ${CCF_DIR}/src/apps/luageneric/luageneric.cpp)
+add_ccf_app(lua_generic SRCS ${CCF_DIR}/src/apps/lua_generic/lua_generic.cpp)
 sign_app_library(
-  luageneric.enclave ${CCF_DIR}/src/apps/luageneric/oe_sign.conf
+  lua_generic.enclave ${CCF_DIR}/src/apps/lua_generic/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 # SNIPPET_END: Lua generic application
 
 add_ccf_app(
-  jsgeneric
-  SRCS ${CCF_DIR}/src/apps/jsgeneric/jsgeneric.cpp
+  js_generic
+  SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE quickjs.enclave -lgcc
   LINK_LIBS_VIRTUAL quickjs.host
 )
 sign_app_library(
-  jsgeneric.enclave ${CCF_DIR}/src/apps/jsgeneric/oe_sign.conf
+  js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
 
@@ -422,7 +384,7 @@ endfunction()
 function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;IS_SUITE;CURL_CLIENT;CONSENSUS;" "ADDITIONAL_ARGS"
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;CONSENSUS;" "ADDITIONAL_ARGS"
   )
 
   if(BUILD_END_TO_END_TESTS)
@@ -430,8 +392,7 @@ function(add_e2e_test)
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label ${PARSED_ARGS_NAME}
-        ${CCF_NETWORK_TEST_ARGS} --participants-curve
-        ${DEFAULT_PARTICIPANTS_CURVE} --consensus ${PARSED_ARGS_CONSENSUS}
+        ${CCF_NETWORK_TEST_ARGS} --consensus ${PARSED_ARGS_CONSENSUS}
         ${PARSED_ARGS_ADDITIONAL_ARGS}
     )
 
@@ -440,11 +401,10 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME} APPEND
       PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
-    if(${PARSED_ARGS_IS_SUITE})
-      set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS suite)
-    else()
-      set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS end_to_end)
-    endif()
+    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS end_to_end)
+    set_property(
+      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL}
+    )
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(
@@ -473,7 +433,7 @@ function(add_perf_test)
   endif()
 
   set(TESTS_SUFFIX "")
-  if("sgx" IN_LIST TARGET)
+  if("sgx" IN_LIST COMPILE_TARGETS)
     set(TESTS_SUFFIX "${TESTS_SUFFIX}_SGX")
   endif()
   if("raft" STREQUAL ${PARSED_ARGS_CONSENSUS})

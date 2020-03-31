@@ -55,11 +55,18 @@ def test_add_as_many_pending_nodes(network, args):
 def test_add_node_untrusted_code(network, args):
     if args.enclave_type == "debug":
         LOG.info("Adding an invalid node (unknown code id)")
+        code_not_found_exception = None
         try:
-            network.create_and_trust_node("libluageneric", "localhost", args)
-            assert False, "Adding node with unknown code id should fail"
-        except TimeoutError as err:
-            assert "CODE_ID_NOT_FOUND" in err.message, err.message
+            network.create_and_add_pending_node(
+                "liblua_generic", "localhost", args, timeout=3
+            )
+        except infra.ccf.CodeIdNotFound as err:
+            code_not_found_exception = err
+
+        assert (
+            code_not_found_exception is not None
+        ), "Adding node with unknown code id should fail"
+
     else:
         LOG.warning("Skipping unknown code id test with virtual enclave")
     return network
@@ -101,5 +108,5 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    args.package = args.app_script and "libluageneric" or "liblogging"
+    args.package = args.app_script and "liblua_generic" or "liblogging"
     run(args)

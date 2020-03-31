@@ -1,0 +1,41 @@
+jobs:
+- job: ${{ parameters.target }}_${{ parameters.suffix }}
+  variables:
+    skipComponentGovernanceDetection: true
+  displayName: '${{ parameters.target }} ${{ parameters.suffix }}'
+  dependsOn: ${{ parameters.depends_on }}
+
+  ${{ insert }}: ${{ parameters.env }}
+
+  steps:
+    - checkout: self
+      clean: true
+
+    - template: cmake.yml
+      parameters:
+        cmake_args: '${{ parameters.cmake_args }}'
+
+    - template: ninja.yml
+      parameters:
+        cmake_args: '${{ parameters.cmake_args }}'
+
+    - template: test.yml
+      parameters:
+        ctest_filter: ${{ parameters.ctest_filter }}
+        suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }}'
+
+    - ${{ if eq(parameters.suffix, 'Coverage') }}:
+      - template: coverage.yml
+
+    - ${{ if eq(parameters.suffix, 'Perf') }}:
+      - template: push_perf_data.yml
+      - template: metrics.yml
+
+    - ${{ if eq(parameters.suffix, 'Release') }}:
+      - template: publish_build.yml
+        parameters:
+          artifact_name: ${{ parameters.artifact_name }}
+
+      - template: install.yml
+        parameters:
+          install_prefix: ${{ parameters.install_prefix }}

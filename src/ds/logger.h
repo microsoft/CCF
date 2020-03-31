@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ringbuffer.h"
+#include "ring_buffer.h"
 
 #include <chrono>
 #include <cstring>
@@ -52,7 +52,7 @@ namespace logger
     std::string get_timestamp(const std::tm& tm, const ::timespec& ts)
     {
       // Sample: "2019-07-19 18:53:25.690267"
-      return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0<6}Z", tm, ts.tv_nsec / 1000);
+      return fmt::format("{:%Y-%m-%dT%H:%M:%S}.{:0>6}Z", tm, ts.tv_nsec / 1000);
     }
 
     virtual std::string format(

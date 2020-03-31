@@ -49,6 +49,10 @@ class PrimaryNotFound(Exception):
     pass
 
 
+class CodeIdNotFound(Exception):
+    pass
+
+
 def get_common_folder_name(workspace, label):
     return os.path.join(workspace, f"{label}_{COMMON_FOLDER}")
 
@@ -174,10 +178,6 @@ class Network:
         }
 
         for i, node in enumerate(self.nodes):
-            dict_args = vars(args)
-            forwarded_args = {
-                arg: dict_args[arg] for arg in Network.node_args_to_forward
-            }
             try:
                 if i == 0:
                     if not recovery:
@@ -293,7 +293,9 @@ class Network:
             node.stop()
         LOG.info("All remotes stopped...")
 
-    def create_and_add_pending_node(self, lib_name, host, args, target_node=None):
+    def create_and_add_pending_node(
+        self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
+    ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
@@ -305,7 +307,7 @@ class Network:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
                 new_node.node_id,
-                timeout=JOIN_TIMEOUT,
+                timeout=timeout,
                 node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
@@ -317,11 +319,12 @@ class Network:
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
             errors = new_node.stop()
-            if errors:
-                for error in errors:
-                    if "An error occurred while joining the network" in error:
-                        err.message = f"TimeoutError: {error.split('|', 1)[1]}"
             self.nodes.remove(new_node)
+            if errors:
+                # Throw accurate exceptions if known errors found in
+                for error in errors:
+                    if "CODE_ID_NOT_FOUND" in error:
+                        raise CodeIdNotFound
             raise
 
         return new_node
@@ -373,7 +376,8 @@ class Network:
         return [node for node in self.nodes if node.is_joined()]
 
     def wait_for_state(self, node, state, timeout=3):
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             try:
                 with node.node_client() as c:
                     r = c.get("getSignedIndex")
@@ -381,7 +385,7 @@ class Network:
                         break
             except ConnectionRefusedError:
                 pass
-            time.sleep(1)
+            time.sleep(0.1)
         else:
             raise TimeoutError(
                 f"Timed out waiting for public ledger to be read on node {node.node_id}"
@@ -407,7 +411,8 @@ class Network:
         primary_id = None
         term = None
 
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
@@ -422,7 +427,7 @@ class Network:
                         pass
             if primary_id is not None:
                 break
-            time.sleep(1)
+            time.sleep(0.1)
 
         if primary_id is None:
             raise PrimaryNotFound
@@ -457,7 +462,8 @@ class Network:
             local_commit_leader = res.commit
             term_leader = res.term
 
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
@@ -472,7 +478,7 @@ class Network:
                         caught_up_nodes.append(node)
             if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break
-            time.sleep(1)
+            time.sleep(0.1)
         assert len(caught_up_nodes) == len(
             self.get_joined_nodes()
         ), f"Only {len(caught_up_nodes)} (out of {len(self.get_joined_nodes())}) nodes have joined the network"
@@ -482,7 +488,8 @@ class Network:
         Wait for commit level to get in sync on all nodes. This is expected to
         happen once CFTR has been established, in the absence of new transactions.
         """
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
@@ -490,7 +497,7 @@ class Network:
                     commits.append(r.commit)
             if [commits[0]] * len(commits) == commits:
                 break
-            time.sleep(1)
+            time.sleep(0.1)
         # in pbft getCommit increments the commit version, so commits will not be the same
         # but they should be in ascending order
         assert (
@@ -504,7 +511,8 @@ class Network:
         Wait for a sealed secret at a version larger than "version" to be sealed
         on all nodes.
         """
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             rekeyed_nodes = []
             for node in self.get_joined_nodes():
                 max_sealed_version = int(
@@ -514,7 +522,7 @@ class Network:
                     rekeyed_nodes.append(node)
             if len(rekeyed_nodes) == len(self.get_joined_nodes()):
                 break
-            time.sleep(1)
+            time.sleep(0.1)
         assert len(rekeyed_nodes) == len(
             self.get_joined_nodes()
         ), f"Only {len(rekeyed_nodes)} (out of {len(self.get_joined_nodes())}) nodes have been rekeyed"

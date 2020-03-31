@@ -22,7 +22,7 @@ def wait_for_index_globally_committed(index, term, nodes):
     """
     Wait for a specific version at a specific term to be committed on all nodes.
     """
-    for _ in range(infra.ccf.Network.replication_delay):
+    for _ in range(infra.ccf.Network.replication_delay * 10):
         up_to_date_f = []
         for f in nodes:
             with f.node_client() as c:
@@ -31,7 +31,7 @@ def wait_for_index_globally_committed(index, term, nodes):
                     up_to_date_f.append(f.node_id)
         if len(up_to_date_f) == len(nodes):
             break
-        time.sleep(1)
+        time.sleep(0.1)
     assert len(up_to_date_f) == len(
         nodes
     ), "Only {} out of {} backups are up to date".format(len(up_to_date_f), len(nodes))
@@ -52,9 +52,9 @@ def run(args):
 
         # Time before an election completes
         max_election_duration = (
-            args.pbft_view_change_timeout * 4 // 1000
+            args.pbft_view_change_timeout * 2 / 1000
             if args.consensus == "pbft"
-            else args.raft_election_timeout * 4 // 1000
+            else args.raft_election_timeout * 2 / 1000
         )
 
         # Number of nodes F to stop until network cannot make progress
@@ -96,7 +96,9 @@ def run(args):
             LOG.debug("Stopping primary")
             primary.stop()
 
-            LOG.debug("Waiting for a new primary to be elected...")
+            LOG.debug(
+                f"Waiting {max_election_duration} for a new primary to be elected..."
+            )
             time.sleep(max_election_duration)
 
         # More than F nodes have been stopped, trying to commit any message

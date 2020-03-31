@@ -42,13 +42,20 @@ def run(args):
         new_code_id = get_code_id(infra.path.build_lib_path(args.patched_file_name))
 
         LOG.info(f"Adding a node with unsupported code id {new_code_id}")
+        code_not_found_exception = None
         try:
-            network.create_and_trust_node(args.patched_file_name, "localhost", args)
-            assert (
-                False
-            ), f"Adding a node with unsupported code id {new_code_id} should fail"
-        except TimeoutError as err:
-            assert "CODE_ID_NOT_FOUND" in err.message, err.message
+            network.create_and_add_pending_node(
+                args.patched_file_name, "localhost", args, timeout=3
+            )
+        except infra.ccf.CodeIdNotFound as err:
+            code_not_found_exception = err
+
+        assert (
+            code_not_found_exception is not None
+        ), f"Adding a node with unsupported code id {new_code_id} should fail"
+
+        # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
+        primary, others = network.find_primary()
 
         network.consortium.add_new_code(1, primary, new_code_id)
 
@@ -66,22 +73,18 @@ def run(args):
             assert new_node
             new_nodes.add(new_node)
 
-        for node in new_nodes:
-            new_primary = node
-            break
-
         LOG.info("Stopping all original nodes")
         old_nodes = set(network.nodes).difference(new_nodes)
         for node in old_nodes:
             LOG.debug(f"Stopping old node {node.node_id}")
             node.stop()
 
-        LOG.info("Waiting for a new primary to be elected...")
         sleep_time = (
-            args.pbft_view_change_timeout * 6 / 1000
+            args.pbft_view_change_timeout * 2 / 1000
             if args.consensus == "pbft"
-            else args.raft_election_timeout * 6 / 1000
+            else args.raft_election_timeout * 2 / 1000
         )
+        LOG.info(f"Waiting {sleep_time}s for a new primary to be elected...")
         time.sleep(sleep_time)
 
         new_primary, _ = network.find_primary()
@@ -113,6 +116,6 @@ if __name__ == "__main__":
         LOG.warning("Skipping code update test with virtual enclave")
         sys.exit()
 
-    args.package = args.app_script and "libluageneric" or "liblogging"
+    args.package = args.app_script and "liblua_generic" or "liblogging"
     args.patched_file_name = "{}.patched".format(args.package)
     run(args)

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "enclave/rpccontext.h"
+#include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
 

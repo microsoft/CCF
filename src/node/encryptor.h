@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmkey.h"
+#include "crypto/symmetric_key.h"
 #include "entities.h"
-#include "kv/kvtypes.h"
-#include "node/ledgersecrets.h"
+#include "kv/kv_types.h"
+#include "node/ledger_secrets.h"
 
 #include <atomic>
 #include <list>

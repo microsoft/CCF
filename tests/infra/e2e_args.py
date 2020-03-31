@@ -97,7 +97,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--consensus", help="Consensus", default="raft", choices=("raft", "pbft"),
     )
     parser.add_argument(
-        "--worker_threads",
+        "--worker-threads",
         help="number of worker threads inside the enclave",
         type=int,
         default=0,
@@ -138,9 +138,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--join-timer",
-        help="Timer period when tyring to join an existing network (ms)",
+        help="Timer period when trying to join an existing network (ms)",
         type=int,
-        default=4000,
+        default=4000,  # Set higher than cchost default to avoid swamping joinee with requests during slow quote verification
     )
     parser.add_argument(
         "--initial-member-count",

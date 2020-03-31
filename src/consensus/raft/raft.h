@@ -4,10 +4,10 @@
 
 #include "ds/logger.h"
 #include "ds/serialized.h"
-#include "ds/spinlock.h"
-#include "kv/kvtypes.h"
+#include "ds/spin_lock.h"
+#include "kv/kv_types.h"
 #include "node/nodetypes.h"
-#include "rafttypes.h"
+#include "raft_types.h"
 
 #include <algorithm>
 #include <deque>
@@ -153,7 +153,7 @@ namespace raft
       ledger(std::move(ledger_)),
       channels(channels_),
 
-      distrib(-(int)election_timeout_.count(), 0),
+      distrib(0, (int)election_timeout_.count() / 2),
       rand((int)(uintptr_t)this)
     {}
 
@@ -549,9 +549,11 @@ namespace raft
       {
         // Reply false, since our term is later than the received term.
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but our term is later",
+          "Recv append entries to {} from {} but our term is later ({} > {})",
           local_id,
-          r.from_node);
+          r.from_node,
+          current_term,
+          r.term);
         send_append_entries_response(r.from_node, false);
         return;
       }
@@ -969,8 +971,8 @@ namespace raft
 
     void restart_election_timeout()
     {
-      // Randomise timeout_elapsed to get an election timeout that is
-      // effectively between zero and double the configured election timeout.
+      // Randomise timeout_elapsed to get a random election timeout
+      // between 0.5x and 1x the configured election timeout.
       timeout_elapsed = std::chrono::milliseconds(distrib(rand));
     }
 

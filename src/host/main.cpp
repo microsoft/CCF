@@ -4,14 +4,14 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "ds/net.h"
-#include "ds/nonblocking.h"
+#include "ds/non_blocking.h"
 #include "ds/oversized.h"
 #include "enclave.h"
-#include "handle_ringbuffer.h"
-#include "nodeconnections.h"
-#include "notifyconnections.h"
-#include "rpcconnections.h"
-#include "sigterm.h"
+#include "handle_ring_buffer.h"
+#include "node_connections.h"
+#include "notify_connections.h"
+#include "rpc_connections.h"
+#include "sig_term.h"
 #include "ticker.h"
 
 #include <CLI11/CLI11.hpp>
@@ -43,26 +43,34 @@ int main(int argc, char** argv)
     ->required()
     ->check(CLI::ExistingFile);
 
-  std::string enclave_type;
-  app
-    .add_set(
-      "-t,--enclave-type",
-      enclave_type,
-      {"debug", "virtual"},
-      "Enclave type",
-      true)
-    ->required();
+  enum EnclaveType
+  {
+    DEBUG,
+    VIRTUAL
+  };
 
-  std::string consensus = "raft";
-  app.add_set("-c,--consensus", consensus, {"raft", "pbft"}, "Consensus", true)
-    ->required();
+  std::map<std::string, EnclaveType> enclave_type_map = {
+    {"debug", EnclaveType::DEBUG}, {"virtual", EnclaveType::VIRTUAL}};
+
+  EnclaveType enclave_type;
+  app.add_option("-t,--enclave-type", enclave_type, "Enclave type")
+    ->required()
+    ->transform(CLI::CheckedTransformer(enclave_type_map, CLI::ignore_case));
+
+  ConsensusType consensus;
+  std::map<std::string, ConsensusType> consensus_map{
+    {"raft", ConsensusType::RAFT}, {"pbft", ConsensusType::PBFT}};
+  app.add_option("-c,--consensus", consensus, "Consensus")
+    ->required()
+    ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));
 
   size_t num_worker_threads = 0;
-  app.add_option(
-    "-w,--worker_threads",
-    num_worker_threads,
-    "number of worker threads inside the enclave",
-    true);
+  app
+    .add_option(
+      "-w,--worker-threads",
+      num_worker_threads,
+      "Number of worker threads inside the enclave")
+    ->capture_default_str();
 
   cli::ParsedAddress node_address;
   cli::add_address_option(
@@ -89,15 +97,22 @@ int main(int argc, char** argv)
     "--rpc-address)");
 
   std::string ledger_file("ccf.ledger");
-  app.add_option("--ledger-file", ledger_file, "Ledger file", true);
+  app.add_option("--ledger-file", ledger_file, "Ledger file")
+    ->capture_default_str();
 
-  std::string host_log_level("info");
-  app.add_set(
-    "-l,--host-log-level",
-    host_log_level,
-    {"fatal", "fail", "info", "debug", "trace"},
-    "Only emit host log messages above that level",
-    true);
+  logger::Level host_log_level{logger::Level::INFO};
+  std::map<std::string, logger::Level> level_map;
+  for (int i = logger::TRACE; i < logger::MAX_LOG_LEVEL; i++)
+  {
+    level_map[logger::config::LevelNames[i]] = static_cast<logger::Level>(i);
+  }
+  app
+    .add_option(
+      "-l,--host-log-level",
+      host_log_level,
+      "Only emit host log messages above that level")
+    ->capture_default_str()
+    ->transform(CLI::CheckedTransformer(level_map, CLI::ignore_case));
 
   std::optional<std::string> json_log_path;
   app.add_option(
@@ -106,39 +121,42 @@ int main(int argc, char** argv)
     "Path to file where the json logs will be written");
 
   std::string node_cert_file("nodecert.pem");
-  app.add_option(
-    "--node-cert-file",
-    node_cert_file,
-    "Path to which the node certificate will be written",
-    true);
+  app
+    .add_option(
+      "--node-cert-file",
+      node_cert_file,
+      "Path to which the node certificate will be written")
+    ->capture_default_str();
 
   std::string node_pid_file("cchost.pid");
-  app.add_option(
-    "--node-pid-file",
-    node_pid_file,
-    "Path to which the node PID will be written",
-    true);
+  app
+    .add_option(
+      "--node-pid-file",
+      node_pid_file,
+      "Path to which the node PID will be written")
+    ->capture_default_str();
 
   size_t sig_max_tx = 5000;
-  app.add_option(
-    "--sig-max-tx",
-    sig_max_tx,
-    "Maximum number of transactions between signatures",
-    true);
+  app
+    .add_option(
+      "--sig-max-tx",
+      sig_max_tx,
+      "Maximum number of transactions between signatures")
+    ->capture_default_str();
 
   size_t sig_max_ms = 1000;
-  app.add_option(
-    "--sig-max-ms",
-    sig_max_ms,
-    "Maximum milliseconds between signatures",
-    true);
+  app
+    .add_option(
+      "--sig-max-ms", sig_max_ms, "Maximum milliseconds between signatures")
+    ->capture_default_str();
 
   size_t circuit_size_shift = 22;
-  app.add_option(
-    "--circuit-size-shift",
-    circuit_size_shift,
-    "Size of the internal ringbuffers, as a power of 2",
-    true);
+  app
+    .add_option(
+      "--circuit-size-shift",
+      circuit_size_shift,
+      "Size of the internal ringbuffers, as a power of 2")
+    ->capture_default_str();
 
   cli::ParsedAddress notifications_address;
   cli::add_address_option(
@@ -148,82 +166,96 @@ int main(int argc, char** argv)
     "Server address to notify progress to");
 
   size_t raft_timeout = 100;
-  app.add_option(
-    "--raft-timeout-ms",
-    raft_timeout,
-    "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
-    "followers at regular intervals defined by this timeout. This should be "
-    "set to a significantly lower value than --raft-election-timeout-ms.",
-    true);
+  app
+    .add_option(
+      "--raft-timeout-ms",
+      raft_timeout,
+      "Raft timeout in milliseconds. The Raft leader sends heartbeats to its "
+      "followers at regular intervals defined by this timeout. This should be "
+      "set to a significantly lower value than --raft-election-timeout-ms.")
+    ->capture_default_str();
 
   size_t raft_election_timeout = 5000;
-  app.add_option(
-    "--raft-election-timeout-ms",
-    raft_election_timeout,
-    "Raft election timeout in milliseconds. If a follower does not receive any "
-    "heartbeat from the leader after this timeout, the follower triggers a new "
-    "election.",
-    true);
+  app
+    .add_option(
+      "--raft-election-timeout-ms",
+      raft_election_timeout,
+      "Raft election timeout in milliseconds. If a follower does not receive "
+      "any "
+      "heartbeat from the leader after this timeout, the follower triggers a "
+      "new "
+      "election.")
+    ->capture_default_str();
 
   size_t pbft_view_change_timeout = 5000;
-  app.add_option(
-    "--pbft_view-change-timeout-ms",
-    pbft_view_change_timeout,
-    "Pbft view change timeout in milliseconds. If a backup does not receive "
-    "the pre-prepare message for a request forwarded to the primary after this "
-    "timeout, the backup triggers a new view change.",
-    true);
+  app
+    .add_option(
+      "--pbft_view-change-timeout-ms",
+      pbft_view_change_timeout,
+      "Pbft view change timeout in milliseconds. If a backup does not receive "
+      "the pre-prepare message for a request forwarded to the primary after "
+      "this "
+      "timeout, the backup triggers a new view change.")
+    ->capture_default_str();
 
   size_t pbft_status_interval = 100;
-  app.add_option(
-    "--pbft-status-interval-ms",
-    pbft_status_interval,
-    "Pbft status timer interval in milliseconds. All pbft nodes send messages "
-    "containing their status to all other known nodes at regular intervals "
-    "defined by this timer interval.",
-    true);
+  app
+    .add_option(
+      "--pbft-status-interval-ms",
+      pbft_status_interval,
+      "Pbft status timer interval in milliseconds. All pbft nodes send "
+      "messages "
+      "containing their status to all other known nodes at regular intervals "
+      "defined by this timer interval.")
+    ->capture_default_str();
 
   size_t max_msg_size = 24;
-  app.add_option(
-    "--max-msg-size",
-    max_msg_size,
-    "Determines maximum total number of bytes for a message sent over the "
-    "ringbuffer. Messages may be split into multiple fragments, but this "
-    "limits the total size of the sum of those fragments. Value is used as a "
-    "shift factor, ie - given N, the limit is (1 << N)",
-    true);
+  app
+    .add_option(
+      "--max-msg-size",
+      max_msg_size,
+      "Determines maximum total number of bytes for a message sent over the "
+      "ringbuffer. Messages may be split into multiple fragments, but this "
+      "limits the total size of the sum of those fragments. Value is used as a "
+      "shift factor, ie - given N, the limit is (1 << N)")
+    ->capture_default_str();
 
   size_t max_fragment_size = 16;
-  app.add_option(
-    "--max-fragment-size",
-    max_fragment_size,
-    "Determines maximum size of individual ringbuffer message fragments. "
-    "Messages larger than this will be split into multiple fragments. Value is "
-    "used as a shift factor, ie - given N, the limit is (1 << N)",
-    true);
+  app
+    .add_option(
+      "--max-fragment-size",
+      max_fragment_size,
+      "Determines maximum size of individual ringbuffer message fragments. "
+      "Messages larger than this will be split into multiple fragments. Value "
+      "is "
+      "used as a shift factor, ie - given N, the limit is (1 << N)")
+    ->capture_default_str();
 
   size_t tick_period_ms = 10;
-  app.add_option(
-    "--tick-period-ms",
-    tick_period_ms,
-    "Wait between ticks sent to the enclave. Lower values reduce minimum "
-    "latency at a cost to throughput",
-    true);
+  app
+    .add_option(
+      "--tick-period-ms",
+      tick_period_ms,
+      "Wait between ticks sent to the enclave. Lower values reduce minimum "
+      "latency at a cost to throughput")
+    ->capture_default_str();
 
   std::string domain;
   app.add_option(
-    "--domain", domain, "DNS to use for TLS certificate validation", true);
+    "--domain", domain, "DNS to use for TLS certificate validation");
 
   size_t memory_reserve_startup = 0;
-  app.add_option(
-    "--memory-reserve-startup",
-    memory_reserve_startup,
+  app
+    .add_option(
+      "--memory-reserve-startup",
+      memory_reserve_startup,
 #ifdef DEBUG_CONFIG
-    "Reserve unused memory inside the enclave, to simulate high memory use",
+      "Reserve unused memory inside the enclave, to simulate high memory use"
 #else
-    "Unused",
+      "Unused"
 #endif
-    true);
+      )
+    ->capture_default_str();
 
   // The network certificate file can either be an input or output parameter,
   // depending on the subcommand.
@@ -235,16 +267,16 @@ int main(int argc, char** argv)
     ->add_option(
       "--network-cert-file",
       network_cert_file,
-      "Destination path to freshly created network certificate",
-      true)
+      "Destination path to freshly created network certificate")
+    ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
   start
     ->add_option(
       "--network-enc-pubk-file",
       network_enc_pubk_file,
-      "Destination path to freshly created network encryption public key",
-      true)
+      "Destination path to freshly created network encryption public key")
+    ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
   std::string gov_script = "gov.lua";
@@ -253,8 +285,8 @@ int main(int argc, char** argv)
       "--gov-script",
       gov_script,
       "Path to Lua file that defines the contents of the "
-      "ccf.governance.scripts table",
-      true)
+      "ccf.governance.scripts table")
+    ->capture_default_str()
     ->check(CLI::ExistingFile)
     ->required();
 
@@ -271,17 +303,18 @@ int main(int argc, char** argv)
     ->add_option(
       "--network-cert-file",
       network_cert_file,
-      "Path to certificate of existing network to join",
-      true)
+      "Path to certificate of existing network to join")
+    ->capture_default_str()
     ->check(CLI::ExistingFile);
 
   size_t join_timer = 1000;
-  join->add_option(
-    "--join-timer",
-    join_timer,
-    "Duration after which the joining node will resend join requests to "
-    "existing network (ms)",
-    true);
+  join
+    ->add_option(
+      "--join-timer",
+      join_timer,
+      "Duration after which the joining node will resend join requests to "
+      "existing network (ms)")
+    ->capture_default_str();
 
   cli::ParsedAddress target_rpc_address;
   cli::add_address_option(
@@ -296,16 +329,16 @@ int main(int argc, char** argv)
     ->add_option(
       "--network-cert-file",
       network_cert_file,
-      "Destination path to freshly created network certificate",
-      true)
+      "Destination path to freshly created network certificate")
+    ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
   recover
     ->add_option(
       "--network-enc-pubk-file",
       network_enc_pubk_file,
-      "Destination path to freshly created network encryption public key",
-      true)
+      "Destination path to freshly created network encryption public key")
+    ->capture_default_str()
     ->check(CLI::NonexistentPath);
 
   CLI11_PARSE(app, argc, argv);
@@ -324,23 +357,24 @@ int main(int argc, char** argv)
   }
 
   uint32_t oe_flags = 0;
-  if (enclave_type == "debug")
-    oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
-  else if (enclave_type == "virtual")
-    oe_flags = ENCLAVE_FLAG_VIRTUAL;
-  else
-    throw std::logic_error("invalid enclave type: "s + enclave_type);
-
-  // log level
-  auto host_log_level_ = logger::config::to_level(host_log_level.c_str());
-  if (!host_log_level_)
-    throw std::logic_error("No such logging level: "s + host_log_level);
+  switch (enclave_type)
+  {
+    case EnclaveType::DEBUG:
+      oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
+      break;
+    case EnclaveType::VIRTUAL:
+      oe_flags = ENCLAVE_FLAG_VIRTUAL;
+      break;
+    default:
+      throw std::logic_error(
+        fmt::format("Invalid enclave type: {}", enclave_type));
+  }
 
   // Write PID to disk
   files::dump(fmt::format("{}", ::getpid()), node_pid_file);
 
   // set the host log level
-  logger::config::level() = host_log_level_.value();
+  logger::config::level() = host_log_level;
 
   // set the custom log formatter path
   if (json_log_path.has_value())
@@ -388,7 +422,6 @@ int main(int argc, char** argv)
   std::vector<uint8_t> network_enc_pubk(certificate_size);
 
   StartType start_type;
-  ConsensusType consensus_type;
 
   EnclaveConfig enclave_config;
   enclave_config.circuit = &circuit;
@@ -409,14 +442,6 @@ int main(int argc, char** argv)
                                   node_address.port,
                                   rpc_address.port};
   ccf_config.domain = domain;
-  if (consensus == "raft")
-  {
-    consensus_type = ConsensusType::RAFT;
-  }
-  else if (consensus == "pbft")
-  {
-    consensus_type = ConsensusType::PBFT;
-  }
 
   if (*start)
   {
@@ -458,7 +483,7 @@ int main(int argc, char** argv)
     network_cert,
     network_enc_pubk,
     start_type,
-    consensus_type,
+    consensus,
     num_worker_threads);
 
   LOG_INFO_FMT("Created new node");
@@ -467,9 +492,13 @@ int main(int argc, char** argv)
   asynchost::Ledger ledger(ledger_file, writer_factory);
   ledger.register_message_handlers(bp.get_dispatcher());
 
-  asynchost::NodeConnections node(
-    ledger, writer_factory, node_address.hostname, node_address.port);
-  node.register_message_handlers(bp.get_dispatcher());
+  asynchost::NodeConnectionsTickingReconnect node(
+    20, //< Flush reconnections every 20ms
+    bp.get_dispatcher(),
+    ledger,
+    writer_factory,
+    node_address.hostname,
+    node_address.port);
 
   asynchost::NotifyConnections report(
     bp.get_dispatcher(),
