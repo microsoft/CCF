@@ -55,6 +55,12 @@ def find_primary(network):
 
 def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
     with node.user_client() as c:
+        # Wait until final_msg_id is available in the node.
+        # We need to catch timeout and assertion errors as
+        # the node (e.g. late joiner) might not be up to date yet
+        # or we might be in the middle of a view change so the node
+        # will not be responsive. This timeout should be reduced when
+        # checkpoints are implemented making catchup take less time
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
@@ -199,8 +205,9 @@ def run(args):
                         else args.raft_election_timeout / 1000
                     )
 
-                    # if pbft suspend the primary more than the other suspended nodes
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
+                        # if pbft suspend the primary for twice the elecetion timeout
+                        # in order to make sure view changes will be triggered
                         et += et
                     tm = Timer(t, timeout_handler, args=[node, True, et])
                     tm.start()

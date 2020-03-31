@@ -500,7 +500,7 @@ void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
   }
   auto& prev_prepared_cert = plog.fetch(prev_seqno);
   auto prev_pp = prev_prepared_cert.pre_prepare();
-  if (prev_pp != 0)
+  if (prev_pp != nullptr)
   {
     for (auto& p_id : pp->get_prev_pp_valid_principals())
     {
