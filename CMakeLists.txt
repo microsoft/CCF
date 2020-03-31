@@ -126,6 +126,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     PUBLIC -stdlib=libc++
            -lc++
            -lc++abi
+           -lc++fs
            ccfcrypto.host
            evercrypt.host
            http_parser.host
