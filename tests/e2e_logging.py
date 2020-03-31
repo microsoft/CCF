@@ -5,6 +5,7 @@ import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
+import inspect
 import http
 
 from loguru import logger as LOG
@@ -67,7 +68,9 @@ def test_cert_prefix(network, args):
                 assert f"CN=user{user_id}" in r.result["msg"]
 
     else:
-        LOG.warning("Skipping test_cert_prefix as application is not C++")
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
 
     return network
 
@@ -96,7 +99,9 @@ def test_anonymous_caller(network, args):
             assert r.result is not None
             assert msg in r.result["msg"]
     else:
-        LOG.warning("Skipping test_cert_prefix as application is not C++")
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
 
     return network
 
@@ -121,7 +126,9 @@ def test_raw_text(network, args):
             assert msg in r.result["msg"]
 
     else:
-        LOG.warning("Skipping test_cert_prefix as application is not C++")
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
 
     return network
 

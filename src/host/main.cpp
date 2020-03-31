@@ -492,9 +492,13 @@ int main(int argc, char** argv)
   asynchost::Ledger ledger(ledger_file, writer_factory);
   ledger.register_message_handlers(bp.get_dispatcher());
 
-  asynchost::NodeConnections node(
-    ledger, writer_factory, node_address.hostname, node_address.port);
-  node.register_message_handlers(bp.get_dispatcher());
+  asynchost::NodeConnectionsTickingReconnect node(
+    20, //< Flush reconnections every 20ms
+    bp.get_dispatcher(),
+    ledger,
+    writer_factory,
+    node_address.hostname,
+    node_address.port);
 
   asynchost::NotifyConnections report(
     bp.get_dispatcher(),
