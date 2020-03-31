@@ -311,7 +311,7 @@ class SSHRemote(CmdMixin):
     def _cmd(self):
         env = " ".join(f"{key}={value}" for key, value in self.env.items())
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {env} {cmd} 1>{self.out} 2>{self.err} 0</dev/null"
+        return f"cd {self.root} && {env} ./././{cmd} 1>{self.out} 2>{self.err} 0</dev/null"
 
     def _dbg(self):
         cmd = " ".join(self.cmd)
@@ -590,7 +590,6 @@ class CCFRemote(object):
         # copy (or symlink) to the target workspace, and then node will be able
         # to reference the destination file locally in the target workspace.
         bin_path = os.path.join(".", os.path.basename(self.BIN))
-        LOG.warning(f"bin_path is {bin_path}")
         enclave_path = os.path.join(".", os.path.basename(lib_path))
 
         election_timeout_arg = (
