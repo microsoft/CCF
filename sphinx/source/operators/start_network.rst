@@ -74,11 +74,12 @@ If the network has already been opened to users, members need to trust the joini
 .. note:: If starting up the network with PBFT enabled as the consensus protocol, be sure to add the ``--consensus pbft`` CLI argument when starting up the node. For more info on the provided consensus protocols please see :ref:`here <developers/consensus:Consensus Protocols>`
 
 Using a Configuration File
------------------------
+--------------------------
 
 ``cchost`` can be started using a configuration file in TOML or INI format. 
 
 .. code-block:: toml
+
     # config.toml
     enclave-file = <enclave-file>
     enclave-type = debug
@@ -93,6 +94,7 @@ Using a Configuration File
     gov-script = <gov-script-name>
 
 .. code-block:: ini
+
     ; config.ini
     enclave-file = <enclave-file>
     enclave-type = debug
