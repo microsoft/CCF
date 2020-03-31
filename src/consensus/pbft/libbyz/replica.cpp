@@ -896,6 +896,14 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
   // If rqueue is empty there are no requests for which to send
   // pre_prepare and a pre-prepare cannot be sent if the seqno exceeds
   // the maximum window or the replica does not have the new view.
+  LOG_TRACE_FMT(
+    "rqueue size {}, next_pp_seqno {}, last_executed {}, last_stable {}, has "
+    "complete new view {}",
+    rqueue.size(),
+    next_pp_seqno,
+    last_executed,
+    last_stable,
+    has_complete_new_view());
   if (
     (rqueue.size() >= min_pre_prepare_batch_size ||
      (do_not_wait_for_batch_size && rqueue.size() > 0)) &&

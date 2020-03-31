@@ -390,11 +390,6 @@ bool Certificate<T>::add(T* msg)
       c == 0 ||
       (c->msg != nullptr && c->count < complete && c->msg->match(msg)))
     {
-      // add "msg" to the certificate
-      PBFT_ASSERT(
-        id != pbft::GlobalState::get_node().id(),
-        "verify should return false for messages from self");
-
       bmap.set(id);
       if (c)
       {

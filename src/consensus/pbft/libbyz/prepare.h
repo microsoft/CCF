@@ -62,7 +62,11 @@ public:
   // Effects: Creates a new signed Prepare message with view number
   // "v", sequence number "s" and digest "d". "dst" should be non-null
   // iff prepare is sent to a single replica "dst" as proof of
-  // authenticity for a request.
+  // authenticity for a request. If id is -1 then the prepare that is being
+  // created corresponds to the replica creating the prepare and so should be
+  // set using pbft::GlobalState::get_node().id(). If it is set (i.e. > -1) then
+  // the Prepare is created by a late joiner replica during playback and the
+  // prepare corresponds to the replica who's id is being set
 
   void re_authenticate(Principal* p = 0);
   // Effects: Recomputes the authenticator in the message using the

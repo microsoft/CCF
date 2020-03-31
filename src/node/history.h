@@ -383,6 +383,7 @@ namespace ccf
 
     void discard_pending(kv::Version v)
     {
+      std::lock_guard<SpinLock> vguard(version_lock);
       auto* p = pending_inserts.get_head();
       while (p != nullptr)
       {
@@ -390,6 +391,7 @@ namespace ccf
         if (p->version > v)
         {
           pending_inserts.remove(p);
+          delete p;
         }
         p = next;
       }
