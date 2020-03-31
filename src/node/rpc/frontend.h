@@ -195,194 +195,6 @@ namespace ccf
       ctx->set_response_body(std::move(msg));
     }
 
-  public:
-    RpcFrontend(
-      Store& tables_,
-      HandlerRegistry& handlers_,
-      ClientSignatures* client_sigs_ = nullptr) :
-      tables(tables_),
-      nodes(tables.get<Nodes>(Tables::NODES)),
-      client_signatures(client_sigs_),
-      handlers(handlers_),
-      pbft_requests_map(
-        tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
-      consensus(nullptr),
-      history(nullptr)
-    {}
-
-    void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
-    {
-      sig_max_tx = sig_max_tx_;
-      sig_max_ms = std::chrono::milliseconds(sig_max_ms_);
-      ms_to_sig = sig_max_ms;
-    }
-
-    void set_cmd_forwarder(
-      std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
-    {
-      cmd_forwarder = cmd_forwarder_;
-    }
-
-    void open() override
-    {
-      std::lock_guard<SpinLock> mguard(lock);
-      is_open_ = true;
-
-      handlers.init_handlers(tables);
-    }
-
-    bool is_open() override
-    {
-      std::lock_guard<SpinLock> mguard(lock);
-      return is_open_;
-    }
-
-    /** Process a serialised command with the associated RPC context
-     *
-     * If an RPC that requires writing to the kv store is processed on a
-     * backup, the serialised RPC is forwarded to the current network primary.
-     *
-     * @param ctx Context for this RPC
-     * @returns nullopt if the result is pending (to be forwarded, or still
-     * to-be-executed by consensus), else the response (may contain error)
-     */
-    std::optional<std::vector<uint8_t>> process(
-      std::shared_ptr<enclave::RpcContext> ctx) override
-    {
-      update_consensus();
-
-      Store::Tx tx;
-
-      auto caller_id = handlers.get_caller_id(tx, ctx->session->caller_cert);
-
-      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
-      {
-        auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
-        if (rep.has_value())
-        {
-          return rep;
-        }
-        kv::TxHistory::RequestID reqid;
-
-        update_history();
-        reqid = {
-          caller_id, ctx->session->client_session_id, ctx->get_request_index()};
-        if (history)
-        {
-          if (!history->add_request(
-                reqid,
-                caller_id,
-                get_cert_to_forward(ctx),
-                ctx->get_serialised_request()))
-          {
-            LOG_FAIL_FMT(
-              "Adding request failed: {}, {}, {}",
-              std::get<0>(reqid),
-              std::get<1>(reqid),
-              std::get<2>(reqid));
-            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-            ctx->set_response_body("PBFT could not process request.");
-            return ctx->serialise_response();
-          }
-          tx.set_req_id(reqid);
-          return std::nullopt;
-        }
-        else
-        {
-          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx->set_response_body("PBFT is not yet ready.");
-          return ctx->serialise_response();
-        }
-      }
-      else
-      {
-        return process_command(ctx, tx, caller_id);
-      }
-    }
-
-    /** Process a serialised command with the associated RPC context via PBFT
-     *
-     * @param ctx Context for this RPC
-     */
-    ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx) override
-    {
-      Store::Tx tx;
-      return process_pbft(ctx, tx, false);
-    }
-
-    ProcessPbftResp process_pbft(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      Store::Tx& tx,
-      bool playback) override
-    {
-      kv::Version version = kv::NoVersion;
-
-      update_consensus();
-
-      if (!playback)
-      {
-        auto req_view = tx.get_view(*pbft_requests_map);
-        req_view->put(
-          0,
-          {ctx->session->original_caller.value().caller_id,
-           ctx->session->caller_cert,
-           ctx->get_serialised_request(),
-           ctx->pbft_raw});
-      }
-
-      auto rep =
-        process_command(ctx, tx, ctx->session->original_caller->caller_id);
-
-      version = tx.get_version();
-
-      return {rep.value(), version};
-    }
-
-    crypto::Sha256Hash get_merkle_root() override
-    {
-      return history->get_replicated_state_root();
-    }
-
-    void update_merkle_tree() override
-    {
-      history->execute_pending();
-    }
-
-    /** Process a serialised input forwarded from another node
-     *
-     * This function assumes that ctx contains the caller_id as read by the
-     * forwarding backup.
-     *
-     * @param ctx Context for this forwarded RPC
-     *
-     * @return Serialised reply to send back to forwarder node
-     */
-    std::vector<uint8_t> process_forwarded(
-      std::shared_ptr<enclave::RpcContext> ctx) override
-    {
-      if (!ctx->session->original_caller.has_value())
-      {
-        throw std::logic_error(
-          "Processing forwarded command with unitialised forwarded context");
-      }
-
-      update_consensus();
-
-      Store::Tx tx;
-
-      auto rep =
-        process_command(ctx, tx, ctx->session->original_caller->caller_id);
-      if (!rep.has_value())
-      {
-        // This should never be called when process_command is called with a
-        // forwarded RPC context
-        throw std::logic_error("Forwarded RPC cannot be forwarded");
-      }
-
-      return rep.value();
-    }
-
     std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
@@ -398,7 +210,6 @@ namespace ccf
       return std::nullopt;
     }
 
-    // TODO: Make private
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
@@ -618,6 +429,194 @@ namespace ccf
           return ctx->serialise_response();
         }
       }
+    }
+
+  public:
+    RpcFrontend(
+      Store& tables_,
+      HandlerRegistry& handlers_,
+      ClientSignatures* client_sigs_ = nullptr) :
+      tables(tables_),
+      nodes(tables.get<Nodes>(Tables::NODES)),
+      client_signatures(client_sigs_),
+      handlers(handlers_),
+      pbft_requests_map(
+        tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
+      consensus(nullptr),
+      history(nullptr)
+    {}
+
+    void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) override
+    {
+      sig_max_tx = sig_max_tx_;
+      sig_max_ms = std::chrono::milliseconds(sig_max_ms_);
+      ms_to_sig = sig_max_ms;
+    }
+
+    void set_cmd_forwarder(
+      std::shared_ptr<enclave::AbstractForwarder> cmd_forwarder_) override
+    {
+      cmd_forwarder = cmd_forwarder_;
+    }
+
+    void open() override
+    {
+      std::lock_guard<SpinLock> mguard(lock);
+      is_open_ = true;
+
+      handlers.init_handlers(tables);
+    }
+
+    bool is_open() override
+    {
+      std::lock_guard<SpinLock> mguard(lock);
+      return is_open_;
+    }
+
+    /** Process a serialised command with the associated RPC context
+     *
+     * If an RPC that requires writing to the kv store is processed on a
+     * backup, the serialised RPC is forwarded to the current network primary.
+     *
+     * @param ctx Context for this RPC
+     * @returns nullopt if the result is pending (to be forwarded, or still
+     * to-be-executed by consensus), else the response (may contain error)
+     */
+    std::optional<std::vector<uint8_t>> process(
+      std::shared_ptr<enclave::RpcContext> ctx) override
+    {
+      update_consensus();
+
+      Store::Tx tx;
+
+      auto caller_id = handlers.get_caller_id(tx, ctx->session->caller_cert);
+
+      if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
+      {
+        auto rep = process_if_local_node_rpc(ctx, tx, caller_id);
+        if (rep.has_value())
+        {
+          return rep;
+        }
+        kv::TxHistory::RequestID reqid;
+
+        update_history();
+        reqid = {
+          caller_id, ctx->session->client_session_id, ctx->get_request_index()};
+        if (history)
+        {
+          if (!history->add_request(
+                reqid,
+                caller_id,
+                get_cert_to_forward(ctx),
+                ctx->get_serialised_request()))
+          {
+            LOG_FAIL_FMT(
+              "Adding request failed: {}, {}, {}",
+              std::get<0>(reqid),
+              std::get<1>(reqid),
+              std::get<2>(reqid));
+            ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+            ctx->set_response_body("PBFT could not process request.");
+            return ctx->serialise_response();
+          }
+          tx.set_req_id(reqid);
+          return std::nullopt;
+        }
+        else
+        {
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx->set_response_body("PBFT is not yet ready.");
+          return ctx->serialise_response();
+        }
+      }
+      else
+      {
+        return process_command(ctx, tx, caller_id);
+      }
+    }
+
+    /** Process a serialised command with the associated RPC context via PBFT
+     *
+     * @param ctx Context for this RPC
+     */
+    ProcessPbftResp process_pbft(
+      std::shared_ptr<enclave::RpcContext> ctx) override
+    {
+      Store::Tx tx;
+      return process_pbft(ctx, tx, false);
+    }
+
+    ProcessPbftResp process_pbft(
+      std::shared_ptr<enclave::RpcContext> ctx,
+      Store::Tx& tx,
+      bool playback) override
+    {
+      kv::Version version = kv::NoVersion;
+
+      update_consensus();
+
+      if (!playback)
+      {
+        auto req_view = tx.get_view(*pbft_requests_map);
+        req_view->put(
+          0,
+          {ctx->session->original_caller.value().caller_id,
+           ctx->session->caller_cert,
+           ctx->get_serialised_request(),
+           ctx->pbft_raw});
+      }
+
+      auto rep =
+        process_command(ctx, tx, ctx->session->original_caller->caller_id);
+
+      version = tx.get_version();
+
+      return {rep.value(), version};
+    }
+
+    crypto::Sha256Hash get_merkle_root() override
+    {
+      return history->get_replicated_state_root();
+    }
+
+    void update_merkle_tree() override
+    {
+      history->execute_pending();
+    }
+
+    /** Process a serialised input forwarded from another node
+     *
+     * This function assumes that ctx contains the caller_id as read by the
+     * forwarding backup.
+     *
+     * @param ctx Context for this forwarded RPC
+     *
+     * @return Serialised reply to send back to forwarder node
+     */
+    std::vector<uint8_t> process_forwarded(
+      std::shared_ptr<enclave::RpcContext> ctx) override
+    {
+      if (!ctx->session->original_caller.has_value())
+      {
+        throw std::logic_error(
+          "Processing forwarded command with unitialised forwarded context");
+      }
+
+      update_consensus();
+
+      Store::Tx tx;
+
+      auto rep =
+        process_command(ctx, tx, ctx->session->original_caller->caller_id);
+      if (!rep.has_value())
+      {
+        // This should never be called when process_command is called with a
+        // forwarded RPC context
+        throw std::logic_error("Forwarded RPC cannot be forwarded");
+      }
+
+      return rep.value();
     }
 
     void tick(std::chrono::milliseconds elapsed) override

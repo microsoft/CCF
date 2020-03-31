@@ -466,24 +466,6 @@ TEST_CASE("SignedReq to and from json")
   REQUIRE(sr.req.empty());
 }
 
-TEST_CASE("process_command")
-{
-  prepare_callers();
-  TestUserFrontend frontend(*network.tables);
-  auto simple_call = create_simple_request();
-
-  const auto serialized_call = simple_call.build_request();
-  auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-
-  Store::Tx tx;
-  CallerId caller_id(0);
-  auto response_raw = frontend.process_command(rpc_ctx, tx, caller_id);
-  REQUIRE(response_raw.has_value());
-
-  const auto response = parse_response(response_raw.value());
-  REQUIRE(response.status == HTTP_STATUS_OK);
-}
-
 TEST_CASE("process with signatures")
 {
   prepare_callers();
