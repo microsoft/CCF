@@ -21,7 +21,10 @@ from loguru import logger as LOG
 def test(network, args, notifications_queue=None):
     node = network.nodes[0]
     endpoint = f"https://{node.host}:{node.rpc_port}"
-    r = subprocess.run(["docker", "run", "--rm", "-it", "--net=host", "drwetter/testssl.sh", endpoint])
+    r = subprocess.run(
+        ["docker", "run", "--rm", "-it", "--net=host", "drwetter/testssl.sh", endpoint]
+    )
+
 
 def run(args):
     hosts = ["localhost"]
