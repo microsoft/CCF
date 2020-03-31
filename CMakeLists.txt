@@ -526,7 +526,7 @@ if(BUILD_TESTS)
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS raft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 10000
+      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 20000
     )
 
     add_e2e_test(
@@ -584,9 +584,9 @@ if(BUILD_TESTS)
     )
 
     if(${CONSENSUS} STREQUAL pbft)
-      set(ELECTION_TIMEOUT_ARG "--pbft-view-change-timeout" "2000")
+      set(ELECTION_TIMEOUT_ARG "--pbft-view-change-timeout" "4000")
     else()
-      set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "2000")
+      set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "4000")
     endif()
 
     add_e2e_test(
