@@ -73,12 +73,47 @@ namespace ccf
       handlers.set_history(history);
     }
 
+    std::vector<uint8_t> get_cert_to_forward(
+      std::shared_ptr<enclave::RpcContext> ctx,
+      HandlerRegistry::Handler* handler = nullptr)
+    {
+      // Only forward the certificate if the certificate cannot be looked up
+      // from the caller ID on the receiving frontend or if the handler does not
+      // require client identity
+      if (
+        !handlers.has_certs() ||
+        (handler != nullptr && !handler->require_client_identity))
+      {
+        return ctx->session->caller_cert;
+      }
+
+      return {};
+    }
+
     std::optional<std::vector<uint8_t>> forward_or_redirect_json(
-      std::shared_ptr<enclave::RpcContext> ctx)
+      std::shared_ptr<enclave::RpcContext> ctx,
+      HandlerRegistry::Handler* handler,
+      CallerId caller_id)
     {
       if (cmd_forwarder && !ctx->session->original_caller.has_value())
       {
-        return std::nullopt;
+        if (consensus != nullptr)
+        {
+          auto primary_id = consensus->primary();
+
+          if (
+            primary_id != NoNode &&
+            cmd_forwarder->forward_command(
+              ctx, primary_id, caller_id, get_cert_to_forward(ctx, handler)))
+          {
+            // Indicate that the RPC has been forwarded to primary
+            LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
+            return std::nullopt;
+          }
+        }
+        ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        ctx->set_response_body("RPC could not be forwarded to primary.");
+        return ctx->serialise_response();
       }
       else
       {
@@ -261,37 +296,8 @@ namespace ccf
       }
       else
       {
-        auto rep = process_command(ctx, tx, caller_id);
-
-        // If necessary, forward the RPC to the current primary
-        if (!rep.has_value())
-        {
-          if (consensus != nullptr)
-          {
-            auto primary_id = consensus->primary();
-
-            if (
-              primary_id != NoNode && cmd_forwarder &&
-              cmd_forwarder->forward_command(
-                ctx, primary_id, caller_id, get_cert_to_forward(ctx)))
-            {
-              // Indicate that the RPC has been forwarded to primary
-              LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
-              return std::nullopt;
-            }
-          }
-          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx->set_response_body("RPC could not be forwarded to primary.");
-          return ctx->serialise_response();
-        }
-        return rep.value();
+        return process_command(ctx, tx, caller_id);
       }
-    }
-
-    virtual std::vector<uint8_t> get_cert_to_forward(
-      std::shared_ptr<enclave::RpcContext> ctx)
-    {
-      return ctx->session->caller_cert;
     }
 
     /** Process a serialised command with the associated RPC context via PBFT
@@ -392,6 +398,7 @@ namespace ccf
       return std::nullopt;
     }
 
+    // TODO: Make private
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
@@ -399,7 +406,7 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto handler = handlers.find_handler(local_method);
+      const auto handler = handlers.find_handler(local_method);
       if (handler == nullptr)
       {
         ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
@@ -489,7 +496,7 @@ namespace ccf
           {
             if (ctx->session->is_forwarding)
             {
-              return forward_or_redirect_json(ctx);
+              return forward_or_redirect_json(ctx, handler, caller_id);
             }
             break;
           }
@@ -497,7 +504,7 @@ namespace ccf
           case HandlerRegistry::Write:
           {
             ctx->session->is_forwarding = true;
-            return forward_or_redirect_json(ctx);
+            return forward_or_redirect_json(ctx, handler, caller_id);
           }
 
           case HandlerRegistry::MayWrite:
@@ -507,11 +514,11 @@ namespace ccf
             if (!read_only_it.has_value() || (read_only_it.value() != "true"))
             {
               ctx->session->is_forwarding = true;
-              return forward_or_redirect_json(ctx);
+              return forward_or_redirect_json(ctx, handler, caller_id);
             }
             else if (ctx->session->is_forwarding)
             {
-              return forward_or_redirect_json(ctx);
+              return forward_or_redirect_json(ctx, handler, caller_id);
             }
             break;
           }

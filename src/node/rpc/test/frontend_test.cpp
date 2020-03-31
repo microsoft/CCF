@@ -932,7 +932,6 @@ TEST_CASE("Signed read requests can be executed on backup")
   CHECK(response.status == HTTP_STATUS_OK);
 }
 
-// TODO: Add subcase for handler with no authz
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   prepare_callers();
