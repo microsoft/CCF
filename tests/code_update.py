@@ -50,7 +50,9 @@ def run(args):
         except infra.ccf.CodeIdNotFound as err:
             code_not_found_exception = err
 
-        assert code_not_found_exception is not None, f"Adding a node with unsupported code id {new_code_id} should fail"
+        assert (
+            code_not_found_exception is not None
+        ), f"Adding a node with unsupported code id {new_code_id} should fail"
 
         # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
         primary, others = network.find_primary()
