@@ -5,6 +5,7 @@
 #include "consensus/consensus_types.h"
 #include "consensus/pbft/pbft_types.h"
 #include "consensus/raft/raft_types.h"
+#include "host/timer.h"
 #include "ledger.h"
 #include "node/nodetypes.h"
 #include "tcp.h"
@@ -143,10 +144,7 @@ namespace asynchost
 
       void reconnect()
       {
-        auto s = parent.find(node);
-
-        if (s)
-          s.value()->reconnect();
+        parent.request_reconnect(node);
       }
     };
 
@@ -174,9 +172,11 @@ namespace asynchost
     std::unordered_map<ccf::NodeId, TCP> associated;
     size_t next_id = 1;
     ringbuffer::WriterPtr to_enclave;
+    std::set<ccf::NodeId> reconnect_queue;
 
   public:
     NodeConnections(
+      messaging::Dispatcher<ringbuffer::Message>& disp,
       Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
       const std::string& host,
@@ -186,6 +186,8 @@ namespace asynchost
     {
       listener->set_behaviour(std::make_unique<ServerBehaviour>(*this));
       listener->listen(host, service);
+
+      register_message_handlers(disp);
     }
 
     void register_message_handlers(
@@ -264,6 +266,32 @@ namespace asynchost
         });
     }
 
+    void request_reconnect(ccf::NodeId node)
+    {
+      reconnect_queue.insert(node);
+    }
+
+    void on_timer()
+    {
+      // Swap to local copy of queue. Although this should only be modified by
+      // this thread, it may be modified recursively (ie - executing this
+      // function may result in calls to request_reconnect). These recursive
+      // calls are queued until the next iteration
+      decltype(reconnect_queue) local_queue;
+      std::swap(reconnect_queue, local_queue);
+
+      for (const auto node : local_queue)
+      {
+        LOG_DEBUG_FMT("reconnecting node {}", node);
+        auto s = find(node);
+
+        if (s)
+        {
+          s.value()->reconnect();
+        }
+      }
+    }
+
   private:
     bool add_node(
       ccf::NodeId node, const std::string& host, const std::string& service)
@@ -331,4 +359,6 @@ namespace asynchost
       return id;
     }
   };
+
+  using NodeConnectionsTickingReconnect = proxy_ptr<Timer<NodeConnections>>;
 }
