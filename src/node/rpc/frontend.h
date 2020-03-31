@@ -73,12 +73,47 @@ namespace ccf
       handlers.set_history(history);
     }
 
+    std::vector<uint8_t> get_cert_to_forward(
+      std::shared_ptr<enclave::RpcContext> ctx,
+      HandlerRegistry::Handler* handler = nullptr)
+    {
+      // Only forward the certificate if the certificate cannot be looked up
+      // from the caller ID on the receiving frontend or if the handler does not
+      // require a known client identity
+      if (
+        !handlers.has_certs() ||
+        (handler != nullptr && !handler->require_client_identity))
+      {
+        return ctx->session->caller_cert;
+      }
+
+      return {};
+    }
+
     std::optional<std::vector<uint8_t>> forward_or_redirect_json(
-      std::shared_ptr<enclave::RpcContext> ctx)
+      std::shared_ptr<enclave::RpcContext> ctx,
+      HandlerRegistry::Handler* handler,
+      CallerId caller_id)
     {
       if (cmd_forwarder && !ctx->session->original_caller.has_value())
       {
-        return std::nullopt;
+        if (consensus != nullptr)
+        {
+          auto primary_id = consensus->primary();
+
+          if (
+            primary_id != NoNode &&
+            cmd_forwarder->forward_command(
+              ctx, primary_id, caller_id, get_cert_to_forward(ctx, handler)))
+          {
+            // Indicate that the RPC has been forwarded to primary
+            LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id);
+            return std::nullopt;
+          }
+        }
+        ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        ctx->set_response_body("RPC could not be forwarded to primary.");
+        return ctx->serialise_response();
       }
       else
       {
@@ -158,6 +193,242 @@ namespace ccf
           "headers=\"(request-target) {}",
           http::headers::DIGEST));
       ctx->set_response_body(std::move(msg));
+    }
+
+    std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
+      std::shared_ptr<enclave::RpcContext> ctx,
+      Store::Tx& tx,
+      CallerId caller_id)
+    {
+      const auto method = ctx->get_method();
+      const auto local_method = method.substr(method.find_first_not_of('/'));
+      auto handler = handlers.find_handler(local_method);
+      if (handler != nullptr && handler->execute_locally)
+      {
+        return process_command(ctx, tx, caller_id);
+      }
+      return std::nullopt;
+    }
+
+    std::optional<std::vector<uint8_t>> process_command(
+      std::shared_ptr<enclave::RpcContext> ctx,
+      Store::Tx& tx,
+      CallerId caller_id)
+    {
+      const auto method = ctx->get_method();
+      const auto local_method = method.substr(method.find_first_not_of('/'));
+      const auto handler = handlers.find_handler(local_method);
+      if (handler == nullptr)
+      {
+        ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+        ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        ctx->set_response_body(fmt::format("Unknown RPC: {}", method));
+        return ctx->serialise_response();
+      }
+
+      if (!(handler->allowed_verbs_mask &
+            verb_to_mask(ctx->get_request_verb())))
+      {
+        ctx->set_response_status(HTTP_STATUS_METHOD_NOT_ALLOWED);
+        std::string allow_header_value;
+        bool first = true;
+        for (size_t verb = 0; verb <= HTTP_SOURCE; ++verb)
+        {
+          if (handler->allowed_verbs_mask & verb_to_mask(verb))
+          {
+            allow_header_value += fmt::format(
+              "{}{}", (first ? "" : ", "), http_method_str((http_method)verb));
+            first = false;
+          }
+        }
+        ctx->set_response_header(http::headers::ALLOW, allow_header_value);
+        return ctx->serialise_response();
+      }
+
+      if (handler->require_client_identity && handlers.has_certs())
+      {
+        // Only if handler requires client identity.
+        // If a request is forwarded, check that the caller is known. Otherwise,
+        // only check that the caller id is valid.
+        if (
+          (ctx->session->original_caller.has_value() &&
+           !lookup_forwarded_caller_cert(ctx, tx)) ||
+          caller_id == INVALID_ID)
+        {
+          ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          ctx->set_response_body(invalid_caller_error_message());
+          return ctx->serialise_response();
+        }
+      }
+
+      bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
+        ctx->is_create_request;
+
+      const auto signed_request = ctx->get_signed_request();
+      if (handler->require_client_signature && !signed_request.has_value())
+      {
+        set_response_unauthorized(
+          ctx, fmt::format("'{}' RPC must be signed", method));
+        return ctx->serialise_response();
+      }
+
+      // By default, signed requests are verified and recorded, even on
+      // handlers that do not require client signatures
+      if (signed_request.has_value())
+      {
+        // For forwarded requests (raft only), skip verification as it is
+        // assumed that the verification was done by the forwarder node.
+        if (
+          (!ctx->is_create_request &&
+           (!(consensus != nullptr &&
+              consensus->type() == ConsensusType::RAFT) ||
+            !ctx->session->original_caller.has_value())) &&
+          !verify_client_signature(
+            ctx->session->caller_cert, caller_id, signed_request.value()))
+        {
+          set_response_unauthorized(ctx);
+          return ctx->serialise_response();
+        }
+
+        if (is_primary)
+        {
+          record_client_signature(tx, caller_id, signed_request.value());
+        }
+      }
+
+      update_history();
+
+      if (!is_primary && consensus->type() == ConsensusType::RAFT)
+      {
+        switch (handler->read_write)
+        {
+          case HandlerRegistry::Read:
+          {
+            if (ctx->session->is_forwarding)
+            {
+              return forward_or_redirect_json(ctx, handler, caller_id);
+            }
+            break;
+          }
+
+          case HandlerRegistry::Write:
+          {
+            ctx->session->is_forwarding = true;
+            return forward_or_redirect_json(ctx, handler, caller_id);
+          }
+
+          case HandlerRegistry::MayWrite:
+          {
+            const auto read_only_it =
+              ctx->get_request_header(http::headers::CCF_READ_ONLY);
+            if (!read_only_it.has_value() || (read_only_it.value() != "true"))
+            {
+              ctx->session->is_forwarding = true;
+              return forward_or_redirect_json(ctx, handler, caller_id);
+            }
+            else if (ctx->session->is_forwarding)
+            {
+              return forward_or_redirect_json(ctx, handler, caller_id);
+            }
+            break;
+          }
+        }
+      }
+
+      auto func = handler->func;
+      auto args = RequestArgs{ctx, tx, caller_id};
+
+      tx_count++;
+
+      while (true)
+      {
+        try
+        {
+          func(args);
+
+          if (ctx->response_is_error())
+          {
+            return ctx->serialise_response();
+          }
+
+          switch (tx.commit())
+          {
+            case kv::CommitSuccess::OK:
+            {
+              auto cv = tx.commit_version();
+              if (cv == 0)
+                cv = tx.get_read_version();
+              if (cv == kv::NoVersion)
+                cv = tables.current_version();
+              ctx->set_response_header(http::headers::CCF_COMMIT, cv);
+              if (consensus != nullptr)
+              {
+                ctx->set_response_header(
+                  http::headers::CCF_TERM, consensus->get_view());
+                ctx->set_response_header(
+                  http::headers::CCF_GLOBAL_COMMIT,
+                  consensus->get_commit_seqno());
+
+                if (
+                  history && consensus->is_primary() &&
+                  (cv % sig_max_tx == sig_max_tx / 2))
+                {
+                  if (consensus->type() == ConsensusType::RAFT)
+                  {
+                    history->emit_signature();
+                  }
+                  else
+                  {
+                    consensus->emit_signature();
+                  }
+                }
+              }
+
+              return ctx->serialise_response();
+            }
+
+            case kv::CommitSuccess::CONFLICT:
+            {
+              break;
+            }
+
+            case kv::CommitSuccess::NO_REPLICATE:
+            {
+              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+              ctx->set_response_body("Transaction failed to replicate.");
+              return ctx->serialise_response();
+            }
+          }
+        }
+        catch (const RpcException& e)
+        {
+          ctx->set_response_status(e.status);
+          ctx->set_response_body(e.what());
+          return ctx->serialise_response();
+        }
+        catch (JsonParseError& e)
+        {
+          auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
+          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          ctx->set_response_body(std::move(err));
+          return ctx->serialise_response();
+        }
+        catch (const kv::KvSerialiserException& e)
+        {
+          // If serialising the committed transaction fails, there is no way
+          // to recover safely (https://github.com/microsoft/CCF/issues/338).
+          // Better to abort.
+          LOG_FATAL_FMT("Failed to serialise: {}", e.what());
+          abort();
+        }
+        catch (const std::exception& e)
+        {
+          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          ctx->set_response_body(e.what());
+          return ctx->serialise_response();
+        }
+      }
     }
 
   public:
@@ -261,37 +532,8 @@ namespace ccf
       }
       else
       {
-        auto rep = process_command(ctx, tx, caller_id);
-
-        // If necessary, forward the RPC to the current primary
-        if (!rep.has_value())
-        {
-          if (consensus != nullptr)
-          {
-            auto primary_id = consensus->primary();
-
-            if (
-              primary_id != NoNode && cmd_forwarder &&
-              cmd_forwarder->forward_command(
-                ctx, primary_id, caller_id, get_cert_to_forward(ctx)))
-            {
-              // Indicate that the RPC has been forwarded to primary
-              LOG_DEBUG_FMT("RPC forwarded to primary {}", primary_id);
-              return std::nullopt;
-            }
-          }
-          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx->set_response_body("RPC could not be forwarded to primary.");
-          return ctx->serialise_response();
-        }
-        return rep.value();
+        return process_command(ctx, tx, caller_id);
       }
-    }
-
-    virtual std::vector<uint8_t> get_cert_to_forward(
-      std::shared_ptr<enclave::RpcContext> ctx)
-    {
-      return ctx->session->caller_cert;
     }
 
     /** Process a serialised command with the associated RPC context via PBFT
@@ -375,242 +617,6 @@ namespace ccf
       }
 
       return rep.value();
-    }
-
-    std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      Store::Tx& tx,
-      CallerId caller_id)
-    {
-      const auto method = ctx->get_method();
-      const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto handler = handlers.find_handler(local_method);
-      if (handler != nullptr && handler->execute_locally)
-      {
-        return process_command(ctx, tx, caller_id);
-      }
-      return std::nullopt;
-    }
-
-    std::optional<std::vector<uint8_t>> process_command(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      Store::Tx& tx,
-      CallerId caller_id)
-    {
-      const auto method = ctx->get_method();
-      const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto handler = handlers.find_handler(local_method);
-      if (handler == nullptr)
-      {
-        ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-        ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-        ctx->set_response_body(fmt::format("Unknown RPC: {}", method));
-        return ctx->serialise_response();
-      }
-
-      if (!(handler->allowed_verbs_mask &
-            verb_to_mask(ctx->get_request_verb())))
-      {
-        ctx->set_response_status(HTTP_STATUS_METHOD_NOT_ALLOWED);
-        std::string allow_header_value;
-        bool first = true;
-        for (size_t verb = 0; verb <= HTTP_SOURCE; ++verb)
-        {
-          if (handler->allowed_verbs_mask & verb_to_mask(verb))
-          {
-            allow_header_value += fmt::format(
-              "{}{}", (first ? "" : ", "), http_method_str((http_method)verb));
-            first = false;
-          }
-        }
-        ctx->set_response_header(http::headers::ALLOW, allow_header_value);
-        return ctx->serialise_response();
-      }
-
-      if (handler->require_client_identity && handlers.has_certs())
-      {
-        // Only if handler requires client identity.
-        // If a request is forwarded, check that the caller is known. Otherwise,
-        // only check that the caller id is valid.
-        if (
-          (ctx->session->original_caller.has_value() &&
-           !lookup_forwarded_caller_cert(ctx, tx)) ||
-          caller_id == INVALID_ID)
-        {
-          ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
-          ctx->set_response_body(invalid_caller_error_message());
-          return ctx->serialise_response();
-        }
-      }
-
-      bool is_primary = (consensus == nullptr) || consensus->is_primary() ||
-        ctx->is_create_request;
-
-      const auto signed_request = ctx->get_signed_request();
-      if (handler->require_client_signature && !signed_request.has_value())
-      {
-        set_response_unauthorized(
-          ctx, fmt::format("'{}' RPC must be signed", method));
-        return ctx->serialise_response();
-      }
-
-      // By default, signed requests are verified and recorded, even on
-      // handlers that do not require client signatures
-      if (signed_request.has_value())
-      {
-        // For forwarded requests (raft only), skip verification as it is
-        // assumed that the verification was done by the forwarder node.
-        if (
-          (!ctx->is_create_request &&
-           (!(consensus != nullptr &&
-              consensus->type() == ConsensusType::RAFT) ||
-            !ctx->session->original_caller.has_value())) &&
-          !verify_client_signature(
-            ctx->session->caller_cert, caller_id, signed_request.value()))
-        {
-          set_response_unauthorized(ctx);
-          return ctx->serialise_response();
-        }
-
-        if (is_primary)
-        {
-          record_client_signature(tx, caller_id, signed_request.value());
-        }
-      }
-
-      update_history();
-
-      if (!is_primary && consensus->type() == ConsensusType::RAFT)
-      {
-        switch (handler->read_write)
-        {
-          case HandlerRegistry::Read:
-          {
-            if (ctx->session->is_forwarding)
-            {
-              return forward_or_redirect_json(ctx);
-            }
-            break;
-          }
-
-          case HandlerRegistry::Write:
-          {
-            ctx->session->is_forwarding = true;
-            return forward_or_redirect_json(ctx);
-          }
-
-          case HandlerRegistry::MayWrite:
-          {
-            const auto read_only_it =
-              ctx->get_request_header(http::headers::CCF_READ_ONLY);
-            if (!read_only_it.has_value() || (read_only_it.value() != "true"))
-            {
-              ctx->session->is_forwarding = true;
-              return forward_or_redirect_json(ctx);
-            }
-            else if (ctx->session->is_forwarding)
-            {
-              return forward_or_redirect_json(ctx);
-            }
-            break;
-          }
-        }
-      }
-
-      auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller_id};
-
-      tx_count++;
-
-      while (true)
-      {
-        try
-        {
-          func(args);
-
-          if (ctx->response_is_error())
-          {
-            return ctx->serialise_response();
-          }
-
-          switch (tx.commit())
-          {
-            case kv::CommitSuccess::OK:
-            {
-              auto cv = tx.commit_version();
-              if (cv == 0)
-                cv = tx.get_read_version();
-              if (cv == kv::NoVersion)
-                cv = tables.current_version();
-              ctx->set_response_header(http::headers::CCF_COMMIT, cv);
-              if (consensus != nullptr)
-              {
-                ctx->set_response_header(
-                  http::headers::CCF_TERM, consensus->get_view());
-                ctx->set_response_header(
-                  http::headers::CCF_GLOBAL_COMMIT,
-                  consensus->get_commit_seqno());
-
-                if (
-                  history && consensus->is_primary() &&
-                  (cv % sig_max_tx == sig_max_tx / 2))
-                {
-                  if (consensus->type() == ConsensusType::RAFT)
-                  {
-                    history->emit_signature();
-                  }
-                  else
-                  {
-                    consensus->emit_signature();
-                  }
-                }
-              }
-
-              return ctx->serialise_response();
-            }
-
-            case kv::CommitSuccess::CONFLICT:
-            {
-              break;
-            }
-
-            case kv::CommitSuccess::NO_REPLICATE:
-            {
-              ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-              ctx->set_response_body("Transaction failed to replicate.");
-              return ctx->serialise_response();
-            }
-          }
-        }
-        catch (const RpcException& e)
-        {
-          ctx->set_response_status(e.status);
-          ctx->set_response_body(e.what());
-          return ctx->serialise_response();
-        }
-        catch (JsonParseError& e)
-        {
-          auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
-          ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          ctx->set_response_body(std::move(err));
-          return ctx->serialise_response();
-        }
-        catch (const kv::KvSerialiserException& e)
-        {
-          // If serialising the committed transaction fails, there is no way
-          // to recover safely (https://github.com/microsoft/CCF/issues/338).
-          // Better to abort.
-          LOG_FATAL_FMT("Failed to serialise: {}", e.what());
-          abort();
-        }
-        catch (const std::exception& e)
-        {
-          ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-          ctx->set_response_body(e.what());
-          return ctx->serialise_response();
-        }
-      }
     }
 
     void tick(std::chrono::milliseconds elapsed) override
