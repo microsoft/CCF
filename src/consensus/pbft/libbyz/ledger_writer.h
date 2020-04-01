@@ -26,6 +26,7 @@ public:
     ccf::Signatures& signatures_);
   virtual ~LedgerWriter() = default;
   kv::Version write_pre_prepare(Pre_prepare* pp);
+  kv::Version write_pre_prepare(Pre_prepare* pp, View view);
   kv::Version write_pre_prepare(ccf::Store::Tx& tx, Pre_prepare* pp);
   void write_view_change(View_change* vc);
 };

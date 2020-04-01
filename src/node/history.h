@@ -155,7 +155,7 @@ namespace ccf
       std::shared_ptr<std::vector<uint8_t>> replicated) override
     {}
 
-    void execute_pending() override {}
+    void flush_pending() override {}
 
     virtual void add_result(
       RequestID id,
@@ -381,6 +381,22 @@ namespace ccf
     std::optional<ResultCallbackHandler> on_result;
     std::optional<ResponseCallbackHandler> on_response;
 
+    void discard_pending(kv::Version v)
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+      auto* p = pending_inserts.get_head();
+      while (p != nullptr)
+      {
+        auto* next = p->next;
+        if (p->version > v)
+        {
+          pending_inserts.remove(p);
+          delete p;
+        }
+        p = next;
+      }
+    }
+
   public:
     HashedTxHistory(
       Store& store_,
@@ -480,12 +496,14 @@ namespace ccf
 
     void rollback(kv::Version v) override
     {
+      discard_pending(v);
       replicated_state_tree.retract(v);
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 
     void compact(kv::Version v) override
     {
+      flush_pending();
       if (v > MAX_HISTORY_LEN)
       {
         replicated_state_tree.flush(v - MAX_HISTORY_LEN);
@@ -589,7 +607,7 @@ namespace ccf
       }
     }
 
-    void execute_pending() override
+    void flush_pending() override
     {
       snmalloc::DLList<PendingInsert, std::nullptr_t, true> pi;
       {

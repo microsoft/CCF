@@ -12,12 +12,18 @@
 #include "statistics.h"
 
 Reply::Reply(
-  View view, Request_id req, Seqno n, int replica, uint32_t reply_size) :
+  View view,
+  Request_id req,
+  Seqno n,
+  uint64_t nonce,
+  int replica,
+  uint32_t reply_size) :
   Message(Reply_tag, sizeof(Reply_rep) + reply_size + MAC_size)
 {
   rep().v = view;
   rep().rid = req;
   rep().n = n;
+  rep().nonce = nonce;
   rep().replica = replica;
   rep().reply_size = 0;
   set_size(sizeof(Reply_rep) + reply_size + MAC_size);
@@ -29,6 +35,7 @@ Reply::Reply(
   View view,
   Request_id req,
   Seqno n,
+  uint64_t nonce,
   int replica,
   Principal* p,
   bool tentative) :
@@ -46,6 +53,7 @@ Reply::Reply(
   rep().v = view;
   rep().rid = req;
   rep().n = n;
+  rep().nonce = nonce;
   rep().replica = replica;
   rep().reply_size = -1;
 

@@ -55,12 +55,14 @@ namespace pbft
         std::unique_ptr<ExecCommandMsg> msg_,
         ByzInfo& info_,
         PbftConfigCcf* self_,
-        bool is_first_request_) :
+        bool is_first_request_,
+        uint64_t nonce_) :
         msg(std::move(msg_)),
         info(info_),
         self(self_),
         is_first_request(is_first_request_),
-        did_exec_gov_req(false)
+        did_exec_gov_req(false),
+        nonce(nonce_)
       {}
 
       std::unique_ptr<ExecCommandMsg> msg;
@@ -69,6 +71,7 @@ namespace pbft
       PbftConfigCcf* self;
       bool is_first_request;
       bool did_exec_gov_req;
+      uint64_t nonce;
     };
 
     static void ExecuteCb(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
@@ -177,7 +180,7 @@ namespace pbft
       info.ctx = rep.version;
 
       outb.contents = self->message_receive_base->create_response_message(
-        client, rid, rep.result.size());
+        client, rid, rep.result.size(), execution_ctx.nonce);
 
       outb.size = rep.result.size();
       auto outb_ptr = (uint8_t*)outb.contents;
@@ -205,14 +208,15 @@ namespace pbft
         std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>&
           msgs,
         ByzInfo& info,
-        uint32_t num_requests) {
+        uint32_t num_requests,
+        uint64_t nonce) {
         info.pending_cmd_callbacks = num_requests;
         for (uint32_t i = 0; i < num_requests; ++i)
         {
           std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
           uint16_t reply_thread = msg->reply_thread;
           auto execution_ctx = std::make_unique<enclave::Tmsg<ExecutionCtx>>(
-            &Execute, std::move(msg), info, this, is_first_request);
+            &Execute, std::move(msg), info, this, is_first_request, nonce);
           is_first_request = false;
 
           if (info.cb != nullptr)

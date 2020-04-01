@@ -35,6 +35,7 @@ struct Pre_prepare_rep : public Message_rep
   View view;
   Seqno seqno;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
+  Digest hashed_nonce;
   uint64_t contains_gov_req; // should be a bool, but need to use 8 bytes to
                              // maintain alignment
   Seqno last_gov_req_updated;
@@ -67,13 +68,14 @@ class Pre_prepare : public Message
   // Pre_prepare messages
   //
 public:
-  Pre_prepare(uint32_t msg_size = 0) : Message(msg_size) {}
+  Pre_prepare(uint32_t msg_size = 0) : Message(msg_size), nonce(0) {}
 
   Pre_prepare(
     View v,
     Seqno s,
     Req_queue& reqs,
     size_t& requests_in_batch,
+    uint64_t nonce,
     Prepared_cert* prepared_cert = nullptr);
   // Effects: Creates a new signed Pre_prepare message with view
   // number "v", sequence number "s", the requests in "reqs" (up to a
@@ -94,6 +96,8 @@ public:
 
   View view() const;
   // Effects: Fetches the view number from the message.
+
+  void set_view(View v);
 
   Seqno seqno() const;
   // Effects: Fetches the sequence number from the message.
@@ -163,6 +167,29 @@ public:
   };
   friend class Requests_iter;
 
+  class ValidProofs_iter
+  {
+    // An iterator for yielding the id of the principal with a valid Prepare
+    // proof in a Pre_prepare message. Requires: A Pre_prepare message cannot be
+    // modified while it is being iterated on
+  public:
+    ValidProofs_iter(Pre_prepare* m);
+    // Requires: Pre_prepare is known to be valid
+    // Effects: Return an iterator for the valid principal prepare proofs in "m
+
+    bool get(int& id, bool& is_valid_proof);
+    // Effects: Updates "proofs" to "point" to the next proof's "Included_sig"
+    // pid in the Pre_prepare message and returns true. If there are no more
+    // proofs left to process, it returns false. "is_valid_proof" indicates
+    // whether the proof is valid or not
+
+  private:
+    Pre_prepare* msg;
+    uint8_t* proofs;
+    size_t proofs_left;
+  };
+  friend class ValidProofs_iter;
+
 #ifdef SIGN_BATCH
   PbftSignature& get_digest_sig() const
   {
@@ -203,12 +230,17 @@ public:
   bool is_signed();
   // Effects: checks if there is a signature over the pre_prepare message
 
+  uint64_t get_nonce() const;
+  // Effects: returns the unhashed nonce
+
   static bool convert(Message* m1, Pre_prepare*& m2);
   // Effects: If "m1" has the right size and tag, casts "m1" to a
   // "Pre_prepare" pointer, returns the pointer in "m2" and returns
   // true. Otherwise, it returns false.
 
 private:
+  uint64_t nonce;
+
   Pre_prepare_rep& rep() const;
   // Effects: Casts contents to a Pre_prepare_rep&
 
@@ -218,6 +250,12 @@ private:
   Digest* big_reqs();
   // Effects: Returns a pointer to the first digest of a big request
   // in this.
+
+  uint8_t* proofs();
+  // Effects: Returns a pointer to the first prepare proof in this.
+
+  size_t proofs_size();
+  // Effects: Returns the number of prepapre proofs in this
 };
 
 inline Pre_prepare_rep& Pre_prepare::rep() const
@@ -240,9 +278,25 @@ inline Digest* Pre_prepare::big_reqs()
   return (Digest*)ret;
 }
 
+inline uint8_t* Pre_prepare::proofs()
+{
+  return (uint8_t*)contents() + sizeof(Pre_prepare_rep) + rep().rset_size +
+    rep().n_big_reqs * sizeof(Digest);
+}
+
+inline size_t Pre_prepare::proofs_size()
+{
+  return rep().num_prev_pp_sig;
+}
+
 inline View Pre_prepare::view() const
 {
   return rep().view;
+}
+
+inline void Pre_prepare::set_view(View v)
+{
+  rep().view = v;
 }
 
 inline Seqno Pre_prepare::seqno() const
@@ -280,4 +334,9 @@ inline Seqno Pre_prepare::last_exec_gov_req() const
 inline bool Pre_prepare::did_exec_gov_req() const
 {
   return rep().contains_gov_req;
+}
+
+inline uint64_t Pre_prepare::get_nonce() const
+{
+  return nonce;
 }

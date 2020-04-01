@@ -151,7 +151,7 @@ public:
   // Effects: Removes all messages from this except that it retains log for
   // prepares in old views.
 
-  Pre_prepare* fetch_request(Seqno n, Digest& d);
+  Pre_prepare* fetch_request(Seqno n, Digest& d, View& prev_view);
   // Requires: "has_complete_new_view(view())" and "n" is a request in new-view
   // message.
   // Effects: Sets "d" to the digest of the request with sequence
@@ -288,9 +288,11 @@ inline View View_info::view() const
   return v;
 }
 
-inline Pre_prepare* View_info::fetch_request(Seqno n, Digest& d)
+inline Pre_prepare* View_info::fetch_request(
+  Seqno n, Digest& d, View& prev_view)
 {
-  return last_nvs[pbft::GlobalState::get_node().primary(v)].fetch_request(n, d);
+  return last_nvs[pbft::GlobalState::get_node().primary(v)].fetch_request(
+    n, d, prev_view);
 }
 
 inline bool View_info::has_complete_new_view(View vi) const
