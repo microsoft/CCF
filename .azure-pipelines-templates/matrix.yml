@@ -32,11 +32,11 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|suite"'
+      ctest_args: '-LE "benchmark|perf|suite|tlstest"'
     SGX:
-      ctest_args: '-LE "benchmark|perf|suite"'
+      ctest_args: '-LE "benchmark|perf|suite|tlstest"'
     Release:
-      ctest_args: ''
+      ctest_args: '-LE "tlstest"'
     perf:
       ctest_args: '-L "benchmark|perf"'
 
