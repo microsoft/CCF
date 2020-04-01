@@ -144,7 +144,6 @@ void Node::add_principal(const PrincipalInfo& principal_info)
   if (principal_info.is_replica)
   {
     replica_count++;
-    num_replicas++;
   }
 }
 

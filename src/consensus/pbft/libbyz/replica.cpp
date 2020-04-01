@@ -479,6 +479,59 @@ void Replica::playback_request(ccf::Store::Tx& tx)
 
   exec_command(vec_exec_cmds, playback_byz_info, 1);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
+  brt.add_request(req.release());
+}
+
+void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
+{
+  if (pp->seqno() <= 0)
+  {
+    // first pre prepare will not contain proofs for a previous pre prepare
+    return;
+  }
+
+  auto prev_seqno = pp->seqno() - 1;
+  if (!plog.within_range(prev_seqno))
+  {
+    LOG_DEBUG_FMT(
+      "seqno {} is out of range, can not add prepare proofs to plog",
+      prev_seqno);
+    return;
+  }
+  auto& prev_prepared_cert = plog.fetch(prev_seqno);
+  auto prev_pp = prev_prepared_cert.pre_prepare();
+  if (prev_pp != nullptr)
+  {
+    Pre_prepare::ValidProofs_iter vp_iter(prev_pp);
+    int p_id;
+    bool valid;
+    while (vp_iter.get(p_id, valid) && valid)
+    {
+      LOG_DEBUG_FMT(
+        "Adding prepare for principal with id {} for seqno {}",
+        p_id,
+        prev_seqno);
+      Prepare* p = new Prepare(
+        prev_pp->view(),
+        prev_pp->seqno(),
+        prev_pp->digest(),
+        nullptr,
+        prev_pp->is_signed(),
+        p_id);
+      prev_prepared_cert.add(p);
+    }
+    if (add_mine)
+    {
+      LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_seqno);
+      Prepare* p = new Prepare(
+        prev_pp->view(),
+        prev_pp->seqno(),
+        prev_pp->digest(),
+        nullptr,
+        prev_pp->is_signed());
+      prev_prepared_cert.add_mine(p);
+    }
+  }
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -518,6 +571,8 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     last_te_version = ledger_writer->write_pre_prepare(tx, executable_pp.get());
 
+    global_commit(executable_pp.get());
+
     last_executed++;
 
     PBFT_ASSERT(
@@ -525,7 +580,10 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
       "last_executed and pre prepares seqno don't match in playback pre "
       "prepare");
 
-    global_commit(executable_pp.get());
+    populate_certificates(executable_pp.get(), true);
+
+    auto& prepared_cert = plog.fetch(executable_pp->seqno());
+    prepared_cert.add(executable_pp.release());
 
     if (f() > 0 && (last_executed % checkpoint_interval == 0))
     {
@@ -841,6 +899,14 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
   // If rqueue is empty there are no requests for which to send
   // pre_prepare and a pre-prepare cannot be sent if the seqno exceeds
   // the maximum window or the replica does not have the new view.
+  LOG_TRACE_FMT(
+    "rqueue size {}, next_pp_seqno {}, last_executed {}, last_stable {}, has "
+    "complete new view {}",
+    rqueue.size(),
+    next_pp_seqno,
+    last_executed,
+    last_stable,
+    has_complete_new_view());
   if (
     (rqueue.size() >= min_pre_prepare_batch_size ||
      (do_not_wait_for_batch_size && rqueue.size() > 0)) &&
@@ -1004,6 +1070,13 @@ void Replica::handle(Pre_prepare* m)
     // for the same view and sequence number and the message is valid.
     if (pc.add(m))
     {
+      if (ms == playback_pp_seqno + 1)
+      {
+        // previous pre prepare was executed during playback, we need to add the
+        // prepares for it, as the prepare proofs for the previous pre-prepare
+        // are in the next pre prepare message
+        populate_certificates(m);
+      }
       send_prepare(ms);
     }
     return;
@@ -1737,10 +1810,6 @@ void Replica::handle(View_change* m)
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
-    if (encryptor)
-    {
-      encryptor->set_view(v);
-    }
     vc_recovering = true;
     send_view_change();
   }
@@ -1790,10 +1859,7 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
-  if (encryptor)
-  {
-    encryptor->set_view(v);
-  }
+
   cur_primary = v % num_replicas;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
@@ -1984,7 +2050,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   for (Seqno i = min + 1; i < max; i++)
   {
     Digest d;
-    Pre_prepare* pp = vi.fetch_request(i, d);
+    View prev_view;
+    auto pp = vi.fetch_request(i, d, prev_view);
     Prepared_cert& pc = plog.fetch(i);
     PBFT_ASSERT(pp != 0 && pp->digest() == d, "Invalid state");
 
@@ -2006,7 +2073,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          last_te_version = ledger_writer->write_pre_prepare(pp);
+          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
         }
       }
     }
@@ -2014,12 +2081,11 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     {
       ByzInfo info;
       pc.add_old(pp);
-
       if (execute_tentative(pp, info))
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          last_te_version = ledger_writer->write_pre_prepare(pp);
+          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
         }
       }
 
@@ -2057,6 +2123,10 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   if (primary() != id() && rqueue.size() > 0)
   {
     start_vtimer_if_request_waiting();
+  }
+  if (encryptor)
+  {
+    encryptor->set_view(v);
   }
   LOG_INFO << "Done with process new view " << v << std::endl;
 }
@@ -2123,15 +2193,17 @@ void Replica::global_commit(Pre_prepare* pp)
 {
   if (pp->is_signed())
   {
-    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
-    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
-
-    state.checkpoint(pp->seqno());
-    last_gb_version = pp->get_ctx();
-    last_gb_seqno = pp->seqno();
-    if (global_commit_cb != nullptr)
+    if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
     {
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+      LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+      LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+      state.checkpoint(pp->seqno());
+      last_gb_version = pp->get_ctx();
+      last_gb_seqno = pp->seqno();
+      if (global_commit_cb != nullptr)
+      {
+        global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+      }
     }
     signed_version = 0;
   }
@@ -2205,7 +2277,10 @@ void Replica::execute_prepared(bool committed)
         }
       }
     }
-    global_commit(pp);
+    if (f() == 0)
+    {
+      global_commit(pp);
+    }
   }
 }
 
@@ -2430,6 +2505,7 @@ void Replica::execute_committed(bool was_f_0)
         set_min_pre_prepare_batch_size();
 
         execute_prepared(true);
+        global_commit(pp);
         last_executed = last_executed + 1;
         stats.last_executed = last_executed;
         PBFT_ASSERT(pp->seqno() == last_executed, "Invalid execution");

@@ -11,7 +11,8 @@
 #include "principal.h"
 #include "replica.h"
 
-Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
+Prepare::Prepare(
+  View v, Seqno s, Digest& d, Principal* dst, bool is_signed, int id) :
   Message(
     Prepare_tag,
     sizeof(Prepare_rep)
@@ -27,6 +28,11 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   rep().seqno = s;
   rep().digest = d;
 
+  if (id < 0)
+  {
+    rep().id = pbft::GlobalState::get_node().id();
+  }
+
 #ifdef SIGN_BATCH
   rep().digest_sig_size = 0;
   rep().digest_padding.fill(0);
@@ -41,7 +47,7 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
       signature(Digest d_, NodeId id_) : d(d_), id(id_) {}
     };
 
-    signature s(d, pbft::GlobalState::get_node().id());
+    signature s(d, rep().id);
 
     rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
       reinterpret_cast<char*>(&s), sizeof(s), rep().batch_digest_signature);
@@ -56,7 +62,6 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   rep().prepare_sig_size = 0;
 #endif
 
-  rep().id = pbft::GlobalState::get_node().id();
   rep().padding = 0;
   if (!dst)
   {
