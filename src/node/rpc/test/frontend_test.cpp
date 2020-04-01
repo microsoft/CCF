@@ -204,6 +204,14 @@ public:
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
     install("empty_function", empty_function, HandlerRegistry::Write);
+
+    auto empty_function_no_auth = [this](RequestArgs& args) {
+      record_ctx(args);
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    install(
+      "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Write)
+      .set_require_client_identity(false);
   }
 };
 
@@ -456,24 +464,6 @@ TEST_CASE("SignedReq to and from json")
   sr = j;
   REQUIRE(sr.sig.empty());
   REQUIRE(sr.req.empty());
-}
-
-TEST_CASE("process_command")
-{
-  prepare_callers();
-  TestUserFrontend frontend(*network.tables);
-  auto simple_call = create_simple_request();
-
-  const auto serialized_call = simple_call.build_request();
-  auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
-
-  Store::Tx tx;
-  CallerId caller_id(0);
-  auto response_raw = frontend.process_command(rpc_ctx, tx, caller_id);
-  REQUIRE(response_raw.has_value());
-
-  const auto response = parse_response(response_raw.value());
-  REQUIRE(response.status == HTTP_STATUS_OK);
 }
 
 TEST_CASE("process with signatures")
@@ -1002,6 +992,60 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
       auto response =
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
       CHECK(response.status == HTTP_STATUS_OK);
+    }
+  }
+
+  {
+    INFO("Unauthenticated handler");
+    auto simple_call_no_auth = create_simple_request("empty_function_no_auth");
+    auto serialized_call_no_auth = simple_call_no_auth.build_request();
+
+    REQUIRE(channel_stub->is_empty());
+
+    {
+      INFO("Known caller");
+      auto ctx =
+        enclave::make_rpc_context(user_session, serialized_call_no_auth);
+
+      const auto r = user_frontend_backup.process(ctx);
+      REQUIRE(!r.has_value());
+      REQUIRE(channel_stub->size() == 1);
+      auto forwarded_msg = channel_stub->get_pop_back();
+
+      auto [fwd_ctx, node_id] =
+        backup_forwarder
+          ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+          .value();
+
+      auto response =
+        parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
+      CHECK(response.status == HTTP_STATUS_OK);
+
+      CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
+      CHECK(user_frontend_primary.last_caller_id == 0);
+    }
+
+    {
+      INFO("Unknown caller");
+      auto ctx =
+        enclave::make_rpc_context(invalid_session, serialized_call_no_auth);
+
+      const auto r = user_frontend_backup.process(ctx);
+      REQUIRE(!r.has_value());
+      REQUIRE(channel_stub->size() == 1);
+      auto forwarded_msg = channel_stub->get_pop_back();
+
+      auto [fwd_ctx, node_id] =
+        backup_forwarder
+          ->recv_forwarded_command(forwarded_msg.data(), forwarded_msg.size())
+          .value();
+
+      auto response =
+        parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
+      CHECK(response.status == HTTP_STATUS_OK);
+
+      CHECK(user_frontend_primary.last_caller_cert == invalid_caller_der);
+      CHECK(user_frontend_primary.last_caller_id == INVALID_ID);
     }
   }
 

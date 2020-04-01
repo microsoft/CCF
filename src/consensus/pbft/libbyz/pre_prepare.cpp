@@ -19,6 +19,7 @@ Pre_prepare::Pre_prepare(
   Seqno s,
   Req_queue& reqs,
   size_t& requests_in_batch,
+  uint64_t nonce_,
   Prepared_cert* prepared_cert) :
   Message(
     Pre_prepare_tag,
@@ -29,13 +30,20 @@ Pre_prepare::Pre_prepare(
       pbft::GlobalState::get_node().auth_size() + // Merkle root signature
       (pbft_max_signature_size + sizeof(uint64_t)) *
         pbft::GlobalState::get_node()
-          .num_of_replicas()) // signatures for the previous pre_prepare
+          .num_of_replicas()), // signatures for the previous pre_prepare
+  nonce(nonce_)
 {
   rep().view = v;
   rep().seqno = s;
   rep().replicated_state_merkle_root.fill(0);
   rep().contains_gov_req = false;
   rep().last_gov_req_updated = 0;
+
+  Digest dh;
+  Digest::Context context;
+  dh.update_last(context, (char*)&nonce_, sizeof(uint64_t));
+  dh.finalize(context);
+  rep().hashed_nonce = dh;
 
   START_CC(pp_digest_cycles);
   INCR_OP(pp_digest);
@@ -258,6 +266,7 @@ bool Pre_prepare::calculate_digest(Digest& d)
       rep().replicated_state_merkle_root.size());
     d.update_last(context, (char*)&rep().contains_gov_req, sizeof(uint64_t));
     d.update_last(context, (char*)&rep().last_gov_req_updated, sizeof(Seqno));
+    d.update_last(context, (char*)&rep().hashed_nonce, sizeof(uint64_t));
     d.update_last(context, (char*)&rep().ctx, sizeof(rep().ctx));
     d.update_last(context, (char*)&rep().rset_size, sizeof(rep().rset_size));
     d.update_last(context, (char*)&rep().n_big_reqs, sizeof(rep().n_big_reqs));
@@ -433,6 +442,29 @@ bool Pre_prepare::Requests_iter::has_more_requests()
   }
 
   return false;
+}
+
+Pre_prepare::ValidProofs_iter::ValidProofs_iter(Pre_prepare* m)
+{
+  msg = m;
+  proofs = m->proofs();
+  proofs_left = m->proofs_size();
+}
+
+bool Pre_prepare::ValidProofs_iter::get(int& id, bool& is_valid_proof)
+{
+  if (proofs_left <= 0)
+  {
+    return false;
+  }
+
+  auto* ic = reinterpret_cast<Included_sig*>(proofs);
+  id = ic->pid;
+  is_valid_proof = true;
+  proofs += ALIGNED_SIZE(sizeof(Included_sig));
+  proofs_left--;
+
+  return true;
 }
 
 bool Pre_prepare::convert(Message* m1, Pre_prepare*& m2)
