@@ -36,6 +36,9 @@ int main(int argc, char** argv)
 
   CLI::App app{"ccf"};
 
+  app.set_config("--config", "", "Read an INI or TOML file", false);
+  app.allow_config_extras(false);
+
   app.require_subcommand(1, 1);
 
   std::string enclave_file;
@@ -263,6 +266,8 @@ int main(int argc, char** argv)
   std::string network_enc_pubk_file = "network_enc_pubk.pem";
 
   auto start = app.add_subcommand("start", "Start new network");
+  start->configurable();
+
   start
     ->add_option(
       "--network-cert-file",
@@ -299,6 +304,8 @@ int main(int argc, char** argv)
     ->required();
 
   auto join = app.add_subcommand("join", "Join existing network");
+  join->configurable();
+
   join
     ->add_option(
       "--network-cert-file",
@@ -325,6 +332,8 @@ int main(int argc, char** argv)
     ->required();
 
   auto recover = app.add_subcommand("recover", "Recover crashed network");
+  recover->configurable();
+
   recover
     ->add_option(
       "--network-cert-file",
