@@ -39,7 +39,6 @@ set(CONSENSUSES raft pbft)
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
-option(EXPERIMENTAL_PBFT_TESTS "Experimental PBFT TESTS" OFF)
 
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
@@ -68,8 +67,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
-  target_link_libraries(ccf.enclave PUBLIC libbyz.enclave)
-
   target_link_libraries(
     ccf.enclave
     PUBLIC openenclave::oeenclave
@@ -81,6 +78,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            secp256k1.enclave
            sss.enclave
+           byz.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -120,8 +118,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
-  target_link_libraries(ccf.virtual PUBLIC libbyz.host)
-
   target_link_libraries(
     ccf.virtual
     PUBLIC -stdlib=libc++
@@ -134,6 +130,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
+           byz.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -542,7 +539,6 @@ if(BUILD_TESTS)
     NAME late_joiners
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
     CONSENSUS pbft
-    ADDITIONAL_ARGS --skip-suspension
   )
 
   if(BUILD_SMALLBANK)
@@ -591,16 +587,13 @@ if(BUILD_TESTS)
       set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "4000")
     endif()
 
-    if((${CONSENSUS} STREQUAL raft) OR (EXPERIMENTAL_PBFT_TESTS
-                                        AND (${CONSENSUS} STREQUAL pbft))
+    add_e2e_test(
+      NAME election_tests_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
     )
-      add_e2e_test(
-        NAME election_tests_${CONSENSUS}
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-        CONSENSUS ${CONSENSUS}
-        ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
-      )
-    endif()
+
   endforeach()
 
   # Logging scenario perf test

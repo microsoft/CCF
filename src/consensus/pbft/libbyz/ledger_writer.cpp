@@ -22,6 +22,15 @@ kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx, Pre_prepare* pp)
     signatures);
 }
 
+kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp, View view)
+{
+  auto stashed_view = pp->view();
+  pp->set_view(view);
+  auto v = write_pre_prepare(pp);
+  pp->set_view(stashed_view);
+  return v;
+}
+
 kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
   LOG_TRACE_FMT(
