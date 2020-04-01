@@ -294,6 +294,7 @@ class Network:
         LOG.success("All nodes joined recovered public network")
 
     def ignore_errors_on_shutdown(self):
+        
         self.ignoring_shutdown_errors = True
 
     def stop_all_nodes(self):
