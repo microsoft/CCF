@@ -106,6 +106,7 @@ class Network:
             )
             self.txs = existing_network.txs
 
+        self.ignoring_shutdown_errors = False
         self.nodes = []
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
@@ -292,6 +293,9 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
 
+    def ignore_errors_on_shutdown(self):
+        self.ignoring_shutdown_errors = True
+
     def stop_all_nodes(self):
         fatal_error_found = False
         for node in self.nodes:
@@ -302,7 +306,10 @@ class Network:
         LOG.info("All remotes stopped...")
 
         if fatal_error_found:
-            raise NodeShutdownError(f"Fatal error found during node shutdown")
+            if self.ignoring_shutdown_errors:
+                LOG.warning("Ignoring shutdown errors")
+            else:
+                raise NodeShutdownError(f"Fatal error found during node shutdown")
 
     def create_and_add_pending_node(
         self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
