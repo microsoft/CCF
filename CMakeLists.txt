@@ -535,11 +535,8 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_e2e_test(
-    NAME late_joiners
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
-    CONSENSUS pbft
-  )
+  # Not stable yet add_e2e_test( NAME late_joiners PYTHON_SCRIPT
+  # ${CMAKE_SOURCE_DIR}/tests/late_joiners.py CONSENSUS pbft )
 
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
