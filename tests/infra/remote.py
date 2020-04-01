@@ -61,7 +61,6 @@ def log_errors(out_path, err_path):
     error_filter = ["[fail ]", "[fatal]"]
     error_lines = []
     try:
-        errors = 0
         tail_lines = deque(maxlen=10)
         with open(out_path, "r", errors="replace") as lines:
             for line in lines:
@@ -70,19 +69,23 @@ def log_errors(out_path, err_path):
                 if any(x in stripped_line for x in error_filter):
                     LOG.error("{}: {}".format(out_path, stripped_line))
                     error_lines.append(stripped_line)
-                    errors += 1
-        if errors:
-            LOG.info("{} errors found, printing end of output for context:", errors)
+        if error_lines:
+            LOG.info("{} errors found, printing end of output for context:", len(error_lines))
             for line in tail_lines:
                 LOG.info(line)
-            try:
-                with open(err_path, "r") as lines:
-                    LOG.error("contents of {}:".format(err_path))
-                    LOG.error(lines.read())
-            except IOError:
-                LOG.exception("Could not read err output {}".format(err_path))
     except IOError:
         LOG.exception("Could not check output {} for errors".format(out_path))
+
+    try:
+        with open(err_path, "r", errors="replace") as lines:
+            err_out_lines = lines.readlines()
+            if err_out_lines:
+                LOG.error("Contents of {}:".format(err_path))
+                LOG.error('\n'.join(err_out_lines))
+                error_lines.extend(err_out_lines)
+    except IOError:
+        LOG.exception("Could not read err output {}".format(err_path))
+
     return error_lines
 
 
