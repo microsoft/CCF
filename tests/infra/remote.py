@@ -61,7 +61,6 @@ def log_errors(out_path, err_path):
     error_filter = ["[fail ]", "[fatal]"]
     error_lines = []
     try:
-        errors = 0
         tail_lines = deque(maxlen=10)
         with open(out_path, "r", errors="replace") as lines:
             for line in lines:
@@ -70,20 +69,25 @@ def log_errors(out_path, err_path):
                 if any(x in stripped_line for x in error_filter):
                     LOG.error("{}: {}".format(out_path, stripped_line))
                     error_lines.append(stripped_line)
-                    errors += 1
-        if errors:
-            LOG.info("{} errors found, printing end of output for context:", errors)
+        if error_lines:
+            LOG.info(
+                "{} errors found, printing end of output for context:", len(error_lines)
+            )
             for line in tail_lines:
                 LOG.info(line)
-            try:
-                with open(err_path, "r") as lines:
-                    LOG.error("contents of {}:".format(err_path))
-                    LOG.error(lines.read())
-            except IOError:
-                LOG.exception("Could not read err output {}".format(err_path))
     except IOError:
         LOG.exception("Could not check output {} for errors".format(out_path))
-    return error_lines
+
+    fatal_error_lines = []
+    try:
+        with open(err_path, "r", errors="replace") as lines:
+            fatal_error_lines = lines.readlines()
+            if fatal_error_lines:
+                LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
+    except IOError:
+        LOG.exception("Could not read err output {}".format(err_path))
+
+    return error_lines, fatal_error_lines
 
 
 class CmdMixin(object):
@@ -292,13 +296,13 @@ class SSHRemote(CmdMixin):
         """
         LOG.info("[{}] closing".format(self.hostname))
         self.get_logs()
-        errors = log_errors(
+        errors, fatal_errors = log_errors(
             os.path.join(self.common_dir, "{}_{}_out".format(self.hostname, self.name)),
             os.path.join(self.common_dir, "{}_{}_err".format(self.hostname, self.name)),
         )
         self.client.close()
         self.proc_client.close()
-        return errors
+        return errors, fatal_errors
 
     def setup(self):
         """
@@ -718,9 +722,9 @@ class CCFRemote(object):
         return self.remote._dbg()
 
     def stop(self):
-        errors = []
+        errors, fatal_errors = [], []
         try:
-            errors = self.remote.stop()
+            errors, fatal_errors = self.remote.stop()
         except Exception:
             LOG.exception("Failed to shut down {} cleanly".format(self.local_node_id))
         if self.profraw:
@@ -728,7 +732,7 @@ class CCFRemote(object):
                 self.remote.get(self.profraw, self.common_dir)
             except Exception:
                 LOG.info(f"Could not retrieve {self.profraw}")
-        return errors
+        return errors, fatal_errors
 
     def wait_for_stdout_line(self, line, timeout=5):
         return self.remote.wait_for_stdout_line(line, timeout)

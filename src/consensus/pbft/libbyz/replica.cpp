@@ -480,7 +480,12 @@ void Replica::playback_request(ccf::Store::Tx& tx)
 
   exec_command(vec_exec_cmds, playback_byz_info, 1, 0);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
-  brt.add_request(req.release());
+
+  auto owned_req = req.release();
+  if (!brt.add_request(owned_req))
+  {
+    delete owned_req;
+  }
 }
 
 void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)

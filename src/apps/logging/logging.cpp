@@ -169,13 +169,6 @@ namespace ccfapp
 
       // SNIPPET_START: log_record_prefix_cert
       auto log_record_prefix_cert = [this](RequestArgs& args) {
-        mbedtls_x509_crt cert;
-        mbedtls_x509_crt_init(&cert);
-
-        const auto& cert_data = args.rpc_ctx->session->caller_cert;
-        const auto ret =
-          mbedtls_x509_crt_parse(&cert, cert_data.data(), cert_data.size());
-
         const auto body_j =
           nlohmann::json::parse(args.rpc_ctx->get_request_body());
 
@@ -189,9 +182,18 @@ namespace ccfapp
           return;
         }
 
+        mbedtls_x509_crt cert;
+        mbedtls_x509_crt_init(&cert);
+
+        const auto& cert_data = args.rpc_ctx->session->caller_cert;
+        const auto ret =
+          mbedtls_x509_crt_parse(&cert, cert_data.data(), cert_data.size());
+
         const auto log_line = fmt::format("{}: {}", cert.subject, in.msg);
         auto view = args.tx.get_view(records);
         view->put(in.id, log_line);
+
+        mbedtls_x509_crt_free(&cert);
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_header(
