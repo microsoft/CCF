@@ -12,7 +12,13 @@
 #include "replica.h"
 
 Prepare::Prepare(
-  View v, Seqno s, Digest& d, uint64_t nonce_, Principal* dst, bool is_signed, int id) :
+  View v,
+  Seqno s,
+  Digest& d,
+  uint64_t nonce_,
+  Principal* dst,
+  bool is_signed,
+  int id) :
   Message(
     Prepare_tag,
     sizeof(Prepare_rep)
