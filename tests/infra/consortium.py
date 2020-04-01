@@ -424,7 +424,7 @@ class Consortium:
                     break
             except TimeoutError:
                 LOG.warning(f"Node {node_id} has not been recorded in the store yet")
-            time.sleep(1)
+            time.sleep(0.5)
         if not exists:
             raise TimeoutError(
                 f"Node {node_id} has not yet been recorded in the store"

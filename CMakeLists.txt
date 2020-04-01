@@ -67,8 +67,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
-  target_link_libraries(ccf.enclave PUBLIC libbyz.enclave)
-
   target_link_libraries(
     ccf.enclave
     PUBLIC openenclave::oeenclave
@@ -80,6 +78,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            secp256k1.enclave
            sss.enclave
+           byz.enclave
   )
 
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -119,8 +118,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
       $<INSTALL_INTERFACE:include/3rdparty/hacl-star/evercrypt/kremlin/kremlib>
   )
 
-  target_link_libraries(ccf.virtual PUBLIC libbyz.host)
-
   target_link_libraries(
     ccf.virtual
     PUBLIC -stdlib=libc++
@@ -133,6 +130,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
+           byz.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -526,7 +524,7 @@ if(BUILD_TESTS)
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
       CONSENSUS raft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 10000
+      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 20000
     )
 
     add_e2e_test(
@@ -584,9 +582,9 @@ if(BUILD_TESTS)
     )
 
     if(${CONSENSUS} STREQUAL pbft)
-      set(ELECTION_TIMEOUT_ARG "--pbft-view-change-timeout" "2000")
+      set(ELECTION_TIMEOUT_ARG "--pbft-view-change-timeout" "4000")
     else()
-      set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "2000")
+      set(ELECTION_TIMEOUT_ARG "--raft-election-timeout" "4000")
     endif()
 
     add_e2e_test(

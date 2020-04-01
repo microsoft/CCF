@@ -49,6 +49,10 @@ class PrimaryNotFound(Exception):
     pass
 
 
+class CodeIdNotFound(Exception):
+    pass
+
+
 def get_common_folder_name(workspace, label):
     return os.path.join(workspace, f"{label}_{COMMON_FOLDER}")
 
@@ -174,10 +178,6 @@ class Network:
         }
 
         for i, node in enumerate(self.nodes):
-            dict_args = vars(args)
-            forwarded_args = {
-                arg: dict_args[arg] for arg in Network.node_args_to_forward
-            }
             try:
                 if i == 0:
                     if not recovery:
@@ -293,7 +293,9 @@ class Network:
             node.stop()
         LOG.info("All remotes stopped...")
 
-    def create_and_add_pending_node(self, lib_name, host, args, target_node=None):
+    def create_and_add_pending_node(
+        self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
+    ):
         """
         Create a new node and add it to the network. Note that the new node
         still needs to be trusted by members to complete the join protocol.
@@ -305,7 +307,7 @@ class Network:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary,
                 new_node.node_id,
-                timeout=JOIN_TIMEOUT,
+                timeout=timeout,
                 node_status=(
                     infra.node.NodeStatus.PENDING
                     if self.status == ServiceStatus.OPEN
@@ -317,11 +319,12 @@ class Network:
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
             errors = new_node.stop()
-            if errors:
-                for error in errors:
-                    if "An error occurred while joining the network" in error:
-                        err.message = f"TimeoutError: {error.split('|', 1)[1]}"
             self.nodes.remove(new_node)
+            if errors:
+                # Throw accurate exceptions if known errors found in
+                for error in errors:
+                    if "CODE_ID_NOT_FOUND" in error:
+                        raise CodeIdNotFound
             raise
 
         return new_node
