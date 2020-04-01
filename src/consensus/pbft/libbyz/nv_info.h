@@ -103,7 +103,7 @@ public:
   // in new-view message.
   // Effects: Sets "d" to the digest of the request with sequence
   // number "n". Sets "prev_view" to the view that this request was executed in
-  // if it is has completed, otherwise sets it to the current view.
+  // if it has completed, otherwise sets it to the current view.
   // If enough information to make a pre-prepare is available, it
   // returns an appropriate pre-prepare. Otherwise, returns zero. The
   // caller is responsible for deallocating any returned pre-prepare.
