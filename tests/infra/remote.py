@@ -80,8 +80,7 @@ def log_errors(out_path, err_path):
         with open(err_path, "r", errors="replace") as lines:
             err_out_lines = lines.readlines()
             if err_out_lines:
-                LOG.error("Contents of {}:".format(err_path))
-                LOG.error('\n'.join(err_out_lines))
+                LOG.error(f"Contents of {err_path}:\n{''.join(err_out_lines)}")
                 error_lines.extend(err_out_lines)
     except IOError:
         LOG.exception("Could not read err output {}".format(err_path))
