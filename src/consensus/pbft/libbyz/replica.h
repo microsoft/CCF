@@ -137,7 +137,8 @@ public:
   void send(Message* m, int i);
   Seqno get_last_executed() const;
   int my_id() const;
-  char* create_response_message(int client_id, Request_id rid, uint32_t size);
+  char* create_response_message(
+    int client_id, Request_id rid, uint32_t size, uint64_t nonce);
 
   // variables used to keep track of versions so that we can tell the kv to
   // rollback
@@ -312,6 +313,7 @@ private:
     Seqno seqno;
     bool send_only_to_self = false;
     std::optional<ByzInfo> orig_byzinfo;
+    uint64_t nonce;
   };
 
   struct ExecuteTentativeCbMsg
@@ -335,7 +337,7 @@ private:
     std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& cmds,
     uint32_t& num_requests);
 
-  bool execute_tentative(Pre_prepare* pp, ByzInfo& info);
+  bool execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce);
 
   bool execute_tentative(
     Pre_prepare* pp,
@@ -581,6 +583,8 @@ private:
   // Used when opening the network. After the network has been opened on the
   // primary it will buffer messages until the other nodes have successfully
   // opened their networks
+
+  std::shared_ptr<tls::Entropy> entropy;
 
 #ifdef DEBUG_SLOW
   std::unique_ptr<ITimer> debug_slow_timer; // Used to dump state when requests

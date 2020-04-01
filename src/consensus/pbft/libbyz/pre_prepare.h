@@ -35,6 +35,7 @@ struct Pre_prepare_rep : public Message_rep
   View view;
   Seqno seqno;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
+  Digest hashed_nonce;
   uint64_t contains_gov_req; // should be a bool, but need to use 8 bytes to
                              // maintain alignment
   Seqno last_gov_req_updated;
@@ -67,13 +68,14 @@ class Pre_prepare : public Message
   // Pre_prepare messages
   //
 public:
-  Pre_prepare(uint32_t msg_size = 0) : Message(msg_size) {}
+  Pre_prepare(uint32_t msg_size = 0) : Message(msg_size), nonce(0) {}
 
   Pre_prepare(
     View v,
     Seqno s,
     Req_queue& reqs,
     size_t& requests_in_batch,
+    uint64_t nonce,
     Prepared_cert* prepared_cert = nullptr);
   // Effects: Creates a new signed Pre_prepare message with view
   // number "v", sequence number "s", the requests in "reqs" (up to a
@@ -228,12 +230,17 @@ public:
   bool is_signed();
   // Effects: checks if there is a signature over the pre_prepare message
 
+  uint64_t get_nonce() const;
+  // Effects: returns the unhashed nonce
+
   static bool convert(Message* m1, Pre_prepare*& m2);
   // Effects: If "m1" has the right size and tag, casts "m1" to a
   // "Pre_prepare" pointer, returns the pointer in "m2" and returns
   // true. Otherwise, it returns false.
 
 private:
+  uint64_t nonce;
+
   Pre_prepare_rep& rep() const;
   // Effects: Casts contents to a Pre_prepare_rep&
 
@@ -327,4 +334,9 @@ inline Seqno Pre_prepare::last_exec_gov_req() const
 inline bool Pre_prepare::did_exec_gov_req() const
 {
   return rep().contains_gov_req;
+}
+
+inline uint64_t Pre_prepare::get_nonce() const
+{
+  return nonce;
 }
