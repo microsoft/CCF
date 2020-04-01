@@ -53,6 +53,10 @@ class CodeIdNotFound(Exception):
     pass
 
 
+class NodeShutdownError(Exception):
+    pass
+
+
 def get_common_folder_name(workspace, label):
     return os.path.join(workspace, f"{label}_{COMMON_FOLDER}")
 
@@ -289,9 +293,16 @@ class Network:
         LOG.success("All nodes joined recovered public network")
 
     def stop_all_nodes(self):
+        errors_found = False
         for node in self.nodes:
-            node.stop()
+            node_errors = node.stop()
+            if node_errors:
+                errors_found = True
+
         LOG.info("All remotes stopped...")
+
+        if errors_found:
+            raise NodeShutdownError(f"Non-empty error output during node shutdown")
 
     def create_and_add_pending_node(
         self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
