@@ -150,26 +150,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   endfunction()
 
   add_executable(
-    pbft_replica_test
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_test.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp
-  )
-  target_link_libraries(pbft_replica_test PRIVATE ccfcrypto.host)
-  pbft_add_executable(pbft_replica_test)
-
-  add_executable(
     pbft_controller_test
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_controller_main.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp
   )
   pbft_add_executable(pbft_controller_test)
-
-  add_executable(
-    pbft_client_test
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/client_test.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp
-  )
-  pbft_add_executable(pbft_client_test)
 
   # Unit tests
   add_unit_test(
@@ -184,15 +169,4 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   use_libbyz(ledger_replay_test)
   add_san(ledger_replay_test)
   set_property(TEST ledger_replay_test PROPERTY LABELS pbft)
-
-  if(EXPERIMENTAL_PBFT_TESTS)
-    add_test(
-      NAME test_UDP_with_delay
-      COMMAND
-        python3 ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/e2e_test.py --ip
-        127.0.0.1 --servers 4 --clients 2 --test-config
-        ${CMAKE_SOURCE_DIR}/tests/infra/libbyz/test_config --with-delays
-    )
-    set_property(TEST test_UDP_with_delay PROPERTY LABELS pbft)
-  endif()
 endif()

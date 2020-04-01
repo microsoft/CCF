@@ -435,6 +435,29 @@ bool Pre_prepare::Requests_iter::has_more_requests()
   return false;
 }
 
+Pre_prepare::ValidProofs_iter::ValidProofs_iter(Pre_prepare* m)
+{
+  msg = m;
+  proofs = m->proofs();
+  proofs_left = m->proofs_size();
+}
+
+bool Pre_prepare::ValidProofs_iter::get(int& id, bool& is_valid_proof)
+{
+  if (proofs_left <= 0)
+  {
+    return false;
+  }
+
+  auto* ic = reinterpret_cast<Included_sig*>(proofs);
+  id = ic->pid;
+  is_valid_proof = true;
+  proofs += ALIGNED_SIZE(sizeof(Included_sig));
+  proofs_left--;
+
+  return true;
+}
+
 bool Pre_prepare::convert(Message* m1, Pre_prepare*& m2)
 {
   if (!m1->has_tag(Pre_prepare_tag, sizeof(Pre_prepare_rep)))

@@ -98,11 +98,13 @@ public:
   // Otherwise, it inserts "vca" in this (if its digest matches the
   // view-change's) or deletes vca (otherwise) and returns true.
 
-  Pre_prepare* fetch_request(Seqno n, Digest& d);
+  Pre_prepare* fetch_request(Seqno n, Digest& d, View& prev_view);
   // Requires: "complete" and "n" is the sequence number of a request
   // in new-view message.
   // Effects: Sets "d" to the digest of the request with sequence
-  // number "n". If enough information to make a pre-prepare is available, it
+  // number "n". Sets "prev_view" to the view that this request was executed in
+  // if it has completed, otherwise sets it to the current view.
+  // If enough information to make a pre-prepare is available, it
   // returns an appropriate pre-prepare. Otherwise, returns zero. The
   // caller is responsible for deallocating any returned pre-prepare.
 
