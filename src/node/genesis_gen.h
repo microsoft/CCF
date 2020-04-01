@@ -6,7 +6,7 @@
 #include "lua_interp/lua_interp.h"
 #include "lua_interp/lua_util.h"
 #include "members.h"
-#include "networktables.h"
+#include "network_tables.h"
 #include "node_info_network.h"
 #include "nodes.h"
 #include "rpc/consts.h"
@@ -348,6 +348,13 @@ namespace ccf
     {
       auto shares_view = tx.get_view(tables.shares);
       shares_view->put(0, key_share_info);
+    }
+
+    void set_recovery_threshold(size_t threshold)
+    {
+      auto config_view = tx.get_view(tables.config);
+      LOG_FAIL_FMT("Setting recovery threshold to {}", threshold);
+      config_view->put(0, {threshold});
     }
   };
 }

@@ -872,6 +872,8 @@ namespace ccf
           g.add_member(cert, k_encryption_key);
         }
 
+        g.set_recovery_threshold(in.recovery_threshold);
+
         g.add_consensus(in.consensus_type);
 
         if (!node.split_ledger_secrets(tx))
