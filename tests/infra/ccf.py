@@ -293,16 +293,16 @@ class Network:
         LOG.success("All nodes joined recovered public network")
 
     def stop_all_nodes(self):
-        errors_found = False
+        fatal_error_found = False
         for node in self.nodes:
-            node_errors = node.stop()
-            if node_errors:
-                errors_found = True
+            _, fatal_errors = node.stop()
+            if fatal_errors:
+                fatal_error_found = True
 
         LOG.info("All remotes stopped...")
 
-        if errors_found:
-            raise NodeShutdownError(f"Non-empty error output during node shutdown")
+        if fatal_error_found:
+            raise NodeShutdownError(f"Fatal error found during node shutdown")
 
     def create_and_add_pending_node(
         self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
@@ -329,7 +329,7 @@ class Network:
             # The node can be safely discarded since it has not been
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
-            errors = new_node.stop()
+            errors, _ = new_node.stop()
             self.nodes.remove(new_node)
             if errors:
                 # Throw accurate exceptions if known errors found in
