@@ -185,9 +185,9 @@ class Node:
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
-            errors = self.remote.stop()
             self.network_state = NodeNetworkState.stopped
-            return errors
+            return self.remote.stop()
+        return [], []
 
     def is_stopped(self):
         return self.network_state == NodeNetworkState.stopped

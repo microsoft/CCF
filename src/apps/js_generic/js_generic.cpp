@@ -205,6 +205,7 @@ namespace ccfapp
         auto cstr = JS_ToCString(ctx, rval);
         auto response = nlohmann::json::parse(cstr);
 
+        JS_FreeValue(ctx, rval);
         JS_FreeCString(ctx, cstr);
         JS_FreeValue(ctx, val);
 

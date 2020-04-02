@@ -22,6 +22,7 @@ namespace pbft
   class PbftConfigCcf : public AbstractPbftConfig
   {
     static constexpr uint32_t max_update_merkle_tree_interval = 50;
+    static constexpr uint32_t min_update_merkle_tree_interval = 10;
 
   public:
     PbftConfigCcf(std::shared_ptr<enclave::RPCMap> rpc_map_) : rpc_map(rpc_map_)
@@ -86,8 +87,10 @@ namespace pbft
 
       if (
         info.pending_cmd_callbacks %
-          PbftConfigCcf::max_update_merkle_tree_interval ==
-        0)
+            PbftConfigCcf::max_update_merkle_tree_interval ==
+          0 ||
+        info.pending_cmd_callbacks <
+          PbftConfigCcf::min_update_merkle_tree_interval)
       {
         try
         {
