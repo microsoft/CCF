@@ -2311,7 +2311,6 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
 {
   auto stash_replier = request.replier();
   request.set_replier(-1);
-  replies.count_request();
   int client_id = request.client_id();
 
   auto cmd = std::make_unique<ExecCommandMsg>(
@@ -3084,7 +3083,6 @@ void Replica::handle(Reply_stable* m)
 
       LOG_INFO << "sending recovery request" << std::endl;
       // Send recovery request.
-      START_CC(rr_time);
       rr = new Request(new_rid(), -1);
 
       int len;
@@ -3094,7 +3092,6 @@ void Replica::handle(Reply_stable* m)
 
       rr->sign(sizeof(recovery_point));
       send(rr, primary());
-      STOP_CC(rr_time);
 
       LOG_INFO << "Starting state checking" << std::endl;
 

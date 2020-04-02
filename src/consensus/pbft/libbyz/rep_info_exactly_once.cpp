@@ -83,13 +83,6 @@ char* Rep_info_exactly_once::new_reply(int pid)
   return r->contents() + sizeof(Reply_rep);
 }
 
-void Rep_info_exactly_once::count_request()
-{
-  pbft::GlobalState::get_replica().modify(
-    mem + size() - sizeof(Seqno), sizeof(Seqno));
-  (*total_processed)++;
-}
-
 int Rep_info_exactly_once::new_reply_size() const
 {
   return Max_rep_size - sizeof(Reply_rep) - MAC_size;
@@ -145,14 +138,11 @@ void Rep_info_exactly_once::send_reply(int pid, View v, int id, bool tentative)
   rr.replica = id;
 
   INCR_OP(reply_auth);
-  START_CC(reply_auth_cycles);
 
   r->auth_type = Auth_type::out;
   r->auth_len = sizeof(Reply_rep);
   r->auth_src_offset = 0;
   r->auth_dst_offset = old_size;
-
-  STOP_CC(reply_auth_cycles);
 
   pbft::GlobalState::get_node().send(r, pid);
 

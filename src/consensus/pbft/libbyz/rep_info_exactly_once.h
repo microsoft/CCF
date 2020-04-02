@@ -57,11 +57,6 @@ public:
   // Effects: Returns a pointer to a buffer where the new reply value
   // for principal "pid" can be placed. Sets the reply to tentative.
 
-  void count_request();
-  // Effects: increases the total_processed counter that holds
-  // how many individual requests have been processes since the
-  // replica was initialized. Should be called once for each request.
-
   int new_reply_size() const;
   // Returns the size of the reply buffer size
 

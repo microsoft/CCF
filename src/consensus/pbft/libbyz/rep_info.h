@@ -37,11 +37,6 @@ public:
   Seqno total_requests_processed() const;
   // Returns the number of individual requests processed by the replica
 
-  void count_request();
-  // Effects: increases the total_processed counter that holds
-  // how many individual requests have been processes since the
-  // replica was initialized. Should be called once for each request.
-
   char* new_reply(
     int pid, Request_id rid, Seqno n, uint64_t nonce, uint32_t message_size);
   // Effects: Allocates a new reply for request rid from

@@ -45,7 +45,6 @@ Pre_prepare::Pre_prepare(
   dh.finalize(context);
   rep().hashed_nonce = dh;
 
-  START_CC(pp_digest_cycles);
   INCR_OP(pp_digest);
 
   // Fill in the request portion with as many requests as possible
@@ -116,7 +115,6 @@ Pre_prepare::Pre_prepare(
   }
   rep().n_big_reqs = n_big_reqs;
 
-  STOP_CC(pp_digest_cycles);
   INCR_CNT(sum_batch_size, requests_in_batch);
   INCR_OP(batch_size_histogram[requests_in_batch]);
 
@@ -252,7 +250,6 @@ bool Pre_prepare::calculate_digest(Digest& d)
 #endif
   if (size() >= min_size)
   {
-    START_CC(pp_digest_cycles);
     INCR_OP(pp_digest);
 
     // Check digest.
@@ -296,7 +293,6 @@ bool Pre_prepare::calculate_digest(Digest& d)
       context, (char*)big_reqs(), rep().n_big_reqs * sizeof(Digest));
     d.finalize(context);
 
-    STOP_CC(pp_digest_cycles);
     return true;
   }
   return false;
