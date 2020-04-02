@@ -9,19 +9,12 @@ jobs:
       clean: true
       submodules: true
 
-    - script: |
-        git_tag=`git describe --tags --abbrev=0`
-        git_tag=${git_tag#v}
-        cmake_version=`grep CCF_VERSION CMakeLists.txt | grep -Po "(\d)+\.(\d)+\.(\d)+"`
-        if [[ $git_tag != $cmake_version ]]; then
-          echo "Git tag version ($git_tag) does not match CMake project version ($cmake_version)"
-          exit 1
-        fi
-      displayName: 'Check version matches in CMake and git tag'
-      condition: succeededOrFailed()
-
     - script: find . -type f -regex ".*\.sh$" | egrep -v "^./3rdparty/" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
       displayName: 'Shell Check'
+      condition: succeededOrFailed()
+
+    - script: ./check-versions.sh
+      displayName: 'Check project version in CMake against git tag'
       condition: succeededOrFailed()
 
     - script: ./check-todo.sh src
