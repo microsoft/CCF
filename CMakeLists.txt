@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.8.2
+  VERSION 0.8.2 # CCF_VERSION < This is a search marker for checks.yml
   LANGUAGES C CXX
 )
 
