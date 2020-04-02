@@ -539,7 +539,6 @@ if(BUILD_TESTS)
     NAME late_joiners
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
     CONSENSUS pbft
-    ADDITIONAL_ARGS --skip-suspension
   )
 
   if(BUILD_SMALLBANK)
