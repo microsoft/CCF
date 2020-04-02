@@ -567,11 +567,13 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
     )
 
-    add_e2e_test(
-      NAME tlstest_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
-      CONSENSUS ${CONSENSUS} LABEL tlstest
-    )
+    if(TLS_TEST)
+      add_e2e_test(
+        NAME tlstest_${CONSENSUS}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
+        CONSENSUS ${CONSENSUS} LABEL tlstest
+      )
+    endif()
 
     add_e2e_test(
       NAME schema_tests_${CONSENSUS}
