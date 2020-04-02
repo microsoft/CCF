@@ -48,13 +48,11 @@ char* Request::store_command(int& max_len)
 inline void Request::comp_digest(Digest& d)
 {
   INCR_OP(num_digests);
-  START_CC(digest_cycles);
 
   d = Digest(
     (char*)&(rep().cid),
     sizeof(int) + sizeof(uint64_t) + sizeof(Request_id) + rep().command_size);
 
-  STOP_CC(digest_cycles);
 }
 
 void Request::authenticate(int act_len, bool read_only)

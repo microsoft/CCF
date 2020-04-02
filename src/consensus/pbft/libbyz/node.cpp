@@ -37,9 +37,6 @@
 
 Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
 {
-  // Compute clock frequency.
-  init_clock_mhz();
-
   replica_count = 0;
 
   key_pair =
@@ -200,7 +197,6 @@ void Node::send(Message* m, Principal* p)
   {
     INCR_OP(num_sendto);
     INCR_CNT(bytes_out, size);
-    START_CC(sendto_cycles);
     if (!network)
     {
       throw std::logic_error("Network not set");
@@ -208,7 +204,6 @@ void Node::send(Message* m, Principal* p)
 
     error = network->Send(m, *p);
 
-    STOP_CC(sendto_cycles);
 #ifndef NDEBUG
     if (error < 0 && error != EAGAIN)
       perror("Node::send: sendto");
@@ -244,12 +239,10 @@ Message* Node::recv()
 size_t Node::gen_signature(const char* src, unsigned src_len, char* sig)
 {
   INCR_OP(num_sig_gen);
-  START_CC(sig_gen_cycles);
 
   auto signature = key_pair->sign(CBuffer{(uint8_t*)src, src_len});
   std::copy(signature.begin(), signature.end(), sig);
 
-  STOP_CC(sig_gen_cycles);
 
   return signature.size();
 }
@@ -258,13 +251,11 @@ size_t Node::gen_signature(
   const char* src, unsigned src_len, PbftSignature& sig)
 {
   INCR_OP(num_sig_gen);
-  START_CC(sig_gen_cycles);
 
   size_t sig_size;
   key_pair->sign(CBuffer{(uint8_t*)src, src_len}, &sig_size, sig.data());
   assert(sig_size <= sig.size());
 
-  STOP_CC(sig_gen_cycles);
   return sig_size;
 }
 

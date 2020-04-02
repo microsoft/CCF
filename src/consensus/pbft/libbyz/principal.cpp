@@ -51,10 +51,8 @@ bool Principal::verify_signature(
   }
 
   INCR_OP(num_sig_ver);
-  START_CC(sig_ver_cycles);
 
   bool ret = verifier->verify((uint8_t*)src, src_len, sig, sig_size);
 
-  STOP_CC(sig_ver_cycles);
   return ret;
 }

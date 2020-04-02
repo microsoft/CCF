@@ -87,7 +87,7 @@ namespace pbft
       if (
         info.pending_cmd_callbacks %
           PbftConfigCcf::max_update_merkle_tree_interval ==
-        0)
+        0 || info.pending_cmd_callbacks < 10)
       {
         try
         {
