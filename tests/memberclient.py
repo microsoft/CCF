@@ -122,7 +122,9 @@ def run(args):
         """
         try:
             proposal = new_member.propose(primary, script, 0)
-            assert False, "New non-active member should get insufficient rights response"
+            assert (
+                False
+            ), "New non-active member should get insufficient rights response"
         except infra.proposal.ProposalNotCreated as e:
             assert e.args[0].status == http.HTTPStatus.FORBIDDEN.value
 
@@ -174,7 +176,9 @@ def run(args):
 
         LOG.debug("Retired member cannot make a new proposal")
         try:
-            response = network.consortium.get_member_by_id(0).propose(primary, script, 0)
+            response = network.consortium.get_member_by_id(0).propose(
+                primary, script, 0
+            )
             assert False, "Retired member cannot make a new proposal"
         except infra.proposal.ProposalNotCreated as e:
             assert e.args[0].status == http.HTTPStatus.FORBIDDEN.value

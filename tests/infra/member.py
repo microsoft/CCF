@@ -105,7 +105,6 @@ class Member:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
 
-
     ############################################################################
 
     def update_ack_state_digest(self, remote_node):
