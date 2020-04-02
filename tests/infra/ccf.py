@@ -273,9 +273,7 @@ class Network:
         self.consortium.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
-        self.consortium.open_network(
-            remote_node=primary, pbft_open=args.consensus == "pbft"
-        )
+        self.consortium.open_network(remote_node=primary)
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 

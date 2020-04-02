@@ -38,7 +38,6 @@ class Consortium:
     def generate_and_propose_new_member(self, remote_node, curve):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
-
         new_member_id = len(self.members)
         LOG.warning(f"New member id: {new_member_id}")
 
@@ -75,7 +74,6 @@ class Consortium:
         # If the member was successfully registered, add it to the
         # local list of consortium members
         self.members.append(new_member)
-
         return new_member
 
     def get_members_info(self):
@@ -165,15 +163,6 @@ class Consortium:
                 )
         return proposals
 
-    def retire_member(self, member):
-        # TODO
-        pass
-
-        # Also return result?
-        # Also remove member if she is retired
-
-    ##################################################################
-
     def retire_node(self, remote_node, node_to_retire):
         script = """
         tables, node_id = ...
@@ -229,6 +218,7 @@ class Consortium:
         """
         proposal = self.get_any_active_member().propose(remote_node, script, member_id)
         self.vote_using_majority(remote_node, proposal)
+        self.get_member_by_id(member_id).status = infra.member.MemberStatus.RETIRED
 
     def open_network(self, remote_node, pbft_open=False):
         """
@@ -241,10 +231,7 @@ class Consortium:
         return Calls:call("open_network")
         """
         proposal = self.get_any_active_member().propose(remote_node, script)
-        # TODO: Check if should_wait_for_global_commit_flag is still required
-        self.vote_using_majority(
-            remote_node, proposal, should_wait_for_global_commit=not pbft_open
-        )
+        self.vote_using_majority(remote_node, proposal)
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, remote_node):
@@ -428,8 +415,6 @@ class Consortium:
             assert (
                 current_status == status.name
             ), f"Service status {current_status} (expected {status.name})"
-
-    ##################################################################
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.member_client() as c:

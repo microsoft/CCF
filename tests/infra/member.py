@@ -14,7 +14,7 @@ from loguru import logger as LOG
 class MemberStatus(Enum):
     ACCEPTED = 0
     ACTIVE = 1
-    # TODO: Add RETIRED
+    RETIRED = 2
 
 
 class Member:
@@ -41,8 +41,6 @@ class Member:
     def set_active(self):
         # Use this with caution (i.e. only when the network is opening)
         self.status = MemberStatus.ACTIVE
-
-    ####################### CORE FUNCTIONS #####################################
 
     def propose(self, remote_node, script=None, params=None, vote_for=True):
         with remote_node.member_client(self.member_id) as mc:
@@ -104,8 +102,6 @@ class Member:
             if r.status == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
-
-    ############################################################################
 
     def update_ack_state_digest(self, remote_node):
         with remote_node.member_client(member_id=self.member_id) as mc:
