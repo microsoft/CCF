@@ -65,7 +65,6 @@ Reply::Reply(
   auth_len = sizeof(Reply_rep);
   auth_src_offset = 0;
   auth_dst_offset = sizeof(Reply_rep);
-
 }
 
 Reply* Reply::copy(int id) const
@@ -118,7 +117,6 @@ void Reply::re_authenticate(Principal* p)
   auth_len = sizeof(Reply_rep);
   auth_src_offset = 0;
   auth_dst_offset = old_size;
-
 }
 
 void Reply::commit(Principal* p)

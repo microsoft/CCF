@@ -305,7 +305,6 @@ void State::cow_single(int i)
 
   checkpoint_log.fetch(lc).append(PLevels - 1, i, bcp);
   cowb.set(i);
-
 }
 
 void State::cow(char* m, int size)
@@ -712,7 +711,6 @@ void State::send_fetch(bool change_replier)
       cert->add(mdd, true);
     }
   }
-
 }
 
 bool State::handle(Fetch* m, Seqno ls)

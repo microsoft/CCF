@@ -243,7 +243,6 @@ size_t Node::gen_signature(const char* src, unsigned src_len, char* sig)
   auto signature = key_pair->sign(CBuffer{(uint8_t*)src, src_len});
   std::copy(signature.begin(), signature.end(), sig);
 
-
   return signature.size();
 }
 
