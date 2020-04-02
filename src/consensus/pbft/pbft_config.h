@@ -90,7 +90,7 @@ namespace pbft
             PbftConfigCcf::max_update_merkle_tree_interval ==
           0 ||
         info.pending_cmd_callbacks <
-          PbftConfigCcf::max_update_merkle_tree_interval)
+          PbftConfigCcf::min_update_merkle_tree_interval)
       {
         try
         {
