@@ -13,7 +13,7 @@ jobs:
       displayName: 'Shell Check'
       condition: succeededOrFailed()
 
-    - script: ./check-versions.sh
+    - script: ./check-cmake-version-vs-tag.sh
       displayName: 'Check project version in CMake against git tag'
       condition: succeededOrFailed()
 
