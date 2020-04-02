@@ -140,6 +140,16 @@ namespace ccf
 
            return true;
          }},
+        // retire an existing member
+        {"retire_member",
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           const auto member_id = args.get<MemberId>();
+           GenesisGenerator g(this->network, tx);
+
+           // TODO: If successful, re-key and re-issue new shares
+           return g.retire_member(member_id);
+         }},
         // add a new user
         {"new_user",
          [this](
@@ -302,6 +312,29 @@ namespace ccf
              LOG_FAIL_FMT("Proposal {}: Ledger rekey failed", proposal_id);
            }
            return ledger_rekeyed;
+         }},
+        {"set_recovery_threshold",
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           const auto recovery_threshold = args.get<size_t>();
+
+           GenesisGenerator g(this->network, tx);
+           auto active_members_count = g.get_active_members_count();
+
+           if (recovery_threshold > active_members_count)
+           {
+             LOG_FAIL_FMT(
+               "Recovery threshold cannot be set to {} as it is greater than "
+               "the number of active members ({})",
+               recovery_threshold,
+               active_members_count);
+             return false;
+           }
+           g.set_recovery_threshold(recovery_threshold);
+
+           // TODO: Issue new shares
+
+           return true;
          }},
       };
 
@@ -825,7 +858,7 @@ namespace ccf
           in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
 
         pending_shares.emplace_back(share);
-        if (pending_shares.size() < g.get_active_members_count())
+        if (pending_shares.size() < g.get_recovery_threshold())
         {
           // The number of shares required to re-assemble the secret has not
           // yet been reached

@@ -14,11 +14,14 @@ namespace ccf
   enum class MemberStatus
   {
     ACCEPTED = 0,
-    ACTIVE = 1
+    ACTIVE = 1,
+    RETIRED = 2,
   };
   DECLARE_JSON_ENUM(
     MemberStatus,
-    {{MemberStatus::ACCEPTED, "ACCEPTED"}, {MemberStatus::ACTIVE, "ACTIVE"}});
+    {{MemberStatus::ACCEPTED, "ACCEPTED"},
+     {MemberStatus::ACTIVE, "ACTIVE"},
+     {MemberStatus::RETIRED, "RETIRED"}});
 }
 
 MSGPACK_ADD_ENUM(ccf::MemberStatus);

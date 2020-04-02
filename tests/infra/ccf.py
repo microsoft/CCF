@@ -236,14 +236,13 @@ class Network:
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
-        :param open_network: If false, only the nodes are started.
         """
         self.common_dir = get_common_folder_name(args.workspace, args.label)
         self._setup_common_folder(args.gov_script)
 
-        initial_members = list(range(max(1, args.initial_member_count)))
+        initial_member_ids = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
-            initial_members,
+            initial_member_ids,
             args.participants_curve,
             self.key_generator,
             self.common_dir,
@@ -275,7 +274,7 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            member_id=0, remote_node=primary, pbft_open=args.consensus == "pbft"
+            remote_node=primary, pbft_open=args.consensus == "pbft"
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
@@ -388,7 +387,7 @@ class Network:
             time.sleep(0.1)
         else:
             raise TimeoutError(
-                f"Timed out waiting for public ledger to be read on node {node.node_id}"
+                f"Timed out waiting for state {state} on node {node.node_id}"
             )
         if state == "partOfNetwork":
             self.status = ServiceStatus.OPEN

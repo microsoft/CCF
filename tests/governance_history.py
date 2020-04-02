@@ -6,7 +6,7 @@ import infra.proc
 import infra.remote
 import infra.crypto
 import infra.ledger
-from infra.proposal_state import ProposalState
+from infra.proposal import ProposalState
 import json
 import http
 
