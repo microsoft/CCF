@@ -2,7 +2,7 @@ pr:
   branches:
     include:
       - master
-  path:
+  paths:
     include:
       - .daily.yml
       - .azure-pipelines-templates/*
