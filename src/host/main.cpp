@@ -52,7 +52,7 @@ int main(int argc, char** argv)
     VIRTUAL
   };
 
-  std::map<std::string, EnclaveType> enclave_type_map = {
+  std::vector<std::pair<std::string, EnclaveType>> enclave_type_map = {
     {"debug", EnclaveType::DEBUG}, {"virtual", EnclaveType::VIRTUAL}};
 
   EnclaveType enclave_type;
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
     ->transform(CLI::CheckedTransformer(enclave_type_map, CLI::ignore_case));
 
   ConsensusType consensus;
-  std::map<std::string, ConsensusType> consensus_map{
+  std::vector<std::pair<std::string, ConsensusType>> consensus_map{
     {"raft", ConsensusType::RAFT}, {"pbft", ConsensusType::PBFT}};
   app.add_option("-c,--consensus", consensus, "Consensus")
     ->required()
@@ -104,10 +104,11 @@ int main(int argc, char** argv)
     ->capture_default_str();
 
   logger::Level host_log_level{logger::Level::INFO};
-  std::map<std::string, logger::Level> level_map;
+  std::vector<std::pair<std::string, logger::Level>> level_map;
   for (int i = logger::TRACE; i < logger::MAX_LOG_LEVEL; i++)
   {
-    level_map[logger::config::LevelNames[i]] = static_cast<logger::Level>(i);
+    level_map.emplace_back(
+      logger::config::LevelNames[i], static_cast<logger::Level>(i));
   }
   app
     .add_option(
