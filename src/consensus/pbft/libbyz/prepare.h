@@ -156,6 +156,14 @@ inline bool Prepare::is_proof() const
 
 inline bool Prepare::match(const Prepare* p) const
 {
+  LOG_INFO_FMT(
+    "view {} p view {} seqno {} p seqno {} digest {} p digest {}",
+    view(),
+    p->view(),
+    seqno(),
+    p->seqno(),
+    digest().hash(),
+    p->digest().hash());
   PBFT_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
   return digest() == p->digest();
 }

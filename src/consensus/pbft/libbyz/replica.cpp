@@ -66,11 +66,7 @@ Replica::Replica(
   brt(node_info.general_info.num_replicas),
   pbft_requests_map(pbft_requests_map_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_),
-#ifdef ENFORCE_EXACTLY_ONCE
-  replies(mem, nbytes, num_principals),
-#else
   replies(mem, nbytes),
-#endif
   rep_cb(nullptr),
   global_commit_cb(nullptr),
   entropy(tls::create_entropy()),
@@ -832,13 +828,6 @@ void Replica::handle(Request* m)
   {
     LOG_TRACE << "Received request with rid: " << m->request_id()
               << " with cid: " << m->client_id() << std::endl;
-
-#ifdef ENFORCE_EXACTLY_ONCE
-    int client_id = m->client_id();
-    Request_id rid = m->request_id();
-    Request_id last_rid = replies.req_id(client_id);
-    if (last_rid < rid)
-#endif
     {
       if (id() == primary())
       {
@@ -869,25 +858,6 @@ void Replica::handle(Request* m)
         }
       }
     }
-#ifdef ENFORCE_EXACTLY_ONCE
-    else if (last_rid == rid)
-    {
-      // Retransmit reply.
-      if (replies.is_committed(client_id))
-      {
-        LOG_DEBUG << "Retransmit reply for client id: " << client_id
-                  << " in view: " << view() << " with rid: " << rid
-                  << std::endl;
-        INCR_OP(message_counts_retransmitted[Reply_tag]);
-        replies.send_reply(client_id, view(), id(), false);
-      }
-      else if (id() != primary() && rqueue.append(m))
-      {
-        start_vtimer_if_request_waiting();
-        return;
-      }
-    }
-#endif
   }
   else
   {
@@ -1893,9 +1863,7 @@ void Replica::send_view_change()
   LOG_INFO << "elog:" << std::endl;
   elog.dump_state(std::cout);
 
-#ifndef ENFORCE_EXACTLY_ONCE
   replies.clear();
-#endif
 
   rollback_to_globally_comitted();
 
@@ -2229,12 +2197,10 @@ void Replica::global_commit(Pre_prepare* pp)
 
 void Replica::execute_prepared(bool committed)
 {
-#ifndef ENFORCE_EXACTLY_ONCE
   if (committed)
   {
     return;
   }
-#endif
 
   Pre_prepare* pp = prepared_pre_prepare(last_executed + 1);
 
@@ -2250,18 +2216,12 @@ void Replica::execute_prepared(bool committed)
       int client_id = request.client_id();
       Request_id rid = request.request_id();
 
-#ifdef ENFORCE_EXACTLY_ONCE
-      Reply* reply = replies.reply(client_id);
-      PBFT_ASSERT(reply != nullptr, "Reply not in replies");
-      bool reply_is_committed = replies.is_committed(client_id);
-#else
       Reply* reply = replies.reply(client_id, rid, last_executed + 1);
       bool reply_is_committed = false;
       if (reply == nullptr)
       {
         continue;
       }
-#endif
       // int reply_size = reply->size();
 
       if (reply->request_id() == rid && reply_is_committed == committed)
@@ -2287,11 +2247,8 @@ void Replica::execute_prepared(bool committed)
 #endif
         {
           // Send full reply.
-#ifdef ENFORCE_EXACTLY_ONCE
-          replies.send_reply(client_id, view(), id(), !committed);
-#else
-          replies.send_reply(client_id, rid, last_executed + 1, view(), id());
-#endif
+          replies.send_reply(
+            client_id, rid, last_executed + 1, pp->execution_view(), id());
         }
       }
     }
@@ -2545,10 +2502,6 @@ void Replica::execute_committed(bool was_f_0)
         {
           int client_id = request.client_id();
 
-#ifdef ENFORCE_EXACTLY_ONCE
-          replies.commit_reply(client_id);
-#endif
-
           // Remove the request from rqueue if present.
           if (rqueue.remove(client_id, request.request_id()))
           {
@@ -2660,9 +2613,7 @@ void Replica::new_state(Seqno c)
     has_nv_state = true;
   }
 
-#ifndef ENFORCE_EXACTLY_ONCE
   replies.clear();
-#endif
 
 #ifdef DEBUG_SLOW
   debug_slow_timer->start();
@@ -2688,13 +2639,6 @@ void Replica::new_state(Seqno c)
   {
     last_executed = last_tentative_execute = c;
     stats.last_executed = last_executed;
-
-#ifdef ENFORCE_EXACTLY_ONCE
-    if (replies.new_state(&rqueue))
-    {
-      vtimer->stop();
-    }
-#endif
 
     rqueue.clear();
 
@@ -2793,10 +2737,6 @@ void Replica::mark_stable(Seqno n, bool have_state)
     PBFT_ASSERT(last_tentative_execute < last_stable, "Invalid state");
     last_executed = last_tentative_execute = last_stable;
     stats.last_executed = last_executed;
-
-#ifdef ENFORCE_EXACTLY_ONCE
-    replies.new_state(&rqueue);
-#endif
 
     if (last_stable > last_prepared)
     {

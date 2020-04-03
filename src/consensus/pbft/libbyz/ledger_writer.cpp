@@ -33,6 +33,7 @@ kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp, View view)
 
 kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
 {
+  pp->set_execution_view(pp->view());
   LOG_TRACE_FMT(
     "Writing pre prepare with seqno {}, num big reqs {}, view {}",
     pp->seqno(),

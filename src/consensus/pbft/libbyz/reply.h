@@ -185,7 +185,14 @@ inline bool Reply::match(Reply* r)
   {
     return false;
   }
-
+  LOG_INFO_FMT(
+    "rep n {} r rep n {} is_tent {} r is_tent {}, view {}, r view {}",
+    rep().n,
+    r->rep().n,
+    is_tentative(),
+    r->is_tentative(),
+    view(),
+    r->view());
   return (rep().n == r->rep().n) &
     ((!is_tentative() & !r->is_tentative()) | (view() == r->view()));
 }

@@ -31,7 +31,8 @@ Pre_prepare::Pre_prepare(
       (pbft_max_signature_size + sizeof(uint64_t)) *
         pbft::GlobalState::get_node()
           .num_of_replicas()), // signatures for the previous pre_prepare
-  nonce(nonce_)
+  nonce(nonce_),
+  execution_v(v)
 {
   rep().view = v;
   rep().seqno = s;
