@@ -38,7 +38,7 @@ def build_bin_path(bin_name, enclave_type=None, binary_dir="."):
     if enclave_type == "virtual":
         bin_name = f"{bin_name}.virtual"
 
-    return os.path.join(binary_dir, bin_name)
+    return os.path.join(binary_dir, os.path.normpath(bin_name))
 
 
 def default_workspace():
