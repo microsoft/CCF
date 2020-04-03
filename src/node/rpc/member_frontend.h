@@ -146,7 +146,8 @@ namespace ccf
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
-           // TODO: Check that new member of nodes is not less than recovery threshold!
+           // TODO: Check that new member of nodes is not less than recovery
+           // threshold!
 
            GenesisGenerator g(this->network, tx);
 
