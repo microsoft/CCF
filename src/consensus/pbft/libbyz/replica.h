@@ -137,7 +137,8 @@ public:
   void send(Message* m, int i);
   Seqno get_last_executed() const;
   int my_id() const;
-  char* create_response_message(int client_id, Request_id rid, uint32_t size);
+  char* create_response_message(
+    int client_id, Request_id rid, uint32_t size, uint64_t nonce);
 
   // variables used to keep track of versions so that we can tell the kv to
   // rollback
@@ -208,6 +209,12 @@ public:
   // Playback methods
   void playback_request(ccf::Store::Tx& tx);
   // Effects: Requests are executed
+  void populate_certificates(Pre_prepare* pp, bool add_mine = false);
+  // Effects: The pre-prepare contains the prepare proofs
+  // of the previous seqno. We use the proofs to create
+  // "Prepare" messages for the previous seqno and add those prepares
+  // to the plog. If add_mine is true, we also creates and adds the "Prepare"
+  // message for the caller
   void playback_pre_prepare(ccf::Store::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
@@ -306,6 +313,7 @@ private:
     Seqno seqno;
     bool send_only_to_self = false;
     std::optional<ByzInfo> orig_byzinfo;
+    uint64_t nonce;
   };
 
   struct ExecuteTentativeCbMsg
@@ -329,7 +337,7 @@ private:
     std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& cmds,
     uint32_t& num_requests);
 
-  bool execute_tentative(Pre_prepare* pp, ByzInfo& info);
+  bool execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce);
 
   bool execute_tentative(
     Pre_prepare* pp,
@@ -575,6 +583,8 @@ private:
   // Used when opening the network. After the network has been opened on the
   // primary it will buffer messages until the other nodes have successfully
   // opened their networks
+
+  std::shared_ptr<tls::Entropy> entropy;
 
 #ifdef DEBUG_SLOW
   std::unique_ptr<ITimer> debug_slow_timer; // Used to dump state when requests

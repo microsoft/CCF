@@ -1029,13 +1029,6 @@ namespace ccf
       members(&network.members)
     {}
 
-    std::vector<uint8_t> get_cert_to_forward(
-      std::shared_ptr<enclave::RpcContext> ctx) override
-    {
-      // Caller cert can be looked up on receiver - so don't forward it
-      return {};
-    }
-
     bool lookup_forwarded_caller_cert(
       std::shared_ptr<enclave::RpcContext> ctx, Store::Tx& tx) override
     {

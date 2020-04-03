@@ -390,10 +390,13 @@ bool Certificate<T>::add(T* msg)
       c == 0 ||
       (c->msg != nullptr && c->count < complete && c->msg->match(msg)))
     {
-      // add "msg" to the certificate
-      PBFT_ASSERT(
-        id != pbft::GlobalState::get_node().id(),
-        "verify should return false for messages from self");
+      // add msg to the certificate
+      if (id != pbft::GlobalState::get_node().id())
+      {
+        LOG_DEBUG_FMT(
+          "Adding certificate for replica other than myself, replica id {}",
+          id);
+      }
 
       bmap.set(id);
       if (c)

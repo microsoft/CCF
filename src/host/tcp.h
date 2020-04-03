@@ -160,16 +160,20 @@ namespace asynchost
         }
 
         case CONNECTED:
+        {
           return send_write(req, len);
+        }
 
         case DISCONNECTED:
         {
           LOG_DEBUG_FMT("Disconnected: Ignoring write of size {}", len);
+          free_write(req);
           break;
         }
 
         default:
         {
+          free_write(req);
           throw std::logic_error(
             fmt::format("Unexpected status during write: {}", status));
         }

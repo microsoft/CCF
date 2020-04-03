@@ -22,6 +22,8 @@ struct Reply_rep : public Message_rep
   View v; // current view
   Request_id rid; // unique request identifier
   Seqno n; // sequence number when request was executed
+  uint64_t nonce; // plain text pre-prepare or prepare nonce that will be sent
+                  // to the client
   int replica; // id of replica sending the reply
   int reply_size; // if negative, reply is not full.
   // Followed by a reply that is "reply_size" bytes long and
@@ -47,7 +49,13 @@ public:
 
   Reply(Reply_rep* r);
 
-  Reply(View view, Request_id req, Seqno n, int replica, uint32_t reply_size);
+  Reply(
+    View view,
+    Request_id req,
+    Seqno n,
+    uint64_t nonce,
+    int replica,
+    uint32_t reply_size);
   // Effects: Creates a new (full) Reply message with an empty reply and no
   // authentication. The method store_reply and authenticate should
   // be used to finish message construction.
@@ -75,6 +83,7 @@ public:
     View view,
     Request_id req,
     Seqno n,
+    uint64_t nonce,
     int replica,
     Principal* p,
     bool tentative);

@@ -12,12 +12,18 @@
 #include "statistics.h"
 
 Reply::Reply(
-  View view, Request_id req, Seqno n, int replica, uint32_t reply_size) :
+  View view,
+  Request_id req,
+  Seqno n,
+  uint64_t nonce,
+  int replica,
+  uint32_t reply_size) :
   Message(Reply_tag, sizeof(Reply_rep) + reply_size + MAC_size)
 {
   rep().v = view;
   rep().rid = req;
   rep().n = n;
+  rep().nonce = nonce;
   rep().replica = replica;
   rep().reply_size = 0;
   set_size(sizeof(Reply_rep) + reply_size + MAC_size);
@@ -29,6 +35,7 @@ Reply::Reply(
   View view,
   Request_id req,
   Seqno n,
+  uint64_t nonce,
   int replica,
   Principal* p,
   bool tentative) :
@@ -46,11 +53,11 @@ Reply::Reply(
   rep().v = view;
   rep().rid = req;
   rep().n = n;
+  rep().nonce = nonce;
   rep().replica = replica;
   rep().reply_size = -1;
 
   INCR_OP(reply_auth);
-  START_CC(reply_auth_cycles);
   // p->gen_mac_out(contents(), sizeof(Reply_rep),
   // contents()+sizeof(Reply_rep));
 
@@ -58,8 +65,6 @@ Reply::Reply(
   auth_len = sizeof(Reply_rep);
   auth_src_offset = 0;
   auth_dst_offset = sizeof(Reply_rep);
-
-  STOP_CC(reply_auth_cycles);
 }
 
 Reply* Reply::copy(int id) const
@@ -92,14 +97,11 @@ void Reply::authenticate(Principal* p, int act_len, bool tentative)
   set_size(old_size + MAC_size);
 
   INCR_OP(reply_auth);
-  START_CC(reply_auth_cycles);
 
   auth_type = Auth_type::out;
   auth_len = sizeof(Reply_rep);
   auth_src_offset = 0;
   auth_dst_offset = old_size;
-
-  STOP_CC(reply_auth_cycles);
 
   trim();
 }
@@ -109,15 +111,12 @@ void Reply::re_authenticate(Principal* p)
   int old_size = sizeof(Reply_rep) + rep().reply_size;
 
   INCR_OP(reply_auth);
-  START_CC(reply_auth_cycles);
   // p->gen_mac_out(contents(), sizeof(Reply_rep), contents()+old_size);
 
   auth_type = Auth_type::out;
   auth_len = sizeof(Reply_rep);
   auth_src_offset = 0;
   auth_dst_offset = old_size;
-
-  STOP_CC(reply_auth_cycles);
 }
 
 void Reply::commit(Principal* p)
@@ -154,7 +153,6 @@ bool Reply::pre_verify()
 
   // Check signature.
   INCR_OP(reply_auth_ver);
-  START_CC(reply_auth_ver_cycles);
 
   std::shared_ptr<Principal> replica =
     pbft::GlobalState::get_node().get_principal(rep().replica);
@@ -163,8 +161,6 @@ bool Reply::pre_verify()
     return false;
   }
   int size_wo_MAC = sizeof(Reply_rep) + rep_size;
-
-  STOP_CC(reply_auth_ver_cycles);
 
   return true;
 }

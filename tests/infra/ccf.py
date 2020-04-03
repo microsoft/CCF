@@ -53,6 +53,10 @@ class CodeIdNotFound(Exception):
     pass
 
 
+class NodeShutdownError(Exception):
+    pass
+
+
 def get_common_folder_name(workspace, label):
     return os.path.join(workspace, f"{label}_{COMMON_FOLDER}")
 
@@ -102,6 +106,7 @@ class Network:
             )
             self.txs = existing_network.txs
 
+        self.ignoring_shutdown_errors = False
         self.nodes = []
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
@@ -283,10 +288,23 @@ class Network:
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
 
+    def ignore_errors_on_shutdown(self):
+        self.ignoring_shutdown_errors = True
+
     def stop_all_nodes(self):
+        fatal_error_found = False
         for node in self.nodes:
-            node.stop()
+            _, fatal_errors = node.stop()
+            if fatal_errors:
+                fatal_error_found = True
+
         LOG.info("All remotes stopped...")
+
+        if fatal_error_found:
+            if self.ignoring_shutdown_errors:
+                LOG.warning("Ignoring shutdown errors")
+            else:
+                raise NodeShutdownError(f"Fatal error found during node shutdown")
 
     def create_and_add_pending_node(
         self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
@@ -313,7 +331,7 @@ class Network:
             # The node can be safely discarded since it has not been
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
-            errors = new_node.stop()
+            errors, _ = new_node.stop()
             self.nodes.remove(new_node)
             if errors:
                 # Throw accurate exceptions if known errors found in

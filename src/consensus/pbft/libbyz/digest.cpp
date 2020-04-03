@@ -15,13 +15,11 @@ Digest::Digest(char* s, unsigned n)
 {
 #ifndef NODIGESTS
   INCR_OP(num_digests);
-  START_CC(digest_cycles);
 
   // creates a digest for string "s" with length "n"
   EverCrypt_Hash_hash(
     Spec_Hash_Definitions_SHA2_256, (uint8_t*)d, (uint8_t*)s, (uint32_t)n);
 
-  STOP_CC(digest_cycles);
 #else
   for (int i = 0; i < 4; i++)
     d[i] = 3;

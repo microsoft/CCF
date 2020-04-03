@@ -296,7 +296,6 @@ void State::cow_single(int i)
   PBFT_ASSERT(i >= 0 && i < nb, "Invalid argument");
 
   INCR_OP(num_cows);
-  START_CC(cow_cycles);
   // Append a copy of the block to the last checkpoint
   Part& p = ptree[PLevels - 1][i];
   bcp = new BlockCopy;
@@ -306,8 +305,6 @@ void State::cow_single(int i)
 
   checkpoint_log.fetch(lc).append(PLevels - 1, i, bcp);
   cowb.set(i);
-
-  STOP_CC(cow_cycles);
 }
 
 void State::cow(char* m, int size)
@@ -459,7 +456,6 @@ void State::update_ptree(Seqno n)
 void State::checkpoint(Seqno seqno)
 {
   INCR_OP(num_ckpts);
-  START_CC(ckpt_cycles);
 
   update_ptree(seqno);
 
@@ -468,8 +464,6 @@ void State::checkpoint(Seqno seqno)
   nr.sd = ptree[0][0].d;
 
   cowb.clear();
-
-  STOP_CC(ckpt_cycles);
 }
 
 Seqno State::rollback(Seqno last_executed)
@@ -477,7 +471,6 @@ Seqno State::rollback(Seqno last_executed)
   PBFT_ASSERT(lc >= 0 && !fetching, "Invalid state");
 
   INCR_OP(num_rollbacks);
-  START_CC(rollback_cycles);
 
   LOG_INFO << "Rolling back to checkpoint before " << last_executed << "\n";
 
@@ -519,7 +512,6 @@ Seqno State::rollback(Seqno last_executed)
 
     lc--;
   }
-  STOP_CC(rollback_cycles);
 
   LOG_DEBUG << "Rolled back to  " << lc << "\n";
 
@@ -618,8 +610,6 @@ Part& State::get_meta_data(Seqno c, int l, int i)
 
 void State::start_fetch(Seqno le, Seqno c, Digest* cd, bool stable)
 {
-  START_CC(fetch_cycles);
-
   LOG_DEBUG << "Starting fetch le: " << le << "c:" << c << std::endl;
   if (!fetching)
   {
@@ -651,16 +641,12 @@ void State::start_fetch(Seqno le, Seqno c, Digest* cd, bool stable)
       ptree[0][0].lm,
       c,
       ((cd != nullptr) ? *cd : Digest()));
-    STOP_CC(fetch_cycles);
     send_fetch(true);
   }
-  STOP_CC(fetch_cycles);
 }
 
 void State::send_fetch(bool change_replier)
 {
-  START_CC(fetch_cycles);
-
   last_fetch_t = ITimer::current_time();
   Request_id rid = pbft::GlobalState::get_replica().new_rid();
   pbft::GlobalState::get_replica().principal()->set_last_fetch_rid(rid);
@@ -725,8 +711,6 @@ void State::send_fetch(bool change_replier)
       cert->add(mdd, true);
     }
   }
-
-  STOP_CC(fetch_cycles);
 }
 
 bool State::handle(Fetch* m, Seqno ls)
@@ -851,7 +835,6 @@ bool State::handle(Fetch* m, Seqno ls)
 void State::handle(Data* m)
 {
   INCR_OP(num_fetched);
-  START_CC(fetch_cycles);
 
   int l = PLevels - 1;
   if (fetching && flevel == l)
@@ -903,19 +886,16 @@ void State::handle(Data* m)
 
         if (stalep[l]->size() == 0)
         {
-          STOP_CC(fetch_cycles);
           done_with_level();
           delete m;
           return;
         }
       }
 
-      STOP_CC(fetch_cycles);
       send_fetch();
     }
   }
   delete m;
-  STOP_CC(fetch_cycles);
 }
 
 bool State::check_digest(Digest& d, Meta_data* m)
@@ -981,7 +961,6 @@ void State::handle(Meta_data* m)
 {
   INCR_OP(meta_data_fetched);
   INCR_CNT(meta_data_bytes, m->size());
-  START_CC(fetch_cycles);
 
   Request_id crid =
     pbft::GlobalState::get_replica().principal()->last_fetch_rid();
@@ -1039,7 +1018,6 @@ void State::handle(Meta_data* m)
         }
 
         cert->clear();
-        STOP_CC(fetch_cycles);
 
         if (stalep[flevel]->size() == 0)
         {
@@ -1054,14 +1032,12 @@ void State::handle(Meta_data* m)
   }
 
   delete m;
-  STOP_CC(fetch_cycles);
 }
 
 void State::handle(Meta_data_d* m)
 {
   INCR_OP(meta_datad_fetched);
   INCR_CNT(meta_datad_bytes, m->size());
-  START_CC(fetch_cycles);
 
   LOG_TRACE << "Got meta_data_d from " << m->id() << "index" << m->index()
             << std::endl;
@@ -1110,8 +1086,6 @@ void State::handle(Meta_data_d* m)
               to_check->emplace_back(flevel, wp.index);
             }
 
-            STOP_CC(fetch_cycles);
-
             if (flevel > 0)
             {
               stalep[flevel]->pop_back();
@@ -1127,24 +1101,19 @@ void State::handle(Meta_data_d* m)
             }
             return;
           }
-          STOP_CC(fetch_cycles);
           send_fetch(true);
         }
       }
 
-      STOP_CC(fetch_cycles);
       return;
     }
   }
 
-  STOP_CC(fetch_cycles);
   delete m;
 }
 
 void State::done_with_level()
 {
-  START_CC(fetch_cycles);
-
   PBFT_ASSERT(stalep[flevel]->size() == 0, "Invalid state");
   PBFT_ASSERT(flevel > 0, "Invalid state");
 
@@ -1237,8 +1206,6 @@ void State::done_with_level()
       refetch_level = 0;
       poll_cnt = 16;
 
-      STOP_CC(fetch_cycles);
-
       pbft::GlobalState::get_replica().new_state(lc);
 
       return;
@@ -1248,7 +1215,6 @@ void State::done_with_level()
       stalep[l]->pop_back();
       if (stalep[l]->size() == 0)
       {
-        STOP_CC(fetch_cycles);
         done_with_level();
         return;
       }
@@ -1268,8 +1234,6 @@ void State::done_with_level()
       refetch_level = flevel;
     }
   }
-
-  STOP_CC(fetch_cycles);
 
   send_fetch();
 }
@@ -1302,8 +1266,6 @@ inline bool State::check_data(int i)
 
 void State::check_state()
 {
-  START_CC(check_time);
-
   int count = 1;
   while (to_check->size() > 0)
   {
@@ -1326,7 +1288,6 @@ void State::check_state()
         count % poll_cnt == 0 &&
         pbft::GlobalState::get_replica().has_messages(0))
       {
-        STOP_CC(check_time);
         return;
       }
 
@@ -1349,7 +1310,6 @@ void State::check_state()
     to_check->at(0) = to_check->back();
     to_check->pop_back();
   }
-  STOP_CC(check_time);
 
   if (!fetching)
   {

@@ -11,21 +11,39 @@
 #include "principal.h"
 #include "replica.h"
 
-Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
+Prepare::Prepare(
+  View v,
+  Seqno s,
+  Digest& d,
+  uint64_t nonce_,
+  Principal* dst,
+  bool is_signed,
+  int id) :
   Message(
     Prepare_tag,
     sizeof(Prepare_rep)
 #ifndef USE_PKEY
-      + ((dst) ? MAC_size : pbft::GlobalState::get_node().auth_size()))
-{
+      + ((dst) ? MAC_size : pbft::GlobalState::get_node().auth_size())),
 #else
-      + ((dst) ? MAC_size : pbft_max_signature_size)
-{
+      + ((dst) ? MAC_size : pbft_max_signature_size)),
 #endif
+  nonce(nonce_)
+{
   rep().extra = (dst) ? 1 : 0;
   rep().view = v;
   rep().seqno = s;
   rep().digest = d;
+
+  if (id < 0)
+  {
+    rep().id = pbft::GlobalState::get_node().id();
+  }
+
+  Digest dh;
+  Digest::Context context;
+  dh.update_last(context, (char*)&nonce, sizeof(uint64_t));
+  dh.finalize(context);
+  rep().hashed_nonce = dh;
 
 #ifdef SIGN_BATCH
   rep().digest_sig_size = 0;
@@ -37,11 +55,13 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
       uint32_t magic = 0xba5eba11;
       NodeId id;
       Digest d;
+      Digest n;
 
-      signature(Digest d_, NodeId id_) : d(d_), id(id_) {}
+      signature(Digest d_, NodeId id_, Digest nonce) : d(d_), id(id_), n(nonce)
+      {}
     };
 
-    signature s(d, pbft::GlobalState::get_node().id());
+    signature s(d, rep().id, rep().hashed_nonce);
 
     rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
       reinterpret_cast<char*>(&s), sizeof(s), rep().batch_digest_signature);
@@ -56,7 +76,6 @@ Prepare::Prepare(View v, Seqno s, Digest& d, Principal* dst, bool is_signed) :
   rep().prepare_sig_size = 0;
 #endif
 
-  rep().id = pbft::GlobalState::get_node().id();
   rep().padding = 0;
   if (!dst)
   {

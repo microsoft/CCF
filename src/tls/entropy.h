@@ -48,6 +48,21 @@ namespace tls
       return data;
     }
 
+    uint64_t random64() override
+    {
+      uint64_t rnd;
+      uint64_t len = sizeof(uint64_t);
+
+      if (
+        mbedtls_ctr_drbg_random(
+          &drbg, reinterpret_cast<unsigned char*>(&rnd), len) != 0)
+      {
+        throw std::logic_error("Couldn't create random data");
+      }
+
+      return rnd;
+    }
+
     void random(unsigned char* data, size_t len) override
     {
       if (mbedtls_ctr_drbg_random(&drbg, data, len) != 0)

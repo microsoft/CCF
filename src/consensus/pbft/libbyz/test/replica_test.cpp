@@ -192,7 +192,8 @@ ExecCommand exec_command =
   [](
     std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
     ByzInfo& info,
-    uint32_t num_requests) {
+    uint32_t num_requests,
+    uint64_t nonce) {
     for (uint32_t i = 0; i < num_requests; ++i)
     {
       std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
@@ -206,7 +207,7 @@ ExecCommand exec_command =
       ccf::Store::Tx* tx = msg->tx;
 
       outb.contents =
-        message_receive_base->create_response_message(client, rid, 8);
+        message_receive_base->create_response_message(client, rid, 8, nonce);
 
       Long& counter = *(Long*)service_mem;
       Long* client_counter_arrays = (Long*)service_mem + sizeof(Long);

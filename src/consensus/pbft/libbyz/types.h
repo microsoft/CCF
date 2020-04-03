@@ -113,4 +113,5 @@ struct ExecCommandMsg
 using ExecCommand = std::function<int(
   std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
   ByzInfo&,
-  uint32_t)>;
+  uint32_t,
+  uint64_t)>;

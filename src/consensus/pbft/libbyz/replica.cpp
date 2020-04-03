@@ -73,6 +73,7 @@ Replica::Replica(
 #endif
   rep_cb(nullptr),
   global_commit_cb(nullptr),
+  entropy(tls::create_entropy()),
   state(
     this,
     mem,
@@ -477,8 +478,68 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, true));
 
-  exec_command(vec_exec_cmds, playback_byz_info, 1);
+  exec_command(vec_exec_cmds, playback_byz_info, 1, 0);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
+
+  auto owned_req = req.release();
+  if (!brt.add_request(owned_req))
+  {
+    delete owned_req;
+  }
+}
+
+void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
+{
+  if (pp->seqno() <= 0)
+  {
+    // first pre prepare will not contain proofs for a previous pre prepare
+    return;
+  }
+
+  auto prev_seqno = pp->seqno() - 1;
+  if (!plog.within_range(prev_seqno))
+  {
+    LOG_DEBUG_FMT(
+      "seqno {} is out of range, can not add prepare proofs to plog",
+      prev_seqno);
+    return;
+  }
+  auto& prev_prepared_cert = plog.fetch(prev_seqno);
+  auto prev_pp = prev_prepared_cert.pre_prepare();
+  if (prev_pp != nullptr)
+  {
+    Pre_prepare::ValidProofs_iter vp_iter(prev_pp);
+    int p_id;
+    bool valid;
+    while (vp_iter.get(p_id, valid) && valid)
+    {
+      LOG_DEBUG_FMT(
+        "Adding prepare for principal with id {} for seqno {}",
+        p_id,
+        prev_seqno);
+      Prepare* p = new Prepare(
+        prev_pp->view(),
+        prev_pp->seqno(),
+        prev_pp->digest(),
+        prev_pp->get_nonce(),
+        nullptr,
+        prev_pp->is_signed(),
+        p_id);
+      prev_prepared_cert.add(p);
+    }
+    if (add_mine)
+    {
+      LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_seqno);
+      Prepare* p = new Prepare(
+        prev_pp->view(),
+        prev_pp->seqno(),
+        prev_pp->digest(),
+        prev_pp->get_nonce(),
+        nullptr,
+        prev_pp->is_signed());
+      prev_prepared_cert.add_mine(p);
+    }
+  }
 }
 
 void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
@@ -518,6 +579,8 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
 
     last_te_version = ledger_writer->write_pre_prepare(tx, executable_pp.get());
 
+    global_commit(executable_pp.get());
+
     last_executed++;
 
     PBFT_ASSERT(
@@ -525,7 +588,10 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
       "last_executed and pre prepares seqno don't match in playback pre "
       "prepare");
 
-    global_commit(executable_pp.get());
+    populate_certificates(executable_pp.get(), true);
+
+    auto& prepared_cert = plog.fetch(executable_pp->seqno());
+    prepared_cert.add(executable_pp.release());
 
     if (f() > 0 && (last_executed % checkpoint_interval == 0))
     {
@@ -841,6 +907,14 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
   // If rqueue is empty there are no requests for which to send
   // pre_prepare and a pre-prepare cannot be sent if the seqno exceeds
   // the maximum window or the replica does not have the new view.
+  LOG_TRACE_FMT(
+    "rqueue size {}, next_pp_seqno {}, last_executed {}, last_stable {}, has "
+    "complete new view {}",
+    rqueue.size(),
+    next_pp_seqno,
+    last_executed,
+    last_stable,
+    has_complete_new_view());
   if (
     (rqueue.size() >= min_pre_prepare_batch_size ||
      (do_not_wait_for_batch_size && rqueue.size() > 0)) &&
@@ -858,6 +932,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
               << std::endl;
     auto ctx = std::make_unique<ExecTentativeCbCtx>();
+    ctx->nonce = entropy->random64();
 
     Prepared_cert* ps = nullptr;
     if (next_pp_seqno > congestion_window)
@@ -865,7 +940,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       ps = &plog.fetch(next_pp_seqno - congestion_window);
     }
     Pre_prepare* pp = new Pre_prepare(
-      view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ps);
+      view(), next_pp_seqno, rqueue, ctx->requests_in_batch, ctx->nonce, ps);
 
     auto fn = [](
                 Pre_prepare* pp,
@@ -1004,6 +1079,13 @@ void Replica::handle(Pre_prepare* m)
     // for the same view and sequence number and the message is valid.
     if (pc.add(m))
     {
+      if (ms == playback_pp_seqno + 1)
+      {
+        // previous pre prepare was executed during playback, we need to add the
+        // prepares for it, as the prepare proofs for the previous pre-prepare
+        // are in the next pre prepare message
+        populate_certificates(m);
+      }
       send_prepare(ms);
     }
     return;
@@ -1072,7 +1154,12 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         }
 
         Prepare* p = new Prepare(
-          self->v, pp->seqno(), pp->digest(), nullptr, pp->is_signed());
+          self->v,
+          pp->seqno(),
+          pp->digest(),
+          msg->nonce,
+          nullptr,
+          pp->is_signed());
         int send_node_id =
           (msg->send_only_to_self ? self->node_id : All_replicas);
         self->send(p, send_node_id);
@@ -1095,6 +1182,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       msg->seqno = seqno;
       msg->send_only_to_self = send_only_to_self;
       msg->orig_byzinfo = byz_info;
+      msg->nonce = entropy->random64();
       if (byz_info.has_value())
       {
         msg->info = byz_info.value();
@@ -1424,9 +1512,10 @@ int Replica::my_id() const
 }
 
 char* Replica::create_response_message(
-  int client_id, Request_id request_id, uint32_t size)
+  int client_id, Request_id request_id, uint32_t size, uint64_t nonce)
 {
-  return replies.new_reply(client_id, request_id, last_tentative_execute, size);
+  return replies.new_reply(
+    client_id, request_id, last_tentative_execute, nonce, size);
 }
 
 void Replica::handle(Status* m)
@@ -1737,10 +1826,6 @@ void Replica::handle(View_change* m)
     // Replica has at least f+1 view-changes with a view number
     // greater than or equal to maxv: change to view maxv.
     v = maxv - 1;
-    if (encryptor)
-    {
-      encryptor->set_view(v);
-    }
     vc_recovering = true;
     send_view_change();
   }
@@ -1790,10 +1875,7 @@ void Replica::send_view_change()
 
   // Move to next view.
   v++;
-  if (encryptor)
-  {
-    encryptor->set_view(v);
-  }
+
   cur_primary = v % num_replicas;
   limbo = true;
   vtimer->stop(); // stop timer if it is still running
@@ -1984,7 +2066,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   for (Seqno i = min + 1; i < max; i++)
   {
     Digest d;
-    Pre_prepare* pp = vi.fetch_request(i, d);
+    View prev_view;
+    auto pp = vi.fetch_request(i, d, prev_view);
     Prepared_cert& pc = plog.fetch(i);
     PBFT_ASSERT(pp != 0 && pp->digest() == d, "Invalid state");
 
@@ -2002,11 +2085,11 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     {
       ByzInfo info;
       pc.add_mine(pp);
-      if (execute_tentative(pp, info))
+      if (execute_tentative(pp, info, pp->get_nonce()))
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          last_te_version = ledger_writer->write_pre_prepare(pp);
+          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
         }
       }
     }
@@ -2014,16 +2097,17 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     {
       ByzInfo info;
       pc.add_old(pp);
+      uint64_t nonce = entropy->random64();
 
-      if (execute_tentative(pp, info))
+      if (execute_tentative(pp, info, nonce))
       {
         if (ledger_writer && req_in_pp > 0)
         {
-          last_te_version = ledger_writer->write_pre_prepare(pp);
+          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
         }
       }
 
-      Prepare* p = new Prepare(v, i, d, nullptr, pp->is_signed());
+      Prepare* p = new Prepare(v, i, d, nonce, nullptr, pp->is_signed());
       pc.add_mine(p);
       send(p, All_replicas);
     }
@@ -2057,6 +2141,10 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   if (primary() != id() && rqueue.size() > 0)
   {
     start_vtimer_if_request_waiting();
+  }
+  if (encryptor)
+  {
+    encryptor->set_view(v);
   }
   LOG_INFO << "Done with process new view " << v << std::endl;
 }
@@ -2123,15 +2211,17 @@ void Replica::global_commit(Pre_prepare* pp)
 {
   if (pp->is_signed())
   {
-    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
-    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
-
-    state.checkpoint(pp->seqno());
-    last_gb_version = pp->get_ctx();
-    last_gb_seqno = pp->seqno();
-    if (global_commit_cb != nullptr)
+    if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
     {
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+      LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+      LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+      state.checkpoint(pp->seqno());
+      last_gb_version = pp->get_ctx();
+      last_gb_seqno = pp->seqno();
+      if (global_commit_cb != nullptr)
+      {
+        global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
+      }
     }
     signed_version = 0;
   }
@@ -2205,7 +2295,10 @@ void Replica::execute_prepared(bool committed)
         }
       }
     }
-    global_commit(pp);
+    if (f() == 0)
+    {
+      global_commit(pp);
+    }
   }
 }
 
@@ -2218,7 +2311,6 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
 {
   auto stash_replier = request.replier();
   request.set_replier(-1);
-  replies.count_request();
   int client_id = request.client_id();
 
   auto cmd = std::make_unique<ExecCommandMsg>(
@@ -2300,7 +2392,7 @@ bool Replica::create_execute_commands(
   return false;
 }
 
-bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
+bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce)
 {
   LOG_DEBUG_FMT(
     "in execute tentative for seqno {} and last_tentnative_execute {}",
@@ -2311,7 +2403,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info)
   if (create_execute_commands(
         pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
-    exec_command(vec_exec_cmds, info, num_requests);
+    exec_command(vec_exec_cmds, info, num_requests, nonce);
     return true;
   }
   return false;
@@ -2333,6 +2425,7 @@ bool Replica::execute_tentative(
   if (create_execute_commands(
         pp, ctx->info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
+    uint64_t nonce = ctx->nonce;
     ByzInfo& info = ctx->info;
     if (cb != nullptr)
     {
@@ -2353,7 +2446,7 @@ bool Replica::execute_tentative(
       }
     }
 
-    exec_command(vec_exec_cmds, info, num_requests);
+    exec_command(vec_exec_cmds, info, num_requests, nonce);
     if (!node_info.general_info.support_threading)
     {
       cb(pp, this, std::move(ctx));
@@ -2405,7 +2498,7 @@ void Replica::execute_committed(bool was_f_0)
         if (last_executed + 1 > last_tentative_execute)
         {
           ByzInfo info;
-          auto executed_ok = execute_tentative(pp, info);
+          auto executed_ok = execute_tentative(pp, info, pp->get_nonce());
           PBFT_ASSERT(
             executed_ok,
             "tentative execution while executing committed failed");
@@ -2430,6 +2523,7 @@ void Replica::execute_committed(bool was_f_0)
         set_min_pre_prepare_batch_size();
 
         execute_prepared(true);
+        global_commit(pp);
         last_executed = last_executed + 1;
         stats.last_executed = last_executed;
         PBFT_ASSERT(pp->seqno() == last_executed, "Invalid execution");
@@ -2989,7 +3083,6 @@ void Replica::handle(Reply_stable* m)
 
       LOG_INFO << "sending recovery request" << std::endl;
       // Send recovery request.
-      START_CC(rr_time);
       rr = new Request(new_rid(), -1);
 
       int len;
@@ -2999,7 +3092,6 @@ void Replica::handle(Reply_stable* m)
 
       rr->sign(sizeof(recovery_point));
       send(rr, primary());
-      STOP_CC(rr_time);
 
       LOG_INFO << "Starting state checking" << std::endl;
 
@@ -3058,8 +3150,9 @@ void Replica::send_null()
         ps = &plog.fetch(next_pp_seqno - 1);
       }
 
-      Pre_prepare* pp =
-        new Pre_prepare(view(), next_pp_seqno, empty, requests_in_batch, ps);
+      uint64_t nonce = entropy->random64();
+      Pre_prepare* pp = new Pre_prepare(
+        view(), next_pp_seqno, empty, requests_in_batch, nonce, ps);
       pp->set_digest();
       send(pp, All_replicas);
       plog.fetch(next_pp_seqno).add_mine(pp);
