@@ -479,29 +479,6 @@ namespace timing
         {
           if (!pending_global_commits.empty())
           {
-            LOG_FAIL_FMT("I'm about to shit the bed");
-            LOG_INFO_FMT("Here are my sends:");
-            for (const auto& send : sends)
-            {
-              LOG_INFO_FMT(
-                "  {}: {} at {}",
-                send.rpc_id,
-                send.method,
-                send.send_time.count());
-            }
-
-            LOG_INFO_FMT("Here are my receives:");
-            for (const auto& recv : receives)
-            {
-              LOG_INFO_FMT(
-                "  {} at {} ({}.{}, {})",
-                recv.rpc_id,
-                recv.receive_time.count(),
-                recv.commit->term,
-                recv.commit->local,
-                recv.commit->global);
-            }
-
             const auto& first = pending_global_commits[0];
             throw runtime_error(
               "Still waiting for " + to_string(pending_global_commits.size()) +
