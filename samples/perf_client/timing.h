@@ -131,21 +131,26 @@ namespace timing
     vector<PerRound> per_round;
   };
 
-  static std::optional<CommitIDs> parse_commit_ids(
-    const RpcTlsClient::Response& response)
+  static CommitIDs parse_commit_ids(const RpcTlsClient::Response& response)
   {
     const auto& h = response.headers;
     const auto local_commit_it = h.find(http::headers::CCF_COMMIT);
     if (local_commit_it == h.end())
-      return std::nullopt;
+    {
+      throw std::logic_error("Missing commit response header");
+    }
 
     const auto global_commit_it = h.find(http::headers::CCF_GLOBAL_COMMIT);
     if (global_commit_it == h.end())
-      return std::nullopt;
+    {
+      throw std::logic_error("Missing global commit response header");
+    }
 
     const auto term_it = h.find(http::headers::CCF_TERM);
     if (term_it == h.end())
-      return std::nullopt;
+    {
+      throw std::logic_error("Missing term response header");
+    }
 
     const auto local =
       std::strtoul(local_commit_it->second.c_str(), nullptr, 0);
@@ -153,7 +158,7 @@ namespace timing
       std::strtoul(global_commit_it->second.c_str(), nullptr, 0);
     const auto term = std::strtoul(term_it->second.c_str(), nullptr, 0);
 
-    return {{local, global, term}};
+    return {local, global, term};
   }
 
   class ResponseTimes
@@ -237,9 +242,9 @@ namespace timing
           throw runtime_error("getCommit failed with error: " + body.dump());
         }
 
+        const auto commit_ids = parse_commit_ids(response);
         if (record)
         {
-          const auto commit_ids = parse_commit_ids(response);
           record_receive(response.id, commit_ids);
         }
 
@@ -261,9 +266,21 @@ namespace timing
         }
         else if (response_term == target.term)
         {
-          // Good, this target commit was globally committed!
-          LOG_INFO_FMT("Found global commit {}.{}", target.term, target.index);
-          return response;
+          // Good, this target commit was committed in the expected term
+          if (commit_ids.global >= target.index)
+          {
+            LOG_INFO_FMT(
+              "Found global commit {}.{}", target.term, target.index);
+            LOG_INFO_FMT(
+              " (headers term: {}, local: {}, global: {}",
+              commit_ids.term,
+              commit_ids.local,
+              commit_ids.global);
+            return response;
+          }
+
+          // else global commit is still pending
+          continue;
         }
         else
         {
@@ -462,6 +479,29 @@ namespace timing
         {
           if (!pending_global_commits.empty())
           {
+            LOG_FAIL_FMT("I'm about to shit the bed");
+            LOG_INFO_FMT("Here are my sends:");
+            for (const auto& send : sends)
+            {
+              LOG_INFO_FMT(
+                "  {}: {} at {}",
+                send.rpc_id,
+                send.method,
+                send.send_time.count());
+            }
+
+            LOG_INFO_FMT("Here are my receives:");
+            for (const auto& recv : receives)
+            {
+              LOG_INFO_FMT(
+                "  {} at {} ({}.{}, {})",
+                recv.rpc_id,
+                recv.receive_time.count(),
+                recv.commit->term,
+                recv.commit->local,
+                recv.commit->global);
+            }
+
             const auto& first = pending_global_commits[0];
             throw runtime_error(
               "Still waiting for " + to_string(pending_global_commits.size()) +

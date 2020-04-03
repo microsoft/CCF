@@ -197,36 +197,30 @@ namespace client
       {
         const auto commits = timing::parse_commit_ids(reply);
 
-        if (!commits.has_value())
-        {
-          throw std::logic_error(
-            "Unable to parse commit headers from response");
-        }
-
         // Record time of received responses
         response_times.record_receive(reply.id, commits);
 
-        if (commits->term < last_response_commit.term)
+        if (commits.term < last_response_commit.term)
         {
           throw std::logic_error(fmt::format(
             "Term went backwards (expected {}, saw {})!",
             last_response_commit.term,
-            commits->term));
+            commits.term));
         }
         else if (
-          commits->term > last_response_commit.term &&
-          commits->local <= last_response_commit.index)
+          commits.term > last_response_commit.term &&
+          commits.local <= last_response_commit.index)
         {
           throw std::logic_error(fmt::format(
             "There has been an election and transactions have "
             "been lost! (saw {}.{}, currently at {}.{})",
             last_response_commit.term,
             last_response_commit.index,
-            commits->term,
-            commits->local));
+            commits.term,
+            commits.local));
         }
 
-        last_response_commit = {commits->term, commits->local};
+        last_response_commit = {commits.term, commits.local};
       }
     }
 
@@ -447,6 +441,11 @@ namespace client
       // Do a blocking read for this final response
       const auto response = connection->read_response();
       process_reply(response);
+
+      const auto commit_ids = timing::parse_commit_ids(response);
+      LOG_INFO_FMT(
+        "Triggered signature at {}.{}", commit_ids.term, commit_ids.local);
+
       return response;
     }
 
@@ -568,13 +567,8 @@ namespace client
             const auto response_commit_ids =
               timing::parse_commit_ids(last_response.value());
 
-            if (!response_commit_ids.has_value())
-            {
-              throw std::runtime_error("Missing headers in response");
-            }
-
-            const timing::CommitPoint cp{response_commit_ids->term,
-                                         response_commit_ids->local};
+            const timing::CommitPoint cp{response_commit_ids.term,
+                                         response_commit_ids.local};
             wait_for_global_commit(cp);
           }
         }
