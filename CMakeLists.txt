@@ -226,314 +226,314 @@ if(BUILD_TESTS)
   enable_testing()
 
   # Unit tests
-  if(BUILD_UNIT_TESTS)
-    add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
+#  if(BUILD_UNIT_TESTS)
+#    add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
-    add_unit_test(
-      json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
-    )
-
-    add_unit_test(
-      logger_json_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
-    )
-
-    add_unit_test(
-      kv_test ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
-    )
-    use_client_mbedtls(kv_test)
-    target_link_libraries(
-      kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
-    )
-
-    add_unit_test(
-      ds_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
-    )
-    target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
-
-    add_unit_test(
-      ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
-    )
-
-    add_unit_test(
-      raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
-    )
-    target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
-
-    add_unit_test(
-      raft_enclave_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp
-    )
-    target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(
-      raft_enclave_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
-    )
-
-    add_unit_test(
-      crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
-    )
-    target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
-    target_link_libraries(crypto_test PRIVATE ${CRYPTO_LIBRARY})
-
-    add_unit_test(
-      history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
-    )
-    target_include_directories(history_test PRIVATE ${EVERCRYPT_INC})
-    target_link_libraries(
-      history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host
-    )
-
-    add_unit_test(
-      secret_sharing_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
-    )
-    target_link_libraries(secret_sharing_test PRIVATE sss.host)
-
-    add_unit_test(
-      encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmetric_key.cpp
-    )
-    use_client_mbedtls(encryptor_test)
-    target_link_libraries(encryptor_test PRIVATE secp256k1.host)
-
-    add_unit_test(
-      msgpack_serialization_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp
-    )
-
-    add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
-    target_link_libraries(
-      tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
-    )
-
-    add_unit_test(
-      key_exchange_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
-    )
-    use_client_mbedtls(key_exchange_test)
-    target_link_libraries(key_exchange_test PRIVATE secp256k1.host)
-
-    add_unit_test(
-      channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
-    )
-    use_client_mbedtls(channels_test)
-    target_link_libraries(channels_test PRIVATE secp256k1.host)
-
-    add_unit_test(
-      http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
-    )
-    target_link_libraries(http_test PRIVATE http_parser.host)
-
-    add_unit_test(
-      frontend_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
-    )
-    target_link_libraries(
-      frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
-                            secp256k1.host http_parser.host sss.host
-    )
-
-    add_unit_test(
-      member_voting_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
-    )
-    target_link_libraries(
-      member_voting_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
-              http_parser.host sss.host
-    )
-
-    add_unit_test(
-      node_frontend_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-    )
-    target_link_libraries(
-      node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
-              http_parser.host sss.host
-    )
-
-    if(NOT ENV{RUNTIME_CONFIG_DIR})
-      set_tests_properties(
-        member_voting_test
-        PROPERTIES ENVIRONMENT
-                   RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
-      )
-    endif()
-
-    add_unit_test(
-      lua_generic_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/test/lua_generic_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/lua_generic.cpp
-    )
-    target_include_directories(lua_generic_test PRIVATE ${LUA_DIR})
-    target_link_libraries(
-      lua_generic_test PRIVATE lua.host secp256k1.host http_parser.host
-    )
-
-    add_unit_test(
-      lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
-    )
-    target_include_directories(lua_test PRIVATE ${LUA_DIR})
-    target_link_libraries(lua_test PRIVATE lua.host)
-
-    # Merkle Tree memory test
-    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
-    target_link_libraries(
-      merkle_mem PRIVATE ccfcrypto.host evercrypt.host secp256k1.host
-                         ${CMAKE_THREAD_LIBS_INIT}
-    )
-    use_client_mbedtls(merkle_mem)
-    target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
-
-    # Raft driver and scenario test
-    add_executable(
-      raft_driver
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
-    )
-    use_client_mbedtls(raft_driver)
-    target_include_directories(raft_driver PRIVATE src/raft)
-
-    add_test(
-      NAME raft_scenario_test
-      COMMAND
-        ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
-        ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios
-        ${CMAKE_SOURCE_DIR}
-    )
-    set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
-  endif()
-
-  # Picobench benchmarks
-  add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
-  add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
-  add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
-  add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
-  add_picobench(
-    tls_bench
-    SRCS src/tls/test/bench.cpp
-    LINK_LIBS secp256k1.host
-  )
-  add_picobench(
-    merkle_bench
-    SRCS src/node/test/merkle_bench.cpp
-    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
-    INCLUDE_DIRS ${EVERCRYPT_INC}
-  )
-  add_picobench(
-    history_bench
-    SRCS src/node/test/history_bench.cpp
-    LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
-    INCLUDE_DIRS ${EVERCRYPT_INC}
-  )
-  add_picobench(
-    kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
-                  src/enclave/thread_local.cpp
-  )
-
-  # Storing signed governance operations
-  add_e2e_test(
-    NAME governance_history_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
-    CONSENSUS raft
-  )
-
-  # Lua sample app (tx regulator) end to end test
-  add_e2e_test(
-    NAME lua_txregulator_test
-    PYTHON_SCRIPT
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS
-      --app-script
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-      --datafile
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
-  )
-
-  add_e2e_test(
-    NAME recovery_tests
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --recovery 2
-  )
-
-  add_e2e_test(
-    NAME recovery_share_tests
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --recovery 2 --use-shares
-  )
-
-  add_e2e_test(
-    NAME test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
-    IS_SUITE TRUE
-    ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
-  )
-
-  add_e2e_test(
-    NAME end_to_end_scenario
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --scenario
-                    ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-  )
-
-  add_e2e_test(
-    NAME lua_end_to_end_logging
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
-  )
-
-  add_e2e_test(
-    NAME lua_end_to_end_batched
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
-  )
-
-  add_e2e_test(
-    NAME js_end_to_end_logging
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --js-app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
-  )
-
-  if(QUOTES_ENABLED)
-    add_e2e_test(
-      NAME reconfiguration_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      CONSENSUS raft
-    )
-
-    add_e2e_test(
-      NAME code_update_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      CONSENSUS raft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 20000
-    )
-
-    add_e2e_test(
-      NAME governance_tests
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSENSUS raft
-      ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
-    )
-  endif()
+#  add_unit_test(
+#    json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
+#  )
+#
+#  add_unit_test(
+#    logger_json_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/logger_json_test.cpp
+#  )
+#
+#  add_unit_test(
+#    kv_test ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
+#  )
+#  use_client_mbedtls(kv_test)
+#  target_link_libraries(
+#    kv_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+#  )
+#
+#  add_unit_test(
+#    ds_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
+#  )
+#  target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+#
+#  add_unit_test(
+#    ledger_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/ledger.cpp
+#  )
+#
+#  add_unit_test(
+#    raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
+#  )
+#  target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
+#
+#  add_unit_test(
+#    raft_enclave_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/enclave.cpp
+#  )
+#  target_include_directories(raft_enclave_test PRIVATE ${CCFCRYPTO_INC})
+#  target_link_libraries(
+#    raft_enclave_test PRIVATE ${CRYPTO_LIBRARY} secp256k1.host
+#  )
+#
+#  add_unit_test(
+#    crypto_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/crypto.cpp
+#  )
+#  target_include_directories(crypto_test PRIVATE ${CCFCRYPTO_INC})
+#  target_link_libraries(crypto_test PRIVATE ${CRYPTO_LIBRARY})
+#
+#  add_unit_test(
+#    history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
+#  )
+#  target_include_directories(history_test PRIVATE ${EVERCRYPT_INC})
+#  target_link_libraries(
+#    history_test PRIVATE ${CRYPTO_LIBRARY} evercrypt.host secp256k1.host
+#  )
+#
+#  add_unit_test(
+#    secret_sharing_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
+#  )
+#  target_link_libraries(secret_sharing_test PRIVATE sss.host)
+#
+#  add_unit_test(
+#    encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/symmetric_key.cpp
+#  )
+#  use_client_mbedtls(encryptor_test)
+#  target_link_libraries(encryptor_test PRIVATE secp256k1.host)
+#
+#  add_unit_test(
+#    msgpack_serialization_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp
+#  )
+#
+#  add_unit_test(tls_test ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/main.cpp)
+#  target_link_libraries(
+#    tls_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
+#  )
+#
+#  add_unit_test(
+#    key_exchange_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/tls/test/key_exchange.cpp
+#  )
+#  use_client_mbedtls(key_exchange_test)
+#  target_link_libraries(key_exchange_test PRIVATE secp256k1.host)
+#
+#  add_unit_test(
+#    channels_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/channels.cpp
+#  )
+#  use_client_mbedtls(channels_test)
+#  target_link_libraries(channels_test PRIVATE secp256k1.host)
+#
+#  add_unit_test(
+#    http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
+#  )
+#  target_link_libraries(http_test PRIVATE http_parser.host)
+#
+#  add_unit_test(
+#    frontend_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
+#  )
+#  target_link_libraries(
+#    frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
+#                          secp256k1.host http_parser.host sss.host
+#  )
+#
+#  add_unit_test(
+#    member_voting_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
+#  )
+#  target_link_libraries(
+#    member_voting_test
+#    PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
+#            http_parser.host sss.host
+#  )
+#
+#  add_unit_test(
+#    node_frontend_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
+#  )
+#  target_link_libraries(
+#    node_frontend_test
+#    PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host secp256k1.host
+#            http_parser.host sss.host
+#  )
+#
+#  if(NOT ENV{RUNTIME_CONFIG_DIR})
+#    set_tests_properties(
+#      member_voting_test
+#      PROPERTIES ENVIRONMENT
+#                 RUNTIME_CONFIG_DIR=${CMAKE_SOURCE_DIR}/src/runtime_config
+#    )
+#  endif()
+#
+#  add_unit_test(
+#    lua_generic_test
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/test/lua_generic_test.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/apps/lua_generic/lua_generic.cpp
+#  )
+#  target_include_directories(lua_generic_test PRIVATE ${LUA_DIR})
+#  target_link_libraries(
+#    lua_generic_test PRIVATE lua.host secp256k1.host http_parser.host
+#  )
+#
+#  add_unit_test(
+#    lua_test ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_test.cpp
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/lua_interp/test/lua_kv.cpp
+#  )
+#  target_include_directories(lua_test PRIVATE ${LUA_DIR})
+#  target_link_libraries(lua_test PRIVATE lua.host)
+#
+#  # Merkle Tree memory test
+#  add_executable(merkle_mem src/node/test/merkle_mem.cpp)
+#  target_link_libraries(
+#    merkle_mem PRIVATE ccfcrypto.host evercrypt.host secp256k1.host
+#                       ${CMAKE_THREAD_LIBS_INIT}
+#  )
+#  use_client_mbedtls(merkle_mem)
+#  target_include_directories(merkle_mem PRIVATE ${EVERCRYPT_INC} src)
+#
+#  # Raft driver and scenario test
+#  add_executable(
+#    raft_driver
+#    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/driver.cpp
+#  )
+#  use_client_mbedtls(raft_driver)
+#  target_include_directories(raft_driver PRIVATE src/raft)
+#
+#  add_test(
+#    NAME raft_scenario_test
+#    COMMAND
+#      ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/raft_scenarios_runner.py
+#      ./raft_driver ${CMAKE_SOURCE_DIR}/tests/raft_scenarios
+#      ${CMAKE_SOURCE_DIR}
+#  )
+#  set_property(TEST raft_scenario_test PROPERTY LABELS raft_scenario)
+#endif()
+#
+## Picobench benchmarks
+#add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
+#add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
+#add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
+#add_picobench(ring_buffer_bench SRCS src/ds/test/ring_buffer_bench.cpp)
+#add_picobench(
+#  tls_bench
+#  SRCS src/tls/test/bench.cpp
+#  LINK_LIBS secp256k1.host
+#)
+#add_picobench(
+#  merkle_bench
+#  SRCS src/node/test/merkle_bench.cpp
+#  LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
+#  INCLUDE_DIRS ${EVERCRYPT_INC}
+#)
+#add_picobench(
+#  history_bench
+#  SRCS src/node/test/history_bench.cpp
+#  LINK_LIBS ccfcrypto.host evercrypt.host secp256k1.host
+#  INCLUDE_DIRS ${EVERCRYPT_INC}
+#)
+#add_picobench(
+#  kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
+#                src/enclave/thread_local.cpp
+#)
+#
+## Storing signed governance operations
+#add_e2e_test(
+#  NAME governance_history_test
+#  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
+#  CONSENSUS raft
+#)
+#
+## Lua sample app (tx regulator) end to end test
+#add_e2e_test(
+#  NAME lua_txregulator_test
+#  PYTHON_SCRIPT
+#    ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+#  CONSENSUS raft
+#  ADDITIONAL_ARGS
+#    --app-script
+#    ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+#    --datafile
+#    ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
+#)
+#
+#add_e2e_test(
+#  NAME recovery_tests
+#  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+#  CONSENSUS raft
+#  ADDITIONAL_ARGS --recovery 2
+#)
+#
+#add_e2e_test(
+#  NAME recovery_share_tests
+#  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+#  CONSENSUS raft
+#  ADDITIONAL_ARGS --recovery 2 --use-shares
+#)
+#
+#add_e2e_test(
+#  NAME test_suite
+#  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+#  CONSENSUS raft
+#  IS_SUITE TRUE
+#  ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
+#)
+#
+#add_e2e_test(
+#  NAME end_to_end_scenario
+#  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+#  CONSENSUS raft
+#  ADDITIONAL_ARGS --scenario
+#                  ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+#)
+#
+#add_e2e_test(
+#  NAME lua_end_to_end_logging
+#  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+#  CONSENSUS raft
+#  ADDITIONAL_ARGS --app-script
+#                  ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+#)
+#
+#add_e2e_test(
+#  NAME lua_end_to_end_batched
+#  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+#  CONSENSUS raft
+#  ADDITIONAL_ARGS --app-script
+#                  ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
+#)
+#
+#add_e2e_test(
+#  NAME js_end_to_end_logging
+#  PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+#  CONSENSUS raft
+#  ADDITIONAL_ARGS --js-app-script
+#                  ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
+#)
+#
+#if(QUOTES_ENABLED)
+#  add_e2e_test(
+#    NAME reconfiguration_test
+#    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+#    CONSENSUS raft
+#  )
+#
+#  add_e2e_test(
+#    NAME code_update_test
+#    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+#    CONSENSUS raft
+#    ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH} --raft-election-timeout 20000
+#  )
+#
+#  add_e2e_test(
+#    NAME governance_tests
+#    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+#    CONSENSUS raft
+#    ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
+#  )
+#endif()
 
   add_e2e_test(
     NAME late_joiners
@@ -541,44 +541,44 @@ if(BUILD_TESTS)
     CONSENSUS pbft
   )
 
-  if(BUILD_SMALLBANK)
-    include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
-  endif()
-
-  foreach(CONSENSUS ${CONSENSUSES})
-    add_e2e_test(
-      NAME member_client_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    if(NOT SAN)
-      add_e2e_test(
-        NAME connections_${CONSENSUS}
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-        CONSENSUS ${CONSENSUS}
-      )
-    endif()
-
-    add_e2e_test(
-      NAME receipts_test_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
-      CONSENSUS ${CONSENSUS}
-    )
-
-    add_e2e_test(
-      NAME tlstest_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
-      CONSENSUS ${CONSENSUS} LABEL tlstest
-    )
-
-    add_e2e_test(
-      NAME schema_tests_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-      CONSENSUS ${CONSENSUS}
-      ADDITIONAL_ARGS -p liblogging --schema-dir
-                      ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
-    )
+#if(BUILD_SMALLBANK)
+#  include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
+#endif()
+#
+foreach(CONSENSUS ${CONSENSUSES})
+#  add_e2e_test(
+#    NAME member_client_test_${CONSENSUS}
+#    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
+#    CONSENSUS ${CONSENSUS}
+#  )
+#
+#  if(NOT SAN)
+#    add_e2e_test(
+#      NAME connections_${CONSENSUS}
+#      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+#      CONSENSUS ${CONSENSUS}
+#    )
+#  endif()
+#
+#  add_e2e_test(
+#    NAME receipts_test_${CONSENSUS}
+#    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/receipts.py
+#    CONSENSUS ${CONSENSUS}
+#  )
+#
+#  add_e2e_test(
+#    NAME tlstest_${CONSENSUS}
+#    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
+#    CONSENSUS ${CONSENSUS} LABEL tlstest
+#  )
+#
+#  add_e2e_test(
+#    NAME schema_tests_${CONSENSUS}
+#    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+#    CONSENSUS ${CONSENSUS}
+#    ADDITIONAL_ARGS -p liblogging --schema-dir
+#                    ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+#  )
 
     add_e2e_test(
       NAME end_to_end_logging_${CONSENSUS}
@@ -602,21 +602,21 @@ if(BUILD_TESTS)
 
   endforeach()
 
-  # Logging scenario perf test
-  add_perf_test(
-    NAME logging_scenario_perf_test
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
-    CONSENSUS raft
-    CLIENT_BIN ./scenario_perf_client
-    LABEL log_scenario
-    ADDITIONAL_ARGS
-      --package
-      liblogging
-      --scenario-file
-      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-      --max-writes-ahead
-      1000
-      --repetitions
-      1000
-  )
+# # Logging scenario perf test
+# add_perf_test(
+#   NAME logging_scenario_perf_test
+#   PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+#   CONSENSUS raft
+#   CLIENT_BIN ./scenario_perf_client
+#   LABEL log_scenario
+#   ADDITIONAL_ARGS
+#     --package
+#     liblogging
+#     --scenario-file
+#     ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+#     --max-writes-ahead
+#     1000
+#     --repetitions
+#     1000
+# )
 endif()
