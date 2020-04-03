@@ -8,21 +8,79 @@ import infra.e2e_args
 import infra.ccf
 import infra.consortium
 from infra.proposal import ProposalState
+
 import suite.test_requirements as reqs
+import random
 
 from loguru import logger as LOG
 
-# @reqs.description("Set recovery threshold")
-# def test_set_recovery_threshold(network, args, recovery_threshold=None):
-#     # TODO: Also check that shares have been reshuffled
-#     if recovery_threshold is None:
-#         # TODO: Select recovery threshold randomly between 1 and number of active members
 
-#         # TODO: Keep number of active members in sync
+@reqs.description("Set recovery threshold")
+def test_set_recovery_threshold(network, args, recovery_threshold=None):
+    if recovery_threshold is None:
+        # For now, return with no effect. Once this is chained,
+        # we should select a random threshold between 1 and the
+        # total number of active members
+        return
 
-#     else:
-#         # If recovery threshold > number of active members, expect an error
-#         # Else, set it and expect success
+    already_active_member = network.consortium.get_any_active_member()
+    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
+
+    network.consortium.set_recovery_threshold(recovery_threshold)
+
+    # Shares are only updated if the recovery threshold is modified
+    if recovery_threshold != network.consortium.recovery_threshold:
+        new_share = already_active_member.get_and_decrypt_recovery_share(primary)
+        assert (
+            saved_share != new_share
+        ), "New shares should be issued when the recovery threshold is updated"
+
+
+@reqs.description("Add a new member to the consortium (+ activation)")
+def test_add_member(network, args):
+    primary, _ = network.find_primary()
+
+    network.consortium.store_current_network_encryption_key()
+    already_active_member = network.consortium.get_any_active_member()
+    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
+
+    new_member = network.consortium.generate_and_add_new_member(
+        primary, curve=infra.ccf.ParticipantsCurve(args.participants_curve).next()
+    )
+
+    try:
+        new_member.get_and_decrypt_recovery_share(primary)
+        assert False, "New accepted members are not given recovery shares"
+    except infra.member.NoRecoveryShareFound as e:
+        assert e.args[0].error == "Member is not active"
+
+    new_member.ack(primary)  # Activate new member
+
+    new_share = already_active_member.get_and_decrypt_recovery_share(primary)
+    assert (
+        saved_share != new_share
+    ), "New shares should be issued when a new member is activated"
+
+
+@reqs.description("Retire an existing member")
+def test_retire_member(network, args):
+    primary, _ = network.find_primary()
+
+    network.consortium.store_current_network_encryption_key()
+    already_active_member = network.consortium.get_any_active_member()
+    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
+
+    member_to_retire = [
+        m
+        for m in network.consortium.get_active_members()
+        if m is not already_active_member
+    ][0]
+    network.consortium.retire_member(primary, member_to_retire)
+
+    new_share = already_active_member.get_and_decrypt_recovery_share(primary)
+    assert (
+        saved_share != new_share
+    ), "New shares should be issued when a new member is retired"
 
 
 def run(args):
@@ -34,20 +92,8 @@ def run(args):
         network.start_and_join(args)
         primary, term = network.find_primary()
 
-        # TODO: Delete this
-        new_member = network.consortium.generate_and_add_new_member(
-            remote_node=primary, curve=args.participants_curve
-        )
-
-        # # TODO: Move this
-        # LOG.debug("Set new recovery threshold")
-        # response = network.consortium.set_recovery_threshold(
-        #     member_id=0, remote_node=primary, recovery_threshold=1
-        # )
-        # assert response.result["state"] == ProposalState.Failed.value
-
         LOG.info("Original members can ACK")
-        network.consortium.get_member_by_id(0).ack(primary)
+        network.consortium.get_any_active_member().ack(primary)
 
         LOG.info("Network cannot be opened twice")
         try:
@@ -172,7 +218,9 @@ def run(args):
         assert response.status == params_error
 
         LOG.debug("New member proposes to retire member 0")
-        network.consortium.retire_member(primary, member_id=0)
+        network.consortium.retire_member(
+            primary, network.consortium.get_member_by_id(0)
+        )
 
         LOG.debug("Retired member cannot make a new proposal")
         try:
@@ -187,6 +235,35 @@ def run(args):
         LOG.debug("New member should still be able to make a new proposal")
         new_proposal = new_member.propose(primary, script, 0)
         assert new_proposal.state == ProposalState.Open
+
+        LOG.info(
+            "Recovery threshold is originally set to the original number of members"
+        )
+        LOG.info("Retiring a member should not be possible")
+        try:
+            test_retire_member(network, args)
+        except infra.proposal.ProposalNotAccepted as e:
+            assert e.args[0].state == infra.proposal.ProposalState.Failed
+
+        test_add_member(network, args)
+        test_retire_member(network, args)
+
+        LOG.info("Set different recovery thresholds")
+        network.consortium.set_recovery_threshold(primary, recovery_threshold=1)
+        network.consortium.set_recovery_threshold(
+            primary, recovery_threshold=network.consortium.recovery_threshold
+        )
+
+        LOG.info(
+            "Setting the recovery threshold above the number of active members is not possible"
+        )
+        try:
+            resp = network.consortium.set_recovery_threshold(
+                primary,
+                recovery_threshold=len(network.consortium.get_active_members()) + 1,
+            )
+        except infra.proposal.ProposalNotAccepted as e:
+            assert e.args[0].state == infra.proposal.ProposalState.Failed
 
 
 if __name__ == "__main__":

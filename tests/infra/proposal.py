@@ -37,9 +37,6 @@ class Proposal:
         self.state = state
         self.has_proposer_voted_for = has_proposer_voted_for
         self.votes_for = 1 if self.has_proposer_voted_for else 0
-        LOG.warning(
-            f"Creating new proposal. Proposer {proposer_id}. Proposal ID {proposal_id}. Proposer voted for {has_proposer_voted_for}"
-        )
 
     def increment_votes_for(self):
         self.votes_for += 1

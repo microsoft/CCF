@@ -5,10 +5,16 @@ from enum import Enum
 import infra.proc
 import infra.node
 import infra.proposal
+import infra.crypto
 import http
+import os
 
 
 from loguru import logger as LOG
+
+
+class NoRecoveryShareFound(Exception):
+    pass
 
 
 class MemberStatus(Enum):
@@ -73,28 +79,26 @@ class Member:
         return true
         """
         with remote_node.member_client(member_id=self.member_id) as mc:
-            response = mc.rpc(
+            r = mc.rpc(
                 "vote",
                 {"ballot": {"text": ballot}, "id": proposal.proposal_id},
                 signed=not force_unsigned,
             )
 
-        if response.error is not None:
-            return response
+        if r.error is not None:
+            return r
 
         # If the proposal was accepted, wait for it to be globally committed
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
         if (
-            response.result["state"] == infra.proposal.ProposalState.Accepted.value
+            r.result["state"] == infra.proposal.ProposalState.Accepted.value
             and should_wait_for_global_commit
         ):
             with remote_node.node_client() as mc:
-                infra.checker.wait_for_global_commit(
-                    mc, response.commit, response.term, True
-                )
+                infra.checker.wait_for_global_commit(mc, r.commit, r.term, True)
 
-        return response
+        return r
 
     def withdraw(self, remote_node, proposal):
         with remote_node.member_client(member_id=self.member_id) as c:
@@ -114,5 +118,32 @@ class Member:
         with remote_node.member_client(member_id=self.member_id) as mc:
             r = mc.rpc("ack", params={"state_digest": list(state_digest)}, signed=True)
             assert r.error is None, f"Error ACK: {r.error}"
-            LOG.error(f"Member {self.member_id} is now active")
             self.status = MemberStatus.ACTIVE
+
+    def get_and_decrypt_recovery_share(self, remote_node):
+        with remote_node.member_client(member_id=self.member_id) as mc:
+            r = mc.rpc("getEncryptedRecoveryShare")
+
+            if r.status != http.HTTPStatus.OK.value:
+                raise NoRecoveryShareFound(r)
+
+            # For now, members rely on a copy of the original network encryption
+            # public key to decrypt their shares
+            ctx = infra.crypto.CryptoBoxCtx(
+                os.path.join(
+                    self.common_dir, f"member{self.member_id}_kshare_priv.pem"
+                ),
+                os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+            )
+
+            nonce_bytes = bytes(r.result["nonce"])
+            encrypted_share_bytes = bytes(r.result["encrypted_share"])
+            return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
+
+    def submit_recovery_share(self, remote_node, decrypted_recovery_share):
+        with remote_node.member_client(member_id=self.member_id) as mc:
+            r = mc.rpc(
+                "submitRecoveryShare", params={"share": list(decrypted_recovery_share)}
+            )
+            assert r.error is None, f"Error submitting recovery share: {r.error}"
+            return r

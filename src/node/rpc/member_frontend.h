@@ -355,25 +355,31 @@ namespace ccf
         {"set_recovery_threshold",
          [this](
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
-           const auto recovery_threshold = args.get<size_t>();
+           const auto new_recovery_threshold = args.get<size_t>();
 
            GenesisGenerator g(this->network, tx);
-           auto active_members_count = g.get_active_members_count();
 
-           if (recovery_threshold > active_members_count)
+           if (new_recovery_threshold == g.get_recovery_threshold())
+           {
+             // If the recovery threshold is the same as before, return with no
+             // effect
+             return true;
+           }
+
+           auto active_members_count = g.get_active_members_count();
+           if (new_recovery_threshold > active_members_count)
            {
              LOG_FAIL_FMT(
                "Recovery threshold cannot be set to {} as it is greater than "
                "the number of active members ({})",
-               recovery_threshold,
+               new_recovery_threshold,
                active_members_count);
              return false;
            }
-           g.set_recovery_threshold(recovery_threshold);
+           g.set_recovery_threshold(new_recovery_threshold);
 
-           // TODO: Issue new shares
-
-           return true;
+           // Update recovery shares (same number of shares)
+           return node.split_ledger_secrets(tx);
          }},
       };
 
@@ -839,9 +845,7 @@ namespace ccf
 
       auto get_encrypted_recovery_share =
         [this](RequestArgs& args, nlohmann::json&& params) {
-          // This check should depend on whether new shares are emitted when a
-          // new member is added (status = Accepted) or when the new member acks
-          // (status = Active).
+          // Only active members are given recovery shares
           if (!check_member_active(args.tx, args.caller_id))
           {
             return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");

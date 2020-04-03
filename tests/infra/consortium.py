@@ -27,7 +27,6 @@ class Consortium:
         self.key_generator = key_generator
         self.common_dir = common_dir
         for m_id in member_ids:
-            LOG.warning(len(self.members))
             new_member = infra.member.Member(
                 len(self.members), curve, key_generator, common_dir
             )
@@ -39,8 +38,6 @@ class Consortium:
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
         new_member_id = len(self.members)
-        LOG.warning(f"New member id: {new_member_id}")
-
         new_member = infra.member.Member(
             new_member_id, curve, self.key_generator, self.common_dir
         )
@@ -101,8 +98,6 @@ class Consortium:
         # that at most, only the proposer has already voted for it when
         # proposing it
         majority_count = int(len(self.get_active_members()) / 2 + 1)
-        LOG.warning(f"majority count: {majority_count}")
-        LOG.warning(f"active members: {len(self.get_active_members())}")
 
         for member in self.get_active_members():
             if proposal.votes_for >= majority_count:
@@ -196,14 +191,16 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
-    def retire_member(self, remote_node, member_id):
+    def retire_member(self, remote_node, member_to_retire):
         script = """
         tables, member_id = ...
         return Calls:call("retire_member", member_id)
         """
-        proposal = self.get_any_active_member().propose(remote_node, script, member_id)
+        proposal = self.get_any_active_member().propose(
+            remote_node, script, member_to_retire.member_id
+        )
         self.vote_using_majority(remote_node, proposal)
-        self.get_member_by_id(member_id).status = infra.member.MemberStatus.RETIRED
+        member_to_retire.status = infra.member.MemberStatus.RETIRED
 
     def open_network(self, remote_node, pbft_open=False):
         """
@@ -244,7 +241,6 @@ class Consortium:
             proposal = self.get_any_active_member().propose(
                 remote_node, script, user_cert
             )
-            LOG.error(type(proposal))
             self.vote_using_majority(remote_node, proposal)
 
     def set_lua_app(self, remote_node, app_script):
@@ -295,34 +291,23 @@ class Consortium:
         ]
         infra.proc.ccall(*cmd).check_returncode()
 
-    def get_decrypt_and_submit_shares(self, remote_node):
+    def recover_with_shares(self, remote_node):
         # TODO: Do something better here!
         for m in range(self.recovery_threshold):
-            with remote_node.member_client(member_id=m) as mc:
-                r = mc.rpc("getEncryptedRecoveryShare")
-
-                # For now, members rely on a copy of the original network encryption public key
-                ctx = infra.crypto.CryptoBoxCtx(
-                    os.path.join(self.common_dir, f"member{m}_kshare_priv.pem"),
-                    os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
-                )
-
-                nonce_bytes = bytes(r.result["nonce"])
-                encrypted_share_bytes = bytes(r.result["encrypted_share"])
-                decrypted_share = ctx.decrypt(encrypted_share_bytes, nonce_bytes,)
-
-                r = mc.rpc(
-                    "submitRecoveryShare", params={"share": list(decrypted_share)}
-                )
-                assert r.error is None, f"Error submitting recovery share: {r.error}"
-                if m == 2:
-                    assert (
-                        r.result == True
-                    ), "Shares should be combined when all members have submitted their shares"
-                else:
-                    assert (
-                        r.result == False
-                    ), "Shares should not be combined until all members have submitted their shares"
+            decrypted_share = self.get_member_by_id(m).get_and_decrypt_recovery_share(
+                remote_node
+            )
+            r = self.get_member_by_id(m).submit_recovery_share(
+                remote_node, decrypted_share
+            )
+            if m == 2:
+                assert (
+                    r.result == True
+                ), "Shares should be combined when all members have submitted their shares"
+            else:
+                assert (
+                    r.result == False
+                ), "Shares should not be combined until all members have submitted their shares"
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """
@@ -332,7 +317,9 @@ class Consortium:
         proposal = self.get_any_active_member().propose(
             remote_node, script, recovery_threshold
         )
-        return self.vote_using_majority(remote_node, proposal)
+        r = self.vote_using_majority(remote_node, proposal)
+        self.recovery_threshold = recovery_threshold
+        return r
 
     def add_new_code(self, remote_node, new_code_id):
         script = """
@@ -368,7 +355,7 @@ class Consortium:
             member_id=self.get_any_active_member().member_id,
             request_timeout=(30 if pbft_open else 3),
         ) as c:
-            rep = c.rpc(
+            r = c.rpc(
                 "query",
                 {
                     "text": """tables = ...
@@ -390,8 +377,8 @@ class Consortium:
                     """
                 },
             )
-            current_status = rep.result["status"]
-            current_cert = array.array("B", rep.result["cert"]).tobytes()
+            current_status = r.result["status"]
+            current_cert = array.array("B", r.result["cert"]).tobytes()
 
             expected_cert = open(
                 os.path.join(self.common_dir, "networkcert.pem"), "rb"
@@ -405,10 +392,10 @@ class Consortium:
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.member_client() as c:
-            rep = c.rpc("read", {"table": "ccf.nodes", "key": node_id})
+            r = c.rpc("read", {"table": "ccf.nodes", "key": node_id})
 
-            if rep.error is not None or (
-                node_status and rep.result["status"] != node_status.name
+            if r.error is not None or (
+                node_status and r.result["status"] != node_status.name
             ):
                 return False
 
