@@ -1,26 +1,19 @@
-Quickstart
+Start Here
 ==========
 
-First, you should :ref:`setup a CCF-compatible environment <quickstart/requirements:Environment Setup>`. Then, you will be able to :ref:`build CCF from source and run CCF test suite <quickstart/build:Building CCF>`. Note that for rapid prototyping, you can run a `virtual` build of CCF that does not require Intel SGX.
+CCF releases (``ccf.tar.gz``) are available on the `GitHub repository release page <https://github.com/microsoft/CCF/releases>`_. Once downloaded, the extracted install directory can be copied to a long-lived path, e.g. ``/opt/ccf-install``.
 
-Once this is done, you can quickly spin up a CCF network and start :ref:`issuing commands to the deployed application <users/issue_commands:Issuing Commands>`:
+The install directory contains (under ``getting_started/``) the Azure and Ansible scripts required to setup the CCF environment. See :ref:`how to setup the CCF environment here <quickstart/requirements:Azure Confidential Compute>`.
 
-.. code-block:: bash
+.. note::
 
-    $ cd CCF/build
-    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
-    Setting up Python environment...
-    Python environment successfully setup
-    [2019-10-29 14:47:41.562] Starting 3 CCF nodes...
-    [2019-10-29 14:48:12.138] Started CCF network with the following nodes:
-    [2019-10-29 14:48:12.138]   Node [ 0] = 127.177.10.108:37765
-    [2019-10-29 14:48:12.138]   Node [ 1] = 127.169.74.37:58343
-    [2019-10-29 14:48:12.138]   Node [ 2] = 127.131.108.179:50532
-    [2019-10-29 14:48:12.138] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
-    [2019-10-29 14:48:12.138] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
-    [2019-10-29 14:48:12.138] Press Ctrl+C to shutdown the network.
+    Note that for rapid prototyping, it is possible to run CCF in a non-SGX-enabled environment, using CCF's `virtual` mode (`warning: no security guarantee provided`).
 
-You should also get familiar with some of :ref:`CCF's concepts <concepts:CCF Concepts>`. You will then be able to:
+.. note::
+
+    When upgrading CCF, it is possible that your application will require some changes to compile. See :ref:`quickstart/upgrading_app:Upgrading Your Application` for more details.
+
+Once your setup is complete, you should also get familiar with some of :ref:`CCF's concepts <concepts:CCF Concepts>`. You will then be able to:
 
 1. :ref:`Create a consortium and agree on the constitution <members/index:Member Governance>`
 2. :ref:`Develop a CCF application, based on the example logging application <developers/example:Example Application>`
@@ -35,3 +28,4 @@ You should also get familiar with some of :ref:`CCF's concepts <concepts:CCF Con
     requirements
     oeengine
     build
+    upgrading_app
