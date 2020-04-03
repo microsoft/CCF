@@ -1,5 +1,5 @@
-Environment Setup
-=================
+Development Environment Setup
+=============================
 
 This page describes how to setup an environment to build and deploy CCF.
 
@@ -8,7 +8,7 @@ There are two options to deploy a CCF-ready environment:
 - :ref:`Checkout CCF and its dependencies in a local container <quickstart/requirements:Local Development without SGX (virtual)>`. This is useful for quick prototyping using CCF `virtual` mode.
 - :ref:`Create a SGX-enabled VM on Azure and install CCF dependencies <quickstart/requirements:Azure Confidential Compute>`.
 
-Once this is done, you should look at how to :ref:`build CCF from source <quickstart/build:Building CCF>`.
+Once this is done, you should look at how to :ref:`build CCF from source <quickstart/build:Building CCF from Source>`.
 
 Requirements
 ------------
@@ -49,13 +49,13 @@ Azure Confidential Compute
 
 .. note:: On Windows, you can use `WSL <https://docs.microsoft.com/en-us/windows/wsl/install-win10>`_ or `Azure Cloud Shell (Bash) <https://azure.microsoft.com/en-us/features/cloud-shell/>`_ to run the following commands.
 
-First, from your local machine, you should clone the CCF repository to get access to the scripts required to create and configure the CCF environment.
+First, from your local machine, you should clone the CCF repository to get access to the scripts required to create and configure the CCF environment. Alternatively, the scripts are also available in every release install tarball (you can `download the latest release of CCF here <https://github.com/microsoft/CCF/releases>`_).
 
 .. code-block:: bash
 
     $ git clone https://github.com/microsoft/CCF.git
 
-First, you should run the ``pre_make_vm.sh`` script to install the `Azure CLI`_ and the :term:`Open Enclave Engine` (``oe-engine``) that are required to create the DC-series in Azure:
+Then, you should run the ``pre_make_vm.sh`` script to install the `Azure CLI`_ and the :term:`Open Enclave Engine` (``oe-engine``) that are required to create the DC-series in Azure:
 
 .. code-block:: bash
 
@@ -95,7 +95,7 @@ To quickly set up the dependencies necessary to build CCF, simply run:
     $ cd CCF/getting_started/setup_vm
     $ ./setup.sh
 
-Once this is complete, you can proceed to :ref:`quickstart/build:Building CCF`.
+Once this is complete, you can proceed to :ref:`quickstart/build:Building CCF from Source`.
 
 On a machine without SGX, you can instead run:
 
