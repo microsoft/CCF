@@ -11,7 +11,7 @@ The install directory contains (under ``getting_started/``) the Azure and Ansibl
 
 .. note::
 
-    When upgrading CCF, it is possible that your application will require some changes to compile. See :ref:`quickstart/upgrading_app:Upgrading Your Application` for more details.
+    When upgrading a pre-1.0 CCF, it is possible that your application will require some changes to compile. See :ref:`quickstart/upgrading_app:Upgrading Your Application` for more details.
 
 Once your setup is complete, you should also get familiar with some of :ref:`CCF's concepts <concepts:CCF Concepts>`. You will then be able to:
 
