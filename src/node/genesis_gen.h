@@ -148,6 +148,18 @@ namespace ccf
       return true;
     }
 
+    std::optional<MemberInfo> get_member_info(MemberId member_id)
+    {
+      auto m = tx.get_view(tables.members);
+      auto member = m->get(member_id);
+      if (!member.has_value())
+      {
+        return {};
+      }
+
+      return member.value();
+    }
+
     auto add_user(const std::vector<uint8_t>& user_cert_pem)
     {
       auto [u, uc, v] =

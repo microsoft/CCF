@@ -410,7 +410,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
-  StubNodeState node;
+  StubNodeState node(std::make_shared<NetworkTables>(network));
   // add three initial active members
   // the proposer
   auto proposer_id = gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
@@ -423,6 +423,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.set_recovery_threshold(1);
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
   frontend.open();

@@ -146,13 +146,48 @@ namespace ccf
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
-           // TODO: Check that new member of nodes is not less than recovery
-           // threshold!
-
            GenesisGenerator g(this->network, tx);
 
-           // TODO: If successful, re-key and re-issue new shares
-           return g.retire_member(member_id);
+           auto member_info = g.get_member_info(member_id);
+           if (!member_info.has_value())
+           {
+             return false;
+           }
+
+           if (member_info->status == MemberStatus::ACTIVE)
+           {
+             // If the member was active, it had a recovery share. Check that
+             // the new number of active members is still sufficient for
+             // recovery.
+             auto active_members_count_after = g.get_active_members_count() - 1;
+             auto recovery_threshold = g.get_recovery_threshold();
+             if (active_members_count_after < recovery_threshold)
+             {
+               LOG_FAIL_FMT(
+                 "Failed to retire member {}: number of active members ({}) "
+                 "would be less than recovery threshold ({})",
+                 member_id,
+                 active_members_count_after,
+                 recovery_threshold);
+               return false;
+             }
+           }
+
+           g.retire_member(member_id);
+           if (member_info->status == MemberStatus::ACTIVE)
+           {
+             // For now, we do not re-key here as the ledger secrets are
+             // only updated on local hook.
+
+             // New shares get issued to remaining active members (i.e. minus
+             // the now-retired member)
+             if (!node.split_ledger_secrets(tx))
+             {
+               return false;
+             }
+           }
+
+           return true;
          }},
         // add a new user
         {"new_user",
@@ -756,8 +791,16 @@ namespace ccf
         if (member->status == MemberStatus::ACCEPTED)
         {
           member->status = MemberStatus::ACTIVE;
+          members->put(args.caller_id, *member);
+
+          // New active members are allocated a new recovery share
+          if (!node.split_ledger_secrets(args.tx))
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "Error splitting ledger secrets");
+          }
         }
-        members->put(args.caller_id, *member);
         return make_success(true);
       };
       install(MemberProcs::ACK, json_adapter(ack), Write)
@@ -915,7 +958,6 @@ namespace ccf
 
         if (!node.split_ledger_secrets(tx))
         {
-          LOG_FAIL_FMT("Error splitting ledger secrets");
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             "Error splitting ledger secrets");
