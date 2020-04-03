@@ -60,7 +60,7 @@ private:
       accs.push_back({{"account", i}, {"balance", result}});
     }
 
-    std::cout << accs.dump(4) << std::endl;
+    LOG_INFO_FMT("Accounts:\n{}", accs.dump(4));
   }
 
   void send_creation_transactions() override

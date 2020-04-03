@@ -10,11 +10,11 @@
 #include "clients/sig_rpc_tls_client.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
+#include "ds/logger.h"
 
 // STL/3rdparty
 #include <CLI11/CLI11.hpp>
 #include <fstream>
-#include <iostream>
 #include <nlohmann/json.hpp>
 #include <random>
 #include <thread>
@@ -28,18 +28,18 @@ namespace client
     int threads = std::thread::hardware_concurrency();
     if (core_id > threads || core_id < 0)
     {
-      std::cerr << "Invalid core id: " << core_id << std::endl;
+      LOG_FATAL_FMT("Invalid core id: {}", core_id);
       return false;
     }
 
     cpu_set_t set;
-    std::cout << "Pinning to core:" << core_id << std::endl;
+    LOG_INFO_FMT("Pinning to core: {}", core_id);
     CPU_ZERO(&set);
     CPU_SET(core_id, &set);
 
     if (sched_setaffinity(0, sizeof(cpu_set_t), &set) < 0)
     {
-      std::cerr << "Unable to set affinity" << std::endl;
+      LOG_FATAL_FMT("Unable to set affinity");
       return false;
     }
 
@@ -265,8 +265,8 @@ namespace client
       // Report ciphersuite of first client (assume it is the same for each)
       if (options.verbosity >= 1 && is_first)
       {
-        std::cout << "Connected to server via TLS ("
-                  << conn->get_ciphersuite_name() << ")" << std::endl;
+        LOG_INFO_FMT(
+          "Connected to server via TLS ({})", conn->get_ciphersuite_name());
       }
 
       return conn;
@@ -349,15 +349,15 @@ namespace client
       force_global_commit(connection);
       wait_for_global_commit();
       auto timing_results = end_timing(end_highest_local_commit);
-      std::cout << timing::timestamp() << "Timing ended" << std::endl;
+      LOG_INFO_FMT("Timing ended");
       return timing_results;
     }
 
     void kick_off_timing()
     {
-      std::cout << timing::timestamp() << "About to begin timing" << std::endl;
+      LOG_INFO_FMT("About to begin timing");
       begin_timing();
-      std::cout << timing::timestamp() << "Began timing" << std::endl;
+      LOG_INFO_FMT("Began timing");
     }
 
     inline void write(
@@ -566,8 +566,7 @@ namespace client
         }
         catch (std::exception& e)
         {
-          std::cout << "Exception during creation steps: " << e.what()
-                    << std::endl;
+          LOG_FAIL_FMT("Exception during creation steps: {}", e.what());
           throw e;
         }
       }
@@ -582,7 +581,7 @@ namespace client
       }
       catch (std::exception& e)
       {
-        std::cout << "Preparation exception: " << e.what() << std::endl;
+        LOG_FAIL_FMT("Preparation exception: {}", e.what());
         throw e;
       }
     }
@@ -597,7 +596,7 @@ namespace client
       }
       catch (std::exception& e)
       {
-        std::cout << "Transaction exception: " << e.what() << std::endl;
+        LOG_FAIL_FMT("Transaction exception: {}", e.what());
         throw e;
       }
     }
@@ -607,12 +606,6 @@ namespace client
       if (!options.no_wait)
       {
         auto commit = response_times.wait_for_global_commit({target_commit});
-
-        if (options.verbosity >= 1)
-        {
-          std::cout << timing::timestamp() << "Reached stable global commit at "
-                    << commit << std::endl;
-        }
       }
     }
 
@@ -743,15 +736,15 @@ namespace client
         options.generator_seed = std::random_device()();
       }
 
-      std::cout << "Random choices determined by seed: "
-                << options.generator_seed << std::endl;
+      LOG_INFO_FMT(
+        "Random choices determined by seed: {}", options.generator_seed);
       rand_generator.seed(options.generator_seed);
 
       /*
       const auto target_core = 0;
       if (!pin_to_core(target_core))
       {
-        std::cout << "Failed to pin to core: " << target_core << std::endl;
+        LOG_FAIL_FMT("Failed to pin to core: {}", target_core);
       }
       */
 
@@ -779,18 +772,18 @@ namespace client
 
       if (options.verbosity >= 1)
       {
-        std::cout << std::endl
-                  << "Sending " << options.num_transactions
-                  << " transactions from " << options.thread_count
-                  << " clients " << options.session_count << " times..."
-                  << std::endl;
+        LOG_INFO_FMT(
+          "Sending {} transactions from {} clients {} times...",
+          options.num_transactions,
+          options.thread_count,
+          options.session_count);
       }
 
       auto timing_results = send_all_prepared_transactions();
 
       if (options.verbosity >= 1)
       {
-        std::cout << "Done" << std::endl;
+        LOG_INFO_FMT("Done");
       }
 
       post_timing_body_hook();

@@ -242,14 +242,14 @@ namespace timing
         auto current = std::make_pair(target, global);
         if (!last_printed.has_value() || *last_printed != current)
         {
-          std::cout << timestamp() << "Waiting for " << target << ", at "
-                    << global << std::endl;
+          LOG_INFO_FMT("Waiting for {}, at {}", target, global);
           last_printed = current;
         }
         this_thread::sleep_for(10us);
         success = try_get_commit(net_client, local, global, term, record);
       }
 
+      LOG_INFO_FMT("Found global commit at {}", global);
       return global;
     }
 
@@ -284,16 +284,16 @@ namespace timing
           {
             if (receive.commit->global >= highest_local_commit.value())
             {
-              std::cout << "global commit match: " << receive.commit->global
-                        << " for highest local commit: "
-                        << highest_local_commit.value() << std::endl;
+              LOG_INFO_FMT(
+                "Global commit match {} for highest local commit {}",
+                receive.commit->global,
+                highest_local_commit.value());
               auto was =
                 duration_cast<milliseconds>(end_time_delta).count() / 1000.0;
               auto is =
                 duration_cast<milliseconds>(receive.receive_time).count() /
                 1000.0;
-              std::cout << "duration changing from: " << was << " s to: " << is
-                        << " s" << std::endl;
+              LOG_INFO_FMT("Duration changing from {}s to {}s", was, is);
               end_time_delta = receive.receive_time;
               break;
             }
@@ -358,9 +358,11 @@ namespace timing
 
               if (tx_latency < 0)
               {
-                std::cerr << "Calculated a negative latency (" << tx_latency
-                          << ") for RPC " << receive.rpc_id
-                          << " - duplicate ID causing mismatch?" << std::endl;
+                LOG_FAIL_FMT(
+                  "Calculated a negative latency ({}) for RPC {} - duplicate "
+                  "ID causing mismatch?",
+                  tx_latency,
+                  receive.rpc_id);
                 continue;
               }
 
@@ -468,7 +470,7 @@ namespace timing
 
     void write_to_file(const string& filename)
     {
-      std::cout << "Writing timing data to file" << std::endl;
+      LOG_INFO_FMT("Writing timing data to files");
 
       const auto sent_path = filename + "_sent.csv";
       ofstream sent_csv(sent_path, ofstream::out);
@@ -480,8 +482,7 @@ namespace timing
           sent_csv << sent.send_time.count() << "," << sent.rpc_id << ","
                    << sent.method << "," << sent.expects_commit << endl;
         }
-        std::cout << "Wrote " << sends.size() << " entries to " << sent_path
-                  << std::endl;
+        LOG_INFO_FMT("Wrote {} entries to {}", sends.size(), sent_path);
       }
 
       const auto recv_path = filename + "_recv.csv";
@@ -510,8 +511,7 @@ namespace timing
           }
           recv_csv << endl;
         }
-        std::cout << "Wrote " << receives.size() << " entries to " << recv_path
-                  << std::endl;
+        LOG_INFO_FMT("Wrote {} entries to {}", receives.size(), recv_path);
       }
     }
   };

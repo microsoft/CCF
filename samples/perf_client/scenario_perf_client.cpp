@@ -44,25 +44,17 @@ private:
           element_name));
       }
 
-      std::cout << fmt::format(
-                     "Sending {} {} transactions",
-                     transactions.size(),
-                     element_name)
-                << std::endl;
+      LOG_INFO_FMT(
+        "Sending {} {} transactions", transactions.size(), element_name);
       for (const auto& transaction : transactions)
       {
         const auto method = transaction["method"];
         const auto params = transaction["params"];
 
-        std::cout << fmt::format("Sending {}: {}", method, params.dump(2))
-                  << std::endl;
+        LOG_INFO_FMT("Sending {}: {}", method, params.dump(2));
         const auto response = connection->call(method, params);
         const auto response_body = connection->unpack_body(response);
-        std::cout << fmt::format(
-                       "Response: {} {}",
-                       response.status,
-                       response_body.dump(2))
-                  << std::endl;
+        LOG_INFO_FMT("Response: {} {}", response.status, response_body.dump(2));
       }
     }
   }
