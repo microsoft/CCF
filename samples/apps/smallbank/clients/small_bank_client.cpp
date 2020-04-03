@@ -63,7 +63,7 @@ private:
     LOG_INFO_FMT("Accounts:\n{}", accs.dump(4));
   }
 
-  void send_creation_transactions() override
+  std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
     const auto from = 0;
     const auto to = options.total_accounts;
@@ -78,6 +78,8 @@ private:
     j["savings_amt"] = 1000;
     const auto response = connection->call("SmallBank_create_batch", j);
     check_response(response);
+
+    return response;
   }
 
   void prepare_transactions() override

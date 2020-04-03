@@ -49,6 +49,12 @@ namespace timing
     double variance;
   };
 
+  struct CommitPoint
+  {
+    size_t term;
+    size_t index;
+  };
+
   std::string timestamp()
   {
     std::stringstream ss;
@@ -125,6 +131,31 @@ namespace timing
     vector<PerRound> per_round;
   };
 
+  static std::optional<CommitIDs> parse_commit_ids(
+    const RpcTlsClient::Response& response)
+  {
+    const auto& h = response.headers;
+    const auto local_commit_it = h.find(http::headers::CCF_COMMIT);
+    if (local_commit_it == h.end())
+      return std::nullopt;
+
+    const auto global_commit_it = h.find(http::headers::CCF_GLOBAL_COMMIT);
+    if (global_commit_it == h.end())
+      return std::nullopt;
+
+    const auto term_it = h.find(http::headers::CCF_TERM);
+    if (term_it == h.end())
+      return std::nullopt;
+
+    const auto local =
+      std::strtoul(local_commit_it->second.c_str(), nullptr, 0);
+    const auto global =
+      std::strtoul(global_commit_it->second.c_str(), nullptr, 0);
+    const auto term = std::strtoul(term_it->second.c_str(), nullptr, 0);
+
+    return {{local, global, term}};
+  }
+
   class ResponseTimes
   {
     const shared_ptr<RpcTlsClient> net_client;
@@ -134,52 +165,6 @@ namespace timing
     vector<ReceivedReply> receives;
 
     bool active = false;
-
-    bool try_get_commit(
-      const shared_ptr<RpcTlsClient>& client,
-      size_t& local,
-      size_t& global,
-      size_t& term,
-      bool record = false)
-    {
-      const auto r = client->call("getCommit", nlohmann::json::object());
-
-      if (record)
-      {
-        record_send("getCommit", r.id, false);
-      }
-
-      if (r.status != HTTP_STATUS_OK)
-      {
-        const auto body = client->unpack_body(r);
-        throw runtime_error("getCommit failed with error: " + body.dump());
-      }
-
-      const auto& h = r.headers;
-
-      const auto local_commit_it = h.find(http::headers::CCF_COMMIT);
-      if (local_commit_it == h.end())
-        return false;
-
-      const auto global_commit_it = h.find(http::headers::CCF_GLOBAL_COMMIT);
-      if (global_commit_it == h.end())
-        return false;
-
-      const auto term_it = h.find(http::headers::CCF_TERM);
-      if (term_it == h.end())
-        return false;
-
-      local = std::atoi(local_commit_it->second.c_str());
-      global = std::atoi(global_commit_it->second.c_str());
-      term = std::atoi(term_it->second.c_str());
-
-      if (record)
-      {
-        record_receive(r.id, {{local, global, term}});
-      }
-
-      return true;
-    }
 
   public:
     ResponseTimes(const shared_ptr<RpcTlsClient>& client) :
@@ -222,35 +207,74 @@ namespace timing
       receives.push_back({Clock::now() - start_time, rpc_id, commit});
     }
 
-    // Repeatedly calls getCommit RPC until local and global_commit match, then
-    // returns that commit. Calls received_response for each response.
-    size_t wait_for_global_commit(
-      std::optional<size_t> at_least = {}, bool record = true)
+    // Repeatedly calls getCommit RPC until the target index has been committed
+    // (or will never be committed), checks it was in expected term, returns
+    // first confirming response. Calls received_response for each response, if
+    // record is true. Throws on errors, or if target is rolled back
+    RpcTlsClient::Response wait_for_global_commit(
+      const CommitPoint& target, bool record = true)
     {
-      size_t local = 0u;
-      size_t global = 0u;
-      size_t term = 0u;
+      auto params = nlohmann::json::object();
+      params["commit"] = target.index;
 
-      bool success = try_get_commit(net_client, local, global, term, true);
-      auto target = at_least.has_value() ? max(*at_least, local) : local;
+      constexpr auto get_commit = "getCommit";
 
-      using LastPrinted = std::pair<decltype(target), decltype(global)>;
-      std::optional<LastPrinted> last_printed = std::nullopt;
+      LOG_INFO_FMT(
+        "Waiting for global commit {}.{}", target.term, target.index);
 
-      while (!success || (global < target))
+      while (true)
       {
-        auto current = std::make_pair(target, global);
-        if (!last_printed.has_value() || *last_printed != current)
-        {
-          LOG_INFO_FMT("Waiting for {}, at {}", target, global);
-          last_printed = current;
-        }
-        this_thread::sleep_for(10us);
-        success = try_get_commit(net_client, local, global, term, record);
-      }
+        const auto response = net_client->call(get_commit, params);
 
-      LOG_INFO_FMT("Found global commit at {}", global);
-      return global;
+        if (record)
+        {
+          record_send(get_commit, response.id, false);
+        }
+
+        const auto body = net_client->unpack_body(response);
+        if (response.status != HTTP_STATUS_OK)
+        {
+          throw runtime_error("getCommit failed with error: " + body.dump());
+        }
+
+        if (record)
+        {
+          const auto commit_ids = parse_commit_ids(response);
+          record_receive(response.id, commit_ids);
+        }
+
+        const auto response_term = body["term"].get<size_t>();
+        if (response_term == 0)
+        {
+          // Commit is pending, poll again
+          this_thread::sleep_for(10us);
+          continue;
+        }
+        else if (response_term < target.term)
+        {
+          throw std::logic_error(fmt::format(
+            "Unexpected situation - {} was committed in old term {} (expected "
+            "{})",
+            target.index,
+            response_term,
+            target.term));
+        }
+        else if (response_term == target.term)
+        {
+          // Good, this target commit was globally committed!
+          LOG_INFO_FMT("Found global commit {}.{}", target.term, target.index);
+          return response;
+        }
+        else
+        {
+          throw std::logic_error(fmt::format(
+            "Pending transaction was dropped! Looking for {}.{}, but term has "
+            "advanced to {}",
+            target.term,
+            target.index,
+            response_term));
+        }
+      }
     }
 
     Results produce_results(

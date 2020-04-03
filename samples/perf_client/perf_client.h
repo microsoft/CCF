@@ -193,31 +193,40 @@ namespace client
         }
       }
 
-      std::optional<timing::CommitIDs> commits = std::nullopt;
-
       if (response_times.is_timing_active())
       {
-        const auto commit_it = reply.headers.find(http::headers::CCF_COMMIT);
-        const auto global_it =
-          reply.headers.find(http::headers::CCF_GLOBAL_COMMIT);
-        const auto term_it = reply.headers.find(http::headers::CCF_TERM);
+        const auto commits = timing::parse_commit_ids(reply);
 
-        // If any of these are missing, we'll write no commits and consider
-        // this a failed request
-        if (
-          commit_it != reply.headers.end() &&
-          global_it != reply.headers.end() && term_it != reply.headers.end())
+        if (!commits.has_value())
         {
-          const size_t commit = std::atoi(commit_it->second.c_str());
-          const size_t global = std::atoi(global_it->second.c_str());
-          const size_t term = std::atoi(term_it->second.c_str());
-          commits.emplace(timing::CommitIDs{commit, global, term});
-
-          highest_local_commit = std::max<size_t>(highest_local_commit, commit);
+          throw std::logic_error(
+            "Unable to parse commit headers from response");
         }
 
         // Record time of received responses
         response_times.record_receive(reply.id, commits);
+
+        if (commits->term < last_response_commit.term)
+        {
+          throw std::logic_error(fmt::format(
+            "Term went backwards (expected {}, saw {})!",
+            last_response_commit.term,
+            commits->term));
+        }
+        else if (
+          commits->term > last_response_commit.term &&
+          commits->local <= last_response_commit.index)
+        {
+          throw std::logic_error(fmt::format(
+            "There has been an election and transactions have "
+            "been lost! (saw {}.{}, currently at {}.{})",
+            last_response_commit.term,
+            last_response_commit.index,
+            commits->term,
+            commits->local));
+        }
+
+        last_response_commit = {commits->term, commits->local};
       }
     }
 
@@ -241,7 +250,7 @@ namespace client
     PreparedTxs prepared_txs;
 
     timing::ResponseTimes response_times;
-    size_t highest_local_commit = 0;
+    timing::CommitPoint last_response_commit = {0, 0};
 
     std::shared_ptr<RpcTlsClient> create_connection(bool force_unsigned = false)
     {
@@ -304,7 +313,10 @@ namespace client
     // must be provided by derived class
     virtual void prepare_transactions() = 0;
 
-    virtual void send_creation_transactions() {}
+    virtual std::optional<RpcTlsClient::Response> send_creation_transactions()
+    {
+      return std::nullopt;
+    }
 
     virtual bool check_response(const RpcTlsClient::Response& r)
     {
@@ -544,25 +556,27 @@ namespace client
       {
         try
         {
-          send_creation_transactions();
+          const auto last_response = send_creation_transactions();
 
-          // Ensure creation transactions are globally committed before
-          // proceeding
-          const auto sign_response = force_global_commit(get_connection());
-          check_response(sign_response);
-
-          const auto commit_it =
-            sign_response.headers.find(http::headers::CCF_COMMIT);
-          if (commit_it == sign_response.headers.end())
+          if (last_response.has_value())
           {
-            throw std::runtime_error(
-              fmt::format("Missing commit header in response"));
-          }
+            // Ensure creation transactions are globally committed before
+            // proceeding
+            const auto sign_response = force_global_commit(get_connection());
+            check_response(sign_response);
 
-          const auto commit = atoi(commit_it->second.c_str());
-          LOG_INFO_FMT(
-            "Waiting for {} commit to be globally committed", commit);
-          wait_for_global_commit(commit);
+            const auto response_commit_ids =
+              timing::parse_commit_ids(last_response.value());
+
+            if (!response_commit_ids.has_value())
+            {
+              throw std::runtime_error("Missing headers in response");
+            }
+
+            const timing::CommitPoint cp{response_commit_ids->term,
+                                         response_commit_ids->local};
+            wait_for_global_commit(cp);
+          }
         }
         catch (std::exception& e)
         {
@@ -601,17 +615,17 @@ namespace client
       }
     }
 
-    void wait_for_global_commit(size_t target_commit)
+    void wait_for_global_commit(const timing::CommitPoint& target)
     {
       if (!options.no_wait)
       {
-        auto commit = response_times.wait_for_global_commit({target_commit});
+        response_times.wait_for_global_commit(target);
       }
     }
 
     void wait_for_global_commit()
     {
-      wait_for_global_commit(highest_local_commit);
+      wait_for_global_commit(last_response_commit);
     }
 
     void begin_timing()

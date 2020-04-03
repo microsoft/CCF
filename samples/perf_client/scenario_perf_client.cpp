@@ -64,9 +64,11 @@ private:
     scenario_json = files::slurp_json(options.scenario_file);
   }
 
-  void send_creation_transactions() override
+  std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
     send_verbose_transactions(get_connection(), "setup");
+
+    return std::nullopt; // TODO
   }
 
   void post_timing_body_hook() override
