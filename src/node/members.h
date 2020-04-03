@@ -15,7 +15,7 @@ namespace ccf
   {
     ACCEPTED = 0,
     ACTIVE = 1,
-    RETIRED = 2,
+    RETIRED = 2
   };
   DECLARE_JSON_ENUM(
     MemberStatus,

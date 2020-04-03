@@ -258,16 +258,14 @@ class Network:
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
-            self.consortium.set_lua_app(
-                member_id=0, remote_node=primary, app_script=args.app_script
-            )
+            self.consortium.set_lua_app(remote_node=primary, app_script=args.app_script)
 
         if args.js_app_script:
             infra.proc.ccall(
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                member_id=0, remote_node=primary, app_script=args.js_app_script
+                remote_node=primary, app_script=args.js_app_script
             )
 
         self.consortium.add_users(primary, self.initial_users)
@@ -336,7 +334,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                self.consortium.trust_node(1, primary, new_node.node_id)
+                self.consortium.trust_node(primary, new_node.node_id)
             if args.consensus != "pbft":
                 # Here, quote verification has already been run when the node
                 # was added as pending. Only wait for the join timer for the

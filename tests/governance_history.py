@@ -70,7 +70,7 @@ def run(args):
             original_withdrawals,
         ) = count_governance_operations(ledger)
 
-        LOG.info("Add new member proposal")
+        LOG.info("Add new member proposal (implicit vote)")
         (
             new_member_proposal,
             new_member,
@@ -80,9 +80,7 @@ def run(args):
         proposals_issued += 1
 
         LOG.info("2/3 members accept the proposal")
-        response = network.consortium.get_member_by_id(1).vote(
-            primary, new_member_proposal, accept=True
-        )
+        response = network.consortium.vote_using_majority(primary, new_member_proposal)
         votes_issued += 1
         assert response.status == http.HTTPStatus.OK.value
         assert response.result["state"] == ProposalState.Accepted.value

@@ -47,14 +47,12 @@ def test(network, args, use_shares=False):
 
     if use_shares:
         LOG.warning("Retrieve and submit recovery shares")
-        recovered_network.consortium.accept_recovery_with_shares(
-            member_id=1, remote_node=primary
-        )
+        recovered_network.consortium.accept_recovery_with_shares(remote_node=primary)
         recovered_network.consortium.get_decrypt_and_submit_shares(remote_node=primary)
     else:
         LOG.info("Members vote to complete the recovery")
         recovered_network.consortium.accept_recovery(
-            member_id=1, remote_node=primary, sealed_secrets=sealed_secrets
+            remote_node=primary, sealed_secrets=sealed_secrets
         )
 
     for node in recovered_network.nodes:
