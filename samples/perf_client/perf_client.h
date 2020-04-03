@@ -46,149 +46,8 @@ namespace client
     return true;
   }
 
-  /** Base class for perf-testing clients. Provides hooks to set initial state,
-   * prepare a batch of transactions, and then measure the latency and
-   * throughput of processing those batched transactions */
-  class PerfBase
+  struct PerfOptions
   {
-  private:
-    tls::Pem key = {};
-    std::shared_ptr<tls::Cert> tls_cert;
-
-    // Create tls_cert if it doesn't exist, and return it
-    bool get_cert()
-    {
-      if (tls_cert == nullptr)
-      {
-        const auto raw_cert = files::slurp(cert_file);
-        const auto raw_key = files::slurp(key_file);
-        const auto ca = files::slurp(ca_file);
-
-        key = tls::Pem(raw_key);
-
-        tls_cert = std::make_shared<tls::Cert>(
-          std::make_shared<tls::CA>(ca), raw_cert, key);
-
-        return true;
-      }
-
-      return false;
-    }
-
-    // Process reply to an RPC. Records time reply was received. Calls
-    // check_response for derived-overridable validation
-    void process_reply(const RpcTlsClient::Response& reply)
-    {
-      if (check_responses)
-      {
-        if (!check_response(reply))
-        {
-          throw std::logic_error("Response failed check");
-        }
-      }
-
-      std::optional<timing::CommitIDs> commits = std::nullopt;
-
-      if (timing.has_value())
-      {
-        const auto commit_it = reply.headers.find(http::headers::CCF_COMMIT);
-        const auto global_it =
-          reply.headers.find(http::headers::CCF_GLOBAL_COMMIT);
-        const auto term_it = reply.headers.find(http::headers::CCF_TERM);
-
-        // If any of these are missing, we'll write no commits and consider
-        // this a failed request
-        if (
-          commit_it != reply.headers.end() &&
-          global_it != reply.headers.end() && term_it != reply.headers.end())
-        {
-          const size_t commit = std::atoi(commit_it->second.c_str());
-          const size_t global = std::atoi(global_it->second.c_str());
-          const size_t term = std::atoi(term_it->second.c_str());
-          commits.emplace(timing::CommitIDs{commit, global, term});
-
-          highest_local_commit = std::max<size_t>(highest_local_commit, commit);
-        }
-
-        // Record time of received responses
-        timing->record_receive(reply.id, commits);
-      }
-    }
-
-  protected:
-    std::mt19937 rand_generator;
-
-    nlohmann::json verification_target;
-
-    struct PreparedTx
-    {
-      RpcTlsClient::PreparedRpc rpc;
-      std::string method;
-      bool expects_commit;
-    };
-
-    using PreparedTxs = std::vector<PreparedTx>;
-
-    std::shared_ptr<RpcTlsClient> rpc_connection;
-    PreparedTxs prepared_txs;
-
-    std::optional<timing::ResponseTimes> timing;
-    size_t highest_local_commit = 0;
-
-    std::shared_ptr<RpcTlsClient> create_connection(bool force_unsigned = false)
-    {
-      // Create a cert if this is our first rpc_connection
-      const bool is_first = get_cert();
-
-      const auto conn = (sign && !force_unsigned) ?
-        std::make_shared<SigRpcTlsClient>(
-          key,
-          server_address.hostname,
-          server_address.port,
-          nullptr,
-          tls_cert) :
-        std::make_shared<RpcTlsClient>(
-          server_address.hostname, server_address.port, nullptr, tls_cert);
-      conn->set_prefix("users");
-
-      // Report ciphersuite of first client (assume it is the same for each)
-      if (verbosity >= 1 && is_first)
-      {
-        std::cout << "Connected to server via TLS ("
-                  << conn->get_ciphersuite_name() << ")" << std::endl;
-      }
-
-      return conn;
-    }
-
-    void add_prepared_tx(
-      const std::string& method,
-      const nlohmann::json& params,
-      bool expects_commit,
-      const std::optional<size_t>& index)
-    {
-      const PreparedTx tx{
-        rpc_connection->gen_request(method, params), method, expects_commit};
-
-      if (index.has_value())
-      {
-        assert(index.value() < prepared_txs.size());
-        prepared_txs[index.value()] = tx;
-      }
-      else
-      {
-        prepared_txs.push_back(tx);
-      }
-    }
-
-    static size_t total_byte_size(const PreparedTxs& txs)
-    {
-      return std::accumulate(
-        txs.begin(), txs.end(), 0, [](size_t n, const PreparedTx& tx) {
-          return n + tx.rpc.encoded.size();
-        });
-    }
-
     /// Options set from command line
     ///@{
     std::string label; //< Default set in constructor
@@ -213,221 +72,8 @@ namespace client
     bool relax_commit_target = false;
     ///@}
 
-    // Everything else has empty stubs and can optionally be overridden. This
-    // must be provided by derived class
-    virtual void prepare_transactions() = 0;
-
-    virtual void send_creation_transactions(
-      const std::shared_ptr<RpcTlsClient>& connection)
-    {}
-
-    virtual bool check_response(const RpcTlsClient::Response& r)
-    {
-      // Default behaviour is to accept anything that doesn't contain an error
-      return r.status == HTTP_STATUS_OK;
-    }
-
-    virtual void pre_creation_hook(){};
-    virtual void post_creation_hook(){};
-
-    virtual void pre_timing_body_hook(){};
-    virtual void post_timing_body_hook(){};
-
-    virtual timing::Results call_raw_batch(
-      const std::shared_ptr<RpcTlsClient>& connection, const PreparedTxs& txs)
-    {
-      size_t read;
-      size_t written;
-
-      kick_off_timing();
-      std::optional<size_t> end_highest_local_commit;
-
-      // Repeat for each session
-      for (size_t session = 1; session <= session_count; ++session)
-      {
-        read = 0;
-        written = 0;
-
-        // Write everything
-        while (written < txs.size())
-          write(txs[written], read, written, connection);
-
-        blocking_read(read, written, connection);
-
-        // Reconnect for each session (except the last)
-        if (session != session_count)
-        {
-          reconnect(connection);
-        }
-      }
-
-      force_global_commit(connection);
-      wait_for_global_commit();
-      auto timing_results = end_timing(end_highest_local_commit);
-      std::cout << timing::timestamp() << "Timing ended" << std::endl;
-      return timing_results;
-    }
-
-    void kick_off_timing()
-    {
-      std::cout << timing::timestamp() << "About to begin timing" << std::endl;
-      begin_timing();
-      std::cout << timing::timestamp() << "Began timing" << std::endl;
-    }
-
-    inline void write(
-      const PreparedTx& tx,
-      size_t& read,
-      size_t& written,
-      const std::shared_ptr<RpcTlsClient>& connection)
-    {
-      // Record time of sent requests
-      if (timing.has_value())
-        timing->record_send(tx.method, tx.rpc.id, tx.expects_commit);
-
-      connection->write(tx.rpc.encoded);
-      ++written;
-
-      // Optimistically read (non-blocking) any current responses
-      while (read < written)
-      {
-        const auto r = connection->read_response_non_blocking();
-        if (!r.has_value())
-        {
-          // If we have no responses waiting, move on to the next thing
-          break;
-        }
-
-        process_reply(r.value());
-        ++read;
-      }
-
-      // Do blocking reads if we're beyond our write-ahead limit
-      if (max_writes_ahead > 0) // 0 is a special value allowing unlimited
-                                // write-ahead
-      {
-        while (written - read >= max_writes_ahead)
-        {
-          process_reply(connection->read_response());
-          ++read;
-        }
-      }
-    }
-
-    void blocking_read(
-      size_t& read,
-      size_t written,
-      const std::shared_ptr<RpcTlsClient>& connection)
-    {
-      // Read response (blocking) for all pending txs
-      while (read < written)
-      {
-        process_reply(connection->read_response());
-        ++read;
-      }
-    }
-
-    void reconnect(const std::shared_ptr<RpcTlsClient>& connection)
-    {
-      connection->disconnect();
-      connection->connect();
-    }
-
-    void force_global_commit(const std::shared_ptr<RpcTlsClient>& connection)
-    {
-      // End with a mkSign RPC to force a final global commit
-      const auto method = "mkSign";
-      const auto mk_sign = connection->gen_request(method);
-      if (timing.has_value())
-      {
-        timing->record_send(method, mk_sign.id, true);
-      }
-      connection->write(mk_sign.encoded);
-
-      // Do a blocking read for this final response
-      process_reply(connection->read_response());
-    }
-
-    virtual void verify_params(const nlohmann::json& expected)
-    {
-      // It's only reasonable to compare against expected state if the initial
-      // parameters match, so check a few obvious ones
-
-      {
-        const auto it = expected.find("seed");
-        if (it != expected.end())
-        {
-          const auto expected_seed = it->get<decltype(generator_seed)>();
-          if (expected_seed != generator_seed)
-          {
-            throw std::runtime_error(
-              "Verification file expects seed " +
-              std::to_string(expected_seed) + ", but currently using " +
-              std::to_string(generator_seed));
-          }
-        }
-      }
-
-      {
-        const auto it = expected.find("transactions");
-        if (it != expected.end())
-        {
-          const auto expected_txs = it->get<decltype(num_transactions)>();
-          if (expected_txs != num_transactions)
-          {
-            throw std::runtime_error(
-              "Verification file is only applicable for " +
-              std::to_string(expected_txs) +
-              " transactions, but currently running " +
-              std::to_string(num_transactions));
-          }
-        }
-      }
-
-      {
-        const auto it = expected.find("sessions");
-        if (it != expected.end())
-        {
-          const auto expected_sessions = it->get<decltype(session_count)>();
-          if (expected_sessions != session_count)
-          {
-            throw std::runtime_error(
-              "Verification file is only applicable for " +
-              std::to_string(expected_sessions) +
-              " sessions, but currently running " +
-              std::to_string(session_count));
-          }
-        }
-      }
-
-      {
-        bool expected_randomise = false;
-        const auto it = expected.find("randomise");
-        if (it != expected.end())
-        {
-          expected_randomise = it->get<bool>();
-        }
-
-        if (expected_randomise != randomise)
-        {
-          throw std::runtime_error(
-            "Verification file is only applicable when randomisation is " +
-            std::string(expected_randomise ? "ON" : "OFF") +
-            ", but this option is currently " +
-            std::string(randomise ? "ON" : "OFF"));
-        }
-      }
-    }
-    virtual void verify_initial_state(const nlohmann::json& expected) {}
-    virtual void verify_final_state(const nlohmann::json& expected) {}
-
-  public:
-    PerfBase(const std::string& default_label) :
-      label(default_label),
-      rand_generator()
-    {}
-
-    virtual void setup_parser(CLI::App& app)
+    PerfOptions(const std::string& default_label, CLI::App& app) :
+      label(default_label)
     {
       // Enable config from file
       app.set_config("--config");
@@ -503,6 +149,379 @@ namespace client
         check_responses,
         "Check every JSON response for errors. Potentially slow");
     }
+  };
+
+  /** Base class for perf-testing clients. Provides hooks to set initial state,
+   * prepare a batch of transactions, and then measure the latency and
+   * throughput of processing those batched transactions */
+  template <typename TOptions>
+  class PerfBase
+  {
+  private:
+    tls::Pem key = {};
+    std::shared_ptr<tls::Cert> tls_cert;
+
+    // Create tls_cert if it doesn't exist, and return it
+    bool get_cert()
+    {
+      if (tls_cert == nullptr)
+      {
+        const auto raw_cert = files::slurp(options.cert_file);
+        const auto raw_key = files::slurp(options.key_file);
+        const auto ca = files::slurp(options.ca_file);
+
+        key = tls::Pem(raw_key);
+
+        tls_cert = std::make_shared<tls::Cert>(
+          std::make_shared<tls::CA>(ca), raw_cert, key);
+
+        return true;
+      }
+
+      return false;
+    }
+
+    // Process reply to an RPC. Records time reply was received. Calls
+    // check_response for derived-overridable validation
+    void process_reply(const RpcTlsClient::Response& reply)
+    {
+      if (options.check_responses)
+      {
+        if (!check_response(reply))
+        {
+          throw std::logic_error("Response failed check");
+        }
+      }
+
+      std::optional<timing::CommitIDs> commits = std::nullopt;
+
+      if (response_times.is_timing_active())
+      {
+        const auto commit_it = reply.headers.find(http::headers::CCF_COMMIT);
+        const auto global_it =
+          reply.headers.find(http::headers::CCF_GLOBAL_COMMIT);
+        const auto term_it = reply.headers.find(http::headers::CCF_TERM);
+
+        // If any of these are missing, we'll write no commits and consider
+        // this a failed request
+        if (
+          commit_it != reply.headers.end() &&
+          global_it != reply.headers.end() && term_it != reply.headers.end())
+        {
+          const size_t commit = std::atoi(commit_it->second.c_str());
+          const size_t global = std::atoi(global_it->second.c_str());
+          const size_t term = std::atoi(term_it->second.c_str());
+          commits.emplace(timing::CommitIDs{commit, global, term});
+
+          highest_local_commit = std::max<size_t>(highest_local_commit, commit);
+        }
+
+        // Record time of received responses
+        response_times.record_receive(reply.id, commits);
+      }
+    }
+
+  protected:
+    TOptions options;
+
+    std::mt19937 rand_generator;
+
+    nlohmann::json verification_target;
+
+    struct PreparedTx
+    {
+      RpcTlsClient::PreparedRpc rpc;
+      std::string method;
+      bool expects_commit;
+    };
+
+    using PreparedTxs = std::vector<PreparedTx>;
+
+    std::shared_ptr<RpcTlsClient> rpc_connection;
+    PreparedTxs prepared_txs;
+
+    timing::ResponseTimes response_times;
+    size_t highest_local_commit = 0;
+
+    std::shared_ptr<RpcTlsClient> create_connection(bool force_unsigned = false)
+    {
+      // Create a cert if this is our first rpc_connection
+      const bool is_first = get_cert();
+
+      const auto conn = (options.sign && !force_unsigned) ?
+        std::make_shared<SigRpcTlsClient>(
+          key,
+          options.server_address.hostname,
+          options.server_address.port,
+          nullptr,
+          tls_cert) :
+        std::make_shared<RpcTlsClient>(
+          options.server_address.hostname,
+          options.server_address.port,
+          nullptr,
+          tls_cert);
+      conn->set_prefix("users");
+
+      // Report ciphersuite of first client (assume it is the same for each)
+      if (options.verbosity >= 1 && is_first)
+      {
+        std::cout << "Connected to server via TLS ("
+                  << conn->get_ciphersuite_name() << ")" << std::endl;
+      }
+
+      return conn;
+    }
+
+    void add_prepared_tx(
+      const std::string& method,
+      const nlohmann::json& params,
+      bool expects_commit,
+      const std::optional<size_t>& index)
+    {
+      const PreparedTx tx{
+        rpc_connection->gen_request(method, params), method, expects_commit};
+
+      if (index.has_value())
+      {
+        assert(index.value() < prepared_txs.size());
+        prepared_txs[index.value()] = tx;
+      }
+      else
+      {
+        prepared_txs.push_back(tx);
+      }
+    }
+
+    static size_t total_byte_size(const PreparedTxs& txs)
+    {
+      return std::accumulate(
+        txs.begin(), txs.end(), 0, [](size_t n, const PreparedTx& tx) {
+          return n + tx.rpc.encoded.size();
+        });
+    }
+
+    // Everything else has empty stubs and can optionally be overridden. This
+    // must be provided by derived class
+    virtual void prepare_transactions() = 0;
+
+    virtual void send_creation_transactions() {}
+
+    virtual bool check_response(const RpcTlsClient::Response& r)
+    {
+      // Default behaviour is to accept anything that doesn't contain an error
+      return r.status == HTTP_STATUS_OK;
+    }
+
+    virtual void pre_creation_hook(){};
+    virtual void post_creation_hook(){};
+
+    virtual void pre_timing_body_hook(){};
+    virtual void post_timing_body_hook(){};
+
+    virtual timing::Results call_raw_batch(
+      const std::shared_ptr<RpcTlsClient>& connection, const PreparedTxs& txs)
+    {
+      size_t read;
+      size_t written;
+
+      kick_off_timing();
+      std::optional<size_t> end_highest_local_commit;
+
+      // Repeat for each session
+      for (size_t session = 1; session <= options.session_count; ++session)
+      {
+        read = 0;
+        written = 0;
+
+        // Write everything
+        while (written < txs.size())
+          write(txs[written], read, written, connection);
+
+        blocking_read(read, written, connection);
+
+        // Reconnect for each session (except the last)
+        if (session != options.session_count)
+        {
+          reconnect(connection);
+        }
+      }
+
+      force_global_commit(connection);
+      wait_for_global_commit();
+      auto timing_results = end_timing(end_highest_local_commit);
+      std::cout << timing::timestamp() << "Timing ended" << std::endl;
+      return timing_results;
+    }
+
+    void kick_off_timing()
+    {
+      std::cout << timing::timestamp() << "About to begin timing" << std::endl;
+      begin_timing();
+      std::cout << timing::timestamp() << "Began timing" << std::endl;
+    }
+
+    inline void write(
+      const PreparedTx& tx,
+      size_t& read,
+      size_t& written,
+      const std::shared_ptr<RpcTlsClient>& connection)
+    {
+      // Record time of sent requests
+      if (response_times.is_timing_active())
+      {
+        response_times.record_send(tx.method, tx.rpc.id, tx.expects_commit);
+      }
+
+      connection->write(tx.rpc.encoded);
+      ++written;
+
+      // Optimistically read (non-blocking) any current responses
+      while (read < written)
+      {
+        const auto r = connection->read_response_non_blocking();
+        if (!r.has_value())
+        {
+          // If we have no responses waiting, move on to the next thing
+          break;
+        }
+
+        process_reply(r.value());
+        ++read;
+      }
+
+      // Do blocking reads if we're beyond our write-ahead limit
+      if (options.max_writes_ahead > 0) // 0 is a special value allowing
+                                        // unlimited write-ahead
+      {
+        while (written - read >= options.max_writes_ahead)
+        {
+          process_reply(connection->read_response());
+          ++read;
+        }
+      }
+    }
+
+    void blocking_read(
+      size_t& read,
+      size_t written,
+      const std::shared_ptr<RpcTlsClient>& connection)
+    {
+      // Read response (blocking) for all pending txs
+      while (read < written)
+      {
+        process_reply(connection->read_response());
+        ++read;
+      }
+    }
+
+    void reconnect(const std::shared_ptr<RpcTlsClient>& connection)
+    {
+      connection->disconnect();
+      connection->connect();
+    }
+
+    RpcTlsClient::Response force_global_commit(
+      const std::shared_ptr<RpcTlsClient>& connection)
+    {
+      // End with a mkSign RPC to force a final global commit
+      const auto method = "mkSign";
+      const auto mk_sign = connection->gen_request(method);
+      if (response_times.is_timing_active())
+      {
+        response_times.record_send(method, mk_sign.id, true);
+      }
+      connection->write(mk_sign.encoded);
+
+      // Do a blocking read for this final response
+      const auto response = connection->read_response();
+      process_reply(response);
+      return response;
+    }
+
+    virtual void verify_params(const nlohmann::json& expected)
+    {
+      // It's only reasonable to compare against expected state if the initial
+      // parameters match, so check a few obvious ones
+
+      {
+        const auto it = expected.find("seed");
+        if (it != expected.end())
+        {
+          const auto expected_seed =
+            it->get<decltype(options.generator_seed)>();
+          if (expected_seed != options.generator_seed)
+          {
+            throw std::runtime_error(
+              "Verification file expects seed " +
+              std::to_string(expected_seed) + ", but currently using " +
+              std::to_string(options.generator_seed));
+          }
+        }
+      }
+
+      {
+        const auto it = expected.find("transactions");
+        if (it != expected.end())
+        {
+          const auto expected_txs =
+            it->get<decltype(options.num_transactions)>();
+          if (expected_txs != options.num_transactions)
+          {
+            throw std::runtime_error(
+              "Verification file is only applicable for " +
+              std::to_string(expected_txs) +
+              " transactions, but currently running " +
+              std::to_string(options.num_transactions));
+          }
+        }
+      }
+
+      {
+        const auto it = expected.find("sessions");
+        if (it != expected.end())
+        {
+          const auto expected_sessions =
+            it->get<decltype(options.session_count)>();
+          if (expected_sessions != options.session_count)
+          {
+            throw std::runtime_error(
+              "Verification file is only applicable for " +
+              std::to_string(expected_sessions) +
+              " sessions, but currently running " +
+              std::to_string(options.session_count));
+          }
+        }
+      }
+
+      {
+        bool expected_randomise = false;
+        const auto it = expected.find("randomise");
+        if (it != expected.end())
+        {
+          expected_randomise = it->get<bool>();
+        }
+
+        if (expected_randomise != options.randomise)
+        {
+          throw std::runtime_error(
+            "Verification file is only applicable when randomisation is " +
+            std::string(expected_randomise ? "ON" : "OFF") +
+            ", but this option is currently " +
+            std::string(options.randomise ? "ON" : "OFF"));
+        }
+      }
+    }
+    virtual void verify_initial_state(const nlohmann::json& expected) {}
+    virtual void verify_final_state(const nlohmann::json& expected) {}
+
+  public:
+    PerfBase(const TOptions& o) :
+      options(o),
+      rand_generator(),
+      // timing gets its own new connection for any requests it wants to send -
+      // these are never signed
+      response_times(create_connection())
+    {}
 
     void init_connection()
     {
@@ -513,15 +532,37 @@ namespace client
       }
     }
 
+    std::shared_ptr<RpcTlsClient> get_connection()
+    {
+      init_connection();
+      return rpc_connection;
+    }
+
     void send_all_creation_transactions()
     {
-      if (!no_create)
+      if (!options.no_create)
       {
         try
         {
-          // Create a new connection for these, rather than a connection which
-          // will be reused for bulk transactions later
-          send_creation_transactions(create_connection());
+          send_creation_transactions();
+
+          // Ensure creation transactions are globally committed before
+          // proceeding
+          const auto sign_response = force_global_commit(get_connection());
+          check_response(sign_response);
+
+          const auto commit_it =
+            sign_response.headers.find(http::headers::CCF_COMMIT);
+          if (commit_it == sign_response.headers.end())
+          {
+            throw std::runtime_error(
+              fmt::format("Missing commit header in response"));
+          }
+
+          const auto commit = atoi(commit_it->second.c_str());
+          std::cout << "Waiting for " << commit << " to be globally committed"
+                    << std::endl;
+          wait_for_global_commit(commit);
         }
         catch (std::exception& e)
         {
@@ -549,7 +590,6 @@ namespace client
     timing::Results send_all_prepared_transactions()
     {
       init_connection();
-
       try
       {
         // ...send any transactions which were previously prepared
@@ -562,18 +602,13 @@ namespace client
       }
     }
 
-    void wait_for_global_commit()
+    void wait_for_global_commit(size_t target_commit)
     {
-      if (!no_wait)
+      if (!options.no_wait)
       {
-        if (!timing.has_value())
-        {
-          throw std::logic_error("Unexpected call to wait_for_global_commit");
-        }
+        auto commit = response_times.wait_for_global_commit({target_commit});
 
-        auto commit = timing->wait_for_global_commit({highest_local_commit});
-
-        if (verbosity >= 1)
+        if (options.verbosity >= 1)
         {
           std::cout << timing::timestamp() << "Reached stable global commit at "
                     << commit << std::endl;
@@ -581,38 +616,40 @@ namespace client
       }
     }
 
+    void wait_for_global_commit()
+    {
+      wait_for_global_commit(highest_local_commit);
+    }
+
     void begin_timing()
     {
-      if (timing.has_value())
+      if (response_times.is_timing_active())
       {
         throw std::logic_error(
           "timing is already set - has begin_timing been called multiple "
           "times?");
       }
 
-      // timing gets its own new connection for any requests it wants to send -
-      // these are never signed
-      timing.emplace(create_connection(true));
-      timing->reset_start_time();
+      response_times.start_timing();
     }
 
     timing::Results end_timing(std::optional<size_t> end_highest_local_commit)
     {
-      if (!timing.has_value())
+      if (!response_times.is_timing_active())
       {
         throw std::logic_error(
           "timing is not set - has begin_timing not been called?");
       }
 
-      auto results = timing->produce_results(
-        no_wait, end_highest_local_commit, latency_rounds);
+      auto results = response_times.produce_results(
+        options.no_wait, end_highest_local_commit, options.latency_rounds);
 
-      if (write_tx_times)
+      if (options.write_tx_times)
       {
-        timing->write_to_file(label);
+        response_times.write_to_file(options.label);
       }
 
-      timing.reset();
+      response_times.stop_timing();
 
       return results;
     }
@@ -633,7 +670,7 @@ namespace client
       cout << "\t=> " << tx_per_sec << "tx/s" << endl;
 
       // Write latency information, depending on verbosity
-      if (verbosity >= 1)
+      if (options.verbosity >= 1)
       {
         const auto indent_1 = "  ";
 
@@ -646,7 +683,7 @@ namespace client
         cout << indent_1
              << "Global commit: " << timing_results.total_global_commit << endl;
 
-        if (verbosity >= 2 && !timing_results.per_round.empty())
+        if (options.verbosity >= 2 && !timing_results.per_round.empty())
         {
           const auto indent_2 = "    ";
 
@@ -671,18 +708,19 @@ namespace client
       {
         // Total number of bytes sent is:
         // sessions * sum-per-tx of tx-bytes)
-        const auto total_bytes = session_count * total_byte_size(prepared_txs);
+        const auto total_bytes =
+          options.session_count * total_byte_size(prepared_txs);
 
         perf_summary_csv << duration_cast<milliseconds>(
                               timing_results.start_time.time_since_epoch())
                               .count(); // timeStamp
         perf_summary_csv << "," << dur_ms; // elapsed
         perf_summary_csv << ","
-                         << (server_address.hostname.find("127.") == 0 ?
-                               label :
-                               label + string("_distributed")); // label
+                         << (options.server_address.hostname.find("127.") == 0 ?
+                               options.label :
+                               options.label + string("_distributed")); // label
         perf_summary_csv << "," << total_bytes; // bytes
-        perf_summary_csv << "," << thread_count; // allThreads
+        perf_summary_csv << "," << options.thread_count; // allThreads
         perf_summary_csv << "," << (double)dur_ms / total_txs; // latency
         perf_summary_csv << "," << total_txs; // SampleCount
 
@@ -700,14 +738,14 @@ namespace client
 
     virtual void run()
     {
-      if (randomise)
+      if (options.randomise)
       {
-        generator_seed = std::random_device()();
+        options.generator_seed = std::random_device()();
       }
 
-      std::cout << "Random choices determined by seed: " << generator_seed
-                << std::endl;
-      rand_generator.seed(generator_seed);
+      std::cout << "Random choices determined by seed: "
+                << options.generator_seed << std::endl;
+      rand_generator.seed(options.generator_seed);
 
       /*
       const auto target_core = 0;
@@ -717,11 +755,11 @@ namespace client
       }
       */
 
-      const bool verifying = !verification_file.empty();
+      const bool verifying = !options.verification_file.empty();
 
       if (verifying)
       {
-        verification_target = files::slurp_json(verification_file);
+        verification_target = files::slurp_json(options.verification_file);
         verify_params(verification_target["params"]);
       }
 
@@ -739,17 +777,18 @@ namespace client
 
       pre_timing_body_hook();
 
-      if (verbosity >= 1)
+      if (options.verbosity >= 1)
       {
         std::cout << std::endl
-                  << "Sending " << num_transactions << " transactions from "
-                  << thread_count << " clients " << session_count << " times..."
+                  << "Sending " << options.num_transactions
+                  << " transactions from " << options.thread_count
+                  << " clients " << options.session_count << " times..."
                   << std::endl;
       }
 
       auto timing_results = send_all_prepared_transactions();
 
-      if (verbosity >= 1)
+      if (options.verbosity >= 1)
       {
         std::cout << "Done" << std::endl;
       }

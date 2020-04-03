@@ -6,13 +6,26 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
-using Base = client::PerfBase;
+struct ScenarioPerfClientOptions : public client::PerfOptions
+{
+  size_t repetitions = 1;
+  std::string scenario_file;
+
+  ScenarioPerfClientOptions(CLI::App& app) :
+    client::PerfOptions("scenario_perf", app)
+  {
+    app.add_option("--repetitions", repetitions);
+    app.add_option("--scenario-file", scenario_file)
+      ->required(true)
+      ->check(CLI::ExistingFile);
+  }
+};
+
+using Base = client::PerfBase<ScenarioPerfClientOptions>;
 
 class ScenarioPerfClient : public Base
 {
 private:
-  size_t repetitions = 1;
-  std::string scenario_file;
   nlohmann::json scenario_json;
 
   void send_verbose_transactions(
@@ -56,19 +69,17 @@ private:
 
   void pre_creation_hook() override
   {
-    scenario_json = files::slurp_json(scenario_file);
+    scenario_json = files::slurp_json(options.scenario_file);
   }
 
-  void send_creation_transactions(
-    const std::shared_ptr<RpcTlsClient>& connection) override
+  void send_creation_transactions() override
   {
-    send_verbose_transactions(connection, "setup");
+    send_verbose_transactions(get_connection(), "setup");
   }
 
   void post_timing_body_hook() override
   {
-    const auto connection = create_connection();
-    send_verbose_transactions(connection, "cleanup");
+    send_verbose_transactions(get_connection(), "cleanup");
   }
 
   void prepare_transactions() override
@@ -85,9 +96,9 @@ private:
     }
 
     // Reserve space for transactions
-    prepared_txs.reserve(transactions.size() * repetitions);
+    prepared_txs.reserve(transactions.size() * options.repetitions);
 
-    for (size_t r = 0; r < repetitions; ++r)
+    for (size_t r = 0; r < options.repetitions; ++r)
     {
       for (size_t i = 0; i < transactions.size(); ++i)
       {
@@ -100,26 +111,16 @@ private:
   }
 
 public:
-  ScenarioPerfClient() : Base("scenario_perf") {}
-
-  void setup_parser(CLI::App& app) override
-  {
-    Base::setup_parser(app);
-
-    app.add_option("--repetitions", repetitions);
-    app.add_option("--scenario-file", scenario_file)
-      ->required(true)
-      ->check(CLI::ExistingFile);
-  }
+  ScenarioPerfClient(const ScenarioPerfClientOptions& o) : Base(o) {}
 };
 
 int main(int argc, char** argv)
 {
-  ScenarioPerfClient client;
   CLI::App cli_app{"Scenario Perf Client"};
-  client.setup_parser(cli_app);
+  ScenarioPerfClientOptions options(cli_app);
   CLI11_PARSE(cli_app, argc, argv);
 
+  ScenarioPerfClient client(options);
   client.run();
 
   return 0;

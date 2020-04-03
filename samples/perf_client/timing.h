@@ -133,6 +133,8 @@ namespace timing
     vector<SentRequest> sends;
     vector<ReceivedReply> receives;
 
+    bool active = false;
+
     bool try_get_commit(
       const shared_ptr<RpcTlsClient>& client,
       size_t& local,
@@ -187,9 +189,20 @@ namespace timing
 
     ResponseTimes(const ResponseTimes& other) = default;
 
-    void reset_start_time()
+    void start_timing()
     {
+      active = true;
       start_time = Clock::now();
+    }
+
+    bool is_timing_active()
+    {
+      return active;
+    }
+
+    void stop_timing()
+    {
+      active = false;
     }
 
     auto get_start_time() const
