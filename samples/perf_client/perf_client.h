@@ -560,8 +560,8 @@ namespace client
           }
 
           const auto commit = atoi(commit_it->second.c_str());
-          std::cout << "Waiting for " << commit << " to be globally committed"
-                    << std::endl;
+          LOG_INFO_FMT(
+            "Waiting for {} commit to be globally committed", commit);
           wait_for_global_commit(commit);
         }
         catch (std::exception& e)
@@ -659,40 +659,47 @@ namespace client
       const auto duration = dur_ms / 1000.0;
       const auto tx_per_sec = total_txs / duration;
 
-      cout << total_txs << " transactions took " << dur_ms << "ms." << endl;
-      cout << "\t=> " << tx_per_sec << "tx/s" << endl;
+      auto results_string = fmt::format(
+        "{} transactions took {}ms.\n"
+        "\t=> {}tx/s\n",
+        total_txs,
+        dur_ms,
+        tx_per_sec);
 
       // Write latency information, depending on verbosity
       if (options.verbosity >= 1)
       {
-        const auto indent_1 = "  ";
-
-        cout << "Sends: " << timing_results.total_sends << endl;
-        cout << "Receives: " << timing_results.total_receives << endl;
-
-        cout << indent_1
-             << "All txs (local commit): " << timing_results.total_local_commit
-             << endl;
-        cout << indent_1
-             << "Global commit: " << timing_results.total_global_commit << endl;
+        results_string += fmt::format(
+          "  Sends: {}\n"
+          "  Receives: {}\n"
+          "  All txs (local_commit): {}\n"
+          "  Global commit: {}\n",
+          timing_results.total_sends,
+          timing_results.total_receives,
+          timing_results.total_local_commit,
+          timing_results.total_global_commit);
 
         if (options.verbosity >= 2 && !timing_results.per_round.empty())
         {
-          const auto indent_2 = "    ";
-
           for (size_t round = 0; round < timing_results.per_round.size();
                ++round)
           {
             const auto& round_info = timing_results.per_round[round];
-            cout << indent_1 << "Round " << round << " (req ids #"
-                 << round_info.begin_rpc_id << " to #" << round_info.end_rpc_id
-                 << ")" << endl;
 
-            cout << indent_2 << "Local: " << round_info.local_commit << endl;
-            cout << indent_2 << "Global: " << round_info.global_commit << endl;
+            results_string += fmt::format(
+              "  Round {} (req ids #{} to #{})\n"
+              "    Local: {}\n"
+              "    Global: {}\n",
+              round,
+              round_info.begin_rpc_id,
+              round_info.end_rpc_id,
+              round_info.local_commit,
+              round_info.global_commit);
           }
         }
       }
+
+      LOG_INFO_FMT("Results summary:\n{}", results_string);
 
       // Write perf summary to csv
       std::ofstream perf_summary_csv(

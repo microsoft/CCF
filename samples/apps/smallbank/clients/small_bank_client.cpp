@@ -42,7 +42,7 @@ private:
   {
     if (!header.empty())
     {
-      cout << header << endl;
+      LOG_INFO_FMT(header);
     }
 
     auto conn = get_connection();
@@ -69,7 +69,7 @@ private:
     const auto to = options.total_accounts;
 
     auto connection = get_connection();
-    cout << "Creating accounts: from " << from << " to " << to << endl;
+    LOG_INFO_FMT("Creating accounts from {} to {}", from, to);
 
     json j;
     j["from"] = from;
@@ -158,7 +158,7 @@ private:
   {
     if (options.verbosity >= 1)
     {
-      cout << "Creating " << options.total_accounts << " accounts..." << endl;
+      LOG_INFO_FMT("Creating {} accounts", options.total_accounts);
     }
   }
 
