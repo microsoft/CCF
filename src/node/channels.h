@@ -105,7 +105,6 @@ namespace ccf
           recv_nonce.nonce,
           *local_nonce,
           recv_nonce.tid);
-        throw std::logic_error("bad");
         return false;
       }
 
@@ -186,7 +185,7 @@ namespace ccf
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
     }
 
-    RecvNonce get_nonce(const GcmHdr& header)
+    static RecvNonce get_nonce(const GcmHdr& header)
     {
       return RecvNonce(header.get_iv_int());
     }

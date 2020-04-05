@@ -614,7 +614,9 @@ namespace pbft
     struct RecvAuthenticatedMsg
     {
       RecvAuthenticatedMsg(
-        bool should_decrypt_, OArray&& d_, Pbft<LedgerProxy, ChannelProxy>* self_) :
+        bool should_decrypt_,
+        OArray&& d_,
+        Pbft<LedgerProxy, ChannelProxy>* self_) :
         should_decrypt(should_decrypt_),
         d(std::move(d_)),
         self(self_),
@@ -703,8 +705,9 @@ namespace pbft
           ccf::RecvNonce recv_nonce(0);
           if (should_decrypt)
           {
-            recv_nonce = channels->template get_encrypted_recv_nonce<PbftHeader>(
-              tmsg->data.d.data(), tmsg->data.d.size());
+            recv_nonce =
+              channels->template get_encrypted_recv_nonce<PbftHeader>(
+                tmsg->data.d.data(), tmsg->data.d.size());
           }
           else
           {

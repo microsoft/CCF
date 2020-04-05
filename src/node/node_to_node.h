@@ -123,9 +123,7 @@ namespace ccf
       const auto& t = serialized::overlay<T>(data, size);
       serialized::skip(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      auto& n2n_channel = channels->get(t.from_node);
-
-      return n2n_channel.get_nonce(hdr);
+      return ccf::Channel::get_nonce(hdr);
     }
 
     template <class T>
@@ -133,9 +131,7 @@ namespace ccf
     {
       const auto& t = serialized::overlay<T>(data, size);
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      auto& n2n_channel = channels->get(t.from_node);
-
-      return n2n_channel.get_nonce(hdr);
+      return ccf::Channel::get_nonce(hdr);
     }
 
     template <class T>
@@ -181,8 +177,7 @@ namespace ccf
       std::vector<uint8_t> cipher(data.size());
       n2n_channel.encrypt(hdr, asCb(msg_hdr), data, cipher);
 
-      to_host->write(
-        node_outbound, to, msg_type, msg_hdr, hdr, cipher);
+      to_host->write(node_outbound, to, msg_type, msg_hdr, hdr, cipher);
 
       return true;
     }
