@@ -105,6 +105,7 @@ namespace ccf
           recv_nonce.nonce,
           *local_nonce,
           recv_nonce.tid);
+        throw std::logic_error("bad");
         return false;
       }
 
