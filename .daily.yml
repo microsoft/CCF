@@ -24,7 +24,7 @@ resources:
       options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/
 
     - container: sgx
-      image: ccfciteam/ccf-ci-18.04-oe-8fe3697:tlstest
+      image: ccfciteam/ccf-ci-18.04-oe-8fe3697:latest
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/
 
 jobs:
