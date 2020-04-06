@@ -331,7 +331,6 @@ namespace client
       size_t written;
 
       kick_off_timing();
-      std::optional<size_t> end_highest_local_commit;
 
       // Repeat for each session
       for (size_t session = 1; session <= options.session_count; ++session)
@@ -352,9 +351,8 @@ namespace client
         }
       }
 
-      force_global_commit(connection);
-      wait_for_global_commit();
-      auto timing_results = end_timing(end_highest_local_commit);
+      wait_for_global_commit(trigger_signature(connection));
+      auto timing_results = end_timing(last_response_commit.index);
       LOG_INFO_FMT("Timing ended");
       return timing_results;
     }
@@ -426,10 +424,10 @@ namespace client
       connection->connect();
     }
 
-    RpcTlsClient::Response force_global_commit(
+    RpcTlsClient::Response trigger_signature(
       const std::shared_ptr<RpcTlsClient>& connection)
     {
-      // End with a mkSign RPC to force a final global commit
+      // Send a mkSign RPC to trigger next global commit
       const auto method = "mkSign";
       const auto mk_sign = connection->gen_request(method);
       if (response_times.is_timing_active())
@@ -561,15 +559,7 @@ namespace client
           {
             // Ensure creation transactions are globally committed before
             // proceeding
-            const auto sign_response = force_global_commit(get_connection());
-            check_response(sign_response);
-
-            const auto response_commit_ids =
-              timing::parse_commit_ids(last_response.value());
-
-            const timing::CommitPoint cp{response_commit_ids.term,
-                                         response_commit_ids.local};
-            wait_for_global_commit(cp);
+            wait_for_global_commit(trigger_signature(get_connection()));
           }
         }
         catch (std::exception& e)
@@ -617,9 +607,15 @@ namespace client
       }
     }
 
-    void wait_for_global_commit()
+    void wait_for_global_commit(const RpcTlsClient::Response& response)
     {
-      wait_for_global_commit(last_response_commit);
+      check_response(response);
+
+      const auto response_commit_ids = timing::parse_commit_ids(response);
+
+      const timing::CommitPoint cp{response_commit_ids.term,
+                                   response_commit_ids.local};
+      wait_for_global_commit(cp);
     }
 
     void begin_timing()
@@ -634,7 +630,7 @@ namespace client
       response_times.start_timing();
     }
 
-    timing::Results end_timing(std::optional<size_t> end_highest_local_commit)
+    timing::Results end_timing(size_t end_highest_local_commit)
     {
       if (!response_times.is_timing_active())
       {

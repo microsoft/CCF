@@ -269,6 +269,7 @@ namespace timing
           // Good, this target commit was committed in the expected term
           if (commit_ids.global >= target.index)
           {
+            // ...and this commit has been globally committed
             LOG_INFO_FMT(
               "Found global commit {}.{}", target.term, target.index);
             LOG_INFO_FMT(
