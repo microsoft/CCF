@@ -832,11 +832,11 @@ DOCTEST_TEST_CASE("Propose raw writes")
       GenesisGenerator gen(network, gen_tx);
       gen.init_values();
       StubNodeState node;
-      // manually add a member in state active (not recommended)
-      const Cert member_cert = {1, 2, 3};
-      nlohmann::json params;
-      params["cert"] = member_cert;
-      params["keyshare"] = dummy_key_share;
+      nlohmann::json recovery_threshold = 4;
+
+      Store::Tx tx_before;
+      auto configuration = tx_before.get_view(network.config)->get(0);
+      DOCTEST_REQUIRE_FALSE(configuration.has_value());
 
       const auto expected_state =
         should_succeed ? ProposalState::ACCEPTED : ProposalState::OPEN;
@@ -845,20 +845,12 @@ DOCTEST_TEST_CASE("Propose raw writes")
         gen,
         node,
         {R"xxx(
-        local tables, param = ...
-        local STATE_ACTIVE = "ACTIVE"
-        local NEXT_MEMBER_ID_VALUE = 0
+        local tables, recovery_threshold = ...
         local p = Puts:new()
-        -- get id
-        local member_id = tables["ccf.values"]:get(NEXT_MEMBER_ID_VALUE)
-        -- increment id
-        p:put("ccf.values", NEXT_MEMBER_ID_VALUE, member_id + 1)
-        -- write member info and status
-        p:put("ccf.members", member_id, {cert = param.cert, keyshare = param.keyshare, status = STATE_ACTIVE})
-        p:put("ccf.member_certs", param.cert, member_id)
+        p:put("ccf.config", 0, {recovery_threshold = recovery_threshold})
         return Calls:call("raw_puts", p)
       )xxx"s,
-         params},
+         4},
         n_members,
         pro_votes);
       DOCTEST_CHECK(proposal_info.state == expected_state);
@@ -866,18 +858,10 @@ DOCTEST_TEST_CASE("Propose raw writes")
         continue;
 
       // check results
-      Store::Tx tx;
-      const auto next_mid =
-        tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
-      DOCTEST_CHECK(next_mid);
-      DOCTEST_CHECK(*next_mid == n_members + 1);
-      const auto m = tx.get_view(network.members)->get(n_members);
-      DOCTEST_CHECK(m);
-      DOCTEST_CHECK(m->status == MemberStatus::ACTIVE);
-      const auto member_id =
-        tx.get_view(network.member_certs)->get(member_cert);
-      DOCTEST_CHECK(member_id);
-      DOCTEST_CHECK(*member_id == n_members);
+      Store::Tx tx_after;
+      configuration = tx_after.get_view(network.config)->get(0);
+      DOCTEST_CHECK(configuration.has_value());
+      DOCTEST_CHECK(configuration->recovery_threshold == recovery_threshold);
     }
   }
 
