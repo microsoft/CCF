@@ -902,6 +902,12 @@ namespace ccf
             "Service is not waiting for recovery shares");
         }
 
+        if (node.is_reading_private_ledger())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN, "Node is already recovering private ledger");
+        }
+
         const auto in = params.get<SubmitRecoveryShare>();
 
         SecretSharing::Share share;

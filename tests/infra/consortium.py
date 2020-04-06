@@ -292,18 +292,17 @@ class Consortium:
         infra.proc.ccall(*cmd).check_returncode()
 
     def recover_with_shares(self, remote_node):
-        # TODO: Do something better here!
-        for m in range(self.recovery_threshold):
-            decrypted_share = self.get_member_by_id(m).get_and_decrypt_recovery_share(
-                remote_node
-            )
-            r = self.get_member_by_id(m).submit_recovery_share(
-                remote_node, decrypted_share
-            )
-            if m == 2:
+        submitted_shares_count = 0
+        for m in self.get_active_members():
+            decrypted_share = m.get_and_decrypt_recovery_share(remote_node)
+            r = m.submit_recovery_share(remote_node, decrypted_share)
+
+            submitted_shares_count += 1
+            if submitted_shares_count >= self.recovery_threshold:
                 assert (
                     r.result == True
                 ), "Shares should be combined when all members have submitted their shares"
+                break
             else:
                 assert (
                     r.result == False

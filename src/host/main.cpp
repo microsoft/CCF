@@ -379,19 +379,23 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if (!recovery_threshold.has_value())
+    if (*start)
     {
-      LOG_INFO_FMT(
-        "--recovery-threshold unset. Defaulting to number of initial "
-        "consortium members ({}).",
-        members_info.size());
-      recovery_threshold = members_info.size();
-    }
-    else if (recovery_threshold.value() > members_info.size())
-    {
-      throw std::logic_error(fmt::format(
-        "--recovery-threshold cannot be greater than total number "
-        "of initial consortium members (specified via --member-info options)"));
+      if (!recovery_threshold.has_value())
+      {
+        LOG_INFO_FMT(
+          "--recovery-threshold unset. Defaulting to number of initial "
+          "consortium members ({}).",
+          members_info.size());
+        recovery_threshold = members_info.size();
+      }
+      else if (recovery_threshold.value() > members_info.size())
+      {
+        throw std::logic_error(fmt::format(
+          "--recovery-threshold cannot be greater than total number "
+          "of initial consortium members (specified via --member-info "
+          "options)"));
+      }
     }
 
     switch (enclave_type)
