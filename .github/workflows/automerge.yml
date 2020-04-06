@@ -30,5 +30,5 @@ jobs:
           MERGE_METHOD: "squash"
           MERGE_REMOVE_LABELS: "automerge,wip"
           MERGE_FORKS: true
-          UPDATE_LABELS: "" # All branches are automatically kept up-to-date
+          UPDATE_LABELS: "sync,!wip"
           UPDATE_METHOD: "merge"
