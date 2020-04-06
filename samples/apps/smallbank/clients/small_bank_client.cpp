@@ -12,7 +12,7 @@ struct SmallBankClientOptions : public client::PerfOptions
   SmallBankClientOptions(CLI::App& app) :
     client::PerfOptions("Small_Bank_ClientCpp", app)
   {
-    app.add_option("--accounts", total_accounts);
+    app.add_option("--accounts", total_accounts)->capture_default_str();
   }
 };
 

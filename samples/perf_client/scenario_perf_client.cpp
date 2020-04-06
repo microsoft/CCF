@@ -14,7 +14,7 @@ struct ScenarioPerfClientOptions : public client::PerfOptions
   ScenarioPerfClientOptions(CLI::App& app) :
     client::PerfOptions("scenario_perf", app)
   {
-    app.add_option("--repetitions", repetitions);
+    app.add_option("--repetitions", repetitions)->capture_default_str();
     app.add_option("--scenario-file", scenario_file)
       ->required(true)
       ->check(CLI::ExistingFile);

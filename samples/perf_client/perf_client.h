@@ -78,10 +78,13 @@ namespace client
       // Enable config from file
       app.set_config("--config");
 
-      app.add_option(
-        "--label",
-        label,
-        "Identifier for this client, written to " + std::string(perf_summary));
+      app
+        .add_option(
+          "--label",
+          label,
+          fmt::format(
+            "Identifier for this client, written to {}", perf_summary))
+        ->capture_default_str();
 
       // Connection details
       cli::add_address_option(
@@ -109,45 +112,59 @@ namespace client
       app.add_option("--generator-seed", generator_seed);
 
       // Transaction counts and batching details
-      app.add_option(
-        "--transactions",
-        num_transactions,
-        "The basic number of transactions to send (will actually send this "
-        "many for each thread, in each session)");
-      app.add_option("-t,--threads", thread_count);
-      app.add_option("-s,--sessions", session_count);
-      app.add_option(
-        "--max-writes-ahead",
-        max_writes_ahead,
-        "How many transactions the client should send without waiting for "
-        "responses. 0 will send all transactions before blocking for any "
-        "responses, 1 will minimise latency by serially waiting for each "
-        "transaction's response, other values may provide a balance between "
-        "throughput and latency");
+      app
+        .add_option(
+          "--transactions",
+          num_transactions,
+          "The basic number of transactions to send (will actually send this "
+          "many for each thread, in each session)")
+        ->capture_default_str();
+      app.add_option("-t,--threads", thread_count)->capture_default_str();
+      app.add_option("-s,--sessions", session_count)->capture_default_str();
+      app
+        .add_option(
+          "--max-writes-ahead",
+          max_writes_ahead,
+          "How many transactions the client should send without waiting for "
+          "responses. 0 will send all transactions before blocking for any "
+          "responses, 1 will minimise latency by serially waiting for each "
+          "transaction's response, other values may provide a balance between "
+          "throughput and latency")
+        ->capture_default_str();
 
-      app.add_option("--latency-rounds", latency_rounds);
-      app.add_flag("-v,-V,--verbose", verbosity);
+      app.add_option("--latency-rounds", latency_rounds)->capture_default_str();
+      app.add_flag("-v,-V,--verbose", verbosity)->capture_default_str();
 
       // Boolean flags
-      app.add_flag("--sign", sign, "Send client-signed transactions");
-      app.add_flag(
-        "--no-create", no_create, "Skip creation/setup transactions");
-      app.add_flag(
-        "--no-wait",
-        no_wait,
-        "Don't wait for transactions to be globally committed");
-      app.add_flag(
-        "--write-tx-times",
-        write_tx_times,
-        "Write tx sent and received times to csv");
-      app.add_flag(
-        "--randomise",
-        randomise,
-        "Use non-deterministically random transaction contents each run");
-      app.add_flag(
-        "--check-responses",
-        check_responses,
-        "Check every JSON response for errors. Potentially slow");
+      app.add_flag("--sign", sign, "Send client-signed transactions")
+        ->capture_default_str();
+      app
+        .add_flag("--no-create", no_create, "Skip creation/setup transactions")
+        ->capture_default_str();
+      app
+        .add_flag(
+          "--no-wait",
+          no_wait,
+          "Don't wait for transactions to be globally committed")
+        ->capture_default_str();
+      app
+        .add_flag(
+          "--write-tx-times",
+          write_tx_times,
+          "Write tx sent and received times to csv")
+        ->capture_default_str();
+      app
+        .add_flag(
+          "--randomise",
+          randomise,
+          "Use non-deterministically random transaction contents each run")
+        ->capture_default_str();
+      app
+        .add_flag(
+          "--check-responses",
+          check_responses,
+          "Check every JSON response for errors. Potentially slow")
+        ->capture_default_str();
     }
   };
 
