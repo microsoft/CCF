@@ -10,6 +10,8 @@ import time
 import json
 import sys
 from enum import Enum
+import random
+import os
 
 from loguru import logger as LOG
 
@@ -22,6 +24,11 @@ class TestStatus(Enum):
 
 def run(args):
 
+    if os.getenv("SHUFFLE_SUITE"):
+        seed = int(time.time())
+        LOG.info(f"Shuffling suite with seed: {seed}")
+        random.seed(seed)
+        random.shuffle(s.tests)
     s.validate_tests_signature(s.tests)
 
     if args.enforce_reqs is False:

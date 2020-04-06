@@ -5,6 +5,7 @@ import e2e_logging
 import reconfiguration
 import recovery
 import rekey
+import random
 
 from inspect import signature, Parameter
 
