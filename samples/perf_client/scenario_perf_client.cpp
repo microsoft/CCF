@@ -28,10 +28,12 @@ class ScenarioPerfClient : public Base
 private:
   nlohmann::json scenario_json;
 
-  void send_verbose_transactions(
+  RpcTlsClient::Response send_verbose_transactions(
     const std::shared_ptr<RpcTlsClient>& connection, char const* element_name)
   {
     const auto it = scenario_json.find(element_name);
+
+    RpcTlsClient::Response response;
 
     if (it != scenario_json.end())
     {
@@ -52,11 +54,13 @@ private:
         const auto params = transaction["params"];
 
         LOG_INFO_FMT("Sending {}: {}", method, params.dump(2));
-        const auto response = connection->call(method, params);
+        response = connection->call(method, params);
         const auto response_body = connection->unpack_body(response);
         LOG_INFO_FMT("Response: {} {}", response.status, response_body.dump(2));
       }
     }
+
+    return response;
   }
 
   void pre_creation_hook() override
@@ -66,9 +70,7 @@ private:
 
   std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
-    send_verbose_transactions(get_connection(), "setup");
-
-    return std::nullopt; // TODO
+    return send_verbose_transactions(get_connection(), "setup");
   }
 
   void post_timing_body_hook() override
