@@ -327,33 +327,18 @@ class SSHRemote(CmdMixin):
         client.connect(self.hostname)
         return client
 
-    def wait_for_stdout_line(self, line, timeout):
+    def check_done(self):
         client = self._connect_new()
         try:
-            end_time = time.time() + timeout
-            while time.time() < end_time:
-                _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
-                if stdout.channel.recv_exit_status() == 0:
-                    return
-                time.sleep(0.1)
-            raise ValueError(f"{line} not found in stdout after {timeout} seconds")
+            _, stdout, _ = client.exec_command(f"ps -p {self.pid()}")
+            return std.out.channel.recv_exit_status() == 0
         finally:
             client.close()
 
-    def check_for_stdout_line(self, line, timeout):
-        client = self._connect_new()
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            _, stdout, _ = client.exec_command(f"grep -F '{line}' {self.out}")
-            if stdout.channel.recv_exit_status() == 0:
-                return True
-            time.sleep(0.1)
-        return False
-
-    def print_and_upload_result(self, name, metrics, lines):
+    def print_and_upload_result(self, name, metrics, line_count):
         client = self._connect_new()
         try:
-            _, stdout, _ = client.exec_command(f"tail -{lines} {self.out}")
+            _, stdout, _ = client.exec_command(f"tail -{line_count} {self.out}")
             if stdout.channel.recv_exit_status() == 0:
                 LOG.success(f"Result for {self.name}, uploaded under {name}:")
                 self._print_upload_perf(name, metrics, stdout.read().splitlines())
@@ -493,32 +478,13 @@ class LocalRemote(CmdMixin):
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {DBG} --args {cmd}"
 
-    def wait_for_stdout_line(self, line, timeout):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            with open(self.out, "rb") as out:
-                for out_line in out:
-                    if line in out_line.decode():
-                        return
-            time.sleep(0.1)
-        raise ValueError(
-            "{} not found in stdout after {} seconds".format(line, timeout)
-        )
+    def check_done(self):
+        return self.proc.poll() is not None
 
-    def check_for_stdout_line(self, line, timeout):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            with open(self.out, "rb") as out:
-                for out_line in out:
-                    if line in out_line.decode():
-                        return True
-            time.sleep(0.1)
-        return False
-
-    def print_and_upload_result(self, name, metrics, line):
+    def print_and_upload_result(self, name, metrics, line_count):
         with open(self.out, "rb") as out:
             lines = out.read().splitlines()
-            result = lines[-line:]
+            result = lines[-line_count:]
             LOG.success(f"Result for {self.name}, uploaded under {name}:")
             self._print_upload_perf(name, metrics, result)
 
@@ -734,11 +700,11 @@ class CCFRemote(object):
                 LOG.info(f"Could not retrieve {self.profraw}")
         return errors, fatal_errors
 
-    def wait_for_stdout_line(self, line, timeout=5):
-        return self.remote.wait_for_stdout_line(line, timeout)
+    def check_done(self):
+        return self.remote.check_done()
 
-    def print_and_upload_result(self, name, metrics, lines):
-        self.remote.print_and_upload_result(name, metrics, lines)
+    def print_and_upload_result(self, name, metrics, line_count):
+        self.remote.print_and_upload_result(name, metrics, line_count)
 
     def set_perf(self):
         self.remote.set_perf()

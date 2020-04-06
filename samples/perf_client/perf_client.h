@@ -665,7 +665,7 @@ namespace client
 
       auto results_string = fmt::format(
         "{} transactions took {}ms.\n"
-        "\t=> {}tx/s\n",
+        "=> {}tx/s\n", //< This is grepped for by _print_upload_perf in Python
         total_txs,
         dur_ms,
         tx_per_sec);
