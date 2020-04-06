@@ -73,9 +73,7 @@ namespace ccf
 
       GenesisGenerator g(*network.get(), tx);
       auto active_member_count = g.get_active_members_count();
-
-      // All member shares are required to construct secrets
-      size_t threshold = active_member_count;
+      size_t threshold = g.get_recovery_threshold();
 
       auto shares =
         SecretSharing::split(secret_to_split, active_member_count, threshold);

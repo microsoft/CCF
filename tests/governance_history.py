@@ -6,7 +6,7 @@ import infra.proc
 import infra.remote
 import infra.crypto
 import infra.ledger
-from infra.proposal_state import ProposalState
+from infra.proposal import ProposalState
 import json
 import http
 
@@ -70,40 +70,39 @@ def run(args):
             original_withdrawals,
         ) = count_governance_operations(ledger)
 
-        LOG.info("Add new member proposal")
-        response = network.consortium.generate_and_propose_new_member(
-            0, primary, new_member_id=3, curve=infra.ccf.ParticipantsCurve.secp256k1
+        LOG.info("Add new member proposal (implicit vote)")
+        (
+            new_member_proposal,
+            new_member,
+        ) = network.consortium.generate_and_propose_new_member(
+            primary, curve=infra.ccf.ParticipantsCurve.secp256k1
         )
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
-        proposal_id = response.result["proposal_id"]
         proposals_issued += 1
 
-        LOG.debug("2/3 members accept the proposal")
-        response = network.consortium.vote(0, primary, proposal_id, True)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
+        LOG.info("2/3 members accept the proposal")
+        response = network.consortium.vote_using_majority(primary, new_member_proposal)
         votes_issued += 1
-
-        LOG.debug("Unsigned votes are rejected")
-        response = network.consortium.vote(1, primary, proposal_id, True, True)
-        assert response.status == http.HTTPStatus.UNAUTHORIZED.value
-
-        response = network.consortium.vote(2, primary, proposal_id, True)
         assert response.status == http.HTTPStatus.OK.value
         assert response.result["state"] == ProposalState.Accepted.value
-        votes_issued += 1
+
+        LOG.info("Unsigned votes are rejected")
+        response = network.consortium.get_member_by_id(2).vote(
+            primary, new_member_proposal, accept=True, force_unsigned=True
+        )
+        assert response.status == http.HTTPStatus.UNAUTHORIZED.value
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
-        response = network.consortium.generate_and_propose_new_member(
-            1, primary, new_member_id=4, curve=infra.ccf.ParticipantsCurve.secp256k1
+        (
+            new_member_proposal,
+            new_member,
+        ) = network.consortium.generate_and_propose_new_member(
+            primary, curve=infra.ccf.ParticipantsCurve.secp256k1
         )
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
-        proposal_id = response.result["proposal_id"]
         proposals_issued += 1
 
-        response = network.consortium.withdraw(1, primary, proposal_id)
+        response = network.consortium.get_member_by_id(
+            new_member_proposal.proposer_id
+        ).withdraw(primary, new_member_proposal)
         assert response.status == http.HTTPStatus.OK.value
         assert response.result["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1

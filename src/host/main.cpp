@@ -304,6 +304,16 @@ int main(int argc, char** argv)
     "Initial consortium members information (public identity,public key share)")
     ->required();
 
+  std::optional<size_t> recovery_threshold;
+  start
+    ->add_option(
+      "--recovery-threshold",
+      recovery_threshold,
+      "Number of member shares required for recovery. Defaults to total number "
+      "of initial consortium members.")
+    ->check(CLI::PositiveNumber)
+    ->type_name("UINT");
+
   auto join = app.add_subcommand("join", "Join existing network");
   join->configurable();
 
@@ -358,26 +368,59 @@ int main(int argc, char** argv)
     public_rpc_address = rpc_address;
   }
 
-  if (domain.empty() && !ds::is_valid_ip(rpc_address.hostname.c_str()))
-  {
-    throw std::logic_error(fmt::format(
-      "--rpc-address ({}) does not appear to specify valid IP address. "
-      "Please specify a domain name via the --domain option.",
-      rpc_address.hostname));
-  }
-
   uint32_t oe_flags = 0;
-  switch (enclave_type)
+  try
   {
-    case EnclaveType::DEBUG:
-      oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
-      break;
-    case EnclaveType::VIRTUAL:
-      oe_flags = ENCLAVE_FLAG_VIRTUAL;
-      break;
-    default:
-      throw std::logic_error(
-        fmt::format("Invalid enclave type: {}", enclave_type));
+    if (domain.empty() && !ds::is_valid_ip(rpc_address.hostname.c_str()))
+    {
+      throw std::logic_error(fmt::format(
+        "--rpc-address ({}) does not appear to specify valid IP address. "
+        "Please specify a domain name via the --domain option.",
+        rpc_address.hostname));
+    }
+
+    if (*start)
+    {
+      if (!recovery_threshold.has_value())
+      {
+        LOG_INFO_FMT(
+          "--recovery-threshold unset. Defaulting to number of initial "
+          "consortium members ({}).",
+          members_info.size());
+        recovery_threshold = members_info.size();
+      }
+      else if (recovery_threshold.value() > members_info.size())
+      {
+        throw std::logic_error(fmt::format(
+          "--recovery-threshold cannot be greater than total number "
+          "of initial consortium members (specified via --member-info "
+          "options)"));
+      }
+    }
+
+    switch (enclave_type)
+    {
+      case EnclaveType::DEBUG:
+      {
+        oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
+        break;
+      }
+      case EnclaveType::VIRTUAL:
+      {
+        oe_flags = ENCLAVE_FLAG_VIRTUAL;
+        break;
+      }
+      default:
+      {
+        throw std::logic_error(
+          fmt::format("Invalid enclave type: {}", enclave_type));
+      }
+    }
+  }
+  catch (const std::logic_error& e)
+  {
+    LOG_FATAL_FMT("{}. Exiting.", e.what());
+    return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
   // Write PID to disk
@@ -463,9 +506,12 @@ int main(int argc, char** argv)
         files::slurp(m_info.cert_file), files::slurp(m_info.keyshare_pub_file));
     }
     ccf_config.genesis.gov_script = files::slurp_string(gov_script);
+    ccf_config.genesis.recovery_threshold = recovery_threshold.value();
     LOG_INFO_FMT(
-      "Creating new node: new network (with {} initial member(s))",
-      ccf_config.genesis.members_info.size());
+      "Creating new node: new network (with {} initial member(s) and {} "
+      "member(s) required for recovery)",
+      ccf_config.genesis.members_info.size(),
+      ccf_config.genesis.recovery_threshold);
   }
   else if (*join)
   {

@@ -76,8 +76,7 @@ def run(args):
                 transactions.append(json_tx)
 
         # Manager is granted special privileges by members, which is later read by app to enforce access restrictions
-        response = network.consortium.propose(
-            0,
+        proposal = network.consortium.get_any_active_member().propose(
             primary,
             f"""
             return Calls:call(
@@ -94,13 +93,12 @@ def run(args):
             )
             """,
         )
-        network.consortium.vote_using_majority(primary, response.result["proposal_id"])
+        network.consortium.vote_using_majority(primary, proposal)
 
         # Check permissions are enforced
         with primary.user_client(user_id=regulator.name) as c:
             check(
-                c.rpc("REG_register"),
-                error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("REG_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
                 c.rpc("BK_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
@@ -108,8 +106,7 @@ def run(args):
 
         with primary.user_client(user_id=banks[0].name) as c:
             check(
-                c.rpc("REG_register"),
-                error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("REG_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
                 c.rpc("BK_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
