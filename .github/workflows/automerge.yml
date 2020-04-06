@@ -29,6 +29,6 @@ jobs:
           MERGE_LABELS: "automerge,!wip"
           MERGE_METHOD: "squash"
           MERGE_REMOVE_LABELS: "automerge,wip,sync"
-          MERGE_FORKS: true
+          MERGE_FORKS: false # This action does not work with PRs from forks
           UPDATE_LABELS: "sync,!wip"
-          UPDATE_METHOD: "merge" # Comment
+          UPDATE_METHOD: "merge"
