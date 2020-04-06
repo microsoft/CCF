@@ -5,7 +5,7 @@
 #include "identity.h"
 #include "ledger_secrets.h"
 #include "network_encryption.h"
-#include "networktables.h"
+#include "network_tables.h"
 
 namespace ccf
 {

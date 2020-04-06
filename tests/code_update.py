@@ -57,7 +57,7 @@ def run(args):
         # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
         primary, others = network.find_primary()
 
-        network.consortium.add_new_code(1, primary, new_code_id)
+        network.consortium.add_new_code(primary, new_code_id)
 
         new_nodes = set()
         old_nodes_count = len(network.nodes)

@@ -3,7 +3,7 @@
 #pragma once
 #include "lua_interp/lua_interp.h"
 #include "lua_interp/lua_kv.h"
-#include "node/networktables.h"
+#include "node/network_tables.h"
 #include "node/rpc/rpc_exception.h"
 
 #include <sstream>

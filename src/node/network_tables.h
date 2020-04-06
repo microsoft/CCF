@@ -5,6 +5,7 @@
 #include "certs.h"
 #include "client_signatures.h"
 #include "code_id.h"
+#include "config.h"
 #include "consensus.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
@@ -48,6 +49,7 @@ namespace ccf
     GovernanceHistory& governance_history;
     ClientSignatures& member_client_signatures;
     Shares& shares;
+    Configuration& config;
 
     //
     // User tables
@@ -112,6 +114,8 @@ namespace ccf
       shares(
         tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS)),
+      config(tables->create<Configuration>(
+        Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
       user_certs(tables->create<Certs>(Tables::USER_CERTS)),
       user_code_ids(tables->create<CodeIDs>(
         Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
@@ -153,6 +157,7 @@ namespace ccf
         std::ref(member_acks),
         std::ref(governance_history),
         std::ref(member_client_signatures),
+        std::ref(config),
         std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),
