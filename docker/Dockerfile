@@ -7,10 +7,10 @@ RUN mkdir -p /etc/init
 
 COPY getting_started/setup_vm/ /setup_vm/
 RUN apt update \
-    && apt install -y ansible software-properties-common \
+    && apt install -y ansible software-properties-common bsdmainutils \
     && cd setup_vm \
     && ansible-playbook ccf-dependencies-no-driver.yml ci-dependencies.yml \
     && rm -rf /tmp/* \
-    && apt remove -y software-properties-common \
+    && apt remove -y ansible software-properties-common \
     && apt -y autoremove \
     && apt -y clean
