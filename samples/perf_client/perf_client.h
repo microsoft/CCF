@@ -193,7 +193,7 @@ namespace client
         }
       }
 
-      if (response_times.is_timing_active())
+      if (response_times.is_timing_active() && reply.status == HTTP_STATUS_OK)
       {
         const auto commits = timing::parse_commit_ids(reply);
 
