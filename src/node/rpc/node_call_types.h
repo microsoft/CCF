@@ -63,6 +63,7 @@ namespace ccf
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
       ConsensusType consensus_type = ConsensusType::RAFT;
+      size_t recovery_threshold;
     };
   };
 

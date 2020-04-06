@@ -22,7 +22,7 @@ def test(network, args):
         check_commit(res, result=True)
         version_before_rekey = res.commit
 
-    network.consortium.rekey_ledger(member_id=1, remote_node=primary)
+    network.consortium.rekey_ledger(primary)
     network.wait_for_sealed_secrets_at_version(version_before_rekey)
 
     return network
