@@ -393,7 +393,7 @@ namespace ccf
       if (!config.has_value())
       {
         throw std::logic_error(
-          "Failed to set recovery threshold: No active configuration found");
+          "Failed to get recovery threshold: No active configuration found");
       }
       return config->recovery_threshold;
     }
