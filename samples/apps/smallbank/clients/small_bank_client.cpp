@@ -158,26 +158,17 @@ private:
 
   void pre_creation_hook() override
   {
-    if (options.verbosity >= 1)
-    {
-      LOG_INFO_FMT("Creating {} accounts", options.total_accounts);
-    }
+    LOG_DEBUG_FMT("Creating {} accounts", options.total_accounts);
   }
 
   void post_creation_hook() override
   {
-    if (options.verbosity >= 2)
-    {
-      print_accounts("Initial accounts:");
-    }
+    LOG_TRACE_FMT("Initial accounts:");
   }
 
   void post_timing_body_hook() override
   {
-    if (options.verbosity >= 2)
-    {
-      print_accounts("Final accounts:");
-    }
+    LOG_TRACE_FMT("Final accounts:");
   }
 
   void verify_params(const nlohmann::json& expected) override

@@ -60,7 +60,6 @@ namespace client
     size_t session_count = 1;
     size_t max_writes_ahead = 0;
     size_t latency_rounds = 1;
-    size_t verbosity = 0;
     size_t generator_seed = 42u;
 
     bool sign = false;
@@ -133,7 +132,6 @@ namespace client
         ->capture_default_str();
 
       app.add_option("--latency-rounds", latency_rounds)->capture_default_str();
-      app.add_flag("-v,-V,--verbose", verbosity)->capture_default_str();
 
       // Boolean flags
       app.add_flag("--sign", sign, "Send client-signed transactions")
@@ -283,9 +281,9 @@ namespace client
       conn->set_prefix("users");
 
       // Report ciphersuite of first client (assume it is the same for each)
-      if (options.verbosity >= 1 && is_first)
+      if (is_first)
       {
-        LOG_INFO_FMT(
+        LOG_DEBUG_FMT(
           "Connected to server via TLS ({})", conn->get_ciphersuite_name());
       }
 
@@ -680,47 +678,37 @@ namespace client
       const auto duration = dur_ms / 1000.0;
       const auto tx_per_sec = total_txs / duration;
 
-      auto results_string = fmt::format(
+      LOG_INFO_FMT(
         "{} transactions took {}ms.\n"
         "=> {}tx/s\n", //< This is grepped for by _print_upload_perf in Python
         total_txs,
         dur_ms,
         tx_per_sec);
 
-      // Write latency information, depending on verbosity
-      if (options.verbosity >= 1)
+      LOG_DEBUG_FMT(
+        "  Sends: {}\n"
+        "  Receives: {}\n"
+        "  All txs (local_commit): {}\n"
+        "  Global commit: {}\n",
+        timing_results.total_sends,
+        timing_results.total_receives,
+        timing_results.total_local_commit,
+        timing_results.total_global_commit);
+
+      for (size_t round = 0; round < timing_results.per_round.size(); ++round)
       {
-        results_string += fmt::format(
-          "  Sends: {}\n"
-          "  Receives: {}\n"
-          "  All txs (local_commit): {}\n"
-          "  Global commit: {}\n",
-          timing_results.total_sends,
-          timing_results.total_receives,
-          timing_results.total_local_commit,
-          timing_results.total_global_commit);
+        const auto& round_info = timing_results.per_round[round];
 
-        if (options.verbosity >= 2 && !timing_results.per_round.empty())
-        {
-          for (size_t round = 0; round < timing_results.per_round.size();
-               ++round)
-          {
-            const auto& round_info = timing_results.per_round[round];
-
-            results_string += fmt::format(
-              "  Round {} (req ids #{} to #{})\n"
-              "    Local: {}\n"
-              "    Global: {}\n",
-              round,
-              round_info.begin_rpc_id,
-              round_info.end_rpc_id,
-              round_info.local_commit,
-              round_info.global_commit);
-          }
-        }
+        LOG_TRACE_FMT(
+          "  Round {} (req ids #{} to #{})\n"
+          "    Local: {}\n"
+          "    Global: {}\n",
+          round,
+          round_info.begin_rpc_id,
+          round_info.end_rpc_id,
+          round_info.local_commit,
+          round_info.global_commit);
       }
-
-      LOG_INFO_FMT("Results summary:\n{}", results_string);
 
       // Write perf summary to csv
       std::ofstream perf_summary_csv(
@@ -798,21 +786,15 @@ namespace client
 
       pre_timing_body_hook();
 
-      if (options.verbosity >= 1)
-      {
-        LOG_INFO_FMT(
-          "Sending {} transactions from {} clients {} times...",
-          options.num_transactions,
-          options.thread_count,
-          options.session_count);
-      }
+      LOG_TRACE_FMT(
+        "Sending {} transactions from {} clients {} times...",
+        options.num_transactions,
+        options.thread_count,
+        options.session_count);
 
       auto timing_results = send_all_prepared_transactions();
 
-      if (options.verbosity >= 1)
-      {
-        LOG_INFO_FMT("Done");
-      }
+      LOG_INFO_FMT("Done");
 
       post_timing_body_hook();
 
