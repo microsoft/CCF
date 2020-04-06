@@ -577,7 +577,7 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
     )
 
-    if(TLS_TEST)
+    if(TLS_TEST AND ${CONSENSUS} STREQUAL raft)
       add_e2e_test(
         NAME tlstest_${CONSENSUS}
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
