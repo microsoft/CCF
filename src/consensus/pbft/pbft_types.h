@@ -18,6 +18,7 @@ namespace pbft
   enum PbftMsgType : Node2NodeMsg
   {
     pbft_message = 1000,
+    encrypted_pbft_message,
     pbft_append_entries
   };
 
