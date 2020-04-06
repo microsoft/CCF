@@ -76,9 +76,9 @@ If the network has already been opened to users, members need to trust the joini
 Using a Configuration File
 --------------------------
 
-``cchost`` can be started using a configuration file in TOML or INI format. 
+``cchost`` can be started using a configuration file in TOML or INI format.
 
-.. code-block:: toml
+.. code-block:: ini
 
     # config.toml
     enclave-file = <enclave-file>
