@@ -91,9 +91,7 @@ class Consortium:
             (member for member in self.members if member.member_id == member_id), None
         )
 
-    def vote_using_majority(
-        self, remote_node, proposal, should_wait_for_global_commit=True
-    ):
+    def vote_using_majority(self, remote_node, proposal, wait_for_global_commit=True):
         # This function assumes that the proposal has just been proposed and
         # that at most, only the proposer has already voted for it when
         # proposing it
@@ -116,7 +114,7 @@ class Consortium:
                 proposal,
                 accept=True,
                 force_unsigned=False,
-                should_wait_for_global_commit=should_wait_for_global_commit,
+                wait_for_global_commit=wait_for_global_commit,
             )
             assert response.status == http.HTTPStatus.OK.value
             proposal.state = infra.proposal.ProposalState(response.result["state"])
@@ -213,7 +211,9 @@ class Consortium:
         return Calls:call("open_network")
         """
         proposal = self.get_any_active_member().propose(remote_node, script)
-        self.vote_using_majority(remote_node, proposal)
+        self.vote_using_majority(
+            remote_node, proposal, wait_for_global_commit=(not pbft_open)
+        )
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, remote_node):
@@ -225,7 +225,7 @@ class Consortium:
         # Wait for global commit since sealed secrets are disclosed only
         # when the rekey transaction is globally committed.
         return self.vote_using_majority(
-            remote_node, proposal, should_wait_for_global_commit=True,
+            remote_node, proposal, wait_for_global_commit=True,
         )
 
     def add_users(self, remote_node, users):

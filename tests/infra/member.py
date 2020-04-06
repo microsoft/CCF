@@ -72,7 +72,7 @@ class Member:
         proposal,
         accept=True,
         force_unsigned=False,
-        should_wait_for_global_commit=True,
+        wait_for_global_commit=True,
     ):
         ballot = """
         tables, changes = ...
@@ -93,7 +93,7 @@ class Member:
         # until the global hook on the SERVICE table is triggered
         if (
             r.result["state"] == infra.proposal.ProposalState.Accepted.value
-            and should_wait_for_global_commit
+            and wait_for_global_commit
         ):
             with remote_node.node_client() as mc:
                 infra.checker.wait_for_global_commit(mc, r.commit, r.term, True)
