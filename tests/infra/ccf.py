@@ -241,14 +241,13 @@ class Network:
         """
         Starts a CCF network.
         :param args: command line arguments to configure the CCF nodes.
-        :param open_network: If false, only the nodes are started.
         """
         self.common_dir = get_common_folder_name(args.workspace, args.label)
         self._setup_common_folder(args.gov_script)
 
-        initial_members = list(range(max(1, args.initial_member_count)))
+        initial_member_ids = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
-            initial_members,
+            initial_member_ids,
             args.participants_curve,
             self.key_generator,
             self.common_dir,
@@ -264,23 +263,21 @@ class Network:
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
-            self.consortium.set_lua_app(
-                member_id=0, remote_node=primary, app_script=args.app_script
-            )
+            self.consortium.set_lua_app(remote_node=primary, app_script=args.app_script)
 
         if args.js_app_script:
             infra.proc.ccall(
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                member_id=0, remote_node=primary, app_script=args.js_app_script
+                remote_node=primary, app_script=args.js_app_script
             )
 
         self.consortium.add_users(primary, self.initial_users)
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            member_id=0, remote_node=primary, pbft_open=args.consensus == "pbft"
+            remote_node=primary, pbft_open=(args.consensus == "pbft")
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
@@ -357,7 +354,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                self.consortium.trust_node(1, primary, new_node.node_id)
+                self.consortium.trust_node(primary, new_node.node_id)
             if args.consensus != "pbft":
                 # Here, quote verification has already been run when the node
                 # was added as pending. Only wait for the join timer for the
@@ -406,7 +403,7 @@ class Network:
             time.sleep(0.1)
         else:
             raise TimeoutError(
-                f"Timed out waiting for public ledger to be read on node {node.node_id}"
+                f"Timed out waiting for state {state} on node {node.node_id}"
             )
         if state == "partOfNetwork":
             self.status = ServiceStatus.OPEN

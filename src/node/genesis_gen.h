@@ -6,7 +6,7 @@
 #include "lua_interp/lua_interp.h"
 #include "lua_interp/lua_util.h"
 #include "members.h"
-#include "networktables.h"
+#include "network_tables.h"
 #include "node_info_network.h"
 #include "nodes.h"
 #include "rpc/consts.h"
@@ -128,6 +128,36 @@ namespace ccf
         ma->put(id, MemberAck(s->root));
       }
       return id;
+    }
+
+    bool retire_member(MemberId member_id)
+    {
+      auto m = tx.get_view(tables.members);
+      auto member_to_retire = m->get(member_id);
+      if (!member_to_retire.has_value())
+      {
+        LOG_FAIL_FMT(
+          "Could not retire member {}: member does not exist", member_id);
+        return false;
+      }
+
+      auto member_info = member_to_retire.value();
+      member_info.status = MemberStatus::RETIRED;
+      m->put(member_id, member_info);
+
+      return true;
+    }
+
+    std::optional<MemberInfo> get_member_info(MemberId member_id)
+    {
+      auto m = tx.get_view(tables.members);
+      auto member = m->get(member_id);
+      if (!member.has_value())
+      {
+        return {};
+      }
+
+      return member.value();
     }
 
     auto add_user(const std::vector<uint8_t>& user_cert_pem)
@@ -348,6 +378,24 @@ namespace ccf
     {
       auto shares_view = tx.get_view(tables.shares);
       shares_view->put(0, key_share_info);
+    }
+
+    void set_recovery_threshold(size_t threshold)
+    {
+      auto config_view = tx.get_view(tables.config);
+      config_view->put(0, {threshold});
+    }
+
+    size_t get_recovery_threshold()
+    {
+      auto config_view = tx.get_view(tables.config);
+      auto config = config_view->get(0);
+      if (!config.has_value())
+      {
+        throw std::logic_error(
+          "Failed to get recovery threshold: No active configuration found");
+      }
+      return config->recovery_threshold;
     }
   };
 }

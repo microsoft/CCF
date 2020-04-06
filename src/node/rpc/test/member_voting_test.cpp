@@ -410,7 +410,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
-  StubNodeState node;
+  StubNodeState node(std::make_shared<NetworkTables>(network));
   // add three initial active members
   // the proposer
   auto proposer_id = gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
@@ -423,6 +423,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
+  gen.set_recovery_threshold(1);
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
   frontend.open();
@@ -1574,7 +1575,9 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   auto node = StubNodeState(std::make_shared<NetworkTables>(network));
   MemberRpcFrontend frontend(network, node);
   std::map<size_t, ccf::Cert> members;
-  size_t member_count = 4;
+  size_t members_count = 4;
+  size_t recovery_threshold = 2;
+  DOCTEST_REQUIRE(recovery_threshold <= members_count);
   std::map<size_t, EncryptedShare> retrieved_shares;
 
   DOCTEST_INFO("Setup state");
@@ -1585,11 +1588,12 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     gen.init_values();
     gen.create_service({});
 
-    for (size_t i = 0; i < member_count; i++)
+    for (size_t i = 0; i < members_count; i++)
     {
       auto cert = get_cert_data(i, kp);
       members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
     }
+    gen.set_recovery_threshold(recovery_threshold);
     DOCTEST_REQUIRE(node.split_ledger_secrets(gen_tx));
     gen.finalize();
 
@@ -1632,6 +1636,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
   DOCTEST_INFO("Submit recovery shares");
   {
+    size_t member_count = 0;
     for (auto const& m : members)
     {
       const auto submit_recovery_share = create_request(
@@ -1641,15 +1646,18 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       auto ret = parse_response_body<bool>(
         frontend_process(frontend, submit_recovery_share, m.second));
 
-      // Share submission should only complete when last member submits their
-      // share
-      if (m.first != (member_count - 1))
+      member_count++;
+
+      // Share submission should only complete when the recovery threshold has
+      // been reached
+      if (member_count < recovery_threshold)
       {
         DOCTEST_REQUIRE(!ret);
       }
       else
       {
         DOCTEST_REQUIRE(ret);
+        break;
       }
     }
   }
