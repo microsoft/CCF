@@ -133,7 +133,7 @@ def run(get_command, args):
                             done = remote_client.check_done()
                             # all the clients need to be done
                             LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running"
+                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:.2f}s / {hard_stop_timeout}s)"
                             )
                             stop_waiting = stop_waiting and done
                         if stop_waiting:
