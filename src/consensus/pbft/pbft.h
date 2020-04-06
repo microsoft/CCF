@@ -138,6 +138,15 @@ namespace pbft
       }
     }
 
+    bool should_encrypt(int tag)
+    {
+#ifdef USE_NULL_ENCRYPTOR
+      return false;
+#else
+      return tag == Request_tag || tag == Reply_tag;
+#endif
+    }
+
     std::vector<uint8_t> serialized_msg;
 
   public:
@@ -193,16 +202,19 @@ namespace pbft
     struct SendAuthenticatedMsg
     {
       SendAuthenticatedMsg(
+        bool should_encrypt_,
         std::vector<uint8_t> data_,
         PbftEnclaveNetwork* self_,
         ccf::NodeMsgType type_,
         pbft::NodeId to_) :
+        should_encrypt(should_encrypt_),
         data(std::move(data_)),
         self(self_),
         type(type_),
         to(to_)
       {}
 
+      bool should_encrypt;
       std::vector<uint8_t> data;
       ccf::NodeMsgType type;
       pbft::NodeId to;
@@ -212,8 +224,18 @@ namespace pbft
     static void send_authenticated_msg_cb(
       std::unique_ptr<enclave::Tmsg<SendAuthenticatedMsg>> msg)
     {
-      msg->data.self->n2n_channels->send_authenticated(
-        msg->data.type, msg->data.to, msg->data.data);
+      if (msg->data.should_encrypt)
+      {
+        PbftHeader hdr = {PbftMsgType::encrypted_pbft_message,
+                          msg->data.self->id};
+        msg->data.self->n2n_channels->send_encrypted(
+          ccf::NodeMsgType::consensus_msg, msg->data.to, msg->data.data, hdr);
+      }
+      else
+      {
+        msg->data.self->n2n_channels->send_authenticated(
+          msg->data.type, msg->data.to, msg->data.data);
+      }
     }
 
     int Send(Message* msg, IPrincipal& principal) override
@@ -245,15 +267,27 @@ namespace pbft
         return msg->size();
       }
 
-      PbftHeader hdr = {PbftMsgType::pbft_message, id};
-      auto space = (sizeof(PbftHeader) + msg->size());
-      serialized_msg.resize(space);
-      auto data_ = serialized_msg.data();
-      serialized::write<PbftHeader>(data_, space, hdr);
-      serialize_message(data_, space, msg);
+      bool encrypt = should_encrypt(msg->tag());
+      if (encrypt)
+      {
+        size_t space = msg->size();
+        serialized_msg.resize(space);
+        auto data_ = serialized_msg.data();
+        serialize_message(data_, space, msg);
+      }
+      else
+      {
+        PbftHeader hdr = {PbftMsgType::pbft_message, id};
+        auto space = (sizeof(PbftHeader) + msg->size());
+        serialized_msg.resize(space);
+        auto data_ = serialized_msg.data();
+        serialized::write<PbftHeader>(data_, space, hdr);
+        serialize_message(data_, space, msg);
+      }
 
       auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedMsg>>(
         &send_authenticated_msg_cb,
+        encrypt,
         std::move(serialized_msg),
         this,
         ccf::NodeMsgType::consensus_msg,
@@ -580,12 +614,16 @@ namespace pbft
     struct RecvAuthenticatedMsg
     {
       RecvAuthenticatedMsg(
-        OArray&& d_, Pbft<LedgerProxy, ChannelProxy>* self_) :
+        bool should_decrypt_,
+        OArray&& d_,
+        Pbft<LedgerProxy, ChannelProxy>* self_) :
+        should_decrypt(should_decrypt_),
         d(std::move(d_)),
         self(self_),
         result(false)
       {}
 
+      bool should_decrypt;
       OArray d;
       Pbft<LedgerProxy, ChannelProxy>* self;
       bool result;
@@ -594,21 +632,40 @@ namespace pbft
     static void recv_authenticated_msg_cb(
       std::unique_ptr<enclave::Tmsg<RecvAuthenticatedMsg>> msg)
     {
-      try
+      if (msg->data.should_decrypt)
       {
-        auto r = msg->data.self->channels
-                   ->template recv_authenticated_with_load<PbftHeader>(
-                     msg->data.d.data(), msg->data.d.size());
-        msg->data.d.data() = r.p;
-        msg->data.d.size() = r.n;
-        msg->data.result = true;
+        std::pair<PbftHeader, std::vector<uint8_t>> r;
+        try
+        {
+          r = msg->data.self->channels->template recv_encrypted<PbftHeader>(
+            msg->data.d.data(), msg->data.d.size());
+          OArray decrypted(std::move(r.second));
+          msg->data.d = std::move(decrypted);
+        }
+        catch (const std::logic_error& err)
+        {
+          LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
+          return;
+        }
       }
-      catch (const std::logic_error& err)
+      else
       {
-        LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
-        return;
+        try
+        {
+          auto r = msg->data.self->channels
+                     ->template recv_authenticated_with_load<PbftHeader>(
+                       msg->data.d.data(), msg->data.d.size());
+          msg->data.d.data() = r.p;
+          msg->data.d.size() = r.n;
+        }
+        catch (const std::logic_error& err)
+        {
+          LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+          return;
+        }
       }
 
+      msg->data.result = true;
       enclave::ThreadMessaging::ChangeTmsgCallback(
         msg, &recv_authenticated_msg_process_cb);
       if (enclave::ThreadMessaging::thread_count > 1)
@@ -638,13 +695,25 @@ namespace pbft
       PbftHeader hdr = serialized::peek<PbftHeader>(data, size);
       switch (hdr.msg)
       {
+        case encrypted_pbft_message:
         case pbft_message:
         {
+          bool should_decrypt = (hdr.msg == encrypted_pbft_message);
           auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
-            &recv_authenticated_msg_cb, std::move(d), this);
+            &recv_authenticated_msg_cb, should_decrypt, std::move(d), this);
 
-          auto recv_nonce = channels->template get_recv_nonce<PbftHeader>(
-            tmsg->data.d.data(), tmsg->data.d.size());
+          ccf::RecvNonce recv_nonce(0);
+          if (should_decrypt)
+          {
+            recv_nonce =
+              channels->template get_encrypted_recv_nonce<PbftHeader>(
+                tmsg->data.d.data(), tmsg->data.d.size());
+          }
+          else
+          {
+            recv_nonce = channels->template get_recv_nonce<PbftHeader>(
+              tmsg->data.d.data(), tmsg->data.d.size());
+          }
 
           if (enclave::ThreadMessaging::thread_count > 1)
           {
