@@ -143,7 +143,7 @@ def run(get_command, args):
                                 f"Client still running after {hard_stop_timeout}s"
                             )
 
-                        time.sleep(0.1)
+                        time.sleep(5)
 
                     tx_rates.get_metrics()
                     for remote_client in clients:
