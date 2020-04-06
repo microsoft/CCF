@@ -18,7 +18,10 @@ namespace ccf
 
     template <class T>
     bool send_encrypted(
-      NodeId to, const std::vector<uint8_t>& data, const T& msg)
+      const NodeMsgType& msg_type,
+      NodeId to,
+      const std::vector<uint8_t>& data,
+      const T& msg)
     {
       sent_encrypted_messages.push_back(data);
       return true;

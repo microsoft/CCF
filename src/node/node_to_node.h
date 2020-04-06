@@ -123,9 +123,15 @@ namespace ccf
       const auto& t = serialized::overlay<T>(data, size);
       serialized::skip(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      auto& n2n_channel = channels->get(t.from_node);
+      return ccf::Channel::get_nonce(hdr);
+    }
 
-      return n2n_channel.get_nonce(hdr);
+    template <class T>
+    RecvNonce get_encrypted_recv_nonce(const uint8_t* data, size_t size)
+    {
+      const auto& t = serialized::overlay<T>(data, size);
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      return ccf::Channel::get_nonce(hdr);
     }
 
     template <class T>
@@ -156,7 +162,10 @@ namespace ccf
 
     template <class T>
     bool send_encrypted(
-      NodeId to, const std::vector<uint8_t>& data, const T& msg_hdr)
+      const NodeMsgType& msg_type,
+      NodeId to,
+      const std::vector<uint8_t>& data,
+      const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
       if (!try_established_channel(to, n2n_channel))
@@ -168,8 +177,7 @@ namespace ccf
       std::vector<uint8_t> cipher(data.size());
       n2n_channel.encrypt(hdr, asCb(msg_hdr), data, cipher);
 
-      to_host->write(
-        node_outbound, to, NodeMsgType::forwarded_msg, msg_hdr, hdr, cipher);
+      to_host->write(node_outbound, to, msg_type, msg_hdr, hdr, cipher);
 
       return true;
     }

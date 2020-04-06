@@ -1,10 +1,7 @@
-Building CCF
-============
+Building CCF from Source
+=========================
 
 Once you have cloned the CCF repository, setup your VM and installed all dependencies (see :ref:`quickstart/requirements:Requirements`), you will be able to successfully build and run the CCF test suite that will deploy a local CCF network.
-
-Building from Source
---------------------
 
 To build CCF from source on a SGX-enabled machine, run the following:
 
@@ -32,7 +29,7 @@ Alternatively, on a non-SGX machine, you can build a `virtual` instance of CCF:
 
 .. _RelWithDebInfo: https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html
 
-Build switches
+Build Switches
 --------------
 
 The full list of build switches can be obtained by running:
@@ -48,6 +45,26 @@ The full list of build switches can be obtained by running:
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
 * **COMPILE_TARGETS**: String. List of target compilation platforms. Defaults to ``sgx;virtual``, which builds both "virtual" enclaves and actual SGX enclaves.
 * **VERBOSE_LOGGING**: Boolean. Enable all logging levels. Default to OFF.
+
+Starting up a Test Network
+--------------------------
+
+You can quickly spin up a CCF network and start :ref:`issuing commands to the deployed application <users/issue_commands:Issuing Commands>`:
+
+.. code-block:: bash
+
+    $ cd build
+    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
+    Setting up Python environment...
+    Python environment successfully setup
+    [2019-10-29 14:47:41.562] Starting 3 CCF nodes...
+    [2019-10-29 14:48:12.138] Started CCF network with the following nodes:
+    [2019-10-29 14:48:12.138]   Node [ 0] = 127.177.10.108:37765
+    [2019-10-29 14:48:12.138]   Node [ 1] = 127.169.74.37:58343
+    [2019-10-29 14:48:12.138]   Node [ 2] = 127.131.108.179:50532
+    [2019-10-29 14:48:12.138] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
+    [2019-10-29 14:48:12.138] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
+    [2019-10-29 14:48:12.138] Press Ctrl+C to shutdown the network.
 
 Running Tests
 -------------
