@@ -460,10 +460,10 @@ namespace client
             it->get<decltype(options.generator_seed)>();
           if (expected_seed != options.generator_seed)
           {
-            throw std::runtime_error(
-              "Verification file expects seed " +
-              std::to_string(expected_seed) + ", but currently using " +
-              std::to_string(options.generator_seed));
+            throw std::runtime_error(fmt::format(
+              "Verification file expects seed {}, but currently using {}",
+              expected_seed,
+              options.generator_seed));
           }
         }
       }
@@ -476,11 +476,11 @@ namespace client
             it->get<decltype(options.num_transactions)>();
           if (expected_txs != options.num_transactions)
           {
-            throw std::runtime_error(
-              "Verification file is only applicable for " +
-              std::to_string(expected_txs) +
-              " transactions, but currently running " +
-              std::to_string(options.num_transactions));
+            throw std::runtime_error(fmt::format(
+              "Verification file is only applicable for {} transactions, but "
+              "currently running {}",
+              expected_txs,
+              options.num_transactions));
           }
         }
       }
@@ -493,11 +493,11 @@ namespace client
             it->get<decltype(options.session_count)>();
           if (expected_sessions != options.session_count)
           {
-            throw std::runtime_error(
-              "Verification file is only applicable for " +
-              std::to_string(expected_sessions) +
-              " sessions, but currently running " +
-              std::to_string(options.session_count));
+            throw std::runtime_error(fmt::format(
+              "Verification file is only applicable for {} sessions, but "
+              "currently running {}",
+              expected_sessions,
+              options.session_count));
           }
         }
       }
@@ -512,11 +512,11 @@ namespace client
 
         if (expected_randomise != options.randomise)
         {
-          throw std::runtime_error(
-            "Verification file is only applicable when randomisation is " +
-            std::string(expected_randomise ? "ON" : "OFF") +
-            ", but this option is currently " +
-            std::string(options.randomise ? "ON" : "OFF"));
+          throw std::runtime_error(fmt::format(
+            "Verification file is only applicable when randomisation is {}, "
+            "but this option is currently {}",
+            expected_randomise ? "ON" : "OFF",
+            options.randomise ? "ON" : "OFF"));
         }
       }
     }

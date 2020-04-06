@@ -239,7 +239,8 @@ namespace timing
         const auto body = net_client->unpack_body(response);
         if (response.status != HTTP_STATUS_OK)
         {
-          throw runtime_error("getCommit failed with error: " + body.dump());
+          throw runtime_error(
+            fmt::format("getCommit failed with error: {}", body.dump()));
         }
 
         const auto commit_ids = parse_commit_ids(response);
@@ -481,11 +482,12 @@ namespace timing
           if (!pending_global_commits.empty())
           {
             const auto& first = pending_global_commits[0];
-            throw runtime_error(
-              "Still waiting for " + to_string(pending_global_commits.size()) +
-              " global commits. First expected is " +
-              to_string(first.target_commit) + " for a transaction sent at " +
-              to_string(first.send_time.count()));
+            throw runtime_error(fmt::format(
+              "Still waiting for {} global commits. First expected is {} for "
+              "a transaction sent at {}",
+              pending_global_commits.size(),
+              first.target_commit,
+              first.send_time.count()));
           }
         }
 
@@ -493,10 +495,10 @@ namespace timing
         const auto actual_local_samples = round_local_commit.size();
         if (actual_local_samples != expected_local_samples)
         {
-          throw runtime_error(
-            "Measured " + to_string(actual_local_samples) +
-            " response times, yet sent " + to_string(expected_local_samples) +
-            " requests");
+          throw runtime_error(fmt::format(
+            "Measured {} response times, yet sent {} requests",
+            actual_local_samples,
+            expected_local_samples));
         }
       }
 
