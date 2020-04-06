@@ -2,22 +2,85 @@
 # Licensed under the Apache 2.0 License.
 import sys
 import os
-import infra.proc
-
-import infra.e2e_args
-import getpass
-import os
-import time
-import logging
-import multiprocessing
-from random import seed
-import infra.ccf
-import infra.proc
-from infra.proposal_state import ProposalState
-import json
 import http
 
+import infra.e2e_args
+import infra.ccf
+import infra.consortium
+from infra.proposal import ProposalState
+
+import suite.test_requirements as reqs
+import random
+
 from loguru import logger as LOG
+
+
+@reqs.description("Set recovery threshold")
+def test_set_recovery_threshold(network, args, recovery_threshold=None):
+    if recovery_threshold is None:
+        # For now, return with no effect. Once this is chained,
+        # we should select a random threshold between 1 and the
+        # total number of active members
+        return
+
+    already_active_member = network.consortium.get_any_active_member()
+    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
+
+    network.consortium.set_recovery_threshold(recovery_threshold)
+
+    # Shares are only updated if the recovery threshold is modified
+    if recovery_threshold != network.consortium.recovery_threshold:
+        new_share = already_active_member.get_and_decrypt_recovery_share(primary)
+        assert (
+            saved_share != new_share
+        ), "New shares should be issued when the recovery threshold is updated"
+
+
+@reqs.description("Add a new member to the consortium (+ activation)")
+def test_add_member(network, args):
+    primary, _ = network.find_primary()
+
+    network.consortium.store_current_network_encryption_key()
+    already_active_member = network.consortium.get_any_active_member()
+    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
+
+    new_member = network.consortium.generate_and_add_new_member(
+        primary, curve=infra.ccf.ParticipantsCurve(args.participants_curve).next()
+    )
+
+    try:
+        new_member.get_and_decrypt_recovery_share(primary)
+        assert False, "New accepted members are not given recovery shares"
+    except infra.member.NoRecoveryShareFound as e:
+        assert e.args[0].error == "Member is not active"
+
+    new_member.ack(primary)  # Activate new member
+
+    new_share = already_active_member.get_and_decrypt_recovery_share(primary)
+    assert (
+        saved_share != new_share
+    ), "New shares should be issued when a new member is activated"
+
+
+@reqs.description("Retire an existing member")
+def test_retire_member(network, args):
+    primary, _ = network.find_primary()
+
+    network.consortium.store_current_network_encryption_key()
+    already_active_member = network.consortium.get_any_active_member()
+    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
+
+    member_to_retire = [
+        m
+        for m in network.consortium.get_active_members()
+        if m is not already_active_member
+    ][0]
+    network.consortium.retire_member(primary, member_to_retire)
+
+    new_share = already_active_member.get_and_decrypt_recovery_share(primary)
+    assert (
+        saved_share != new_share
+    ), "New shares should be issued when a new member is retired"
 
 
 def run(args):
@@ -29,180 +92,178 @@ def run(args):
         network.start_and_join(args)
         primary, term = network.find_primary()
 
-        LOG.debug("Original members can ACK")
-        result = network.consortium.ack(0, primary)
+        LOG.info("Original members can ACK")
+        network.consortium.get_any_active_member().ack(primary)
 
-        LOG.debug("Network should not be able to be opened twice")
-        script = """
-        tables = ...
-        return Calls:call("open_network")
-        """
-        response = network.consortium.propose(0, primary, script)
-        assert response.status == http.HTTPStatus.OK.value
-
-        revote_response = network.consortium.vote_using_majority(
-            primary, response.result["proposal_id"]
-        )
-        assert revote_response.status == http.HTTPStatus.OK.value
-        assert revote_response.result["state"] == ProposalState.Failed.value
-
-        # Create a lua query file to change a member state to accepted
-        query = """local tables, param = ...
-        local member_id = param
-        local STATE_ACCEPTED = "ACCEPTED"
-        local member_info = {cert = {}, keyshare = {}, status = STATE_ACCEPTED}
-        local p = Puts:new()
-        p:put("ccf.members", member_id, member_info)
-        return Calls:call("raw_puts", p)
-        """
+        LOG.info("Network cannot be opened twice")
+        try:
+            network.consortium.open_network(primary)
+        except infra.proposal.ProposalNotAccepted as e:
+            assert e.proposal.state == infra.proposal.ProposalState.Failed
 
         LOG.info("Proposal to add a new member (with different curve)")
-        response = network.consortium.generate_and_propose_new_member(
-            0,
-            primary,
-            new_member_id=3,
+        (
+            new_member_proposal,
+            new_member,
+        ) = network.consortium.generate_and_propose_new_member(
+            remote_node=primary,
             curve=infra.ccf.ParticipantsCurve(args.participants_curve).next(),
         )
-        assert response.status == http.HTTPStatus.OK.value
 
-        # When proposal is added the proposal id and the result of running complete proposal are returned
-        proposal_id = response.result["proposal_id"]
-        assert response.result["state"] == ProposalState.Open.value
-
-        # Display all proposals
-        proposals = network.consortium.get_proposals(0, primary)
-
-        # Check proposal is present and open
-        proposal_entry = proposals.get(str(proposal_id))
+        LOG.info("Check proposal has been recorded in open state")
+        proposals = network.consortium.get_proposals(primary)
+        proposal_entry = next(
+            (p for p in proposals if p.proposal_id == new_member_proposal.proposal_id),
+            None,
+        )
         assert proposal_entry
-        assert proposal_entry["state"] == ProposalState.Open.value
+        assert proposal_entry.state == ProposalState.Open
 
-        LOG.debug("2/3 members vote to accept the new member")
-        response = network.consortium.vote(0, primary, proposal_id, True)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
+        LOG.info("Rest of consortium accept the proposal")
+        response = network.consortium.vote_using_majority(primary, new_member_proposal)
+        assert new_member_proposal.state == ProposalState.Accepted
 
-        response = network.consortium.vote(1, primary, proposal_id, True)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Accepted.value
+        # Manually add new member to consortium
+        network.consortium.members.append(new_member)
 
         LOG.debug(
             "Further vote requests fail as the proposal has already been accepted"
         )
         params_error = http.HTTPStatus.BAD_REQUEST.value
         assert (
-            network.consortium.vote(0, primary, proposal_id, True).status
+            network.consortium.get_member_by_id(0)
+            .vote(primary, new_member_proposal, accept=True)
+            .status
             == params_error
         )
         assert (
-            network.consortium.vote(0, primary, proposal_id, False).status
+            network.consortium.get_member_by_id(0)
+            .vote(primary, new_member_proposal, accept=False)
+            .status
             == params_error
         )
         assert (
-            network.consortium.vote(1, primary, proposal_id, True).status
+            network.consortium.get_member_by_id(1)
+            .vote(primary, new_member_proposal, accept=True)
+            .status
             == params_error
         )
         assert (
-            network.consortium.vote(1, primary, proposal_id, False).status
-            == params_error
-        )
-        assert (
-            network.consortium.vote(2, primary, proposal_id, True).status
-            == params_error
-        )
-        assert (
-            network.consortium.vote(2, primary, proposal_id, False).status
+            network.consortium.get_member_by_id(1)
+            .vote(primary, new_member_proposal, accept=False)
+            .status
             == params_error
         )
 
         LOG.debug("Accepted proposal cannot be withdrawn")
-        response = network.consortium.withdraw(0, primary, proposal_id)
+        response = network.consortium.get_member_by_id(
+            new_member_proposal.proposer_id
+        ).withdraw(primary, new_member_proposal)
         assert response.status == params_error
-
-        response = network.consortium.withdraw(1, primary, proposal_id)
-        assert response.status == http.HTTPStatus.FORBIDDEN.value
 
         LOG.info("New non-active member should get insufficient rights response")
         script = """
         tables, node_id = ...
         return Calls:call("trust_node", node_id)
         """
-        response = network.consortium.propose(3, primary, script, 0)
-        assert response.status == http.HTTPStatus.FORBIDDEN.value
+        try:
+            proposal = new_member.propose(primary, script, 0)
+            assert (
+                False
+            ), "New non-active member should get insufficient rights response"
+        except infra.proposal.ProposalNotCreated as e:
+            assert e.args[0].status == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("New member ACK")
-        result = network.consortium.ack(3, primary)
+        new_member.ack(primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        response = network.consortium.propose(3, primary, script, 0)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
-        proposal_id = response.result["proposal_id"]
+        trust_node_proposal = new_member.propose(primary, script, 0, vote_for=True)
 
         LOG.debug("Members vote to accept the accept node proposal")
-        response = network.consortium.vote(0, primary, proposal_id, True)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
-
-        # Result is true with 3 votes (proposer, member 0, and member 1)
-        response = network.consortium.vote(1, primary, proposal_id, True)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Accepted.value
+        response = network.consortium.vote_using_majority(primary, trust_node_proposal)
+        assert trust_node_proposal.state == infra.proposal.ProposalState.Accepted
 
         LOG.info("New member makes a new proposal")
-        response = network.consortium.propose(3, primary, script, 1)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
-        proposal_id = response.result["proposal_id"]
+        trust_node_proposal = new_member.propose(primary, script, 1)
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
-        response = network.consortium.withdraw(1, primary, proposal_id)
+        response = network.consortium.get_member_by_id(1).withdraw(
+            primary, trust_node_proposal
+        )
         assert response.status == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("Proposer withdraws their proposal")
-        response = network.consortium.withdraw(3, primary, proposal_id)
+        response = new_member.withdraw(primary, trust_node_proposal)
         assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Withdrawn.value
+        assert trust_node_proposal.state == infra.proposal.ProposalState.Withdrawn
 
-        proposals = network.consortium.get_proposals(3, primary)
-        proposal_entry = proposals.get(f"{proposal_id}")
+        proposals = network.consortium.get_proposals(primary)
+        proposal_entry = next(
+            (p for p in proposals if p.proposal_id == trust_node_proposal.proposal_id),
+            None,
+        )
         assert proposal_entry
-        assert proposal_entry["state"] == "WITHDRAWN"
+        assert proposal_entry.state == ProposalState.Withdrawn
 
         LOG.debug("Further withdraw proposals fail")
-        response = network.consortium.withdraw(3, primary, proposal_id)
+        response = new_member.withdraw(primary, trust_node_proposal)
         assert response.status == params_error
 
         LOG.debug("Further votes fail")
-        response = network.consortium.vote(3, primary, proposal_id, True)
+        response = new_member.vote(primary, trust_node_proposal, accept=True)
         assert response.status == params_error
 
-        response = network.consortium.vote(3, primary, proposal_id, False)
+        response = new_member.vote(primary, trust_node_proposal, accept=False)
         assert response.status == params_error
 
-        LOG.debug("New member proposes to deactivate member 0")
-        response = network.consortium.propose(3, primary, query, 0)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
-        proposal_id = response.result["proposal_id"]
+        LOG.debug("New member proposes to retire member 0")
+        network.consortium.retire_member(
+            primary, network.consortium.get_member_by_id(0)
+        )
 
-        LOG.debug("Other members accept the proposal")
-        response = network.consortium.vote(2, primary, proposal_id, True)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
-
-        response = network.consortium.vote(1, primary, proposal_id, True)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Accepted.value
-
-        LOG.debug("Deactivated member cannot make a new proposal")
-        response = network.consortium.propose(0, primary, script, 0)
-        assert response.status == http.HTTPStatus.FORBIDDEN.value
+        LOG.debug("Retired member cannot make a new proposal")
+        try:
+            response = network.consortium.get_member_by_id(0).propose(
+                primary, script, 0
+            )
+            assert False, "Retired member cannot make a new proposal"
+        except infra.proposal.ProposalNotCreated as e:
+            assert e.args[0].status == http.HTTPStatus.FORBIDDEN.value
+            assert e.args[0].error == "Member is not active"
 
         LOG.debug("New member should still be able to make a new proposal")
-        response = network.consortium.propose(3, primary, script, 0)
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Open.value
+        new_proposal = new_member.propose(primary, script, 0)
+        assert new_proposal.state == ProposalState.Open
+
+        LOG.info(
+            "Recovery threshold is originally set to the original number of members"
+        )
+        LOG.info("Retiring a member should not be possible")
+        try:
+            test_retire_member(network, args)
+        except infra.proposal.ProposalNotAccepted as e:
+            assert e.args[0].state == infra.proposal.ProposalState.Failed
+
+        test_add_member(network, args)
+        test_retire_member(network, args)
+
+        LOG.info("Set different recovery thresholds")
+        network.consortium.set_recovery_threshold(primary, recovery_threshold=1)
+        network.consortium.set_recovery_threshold(
+            primary, recovery_threshold=network.consortium.recovery_threshold
+        )
+
+        LOG.info(
+            "Setting the recovery threshold above the number of active members is not possible"
+        )
+        try:
+            resp = network.consortium.set_recovery_threshold(
+                primary,
+                recovery_threshold=len(network.consortium.get_active_members()) + 1,
+            )
+        except infra.proposal.ProposalNotAccepted as e:
+            assert e.args[0].state == infra.proposal.ProposalState.Failed
 
 
 if __name__ == "__main__":
