@@ -154,6 +154,7 @@ namespace asynchost
         case CONNECTING:
         case RESOLVING_FAILED:
         case CONNECTING_FAILED:
+        case RECONNECTING:
         {
           pending_writes.emplace_back(req, len);
           break;
