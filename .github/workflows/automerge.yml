@@ -31,4 +31,4 @@ jobs:
           MERGE_REMOVE_LABELS: "automerge,wip,sync"
           MERGE_FORKS: true
           UPDATE_LABELS: "sync,!wip"
-          UPDATE_METHOD: "merge"
+          UPDATE_METHOD: "merge" # Comment
