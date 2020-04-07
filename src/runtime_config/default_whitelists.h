@@ -31,8 +31,6 @@ namespace ccf
     {MEMBER_CAN_PROPOSE,
      {Tables::USERS,
       Tables::USER_CERTS,
-      Tables::MEMBERS,
-      Tables::MEMBER_CERTS,
       Tables::VALUES,
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,

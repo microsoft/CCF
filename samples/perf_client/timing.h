@@ -49,6 +49,12 @@ namespace timing
     double variance;
   };
 
+  struct CommitPoint
+  {
+    size_t term;
+    size_t index;
+  };
+
   std::string timestamp()
   {
     std::stringstream ss;
@@ -125,6 +131,36 @@ namespace timing
     vector<PerRound> per_round;
   };
 
+  static CommitIDs parse_commit_ids(const RpcTlsClient::Response& response)
+  {
+    const auto& h = response.headers;
+    const auto local_commit_it = h.find(http::headers::CCF_COMMIT);
+    if (local_commit_it == h.end())
+    {
+      throw std::logic_error("Missing commit response header");
+    }
+
+    const auto global_commit_it = h.find(http::headers::CCF_GLOBAL_COMMIT);
+    if (global_commit_it == h.end())
+    {
+      throw std::logic_error("Missing global commit response header");
+    }
+
+    const auto term_it = h.find(http::headers::CCF_TERM);
+    if (term_it == h.end())
+    {
+      throw std::logic_error("Missing term response header");
+    }
+
+    const auto local =
+      std::strtoul(local_commit_it->second.c_str(), nullptr, 0);
+    const auto global =
+      std::strtoul(global_commit_it->second.c_str(), nullptr, 0);
+    const auto term = std::strtoul(term_it->second.c_str(), nullptr, 0);
+
+    return {local, global, term};
+  }
+
   class ResponseTimes
   {
     const shared_ptr<RpcTlsClient> net_client;
@@ -133,51 +169,7 @@ namespace timing
     vector<SentRequest> sends;
     vector<ReceivedReply> receives;
 
-    bool try_get_commit(
-      const shared_ptr<RpcTlsClient>& client,
-      size_t& local,
-      size_t& global,
-      size_t& term,
-      bool record = false)
-    {
-      const auto r = client->call("getCommit", nlohmann::json::object());
-
-      if (record)
-      {
-        record_send("getCommit", r.id, false);
-      }
-
-      if (r.status != HTTP_STATUS_OK)
-      {
-        const auto body = client->unpack_body(r);
-        throw runtime_error("getCommit failed with error: " + body.dump());
-      }
-
-      const auto& h = r.headers;
-
-      const auto local_commit_it = h.find(http::headers::CCF_COMMIT);
-      if (local_commit_it == h.end())
-        return false;
-
-      const auto global_commit_it = h.find(http::headers::CCF_GLOBAL_COMMIT);
-      if (global_commit_it == h.end())
-        return false;
-
-      const auto term_it = h.find(http::headers::CCF_TERM);
-      if (term_it == h.end())
-        return false;
-
-      local = std::atoi(local_commit_it->second.c_str());
-      global = std::atoi(global_commit_it->second.c_str());
-      term = std::atoi(term_it->second.c_str());
-
-      if (record)
-      {
-        record_receive(r.id, {{local, global, term}});
-      }
-
-      return true;
-    }
+    bool active = false;
 
   public:
     ResponseTimes(const shared_ptr<RpcTlsClient>& client) :
@@ -187,9 +179,20 @@ namespace timing
 
     ResponseTimes(const ResponseTimes& other) = default;
 
-    void reset_start_time()
+    void start_timing()
     {
+      active = true;
       start_time = Clock::now();
+    }
+
+    bool is_timing_active()
+    {
+      return active;
+    }
+
+    void stop_timing()
+    {
+      active = false;
     }
 
     auto get_start_time() const
@@ -209,35 +212,90 @@ namespace timing
       receives.push_back({Clock::now() - start_time, rpc_id, commit});
     }
 
-    // Repeatedly calls getCommit RPC until local and global_commit match, then
-    // returns that commit. Calls received_response for each response.
-    size_t wait_for_global_commit(
-      std::optional<size_t> at_least = {}, bool record = true)
+    // Repeatedly calls getCommit RPC until the target index has been committed
+    // (or will never be committed), checks it was in expected term, returns
+    // first confirming response. Calls received_response for each response, if
+    // record is true. Throws on errors, or if target is rolled back
+    RpcTlsClient::Response wait_for_global_commit(
+      const CommitPoint& target, bool record = true)
     {
-      size_t local = 0u;
-      size_t global = 0u;
-      size_t term = 0u;
+      auto params = nlohmann::json::object();
+      params["commit"] = target.index;
 
-      bool success = try_get_commit(net_client, local, global, term, true);
-      auto target = at_least.has_value() ? max(*at_least, local) : local;
+      constexpr auto get_commit = "getCommit";
 
-      using LastPrinted = std::pair<decltype(target), decltype(global)>;
-      std::optional<LastPrinted> last_printed = std::nullopt;
+      LOG_INFO_FMT(
+        "Waiting for global commit {}.{}", target.term, target.index);
 
-      while (!success || (global < target))
+      while (true)
       {
-        auto current = std::make_pair(target, global);
-        if (!last_printed.has_value() || *last_printed != current)
-        {
-          std::cout << timestamp() << "Waiting for " << target << ", at "
-                    << global << std::endl;
-          last_printed = current;
-        }
-        this_thread::sleep_for(10us);
-        success = try_get_commit(net_client, local, global, term, record);
-      }
+        const auto response = net_client->call(get_commit, params);
 
-      return global;
+        if (record)
+        {
+          record_send(get_commit, response.id, false);
+        }
+
+        const auto body = net_client->unpack_body(response);
+        if (response.status != HTTP_STATUS_OK)
+        {
+          throw runtime_error(fmt::format(
+            "getCommit failed with status {}: {}",
+            http_status_str(response.status),
+            body.dump()));
+        }
+
+        const auto commit_ids = parse_commit_ids(response);
+        if (record)
+        {
+          record_receive(response.id, commit_ids);
+        }
+
+        const auto response_term = body["term"].get<size_t>();
+        if (response_term == 0)
+        {
+          // Commit is pending, poll again
+          this_thread::sleep_for(10us);
+          continue;
+        }
+        else if (response_term < target.term)
+        {
+          throw std::logic_error(fmt::format(
+            "Unexpected situation - {} was committed in old term {} (expected "
+            "{})",
+            target.index,
+            response_term,
+            target.term));
+        }
+        else if (response_term == target.term)
+        {
+          // Good, this target commit was committed in the expected term
+          if (commit_ids.global >= target.index)
+          {
+            // ...and this commit has been globally committed
+            LOG_INFO_FMT(
+              "Found global commit {}.{}", target.term, target.index);
+            LOG_INFO_FMT(
+              " (headers term: {}, local: {}, global: {}",
+              commit_ids.term,
+              commit_ids.local,
+              commit_ids.global);
+            return response;
+          }
+
+          // else global commit is still pending
+          continue;
+        }
+        else
+        {
+          throw std::logic_error(fmt::format(
+            "Pending transaction was dropped! Looking for {}.{}, but term has "
+            "advanced to {}",
+            target.term,
+            target.index,
+            response_term));
+        }
+      }
     }
 
     Results produce_results(
@@ -271,16 +329,16 @@ namespace timing
           {
             if (receive.commit->global >= highest_local_commit.value())
             {
-              std::cout << "global commit match: " << receive.commit->global
-                        << " for highest local commit: "
-                        << highest_local_commit.value() << std::endl;
+              LOG_INFO_FMT(
+                "Global commit match {} for highest local commit {}",
+                receive.commit->global,
+                highest_local_commit.value());
               auto was =
                 duration_cast<milliseconds>(end_time_delta).count() / 1000.0;
               auto is =
                 duration_cast<milliseconds>(receive.receive_time).count() /
                 1000.0;
-              std::cout << "duration changing from: " << was << " s to: " << is
-                        << " s" << std::endl;
+              LOG_INFO_FMT("Duration changing from {}s to {}s", was, is);
               end_time_delta = receive.receive_time;
               break;
             }
@@ -345,9 +403,11 @@ namespace timing
 
               if (tx_latency < 0)
               {
-                std::cerr << "Calculated a negative latency (" << tx_latency
-                          << ") for RPC " << receive.rpc_id
-                          << " - duplicate ID causing mismatch?" << std::endl;
+                LOG_FAIL_FMT(
+                  "Calculated a negative latency ({}) for RPC {} - duplicate "
+                  "ID causing mismatch?",
+                  tx_latency,
+                  receive.rpc_id);
                 continue;
               }
 
@@ -424,11 +484,12 @@ namespace timing
           if (!pending_global_commits.empty())
           {
             const auto& first = pending_global_commits[0];
-            throw runtime_error(
-              "Still waiting for " + to_string(pending_global_commits.size()) +
-              " global commits. First expected is " +
-              to_string(first.target_commit) + " for a transaction sent at " +
-              to_string(first.send_time.count()));
+            throw runtime_error(fmt::format(
+              "Still waiting for {} global commits. First expected is {} for "
+              "a transaction sent at {}",
+              pending_global_commits.size(),
+              first.target_commit,
+              first.send_time.count()));
           }
         }
 
@@ -436,10 +497,10 @@ namespace timing
         const auto actual_local_samples = round_local_commit.size();
         if (actual_local_samples != expected_local_samples)
         {
-          throw runtime_error(
-            "Measured " + to_string(actual_local_samples) +
-            " response times, yet sent " + to_string(expected_local_samples) +
-            " requests");
+          throw runtime_error(fmt::format(
+            "Measured {} response times, yet sent {} requests",
+            actual_local_samples,
+            expected_local_samples));
         }
       }
 
@@ -455,7 +516,7 @@ namespace timing
 
     void write_to_file(const string& filename)
     {
-      std::cout << "Writing timing data to file" << std::endl;
+      LOG_INFO_FMT("Writing timing data to files");
 
       const auto sent_path = filename + "_sent.csv";
       ofstream sent_csv(sent_path, ofstream::out);
@@ -467,8 +528,7 @@ namespace timing
           sent_csv << sent.send_time.count() << "," << sent.rpc_id << ","
                    << sent.method << "," << sent.expects_commit << endl;
         }
-        std::cout << "Wrote " << sends.size() << " entries to " << sent_path
-                  << std::endl;
+        LOG_INFO_FMT("Wrote {} entries to {}", sends.size(), sent_path);
       }
 
       const auto recv_path = filename + "_recv.csv";
@@ -497,8 +557,7 @@ namespace timing
           }
           recv_csv << endl;
         }
-        std::cout << "Wrote " << receives.size() << " entries to " << recv_path
-                  << std::endl;
+        LOG_INFO_FMT("Wrote {} entries to {}", receives.size(), recv_path);
       }
     }
   };

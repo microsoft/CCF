@@ -5,7 +5,18 @@
 using namespace std;
 using namespace nlohmann;
 
-using Base = client::PerfBase;
+struct SmallBankClientOptions : public client::PerfOptions
+{
+  size_t total_accounts = 10;
+
+  SmallBankClientOptions(CLI::App& app) :
+    client::PerfOptions("Small_Bank_ClientCpp", app)
+  {
+    app.add_option("--accounts", total_accounts)->capture_default_str();
+  }
+};
+
+using Base = client::PerfBase<SmallBankClientOptions>;
 
 class SmallBankClient : public Base
 {
@@ -27,21 +38,18 @@ private:
                                  "SmallBank_deposit_checking",
                                  "SmallBank_balance"};
 
-  size_t total_accounts = 10;
-
   void print_accounts(const string& header = {})
   {
     if (!header.empty())
     {
-      cout << header << endl;
+      LOG_INFO_FMT(header);
     }
 
-    // Create new connection to read balances
-    auto conn = create_connection();
+    auto conn = get_connection();
 
     nlohmann::json accs = nlohmann::json::array();
 
-    for (auto i = 0ul; i < total_accounts; i++)
+    for (auto i = 0ul; i < options.total_accounts; i++)
     {
       json j;
       j["name"] = to_string(i);
@@ -52,31 +60,35 @@ private:
       accs.push_back({{"account", i}, {"balance", result}});
     }
 
-    std::cout << accs.dump(4) << std::endl;
+    LOG_INFO_FMT("Accounts:\n{}", accs.dump(4));
   }
 
-  void send_creation_transactions(
-    const std::shared_ptr<RpcTlsClient>& connection) override
+  std::optional<RpcTlsClient::Response> send_creation_transactions() override
   {
     const auto from = 0;
-    const auto to = total_accounts;
+    const auto to = options.total_accounts;
 
-    cout << "Creating accounts: from " << from << " to " << to << endl;
+    auto connection = get_connection();
+    LOG_INFO_FMT("Creating accounts from {} to {}", from, to);
 
     json j;
     j["from"] = from;
     j["to"] = to;
     j["checking_amt"] = 1000;
     j["savings_amt"] = 1000;
-    connection->call("SmallBank_create_batch", j);
+    const auto response = connection->call("SmallBank_create_batch", j);
+    check_response(response);
+
+    return response;
   }
 
   void prepare_transactions() override
   {
     // Reserve space for transfer transactions
-    prepared_txs.resize(num_transactions);
+    prepared_txs.resize(options.num_transactions);
 
-    for (decltype(num_transactions) i = 0; i < num_transactions; i++)
+    for (decltype(options.num_transactions) i = 0; i < options.num_transactions;
+         i++)
     {
       uint8_t operation =
         rand_range((uint8_t)TransactionTypes::NumberTransactions);
@@ -86,16 +98,16 @@ private:
       switch ((TransactionTypes)operation)
       {
         case TransactionTypes::TransactSavings:
-          j["name"] = to_string(rand_range(total_accounts));
+          j["name"] = to_string(rand_range(options.total_accounts));
           j["value"] = rand_range<int>(-50, 50);
           break;
 
         case TransactionTypes::Amalgamate:
         {
-          unsigned int src_account = rand_range(total_accounts);
+          unsigned int src_account = rand_range(options.total_accounts);
           j["name_src"] = to_string(src_account);
 
-          unsigned int dest_account = rand_range(total_accounts - 1);
+          unsigned int dest_account = rand_range(options.total_accounts - 1);
           if (dest_account >= src_account)
             dest_account += 1;
 
@@ -104,17 +116,17 @@ private:
         break;
 
         case TransactionTypes::WriteCheck:
-          j["name"] = to_string(rand_range(total_accounts));
+          j["name"] = to_string(rand_range(options.total_accounts));
           j["value"] = rand_range<int>(50);
           break;
 
         case TransactionTypes::DepositChecking:
-          j["name"] = to_string(rand_range(total_accounts));
+          j["name"] = to_string(rand_range(options.total_accounts));
           j["value"] = rand_range<int>(50) + 1;
           break;
 
         case TransactionTypes::GetBalance:
-          j["name"] = to_string(rand_range(total_accounts));
+          j["name"] = to_string(rand_range(options.total_accounts));
           break;
 
         default:
@@ -134,7 +146,10 @@ private:
     if (r.status != HTTP_STATUS_OK)
     {
       const std::string error_msg(r.body.begin(), r.body.end());
-      if (error_msg.find("Not enough money in savings account") == string::npos)
+      if (
+        error_msg.find("Not enough money in savings account") == string::npos &&
+        error_msg.find("Account already exists in accounts table") ==
+          string::npos)
       {
         throw logic_error(error_msg);
         return false;
@@ -146,26 +161,17 @@ private:
 
   void pre_creation_hook() override
   {
-    if (verbosity >= 1)
-    {
-      cout << "Creating " << total_accounts << " accounts..." << endl;
-    }
+    LOG_DEBUG_FMT("Creating {} accounts", options.total_accounts);
   }
 
   void post_creation_hook() override
   {
-    if (verbosity >= 2)
-    {
-      print_accounts("Initial accounts:");
-    }
+    LOG_TRACE_FMT("Initial accounts:");
   }
 
   void post_timing_body_hook() override
   {
-    if (verbosity >= 2)
-    {
-      print_accounts("Final accounts:");
-    }
+    LOG_TRACE_FMT("Final accounts:");
   }
 
   void verify_params(const nlohmann::json& expected) override
@@ -176,13 +182,15 @@ private:
       const auto it = expected.find("accounts");
       if (it != expected.end())
       {
-        const auto expected_accounts = it->get<decltype(total_accounts)>();
-        if (expected_accounts != total_accounts)
+        const auto expected_accounts =
+          it->get<decltype(options.total_accounts)>();
+        if (expected_accounts != options.total_accounts)
         {
           throw std::runtime_error(
             "Verification file is only applicable for " +
             std::to_string(expected_accounts) +
-            " accounts, but currently have " + std::to_string(total_accounts));
+            " accounts, but currently have " +
+            std::to_string(options.total_accounts));
         }
       }
     }
@@ -207,7 +215,7 @@ private:
     }
 
     // Create new connection to read balances
-    auto conn = create_connection();
+    auto conn = get_connection();
 
     for (const auto& entry : expected)
     {
@@ -252,23 +260,16 @@ private:
   }
 
 public:
-  SmallBankClient() : Base("Small_Bank_ClientCpp") {}
-
-  void setup_parser(CLI::App& app) override
-  {
-    Base::setup_parser(app);
-
-    app.add_option("--accounts", total_accounts);
-  }
+  SmallBankClient(const SmallBankClientOptions& o) : Base(o) {}
 };
 
 int main(int argc, char** argv)
 {
-  SmallBankClient client;
   CLI::App cli_app{"Small Bank Client"};
-  client.setup_parser(cli_app);
+  SmallBankClientOptions options(cli_app);
   CLI11_PARSE(cli_app, argc, argv);
 
+  SmallBankClient client(options);
   client.run();
 
   return 0;
