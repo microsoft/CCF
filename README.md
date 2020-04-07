@@ -4,6 +4,7 @@
 | Continuous Integration | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=master) |
 | Code coverage | [![codecov](https://codecov.io/gh/microsoft/CCF/branch/master/graph/badge.svg)](https://codecov.io/gh/microsoft/CCF) |
 | Documentation | [![docs](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Pages?branchName=master)](https://microsoft.github.io/CCF/) |
+| Daily Build | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Daily?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=7&branchName=master) |
 
 # The Confidential Consortium Framework
 
