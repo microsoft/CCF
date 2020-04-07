@@ -478,7 +478,7 @@ if(BUILD_TESTS)
     NAME test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
-    IS_SUITE TRUE
+    LABEL suite
     ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
   )
 
