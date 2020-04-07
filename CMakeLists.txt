@@ -38,6 +38,7 @@ set(CONSENSUSES raft pbft)
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
+option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
 # Build common library for CCF enclaves
@@ -546,6 +547,15 @@ if(BUILD_TESTS)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
 
+  if(TLS_TEST)
+    add_custom_target(
+      testssl ALL
+      COMMAND
+        test -d testssl || git clone https://github.com/drwetter/testssl.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/testssl
+    )
+  endif()
+
   foreach(CONSENSUS ${CONSENSUSES})
     add_e2e_test(
       NAME member_client_test_${CONSENSUS}
@@ -567,11 +577,13 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
     )
 
-    add_e2e_test(
-      NAME tlstest_${CONSENSUS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
-      CONSENSUS ${CONSENSUS} LABEL tlstest
-    )
+    if(TLS_TEST AND ${CONSENSUS} STREQUAL raft)
+      add_e2e_test(
+        NAME tlstest_${CONSENSUS}
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/tlstest.py
+        CONSENSUS ${CONSENSUS} LABEL tlstest
+      )
+    endif()
 
     add_e2e_test(
       NAME schema_tests_${CONSENSUS}
