@@ -18,6 +18,7 @@
 #include <nlohmann/json.hpp>
 #include <random>
 #include <thread>
+#include <unistd.h>
 
 namespace client
 {
@@ -54,6 +55,7 @@ namespace client
 
     cli::ParsedAddress server_address;
     std::string cert_file, key_file, ca_file, verification_file;
+    std::string pid_file = "perf_client.pid";
 
     size_t num_transactions = 10000;
     size_t thread_count = 1;
@@ -83,6 +85,13 @@ namespace client
           label,
           fmt::format(
             "Identifier for this client, written to {}", perf_summary))
+        ->capture_default_str();
+
+      app
+        .add_option(
+          "--pid-file",
+          pid_file,
+          "Path to which the client PID will be written")
         ->capture_default_str();
 
       // Connection details
@@ -747,6 +756,9 @@ namespace client
 
     virtual void run()
     {
+      // Write PID to disk
+      files::dump(fmt::format("{}", ::getpid()), options.pid_file);
+
       if (options.randomise)
       {
         options.generator_seed = std::random_device()();

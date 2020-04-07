@@ -30,7 +30,7 @@ def number_of_local_nodes(args):
         return 4
 
     if multiprocessing.cpu_count() > 2:
-        return 2
+        return 4
     else:
         return 1
 
@@ -99,12 +99,13 @@ def run(get_command, args):
         clients = []
         client_hosts = []
         if args.one_client_per_backup:
-            if len(backups) == 0:
+            if not backups:
                 raise Exception(
                     "--one-client-per-backup was set but no backup was found"
                 )
-            for b in backups:
-                client_hosts.append(b.host)
+            client_hosts = ["localhost"] * len(backups)
+            # for b in backups:
+            # client_hosts.append(b.host)
         else:
             if args.num_localhost_clients:
                 client_hosts = ["localhost"] * int(args.num_localhost_clients)
@@ -112,7 +113,7 @@ def run(get_command, args):
             if args.client_nodes:
                 client_hosts.extend(args.client_nodes)
 
-            if len(client_hosts) == 0:
+            if not client_hosts == 0:
                 client_hosts = ["localhost"]
 
         for client_id, client_host in enumerate(client_hosts):
@@ -156,12 +157,24 @@ def run(get_command, args):
                         time.sleep(5)
 
                     tx_rates.get_metrics()
+
                     for remote_client in clients:
-                        remote_client.print_and_upload_result(args.label, metrics)
-                        remote_client.stop()
+                        perf_result = remote_client.get_result()
+                        LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
+
+                        # TODO: Only results for first client are uploaded
+                        # https://github.com/microsoft/CCF/issues/1046
+                        if remote_client == clients[0]:
+                            LOG.success(f"Uploading results for {remote_client.name}")
+                            metrics.put(args.label, perf_result)
+                        else:
+                            LOG.warning(f"Skipping upload for {remote_client.name}")
 
                     LOG.info(f"Rates:\n{tx_rates}")
                     tx_rates.save_results(args.metrics_file)
+
+                    for remote_client in clients:
+                        remote_client.stop()
 
             except Exception:
                 LOG.error("Stopping clients due to exception")

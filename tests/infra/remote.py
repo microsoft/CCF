@@ -100,6 +100,15 @@ class CmdMixin(object):
             "-s",
         ] + self.cmd
 
+    def _get_perf(self, lines):
+        pattern = "=> (.*)tx/s"
+        for line in lines:
+            LOG.debug(line.decode())
+            res = re.search(pattern, line.decode())
+            if res:
+                return float(res.group(1))
+        raise ValueError(f"No performance result found (pattern is {pattern})")
+
     def _print_upload_perf(self, name, metrics, lines):
         for line in lines:
             LOG.debug(line.decode())
@@ -117,7 +126,6 @@ class SSHRemote(CmdMixin):
         hostname,
         exe_files,
         data_files,
-        is_ccf_node,
         cmd,
         workspace,
         label,
@@ -142,7 +150,6 @@ class SSHRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
-        self.is_ccf_node = is_ccf_node
         self.client = paramiko.SSHClient()
         # this client (proc_client) is used to execute commands on the remote host since the main client uses pty
         self.proc_client = paramiko.SSHClient()
@@ -155,6 +162,7 @@ class SSHRemote(CmdMixin):
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
         self.suspension_proc = None
+        self.pid_file = "cchost.pid" if "./cchost" in self.cmd else "perf_client.pid"
         self._pid = None
 
     def _rc(self, cmd):
@@ -262,17 +270,17 @@ class SSHRemote(CmdMixin):
         cmd = self._cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
         self.client.exec_command(cmd, get_pty=True)
-        if self.is_ccf_node:
-            self.pid()
+        self.pid()
 
     def pid(self):
         if self._pid is None:
-            pid_path = os.path.join(self.root, "cchost.pid")
+            pid_path = os.path.join(self.root, self.pid_file)
             time_left = 3
             while time_left > 0:
                 _, stdout, _ = self.proc_client.exec_command(f'cat "{pid_path}"')
-                self._pid = stdout.read().strip()
-                if self._pid:
+                res = stdout.read().strip()
+                if res:
+                    self._pid = int(res)
                     break
                 time_left = max(time_left - 0.1, 0)
                 if not time_left:
@@ -281,9 +289,6 @@ class SSHRemote(CmdMixin):
         return self._pid
 
     def suspend(self):
-        if not self.is_ccf_node:
-            raise NotImplementedError("Cannot suspend a non CCF node SSH remote")
-
         _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid()}")
         if stdout.channel.recv_exit_status() == 0:
             LOG.info(f"Node {self.name} suspended...")
@@ -291,9 +296,6 @@ class SSHRemote(CmdMixin):
             raise RuntimeError(f"Node {self.name} could not be suspended")
 
     def resume(self):
-        if not self.is_ccf_node:
-            raise NotImplementedError("Cannot resume a non CCF node SSH remote")
-
         _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid()}")
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Could not resume node {self.name} from suspension!")
@@ -340,18 +342,18 @@ class SSHRemote(CmdMixin):
         client = self._connect_new()
         try:
             _, stdout, _ = client.exec_command(f"ps -p {self.pid()}")
-            return std.out.channel.recv_exit_status() == 0
+            return stdout.channel.recv_exit_status() == 1
         finally:
             client.close()
 
-    def print_and_upload_result(self, name, metrics, line_count):
+    def get_result(self, line_count):
         client = self._connect_new()
         try:
             _, stdout, _ = client.exec_command(f"tail -{line_count} {self.out}")
             if stdout.channel.recv_exit_status() == 0:
-                LOG.success(f"Result for {self.name}, uploaded under {name}:")
-                self._print_upload_perf(name, metrics, stdout.read().splitlines())
-                return
+                lines = stdout.read().splitlines()
+                result = lines[-line_count:]
+                return self._get_perf(result)
         finally:
             client.close()
 
@@ -377,7 +379,6 @@ class LocalRemote(CmdMixin):
         hostname,
         exe_files,
         data_files,
-        is_ccf_node,
         cmd,
         workspace,
         label,
@@ -392,7 +393,6 @@ class LocalRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
-        self.is_ccf_node = is_ccf_node
         self.root = os.path.join(workspace, label + "_" + name)
         self.common_dir = common_dir
         self.proc = None
@@ -492,12 +492,11 @@ class LocalRemote(CmdMixin):
     def check_done(self):
         return self.proc.poll() is not None
 
-    def print_and_upload_result(self, name, metrics, line_count):
+    def get_result(self, line_count):
         with open(self.out, "rb") as out:
             lines = out.read().splitlines()
             result = lines[-line_count:]
-            LOG.success(f"Result for {self.name}, uploaded under {name}:")
-            self._print_upload_perf(name, metrics, result)
+            return self._get_perf(result)
 
 
 CCF_TO_OE_LOG_LEVEL = {
@@ -669,13 +668,12 @@ class CCFRemote(object):
             host,
             exe_files,
             data_files,
-            is_ccf_node=True,
-            cmd=cmd,
-            workspace=workspace,
-            label=label,
-            common_dir=common_dir,
-            env=env,
-            json_log_path=json_log_path,
+            cmd,
+            workspace,
+            label,
+            common_dir,
+            env,
+            json_log_path,
         )
 
     def setup(self):
@@ -714,9 +712,6 @@ class CCFRemote(object):
 
     def check_done(self):
         return self.remote.check_done()
-
-    def print_and_upload_result(self, name, metrics, line_count):
-        self.remote.print_and_upload_result(name, metrics, line_count)
 
     def set_perf(self):
         self.remote.set_perf()

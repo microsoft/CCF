@@ -28,7 +28,7 @@ def cli_args(add=lambda x: None, accept_unknown=False):
     )
     client_args_group.add_argument(
         "--one-client-per-backup",
-        help="If set, allocates one client per backup",
+        help="If set, allocates one (local) client per backup",
         action="store_true",
     )
     parser.add_argument(
