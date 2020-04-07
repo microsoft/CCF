@@ -239,8 +239,10 @@ namespace timing
         const auto body = net_client->unpack_body(response);
         if (response.status != HTTP_STATUS_OK)
         {
-          throw runtime_error(
-            fmt::format("getCommit failed with status {}: {}", http_status_str(response.status), body.dump()));
+          throw runtime_error(fmt::format(
+            "getCommit failed with status {}: {}",
+            http_status_str(response.status),
+            body.dump()));
         }
 
         const auto commit_ids = parse_commit_ids(response);
