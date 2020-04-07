@@ -52,10 +52,10 @@ namespace client
     /// Options set from command line
     ///@{
     std::string label; //< Default set in constructor
+    std::string pid_file; //< Default set in constructor
 
     cli::ParsedAddress server_address;
     std::string cert_file, key_file, ca_file, verification_file;
-    std::string pid_file = "perf_client.pid";
 
     size_t num_transactions = 10000;
     size_t thread_count = 1;
@@ -73,8 +73,12 @@ namespace client
     bool relax_commit_target = false;
     ///@}
 
-    PerfOptions(const std::string& default_label, CLI::App& app) :
-      label(default_label)
+    PerfOptions(
+      const std::string& default_label,
+      const std::string& default_pid_file,
+      CLI::App& app) :
+      label(default_label),
+      pid_file(fmt::format("{}.pid", default_pid_file))
     {
       // Enable config from file
       app.set_config("--config");

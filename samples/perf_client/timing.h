@@ -276,7 +276,7 @@ namespace timing
             LOG_INFO_FMT(
               "Found global commit {}.{}", target.term, target.index);
             LOG_INFO_FMT(
-              " (headers term: {}, local: {}, global: {}",
+              " (headers term: {}, local: {}, global: {})",
               commit_ids.term,
               commit_ids.local,
               commit_ids.global);

@@ -105,14 +105,14 @@ def run(get_command, args):
                 )
             client_hosts = ["localhost"] * len(backups)
         else:
-            if args.num_localhost_clients:
-                client_hosts = ["localhost"] * int(args.num_localhost_clients)
-
             if args.client_nodes:
                 client_hosts.extend(args.client_nodes)
 
-            if not client_hosts == 0:
-                client_hosts = ["localhost"]
+        if args.num_localhost_clients:
+            client_hosts.extend(["localhost"] * int(args.num_localhost_clients))
+
+        if not client_hosts:
+            client_hosts = ["localhost"]
 
         for client_id, client_host in enumerate(client_hosts):
             node = nodes_to_send_to[client_id % len(nodes_to_send_to)]

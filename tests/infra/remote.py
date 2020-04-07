@@ -153,7 +153,7 @@ class SSHRemote(CmdMixin):
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
         self.suspension_proc = None
-        self.pid_file = "cchost.pid" if "./cchost" in self.cmd else "perf_client.pid"
+        self.pid_file = f"{os.path.basename(self.cmd[0])}.pid"
         self._pid = None
 
     def _rc(self, cmd):

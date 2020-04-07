@@ -11,8 +11,9 @@ struct ScenarioPerfClientOptions : public client::PerfOptions
   size_t repetitions = 1;
   std::string scenario_file;
 
-  ScenarioPerfClientOptions(CLI::App& app) :
-    client::PerfOptions("scenario_perf", app)
+  ScenarioPerfClientOptions(
+    CLI::App& app, const std::string& default_pid_file) :
+    client::PerfOptions("scenario_perf", default_pid_file, app)
   {
     app.add_option("--repetitions", repetitions)->capture_default_str();
     app.add_option("--scenario-file", scenario_file)
@@ -113,7 +114,7 @@ public:
 int main(int argc, char** argv)
 {
   CLI::App cli_app{"Scenario Perf Client"};
-  ScenarioPerfClientOptions options(cli_app);
+  ScenarioPerfClientOptions options(cli_app, argv[0]);
   CLI11_PARSE(cli_app, argc, argv);
 
   ScenarioPerfClient client(options);
