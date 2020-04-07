@@ -240,7 +240,7 @@ namespace timing
         if (response.status != HTTP_STATUS_OK)
         {
           throw runtime_error(
-            fmt::format("getCommit failed with error: {}", body.dump()));
+            fmt::format("getCommit failed with status {}: {}", http_status_str(response.status), body.dump()));
         }
 
         const auto commit_ids = parse_commit_ids(response);
