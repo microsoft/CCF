@@ -44,6 +44,8 @@ def filter_nodes(primary, backups, filter_type):
     if filter_type == "primary":
         return [primary]
     elif filter_type == "backups":
+        if len(backups) == 0:
+            raise Exception("--send-tx-to backups but no backup was found")
         return backups
     else:
         return [primary] + backups
@@ -93,20 +95,28 @@ def run(get_command, args):
 
         command_args = get_command_args(args, get_command)
 
-        nodes = filter_nodes(primary, backups, args.send_tx_to)
+        nodes_to_send_to = filter_nodes(primary, backups, args.send_tx_to)
         clients = []
         client_hosts = []
-        if args.num_localhost_clients:
-            client_hosts = ["localhost"] * int(args.num_localhost_clients)
+        if args.one_client_per_backup:
+            if len(backups) == 0:
+                raise Exception(
+                    "--one-client-per-backup was set but no backup was found"
+                )
+            for b in backups:
+                client_hosts.append(b.host)
+        else:
+            if args.num_localhost_clients:
+                client_hosts = ["localhost"] * int(args.num_localhost_clients)
 
-        if args.client_nodes:
-            client_hosts.extend(args.client_nodes)
+            if args.client_nodes:
+                client_hosts.extend(args.client_nodes)
 
-        if len(client_hosts) == 0:
-            client_hosts = ["localhost"]
+            if len(client_hosts) == 0:
+                client_hosts = ["localhost"]
 
         for client_id, client_host in enumerate(client_hosts):
-            node = nodes[client_id % len(nodes)]
+            node = nodes_to_send_to[client_id % len(nodes_to_send_to)]
             remote_client = configure_remote_client(
                 args, client_id, client_host, node, command_args
             )

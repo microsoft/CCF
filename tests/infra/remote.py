@@ -117,6 +117,7 @@ class SSHRemote(CmdMixin):
         hostname,
         exe_files,
         data_files,
+        is_ccf_node,
         cmd,
         workspace,
         label,
@@ -141,6 +142,7 @@ class SSHRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
+        self.is_ccf_node = is_ccf_node
         self.client = paramiko.SSHClient()
         # this client (proc_client) is used to execute commands on the remote host since the main client uses pty
         self.proc_client = paramiko.SSHClient()
@@ -260,7 +262,8 @@ class SSHRemote(CmdMixin):
         cmd = self._cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
         self.client.exec_command(cmd, get_pty=True)
-        self.pid()
+        if self.is_ccf_node:
+            self.pid()
 
     def pid(self):
         if self._pid is None:
@@ -278,6 +281,9 @@ class SSHRemote(CmdMixin):
         return self._pid
 
     def suspend(self):
+        if not self.is_ccf_node:
+            raise NotImplementedError("Cannot suspend a non CCF node SSH remote")
+
         _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid()}")
         if stdout.channel.recv_exit_status() == 0:
             LOG.info(f"Node {self.name} suspended...")
@@ -285,6 +291,9 @@ class SSHRemote(CmdMixin):
             raise RuntimeError(f"Node {self.name} could not be suspended")
 
     def resume(self):
+        if not self.is_ccf_node:
+            raise NotImplementedError("Cannot resume a non CCF node SSH remote")
+
         _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid()}")
         if stdout.channel.recv_exit_status() != 0:
             raise RuntimeError(f"Could not resume node {self.name} from suspension!")
@@ -383,6 +392,7 @@ class LocalRemote(CmdMixin):
         hostname,
         exe_files,
         data_files,
+        is_ccf_node,
         cmd,
         workspace,
         label,
@@ -397,6 +407,7 @@ class LocalRemote(CmdMixin):
         self.exe_files = exe_files
         self.data_files = data_files
         self.cmd = cmd
+        self.is_ccf_node = is_ccf_node
         self.root = os.path.join(workspace, label + "_" + name)
         self.common_dir = common_dir
         self.proc = None
@@ -692,12 +703,13 @@ class CCFRemote(object):
             host,
             exe_files,
             data_files,
-            cmd,
-            workspace,
-            label,
-            common_dir,
-            env,
-            json_log_path,
+            is_ccf_node=True,
+            cmd=cmd,
+            workspace=workspace,
+            label=label,
+            common_dir=common_dir,
+            env=env,
+            json_log_path=json_log_path,
         )
 
     def setup(self):
