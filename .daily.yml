@@ -1,4 +1,11 @@
-pr: none
+pr:
+  branches:
+    include:
+      - master
+  paths:
+    include:
+      - .daily.yml
+      - .azure-pipelines-templates/*
 
 trigger: none
 
