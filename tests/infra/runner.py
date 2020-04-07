@@ -44,7 +44,7 @@ def filter_nodes(primary, backups, filter_type):
     if filter_type == "primary":
         return [primary]
     elif filter_type == "backups":
-        if len(backups) == 0:
+        if not backups:
             raise Exception("--send-tx-to backups but no backup was found")
         return backups
     else:

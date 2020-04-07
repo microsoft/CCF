@@ -689,7 +689,7 @@ namespace client
 
       LOG_INFO_FMT(
         "{} transactions took {}ms.\n"
-        "=> {}tx/s\n", //< This is grepped for by _print_upload_perf in Python
+        "=> {}tx/s\n", //< This is grepped for by _get_perf in Python
         total_txs,
         dur_ms,
         tx_per_sec);

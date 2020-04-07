@@ -109,15 +109,6 @@ class CmdMixin(object):
                 return float(res.group(1))
         raise ValueError(f"No performance result found (pattern is {pattern})")
 
-    def _print_upload_perf(self, name, metrics, lines):
-        for line in lines:
-            LOG.debug(line.decode())
-            if metrics is not None:
-                res = re.search("=> (.*)tx/s", line.decode())
-                if res:
-                    LOG.success(f"METRICS: {name} = {float(res.group(1))}")
-                    metrics.put(name, float(res.group(1)))
-
 
 class SSHRemote(CmdMixin):
     def __init__(
