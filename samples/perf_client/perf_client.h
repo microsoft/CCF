@@ -666,8 +666,17 @@ namespace client
           "timing is not set - has begin_timing not been called?");
       }
 
-      auto results = response_times.produce_results(
-        options.no_wait, end_highest_local_commit, options.latency_rounds);
+      timing::Results results;
+      try
+      {
+        results = response_times.produce_results(
+          options.no_wait, end_highest_local_commit, options.latency_rounds);
+      }
+      catch (const std::runtime_error& e)
+      {
+        response_times.write_to_file(options.label);
+        throw;
+      }
 
       if (options.write_tx_times)
       {
