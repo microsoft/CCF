@@ -7,7 +7,12 @@ steps:
   displayName: Compress build artifact
   workingDirectory: build
 
-- task: PublishPipelineArtifact@0
+- task: PublishPipelineArtifact@1
   inputs:
     artifactName: ${{ parameters.artifact_name }}
     targetPath: build/artifact.tar.gz
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    artifactName: '${{ parameters.artifact_name }} TLS report'
+    targetPath: build/tls_report.html
