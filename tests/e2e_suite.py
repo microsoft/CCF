@@ -25,7 +25,7 @@ class TestStatus(Enum):
 def run(args):
 
     if os.getenv("SHUFFLE_SUITE"):
-        seed = int(time.time())
+        seed = os.getenv("SHUFFLE_SUITE_SEED", int(time.time()))
         LOG.info(f"Shuffling suite with seed: {seed}")
         random.seed(seed)
         random.shuffle(s.tests)
