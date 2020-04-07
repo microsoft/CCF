@@ -71,6 +71,7 @@ option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(DISABLE_QUOTE_VERIFICATION "Disable quote verification" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
+option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
@@ -401,6 +402,13 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME} APPEND
       PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
+
+    if(SHUFFLE_SUITE)
+      set_property(
+        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
+      )
+    endif()
+
     set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS end_to_end)
     set_property(
       TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL}

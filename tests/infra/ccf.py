@@ -530,11 +530,14 @@ class Network:
         while time.time() < end_time:
             rekeyed_nodes = []
             for node in self.get_joined_nodes():
-                max_sealed_version = int(
-                    max(node.get_sealed_secrets(), key=lambda x: int(x))
-                )
-                if max_sealed_version >= version:
-                    rekeyed_nodes.append(node)
+                try:
+                    max_sealed_version = int(
+                        max(node.get_sealed_secrets(), key=lambda x: int(x))
+                    )
+                    if max_sealed_version >= version:
+                        rekeyed_nodes.append(node)
+                except IndexError:
+                    pass
             if len(rekeyed_nodes) == len(self.get_joined_nodes()):
                 break
             time.sleep(0.1)

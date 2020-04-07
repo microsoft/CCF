@@ -6,8 +6,6 @@ parameters:
     SGX:
       container: sgx
       pool: Ubuntu-1804-DC8_v2
-    NoSGX_host:
-      pool: Ubuntu-1804-D16s_v3
 
   build:
     NoSGX:
@@ -28,22 +26,14 @@ jobs:
       cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
       suffix: 'Coverage'
       artifact_name: 'NoSGX_Coverage'
-      ctest_filter: '-LE "perf|tlstest"'
-
-  - template: common.yml
-    parameters:
-      target: NoSGX
-      env: '${{ parameters.env.NoSGX_host }}'
-      cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-      suffix: 'Host'
-      artifact_name: 'NoSGX_Host'
-      ctest_filter: '-L "tlstest"'
+      ctest_filter: '-LE "perf|suite"'
 
   - template: common.yml
     parameters:
       target: SGX
       env: '${{ parameters.env.SGX }}'
-      cmake_args: '${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }}'
+      cmake_args: '${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON'
       suffix: 'Release'
       artifact_name: 'SGX_Release'
-      ctest_filter: '-LE "benchmark|perf|tlstest"'
+      ctest_filter: '-LE "benchmark|perf"'
+      install_prefix: '${{ parameters.build.install.install_prefix }}'
