@@ -1,11 +1,29 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 # Small Bank Client executable
+
+add_custom_command(	
+  OUTPUT ${CCF_GENERATED_DIR}/bank_generated.h	
+  COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${CMAKE_CURRENT_LIST_DIR}/app/bank.fbs	
+  COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${CMAKE_CURRENT_LIST_DIR}/app/bank.fbs	
+  DEPENDS ${CMAKE_CURRENT_LIST_DIR}/app/bank.fbs
+)	
+
+install(FILES ${CCF_GENERATED_DIR}/bank_generated.h DESTINATION generated)
+
+add_custom_target(	
+  flatbuffers ALL DEPENDS ${CCF_GENERATED_DIR}/bank_generated.h	
+)
+
 add_client_exe(
   small_bank_client
   SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/small_bank_client.cpp
 )
 target_link_libraries(small_bank_client PRIVATE secp256k1.host http_parser.host)
+target_include_directories(
+      small_bank_client SYSTEM PRIVATE ${CCF_GENERATED_DIR}
+    )
+add_dependencies(small_bank_client flatbuffers)	
 
 # SmallBank application
 add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)
@@ -13,6 +31,7 @@ sign_app_library(
   smallbank.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
+add_dependencies(smallbank flatbuffers)	
 
 function(get_verification_file iterations output_var)
   math(EXPR thousand_iterations "${iterations} / 1000")

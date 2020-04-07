@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
+#include "flatbufferwrapper.h"
 #include "node/rpc/user_frontend.h"
 
 using namespace std;
@@ -40,6 +41,27 @@ namespace ccfapp
   {
   private:
     SmallBankTables tables;
+
+    bool headers_unmatched(RequestArgs& args)
+    {
+      // Check the combined balance of an account
+      const auto expected = http::headervalues::contenttype::TEXT;
+      LOG_INFO_FMT("hey");
+      const auto actual =
+        args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
+          .value_or("");
+      if (expected != actual)
+      {
+        LOG_INFO_FMT("hey");
+        args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        args.rpc_ctx->set_response_body(fmt::format(
+          "Expected content-type '{}'. Got '{}'.", expected, actual));
+        return true;
+      }
+      return false;
+    }
 
   public:
     SmallBankHandlers(Store& store) : UserHandlerRegistry(store), tables(store)
@@ -134,31 +156,61 @@ namespace ccfapp
         return make_success(true);
       };
 
-      auto balance = [this](Store::Tx& tx, nlohmann::json&& params) {
-        // Check the combined balance of an account
-        std::string name = params["name"];
-        auto account_view = tx.get_view(tables.accounts);
+      auto balance = [this](RequestArgs& args) {
+        if (headers_unmatched(args))
+        {
+          return;
+        }
+
+        auto name = kv::bankname::name(args.rpc_ctx->get_request_body().data());
+        auto account_view = args.tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);
 
         if (!account_r.has_value())
-          return make_error(HTTP_STATUS_BAD_REQUEST, "Account does not exist");
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(
+            fmt::format("Account does not exist"));
+          return;
+        }
 
-        auto savings_view = tx.get_view(tables.savings);
+        auto savings_view = args.tx.get_view(tables.savings);
         auto savings_r = savings_view->get(account_r.value());
 
         if (!savings_r.has_value())
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, "Savings account does not exist");
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(
+            fmt::format("Savings account does not exist"));
+          return;
+        }
 
-        auto checking_view = tx.get_view(tables.checkings);
+        auto checking_view = args.tx.get_view(tables.checkings);
         auto checking_r = checking_view->get(account_r.value());
 
         if (!checking_r.has_value())
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, "Checking account does not exist");
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(
+            fmt::format("Checking account does not exist"));
+          return;
+        }
 
+        LOG_INFO_FMT("hey");
         auto result = checking_r.value() + savings_r.value();
-        return make_success(result);
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        // make this a flatbuffer response maybe?
+        nlohmann::json r(result);
+        args.rpc_ctx->set_response_body(r.dump());
       };
 
       auto transact_savings = [this](Store::Tx& tx, nlohmann::json&& params) {
@@ -315,10 +367,7 @@ namespace ccfapp
         Procs::SMALL_BANKING_CREATE_BATCH,
         json_adapter(create_batch),
         HandlerRegistry::Write);
-      install(
-        Procs::SMALL_BANKING_BALANCE,
-        json_adapter(balance),
-        HandlerRegistry::Read);
+      install(Procs::SMALL_BANKING_BALANCE, balance, HandlerRegistry::Read);
       install(
         Procs::SMALL_BANKING_TRANSACT_SAVINGS,
         json_adapter(transact_savings),

@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "../app/flatbufferwrapper.h"
 #include "perf_client.h"
 
 using namespace std;
@@ -51,9 +52,8 @@ private:
 
     for (auto i = 0ul; i < options.total_accounts; i++)
     {
-      json j;
-      j["name"] = to_string(i);
-      const auto response = conn->call("SmallBank_balance", j);
+      kv::bank::FlatbufferSerializer fbs(std::to_string(i));
+      const auto response = conn->call("SmallBank_balance", fbs.get_buffer());
 
       check_response(response);
       const auto result = conn->unpack_body(response);
@@ -226,9 +226,8 @@ private:
         throw std::runtime_error(expected_type_msg(entry));
       }
 
-      json j;
-      j["name"] = to_string(account_it->get<size_t>());
-      const auto response = conn->call("SmallBank_balance", j);
+      kv::bank::FlatbufferSerializer fbs(to_string(account_it->get<size_t>()));
+      const auto response = conn->call("SmallBank_balance", fbs.get_buffer());
       const auto response_body = conn->unpack_body(response);
 
       if (response.status != HTTP_STATUS_OK)

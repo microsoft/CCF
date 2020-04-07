@@ -153,7 +153,7 @@ std::vector<uint8_t> make_pc(const string& method, const Params& params)
   auto request = http::Request(method);
   request.set_header(http::headers::CONTENT_TYPE, content_type);
   const auto body = jsonrpc::pack(params, default_format);
-  request.set_body(&body);
+  request.set_body(body.data(), body.size());
   return request.build_request();
 }
 
