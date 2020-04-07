@@ -104,8 +104,6 @@ def run(get_command, args):
                     "--one-client-per-backup was set but no backup was found"
                 )
             client_hosts = ["localhost"] * len(backups)
-            # for b in backups:
-            # client_hosts.append(b.host)
         else:
             if args.num_localhost_clients:
                 client_hosts = ["localhost"] * int(args.num_localhost_clients)
