@@ -210,7 +210,8 @@ namespace ccfapp
 
         if (!account_r.has_value())
         {
-          set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Account does not exist");
+          set_error_status(
+            args, HTTP_STATUS_BAD_REQUEST, "Account does not exist");
           return;
         }
 
@@ -219,7 +220,8 @@ namespace ccfapp
 
         if (!savings_r.has_value())
         {
-          set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Savings account does not exist");
+          set_error_status(
+            args, HTTP_STATUS_BAD_REQUEST, "Savings account does not exist");
           return;
         }
 
@@ -228,7 +230,8 @@ namespace ccfapp
 
         if (!checking_r.has_value())
         {
-          set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Checking account does not exist");
+          set_error_status(
+            args, HTTP_STATUS_BAD_REQUEST, "Checking account does not exist");
           return;
         }
 

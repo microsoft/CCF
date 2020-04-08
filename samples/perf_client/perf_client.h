@@ -172,6 +172,14 @@ namespace client
   template <typename TOptions>
   class PerfBase
   {
+  protected:
+    struct PreparedTx
+    {
+      RpcTlsClient::PreparedRpc rpc;
+      std::string method;
+      bool expects_commit;
+    };
+
   private:
     tls::Pem key = {};
     std::shared_ptr<tls::Cert> tls_cert;
@@ -239,7 +247,8 @@ namespace client
       }
     }
 
-    void append_prepared_tx(PreparedTx& tx, const std::optional<size_t>& index)
+    void append_prepared_tx(
+      const PreparedTx& tx, const std::optional<size_t>& index)
     {
       if (index.has_value())
       {
@@ -258,13 +267,6 @@ namespace client
     std::mt19937 rand_generator;
 
     nlohmann::json verification_target;
-
-    struct PreparedTx
-    {
-      RpcTlsClient::PreparedRpc rpc;
-      std::string method;
-      bool expects_commit;
-    };
 
     using PreparedTxs = std::vector<PreparedTx>;
 

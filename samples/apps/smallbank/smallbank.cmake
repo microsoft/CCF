@@ -2,14 +2,13 @@
 # Licensed under the Apache 2.0 License.
 # Small Bank Client executable
 
-function(generate_flatbuffer fbs_path fbs_name)
+function(generate_flatbuffer path name)
   add_custom_command(
-    OUTPUT ${CCF_GENERATED_DIR}/${fbs_name}_generated.h
-    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${fbs_path}/${fbs_name}.fbs
-    COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${fbs_path}/${fbs_name}.fbs
-    DEPENDS ${fbs_path}/${fbs_name}.fbs
+    OUTPUT ${CCF_GENERATED_DIR}/${name}_generated.h
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${path}/${name}.fbs
+    DEPENDS ${path}/${name}.fbs
   )
-  install(FILES ${CCF_GENERATED_DIR}/${fbs_name}_generated.h
+  install(FILES ${CCF_GENERATED_DIR}/${name}_generated.h
           DESTINATION ${CCF_GENERATED_DIR}
   )
 endfunction()
