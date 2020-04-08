@@ -134,6 +134,7 @@ if(BUILD_TESTS)
       --sign
       --participants-curve
       "secp256k1"
+      --one-client-per-backup
   )
 
 endif()

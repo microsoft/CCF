@@ -10,8 +10,8 @@ struct SmallBankClientOptions : public client::PerfOptions
 {
   size_t total_accounts = 10;
 
-  SmallBankClientOptions(CLI::App& app) :
-    client::PerfOptions("Small_Bank_ClientCpp", app)
+  SmallBankClientOptions(CLI::App& app, const std::string& default_pid_file) :
+    client::PerfOptions("Small_Bank_ClientCpp", default_pid_file, app)
   {
     app.add_option("--accounts", total_accounts)->capture_default_str();
   }
@@ -272,7 +272,7 @@ public:
 int main(int argc, char** argv)
 {
   CLI::App cli_app{"Small Bank Client"};
-  SmallBankClientOptions options(cli_app);
+  SmallBankClientOptions options(cli_app, argv[0]);
   CLI11_PARSE(cli_app, argc, argv);
 
   SmallBankClient client(options);

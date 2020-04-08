@@ -18,6 +18,7 @@
 #include <nlohmann/json.hpp>
 #include <random>
 #include <thread>
+#include <unistd.h>
 
 namespace client
 {
@@ -51,6 +52,7 @@ namespace client
     /// Options set from command line
     ///@{
     std::string label; //< Default set in constructor
+    std::string pid_file; //< Default set in constructor
 
     cli::ParsedAddress server_address;
     std::string cert_file, key_file, ca_file, verification_file;
@@ -71,8 +73,12 @@ namespace client
     bool relax_commit_target = false;
     ///@}
 
-    PerfOptions(const std::string& default_label, CLI::App& app) :
-      label(default_label)
+    PerfOptions(
+      const std::string& default_label,
+      const std::string& default_pid_file,
+      CLI::App& app) :
+      label(default_label),
+      pid_file(fmt::format("{}.pid", default_pid_file))
     {
       // Enable config from file
       app.set_config("--config");
@@ -83,6 +89,13 @@ namespace client
           label,
           fmt::format(
             "Identifier for this client, written to {}", perf_summary))
+        ->capture_default_str();
+
+      app
+        .add_option(
+          "--pid-file",
+          pid_file,
+          "Path to which the client PID will be written")
         ->capture_default_str();
 
       // Connection details
@@ -387,8 +400,10 @@ namespace client
         }
       }
 
-      wait_for_global_commit(trigger_signature(connection));
-      auto timing_results = end_timing(last_response_commit.index);
+      const auto global_commit_response =
+        wait_for_global_commit(trigger_signature(connection));
+      const auto commit_ids = timing::parse_commit_ids(global_commit_response);
+      auto timing_results = end_timing(commit_ids.global);
       LOG_INFO_FMT("Timing ended");
       return timing_results;
     }
@@ -565,7 +580,7 @@ namespace client
       rand_generator(),
       // timing gets its own new connection for any requests it wants to send -
       // these are never signed
-      response_times(create_connection())
+      response_times(create_connection(true))
     {}
 
     void init_connection()
@@ -635,15 +650,19 @@ namespace client
       }
     }
 
-    void wait_for_global_commit(const timing::CommitPoint& target)
+    RpcTlsClient::Response wait_for_global_commit(
+      const timing::CommitPoint& target)
     {
       if (!options.no_wait)
       {
-        response_times.wait_for_global_commit(target);
+        return response_times.wait_for_global_commit(target);
       }
+
+      return {};
     }
 
-    void wait_for_global_commit(const RpcTlsClient::Response& response)
+    RpcTlsClient::Response wait_for_global_commit(
+      const RpcTlsClient::Response& response)
     {
       check_response(response);
 
@@ -651,7 +670,7 @@ namespace client
 
       const timing::CommitPoint cp{response_commit_ids.term,
                                    response_commit_ids.local};
-      wait_for_global_commit(cp);
+      return wait_for_global_commit(cp);
     }
 
     void begin_timing()
@@ -674,8 +693,17 @@ namespace client
           "timing is not set - has begin_timing not been called?");
       }
 
-      auto results = response_times.produce_results(
-        options.no_wait, end_highest_local_commit, options.latency_rounds);
+      timing::Results results;
+      try
+      {
+        results = response_times.produce_results(
+          options.no_wait, end_highest_local_commit, options.latency_rounds);
+      }
+      catch (const std::runtime_error& e)
+      {
+        response_times.write_to_file(options.label);
+        throw;
+      }
 
       if (options.write_tx_times)
       {
@@ -701,7 +729,7 @@ namespace client
 
       LOG_INFO_FMT(
         "{} transactions took {}ms.\n"
-        "=> {}tx/s\n", //< This is grepped for by _print_upload_perf in Python
+        "=> {}tx/s\n", //< This is grepped for by _get_perf in Python
         total_txs,
         dur_ms,
         tx_per_sec);
@@ -768,6 +796,9 @@ namespace client
 
     virtual void run()
     {
+      // Write PID to disk
+      files::dump(fmt::format("{}", ::getpid()), options.pid_file);
+
       if (options.randomise)
       {
         options.generator_seed = std::random_device()();

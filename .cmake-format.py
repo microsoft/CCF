@@ -20,7 +20,7 @@ with section("parse"):
             "kwargs": {
                 "NAME": "*",
                 "PYTHON_SCRIPT": "*",
-                "IS_SUITE": "*",
+                "LABEL": "*",
                 "CURL_CLIENT": "*",
                 "CONSENSUS": "*",
                 "ADDITIONAL_ARGS": "*",
