@@ -103,6 +103,7 @@ namespace enclave
       set_response_header(name, fmt::format("{}", n));
     }
 
+    virtual void set_apply_writes(bool apply) = 0;
     virtual bool get_apply_writes() const = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;

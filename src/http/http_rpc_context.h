@@ -57,6 +57,8 @@ namespace http
 
     bool canonicalised = false;
 
+    std::optional<bool> explicit_apply_writes = std::nullopt;
+
     void canonicalise()
     {
       if (!canonicalised)
@@ -261,8 +263,18 @@ namespace http
       response_headers[std::string(name)] = value;
     }
 
+    virtual void set_apply_writes(bool apply) override
+    {
+      explicit_apply_writes = apply;
+    }
+
     virtual bool get_apply_writes() const override
     {
+      if (explicit_apply_writes.has_value())
+      {
+        return explicit_apply_writes.value();
+      }
+
       return (response_status % 100) == 2;
     }
 
