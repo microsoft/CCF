@@ -138,6 +138,39 @@ public:
   }
 };
 
+class TestExplicitCommitability : public SimpleUserRpcFrontend
+{
+public:
+  Store::Map<size_t, size_t>& values;
+
+  TestExplicitCommitability(Store& tables) :
+    SimpleUserRpcFrontend(tables),
+    values(tables.create<size_t, size_t>("test_values"))
+  {
+    open();
+
+    auto maybe_commit = [this](RequestArgs& args) {
+      const auto parsed =
+        jsonrpc::unpack(args.rpc_ctx->get_request_body(), default_pack);
+
+      const auto new_value = parsed["value"].get<size_t>();
+      auto view = args.tx.get_view(values);
+      view->put(0, new_value);
+
+      const auto apply_it = parsed.find("apply");
+      if (apply_it != parsed.end())
+      {
+        const auto should_apply = apply_it->get<bool>();
+        args.rpc_ctx->set_apply_writes(should_apply);
+      }
+
+      const auto status = parsed["status"].get<http_status>();
+      args.rpc_ctx->set_response_status(status);
+    };
+    install("maybe_commit", maybe_commit, HandlerRegistry::Write);
+  }
+};
+
 class TestMemberFrontend : public MemberRpcFrontend
 {
 public:
@@ -853,8 +886,8 @@ TEST_CASE("Restricted verbs")
     }
 
     {
-      http::Request get("post_only", verb);
-      const auto serialized_post = get.build_request();
+      http::Request post("post_only", verb);
+      const auto serialized_post = post.build_request();
       auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_post);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
@@ -873,8 +906,8 @@ TEST_CASE("Restricted verbs")
     }
 
     {
-      http::Request get("put_or_delete", verb);
-      const auto serialized_put_or_delete = get.build_request();
+      http::Request put_or_delete("put_or_delete", verb);
+      const auto serialized_put_or_delete = put_or_delete.build_request();
       auto rpc_ctx =
         enclave::make_rpc_context(user_session, serialized_put_or_delete);
       const auto serialized_response = frontend.process(rpc_ctx).value();
@@ -892,6 +925,107 @@ TEST_CASE("Restricted verbs")
         CHECK(v.find(http_method_str(HTTP_PUT)) != std::string::npos);
         CHECK(v.find(http_method_str(HTTP_DELETE)) != std::string::npos);
         CHECK(v.find(http_method_str(verb)) == std::string::npos);
+      }
+    }
+  }
+}
+
+TEST_CASE("Explicit commitability")
+{
+  prepare_callers();
+  TestExplicitCommitability frontend(*network.tables);
+
+#define XX(num, name, string) HTTP_STATUS_##name,
+  std::vector<http_status> all_statuses = {HTTP_STATUS_MAP(XX)};
+#undef XX
+
+  size_t next_value = 0;
+
+  auto get_value = [&]() {
+    Store::Tx tx;
+    auto view = tx.get_view(frontend.values);
+    auto actual_v = view->get(0).value();
+    return actual_v;
+  };
+
+  // Set initial value
+  {
+    Store::Tx tx;
+    tx.get_view(frontend.values)->put(0, next_value);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  for (const auto status : all_statuses)
+  {
+    INFO(http_status_str(status));
+
+    {
+      INFO("Without override...");
+      const auto new_value = ++next_value;
+
+      http::Request request("maybe_commit", HTTP_POST);
+
+      const nlohmann::json request_body = {{"value", new_value},
+                                           {"status", status}};
+      const auto serialized_body = jsonrpc::pack(request_body, default_pack);
+      request.set_body(&serialized_body);
+
+      const auto serialized_request = request.build_request();
+      auto rpc_ctx =
+        enclave::make_rpc_context(user_session, serialized_request);
+      const auto serialized_response = frontend.process(rpc_ctx).value();
+      const auto response = parse_response(serialized_response);
+
+      CHECK(response.status == status);
+
+      const auto applied_value = get_value();
+
+      if (status >= 200 && status < 300)
+      {
+        INFO("...2xx statuses are applied");
+        CHECK(applied_value == new_value);
+      }
+      else
+      {
+        INFO("...error statuses are reverted");
+        CHECK(applied_value != new_value);
+      }
+    }
+
+    {
+      INFO("With override...");
+
+      for (bool apply : {false, true})
+      {
+        const auto new_value = ++next_value;
+
+        http::Request request("maybe_commit", HTTP_POST);
+
+        const nlohmann::json request_body = {
+          {"value", new_value}, {"apply", apply}, {"status", status}};
+        const auto serialized_body = jsonrpc::pack(request_body, default_pack);
+        request.set_body(&serialized_body);
+
+        const auto serialized_request = request.build_request();
+        auto rpc_ctx =
+          enclave::make_rpc_context(user_session, serialized_request);
+        const auto serialized_response = frontend.process(rpc_ctx).value();
+        const auto response = parse_response(serialized_response);
+
+        CHECK(response.status == status);
+
+        const auto applied_value = get_value();
+
+        if (apply)
+        {
+          INFO("...a request can be applied regardless of status");
+          CHECK(applied_value == new_value);
+        }
+        else
+        {
+          INFO("...a request can be reverted regardless of status");
+          CHECK(applied_value != new_value);
+        }
       }
     }
   }
