@@ -52,7 +52,7 @@ private:
 
     for (auto i = 0ul; i < options.total_accounts; i++)
     {
-      kv::bank::BankSerializer fbs(i);
+      BankSerializer fbs(i);
       const auto response = conn->call("SmallBank_balance", fbs.get_buffer());
 
       check_response(response);
@@ -70,7 +70,7 @@ private:
 
     auto connection = get_connection();
     LOG_INFO_FMT("Creating accounts from {} to {}", from, to);
-    kv::bank::AccountsSerializer acc(from, to, 1000, 1000);
+    AccountsSerializer acc(from, to, 1000, 1000);
     const auto response =
       connection->call("SmallBank_create_batch", acc.get_buffer());
     check_response(response);
@@ -95,7 +95,7 @@ private:
       {
         case TransactionTypes::TransactSavings:
         {
-          kv::bank::TransactionSerializer ts(
+          TransactionSerializer ts(
             rand_range(options.total_accounts), rand_range<int>(-50, 50));
           fb = ts.get_buffer();
         }
@@ -108,14 +108,14 @@ private:
           {
             dest_account += 1;
           }
-          kv::bank::AmalgamateSerializer as(src_account, dest_account);
+          AmalgamateSerializer as(src_account, dest_account);
           fb = as.get_buffer();
         }
         break;
 
         case TransactionTypes::WriteCheck:
         {
-          kv::bank::TransactionSerializer ts(
+          TransactionSerializer ts(
             rand_range(options.total_accounts), rand_range<int>(50));
           fb = ts.get_buffer();
         }
@@ -123,7 +123,7 @@ private:
 
         case TransactionTypes::DepositChecking:
         {
-          kv::bank::TransactionSerializer ts(
+          TransactionSerializer ts(
             rand_range(options.total_accounts), (rand_range<int>(50) + 1));
           fb = ts.get_buffer();
         }
@@ -131,7 +131,7 @@ private:
 
         case TransactionTypes::GetBalance:
         {
-          kv::bank::BankSerializer bs(rand_range(options.total_accounts));
+          BankSerializer bs(rand_range(options.total_accounts));
           fb = bs.get_buffer();
         }
         break;
@@ -233,7 +233,7 @@ private:
         throw std::runtime_error(expected_type_msg(entry));
       }
 
-      kv::bank::BankSerializer fbs(account_it->get<size_t>());
+      BankSerializer fbs(account_it->get<size_t>());
       const auto response = conn->call("SmallBank_balance", fbs.get_buffer());
       const auto response_body = conn->unpack_body(response);
 
