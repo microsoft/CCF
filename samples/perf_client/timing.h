@@ -300,7 +300,7 @@ namespace timing
 
     Results produce_results(
       bool allow_pending,
-      std::optional<size_t> highest_local_commit,
+      size_t highest_local_commit,
       size_t desired_rounds = 1)
     {
       TimeDelta end_time_delta = Clock::now() - start_time;
@@ -318,30 +318,27 @@ namespace timing
       Latencies all_local_commits;
       Latencies all_global_commits;
 
-      if (highest_local_commit.has_value())
+      // get test duration for last sent message's global commit
+      for (auto i = next_recv; i < receives.size(); ++i)
       {
-        // get test duration for last sent message's global commit
-        for (auto i = next_recv; i < receives.size(); ++i)
-        {
-          auto receive = receives[i];
+        auto receive = receives[i];
 
-          if (receive.commit.has_value())
+        if (receive.commit.has_value())
+        {
+          if (receive.commit->global >= highest_local_commit)
           {
-            if (receive.commit->global >= highest_local_commit.value())
-            {
-              LOG_INFO_FMT(
-                "Global commit match {} for highest local commit {}",
-                receive.commit->global,
-                highest_local_commit.value());
-              auto was =
-                duration_cast<milliseconds>(end_time_delta).count() / 1000.0;
-              auto is =
-                duration_cast<milliseconds>(receive.receive_time).count() /
-                1000.0;
-              LOG_INFO_FMT("Duration changing from {}s to {}s", was, is);
-              end_time_delta = receive.receive_time;
-              break;
-            }
+            LOG_INFO_FMT(
+              "Global commit match {} for highest local commit {}",
+              receive.commit->global,
+              highest_local_commit);
+            auto was =
+              duration_cast<milliseconds>(end_time_delta).count() / 1000.0;
+            auto is =
+              duration_cast<milliseconds>(receive.receive_time).count() /
+              1000.0;
+            LOG_INFO_FMT("Duration changing from {}s to {}s", was, is);
+            end_time_delta = receive.receive_time;
+            break;
           }
         }
       }
@@ -432,9 +429,21 @@ namespace timing
               }
               else
               {
-                // Store expected global commit to find later
-                pending_global_commits.push_back(
-                  {send.send_time, response_commit->local});
+                if (response_commit->local <= highest_local_commit)
+                {
+                  // Store expected global commit to find later
+                  pending_global_commits.push_back(
+                    {send.send_time, response_commit->local});
+                }
+                else
+                {
+                  LOG_DEBUG_FMT(
+                    "Ignoring request with ID {} because it committed too late "
+                    "({} > {})",
+                    send.rpc_id,
+                    response_commit->local,
+                    highest_local_commit);
+                }
               }
             }
             else
@@ -486,10 +495,11 @@ namespace timing
             const auto& first = pending_global_commits[0];
             throw runtime_error(fmt::format(
               "Still waiting for {} global commits. First expected is {} for "
-              "a transaction sent at {}",
+              "a transaction sent at {} (NB: Highest local commit is {})",
               pending_global_commits.size(),
               first.target_commit,
-              first.send_time.count()));
+              first.send_time.count(),
+              highest_local_commit));
           }
         }
 

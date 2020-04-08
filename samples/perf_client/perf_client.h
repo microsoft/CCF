@@ -379,8 +379,10 @@ namespace client
         }
       }
 
-      wait_for_global_commit(trigger_signature(connection));
-      auto timing_results = end_timing(last_response_commit.index);
+      const auto global_commit_response =
+        wait_for_global_commit(trigger_signature(connection));
+      const auto commit_ids = timing::parse_commit_ids(global_commit_response);
+      auto timing_results = end_timing(commit_ids.global);
       LOG_INFO_FMT("Timing ended");
       return timing_results;
     }
@@ -627,15 +629,19 @@ namespace client
       }
     }
 
-    void wait_for_global_commit(const timing::CommitPoint& target)
+    RpcTlsClient::Response wait_for_global_commit(
+      const timing::CommitPoint& target)
     {
       if (!options.no_wait)
       {
-        response_times.wait_for_global_commit(target);
+        return response_times.wait_for_global_commit(target);
       }
+
+      return {};
     }
 
-    void wait_for_global_commit(const RpcTlsClient::Response& response)
+    RpcTlsClient::Response wait_for_global_commit(
+      const RpcTlsClient::Response& response)
     {
       check_response(response);
 
@@ -643,7 +649,7 @@ namespace client
 
       const timing::CommitPoint cp{response_commit_ids.term,
                                    response_commit_ids.local};
-      wait_for_global_commit(cp);
+      return wait_for_global_commit(cp);
     }
 
     void begin_timing()
