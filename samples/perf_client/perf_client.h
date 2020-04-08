@@ -239,6 +239,19 @@ namespace client
       }
     }
 
+    void append_prepared_tx(PreparedTx& tx, const std::optional<size_t>& index)
+    {
+      if (index.has_value())
+      {
+        assert(index.value() < prepared_txs.size());
+        prepared_txs[index.value()] = tx;
+      }
+      else
+      {
+        prepared_txs.push_back(tx);
+      }
+    }
+
   protected:
     TOptions options;
 
@@ -292,22 +305,17 @@ namespace client
 
     void add_prepared_tx(
       const std::string& method,
-      const CBuffer& params,
+      const CBuffer params,
       bool expects_commit,
       const std::optional<size_t>& index)
     {
       const PreparedTx tx{
-        rpc_connection->gen_request(method, params), method, expects_commit};
+        rpc_connection->gen_request(
+          method, params, http::headervalues::contenttype::TEXT),
+        method,
+        expects_commit};
 
-      if (index.has_value())
-      {
-        assert(index.value() < prepared_txs.size());
-        prepared_txs[index.value()] = tx;
-      }
-      else
-      {
-        prepared_txs.push_back(tx);
-      }
+      append_prepared_tx(tx, index);
     }
 
     void add_prepared_tx(
@@ -318,16 +326,7 @@ namespace client
     {
       const PreparedTx tx{
         rpc_connection->gen_request(method, params), method, expects_commit};
-
-      if (index.has_value())
-      {
-        assert(index.value() < prepared_txs.size());
-        prepared_txs[index.value()] = tx;
-      }
-      else
-      {
-        prepared_txs.push_back(tx);
-      }
+      append_prepared_tx(tx, index);
     }
 
     static size_t total_byte_size(const PreparedTxs& txs)

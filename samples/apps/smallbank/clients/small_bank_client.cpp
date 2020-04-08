@@ -89,7 +89,7 @@ private:
       uint8_t operation =
         rand_range((uint8_t)TransactionTypes::NumberTransactions);
 
-      CBuffer fb;
+      std::unique_ptr<flatbuffers::DetachedBuffer> fb;
 
       switch ((TransactionTypes)operation)
       {
@@ -97,7 +97,7 @@ private:
         {
           TransactionSerializer ts(
             rand_range(options.total_accounts), rand_range<int>(-50, 50));
-          fb = ts.get_buffer();
+          fb = ts.get_detached_buffer();
         }
         break;
         case TransactionTypes::Amalgamate:
@@ -109,7 +109,7 @@ private:
             dest_account += 1;
           }
           AmalgamateSerializer as(src_account, dest_account);
-          fb = as.get_buffer();
+          fb = as.get_detached_buffer();
         }
         break;
 
@@ -117,7 +117,7 @@ private:
         {
           TransactionSerializer ts(
             rand_range(options.total_accounts), rand_range<int>(50));
-          fb = ts.get_buffer();
+          fb = ts.get_detached_buffer();
         }
         break;
 
@@ -125,14 +125,14 @@ private:
         {
           TransactionSerializer ts(
             rand_range(options.total_accounts), (rand_range<int>(50) + 1));
-          fb = ts.get_buffer();
+          fb = ts.get_detached_buffer();
         }
         break;
 
         case TransactionTypes::GetBalance:
         {
           BankSerializer bs(rand_range(options.total_accounts));
-          fb = bs.get_buffer();
+          fb = bs.get_detached_buffer();
         }
         break;
 
@@ -142,7 +142,7 @@ private:
 
       add_prepared_tx(
         OPERATION_C_STR[operation],
-        fb,
+        {fb->data(), fb->size()},
         operation != (uint8_t)TransactionTypes::GetBalance,
         i);
     }

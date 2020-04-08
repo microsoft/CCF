@@ -9,10 +9,26 @@
 #include <bank_generated.h>
 #include <transaction_generated.h>
 
-class TransactionSerializer
+class FlatbufferSerializer
+{
+protected:
+  flatbuffers::FlatBufferBuilder builder;
+
+public:
+  std::unique_ptr<flatbuffers::DetachedBuffer> get_detached_buffer()
+  {
+    return std::make_unique<flatbuffers::DetachedBuffer>(builder.Release());
+  }
+
+  CBuffer get_buffer()
+  {
+    return {builder.GetBufferPointer(), builder.GetSize()};
+  }
+};
+
+class TransactionSerializer : public FlatbufferSerializer
 {
 private:
-  flatbuffers::FlatBufferBuilder builder;
   flatbuffers::Offset<Transaction> transaction;
 
 public:
@@ -20,11 +36,6 @@ public:
   {
     transaction = CreateTransaction(builder, name, value);
     builder.Finish(transaction);
-  }
-
-  CBuffer get_buffer()
-  {
-    return {builder.GetBufferPointer(), builder.GetSize()};
   }
 };
 
@@ -47,10 +58,9 @@ public:
   }
 };
 
-class AmalgamateSerializer
+class AmalgamateSerializer : public FlatbufferSerializer
 {
 private:
-  flatbuffers::FlatBufferBuilder builder;
   flatbuffers::Offset<Amalgamate> amalgamate;
 
 public:
@@ -58,11 +68,6 @@ public:
   {
     amalgamate = CreateAmalgamate(builder, name_src, name_dest);
     builder.Finish(amalgamate);
-  }
-
-  CBuffer get_buffer()
-  {
-    return {builder.GetBufferPointer(), builder.GetSize()};
   }
 };
 
@@ -85,10 +90,9 @@ public:
   }
 };
 
-class AccountsSerializer
+class AccountsSerializer : public FlatbufferSerializer
 {
 private:
-  flatbuffers::FlatBufferBuilder builder;
   flatbuffers::Offset<Accounts> accounts;
 
 public:
@@ -100,11 +104,6 @@ public:
   {
     accounts = CreateAccounts(builder, from, to, checking_amt, savings_amt);
     builder.Finish(accounts);
-  }
-
-  CBuffer get_buffer()
-  {
-    return {builder.GetBufferPointer(), builder.GetSize()};
   }
 };
 
@@ -136,10 +135,9 @@ public:
   }
 };
 
-class BankSerializer
+class BankSerializer : public FlatbufferSerializer
 {
 private:
-  flatbuffers::FlatBufferBuilder builder;
   flatbuffers::Offset<Bank> bank;
 
 public:
@@ -147,11 +145,6 @@ public:
   {
     bank = CreateBank(builder, name);
     builder.Finish(bank);
-  }
-
-  CBuffer get_buffer()
-  {
-    return {builder.GetBufferPointer(), builder.GetSize()};
   }
 };
 
