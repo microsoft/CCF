@@ -261,9 +261,9 @@ namespace http
       response_headers[std::string(name)] = value;
     }
 
-    virtual bool response_is_error() const override
+    virtual bool get_apply_writes() const override
     {
-      return response_status != HTTP_STATUS_OK;
+      return response_status == HTTP_STATUS_OK;
     }
 
     virtual std::vector<uint8_t> serialise_response() const override

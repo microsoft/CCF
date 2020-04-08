@@ -347,7 +347,7 @@ namespace ccf
         {
           func(args);
 
-          if (ctx->response_is_error())
+          if (!ctx->get_apply_writes())
           {
             return ctx->serialise_response();
           }
