@@ -275,7 +275,7 @@ namespace http
         return explicit_apply_writes.value();
       }
 
-      return (response_status % 100) == 2;
+      return (response_status / 100) == 2;
     }
 
     virtual std::vector<uint8_t> serialise_response() const override
