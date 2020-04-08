@@ -3,11 +3,10 @@
 
 namespace kv;
 
-table Bank
+table Amalgamate
 {
-    name:uint64;
-    id:uint64;
-
+    name_src:uint;
+    name_dest:uint;
 }
 
-root_type Bank;
+root_type Amalgamate;

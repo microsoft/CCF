@@ -3,11 +3,12 @@
 
 namespace kv;
 
-table Bank
+table Accounts
 {
-    name:uint64;
-    id:uint64;
-
+    from:uint64;
+    to:uint64;
+    checking_amt:int64;
+    savings_amt:int64;
 }
 
-root_type Bank;
+root_type Accounts;

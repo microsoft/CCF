@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../app/flatbufferwrapper.h"
+#include "../app/flatbuffer_wrapper.h"
 #include "perf_client.h"
 
 using namespace std;
@@ -52,7 +52,7 @@ private:
 
     for (auto i = 0ul; i < options.total_accounts; i++)
     {
-      kv::bank::FlatbufferSerializer fbs(std::to_string(i));
+      kv::bank::BankSerializer fbs(i);
       const auto response = conn->call("SmallBank_balance", fbs.get_buffer());
 
       check_response(response);
@@ -70,13 +70,9 @@ private:
 
     auto connection = get_connection();
     LOG_INFO_FMT("Creating accounts from {} to {}", from, to);
-
-    json j;
-    j["from"] = from;
-    j["to"] = to;
-    j["checking_amt"] = 1000;
-    j["savings_amt"] = 1000;
-    const auto response = connection->call("SmallBank_create_batch", j);
+    kv::bank::AccountsSerializer acc(from, to, 1000, 1000);
+    const auto response =
+      connection->call("SmallBank_create_batch", acc.get_buffer());
     check_response(response);
 
     return response;
@@ -93,41 +89,52 @@ private:
       uint8_t operation =
         rand_range((uint8_t)TransactionTypes::NumberTransactions);
 
-      json j;
+      CBuffer fb;
 
       switch ((TransactionTypes)operation)
       {
         case TransactionTypes::TransactSavings:
-          j["name"] = to_string(rand_range(options.total_accounts));
-          j["value"] = rand_range<int>(-50, 50);
-          break;
-
+        {
+          kv::bank::TransactionSerializer ts(
+            rand_range(options.total_accounts), rand_range<int>(-50, 50));
+          fb = ts.get_buffer();
+        }
+        break;
         case TransactionTypes::Amalgamate:
         {
           unsigned int src_account = rand_range(options.total_accounts);
-          j["name_src"] = to_string(src_account);
-
           unsigned int dest_account = rand_range(options.total_accounts - 1);
           if (dest_account >= src_account)
+          {
             dest_account += 1;
-
-          j["name_dest"] = to_string(dest_account);
+          }
+          kv::bank::AmalgamateSerializer as(src_account, dest_account);
+          fb = as.get_buffer();
         }
         break;
 
         case TransactionTypes::WriteCheck:
-          j["name"] = to_string(rand_range(options.total_accounts));
-          j["value"] = rand_range<int>(50);
-          break;
+        {
+          kv::bank::TransactionSerializer ts(
+            rand_range(options.total_accounts), rand_range<int>(50));
+          fb = ts.get_buffer();
+        }
+        break;
 
         case TransactionTypes::DepositChecking:
-          j["name"] = to_string(rand_range(options.total_accounts));
-          j["value"] = rand_range<int>(50) + 1;
-          break;
+        {
+          kv::bank::TransactionSerializer ts(
+            rand_range(options.total_accounts), (rand_range<int>(50) + 1));
+          fb = ts.get_buffer();
+        }
+        break;
 
         case TransactionTypes::GetBalance:
-          j["name"] = to_string(rand_range(options.total_accounts));
-          break;
+        {
+          kv::bank::BankSerializer bs(rand_range(options.total_accounts));
+          fb = bs.get_buffer();
+        }
+        break;
 
         default:
           throw logic_error("Unknown operation");
@@ -135,7 +142,7 @@ private:
 
       add_prepared_tx(
         OPERATION_C_STR[operation],
-        j,
+        fb,
         operation != (uint8_t)TransactionTypes::GetBalance,
         i);
     }
@@ -226,7 +233,7 @@ private:
         throw std::runtime_error(expected_type_msg(entry));
       }
 
-      kv::bank::FlatbufferSerializer fbs(to_string(account_it->get<size_t>()));
+      kv::bank::BankSerializer fbs(account_it->get<size_t>());
       const auto response = conn->call("SmallBank_balance", fbs.get_buffer());
       const auto response_body = conn->unpack_body(response);
 

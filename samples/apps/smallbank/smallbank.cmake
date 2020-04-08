@@ -2,17 +2,26 @@
 # Licensed under the Apache 2.0 License.
 # Small Bank Client executable
 
-add_custom_command(	
-  OUTPUT ${CCF_GENERATED_DIR}/bank_generated.h	
-  COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${CMAKE_CURRENT_LIST_DIR}/app/bank.fbs	
-  COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${CMAKE_CURRENT_LIST_DIR}/app/bank.fbs	
-  DEPENDS ${CMAKE_CURRENT_LIST_DIR}/app/bank.fbs
-)	
+function(generate_flatbuffer fbs_path fbs_name)
+  add_custom_command(
+    OUTPUT ${CCF_GENERATED_DIR}/${fbs_name}_generated.h
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${fbs_path}/${fbs_name}.fbs
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${fbs_path}/${fbs_name}.fbs
+    DEPENDS ${fbs_path}/${fbs_name}.fbs
+  )
+  install(FILES ${CCF_GENERATED_DIR}/${fbs_name}_generated.h DESTINATION ${CCF_GENERATED_DIR})
+endfunction()
 
-install(FILES ${CCF_GENERATED_DIR}/bank_generated.h DESTINATION generated)
+generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app bank)
+generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app accounts)
+generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app transaction)
+generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app amalgamate)
 
-add_custom_target(	
-  flatbuffers ALL DEPENDS ${CCF_GENERATED_DIR}/bank_generated.h	
+add_custom_target(flatbuffers ALL DEPENDS 
+  ${CCF_GENERATED_DIR}/bank_generated.h
+  ${CCF_GENERATED_DIR}/accounts_generated.h
+  ${CCF_GENERATED_DIR}/transaction_generated.h
+  ${CCF_GENERATED_DIR}/amalgamate_generated.h
 )
 
 add_client_exe(

@@ -292,6 +292,26 @@ namespace client
 
     void add_prepared_tx(
       const std::string& method,
+      const CBuffer& params,
+      bool expects_commit,
+      const std::optional<size_t>& index)
+    {
+      const PreparedTx tx{
+        rpc_connection->gen_request(method, params), method, expects_commit};
+
+      if (index.has_value())
+      {
+        assert(index.value() < prepared_txs.size());
+        prepared_txs[index.value()] = tx;
+      }
+      else
+      {
+        prepared_txs.push_back(tx);
+      }
+    }
+
+    void add_prepared_tx(
+      const std::string& method,
       const nlohmann::json& params,
       bool expects_commit,
       const std::optional<size_t>& index)
