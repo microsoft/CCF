@@ -557,7 +557,7 @@ namespace client
       rand_generator(),
       // timing gets its own new connection for any requests it wants to send -
       // these are never signed
-      response_times(create_connection())
+      response_times(create_connection(true))
     {}
 
     void init_connection()
