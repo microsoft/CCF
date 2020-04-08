@@ -88,8 +88,11 @@ namespace http
 
     void set_body(const std::vector<uint8_t>* b)
     {
-      body = b->data();
-      body_size = b->size();
+      if (b != nullptr)
+      {
+        body = b->data();
+        body_size = b->size();
+      }
 
       headers[headers::CONTENT_LENGTH] =
         fmt::format("{}", get_content_length());
