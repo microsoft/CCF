@@ -263,7 +263,7 @@ namespace http
 
     virtual bool get_apply_writes() const override
     {
-      return response_status == HTTP_STATUS_OK;
+      return (response_status % 100) == 2;
     }
 
     virtual std::vector<uint8_t> serialise_response() const override
