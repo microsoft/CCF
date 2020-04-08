@@ -132,7 +132,7 @@ int main(int argc, char** argv)
       "Path to which the node certificate will be written")
     ->capture_default_str();
 
-  std::string node_pid_file("cchost.pid");
+  std::string node_pid_file = fmt::format("{}.pid", argv[0]);
   app
     .add_option(
       "--node-pid-file",

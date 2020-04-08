@@ -100,14 +100,14 @@ class CmdMixin(object):
             "-s",
         ] + self.cmd
 
-    def _print_upload_perf(self, name, metrics, lines):
+    def _get_perf(self, lines):
+        pattern = "=> (.*)tx/s"
         for line in lines:
             LOG.debug(line.decode())
-            if metrics is not None:
-                res = re.search("=> (.*)tx/s", line.decode())
-                if res:
-                    LOG.success(f"METRICS: {name} = {float(res.group(1))}")
-                    metrics.put(name, float(res.group(1)))
+            res = re.search(pattern, line.decode())
+            if res:
+                return float(res.group(1))
+        raise ValueError(f"No performance result found (pattern is {pattern})")
 
 
 class SSHRemote(CmdMixin):
@@ -153,6 +153,7 @@ class SSHRemote(CmdMixin):
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
         self.suspension_proc = None
+        self.pid_file = f"{os.path.basename(self.cmd[0])}.pid"
         self._pid = None
 
     def _rc(self, cmd):
@@ -264,12 +265,13 @@ class SSHRemote(CmdMixin):
 
     def pid(self):
         if self._pid is None:
-            pid_path = os.path.join(self.root, "cchost.pid")
+            pid_path = os.path.join(self.root, self.pid_file)
             time_left = 3
             while time_left > 0:
                 _, stdout, _ = self.proc_client.exec_command(f'cat "{pid_path}"')
-                self._pid = stdout.read().strip()
-                if self._pid:
+                res = stdout.read().strip()
+                if res:
+                    self._pid = int(res)
                     break
                 time_left = max(time_left - 0.1, 0)
                 if not time_left:
@@ -331,18 +333,18 @@ class SSHRemote(CmdMixin):
         client = self._connect_new()
         try:
             _, stdout, _ = client.exec_command(f"ps -p {self.pid()}")
-            return std.out.channel.recv_exit_status() == 0
+            return stdout.channel.recv_exit_status() == 1
         finally:
             client.close()
 
-    def print_and_upload_result(self, name, metrics, line_count):
+    def get_result(self, line_count):
         client = self._connect_new()
         try:
             _, stdout, _ = client.exec_command(f"tail -{line_count} {self.out}")
             if stdout.channel.recv_exit_status() == 0:
-                LOG.success(f"Result for {self.name}, uploaded under {name}:")
-                self._print_upload_perf(name, metrics, stdout.read().splitlines())
-                return
+                lines = stdout.read().splitlines()
+                result = lines[-line_count:]
+                return self._get_perf(result)
         finally:
             client.close()
 
@@ -481,12 +483,11 @@ class LocalRemote(CmdMixin):
     def check_done(self):
         return self.proc.poll() is not None
 
-    def print_and_upload_result(self, name, metrics, line_count):
+    def get_result(self, line_count):
         with open(self.out, "rb") as out:
             lines = out.read().splitlines()
             result = lines[-line_count:]
-            LOG.success(f"Result for {self.name}, uploaded under {name}:")
-            self._print_upload_perf(name, metrics, result)
+            return self._get_perf(result)
 
 
 CCF_TO_OE_LOG_LEVEL = {
@@ -702,9 +703,6 @@ class CCFRemote(object):
 
     def check_done(self):
         return self.remote.check_done()
-
-    def print_and_upload_result(self, name, metrics, line_count):
-        self.remote.print_and_upload_result(name, metrics, line_count)
 
     def set_perf(self):
         self.remote.set_perf()
