@@ -68,7 +68,8 @@ namespace metrics
         }
       }
 
-      LOG_INFO << "Printing time series" << ", this:" << (uint64_t)this << std::endl;
+      LOG_INFO << "Printing time series"
+               << ", this:" << (uint64_t)this << std::endl;
       for (uint32_t i = 0; i < times.size(); ++i)
       {
         uint32_t latency = 0;
@@ -111,7 +112,6 @@ namespace metrics
           tx_time_passed[tick_count] = rate_duration;
         }
         tick_count++;
-
       }
       uint32_t bucket = rate_time_elapsed.count() / 1000.0;
       if (bucket < times.size())

@@ -240,7 +240,10 @@ namespace kv
       uint32_t count_num_samples = 0;
       uint32_t tx_count = 0;
     };
-    virtual Statistics get_statistics() {return Statistics();}
+    virtual Statistics get_statistics()
+    {
+      return Statistics();
+    }
     virtual void enable_all_domains() {}
     virtual void resume_replication() {}
     virtual void suspend_replication(kv::Version) {}

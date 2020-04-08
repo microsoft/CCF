@@ -338,7 +338,8 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
     }
 
     ctx = it->second.get();
-    current_statistics.time_spent.fetch_add(milliseconds_since_start - ctx->start_time);
+    current_statistics.time_spent.fetch_add(
+      milliseconds_since_start - ctx->start_time);
     current_statistics.count_num_samples++;
   }
 
@@ -559,5 +560,6 @@ kv::Consensus::Statistics ClientProxy<T, C>::get_statistics()
     should_reset_statistics = false;
   }
 
-  return {previous_statistics.time_spent, previous_statistics.count_num_samples, 0};
+  return {
+    previous_statistics.time_spent, previous_statistics.count_num_samples, 0};
 }

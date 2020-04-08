@@ -270,7 +270,9 @@ namespace ccf
         .set_auto_schema<VerifyReceipt>();
     }
 
-    void tick(std::chrono::milliseconds elapsed, kv::Consensus::Statistics stats) override
+    void tick(
+      std::chrono::milliseconds elapsed,
+      kv::Consensus::Statistics stats) override
     {
       metrics.track_tx_rates(elapsed, stats);
 

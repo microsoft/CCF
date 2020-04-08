@@ -244,7 +244,9 @@ namespace ccf
       return nullptr;
     }
 
-    virtual void tick(std::chrono::milliseconds elapsed, kv::Consensus::Statistics stats) {}
+    virtual void tick(
+      std::chrono::milliseconds elapsed, kv::Consensus::Statistics stats)
+    {}
 
     bool has_certs()
     {
