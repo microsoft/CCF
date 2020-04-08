@@ -210,11 +210,7 @@ namespace ccfapp
 
         if (!account_r.has_value())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Account does not exist"));
+          set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Account does not exist");
           return;
         }
 
@@ -223,11 +219,7 @@ namespace ccfapp
 
         if (!savings_r.has_value())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Savings account does not exist"));
+          set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Savings account does not exist");
           return;
         }
 
@@ -236,20 +228,13 @@ namespace ccfapp
 
         if (!checking_r.has_value())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(
-            fmt::format("Checking account does not exist"));
+          set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Checking account does not exist");
           return;
         }
 
         auto result = checking_r.value() + savings_r.value();
 
-        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        args.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-        // make this a flatbuffer response maybe?
+        set_ok_status(args);
         nlohmann::json r(result);
         args.rpc_ctx->set_response_body(r.dump());
       };

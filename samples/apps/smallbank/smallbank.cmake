@@ -9,7 +9,9 @@ function(generate_flatbuffer fbs_path fbs_name)
     COMMAND flatc -o "${CCF_GENERATED_DIR}" --python ${fbs_path}/${fbs_name}.fbs
     DEPENDS ${fbs_path}/${fbs_name}.fbs
   )
-  install(FILES ${CCF_GENERATED_DIR}/${fbs_name}_generated.h DESTINATION ${CCF_GENERATED_DIR})
+  install(FILES ${CCF_GENERATED_DIR}/${fbs_name}_generated.h
+          DESTINATION ${CCF_GENERATED_DIR}
+  )
 endfunction()
 
 generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app bank)
@@ -17,11 +19,12 @@ generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app accounts)
 generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app transaction)
 generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app amalgamate)
 
-add_custom_target(flatbuffers ALL DEPENDS 
-  ${CCF_GENERATED_DIR}/bank_generated.h
-  ${CCF_GENERATED_DIR}/accounts_generated.h
-  ${CCF_GENERATED_DIR}/transaction_generated.h
-  ${CCF_GENERATED_DIR}/amalgamate_generated.h
+add_custom_target(
+  flatbuffers ALL
+  DEPENDS ${CCF_GENERATED_DIR}/bank_generated.h
+          ${CCF_GENERATED_DIR}/accounts_generated.h
+          ${CCF_GENERATED_DIR}/transaction_generated.h
+          ${CCF_GENERATED_DIR}/amalgamate_generated.h
 )
 
 add_client_exe(
@@ -30,9 +33,9 @@ add_client_exe(
 )
 target_link_libraries(small_bank_client PRIVATE secp256k1.host http_parser.host)
 target_include_directories(
-      small_bank_client SYSTEM PRIVATE ${CCF_GENERATED_DIR}
-    )
-add_dependencies(small_bank_client flatbuffers)	
+  small_bank_client SYSTEM PRIVATE ${CCF_GENERATED_DIR}
+)
+add_dependencies(small_bank_client flatbuffers)
 
 # SmallBank application
 add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)
@@ -40,7 +43,7 @@ sign_app_library(
   smallbank.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
-add_dependencies(smallbank flatbuffers)	
+add_dependencies(smallbank flatbuffers)
 
 function(get_verification_file iterations output_var)
   math(EXPR thousand_iterations "${iterations} / 1000")
