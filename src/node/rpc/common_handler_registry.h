@@ -270,11 +270,11 @@ namespace ccf
         .set_auto_schema<VerifyReceipt>();
     }
 
-    void tick(std::chrono::milliseconds elapsed, size_t tx_count) override
+    void tick(std::chrono::milliseconds elapsed, kv::Consensus::Statistics stats) override
     {
-      metrics.track_tx_rates(elapsed, tx_count);
+      metrics.track_tx_rates(elapsed, stats);
 
-      HandlerRegistry::tick(elapsed, tx_count);
+      HandlerRegistry::tick(elapsed, stats);
     }
   };
 }
