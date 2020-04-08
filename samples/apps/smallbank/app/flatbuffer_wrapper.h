@@ -168,18 +168,18 @@ public:
     return root->name();
   }
 
-  // uint64_t id()
-  // {
-  //     return root->id();
-  // }
+  uint64_t id()
+  {
+    return root->id();
+  }
 
-  // int64_t checking_amt()
-  // {
-  //     return root->checking_amt();
-  // }
+  int64_t checking_amt()
+  {
+    return root->checking_amt();
+  }
 
-  // int64_t savings_amt()
-  // {
-  //     return root->savings_amt();
-  // }
+  int64_t savings_amt()
+  {
+    return root->savings_amt();
+  }
 };

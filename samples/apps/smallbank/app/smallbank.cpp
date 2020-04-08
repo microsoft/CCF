@@ -84,53 +84,56 @@ namespace ccfapp
     {
       UserHandlerRegistry::init_handlers(store);
 
-      // auto create = [this](RequestArgs& args) {
-      //   if (headers_unmatched(args))
-      //   {
-      //     return;
-      //   }
-      //   // Create an account with a balance from thin air.
-      //   auto body = args.rpc_ctx->get_request_body().data();
-      //   BankDeserializer fbd(body);
-      //   auto name = fbd.name();
-      //   auto acc_id = fbd.id();
-      //   int64_t checking_amt = fbd.checking_amt();
-      //   int64_t savings_amt = fbd.savings_amt();
-      //   auto account_view = args.tx.get_view(tables.accounts);
-      //   auto account_r = account_view->get(name);
+      auto create = [this](RequestArgs& args) {
+        if (headers_unmatched(args))
+        {
+          return;
+        }
+        // Create an account with a balance from thin air.
+        auto body = args.rpc_ctx->get_request_body().data();
+        BankDeserializer fbd(body);
+        auto name = to_string(fbd.name());
+        auto acc_id = fbd.id();
+        int64_t checking_amt = fbd.checking_amt();
+        int64_t savings_amt = fbd.savings_amt();
+        auto account_view = args.tx.get_view(tables.accounts);
+        auto account_r = account_view->get(name);
 
-      //   if (account_r.has_value())
-      //   {
-      //     set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Account already
-      //     exists"); return;
-      //   }
+        if (account_r.has_value())
+        {
+          set_error_status(
+            args, HTTP_STATUS_BAD_REQUEST, "Account already exists");
+          return;
+        }
 
-      //   account_view->put(name, acc_id);
+        account_view->put(name, acc_id);
 
-      //   auto savings_view = args.tx.get_view(tables.savings);
-      //   auto savings_r = savings_view->get(acc_id);
+        auto savings_view = args.tx.get_view(tables.savings);
+        auto savings_r = savings_view->get(acc_id);
 
-      //   if (savings_r.has_value())
-      //   {
-      //     set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Account already
-      //     exists"); return;
-      //   }
+        if (savings_r.has_value())
+        {
+          set_error_status(
+            args, HTTP_STATUS_BAD_REQUEST, "Account already exists");
+          return;
+        }
 
-      //   savings_view->put(acc_id, savings_amt);
+        savings_view->put(acc_id, savings_amt);
 
-      //   auto checking_view = args.tx.get_view(tables.checkings);
-      //   auto checking_r = checking_view->get(acc_id);
+        auto checking_view = args.tx.get_view(tables.checkings);
+        auto checking_r = checking_view->get(acc_id);
 
-      //   if (checking_r.has_value())
-      //   {
-      //     set_error_status(args, HTTP_STATUS_BAD_REQUEST, "Account already
-      //     exists"); return;
-      //   }
+        if (checking_r.has_value())
+        {
+          set_error_status(
+            args, HTTP_STATUS_BAD_REQUEST, "Account already exists");
+          return;
+        }
 
-      //   checking_view->put(acc_id, checking_amt);
+        checking_view->put(acc_id, checking_amt);
 
-      //   set_ok_status(args);
-      // };
+        set_ok_status(args);
+      };
 
       auto create_batch = [this](RequestArgs& args) {
         // Create N accounts with identical balances from thin air.
@@ -258,8 +261,7 @@ namespace ccfapp
           return;
         }
 
-        TransactionDeserializer fbd(
-          args.rpc_ctx->get_request_body().data());
+        TransactionDeserializer fbd(args.rpc_ctx->get_request_body().data());
 
         auto name = to_string(fbd.name());
         auto value = fbd.value();
@@ -309,10 +311,9 @@ namespace ccfapp
         {
           return;
         }
-        TransactionDeserializer fbd(
-          args.rpc_ctx->get_request_body().data());
+        TransactionDeserializer fbd(args.rpc_ctx->get_request_body().data());
         auto name = to_string(fbd.name());
-        auto value = fbd.value();
+        int64_t value = fbd.value();
 
         if (name.empty())
         {
@@ -356,8 +357,7 @@ namespace ccfapp
         {
           return;
         }
-        AmalgamateDeserializer fbd(
-          args.rpc_ctx->get_request_body().data());
+        AmalgamateDeserializer fbd(args.rpc_ctx->get_request_body().data());
 
         auto name_1 = to_string(fbd.name_src());
         auto name_2 = to_string(fbd.name_dest());
@@ -435,10 +435,9 @@ namespace ccfapp
         {
           return;
         }
-        TransactionDeserializer fbd(
-          args.rpc_ctx->get_request_body().data());
+        TransactionDeserializer fbd(args.rpc_ctx->get_request_body().data());
         auto name = to_string(fbd.name());
-        auto amount = fbd.value();
+        uint32_t amount = fbd.value();
 
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);
@@ -479,10 +478,7 @@ namespace ccfapp
         set_ok_status(args);
       };
 
-      // install(
-      //   Procs::SMALL_BANKING_CREATE,
-      //   create,
-      //   HandlerRegistry::Write);
+      install(Procs::SMALL_BANKING_CREATE, create, HandlerRegistry::Write);
       install(
         Procs::SMALL_BANKING_CREATE_BATCH,
         create_batch,

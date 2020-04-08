@@ -5,6 +5,8 @@ table Bank
 {
     name:uint64;
     id:uint64;
+    checking_amt:int64;
+    savings_amt:int64;
 
 }
 
