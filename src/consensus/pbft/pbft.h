@@ -584,7 +584,18 @@ namespace pbft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
+      client_proxy->periodic(elapsed);
       ITimer::handle_timeouts(elapsed);
+    }
+
+    void periodic_end() override
+    {
+      client_proxy->reset_statistics();
+    }
+
+    Statistics get_statistics() override
+    {
+      return client_proxy->get_statistics();
     }
 
     template <typename T>

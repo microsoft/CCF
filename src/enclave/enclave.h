@@ -189,6 +189,7 @@ namespace enclave
                 for (auto& r : rpc_map->get_map())
                   r.second->tick(elapsed_ms);
               }
+              node.tick_end();
             }
           });
 
