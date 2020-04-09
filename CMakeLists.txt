@@ -619,7 +619,7 @@ if(BUILD_TESTS)
   # Logging scenario perf test
   add_perf_test(
     NAME logging_scenario_perf_test
-    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/perfclient.py
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
     CONSENSUS raft
     CLIENT_BIN ./scenario_perf_client
     LABEL log_scenario
