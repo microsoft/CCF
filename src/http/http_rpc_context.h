@@ -268,7 +268,7 @@ namespace http
       explicit_apply_writes = apply;
     }
 
-    virtual bool get_apply_writes() const override
+    virtual bool should_apply_writes() const override
     {
       if (explicit_apply_writes.has_value())
       {
