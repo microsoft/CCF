@@ -73,9 +73,6 @@ public:
 
   virtual ~Replica();
   // Effects: Kill server replica and deallocate associated storage.
-  void recv();
-  // Effects: Loops receiving messages and calling the appropriate
-  // handlers.
 
   // Methods to register service specific functions. The expected
   // specifications for the functions are defined below.

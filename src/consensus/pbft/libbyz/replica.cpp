@@ -805,15 +805,6 @@ bool Replica::pre_verify(Message* m)
   }
 }
 
-void Replica::recv()
-{
-  while (1)
-  {
-    Message* m = Node::recv();
-    process_message(m);
-  }
-}
-
 void Replica::handle(Request* m)
 {
   bool ro = m->is_read_only();

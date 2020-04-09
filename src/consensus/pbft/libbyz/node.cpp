@@ -220,22 +220,6 @@ bool Node::has_messages(long to)
   return network->has_messages(to);
 }
 
-Message* Node::recv()
-{
-  if (!network)
-  {
-    throw std::logic_error("Network not set");
-  }
-  Message* m = network->GetNextMessage();
-
-  LOG_TRACE << "received message tag:" << m->tag() << std::endl;
-
-  INCR_OP(message_counts_in[m->tag()]);
-  INCR_CNT(bytes_in, m->size());
-
-  return m;
-}
-
 size_t Node::gen_signature(const char* src, unsigned src_len, char* sig)
 {
   INCR_OP(num_sig_gen);
