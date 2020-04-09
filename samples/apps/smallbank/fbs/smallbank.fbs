@@ -13,15 +13,15 @@ root_type Accounts;
 
 table Amalgamate
 {
-    name_src:uint64;
-    name_dest:uint64;
+    name_src:string;
+    name_dest:string;
 }
 
 root_type Amalgamate;
 
 table Bank
 {
-    name:uint64;
+    name:string;
     id:uint64;
     checking_amt:int64;
     savings_amt:int64;
@@ -32,7 +32,7 @@ root_type Bank;
 
 table Transaction
 {
-    name:uint64;
+    name:string;
     value:int;
 }
 

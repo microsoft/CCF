@@ -29,9 +29,9 @@ private:
   flatbuffers::Offset<Transaction> transaction;
 
 public:
-  TransactionSerializer(const uint64_t name, const int value)
+  TransactionSerializer(const std::string& name, const int value)
   {
-    transaction = CreateTransaction(builder, name, value);
+    transaction = CreateTransaction(builder, builder.CreateString(name), value);
     builder.Finish(transaction);
   }
 };
@@ -46,9 +46,9 @@ public:
     root(flatbuffers::GetRoot<Transaction>(data))
   {}
 
-  uint64_t name()
+  std::string name()
   {
-    return root->name();
+    return root->name()->str();
   }
 
   int value()
@@ -63,9 +63,9 @@ private:
   flatbuffers::Offset<Amalgamate> amalgamate;
 
 public:
-  AmalgamateSerializer(const uint64_t name_src, const uint64_t name_dest)
+  AmalgamateSerializer(const std::string& name_src, const std::string& name_dest)
   {
-    amalgamate = CreateAmalgamate(builder, name_src, name_dest);
+    amalgamate = CreateAmalgamate(builder, builder.CreateString(name_src), builder.CreateString(name_dest));
     builder.Finish(amalgamate);
   }
 };
@@ -80,14 +80,14 @@ public:
     root(flatbuffers::GetRoot<Amalgamate>(data))
   {}
 
-  uint64_t name_src()
+  std::string name_src()
   {
-    return root->name_src();
+    return root->name_src()->str();
   }
 
-  uint64_t name_dest()
+  std::string name_dest()
   {
-    return root->name_dest();
+    return root->name_dest()->str();
   }
 };
 
@@ -144,9 +144,9 @@ private:
   flatbuffers::Offset<Bank> bank;
 
 public:
-  BankSerializer(const uint64_t name)
+  BankSerializer(const std::string& name)
   {
-    bank = CreateBank(builder, name);
+    bank = CreateBank(builder, builder.CreateString(name));
     builder.Finish(bank);
   }
 };
@@ -160,9 +160,9 @@ public:
   BankDeserializer(const uint8_t* data) : root(flatbuffers::GetRoot<Bank>(data))
   {}
 
-  uint64_t name()
+  std::string name()
   {
-    return root->name();
+    return root->name()->str();
   }
 
   uint64_t id()

@@ -52,7 +52,7 @@ private:
 
     for (auto i = 0ul; i < options.total_accounts; i++)
     {
-      BankSerializer bs(i);
+      BankSerializer bs(to_string(i));
       const auto response = conn->call("SmallBank_balance", bs.get_buffer());
 
       check_response(response);
@@ -96,7 +96,7 @@ private:
         case TransactionTypes::TransactSavings:
         {
           TransactionSerializer ts(
-            rand_range(options.total_accounts), rand_range<int>(-50, 50));
+            to_string(rand_range(options.total_accounts)), rand_range<int>(-50, 50));
           fb = ts.get_detached_buffer();
         }
         break;
@@ -108,7 +108,7 @@ private:
           {
             dest_account += 1;
           }
-          AmalgamateSerializer as(src_account, dest_account);
+          AmalgamateSerializer as(to_string(src_account), to_string(dest_account));
           fb = as.get_detached_buffer();
         }
         break;
@@ -116,7 +116,7 @@ private:
         case TransactionTypes::WriteCheck:
         {
           TransactionSerializer ts(
-            rand_range(options.total_accounts), rand_range<int>(50));
+            to_string(rand_range(options.total_accounts)), rand_range<int>(50));
           fb = ts.get_detached_buffer();
         }
         break;
@@ -124,14 +124,14 @@ private:
         case TransactionTypes::DepositChecking:
         {
           TransactionSerializer ts(
-            rand_range(options.total_accounts), (rand_range<int>(50) + 1));
+            to_string(rand_range(options.total_accounts)), (rand_range<int>(50) + 1));
           fb = ts.get_detached_buffer();
         }
         break;
 
         case TransactionTypes::GetBalance:
         {
-          BankSerializer bs(rand_range(options.total_accounts));
+          BankSerializer bs(to_string(rand_range(options.total_accounts)));
           fb = bs.get_detached_buffer();
         }
         break;
@@ -233,7 +233,7 @@ private:
         throw std::runtime_error(expected_type_msg(entry));
       }
 
-      BankSerializer bs(account_it->get<size_t>());
+      BankSerializer bs(to_string(account_it->get<size_t>()));
       const auto response = conn->call("SmallBank_balance", bs.get_buffer());
 
       if (!http::status_ok(response.status))

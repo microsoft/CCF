@@ -101,7 +101,7 @@ namespace ccfapp
       auto create = [this](RequestArgs& args) {
         // Create an account with a balance from thin air.
         BankDeserializer bd(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(bd.name());
+        auto name = bd.name();
         auto acc_id = bd.id();
         int64_t checking_amt = bd.checking_amt();
         int64_t savings_amt = bd.savings_amt();
@@ -204,7 +204,7 @@ namespace ccfapp
       auto balance = [this](RequestArgs& args) {
         // Check the combined balance of an account
         BankDeserializer bd(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(bd.name());
+        auto name = bd.name();
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);
 
@@ -247,7 +247,7 @@ namespace ccfapp
       auto transact_savings = [this](RequestArgs& args) {
         // Add or remove money to the savings account
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(td.name());
+        auto name = td.name();
         auto value = td.value();
 
         if (name.empty())
@@ -292,7 +292,7 @@ namespace ccfapp
       auto deposit_checking = [this](RequestArgs& args) {
         // Desposit money into the checking account out of thin air
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(td.name());
+        auto name = td.name();
         int64_t value = td.value();
 
         if (name.empty())
@@ -334,8 +334,8 @@ namespace ccfapp
       auto amalgamate = [this](RequestArgs& args) {
         // Move the contents of one users account to another users account
         AmalgamateDeserializer ad(args.rpc_ctx->get_request_body().data());
-        auto name_1 = to_string(ad.name_src());
-        auto name_2 = to_string(ad.name_dest());
+        auto name_1 = ad.name_src();
+        auto name_2 = ad.name_dest();
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_1_r = account_view->get(name_1);
 
@@ -406,7 +406,7 @@ namespace ccfapp
       auto writeCheck = [this](RequestArgs& args) {
         // Write a check, if not enough funds then also charge an extra 1 money
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(td.name());
+        auto name = td.name();
         uint32_t amount = td.value();
 
         auto account_view = args.tx.get_view(tables.accounts);
