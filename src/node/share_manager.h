@@ -111,6 +111,37 @@ namespace ccf
 
       // 2. Encrypt the penultimate ledger secrets with the latest ledger
       // secrets
+      std::vector<uint8_t> encrypted_penultimate_secrets = {};
+      auto penultimate_ledger_secret =
+        network.ledger_secrets->get_penultimate();
+      if (penultimate_ledger_secret.has_value())
+      {
+        LOG_FAIL_FMT(
+          "Encrypting penultimate ledger secrets with latest ledget secret");
+
+        // TODO: Probably move this logic in the LedgerSecret class directly
+        // (i.e. a LedgerSecret can now also encrypt)
+        // Or each LedgerSecret knows about its predecessor and can encrypt it
+        // if necessary (wait until the replay is done)
+
+        crypto::GcmCipher encrypted_pls(
+          penultimate_ledger_secret->master.size());
+
+        crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
+          .encrypt(
+            tls::create_entropy()->random(crypto::GCM_SIZE_IV),
+            penultimate_ledger_secret->master,
+            nullb,
+            encrypted_pls.cipher.data(),
+            encrypted_pls.hdr.tag);
+
+        encrypted_penultimate_secrets = encrypted_pls.serialise();
+      }
+      else
+      {
+        // TODO: Delete
+        LOG_FAIL_FMT("No penultimate ledger secrets");
+      }
 
       auto secret_to_split =
         ls_wrapping_key.get_raw_data<SecretSharing::SplitSecret>();
@@ -141,7 +172,8 @@ namespace ccf
         share_index++;
       }
 
-      g.add_key_share_info({encrypted_ls, {}, encrypted_shares});
+      g.add_key_share_info(
+        {encrypted_ls, encrypted_penultimate_secrets, encrypted_shares});
     }
 
     // For now, the shares are passed directly to this function. Shares should
