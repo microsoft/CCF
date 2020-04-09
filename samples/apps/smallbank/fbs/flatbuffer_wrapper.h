@@ -4,10 +4,7 @@
 
 #include "ds/buffer.h"
 
-#include <accounts_generated.h>
-#include <amalgamate_generated.h>
-#include <bank_generated.h>
-#include <transaction_generated.h>
+#include <smallbank_generated.h>
 
 class FlatbufferSerializer
 {
@@ -45,7 +42,9 @@ private:
   const Transaction* root;
 
 public:
-  TransactionDeserializer(const uint8_t* data) : root(GetTransaction(data)) {}
+  TransactionDeserializer(const uint8_t* data) :
+    root(flatbuffers::GetRoot<Transaction>(data))
+  {}
 
   uint64_t name()
   {
@@ -77,7 +76,9 @@ private:
   const Amalgamate* root;
 
 public:
-  AmalgamateDeserializer(const uint8_t* data) : root(GetAmalgamate(data)) {}
+  AmalgamateDeserializer(const uint8_t* data) :
+    root(flatbuffers::GetRoot<Amalgamate>(data))
+  {}
 
   uint64_t name_src()
   {
@@ -113,7 +114,9 @@ private:
   const Accounts* root;
 
 public:
-  AccountsDeserializer(const uint8_t* data) : root(GetAccounts(data)) {}
+  AccountsDeserializer(const uint8_t* data) :
+    root(flatbuffers::GetRoot<Accounts>(data))
+  {}
   uint64_t from()
   {
     return root->from();
@@ -154,7 +157,8 @@ private:
   const Bank* root;
 
 public:
-  BankDeserializer(const uint8_t* data) : root(GetBank(data)) {}
+  BankDeserializer(const uint8_t* data) : root(flatbuffers::GetRoot<Bank>(data))
+  {}
 
   uint64_t name()
   {

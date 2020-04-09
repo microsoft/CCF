@@ -1,0 +1,39 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.	
+// Licensed under the Apache 2.0 License.
+
+table Accounts
+{
+    from:uint64;
+    to:uint64;
+    checking_amt:int64;
+    savings_amt:int64;
+}
+
+root_type Accounts;
+
+table Amalgamate
+{
+    name_src:uint;
+    name_dest:uint;
+}
+
+root_type Amalgamate;
+
+table Bank
+{
+    name:uint64;
+    id:uint64;
+    checking_amt:int64;
+    savings_amt:int64;
+
+}
+
+root_type Bank;
+
+table Transaction
+{
+    name:uint64;
+    value:int;
+}
+
+root_type Transaction;

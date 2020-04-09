@@ -2,42 +2,26 @@
 # Licensed under the Apache 2.0 License.
 # Small Bank Client executable
 
-function(generate_flatbuffer path name)
-  add_custom_command(
-    OUTPUT ${CCF_GENERATED_DIR}/${name}_generated.h
-    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${path}/${name}.fbs
-    DEPENDS ${path}/${name}.fbs
-  )
-  install(FILES ${CCF_GENERATED_DIR}/${name}_generated.h
-          DESTINATION ${CCF_GENERATED_DIR}
-  )
-endfunction()
-
-generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app bank)
-generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app accounts)
-generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app transaction)
-generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/app amalgamate)
+generate_flatbuffer(${CMAKE_CURRENT_LIST_DIR}/fbs smallbank)
 
 add_custom_target(
-  flatbuffers ALL
-  DEPENDS ${CCF_GENERATED_DIR}/bank_generated.h
-          ${CCF_GENERATED_DIR}/accounts_generated.h
-          ${CCF_GENERATED_DIR}/transaction_generated.h
-          ${CCF_GENERATED_DIR}/amalgamate_generated.h
+  flatbuffers ALL DEPENDS ${CCF_GENERATED_DIR}/smallbank_generated.h
 )
 
 add_client_exe(
   small_bank_client
   SRCS ${CMAKE_CURRENT_LIST_DIR}/clients/small_bank_client.cpp
+  INCLUDE_DIRS ${CCF_GENERATED_DIR} ${CMAKE_CURRENT_LIST_DIR}/fbs
 )
 target_link_libraries(small_bank_client PRIVATE secp256k1.host http_parser.host)
-target_include_directories(
-  small_bank_client SYSTEM PRIVATE ${CCF_GENERATED_DIR}
-)
 add_dependencies(small_bank_client flatbuffers)
 
 # SmallBank application
-add_ccf_app(smallbank SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp)
+add_ccf_app(
+  smallbank
+  SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
+  INCLUDE_DIRS ${CCF_GENERATED_DIR} ${CMAKE_CURRENT_LIST_DIR}/fbs
+)
 sign_app_library(
   smallbank.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem

@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../app/flatbuffer_wrapper.h"
+#include "flatbuffer_wrapper.h"
 #include "perf_client.h"
 
 using namespace std;
