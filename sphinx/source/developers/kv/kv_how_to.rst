@@ -180,3 +180,21 @@ A ``View`` offers a :cpp:class:`kv::Map::TxView::foreach` member function to ite
 
         }
     });
+
+Applying and reverting writes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Changes to the ``Store`` are made by atomic transactions. For a given :cpp:class:`kv::Tx`, either all of its writes are applied, or none are. Only applied writes are replicated and may be globally committed. Transactions may be abandoned without applying their writes - their changes will never be seen by other transactions.
+
+By default CCF decides which transactions are successful (so should be applied to the persistent store) by looking at the status code contained in the response: all transactions producing ``2xx`` status codes will be applied, while any other status code will be treated as an error and will `not` be applied to the persistent store. If this behaviour is not desired, for instance when an app wants to log incoming requests even though they produce an error, then it can be dynamically overridden by explicitly telling CCF whether it should apply a given transaction:
+
+.. code-block:: cpp
+
+    args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+    auto forbidden_requests_view = tx.get_view(forbidden_requests);
+
+    // Log details of forbidden request
+    forbidden_requests_view->put(...);
+
+     // Apply this, even though it has an error response
+    args.rpc_ctx->set_apply_writes(true);
