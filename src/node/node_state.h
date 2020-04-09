@@ -201,6 +201,10 @@ namespace ccf
     std::vector<kv::Version> term_history;
     kv::Version last_recovered_commit_idx = 1;
 
+    std::list<RecoveryLedgerSecret>
+      recovery_secret_list; // TODO: Don't forget to clean this when the
+                            // recovery is done
+
     consensus::Index ledger_idx = 0;
 
   public:
@@ -590,7 +594,11 @@ namespace ccf
       ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
+      // TODO: Promote should probably go altogether. The ledger secrets can be
+      // created here instead?
       network.ledger_secrets->promote_secret(1, last_index + 1);
+
+      // share_manager.update_key_share_info(tx);
 
       g.create_service(network.identity->cert, last_index + 1);
 
@@ -1053,8 +1061,15 @@ namespace ccf
     {
       try
       {
+        LOG_FAIL_FMT(
+          "By the end of recovery, there are {} encrypted ledger secrets to "
+          "decrypt",
+          recovery_secret_list.size());
+
         finish_recovery_with_shares(
-          tx, share_manager.restore_key_share_info(tx, shares));
+          tx,
+          share_manager.restore_key_share_info(
+            tx, shares, recovery_secret_list));
       }
       catch (const std::logic_error& e)
       {
@@ -1452,8 +1467,17 @@ namespace ccf
           if (is_reading_public_ledger())
           {
             LOG_FAIL_FMT(
-              "Some shares read while recovering the public ledger. Version {}",
-              version);
+              "Some shares read while recovering the public ledger. Version "
+              "{}. Size {}",
+              version,
+              w.size());
+
+            for (auto& [k, v] : w)
+            {
+              LOG_FAIL_FMT("One write on the ccf.shares table");
+              recovery_secret_list.push_back(
+                {version, v.value.encrypted_previous_ledger_secret});
+            }
           }
           else
           {

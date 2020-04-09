@@ -59,9 +59,17 @@ namespace ccf
       LOG_FAIL_FMT("Adding new ledger secrets at {}", v);
       if (secrets_map.size() >= 1)
       {
-        // There was already some secrets in the map, so the penultimate secrets
-        // will be the current one, before the new secret is added
-        penultimate_version = latest_version;
+        if (v > latest_version)
+        {
+          // There was already some secrets in the map, so the penultimate
+          // secrets will be the current one, before the new secret is added
+          penultimate_version = latest_version;
+        }
+        else
+        {
+          // If we are recovering secrets
+          penultimate_version = v;
+        }
       }
 
       if (seal && force_seal)
@@ -77,7 +85,15 @@ namespace ccf
 
       // TODO: Let's assume that secrets are added in order (i.e. the latest are
       // always added latest). Not sure if this is true during recovery?
-      latest_version = v;
+      if (v > latest_version)
+      {
+        latest_version = v;
+      }
+      else
+      {
+        // If we are recovering secrets
+        // Nothing
+      }
 
       LOG_FAIL_FMT("Penultimate: {}", penultimate_version);
       LOG_FAIL_FMT("Latest: {}", latest_version);
@@ -110,6 +126,16 @@ namespace ccf
     bool operator==(const LedgerSecrets& other) const
     {
       return secrets_map == other.secrets_map;
+    }
+
+    void dump()
+    {
+      std::cout << "LS:";
+      for (auto const& s : secrets_map)
+      {
+        std::cout << s.first << " - ";
+      }
+      std::cout << std::endl;
     }
 
     LedgerSecret get_latest()

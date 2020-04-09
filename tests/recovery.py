@@ -22,7 +22,7 @@ def test(network, args, use_shares=False):
     if use_shares:
         LOG.warning("Using member key shares for recovery (experimental)")
 
-    primary, backups = network.find_nodes()
+    primary, _ = network.find_primary()
 
     ledger = primary.get_ledger()
     sealed_secrets = primary.get_sealed_secrets()

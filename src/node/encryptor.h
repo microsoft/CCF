@@ -100,11 +100,13 @@ namespace ccf
         version,
         [](kv::Version a, EncryptionKey const& b) { return b.version <= a; });
 
+
       if (search == encryption_keys.rend())
       {
         throw std::logic_error(fmt::format(
           "TxEncryptor: encrypt version is not valid: {}", version));
       }
+      LOG_FAIL_FMT("Retrieved key at {} for version {}", search->version, version);
 
       return search->key;
     }
@@ -117,6 +119,8 @@ namespace ccf
       // Create map of existing encryption keys from the recorded ledger secrets
       for (auto const& s : ls->secrets_map)
       {
+        LOG_FAIL_FMT(
+          "Emplacing new encryption key in encryptor at version {}", s.first);
         encryption_keys.emplace_back(EncryptionKey{
           s.first,
           s.second.master,
