@@ -122,10 +122,6 @@ public:
     else if (resp.status == HTTP_STATUS_OK)
     {
       const auto& content_type = resp.headers.find(http::headers::CONTENT_TYPE);
-      if (content_type->second == http::headervalues::contenttype::TEXT)
-      {
-        return jsonrpc::unpack(resp.body, jsonrpc::Pack::Text);
-      }
       return jsonrpc::unpack(resp.body, jsonrpc::Pack::MsgPack);
     }
     else
