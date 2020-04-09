@@ -339,6 +339,8 @@ namespace ccf
           setup_history();
           setup_encryptor(network.consensus_type);
 
+          setup_recovery_hook();
+
           // Accept members connections for members to finish recovery once
           // the public ledger has been read
           open_member_frontend();
@@ -1438,6 +1440,28 @@ namespace ccf
           backup_finish_recovery();
         }
       });
+    }
+
+    // TODO: Disable these hooks once the recovery is finished
+    void setup_recovery_hook()
+    {
+      LOG_FAIL_FMT("Recovery Hooks setup!");
+      network.shares.set_local_hook(
+        [this](
+          kv::Version version, const Shares::State& s, const Shares::Write& w) {
+          if (is_reading_public_ledger())
+          {
+            LOG_FAIL_FMT(
+              "Some shares read while recovering the public ledger. Version {}",
+              version);
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "Some shares read but node is not recovering. Version {}",
+              version);
+          }
+        });
     }
 
     void setup_n2n_channels()

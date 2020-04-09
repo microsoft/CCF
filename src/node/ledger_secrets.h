@@ -49,8 +49,21 @@ namespace ccf
   private:
     std::shared_ptr<AbstractSeal> seal;
 
+    // TODO: We could use a better data structure here to access the latest and
+    // penultimate elements, e.g. a doubly linked-list
+    kv::Version penultimate_version = kv::NoVersion;
+    kv::Version latest_version;
+
     void add_secret(kv::Version v, LedgerSecret&& secret, bool force_seal)
     {
+      LOG_FAIL_FMT("Adding new ledger secrets at {}", v);
+      if (secrets_map.size() >= 1)
+      {
+        // There was already some secrets in the map, so the penultimate secrets
+        // will be the current one, before the new secret is added
+        penultimate_version = latest_version;
+      }
+
       if (seal && force_seal)
       {
         if (!seal->seal(v, secret.master))
@@ -61,6 +74,13 @@ namespace ccf
       }
 
       secrets_map.emplace(v, std::move(secret));
+
+      // TODO: Let's assume that secrets are added in order (i.e. the latest are
+      // always added latest). Not sure if this is true during recovery?
+      latest_version = v;
+
+      LOG_FAIL_FMT("Penultimate: {}", penultimate_version);
+      LOG_FAIL_FMT("Latest: {}", latest_version);
     }
 
   public:
@@ -90,6 +110,22 @@ namespace ccf
     bool operator==(const LedgerSecrets& other) const
     {
       return secrets_map == other.secrets_map;
+    }
+
+    LedgerSecret get_latest()
+    {
+      LOG_FAIL_FMT("Returning latest ls at {}", latest_version);
+      return secrets_map.find(latest_version)->second;
+    }
+
+    std::optional<LedgerSecret> get_penultimate()
+    {
+      LOG_FAIL_FMT("Returning penultimate ls at {}", penultimate_version);
+      if (penultimate_version == kv::NoVersion)
+      {
+        return {};
+      }
+      return secrets_map.find(penultimate_version)->second;
     }
 
     // Called when a backup is given past ledger secret via the store
@@ -156,6 +192,8 @@ namespace ccf
             it_.key()));
         }
         restored_versions.emplace_back(it_.key());
+
+        LOG_FAIL_FMT("Restoring secrets from shares at {}", it_.key());
         secrets_map.insert(std::move(it_));
       }
 
@@ -194,8 +232,17 @@ namespace ccf
       secrets_map.emplace(new_v, std::move(search->second));
       secrets_map.erase(old_v);
 
-      LOG_TRACE_FMT(
-        "Ledger secret used at {} are now valid from {}", old_v, new_v);
+      // TODO: We know that we only promote secrets when there's only one there
+      // so we only update the latest version (penultimate is still No::Version)
+      if (new_v >= old_v)
+      {
+        latest_version = new_v;
+      }
+
+      LOG_FAIL_FMT("Penultimate: {}", penultimate_version);
+      LOG_FAIL_FMT("Latest: {}", latest_version);
+
+      LOG_TRACE_FMT("Ledger secret at {} is now valid from {}", old_v, new_v);
       return true;
     }
 

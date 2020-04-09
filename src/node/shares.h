@@ -27,11 +27,17 @@ namespace ccf
 
   struct KeyShareInfo
   {
-    // For now, only one encrypted ledger secret is stored in the ledger
+    // TODO: This is the latest ledger secrets encrypted with the ledger secret
+    // wrapping key
     std::vector<uint8_t> encrypted_ledger_secret;
+    std::vector<uint8_t>
+      encrypted_previous_ledger_secret; // TODO: Better name for this
     EncryptedSharesMap encrypted_shares;
 
-    MSGPACK_DEFINE(encrypted_ledger_secret, encrypted_shares);
+    MSGPACK_DEFINE(
+      encrypted_ledger_secret,
+      encrypted_previous_ledger_secret,
+      encrypted_shares);
   };
 
   // The key for this table will always be 0 since we never need to access
