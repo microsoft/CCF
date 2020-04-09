@@ -46,7 +46,6 @@ namespace ccfapp
 
     bool headers_unmatched(RequestArgs& args)
     {
-      // Check the combined balance of an account
       const auto actual =
         args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
           .value_or("");
@@ -208,6 +207,7 @@ namespace ccfapp
       };
 
       auto balance = [this](RequestArgs& args) {
+        // Check the combined balance of an account
         if (headers_unmatched(args))
         {
           set_unmatched_header_status(args);
