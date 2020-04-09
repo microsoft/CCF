@@ -27,7 +27,13 @@ namespace metrics
     histogram::Global<Hist> global =
       histogram::Global<Hist>("histogram", __FILE__, __LINE__);
     Hist histogram = Hist(global);
-    std::array<uint64_t, 100> times = {0};
+    struct TxStatistics
+    {
+      uint32_t tx_count = 0;
+      uint32_t cumulative_time = 0;
+      uint32_t time_samples = 0;
+    };
+    std::array<TxStatistics, 100> times;
 
     ccf::GetMetrics::HistogramResults get_histogram_results()
     {
@@ -62,10 +68,17 @@ namespace metrics
         }
       }
 
-      LOG_INFO << "Printing time series" << std::endl;
+      LOG_INFO << "Printing time series"
+               << ", this:" << (uint64_t)this << std::endl;
       for (uint32_t i = 0; i < times.size(); ++i)
       {
-        LOG_INFO_FMT("{} - {}", i, times[i]);
+        uint32_t latency = 0;
+        if (times[i].time_samples != 0)
+        {
+          latency = (times[i].cumulative_time / times[i].time_samples);
+        }
+
+        LOG_INFO_FMT("{} - {}, {}", i, times[i].tx_count, latency);
       }
 
       return result;
@@ -82,11 +95,11 @@ namespace metrics
     }
 
     void track_tx_rates(
-      const std::chrono::milliseconds& elapsed, size_t tx_count)
+      const std::chrono::milliseconds& elapsed, kv::Consensus::Statistics stats)
     {
       // calculate how many tx/sec we have processed in this tick
       auto duration = elapsed.count() / 1000.0;
-      auto tx_rate = tx_count / duration;
+      auto tx_rate = stats.tx_count / duration;
       histogram.record(tx_rate);
       // keep time since beginning
       rate_time_elapsed += elapsed;
@@ -99,12 +112,13 @@ namespace metrics
           tx_time_passed[tick_count] = rate_duration;
         }
         tick_count++;
-
-        uint32_t bucket = rate_time_elapsed.count() / 1000.0;
-        if (bucket < times.size())
-        {
-          times[bucket] += tx_count;
-        }
+      }
+      uint32_t bucket = rate_time_elapsed.count() / 1000.0;
+      if (bucket < times.size())
+      {
+        times[bucket].tx_count += stats.tx_count;
+        times[bucket].cumulative_time += stats.time_spent;
+        times[bucket].time_samples += stats.count_num_samples;
       }
     }
   };
