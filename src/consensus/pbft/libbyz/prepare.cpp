@@ -175,15 +175,3 @@ bool Prepare::pre_verify()
   assert(false);
   return false;
 }
-
-bool Prepare::convert(Message* m1, Prepare*& m2)
-{
-  if (!m1->has_tag(Prepare_tag, sizeof(Prepare_rep)))
-  {
-    return false;
-  }
-
-  m2 = (Prepare*)m1;
-  m2->trim();
-  return true;
-}

@@ -113,13 +113,6 @@ public:
   bool verify();
   // Effects: Verifies if the message is correct
 
-  static bool convert(Message* m1, Meta_data*& m2);
-  // Effects: If "m1" has the right size and tag of a "Meta_data",
-  // casts "m1" to a "Meta_data" pointer, returns the pointer in
-  // "m2" and returns true. Otherwise, it returns false. Convert also
-  // trims any surplus storage from "m1" when the conversion is
-  // successfull.
-
 private:
   Meta_data_rep& rep() const;
   // Effects: Casts "msg" to a Meta_data_rep&

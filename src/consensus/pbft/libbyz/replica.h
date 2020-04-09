@@ -623,15 +623,7 @@ inline bool Replica::has_complete_new_view() const
 template <class T>
 inline void Replica::gen_handle(Message* m)
 {
-  T* n;
-  if (T::convert(m, n))
-  {
-    handle(n);
-  }
-  else
-  {
-    delete m;
-  }
+  handle(reinterpret_cast<T*>(m));
 }
 
 inline Big_req_table* Replica::big_reqs()

@@ -743,13 +743,8 @@ void Replica::process_message(Message* m)
 template <class T>
 bool Replica::gen_pre_verify(Message* m)
 {
-  T* n;
-  if (T::convert(m, n))
-  {
-    return n->pre_verify();
-  }
-
-  return false;
+  auto n = reinterpret_cast<T*>(m);
+  return n->pre_verify();
 }
 
 bool Replica::pre_verify(Message* m)
@@ -1418,9 +1413,7 @@ template <class T>
 std::unique_ptr<T> Replica::create_message(
   const uint8_t* message_data, size_t data_size)
 {
-  Message* m = create_message(message_data, data_size);
-  T* msg_type;
-  T::convert(m, msg_type);
+  auto msg_type = reinterpret_cast<T*>(create_message(message_data, data_size));
   return std::unique_ptr<T>(msg_type);
 }
 

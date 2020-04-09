@@ -192,12 +192,6 @@ public:
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 
-  static bool convert(Message* m1, Status*& m2);
-  // Effects: If "m1" has the right size and tag of a "Status",
-  // casts "m1" to a "Status" pointer, returns the pointer in
-  // "m2" and returns true. Otherwise, it returns false.
-  // If the conversion is successful it trims excess allocation.
-
 private:
   Status_rep& rep() const;
   // Effects: Casts "msg" to a Status_rep&

@@ -81,11 +81,6 @@ public:
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 
-  static bool convert(Message* m1, Fetch*& m2);
-  // Effects: If "m1" has the right size and tag, casts "m1" to a
-  // "Fetch" pointer, returns the pointer in "m2" and returns
-  // true. Otherwise, it returns false.
-
 private:
   Fetch_rep& rep() const;
   // Effects: Casts contents to a Fetch_rep&

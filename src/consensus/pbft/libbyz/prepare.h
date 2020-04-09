@@ -104,11 +104,6 @@ public:
   uint64_t get_nonce() const;
   // Effects: returns the unhashed nonce
 
-  static bool convert(Message* m1, Prepare*& m2);
-  // Effects: If "m1" has the right size and tag, casts "m1" to a
-  // "Prepare" pointer, returns the pointer in "m2" and returns
-  // true. Otherwise, it returns false.
-
 private:
   uint64_t nonce;
 

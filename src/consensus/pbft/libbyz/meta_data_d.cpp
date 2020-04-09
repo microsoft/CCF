@@ -107,14 +107,3 @@ bool Meta_data_d::verify()
 
   return false;
 }
-
-bool Meta_data_d::convert(Message* m1, Meta_data_d*& m2)
-{
-  if (!m1->has_tag(Meta_data_d_tag, sizeof(Meta_data_d_rep)))
-  {
-    return false;
-  }
-  m1->trim();
-  m2 = (Meta_data_d*)m1;
-  return true;
-}

@@ -72,15 +72,3 @@ bool View_change_ack::verify()
 
   return true;
 }
-
-bool View_change_ack::convert(Message* m1, View_change_ack*& m2)
-{
-  if (!m1->has_tag(View_change_ack_tag, sizeof(View_change_ack_rep)))
-  {
-    return false;
-  }
-
-  m2 = (View_change_ack*)m1;
-  m2->trim();
-  return true;
-}

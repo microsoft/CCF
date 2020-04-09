@@ -67,11 +67,6 @@ public:
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 
-  static bool convert(Message* m1, Commit*& m2);
-  // Effects: If "m1" has the right size and tag of a "Commit",
-  // casts "m1" to a "Commit" pointer, returns the pointer in
-  // "m2" and returns true. Otherwise, it returns false.
-
   static bool convert(char* m1, unsigned max_len, Commit& m2);
   // Requires: convert can safely read up to "max_len" bytes starting
   // at "m1".

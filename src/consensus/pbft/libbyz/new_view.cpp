@@ -108,15 +108,3 @@ bool New_view::pre_verify()
 
   return true;
 }
-
-bool New_view::convert(Message* m1, New_view*& m2)
-{
-  if (!m1->has_tag(New_view_tag, sizeof(New_view_rep)))
-  {
-    return false;
-  }
-
-  m1->trim();
-  m2 = (New_view*)m1;
-  return true;
-}
