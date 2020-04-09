@@ -36,8 +36,12 @@
 //  good because it means the public recovery can be recovered itself but it
 //  means the members are actually served new shares.
 //
-//
-//
+// Also:
+//  - LedgerSecrets class is awful. Using a std::list for the secret should be
+//  much better.
+//  - See if we can remove the promotion of the secrets altogether. Instead, the
+//  first secret is added at the right version straight away.
+//  - General cleanup.
 
 namespace ccf
 {
