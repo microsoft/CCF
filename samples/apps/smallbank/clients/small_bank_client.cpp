@@ -96,7 +96,8 @@ private:
         case TransactionTypes::TransactSavings:
         {
           TransactionSerializer ts(
-            to_string(rand_range(options.total_accounts)), rand_range<int>(-50, 50));
+            to_string(rand_range(options.total_accounts)),
+            rand_range<int>(-50, 50));
           fb = ts.get_detached_buffer();
         }
         break;
@@ -108,7 +109,8 @@ private:
           {
             dest_account += 1;
           }
-          AmalgamateSerializer as(to_string(src_account), to_string(dest_account));
+          AmalgamateSerializer as(
+            to_string(src_account), to_string(dest_account));
           fb = as.get_detached_buffer();
         }
         break;
@@ -124,7 +126,8 @@ private:
         case TransactionTypes::DepositChecking:
         {
           TransactionSerializer ts(
-            to_string(rand_range(options.total_accounts)), (rand_range<int>(50) + 1));
+            to_string(rand_range(options.total_accounts)),
+            (rand_range<int>(50) + 1));
           fb = ts.get_detached_buffer();
         }
         break;

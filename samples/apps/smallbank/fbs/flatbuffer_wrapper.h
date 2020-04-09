@@ -63,9 +63,11 @@ private:
   flatbuffers::Offset<Amalgamate> amalgamate;
 
 public:
-  AmalgamateSerializer(const std::string& name_src, const std::string& name_dest)
+  AmalgamateSerializer(
+    const std::string& name_src, const std::string& name_dest)
   {
-    amalgamate = CreateAmalgamate(builder, builder.CreateString(name_src), builder.CreateString(name_dest));
+    amalgamate = CreateAmalgamate(
+      builder, builder.CreateString(name_src), builder.CreateString(name_dest));
     builder.Finish(amalgamate);
   }
 };
