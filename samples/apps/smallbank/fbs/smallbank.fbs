@@ -13,8 +13,8 @@ root_type Accounts;
 
 table Amalgamate
 {
-    name_src:uint;
-    name_dest:uint;
+    name_src:uint64;
+    name_dest:uint64;
 }
 
 root_type Amalgamate;
