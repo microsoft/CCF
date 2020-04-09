@@ -24,7 +24,8 @@ namespace ccfapp
     static constexpr auto SMALL_BANKING_WRITE_CHECK = "SmallBank_write_check";
   };
 
-  static constexpr auto expected = http::headervalues::contenttype::TEXT;
+  static constexpr auto expected =
+    http::headervalues::contenttype::OCTET_STREAM;
 
   struct SmallBankTables
   {
@@ -80,7 +81,13 @@ namespace ccfapp
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       args.rpc_ctx->set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        http::headers::CONTENT_TYPE,
+        http::headervalues::contenttype::OCTET_STREAM);
+    }
+
+    void set_no_content_status(RequestArgs& args)
+    {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
     }
 
   public:
@@ -93,12 +100,6 @@ namespace ccfapp
 
       auto create = [this](RequestArgs& args) {
         // Create an account with a balance from thin air.
-        if (headers_unmatched(args))
-        {
-          set_unmatched_header_status(args);
-          return;
-        }
-
         BankDeserializer bd(args.rpc_ctx->get_request_body().data());
         auto name = to_string(bd.name());
         auto acc_id = bd.id();
@@ -140,17 +141,11 @@ namespace ccfapp
 
         checking_view->put(acc_id, checking_amt);
 
-        set_ok_status(args);
+        set_no_content_status(args);
       };
 
       auto create_batch = [this](RequestArgs& args) {
         // Create N accounts with identical balances from thin air.
-        if (headers_unmatched(args))
-        {
-          set_unmatched_header_status(args);
-          return;
-        }
-
         // Create an account with a balance from thin air.
         AccountsDeserializer ad(args.rpc_ctx->get_request_body().data());
         auto from = ad.from();
@@ -203,17 +198,11 @@ namespace ccfapp
           checking_view->put(acc_id, checking_amt);
         }
 
-        set_ok_status(args);
+        set_no_content_status(args);
       };
 
       auto balance = [this](RequestArgs& args) {
         // Check the combined balance of an account
-        if (headers_unmatched(args))
-        {
-          set_unmatched_header_status(args);
-          return;
-        }
-
         BankDeserializer bd(args.rpc_ctx->get_request_body().data());
         auto name = to_string(bd.name());
         auto account_view = args.tx.get_view(tables.accounts);
@@ -257,12 +246,6 @@ namespace ccfapp
 
       auto transact_savings = [this](RequestArgs& args) {
         // Add or remove money to the savings account
-        if (headers_unmatched(args))
-        {
-          set_unmatched_header_status(args);
-          return;
-        }
-
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
         auto name = to_string(td.name());
         auto value = td.value();
@@ -303,17 +286,11 @@ namespace ccfapp
         }
 
         savings_view->put(account_r.value(), value + savings_r.value());
-        set_ok_status(args);
+        set_no_content_status(args);
       };
 
       auto deposit_checking = [this](RequestArgs& args) {
         // Desposit money into the checking account out of thin air
-        if (headers_unmatched(args))
-        {
-          set_unmatched_header_status(args);
-          return;
-        }
-
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
         auto name = to_string(td.name());
         int64_t value = td.value();
@@ -351,17 +328,11 @@ namespace ccfapp
           return;
         }
         checking_view->put(account_r.value(), value + checking_r.value());
-        set_ok_status(args);
+        set_no_content_status(args);
       };
 
       auto amalgamate = [this](RequestArgs& args) {
         // Move the contents of one users account to another users account
-        if (headers_unmatched(args))
-        {
-          set_unmatched_header_status(args);
-          return;
-        }
-
         AmalgamateDeserializer ad(args.rpc_ctx->get_request_body().data());
         auto name_1 = to_string(ad.name_src());
         auto name_2 = to_string(ad.name_dest());
@@ -429,17 +400,11 @@ namespace ccfapp
         checking_2_view->put(
           account_2_r.value(), checking_2_r.value() + sum_account_1);
 
-        set_ok_status(args);
+        set_no_content_status(args);
       };
 
       auto writeCheck = [this](RequestArgs& args) {
         // Write a check, if not enough funds then also charge an extra 1 money
-        if (headers_unmatched(args))
-        {
-          set_unmatched_header_status(args);
-          return;
-        }
-
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
         auto name = to_string(td.name());
         uint32_t amount = td.value();
@@ -480,7 +445,7 @@ namespace ccfapp
           ++amount;
         }
         checking_view->put(account_r.value(), account_value - amount);
-        set_ok_status(args);
+        set_no_content_status(args);
       };
 
       install(Procs::SMALL_BANKING_CREATE, create, HandlerRegistry::Write);

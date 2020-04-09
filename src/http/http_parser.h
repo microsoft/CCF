@@ -77,6 +77,11 @@ namespace http
     s.resize(dst - s.data());
   }
 
+  static bool status_ok(http_status status)
+  {
+    return status >= 200 && status < 300;
+  }
+
   struct SimpleRequestProcessor : public http::RequestProcessor
   {
   public:

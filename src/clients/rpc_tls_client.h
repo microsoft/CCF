@@ -109,7 +109,7 @@ public:
   Response call(const std::string& method, const CBuffer params)
   {
     return call_raw(
-      gen_request(method, params, http::headervalues::contenttype::TEXT)
+      gen_request(method, params, http::headervalues::contenttype::OCTET_STREAM)
         .encoded);
   }
 
@@ -119,7 +119,7 @@ public:
     {
       return nullptr;
     }
-    else if (resp.status == HTTP_STATUS_OK)
+    else if (http::status_ok(resp.status))
     {
       const auto& content_type = resp.headers.find(http::headers::CONTENT_TYPE);
       return jsonrpc::unpack(resp.body, jsonrpc::Pack::MsgPack);

@@ -90,12 +90,12 @@ namespace http
     {
       if (b != nullptr)
       {
-        body = b->data();
-        body_size = b->size();
+        set_body(b->data(), b->size());
       }
-
-      headers[headers::CONTENT_LENGTH] =
-        fmt::format("{}", get_content_length());
+      else
+      {
+        set_body(nullptr, 0);
+      }
     }
 
     void set_body(const uint8_t* b, size_t s)

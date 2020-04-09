@@ -326,7 +326,7 @@ namespace client
     {
       const PreparedTx tx{
         rpc_connection->gen_request(
-          method, params, http::headervalues::contenttype::TEXT),
+          method, params, http::headervalues::contenttype::OCTET_STREAM),
         method,
         expects_commit};
 
