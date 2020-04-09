@@ -19,16 +19,23 @@ def cli_args(add=lambda x: None, accept_unknown=False):
         help="List of hostnames[,pub_hostnames:ports]. If empty, two nodes are spawned locally",
         action="append",
     )
-    parser.add_argument(
+    client_args_group = parser.add_mutually_exclusive_group()
+    client_args_group.add_argument(
         "-cn",
         "--client-nodes",
         help="List of hostnames for spawning client(s). If empty, one client is spawned locally",
         action="append",
     )
+    client_args_group.add_argument(
+        "--one-client-per-backup",
+        help="If set, allocates one (local) client per backup",
+        action="store_true",
+    )
     parser.add_argument(
         "-nlc",
         "--num-localhost-clients",
-        help="The number of localhost clients. This argument is cumulative with the client-nodes argument",
+        help="The number of localhost clients. \
+        This argument is cumulative with the client-nodes and one-client-per-backup and arguments",
     )
     parser.add_argument(
         "--send-tx-to",
