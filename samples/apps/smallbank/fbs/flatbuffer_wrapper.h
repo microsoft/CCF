@@ -180,3 +180,32 @@ public:
     return root->savings_amt();
   }
 };
+
+class BalanceSerializer : public FlatbufferSerializer
+{
+private:
+  flatbuffers::Offset<Balance> balance;
+
+public:
+  BalanceSerializer(const int64_t b)
+  {
+    balance = CreateBalance(builder, b);
+    builder.Finish(balance);
+  }
+};
+
+class BalanceDeserializer
+{
+private:
+  const Balance* root;
+
+public:
+  BalanceDeserializer(const uint8_t* data) :
+    root(flatbuffers::GetRoot<Balance>(data))
+  {}
+
+  int64_t balance()
+  {
+    return root->balance();
+  }
+};

@@ -52,12 +52,12 @@ private:
 
     for (auto i = 0ul; i < options.total_accounts; i++)
     {
-      BankSerializer fbs(i);
-      const auto response = conn->call("SmallBank_balance", fbs.get_buffer());
+      BankSerializer bs(i);
+      const auto response = conn->call("SmallBank_balance", bs.get_buffer());
 
       check_response(response);
-      const auto result = conn->unpack_body(response);
-      accs.push_back({{"account", i}, {"balance", result}});
+      BalanceDeserializer bd(response.body.data());
+      accs.push_back({{"account", i}, {"balance", bd.balance()}});
     }
 
     LOG_INFO_FMT("Accounts:\n{}", accs.dump(4));
@@ -70,9 +70,9 @@ private:
 
     auto connection = get_connection();
     LOG_INFO_FMT("Creating accounts from {} to {}", from, to);
-    AccountsSerializer acc(from, to, 1000, 1000);
+    AccountsSerializer as(from, to, 1000, 1000);
     const auto response =
-      connection->call("SmallBank_create_batch", acc.get_buffer());
+      connection->call("SmallBank_create_batch", as.get_buffer());
     check_response(response);
 
     return response;
@@ -233,18 +233,18 @@ private:
         throw std::runtime_error(expected_type_msg(entry));
       }
 
-      BankSerializer fbs(account_it->get<size_t>());
-      const auto response = conn->call("SmallBank_balance", fbs.get_buffer());
-      const auto response_body = conn->unpack_body(response);
+      BankSerializer bs(account_it->get<size_t>());
+      const auto response = conn->call("SmallBank_balance", bs.get_buffer());
 
       if (response.status != HTTP_STATUS_OK)
       {
         throw std::runtime_error(fmt::format(
-          "Error in verification response: {}", response_body.dump(2)));
+          "Error in verification response: {}", conn->get_error(response)));
       }
 
+      BalanceDeserializer bd(response.body.data());
       auto expected_balance = balance_it->get<int64_t>();
-      auto actual_balance = response_body.get<int64_t>();
+      auto actual_balance = bd.balance();
       if (expected_balance != actual_balance)
       {
         throw std::runtime_error(

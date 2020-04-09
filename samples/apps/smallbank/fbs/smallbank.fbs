@@ -37,3 +37,10 @@ table Transaction
 }
 
 root_type Transaction;
+
+table Balance
+{
+    balance:int64;
+}
+
+root_type Balance;

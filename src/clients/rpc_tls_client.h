@@ -134,6 +134,11 @@ public:
     }
   }
 
+  std::string get_error(const Response& resp)
+  {
+    return std::string(resp.body.begin(), resp.body.end());
+  }
+
   Response read_response()
   {
     last_response = std::nullopt;

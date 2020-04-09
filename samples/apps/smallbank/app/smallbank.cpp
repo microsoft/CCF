@@ -249,8 +249,10 @@ namespace ccfapp
         auto result = checking_r.value() + savings_r.value();
 
         set_ok_status(args);
-        nlohmann::json r(result);
-        args.rpc_ctx->set_response_body(r.dump());
+        BalanceSerializer bs(result);
+        auto buff = bs.get_buffer();
+        args.rpc_ctx->set_response_body(
+          std::vector<uint8_t>(buff.p, buff.p + buff.n));
       };
 
       auto transact_savings = [this](RequestArgs& args) {
