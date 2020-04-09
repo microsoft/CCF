@@ -119,7 +119,7 @@ public:
     {
       return nullptr;
     }
-    else if (http::status_ok(resp.status))
+    else if (http::status_success(resp.status))
     {
       const auto& content_type = resp.headers.find(http::headers::CONTENT_TYPE);
       return jsonrpc::unpack(resp.body, jsonrpc::Pack::MsgPack);

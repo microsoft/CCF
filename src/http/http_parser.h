@@ -77,7 +77,7 @@ namespace http
     s.resize(dst - s.data());
   }
 
-  static bool status_ok(http_status status)
+  static bool status_success(http_status status)
   {
     return status >= 200 && status < 300;
   }

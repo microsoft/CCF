@@ -150,7 +150,7 @@ private:
 
   bool check_response(const RpcTlsClient::Response& r) override
   {
-    if (!http::status_ok(r.status))
+    if (!http::status_success(r.status))
     {
       const std::string error_msg(r.body.begin(), r.body.end());
       if (
@@ -236,7 +236,7 @@ private:
       BankSerializer bs(to_string(account_it->get<size_t>()));
       const auto response = conn->call("SmallBank_balance", bs.get_buffer());
 
-      if (!http::status_ok(response.status))
+      if (!http::status_success(response.status))
       {
         throw std::runtime_error(fmt::format(
           "Error in verification response: {}", conn->get_error(response)));
