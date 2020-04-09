@@ -90,8 +90,7 @@ namespace ccfapp
           return;
         }
         // Create an account with a balance from thin air.
-        auto body = args.rpc_ctx->get_request_body().data();
-        BankDeserializer fbd(body);
+        BankDeserializer fbd(args.rpc_ctx->get_request_body().data());
         auto name = to_string(fbd.name());
         auto acc_id = fbd.id();
         int64_t checking_amt = fbd.checking_amt();
@@ -142,8 +141,7 @@ namespace ccfapp
           return;
         }
         // Create an account with a balance from thin air.
-        auto body = args.rpc_ctx->get_request_body().data();
-        AccountsDeserializer fbd(body);
+        AccountsDeserializer fbd(args.rpc_ctx->get_request_body().data());
         auto from = fbd.from();
         auto to = fbd.to();
         auto checking_amt = fbd.checking_amt();
@@ -204,9 +202,9 @@ namespace ccfapp
         }
 
         BankDeserializer fbd(args.rpc_ctx->get_request_body().data());
-        auto name = fbd.name();
+        auto name = to_string(fbd.name());
         auto account_view = args.tx.get_view(tables.accounts);
-        auto account_r = account_view->get(std::to_string(name));
+        auto account_r = account_view->get(name);
 
         if (!account_r.has_value())
         {
