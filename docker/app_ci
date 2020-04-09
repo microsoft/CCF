@@ -1,0 +1,11 @@
+FROM ccfciteam/ccf-ci-18.04-oe-8fe3697:latest
+
+RUN git clone https://github.com/microsoft/CCF.git
+RUN cd CCF \
+    && mkdir build \
+    && cd build \
+    && cmake -GNinja .. \
+    && ninja \
+    && ninja install \
+    && cd ../.. \
+    && rm -rf CCF
