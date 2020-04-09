@@ -37,7 +37,7 @@ public:
   // Effects: Creates a new ClientProxy object
 
   using ReplyCallback = std::function<bool(
-    C* owner, T caller_rid, int status, uint8_t* reply, size_t len)>;
+    C* owner, T caller_rid, int status, std::vector<uint8_t>& data)>;
 
   bool send_request(
     T caller_rid,
@@ -315,12 +315,7 @@ template <class T, class C>
 void ClientProxy<T, C>::send_reply(
   std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
 {
-  msg->data.cb(
-    msg->data.owner,
-    msg->data.caller_rid,
-    0,
-    msg->data.data.data(),
-    msg->data.data.size());
+  msg->data.cb(msg->data.owner, msg->data.caller_rid, 0, msg->data.data);
 }
 
 template <class T, class C>
