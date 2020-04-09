@@ -20,13 +20,13 @@ add_dependencies(small_bank_client flatbuffers)
 add_ccf_app(
   smallbank
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/smallbank.cpp
-  INCLUDE_DIRS ${CCF_GENERATED_DIR} ${CMAKE_CURRENT_LIST_DIR}/fbs
+  INCLUDE_DIRS ${CCF_GENERATED_DIR} ${CMAKE_CURRENT_LIST_DIR}/fbs DEPS
+               flatbuffers
 )
 sign_app_library(
   smallbank.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
   ${CCF_DIR}/src/apps/sample_key.pem
 )
-add_dependencies(smallbank flatbuffers)
 
 function(get_verification_file iterations output_var)
   math(EXPR thousand_iterations "${iterations} / 1000")

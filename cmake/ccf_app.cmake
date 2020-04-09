@@ -109,9 +109,8 @@ function(add_ccf_app name)
 
   cmake_parse_arguments(
     PARSE_ARGV 1 PARSED_ARGS "" ""
-    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL"
+    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;DEPS"
   )
-
   add_custom_target(${name} ALL)
 
   if("sgx" IN_LIST COMPILE_TARGETS)
@@ -137,6 +136,9 @@ function(add_ccf_app name)
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     add_dependencies(${name} ${enc_name})
+    if(PARSED_ARGS_DEPS)
+      add_dependencies(${enc_name} ${PARSED_ARGS_DEPS})
+    endif()
   endif()
 
   if("virtual" IN_LIST COMPILE_TARGETS)
@@ -160,5 +162,8 @@ function(add_ccf_app name)
     add_san(${virt_name})
 
     add_dependencies(${name} ${virt_name})
+    if(PARSED_ARGS_DEPS)
+      add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
+    endif()
   endif()
 endfunction()
