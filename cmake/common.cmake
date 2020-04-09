@@ -272,6 +272,7 @@ target_link_libraries(
   scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
                                http_parser.host
 )
+install(TARGETS scenario_perf_client DESTINATION bin)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
