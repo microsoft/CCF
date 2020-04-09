@@ -381,8 +381,18 @@ namespace client
 
       const auto global_commit_response =
         wait_for_global_commit(trigger_signature(connection));
-      const auto commit_ids = timing::parse_commit_ids(global_commit_response);
-      auto timing_results = end_timing(commit_ids.global);
+      size_t last_commit = 0;
+      if (!options.no_wait)
+      {
+        const auto commit_ids =
+          timing::parse_commit_ids(global_commit_response);
+        last_commit = commit_ids.global;
+      }
+      else
+      {
+        last_commit = last_response_commit.index;
+      }
+      auto timing_results = end_timing(last_commit);
       LOG_INFO_FMT("Timing ended");
       return timing_results;
     }
@@ -632,12 +642,7 @@ namespace client
     RpcTlsClient::Response wait_for_global_commit(
       const timing::CommitPoint& target)
     {
-      if (!options.no_wait)
-      {
-        return response_times.wait_for_global_commit(target);
-      }
-
-      return {};
+      return response_times.wait_for_global_commit(target);
     }
 
     RpcTlsClient::Response wait_for_global_commit(
