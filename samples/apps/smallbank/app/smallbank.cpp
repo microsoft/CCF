@@ -24,6 +24,8 @@ namespace ccfapp
     static constexpr auto SMALL_BANKING_WRITE_CHECK = "SmallBank_write_check";
   };
 
+  static constexpr auto expected = http::headervalues::contenttype::TEXT;
+
   struct SmallBankTables
   {
     Store::Map<std::string, uint64_t>& accounts;
@@ -45,20 +47,26 @@ namespace ccfapp
     bool headers_unmatched(RequestArgs& args)
     {
       // Check the combined balance of an account
-      const auto expected = http::headervalues::contenttype::TEXT;
       const auto actual =
         args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
           .value_or("");
       if (expected != actual)
       {
-        args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
-        args.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-        args.rpc_ctx->set_response_body(fmt::format(
-          "Expected content-type '{}'. Got '{}'.", expected, actual));
         return true;
       }
       return false;
+    }
+
+    void set_unmatched_header_status(RequestArgs& args)
+    {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
+      args.rpc_ctx->set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+      args.rpc_ctx->set_response_body(fmt::format(
+        "Expected content-type '{}'. Got '{}'.",
+        expected,
+        args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
+          .value_or("")));
     }
 
     void set_error_status(RequestArgs& args, int status, std::string&& message)
@@ -85,16 +93,18 @@ namespace ccfapp
       UserHandlerRegistry::init_handlers(store);
 
       auto create = [this](RequestArgs& args) {
+        // Create an account with a balance from thin air.
         if (headers_unmatched(args))
         {
+          set_unmatched_header_status(args);
           return;
         }
-        // Create an account with a balance from thin air.
-        BankDeserializer fbd(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(fbd.name());
-        auto acc_id = fbd.id();
-        int64_t checking_amt = fbd.checking_amt();
-        int64_t savings_amt = fbd.savings_amt();
+
+        BankDeserializer bd(args.rpc_ctx->get_request_body().data());
+        auto name = to_string(bd.name());
+        auto acc_id = bd.id();
+        int64_t checking_amt = bd.checking_amt();
+        int64_t savings_amt = bd.savings_amt();
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);
 
@@ -138,14 +148,16 @@ namespace ccfapp
         // Create N accounts with identical balances from thin air.
         if (headers_unmatched(args))
         {
+          set_unmatched_header_status(args);
           return;
         }
+
         // Create an account with a balance from thin air.
-        AccountsDeserializer fbd(args.rpc_ctx->get_request_body().data());
-        auto from = fbd.from();
-        auto to = fbd.to();
-        auto checking_amt = fbd.checking_amt();
-        auto savings_amt = fbd.savings_amt();
+        AccountsDeserializer ad(args.rpc_ctx->get_request_body().data());
+        auto from = ad.from();
+        auto to = ad.to();
+        auto checking_amt = ad.checking_amt();
+        auto savings_amt = ad.savings_amt();
 
         auto account_view = args.tx.get_view(tables.accounts);
         auto savings_view = args.tx.get_view(tables.savings);
@@ -198,11 +210,12 @@ namespace ccfapp
       auto balance = [this](RequestArgs& args) {
         if (headers_unmatched(args))
         {
+          set_unmatched_header_status(args);
           return;
         }
 
-        BankDeserializer fbd(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(fbd.name());
+        BankDeserializer bd(args.rpc_ctx->get_request_body().data());
+        auto name = to_string(bd.name());
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);
 
@@ -244,13 +257,13 @@ namespace ccfapp
         // Add or remove money to the savings account
         if (headers_unmatched(args))
         {
+          set_unmatched_header_status(args);
           return;
         }
 
-        TransactionDeserializer fbd(args.rpc_ctx->get_request_body().data());
-
-        auto name = to_string(fbd.name());
-        auto value = fbd.value();
+        TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
+        auto name = to_string(td.name());
+        auto value = td.value();
 
         if (name.empty())
         {
@@ -295,11 +308,13 @@ namespace ccfapp
         // Desposit money into the checking account out of thin air
         if (headers_unmatched(args))
         {
+          set_unmatched_header_status(args);
           return;
         }
-        TransactionDeserializer fbd(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(fbd.name());
-        int64_t value = fbd.value();
+
+        TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
+        auto name = to_string(td.name());
+        int64_t value = td.value();
 
         if (name.empty())
         {
@@ -341,13 +356,13 @@ namespace ccfapp
         // Move the contents of one users account to another users account
         if (headers_unmatched(args))
         {
+          set_unmatched_header_status(args);
           return;
         }
-        AmalgamateDeserializer fbd(args.rpc_ctx->get_request_body().data());
 
-        auto name_1 = to_string(fbd.name_src());
-        auto name_2 = to_string(fbd.name_dest());
-        ;
+        AmalgamateDeserializer ad(args.rpc_ctx->get_request_body().data());
+        auto name_1 = to_string(ad.name_src());
+        auto name_2 = to_string(ad.name_dest());
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_1_r = account_view->get(name_1);
 
@@ -419,11 +434,13 @@ namespace ccfapp
         // Write a check, if not enough funds then also charge an extra 1 money
         if (headers_unmatched(args))
         {
+          set_unmatched_header_status(args);
           return;
         }
-        TransactionDeserializer fbd(args.rpc_ctx->get_request_body().data());
-        auto name = to_string(fbd.name());
-        uint32_t amount = fbd.value();
+
+        TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
+        auto name = to_string(td.name());
+        uint32_t amount = td.value();
 
         auto account_view = args.tx.get_view(tables.accounts);
         auto account_r = account_view->get(name);
