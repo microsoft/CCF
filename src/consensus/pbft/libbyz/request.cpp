@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <strings.h>
 
-#define SIGN_ALL_RW_REQUESTS
+//#define SIGN_ALL_RW_REQUESTS
 
 // extra & 1 = read only
 // extra & 2 = signed
