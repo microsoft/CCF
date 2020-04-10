@@ -226,11 +226,6 @@ bool ClientProxy<T, C>::send_request(
   memcpy(command_buffer, command, len);
 
   req->authenticate(len, is_read_only);
-  /*
-  LOG_INFO << "OOOOOOOOOO - 5" << std::endl;
-  req->trim();
-  LOG_INFO << "OOOOOOOOOO - 5 - end" << std::endl;
-  */
 
   auto req_clone = req->clone();
 
