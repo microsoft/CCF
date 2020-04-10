@@ -11,7 +11,6 @@ endif()
 
 set(PBFT_SRC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/global_state.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/client.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/replica.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/commit.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/message.cpp

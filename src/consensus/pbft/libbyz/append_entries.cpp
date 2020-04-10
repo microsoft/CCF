@@ -21,18 +21,6 @@ bool Append_entries::verify()
   return true;
 }
 
-bool Append_entries::convert(Message* m1, Append_entries*& m2)
-{
-  if (!m1->has_tag(Append_entries_tag, sizeof(Append_entries_rep)))
-  {
-    return false;
-  }
-
-  m1->trim();
-  m2 = (Append_entries*)m1;
-  return true;
-}
-
 Append_entries_rep& Append_entries::rep() const
 {
   PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");

@@ -140,14 +140,3 @@ bool Meta_data::verify()
 
   return true;
 }
-
-bool Meta_data::convert(Message* m1, Meta_data*& m2)
-{
-  if (!m1->has_tag(Meta_data_tag, sizeof(Meta_data_rep)))
-  {
-    return false;
-  }
-  m1->trim();
-  m2 = (Meta_data*)m1;
-  return true;
-}

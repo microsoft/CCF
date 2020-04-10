@@ -171,19 +171,6 @@ bool Request::pre_verify()
   return false;
 }
 
-bool Request::convert(Message* m1, Request*& m2)
-{
-  if (!m1->has_tag(Request_tag, sizeof(Request_rep)))
-  {
-    LOG_INFO << "convert request false" << std::endl;
-    return false;
-  }
-
-  m2 = (Request*)m1;
-  m2->trim();
-  return true;
-}
-
 bool Request::convert(char* m1, unsigned max_len, Request& m2)
 {
   if (!Message::convert(m1, max_len, Request_tag, sizeof(Request_rep), m2))

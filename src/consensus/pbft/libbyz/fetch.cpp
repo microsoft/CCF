@@ -69,15 +69,3 @@ bool Fetch::pre_verify()
 
   return true;
 }
-
-bool Fetch::convert(Message* m1, Fetch*& m2)
-{
-  if (!m1->has_tag(Fetch_tag, sizeof(Fetch_rep)))
-  {
-    return false;
-  }
-
-  m2 = (Fetch*)m1;
-  m2->trim();
-  return true;
-}

@@ -73,9 +73,6 @@ public:
 
   virtual ~Replica();
   // Effects: Kill server replica and deallocate associated storage.
-  void recv();
-  // Effects: Loops receiving messages and calling the appropriate
-  // handlers.
 
   // Methods to register service specific functions. The expected
   // specifications for the functions are defined below.
@@ -626,15 +623,7 @@ inline bool Replica::has_complete_new_view() const
 template <class T>
 inline void Replica::gen_handle(Message* m)
 {
-  T* n;
-  if (T::convert(m, n))
-  {
-    handle(n);
-  }
-  else
-  {
-    delete m;
-  }
+  handle(reinterpret_cast<T*>(m));
 }
 
 inline Big_req_table* Replica::big_reqs()

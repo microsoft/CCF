@@ -66,14 +66,3 @@ bool Checkpoint::pre_verify()
 
   return true;
 }
-
-bool Checkpoint::convert(Message* m1, Checkpoint*& m2)
-{
-  if (!m1->has_tag(Checkpoint_tag, sizeof(Checkpoint_rep)))
-  {
-    return false;
-  }
-  m1->trim();
-  m2 = (Checkpoint*)m1;
-  return true;
-}

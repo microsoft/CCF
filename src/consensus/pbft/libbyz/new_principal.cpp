@@ -43,18 +43,6 @@ bool New_principal::verify()
   return sender == nullptr;
 }
 
-bool New_principal::convert(Message* m1, New_principal*& m2)
-{
-  if (!m1->has_tag(New_principal_tag, sizeof(New_principal_rep)))
-  {
-    return false;
-  }
-
-  m1->trim();
-  m2 = (New_principal*)m1;
-  return true;
-}
-
 New_principal_rep& New_principal::rep() const
 {
   PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");

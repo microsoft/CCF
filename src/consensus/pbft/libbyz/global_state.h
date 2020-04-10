@@ -8,7 +8,6 @@
 
 class Node;
 class Replica;
-class Client;
 
 namespace pbft
 {
@@ -17,13 +16,10 @@ namespace pbft
   private:
     // Pointer to global replica object.
     static Replica* replica;
-    static Client* client;
 
   public:
     static void set_replica(std::unique_ptr<Replica> r);
-    static void set_client(std::unique_ptr<Client> c);
     static Replica& get_replica();
-    static Client& get_client();
     static Node& get_node();
   };
 }

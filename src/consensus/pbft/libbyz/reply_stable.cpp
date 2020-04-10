@@ -67,14 +67,3 @@ bool Reply_stable::verify()
 
   return false;
 }
-
-bool Reply_stable::convert(Message* m1, Reply_stable*& m2)
-{
-  if (!m1->has_tag(Reply_stable_tag, sizeof(Reply_stable_rep)))
-  {
-    return false;
-  }
-  m1->trim();
-  m2 = (Reply_stable*)m1;
-  return true;
-}

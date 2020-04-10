@@ -54,8 +54,6 @@ public:
 
   bool verify();
 
-  static bool convert(Message* m1, New_principal*& m2);
-
 private:
   New_principal_rep& rep() const;
 };

@@ -48,11 +48,6 @@ public:
   char* data() const;
   // Effects: Returns a pointer to the data page.
 
-  static bool convert(Message* m1, Data*& m2);
-  // Effects: If "m1" has the right size and tag, casts "m1" to a
-  // "Data" pointer, returns the pointer in "m2" and returns
-  // true. Otherwise, it returns false.
-
 private:
   Data_rep& rep() const;
   // Effects: Casts contents to a Data_rep&
