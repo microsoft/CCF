@@ -157,7 +157,6 @@ Request* create_and_store_request(
   Request* request = (Request*)req.opaque;
   request->request_id() = index;
   request->authenticate(req.size, false);
-  // request->trim();
 
   ccf::Store::Tx tx;
   auto req_view = tx.get_view(req_map);
