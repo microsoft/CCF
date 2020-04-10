@@ -24,8 +24,6 @@ public:
 
   bool verify();
 
-  static bool convert(Message* m1, Append_entries*& m2);
-
 private:
   Append_entries_rep& rep() const;
 };

@@ -125,12 +125,6 @@ public:
   bool pre_verify();
   // Effects: Performs preliminary verification checks
 
-  static bool convert(Message* m1, New_view*& m2);
-  // Effects: If "m1" has the right size and tag of a "New_view",
-  // casts "m1" to a "New_view" pointer, returns the pointer in
-  // "m2" and returns true. Otherwise, it returns false.
-  // If the conversion is successful it trims excess allocation.
-
 private:
   New_view_rep& rep() const;
   // Effects: Casts "msg" to a New_view_rep&

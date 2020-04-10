@@ -60,18 +60,6 @@ bool Commit::pre_verify()
   return true;
 }
 
-bool Commit::convert(Message* m1, Commit*& m2)
-{
-  if (!m1->has_tag(Commit_tag, sizeof(Commit_rep)))
-  {
-    return false;
-  }
-
-  m2 = (Commit*)m1;
-  m2->trim();
-  return true;
-}
-
 bool Commit::convert(char* m1, unsigned max_len, Commit& m2)
 {
   // First check if we can use m1 to create a Commit.

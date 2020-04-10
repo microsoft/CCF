@@ -127,18 +127,6 @@ bool Status::pre_verify()
   return true;
 }
 
-bool Status::convert(Message* m1, Status*& m2)
-{
-  if (!m1->has_tag(Status_tag, sizeof(Status_rep)))
-  {
-    return false;
-  }
-
-  m1->trim();
-  m2 = (Status*)m1;
-  return true;
-}
-
 void Status::mark_vcs(int i)
 {
   PBFT_ASSERT(!has_nv_info(), "Invalid state");

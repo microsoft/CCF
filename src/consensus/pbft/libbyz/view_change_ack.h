@@ -68,11 +68,6 @@ public:
   bool verify();
   // Effects: Verifies if the message is signed by the replica rep().id.
 
-  static bool convert(Message* m1, View_change_ack*& m2);
-  // Effects: If "m1" has the right size and tag, casts "m1" to a
-  // "View_change_ack" pointer, returns the pointer in "m2" and returns
-  // true. Otherwise, it returns false.
-
 private:
   View_change_ack_rep& rep() const;
   // Effects: Casts contents to a View_change_ack_rep&
