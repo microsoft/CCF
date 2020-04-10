@@ -30,12 +30,8 @@ Rep_info::Rep_info(char* m, int sz) : reps(Max_num_replicas)
 char* Rep_info::new_reply(
   int pid, Request_id rid, Seqno n, uint64_t nonce, uint32_t message_size)
 {
-  //message_size += sizeof(Reply_rep) + MAC_size;
   auto r = std::make_unique<Reply>(0, rid, n, nonce, 0, message_size);
   PBFT_ASSERT(r != nullptr, "Out of memory");
-  //r->set_size(message_size);
-  //LOG_INFO_FMT("OOOOOOOOOO - 3 - message_size:{}", message_size);
-  //r->trim();
   char* ret = r->contents() + sizeof(Reply_rep);
   {
     std::lock_guard<SpinLock> mguard(lock);
