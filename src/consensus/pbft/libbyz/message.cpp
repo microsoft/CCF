@@ -82,7 +82,6 @@ Message::~Message()
 
 void Message::trim()
 {
-  LOG_INFO_FMT("TTTTTTT max_size:{}, msg->size:{}, tag:{}", max_size, msg->size, msg->tag);
   if (max_size > 0 && allocator->realloc((char**)(&msg), max_size, msg->size))
   {
     max_size = msg->size;

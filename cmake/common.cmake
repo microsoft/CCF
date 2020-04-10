@@ -223,8 +223,10 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   install(TARGETS cchost DESTINATION bin)
 endif()
 
+option(USE_SNMALLOC "should snmalloc be used" ON)
+
 if("virtual" IN_LIST COMPILE_TARGETS)
-  if(SAN)
+  if(SAN OR NOT USE_SNMALLOC)
     set(SNMALLOC_LIB)
     set(SNMALLOC_CPP)
   else()
