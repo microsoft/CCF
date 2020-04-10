@@ -313,6 +313,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
   pbft::GlobalState::get_node().send(vc.get(), Node::All_replicas);
 
   // Record that this message was sent.
+  LOG_INFO << "OOOOOOOOOO - 1" << std::endl;
   vc->trim();
   last_vcs[id] = std::move(vc);
   last_views[id] = v;

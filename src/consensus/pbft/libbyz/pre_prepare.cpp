@@ -167,7 +167,8 @@ Pre_prepare::Pre_prepare(
   rep().batch_digest_signature.fill(0);
   rep().padding.fill(0);
 #endif
-  trim();
+  //LOG_INFO << "OOOOOOOOOO - 4" << std::endl;
+  //trim();
 }
 
 Pre_prepare* Pre_prepare::clone(View v) const

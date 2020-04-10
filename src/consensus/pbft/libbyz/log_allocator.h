@@ -34,7 +34,7 @@
 #  define DEBUG_ALLOC 1
 #endif
 
-//#define USE_STD_MALLOC
+#define USE_STD_MALLOC
 
 class Log_allocator
 {
@@ -63,9 +63,9 @@ public:
   // Requires: "p" was allocated by this allocator and has size "sz"
   // Effects: Frees "p".
 
-  bool realloc(char* p, int osz, int nsz);
+  bool realloc(char** p, int osz, int nsz);
   // Requires: "p" was allocated by this allocator and has size "osz".
-  // Effects: Returns true, if it suceeds in converting "p" into a block
+  // Effects: Returns true, if it succeeds in converting "p" into a block
   // of size "nsz" (allocating more space or freeing it as necessary).
   // Otherwise, returns false and does nothing.
 
@@ -244,15 +244,17 @@ inline void Log_allocator::free(char* p, int sz)
   }
 }
 
-inline bool Log_allocator::realloc(char* p, int osz, int nsz)
+inline bool Log_allocator::realloc(char** p, int osz, int nsz)
 {
   if (use_malloc)
   {
-    return false;
+    *p = (char*)::realloc(*p,nsz);
+    //throw std::logic_error("no");
+    return true;
   }
   SpinLock::SpinLockRAII lock(spin_lock);
-  Chunk* pc = (Chunk*)((uintptr_t)p & ~((uintptr_t)chunk_size - 1));
-  if (pc == cur && p + osz == cur->next)
+  Chunk* pc = (Chunk*)((uintptr_t)(*p) & ~((uintptr_t)chunk_size - 1));
+  if (pc == cur && (*p) + osz == cur->next)
   {
     int diff = nsz - osz;
     if (cur->next + diff < cur->max)

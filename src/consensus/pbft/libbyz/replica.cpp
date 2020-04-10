@@ -3067,7 +3067,7 @@ void Replica::handle(Reply_stable* m)
 
       LOG_INFO << "sending recovery request" << std::endl;
       // Send recovery request.
-      rr = new Request(new_rid(), -1);
+      rr = new Request(new_rid(), -1, sizeof(recovery_point));
 
       int len;
       char* buf = rr->store_command(len);

@@ -103,6 +103,7 @@ void Reply::authenticate(Principal* p, int act_len, bool tentative)
   auth_src_offset = 0;
   auth_dst_offset = old_size;
 
+  LOG_INFO << "OOOOOOOOOO - 2" << std::endl;
   trim();
 }
 
