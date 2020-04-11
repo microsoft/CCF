@@ -87,7 +87,7 @@ namespace ccf
         recorded_shares[member_id] = {{}, share_raw};
         member_id++;
       }
-      g.add_key_share_info({{}, recorded_shares});
+      g.add_key_share_info({{}, {}, recorded_shares});
 
       return true;
     }

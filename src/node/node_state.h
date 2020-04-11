@@ -604,8 +604,7 @@ namespace ccf
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
       // TODO: Better API for creating first Ledger Secrets after recovery
-      network.ledger_secrets->set_secret(
-        last_index + 1, LedgerSecret(true).master);
+      network.ledger_secrets->set_secret(last_index + 1, LedgerSecret().master);
       setup_encryptor(network.consensus_type);
 
       // share_manager.update_key_share_info(tx);
@@ -1007,8 +1006,7 @@ namespace ccf
       // once the local hook on the secrets table has been triggered. The
       // corresponding new ledger secret is only sealed on global hook.
 
-      auto new_ledger_secret = LedgerSecret(true);
-      broadcast_ledger_secret(tx, new_ledger_secret);
+      broadcast_ledger_secret(tx, LedgerSecret());
 
       return true;
     }

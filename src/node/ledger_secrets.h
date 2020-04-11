@@ -33,12 +33,9 @@ namespace ccf
       return master == other.master;
     }
 
-    LedgerSecret(bool random = false)
+    LedgerSecret()
     {
-      if (random)
-      {
-        master = tls::create_entropy()->random(MASTER_KEY_SIZE);
-      }
+      master = tls::create_entropy()->random(MASTER_KEY_SIZE);
     }
 
     LedgerSecret(const std::vector<uint8_t>& master_) : master(master_) {}
@@ -112,7 +109,7 @@ namespace ccf
       seal(seal_)
     {
       // Generate fresh ledger encryption key
-      add_secret(1, LedgerSecret(true), force_seal);
+      add_secret(1, LedgerSecret(), force_seal);
     }
 
     // Called when a node joins the network and get given the ledger secrets
@@ -226,7 +223,8 @@ namespace ccf
       return restored_versions;
     }
 
-    // // Called during recovery to promote temporary secret created at startup (v
+    // // Called during recovery to promote temporary secret created at startup
+    // (v
     // // = 1) to new current secret at the latest signed version
     // bool promote_secret(kv::Version old_v, kv::Version new_v)
     // {
@@ -258,9 +256,10 @@ namespace ccf
     //   secrets_map.emplace(new_v, std::move(search->second));
     //   secrets_map.erase(old_v);
 
-    //   // TODO: We know that we only promote secrets when there's only one there
-    //   // so we only update the latest version (penultimate is still No::Version)
-    //   if (new_v >= old_v)
+    //   // TODO: We know that we only promote secrets when there's only one
+    //   there
+    //   // so we only update the latest version (penultimate is still
+    //   No::Version) if (new_v >= old_v)
     //   {
     //     latest_version = new_v;
     //   }
@@ -268,8 +267,8 @@ namespace ccf
     //   LOG_FAIL_FMT("Penultimate: {}", penultimate_version);
     //   LOG_FAIL_FMT("Latest: {}", latest_version);
 
-    //   LOG_TRACE_FMT("Ledger secret at {} is now valid from {}", old_v, new_v);
-    //   return true;
+    //   LOG_TRACE_FMT("Ledger secret at {} is now valid from {}", old_v,
+    //   new_v); return true;
     // }
 
     void seal_secret(kv::Version v)
