@@ -106,7 +106,8 @@ namespace ccf
         throw std::logic_error(fmt::format(
           "TxEncryptor: encrypt version is not valid: {}", version));
       }
-      LOG_FAIL_FMT("Retrieved key at {} for version {}", search->version, version);
+      LOG_FAIL_FMT(
+        "Retrieved key at {} for version {}", search->version, version);
 
       return search->key;
     }

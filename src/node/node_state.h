@@ -336,11 +336,18 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
           // Create temporary network secrets but do not seal yet
-          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
+          // network.ledger_secrets = std::make_shared<LedgerSecrets>(seal,
+          // false);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.encryption_key = std::make_unique<NetworkEncryptionKey>(
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
           setup_history();
+
+          // It is necessary to give an encryptor to the store for it to
+          // deserialise the public domain when recovering the public ledger.
+          // Once the public recovery is complete, the existing encryptor is
+          // replaced with a new one, with fresh ledger secrets.
           setup_encryptor(network.consensus_type);
 
           setup_recovery_hook();
@@ -588,15 +595,18 @@ namespace ccf
       auto last_sig = g.get_last_signature();
       kv::Version last_index = 0;
       if (last_sig.has_value())
+      {
         last_index = last_sig->index;
+      }
 
       network.tables->rollback(last_index);
       ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
-      // TODO: Promote should probably go altogether. The ledger secrets can be
-      // created here instead?
-      network.ledger_secrets->promote_secret(1, last_index + 1);
+      // TODO: Better API for creating first Ledger Secrets after recovery
+      network.ledger_secrets->set_secret(
+        last_index + 1, LedgerSecret(true).master);
+      setup_encryptor(network.consensus_type);
 
       // share_manager.update_key_share_info(tx);
 
