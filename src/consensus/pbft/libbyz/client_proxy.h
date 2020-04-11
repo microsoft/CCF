@@ -208,7 +208,7 @@ bool ClientProxy<T, C>::send_request(
   }
 
   Request_id rid = request_id_generator.next_rid();
-  auto req = std::make_unique<Request>(rid, -1);
+  auto req = std::make_unique<Request>(rid, -1, len);
   if (req == nullptr)
   {
     current_outstanding.fetch_sub(1);
@@ -226,7 +226,6 @@ bool ClientProxy<T, C>::send_request(
   memcpy(command_buffer, command, len);
 
   req->authenticate(len, is_read_only);
-  req->trim();
 
   auto req_clone = req->clone();
 

@@ -10,22 +10,13 @@
 
 #include <stdlib.h>
 
-#ifdef INSIDE_ENCLAVE
-std::unique_ptr<Log_allocator> thread_allocator = nullptr;
-#else
-thread_local std::unique_ptr<Log_allocator> thread_allocator = nullptr;
-#endif
 Message::Message(unsigned sz) : msg(0), max_size(ALIGNED_SIZE(sz))
 {
   if (sz != 0)
   {
-    if (thread_allocator == nullptr)
-    {
-      thread_allocator = std::make_unique<Log_allocator>();
-    }
-    allocator = thread_allocator.get();
+    should_delete = true;
 
-    msg = (Message_rep*)allocator->malloc(max_size);
+    msg = (Message_rep*)malloc(max_size);
     if (msg != nullptr)
     {
       PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
@@ -42,14 +33,10 @@ Message::Message(unsigned sz) : msg(0), max_size(ALIGNED_SIZE(sz))
 
 Message::Message(int t, unsigned sz)
 {
-  if (thread_allocator == nullptr)
-  {
-    thread_allocator = std::make_unique<Log_allocator>();
-  }
-  allocator = thread_allocator.get();
+  should_delete = true;
 
   max_size = ALIGNED_SIZE(sz);
-  msg = (Message_rep*)allocator->malloc(max_size);
+  msg = (Message_rep*)malloc(max_size);
   PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   msg->tag = t;
   msg->size = max_size;
@@ -69,20 +56,20 @@ Message::Message(Message_rep* cont)
   auth_len = 0;
   auth_dst_offset = 0;
   next = nullptr;
-  allocator = nullptr;
+  should_delete = false;
 }
 
 Message::~Message()
 {
   if (max_size > 0 && msg != nullptr)
   {
-    allocator->free((char*)msg, max_size);
+    free(msg);
   }
 }
 
 void Message::trim()
 {
-  if (max_size > 0 && allocator->realloc((char*)msg, max_size, msg->size))
+  if (max_size > 0)
   {
     max_size = msg->size;
   }
