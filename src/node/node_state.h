@@ -286,7 +286,12 @@ namespace ccf
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
+
+          // Create initial secrets and seal immediately
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
+          network.ledger_secrets->set_secret(1, LedgerSecret().master);
+          network.ledger_secrets->seal_all();
+
           network.encryption_key = std::make_unique<NetworkEncryptionKey>(
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
@@ -335,10 +340,7 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          // Create temporary network secrets but do not seal yet
-          // network.ledger_secrets = std::make_shared<LedgerSecrets>(seal,
-          // false);
-          network.ledger_secrets = std::make_shared<LedgerSecrets>();
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
           network.encryption_key = std::make_unique<NetworkEncryptionKey>(
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 

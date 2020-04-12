@@ -104,13 +104,7 @@ namespace ccf
 
     LedgerSecrets() = default;
 
-    // Called on startup to generate fresh ledger secret
-    LedgerSecrets(std::shared_ptr<AbstractSeal> seal_, bool force_seal = true) :
-      seal(seal_)
-    {
-      // Generate fresh ledger encryption key
-      add_secret(1, LedgerSecret(), force_seal);
-    }
+    LedgerSecrets(std::shared_ptr<AbstractSeal> seal_) : seal(seal_) {}
 
     // Called when a node joins the network and get given the ledger secrets
     // since the beginning of time
