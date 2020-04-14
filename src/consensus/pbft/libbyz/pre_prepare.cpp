@@ -463,18 +463,6 @@ bool Pre_prepare::ValidProofs_iter::get(int& id, bool& is_valid_proof)
   return true;
 }
 
-bool Pre_prepare::convert(Message* m1, Pre_prepare*& m2)
-{
-  if (!m1->has_tag(Pre_prepare_tag, sizeof(Pre_prepare_rep)))
-  {
-    return false;
-  }
-
-  m2 = (Pre_prepare*)m1;
-  m2->trim();
-  return true;
-}
-
 void Pre_prepare::set_merkle_roots_and_ctx(
   const std::array<uint8_t, MERKLE_ROOT_SIZE>& replicated_state_merkle_root,
   int64_t ctx)

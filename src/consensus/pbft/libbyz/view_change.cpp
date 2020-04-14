@@ -281,15 +281,3 @@ bool View_change::verify_digest()
 #endif
   return verified;
 }
-
-bool View_change::convert(Message* m1, View_change*& m2)
-{
-  if (!m1->has_tag(View_change_tag, sizeof(View_change_rep)))
-  {
-    return false;
-  }
-
-  m1->trim();
-  m2 = (View_change*)m1;
-  return true;
-}

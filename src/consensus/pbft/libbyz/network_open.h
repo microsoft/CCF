@@ -27,8 +27,6 @@ public:
 
   int id() const;
 
-  static bool convert(Message* m1, Network_open*& m2);
-
 private:
   Network_open_rep& rep() const;
 };

@@ -85,11 +85,6 @@ public:
 
   void send(Message* m, Principal* p);
 
-  Message* recv();
-  // Effects: Blocks waiting to receive a message (while calling
-  // handlers on expired timers) then returns message.  The caller is
-  // responsible for deallocating the message.
-
   bool has_messages(long to);
   // Effects: Call handles on expired timers and returns true if
   // there are messages pending. It blocks to usecs waiting for messages

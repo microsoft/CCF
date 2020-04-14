@@ -11,7 +11,6 @@ endif()
 
 set(PBFT_SRC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/global_state.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/client.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/replica.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/commit.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/message.cpp
@@ -26,7 +25,6 @@ set(PBFT_SRC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/status.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/prepared_cert.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/principal.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/log_allocator.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/meta_data.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/data.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/fetch.cpp

@@ -5,7 +5,6 @@
 
 #include "libbyz.h"
 
-#include "client.h"
 #include "global_state.h"
 #include "receive_message_base.h"
 #include "replica.h"
@@ -20,20 +19,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-int Byz_init_client(const NodeInfo& node_info, INetwork* network)
-{
-  pbft::GlobalState::set_client(std::make_unique<Client>(node_info, network));
-  return 0;
-}
-
-void Byz_reset_client()
-{
-  pbft::GlobalState::get_client().reset();
-}
-
 int Byz_alloc_request(Byz_req* req, int size)
 {
-  Request* request = new Request((Request_id)0, -1);
+  Request* request = new Request((Request_id)0, -1, size);
   if (request == 0)
   {
     return -1;
@@ -44,49 +32,6 @@ int Byz_alloc_request(Byz_req* req, int size)
   req->size = len;
   req->opaque = (void*)request;
   return 0;
-}
-
-int Byz_send_request(Byz_req* req, bool ro)
-{
-  Request* request = (Request*)req->opaque;
-  request->request_id() = pbft::GlobalState::get_client().get_rid();
-  request->authenticate(req->size, ro);
-
-  bool retval = pbft::GlobalState::get_client().send_request(request);
-  return (retval) ? 0 : -1;
-}
-
-int Byz_recv_reply(Byz_rep* rep)
-{
-  Reply* reply = pbft::GlobalState::get_client().recv_reply();
-  if (reply == NULL)
-  {
-    return -1;
-  }
-  rep->contents = reply->reply(rep->size);
-  rep->opaque = reply;
-  return 0;
-}
-
-int Byz_invoke(Byz_req* req, Byz_rep* rep, bool ro)
-{
-  if (Byz_send_request(req, ro) == -1)
-  {
-    return -1;
-  }
-  return Byz_recv_reply(rep);
-}
-
-void Byz_free_request(Byz_req* req)
-{
-  Request* request = (Request*)req->opaque;
-  delete request;
-}
-
-void Byz_free_reply(Byz_rep* rep)
-{
-  Reply* reply = (Reply*)rep->opaque;
-  delete reply;
 }
 
 void Byz_configure_principals()
@@ -145,11 +90,6 @@ int Byz_init_replica(
 void Byz_modify(void* mem, int size)
 {
   pbft::GlobalState::get_replica().modify(mem, size);
-}
-
-void Byz_replica_run()
-{
-  pbft::GlobalState::get_replica().recv();
 }
 
 void Byz_reset_stats()

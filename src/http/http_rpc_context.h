@@ -57,6 +57,8 @@ namespace http
 
     bool canonicalised = false;
 
+    std::optional<bool> explicit_apply_writes = std::nullopt;
+
     void canonicalise()
     {
       if (!canonicalised)
@@ -261,9 +263,20 @@ namespace http
       response_headers[std::string(name)] = value;
     }
 
-    virtual bool response_is_error() const override
+    virtual void set_apply_writes(bool apply) override
     {
-      return response_status != HTTP_STATUS_OK;
+      explicit_apply_writes = apply;
+    }
+
+    virtual bool should_apply_writes() const override
+    {
+      if (explicit_apply_writes.has_value())
+      {
+        return explicit_apply_writes.value();
+      }
+
+      // Default is to apply any 2xx status
+      return status_success(response_status);
     }
 
     virtual std::vector<uint8_t> serialise_response() const override

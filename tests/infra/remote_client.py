@@ -17,7 +17,7 @@ DBG = os.getenv("DBG", "cgdb")
 
 class CCFRemoteClient(object):
     DEPS = []
-    LINES_RESULT_FROM_END = 6
+    LINES_RESULT_FROM_END = 8
 
     def __init__(
         self,
@@ -64,7 +64,7 @@ class CCFRemoteClient(object):
         ] + client_command_args
 
         self.remote = remote_class(
-            name, host, [self.BIN], self.DEPS, cmd, workspace, label, self.common_dir
+            name, host, [self.BIN], self.DEPS, cmd, workspace, label, self.common_dir,
         )
 
     def setup(self):
@@ -100,5 +100,5 @@ class CCFRemoteClient(object):
     def check_done(self):
         return self.remote.check_done()
 
-    def print_and_upload_result(self, name, metrics):
-        self.remote.print_and_upload_result(name, metrics, self.LINES_RESULT_FROM_END)
+    def get_result(self):
+        return self.remote.get_result(self.LINES_RESULT_FROM_END)

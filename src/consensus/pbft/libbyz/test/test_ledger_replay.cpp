@@ -117,7 +117,6 @@ void create_replica(
   pbft::PrePreparesMap& pbft_pre_prepares_map,
   ccf::Signatures& signatures)
 {
-  Log_allocator::should_use_malloc(true);
   auto node_info = get_node_info();
 
   pbft::GlobalState::set_replica(std::make_unique<Replica>(
@@ -158,7 +157,6 @@ Request* create_and_store_request(
   Request* request = (Request*)req.opaque;
   request->request_id() = index;
   request->authenticate(req.size, false);
-  request->trim();
 
   ccf::Store::Tx tx;
   auto req_view = tx.get_view(req_map);

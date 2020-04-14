@@ -14,13 +14,21 @@
 #include <stdlib.h>
 #include <strings.h>
 
-#define SIGN_ALL_RW_REQUESTS
+//#define SIGN_ALL_RW_REQUESTS
 
 // extra & 1 = read only
 // extra & 2 = signed
 
-Request::Request(Request_id r, short rr) :
-  Message(Request_tag, Max_message_size)
+Request::Request(Request_id r, short rr, uint32_t msg_size) :
+  Message(
+    Request_tag,
+    msg_size + sizeof(Request_rep)
+#ifdef SIGN_ALL_RW_REQUESTS
+      + pbft_max_signature_size
+#else
+      + pbft::GlobalState::get_node().auth_size()
+#endif
+  )
 {
   rep().cid = pbft::GlobalState::get_node().id();
   rep().rid = r;
@@ -39,8 +47,11 @@ Request* Request::clone() const
 
 char* Request::store_command(int& max_len)
 {
-  auto max_auth_size = std::max<size_t>(
-    pbft_max_signature_size, pbft::GlobalState::get_node().auth_size());
+#ifdef SIGN_ALL_RW_REQUESTS
+  auto max_auth_size = pbft_max_signature_size;
+#else
+  auto max_auth_size = pbft::GlobalState::get_node().auth_size();
+#endif
   max_len = msize() - sizeof(Request_rep) - max_auth_size;
   return contents() + sizeof(Request_rep);
 }
@@ -169,19 +180,6 @@ bool Request::pre_verify()
     }
   }
   return false;
-}
-
-bool Request::convert(Message* m1, Request*& m2)
-{
-  if (!m1->has_tag(Request_tag, sizeof(Request_rep)))
-  {
-    LOG_INFO << "convert request false" << std::endl;
-    return false;
-  }
-
-  m2 = (Request*)m1;
-  m2->trim();
-  return true;
 }
 
 bool Request::convert(char* m1, unsigned max_len, Request& m2)

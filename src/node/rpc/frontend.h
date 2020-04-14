@@ -347,7 +347,7 @@ namespace ccf
         {
           func(args);
 
-          if (ctx->response_is_error())
+          if (!ctx->should_apply_writes())
           {
             return ctx->serialise_response();
           }
@@ -623,7 +623,15 @@ namespace ccf
     {
       update_consensus();
 
-      handlers.tick(elapsed, tx_count);
+      kv::Consensus::Statistics stats;
+
+      if (consensus != nullptr)
+      {
+        stats = consensus->get_statistics();
+      }
+      stats.tx_count = tx_count;
+
+      handlers.tick(elapsed, stats);
 
       // reset tx_counter for next tick interval
       tx_count = 0;

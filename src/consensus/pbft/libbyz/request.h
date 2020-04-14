@@ -48,7 +48,7 @@ public:
   // Request() : Message() {}
   Request(uint32_t msg_size = 0) : Message(msg_size) {}
 
-  Request(Request_id r, short rr);
+  Request(Request_id r, short rr, uint32_t msg_size);
   // Effects: Creates a new signed Request message with an empty
   // command and no authentication. The methods store_command and
   // authenticate should be used to finish message construction.
@@ -125,11 +125,6 @@ public:
 
   bool pre_verify();
   // Effects: Performs preliminary verification checks
-
-  static bool convert(Message* m1, Request*& m2);
-  // Effects: If "m1" has the right size and tag of a "Request",
-  // casts "m1" to a "Request" pointer, returns the pointer in
-  // "m2" and returns true. Otherwise, it returns false.
 
   static bool convert(char* m1, unsigned max_len, Request& m2);
   // Requires: convert can safely read up to "max_len" bytes starting

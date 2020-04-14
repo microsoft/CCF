@@ -503,12 +503,10 @@ namespace pbft
                       void* owner,
                       kv::TxHistory::RequestID caller_rid,
                       int status,
-                      uint8_t* reply,
-                      size_t len) {
+                      std::vector<uint8_t>& data) {
         LOG_DEBUG_FMT("PBFT reply callback for {}", caller_rid);
 
-        return rpcsessions->reply_async(
-          std::get<1>(caller_rid), {reply, reply + len});
+        return rpcsessions->reply_async(std::get<1>(caller_rid), data);
       };
 
       LOG_DEBUG_FMT("PBFT sending request {}", args.rid);
@@ -584,7 +582,18 @@ namespace pbft
 
     void periodic(std::chrono::milliseconds elapsed) override
     {
+      client_proxy->periodic(elapsed);
       ITimer::handle_timeouts(elapsed);
+    }
+
+    void periodic_end() override
+    {
+      client_proxy->reset_statistics();
+    }
+
+    Statistics get_statistics() override
+    {
+      return client_proxy->get_statistics();
     }
 
     template <typename T>

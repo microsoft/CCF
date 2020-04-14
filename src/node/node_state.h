@@ -934,6 +934,16 @@ namespace ccf
       consensus->periodic(elapsed);
     }
 
+    void tick_end()
+    {
+      if (
+        !sm.check(State::partOfNetwork) &&
+        !sm.check(State::partOfPublicNetwork))
+        return;
+
+      consensus->periodic_end();
+    }
+
     void node_msg(const std::vector<uint8_t>& data)
     {
       // Only process messages once part of network

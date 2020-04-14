@@ -47,14 +47,3 @@ bool Query_stable::verify()
 
   return true;
 }
-
-bool Query_stable::convert(Message* m1, Query_stable*& m2)
-{
-  if (!m1->has_tag(Query_stable_tag, sizeof(Query_stable_rep)))
-  {
-    return false;
-  }
-  m1->trim();
-  m2 = (Query_stable*)m1;
-  return true;
-}

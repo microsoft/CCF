@@ -50,13 +50,6 @@ public:
   bool verify();
   // Effects: Verifies if the message is signed by the replica rep().id.
 
-  static bool convert(Message* m1, Query_stable*& m2);
-  // Effects: If "m1" has the right size and tag of a "Query_stable",
-  // casts "m1" to a "Query_stable" pointer, returns the pointer in
-  // "m2" and returns true. Otherwise, it returns false. Convert also
-  // trims any surplus storage from "m1" when the conversion is
-  // successfull.
-
 private:
   Query_stable_rep& rep() const;
   // Effects: Casts "msg" to a Query_stable_rep&

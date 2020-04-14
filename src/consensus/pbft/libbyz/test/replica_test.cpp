@@ -340,8 +340,6 @@ int main(int argc, char** argv)
     logger::Init(std::to_string(port).c_str());
   }
 
-  Log_allocator::should_use_malloc(true);
-
   GeneralInfo general_info = files::slurp_json(config_file);
 
   general_info.max_requests_between_signatures = 10;

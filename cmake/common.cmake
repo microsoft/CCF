@@ -3,22 +3,6 @@
 
 set(CMAKE_MODULE_PATH "${CCF_DIR}/cmake;${CMAKE_MODULE_PATH}")
 
-set(default_build_type "RelWithDebInfo")
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(
-    STATUS
-      "Setting build type to '${default_build_type}' as none was specified."
-  )
-  set(CMAKE_BUILD_TYPE
-      "${default_build_type}"
-      CACHE STRING "Choose the type of build." FORCE
-  )
-  set_property(
-    CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel"
-                                    "RelWithDebInfo"
-  )
-endif()
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
@@ -239,8 +223,10 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   install(TARGETS cchost DESTINATION bin)
 endif()
 
+option(USE_SNMALLOC "should snmalloc be used" ON)
+
 if("virtual" IN_LIST COMPILE_TARGETS)
-  if(SAN)
+  if(SAN OR NOT USE_SNMALLOC)
     set(SNMALLOC_LIB)
     set(SNMALLOC_CPP)
   else()
@@ -288,6 +274,7 @@ target_link_libraries(
   scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} secp256k1.host
                                http_parser.host
 )
+install(TARGETS scenario_perf_client DESTINATION bin)
 
 # Lua for host and enclave
 add_enclave_library_c(lua.enclave "${LUA_SOURCES}")
@@ -505,4 +492,16 @@ function(add_picobench name)
   use_client_mbedtls(${name})
 
   set_property(TEST ${name} PROPERTY LABELS benchmark)
+endfunction()
+
+# flatbuffer generator
+function(generate_flatbuffer path name)
+  add_custom_command(
+    OUTPUT ${CCF_GENERATED_DIR}/${name}_generated.h
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${path}/${name}.fbs
+    DEPENDS ${path}/${name}.fbs
+  )
+  install(FILES ${CCF_GENERATED_DIR}/${name}_generated.h
+          DESTINATION ${CCF_GENERATED_DIR}
+  )
 endfunction()

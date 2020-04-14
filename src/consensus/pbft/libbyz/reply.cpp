@@ -164,15 +164,3 @@ bool Reply::pre_verify()
 
   return true;
 }
-
-bool Reply::convert(Message* m1, Reply*& m2)
-{
-  if (!m1->has_tag(Reply_tag, sizeof(Reply_rep)))
-  {
-    return false;
-  }
-
-  m1->trim();
-  m2 = (Reply*)m1;
-  return true;
-}

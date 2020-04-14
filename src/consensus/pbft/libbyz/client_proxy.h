@@ -37,7 +37,7 @@ public:
   // Effects: Creates a new ClientProxy object
 
   using ReplyCallback = std::function<bool(
-    C* owner, T caller_rid, int status, uint8_t* reply, size_t len)>;
+    C* owner, T caller_rid, int status, std::vector<uint8_t>& data)>;
 
   bool send_request(
     T caller_rid,
@@ -50,6 +50,10 @@ public:
   // sends the request to the service, returns true, and later invokes the
   // callback cb with owner, caller_rid, and the reply to the command.
   // Otherwise, returns false.
+
+  void periodic(std::chrono::milliseconds elapsed);
+  kv::Consensus::Statistics get_statistics();
+  void reset_statistics();
 
   struct ExecuteRequestMsg
   {
@@ -75,6 +79,7 @@ private:
       ReplyCallback cb,
       C* owner,
       uint16_t reply_thread,
+      uint64_t start_time,
       std::unique_ptr<Request> req);
 
     T caller_rid;
@@ -86,12 +91,24 @@ private:
     Certificate<Reply> t_reps; // Certificate with tentative replies (size 2f+1)
     Certificate<Reply> c_reps; // Certificate with committed replies (size f+1)
     std::unique_ptr<Request> req;
+    uint64_t start_time;
 
     RequestContext* next;
     RequestContext* prev;
   };
   std::unordered_map<Request_id, std::unique_ptr<RequestContext>> out_reqs;
   std::atomic<uint64_t> current_outstanding = 0;
+  std::atomic<uint64_t> milliseconds_since_start = 0;
+  struct Statistics
+  {
+    std::atomic<uint32_t> time_spent = 0;
+    std::atomic<uint32_t> count_num_samples = 0;
+  };
+
+  Statistics current_statistics;
+  Statistics previous_statistics;
+  bool should_reset_statistics = true;
+
   static const int Max_outstanding = 10'000;
   SpinLock lock;
 
@@ -159,10 +176,12 @@ ClientProxy<T, C>::RequestContext::RequestContext(
   ReplyCallback cb,
   C* owner,
   uint16_t reply_thread,
+  uint64_t start_time,
   std::unique_ptr<Request> req) :
   caller_rid(caller_rid),
   f(replica.f()),
   reply_thread(reply_thread),
+  start_time(start_time),
   cb(cb),
   owner(owner),
   t_reps([this]() { return 2 * f + 1; }),
@@ -189,7 +208,7 @@ bool ClientProxy<T, C>::send_request(
   }
 
   Request_id rid = request_id_generator.next_rid();
-  auto req = std::make_unique<Request>(rid, -1);
+  auto req = std::make_unique<Request>(rid, -1, len);
   if (req == nullptr)
   {
     current_outstanding.fetch_sub(1);
@@ -207,7 +226,6 @@ bool ClientProxy<T, C>::send_request(
   memcpy(command_buffer, command, len);
 
   req->authenticate(len, is_read_only);
-  req->trim();
 
   auto req_clone = req->clone();
 
@@ -217,6 +235,7 @@ bool ClientProxy<T, C>::send_request(
     cb,
     owner,
     thread_ids[std::this_thread::get_id()],
+    milliseconds_since_start,
     std::move(req));
 
   {
@@ -295,12 +314,7 @@ template <class T, class C>
 void ClientProxy<T, C>::send_reply(
   std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
 {
-  msg->data.cb(
-    msg->data.owner,
-    msg->data.caller_rid,
-    0,
-    msg->data.data.data(),
-    msg->data.data.size());
+  msg->data.cb(msg->data.owner, msg->data.caller_rid, 0, msg->data.data);
 }
 
 template <class T, class C>
@@ -318,6 +332,9 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
     }
 
     ctx = it->second.get();
+    current_statistics.time_spent.fetch_add(
+      milliseconds_since_start - ctx->start_time);
+    current_statistics.count_num_samples++;
   }
 
   LOG_TRACE << "Received reply msg, request_id:" << reply->request_id()
@@ -512,4 +529,31 @@ void ClientProxy<T, C>::retransmit()
   }
 
   rtimer->restart();
+}
+
+template <class T, class C>
+void ClientProxy<T, C>::periodic(std::chrono::milliseconds elapsed)
+{
+  milliseconds_since_start.fetch_add(elapsed.count());
+}
+
+template <class T, class C>
+void ClientProxy<T, C>::reset_statistics()
+{
+  should_reset_statistics = true;
+}
+
+template <class T, class C>
+kv::Consensus::Statistics ClientProxy<T, C>::get_statistics()
+{
+  if (should_reset_statistics)
+  {
+    previous_statistics.time_spent = current_statistics.time_spent.exchange(0);
+    previous_statistics.count_num_samples =
+      current_statistics.count_num_samples.exchange(0);
+    should_reset_statistics = false;
+  }
+
+  return {
+    previous_statistics.time_spent, previous_statistics.count_num_samples, 0};
 }
