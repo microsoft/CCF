@@ -37,7 +37,6 @@ set(PBFT_SRC
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/view_info.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/nv_info.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/rep_info.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/rep_info_exactly_once.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/meta_data_d.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/query_stable.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/reply_stable.cpp

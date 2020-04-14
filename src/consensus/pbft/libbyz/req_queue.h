@@ -37,7 +37,7 @@ public:
   // Effects: If there is any element in the queue, removes the first
   // element in the queue and returns it. Otherwise, returns 0.
 
-  bool remove(int cid, Request_id rid);
+  bool remove(int cid, Request_id rid, int user_id);
   // Effects: If there are any requests from client "cid" with
   // timestamp less than or equal to "rid" removes those requests from
   // the queue. Otherwise, does nothing. In either case, it returns
@@ -85,7 +85,8 @@ private:
       return k.cid ^ k.rid;
     }
   };
-  std::unordered_map<Key, std::unique_ptr<RNode>, KeyHash> reqs;
+  std::unordered_map<Key, std::unique_ptr<RNode>, KeyHash>
+    reqs[enclave::ThreadMessaging::max_num_threads];
   mutable snmalloc::DLList<RNode>
     rnodes[enclave::ThreadMessaging::max_num_threads];
   mutable uint64_t count = 0;

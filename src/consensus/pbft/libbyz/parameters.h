@@ -44,6 +44,3 @@ static const size_t num_receivers_clients = 3;
 
 // use public key crypto to sign view-change and new-view messages
 #define USE_PKEY_VIEW_CHANGES
-
-// enforce exactly once semantics for request execution
-//#define ENFORCE_EXACTLY_ONCE
