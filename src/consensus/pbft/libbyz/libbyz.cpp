@@ -21,7 +21,7 @@
 
 int Byz_alloc_request(Byz_req* req, int size)
 {
-  Request* request = new Request((Request_id)0, -1);
+  Request* request = new Request((Request_id)0, -1, size);
   if (request == 0)
   {
     return -1;

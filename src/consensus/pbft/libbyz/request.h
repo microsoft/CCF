@@ -48,7 +48,7 @@ public:
   // Request() : Message() {}
   Request(uint32_t msg_size = 0) : Message(msg_size) {}
 
-  Request(Request_id r, short rr);
+  Request(Request_id r, short rr, uint32_t msg_size);
   // Effects: Creates a new signed Request message with an empty
   // command and no authentication. The methods store_command and
   // authenticate should be used to finish message construction.

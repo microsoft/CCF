@@ -18,19 +18,14 @@ extern std::map<std::thread::id, uint16_t> thread_ids;
 
 namespace enclave
 {
-  const uint64_t magic_const = 0xba5eball;
-  struct alignas(16) ThreadMsg
+  struct ThreadMsg
   {
     void (*cb)(std::unique_ptr<ThreadMsg>);
     std::atomic<ThreadMsg*> next = nullptr;
-    uint64_t magic = magic_const;
 
     ThreadMsg(void (*_cb)(std::unique_ptr<ThreadMsg>)) : cb(_cb) {}
 
-    virtual ~ThreadMsg()
-    {
-      assert(magic == magic_const);
-    }
+    virtual ~ThreadMsg() = default;
   };
 
   template <typename Payload>

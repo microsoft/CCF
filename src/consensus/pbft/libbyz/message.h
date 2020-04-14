@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "log_allocator.h"
 #include "message_tags.h"
 #include "pbft_assert.h"
 #include "types.h"
@@ -157,7 +156,7 @@ protected:
                 // or "-1" if this instance is not responsible for
                 // deallocating the storage in msg.
   // Invariant: max_size <= 0 || 0 < msg->size <= max_size
-  Log_allocator* allocator;
+  bool should_delete = false;
 
 public:
   Message* next;
