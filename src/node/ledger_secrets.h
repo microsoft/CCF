@@ -119,16 +119,6 @@ namespace ccf
       return secrets_map == other.secrets_map;
     }
 
-    void dump()
-    {
-      std::cout << "LS:";
-      for (auto const& s : secrets_map)
-      {
-        std::cout << s.first << " - ";
-      }
-      std::cout << std::endl;
-    }
-
     LedgerSecret get_latest()
     {
       LOG_FAIL_FMT("Returning latest ls at {}", latest_version);
@@ -216,54 +206,6 @@ namespace ccf
 
       return restored_versions;
     }
-
-    // // Called during recovery to promote temporary secret created at startup
-    // (v
-    // // = 1) to new current secret at the latest signed version
-    // bool promote_secret(kv::Version old_v, kv::Version new_v)
-    // {
-    //   if (old_v == new_v)
-    //   {
-    //     return true;
-    //   }
-
-    //   auto search = secrets_map.find(new_v);
-    //   if (search != secrets_map.end())
-    //   {
-    //     LOG_FAIL_FMT(
-    //       "Cannot promote ledger secret {} - secret at this version already "
-    //       "exists and would be overwritten",
-    //       new_v);
-    //     return false;
-    //   }
-
-    //   search = secrets_map.find(old_v);
-    //   if (search == secrets_map.end())
-    //   {
-    //     LOG_FAIL_FMT(
-    //       "Cannot promote ledger secret {} - secret does not exist from the "
-    //       "version",
-    //       old_v);
-    //     return false;
-    //   }
-
-    //   secrets_map.emplace(new_v, std::move(search->second));
-    //   secrets_map.erase(old_v);
-
-    //   // TODO: We know that we only promote secrets when there's only one
-    //   there
-    //   // so we only update the latest version (penultimate is still
-    //   No::Version) if (new_v >= old_v)
-    //   {
-    //     latest_version = new_v;
-    //   }
-
-    //   LOG_FAIL_FMT("Penultimate: {}", penultimate_version);
-    //   LOG_FAIL_FMT("Latest: {}", latest_version);
-
-    //   LOG_TRACE_FMT("Ledger secret at {} is now valid from {}", old_v,
-    //   new_v); return true;
-    // }
 
     void seal_secret(kv::Version v)
     {

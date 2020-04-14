@@ -27,15 +27,14 @@ namespace ccf
 
   struct LatestLedgerSecret
   {
-    // This is mostly kv::NoVersio, as the version at which the ledger secret is
-    // applicable from is derived from the hook. However, on recovery, after the
-    // public ledger has been recovered, new ledger secret are created to
-    // protect the integrity on the public-only transactions. The corresponding
-    // shares at only written at a later version, one the previous ledger
-    // secrets have been restored. This version indicates the end of the public
-    // recovery version.
+    // This is mostly kv::NoVersion, as the version at which the ledger secret
+    // is applicable from is derived from the local hook on recovery. However,
+    // on recovery, after the public ledger has been recovered, a new ledger
+    // secret is created to protect the integrity on the public-only
+    // transactions. The corresponding shares at only written at a later
+    // version, once the previous ledger secrets have been restored. This
+    // version indicates the end of the public recovery version.
     kv::Version version;
-
     std::vector<uint8_t> encrypted_data;
 
     MSGPACK_DEFINE(version, encrypted_data)
@@ -43,14 +42,17 @@ namespace ccf
 
   struct KeyShareInfo
   {
-    // TODO: This is the latest ledger secret encrypted with the ledger secret
-    // wrapping key
+    // Keeping track of the latest and penultimate ledger secret allows the
+    // value of this table to remain at a constant size through the lifetime of
+    // the service. On recovery, a local hook on this table allows the service
+    // to reconstruct the history of encrypted ledger secrets that can all be
+    // decrypted once the ledger secret wrapping key is re-assembled.
+
+    // Latest ledger secret wrapped with the ledger secret wrapping key
     LatestLedgerSecret encrypted_ledger_secret;
 
-    // TODO: This is the previous ledger secret encrypted with the latest ledger
-    // secret
-    std::vector<uint8_t>
-      encrypted_previous_ledger_secret; // TODO: Better name for this
+    // Previous ledger secret encrypted with the latest ledger secret
+    std::vector<uint8_t> encrypted_previous_ledger_secret;
 
     EncryptedSharesMap encrypted_shares;
 

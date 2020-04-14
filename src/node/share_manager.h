@@ -12,40 +12,11 @@
 #include "tls/25519.h"
 #include "tls/entropy.h"
 
-#include <nlohmann/json.hpp>
 #include <vector>
-
-// TODO: Brain dump before signing off for a week:
-//
-// It almost works (despite some improvements here and there).
-//
-// The last issue is as follows:
-// During recovery, when we have just read the public ledger, we create new LS
-// at the version at which we are from (say 20). However, the shares for these
-// ledger secrets do not get written to the ccf.shares table until the private
-// recovery is complete (say 30). When a 2nd recovery occurs, the new node state
-// hook expects that the ledger secrets written at 30 are valid from 30 but
-// they're not (they're actually valid from 20). The decryption of the private
-// ledger then fails at version 20 (using the wrong decryption key).
-//
-// Two options:
-//  - Write the key at which the ledger secret is available from in the
-//  ccf.shares table. If it's NoVersion, deduce it from the hook version.
-//  Otherwise, use that version.
-//  - Serve the new shares from the moment the public recovery is done. It's
-//  good because it means the public recovery can be recovered itself but it
-//  means the members are actually served new shares.
-//
-// Also:
-//  - LedgerSecrets class is awful. Using a std::list for the secret should be
-//  much better.
-//  - See if we can remove the promotion of the secrets altogether. Instead, the
-//  first secret is added at the right version straight away.
-//  - General cleanup.
 
 namespace ccf
 {
-  class LedgerSecretsWrappingKey
+  class LedgerSecretWrappingKey
   {
   private:
     static constexpr auto KZ_KEY_SIZE = crypto::GCM_SIZE_KEY;
@@ -53,12 +24,11 @@ namespace ccf
     bool has_wrapped = false;
 
   public:
-    LedgerSecretsWrappingKey() :
-      data(tls::create_entropy()->random(KZ_KEY_SIZE))
+    LedgerSecretWrappingKey() : data(tls::create_entropy()->random(KZ_KEY_SIZE))
     {}
 
     template <typename T>
-    LedgerSecretsWrappingKey(T&& split_secret) :
+    LedgerSecretWrappingKey(T&& split_secret) :
       data(
         std::make_move_iterator(split_secret.begin()),
         std::make_move_iterator(split_secret.begin() + split_secret.size()))
@@ -80,7 +50,6 @@ namespace ccf
           "Ledger Secret wrapping key has already wrapped once");
       }
 
-      // auto serialised_ls = nlohmann::json::to_msgpack(ledger_secrets);
       crypto::GcmCipher encrypted_ls(ledger_secret.master.size());
 
       crypto::KeyAesGcm(data).encrypt(
@@ -103,7 +72,7 @@ namespace ccf
       std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
       if (!crypto::KeyAesGcm(data).decrypt(
-            encrypted_ls.hdr.get_iv(), // iv is 0
+            encrypted_ls.hdr.get_iv(),
             encrypted_ls.hdr.tag,
             encrypted_ls.cipher,
             nullb,
@@ -135,22 +104,19 @@ namespace ccf
     {
       // TODO: Update this comment
       // First, generated a fresh ledger secrets wrapping key and wrap the
-      // ledger secrets with it. Then, split the ledger secrets wrapping key,
-      // allocating a new share for each active member. Finally, encrypt each
-      // share with the public key of each member and record it in the KV.
-      auto ls_wrapping_key = LedgerSecretsWrappingKey();
-      // TODO:
-      // 1. Wrap the latest ledger secret only
+      // latest ledger secret with it. Then, encrypt the penultimate ledger
+      // secret with the latest ledger secret. Then, split the ledger secrets
+      // wrapping key, allocating a new share for each active member. Finally,
+      // encrypt each share with the public key of each member and record it in
+      // the KV.
+      auto ls_wrapping_key = LedgerSecretWrappingKey();
       auto encrypted_ls =
         ls_wrapping_key.wrap(network.ledger_secrets->get_latest());
 
-      // 2. Encrypt the penultimate ledger secrets with the latest ledger
-      // secrets
       std::vector<uint8_t> encrypted_penultimate_secrets = {};
       auto penultimate_ledger_secret =
         network.ledger_secrets->get_penultimate();
 
-      network.ledger_secrets->dump();
       if (penultimate_ledger_secret.has_value())
       {
         LOG_FAIL_FMT(
@@ -175,14 +141,6 @@ namespace ccf
             encrypted_pls.hdr.tag);
 
         encrypted_penultimate_secrets = encrypted_pls.serialise();
-        LOG_FAIL_FMT(
-          "Size of encrypted penultimate secrets {}",
-          encrypted_penultimate_secrets.size());
-      }
-      else
-      {
-        // TODO: Delete
-        LOG_FAIL_FMT("No penultimate ledger secrets");
       }
 
       auto secret_to_split =
@@ -226,11 +184,11 @@ namespace ccf
       const std::vector<SecretSharing::Share>& shares,
       const std::list<RecoveryLedgerSecret>& encrypted_past_secrets)
     {
-      // TODO: Update this comment
-      // First, re-assemble the ledger secrets wrapping key from the given
-      // shares. Then, unwrap and restore the ledger secrets.
+      // First, re-assemble the ledger secret wrapping key from the given
+      // shares. Then, unwrap the latest ledger secret and use it to decrypt the
+      // penultimate ledger secret and so on.
       auto ls_wrapping_key =
-        LedgerSecretsWrappingKey(SecretSharing::combine(shares, shares.size()));
+        LedgerSecretWrappingKey(SecretSharing::combine(shares, shares.size()));
 
       auto shares_view = tx.get_view(network.shares);
       auto key_share_info = shares_view->get(0);
@@ -244,7 +202,6 @@ namespace ccf
 
       std::vector<kv::Version> restored_versions;
 
-      // Domino effect: decrypt all the ledger secrets so far
       auto decryption_key = restored_ls.master;
       for (auto i = encrypted_past_secrets.rbegin();
            i != encrypted_past_secrets.rend();
@@ -276,10 +233,7 @@ namespace ccf
           throw std::logic_error("Decryption of ledger secrets failed");
         }
 
-        // Note: Next version here
-        network.ledger_secrets->set_secret(
-          std::next(i)->v, decrypted_ls); // TODO: Will probably break latest
-                                          // version and penultimate!
+        network.ledger_secrets->set_secret(std::next(i)->v, decrypted_ls);
         restored_versions.push_back(std::next(i)->v);
         decryption_key = decrypted_ls;
       }
@@ -288,7 +242,6 @@ namespace ccf
         encrypted_past_secrets.back().v, restored_ls.master);
       restored_versions.push_back(encrypted_past_secrets.back().v);
 
-      network.ledger_secrets->dump();
       return restored_versions;
     }
   };

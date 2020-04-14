@@ -289,6 +289,8 @@ namespace ccf
 
           // Create initial secrets and seal immediately
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
+
+          // TODO: We need a better API for the ledger secrets
           network.ledger_secrets->set_secret(1, LedgerSecret().master);
           network.ledger_secrets->seal_all();
 
@@ -594,22 +596,19 @@ namespace ccf
       Store::Tx tx;
       GenesisGenerator g(network, tx);
 
-      auto last_sig = g.get_last_signature();
-      kv::Version last_index = 0;
-      if (last_sig.has_value())
-      {
-        last_index = last_sig->index;
-      }
-
-      network.tables->rollback(last_index);
-      ledger_truncate(last_index);
-      LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
+      network.tables->rollback(last_recovered_commit_idx);
+      ledger_truncate(last_recovered_commit_idx);
+      LOG_INFO_FMT(
+        "End of public ledger recovery - Truncating ledger to last signed "
+        "index: {}",
+        last_recovered_commit_idx);
 
       // TODO: Better API for creating first Ledger Secret after recovery
-      network.ledger_secrets->set_secret(last_index + 1, LedgerSecret().master);
+      network.ledger_secrets->set_secret(
+        last_recovered_commit_idx + 1, LedgerSecret().master);
       setup_encryptor(network.consensus_type);
 
-      g.create_service(network.identity->cert, last_index + 1);
+      g.create_service(network.identity->cert, last_recovered_commit_idx + 1);
 
       g.retire_active_nodes();
 
@@ -636,7 +635,9 @@ namespace ccf
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)
+      {
         h->set_node_id(self);
+      }
 
       setup_raft(true);
 
@@ -658,11 +659,11 @@ namespace ccf
 #endif
 
       if (g.finalize() != kv::CommitSuccess::OK)
+      {
         throw std::logic_error(
           "Could not commit transaction when starting recovered public "
           "network");
-
-      LOG_INFO_FMT("Restarted network");
+      }
 
       sm.advance(State::partOfPublicNetwork);
     }
@@ -737,6 +738,8 @@ namespace ccf
       {
         Store::Tx tx;
 
+        // Shares for the new ledger secret can only be written now, once the
+        // previous ledger secrets have been recovered
         share_manager.update_key_share_info(tx, last_recovered_commit_idx + 1);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
@@ -1466,30 +1469,21 @@ namespace ccf
       });
     }
 
-    // TODO: Disable these hooks once the recovery is finished
     void setup_recovery_hook()
     {
-      LOG_FAIL_FMT("Recovery Hooks setup!");
       network.shares.set_local_hook(
         [this](
           kv::Version version, const Shares::State& s, const Shares::Write& w) {
           if (is_reading_public_ledger())
           {
-            LOG_FAIL_FMT(
-              "Some shares read while recovering the public ledger. Version "
-              "{}. Size {}",
-              version,
-              w.size());
-
             for (auto& [k, v] : w)
             {
-              LOG_FAIL_FMT("One write on the ccf.shares table");
+              // If the version is not set (e.g. rekeying), use the version from
+              // the hook. Otherwise (e.g. recovery), use the version specified.
               auto version_ =
                 v.value.encrypted_ledger_secret.version == kv::NoVersion ?
                 version :
                 v.value.encrypted_ledger_secret.version;
-
-              LOG_FAIL_FMT("Actually, the version is {}", version_);
 
               recovery_secret_list.push_back(
                 {version_, v.value.encrypted_previous_ledger_secret});
