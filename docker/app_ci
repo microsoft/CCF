@@ -1,11 +1,16 @@
 FROM ccfciteam/ccf-ci-18.04-oe-8fe3697:latest
 
-RUN git clone https://github.com/microsoft/CCF.git
-RUN cd CCF \
+ARG VERSION=0.9.2
+
+RUN apt install wget \
+    && wget https://github.com/microsoft/CCF/archive/v$VERSION.tar.gz \
+    && tar xf v$VERSION.tar.gz \
+    && rm v$VERSION.tar.gz
+RUN cd CCF-$VERSION \
     && mkdir build \
     && cd build \
     && cmake -GNinja .. \
     && ninja \
     && ninja install \
     && cd ../.. \
-    && rm -rf CCF
+    && rm -rf CCF-$VERSION
