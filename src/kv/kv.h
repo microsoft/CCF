@@ -194,6 +194,14 @@ namespace kv
       local_hook = hook;
     }
 
+    /** Reset local transaction commit handler
+     */
+    void reset_local_hook()
+    {
+      std::lock_guard<SpinLock> guard(sl);
+      local_hook = nullptr;
+    }
+
     /** Set handler to be called on global transaction commit
      *
      * @param hook function to be called on global transaction commit
