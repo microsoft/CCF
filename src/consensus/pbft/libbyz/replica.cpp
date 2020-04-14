@@ -920,16 +920,18 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       self->requests_per_batch.insert(
         {self->next_pp_seqno, ctx->requests_in_batch});
 
-      if (self->ledger_writer)
-      {
-        self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
-      }
       if (pbft::GlobalState::get_node().f() > 0)
       {
         self->send(pp, All_replicas);
         pp->cleanup_after_send();
       }
-      else
+
+      if (self->ledger_writer)
+      {
+        self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+      }
+
+      if (pbft::GlobalState::get_node().f() == 0)
       {
         self->send_prepare(self->next_pp_seqno, info);
       }
@@ -1104,11 +1106,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
           {
             self->gov_req_track.update(pp->seqno());
           }
-
-          if (self->ledger_writer)
-          {
-            self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
-          }
         }
 
         Prepare* p = new Prepare(
@@ -1121,6 +1118,12 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         int send_node_id =
           (msg->send_only_to_self ? self->node_id : All_replicas);
         self->send(p, send_node_id);
+
+        if (self->ledger_writer && !self->is_primary())
+        {
+          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+        }
+
         Prepared_cert& pc = self->plog.fetch(msg->seqno);
         pc.add_mine(p);
         LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
