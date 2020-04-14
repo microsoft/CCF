@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.9.1 # CCF_VERSION < This is a search marker for CI version check
+  VERSION 0.9.2 # CCF_VERSION < This is a search marker for CI version check
   LANGUAGES C CXX
 )
 
