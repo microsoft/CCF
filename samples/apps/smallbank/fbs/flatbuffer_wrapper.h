@@ -21,6 +21,13 @@ public:
   {
     return {builder.GetBufferPointer(), builder.GetSize()};
   }
+
+  std::vector<uint8_t> get_data()
+  {
+    return std::vector<uint8_t>(
+      builder.GetBufferPointer(),
+      builder.GetBufferPointer() + builder.GetSize());
+  }
 };
 
 class TransactionSerializer : public FlatbufferSerializer
