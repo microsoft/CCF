@@ -9,15 +9,15 @@
 #include "pre_prepare.h"
 #include "request.h"
 
-Req_queue::Req_queue() : reqs(Max_num_replicas), nelems(0), nbytes(0) {}
+Req_queue::Req_queue() : nelems(0), nbytes(0) {}
 
 bool Req_queue::append(Request* r)
 {
   size_t cid = r->client_id();
   Request_id rid = r->request_id();
   int user_id = r->user_id();
-  auto it = reqs.find({cid, rid});
-  if (it == reqs.end())
+  auto it = reqs[user_id].find({cid, rid});
+  if (it == reqs[user_id].end())
   {
     nbytes += r->size();
     nelems++;
@@ -26,7 +26,7 @@ bool Req_queue::append(Request* r)
 
     rnodes[user_id].insert_back(rn.get());
 
-    reqs.insert({Key{cid, rid}, std::move(rn)});
+    reqs[user_id].insert({Key{cid, rid}, std::move(rn)});
     return true;
   }
 
@@ -40,9 +40,10 @@ bool Req_queue::is_in_rqueue(Request* r)
 {
   size_t cid = r->client_id();
   Request_id rid = r->request_id();
+  int user_id = r->user_id();
 
-  auto it = reqs.find({cid, rid});
-  if (it == reqs.end())
+  auto it = reqs[user_id].find({cid, rid});
+  if (it == reqs[user_id].end())
   {
     return false;
   }
@@ -77,16 +78,17 @@ Request* Req_queue::remove()
   nelems--;
   nbytes -= ret->size();
 
-  auto it = reqs.find({(size_t)ret->client_id(), ret->request_id()});
-  reqs.erase(it);
+  int user_id = ret->user_id();
+  auto it = reqs[user_id].find({(size_t)ret->client_id(), ret->request_id()});
+  reqs[user_id].erase(it);
 
   return ret;
 }
 
-bool Req_queue::remove(int cid, Request_id rid)
+bool Req_queue::remove(int cid, Request_id rid, int user_id)
 {
-  auto it = reqs.find({(size_t)cid, rid});
-  if (it == reqs.end())
+  auto it = reqs[user_id].find({(size_t)cid, rid});
+  if (it == reqs[user_id].end())
   {
     return false;
   }
@@ -97,7 +99,7 @@ bool Req_queue::remove(int cid, Request_id rid)
 
   rnodes[rn->r->user_id()].remove(rn.get());
 
-  reqs.erase(it);
+  reqs[user_id].erase(it);
 
   return true;
 }
@@ -115,7 +117,10 @@ void Req_queue::clear()
       rnodes[i].pop();
     }
   }
-  reqs.clear();
+  for (auto& r : reqs)
+  {
+    r.clear();
+  }
   nelems = nbytes = 0;
 }
 
@@ -123,10 +128,13 @@ void Req_queue::dump_state(std::ostream& os)
 {
   os << " nelems:" << nelems << std::endl;
   os << " Requests:" << std::endl;
-  for (auto& p : reqs)
+  for (auto& req : reqs)
   {
-    auto rnode = p.second.get();
-    os << " cid: " << p.first.cid << " rid: " << p.first.rid
-       << " prev: " << rnode->prev;
+    for (auto& p : req)
+    {
+      auto rnode = p.second.get();
+      os << " cid: " << p.first.cid << " rid: " << p.first.rid
+         << " prev: " << rnode->prev;
+    }
   }
 }

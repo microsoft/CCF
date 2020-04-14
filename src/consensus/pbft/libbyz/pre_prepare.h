@@ -36,15 +36,23 @@ struct Pre_prepare_rep : public Message_rep
   Seqno seqno;
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
   Digest hashed_nonce;
-  uint64_t contains_gov_req; // should be a bool, but need to use 8 bytes to
-                             // maintain alignment
   Seqno last_gov_req_updated;
   int64_t ctx; // a context provided when a the batch is executed
                // the contents are opaque
   Digest digest; // digest of request set concatenated with
                  // big reqs and non-deterministic choices
   int rset_size; // size in bytes of request set
-  int n_big_reqs; // number of big requests
+  short n_big_reqs; // number of big requests
+
+  struct Flags
+  {
+    bool should_reorder : 1;
+    bool contains_gov_req : 1;
+    short padding : 14;
+
+  } flags;
+  static_assert(
+    sizeof(Flags) == sizeof(short), "Pre_prepare_rep::Flags is the wrong size");
 
 #ifdef SIGN_BATCH
   size_t sig_size;
@@ -129,6 +137,20 @@ public:
   get_replicated_state_merkle_root() const;
 
   int64_t get_ctx() const;
+
+  // Set a digest at a specific offset relative to the pre-prepare
+  void set_request_digest(uint32_t at, Digest& d);
+
+  // Check if we should change the order the digests to match execution order
+  bool should_reorder() const;
+
+  // Set use the original order of digests and stop of future attempts to
+  // reorder digests
+  void record_tx_execution_conflict();
+
+  // Free some memory that is no longer required once the pre-prepare has been
+  // sent
+  void cleanup_after_send();
 
   class Requests_iter
   {
@@ -235,6 +257,7 @@ public:
 
 private:
   uint64_t nonce;
+  std::unique_ptr<Digest[]> big_req_ds;
 
   Pre_prepare_rep& rep() const;
   // Effects: Casts contents to a Pre_prepare_rep&
@@ -328,7 +351,7 @@ inline Seqno Pre_prepare::last_exec_gov_req() const
 
 inline bool Pre_prepare::did_exec_gov_req() const
 {
-  return rep().contains_gov_req;
+  return rep().flags.contains_gov_req;
 }
 
 inline uint64_t Pre_prepare::get_nonce() const

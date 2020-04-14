@@ -43,11 +43,13 @@ struct _Byz_buffer
 typedef struct _Byz_buffer Byz_buffer;
 typedef struct _Byz_buffer Byz_req;
 typedef struct _Byz_buffer Byz_rep;
+class Pre_prepare;
 
 static const uint32_t MERKLE_ROOT_SIZE = 32;
 struct ByzInfo
 {
   std::array<uint8_t, MERKLE_ROOT_SIZE> replicated_state_merkle_root;
+  kv::Version version_before_execution_start;
   int64_t ctx = INT64_MIN;
   void (*cb)(void* ctx) = nullptr;
   void* cb_ctx = nullptr;
@@ -55,6 +57,7 @@ struct ByzInfo
   uint32_t pending_cmd_callbacks;
   bool did_exec_gov_req;
   Seqno last_exec_gov_req;
+  Pre_prepare* pre_prepare;
 };
 
 class Request;
@@ -112,6 +115,7 @@ struct ExecCommandMsg
 
 using ExecCommand = std::function<int(
   std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
-  ByzInfo&,
-  uint32_t,
-  uint64_t)>;
+  ByzInfo& info,
+  uint32_t num_requests,
+  uint64_t nonce,
+  bool executed_single_threaded)>;
