@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
+#include "flatbuffer_wrapper.h"
 #include "perf_client.h"
 
 using namespace std;
@@ -51,13 +52,12 @@ private:
 
     for (auto i = 0ul; i < options.total_accounts; i++)
     {
-      json j;
-      j["name"] = to_string(i);
-      const auto response = conn->call("SmallBank_balance", j);
+      BankSerializer bs(to_string(i));
+      const auto response = conn->call("SmallBank_balance", bs.get_buffer());
 
       check_response(response);
-      const auto result = conn->unpack_body(response);
-      accs.push_back({{"account", i}, {"balance", result}});
+      BalanceDeserializer bd(response.body.data());
+      accs.push_back({{"account", i}, {"balance", bd.balance()}});
     }
 
     LOG_INFO_FMT("Accounts:\n{}", accs.dump(4));
@@ -70,13 +70,9 @@ private:
 
     auto connection = get_connection();
     LOG_INFO_FMT("Creating accounts from {} to {}", from, to);
-
-    json j;
-    j["from"] = from;
-    j["to"] = to;
-    j["checking_amt"] = 1000;
-    j["savings_amt"] = 1000;
-    const auto response = connection->call("SmallBank_create_batch", j);
+    AccountsSerializer as(from, to, 1000, 1000);
+    const auto response =
+      connection->call("SmallBank_create_batch", as.get_buffer());
     check_response(response);
 
     return response;
@@ -93,41 +89,55 @@ private:
       uint8_t operation =
         rand_range((uint8_t)TransactionTypes::NumberTransactions);
 
-      json j;
+      std::unique_ptr<flatbuffers::DetachedBuffer> fb;
 
       switch ((TransactionTypes)operation)
       {
         case TransactionTypes::TransactSavings:
-          j["name"] = to_string(rand_range(options.total_accounts));
-          j["value"] = rand_range<int>(-50, 50);
-          break;
-
+        {
+          TransactionSerializer ts(
+            to_string(rand_range(options.total_accounts)),
+            rand_range<int>(-50, 50));
+          fb = ts.get_detached_buffer();
+        }
+        break;
         case TransactionTypes::Amalgamate:
         {
           unsigned int src_account = rand_range(options.total_accounts);
-          j["name_src"] = to_string(src_account);
-
           unsigned int dest_account = rand_range(options.total_accounts - 1);
           if (dest_account >= src_account)
+          {
             dest_account += 1;
-
-          j["name_dest"] = to_string(dest_account);
+          }
+          AmalgamateSerializer as(
+            to_string(src_account), to_string(dest_account));
+          fb = as.get_detached_buffer();
         }
         break;
 
         case TransactionTypes::WriteCheck:
-          j["name"] = to_string(rand_range(options.total_accounts));
-          j["value"] = rand_range<int>(50);
-          break;
+        {
+          TransactionSerializer ts(
+            to_string(rand_range(options.total_accounts)), rand_range<int>(50));
+          fb = ts.get_detached_buffer();
+        }
+        break;
 
         case TransactionTypes::DepositChecking:
-          j["name"] = to_string(rand_range(options.total_accounts));
-          j["value"] = rand_range<int>(50) + 1;
-          break;
+        {
+          TransactionSerializer ts(
+            to_string(rand_range(options.total_accounts)),
+            (rand_range<int>(50) + 1));
+          fb = ts.get_detached_buffer();
+        }
+        break;
 
         case TransactionTypes::GetBalance:
-          j["name"] = to_string(rand_range(options.total_accounts));
-          break;
+        {
+          BankSerializer bs(to_string(rand_range(options.total_accounts)));
+          fb = bs.get_detached_buffer();
+        }
+        break;
 
         default:
           throw logic_error("Unknown operation");
@@ -135,7 +145,7 @@ private:
 
       add_prepared_tx(
         OPERATION_C_STR[operation],
-        j,
+        {fb->data(), fb->size()},
         operation != (uint8_t)TransactionTypes::GetBalance,
         i);
     }
@@ -143,7 +153,7 @@ private:
 
   bool check_response(const RpcTlsClient::Response& r) override
   {
-    if (r.status != HTTP_STATUS_OK)
+    if (!http::status_success(r.status))
     {
       const std::string error_msg(r.body.begin(), r.body.end());
       if (
@@ -226,19 +236,18 @@ private:
         throw std::runtime_error(expected_type_msg(entry));
       }
 
-      json j;
-      j["name"] = to_string(account_it->get<size_t>());
-      const auto response = conn->call("SmallBank_balance", j);
-      const auto response_body = conn->unpack_body(response);
+      BankSerializer bs(to_string(account_it->get<size_t>()));
+      const auto response = conn->call("SmallBank_balance", bs.get_buffer());
 
-      if (response.status != HTTP_STATUS_OK)
+      if (!http::status_success(response.status))
       {
         throw std::runtime_error(fmt::format(
-          "Error in verification response: {}", response_body.dump(2)));
+          "Error in verification response: {}", conn->get_error(response)));
       }
 
+      BalanceDeserializer bd(response.body.data());
       auto expected_balance = balance_it->get<int64_t>();
-      auto actual_balance = response_body.get<int64_t>();
+      auto actual_balance = bd.balance();
       if (expected_balance != actual_balance)
       {
         throw std::runtime_error(

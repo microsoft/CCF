@@ -276,7 +276,7 @@ namespace http
       }
 
       // Default is to apply any 2xx status
-      return response_status >= 200 && response_status < 300;
+      return status_success(response_status);
     }
 
     virtual std::vector<uint8_t> serialise_response() const override

@@ -41,8 +41,9 @@ protected:
 
   std::vector<uint8_t> gen_request_internal(
     const std::string& method,
-    const nlohmann::json& params,
-    tls::KeyPairPtr kp = nullptr)
+    const CBuffer params,
+    tls::KeyPairPtr kp = nullptr,
+    const std::string& content_type = http::headervalues::contenttype::MSGPACK)
   {
     auto path = method;
     if (prefix.has_value())
@@ -51,11 +52,8 @@ protected:
     }
 
     auto r = http::Request(path);
-
-    const auto body_v = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
-    r.set_body(&body_v);
-    r.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::MSGPACK);
+    r.set_body(params.p, params.n);
+    r.set_header(http::headers::CONTENT_TYPE, content_type);
 
     if (kp != nullptr)
     {
@@ -87,9 +85,19 @@ public:
   {}
 
   virtual PreparedRpc gen_request(
+    const std::string& method,
+    const CBuffer params,
+    const std::string& content_type = http::headervalues::contenttype::MSGPACK)
+  {
+    return {gen_request_internal(method, params, nullptr, content_type),
+            next_send_id++};
+  }
+
+  virtual PreparedRpc gen_request(
     const std::string& method, const nlohmann::json& params = nullptr)
   {
-    return {gen_request_internal(method, params, nullptr), next_send_id++};
+    auto p = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
+    return gen_request(method, {p.data(), p.size()});
   }
 
   Response call(
@@ -98,20 +106,33 @@ public:
     return call_raw(gen_request(method, params).encoded);
   }
 
+  Response call(const std::string& method, const CBuffer params)
+  {
+    return call_raw(
+      gen_request(method, params, http::headervalues::contenttype::OCTET_STREAM)
+        .encoded);
+  }
+
   nlohmann::json unpack_body(const Response& resp)
   {
     if (resp.body.empty())
     {
       return nullptr;
     }
-    else if (resp.status == HTTP_STATUS_OK)
+    else if (http::status_success(resp.status))
     {
+      const auto& content_type = resp.headers.find(http::headers::CONTENT_TYPE);
       return jsonrpc::unpack(resp.body, jsonrpc::Pack::MsgPack);
     }
     else
     {
       return std::string(resp.body.begin(), resp.body.end());
     }
+  }
+
+  std::string get_error(const Response& resp)
+  {
+    return std::string(resp.body.begin(), resp.body.end());
   }
 
   Response read_response()

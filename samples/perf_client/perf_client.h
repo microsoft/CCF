@@ -185,6 +185,14 @@ namespace client
   template <typename TOptions>
   class PerfBase
   {
+  protected:
+    struct PreparedTx
+    {
+      RpcTlsClient::PreparedRpc rpc;
+      std::string method;
+      bool expects_commit;
+    };
+
   private:
     tls::Pem key = {};
     std::shared_ptr<tls::Cert> tls_cert;
@@ -252,19 +260,26 @@ namespace client
       }
     }
 
+    void append_prepared_tx(
+      const PreparedTx& tx, const std::optional<size_t>& index)
+    {
+      if (index.has_value())
+      {
+        assert(index.value() < prepared_txs.size());
+        prepared_txs[index.value()] = tx;
+      }
+      else
+      {
+        prepared_txs.push_back(tx);
+      }
+    }
+
   protected:
     TOptions options;
 
     std::mt19937 rand_generator;
 
     nlohmann::json verification_target;
-
-    struct PreparedTx
-    {
-      RpcTlsClient::PreparedRpc rpc;
-      std::string method;
-      bool expects_commit;
-    };
 
     using PreparedTxs = std::vector<PreparedTx>;
 
@@ -305,22 +320,28 @@ namespace client
 
     void add_prepared_tx(
       const std::string& method,
+      const CBuffer params,
+      bool expects_commit,
+      const std::optional<size_t>& index)
+    {
+      const PreparedTx tx{
+        rpc_connection->gen_request(
+          method, params, http::headervalues::contenttype::OCTET_STREAM),
+        method,
+        expects_commit};
+
+      append_prepared_tx(tx, index);
+    }
+
+    void add_prepared_tx(
+      const std::string& method,
       const nlohmann::json& params,
       bool expects_commit,
       const std::optional<size_t>& index)
     {
       const PreparedTx tx{
         rpc_connection->gen_request(method, params), method, expects_commit};
-
-      if (index.has_value())
-      {
-        assert(index.value() < prepared_txs.size());
-        prepared_txs[index.value()] = tx;
-      }
-      else
-      {
-        prepared_txs.push_back(tx);
-      }
+      append_prepared_tx(tx, index);
     }
 
     static size_t total_byte_size(const PreparedTxs& txs)
