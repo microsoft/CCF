@@ -1,16 +1,10 @@
 FROM ccfciteam/ccf-ci-18.04-oe-8fe3697:latest
 
 ARG VERSION=0.9.2
+ARG TARBALL=ccf.tar.gz
 
 RUN apt install wget \
-    && wget https://github.com/microsoft/CCF/archive/v$VERSION.tar.gz \
-    && tar xf v$VERSION.tar.gz \
-    && rm v$VERSION.tar.gz
-RUN cd CCF-$VERSION \
-    && mkdir build \
-    && cd build \
-    && cmake -GNinja .. \
-    && ninja \
-    && ninja install \
-    && cd ../.. \
-    && rm -rf CCF-$VERSION
+    && wget https://github.com/microsoft/CCF/releases/download/v$VERSION/$TARBALL \
+    && mkdir -p /opt/ccf/ccf-$VERSION \
+    && tar xf $TARBALL -C /opt/ccf/ccf-$VERSION --strip-components=1 \
+    && rm $TARBALL
