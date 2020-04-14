@@ -44,7 +44,8 @@ namespace http
   {
   protected:
     HeaderMap headers;
-    const std::vector<uint8_t>* body = nullptr;
+    const uint8_t* body = nullptr;
+    size_t body_size = 0;
 
     Message() = default;
 
@@ -76,25 +77,31 @@ namespace http
       }
       else
       {
-        return body->size();
+        return body_size;
       }
     }
 
     const uint8_t* get_content_data() const
     {
-      if (body == nullptr)
-      {
-        return nullptr;
-      }
-      else
-      {
-        return body->data();
-      }
+      return body;
     }
 
     void set_body(const std::vector<uint8_t>* b)
     {
+      if (b != nullptr)
+      {
+        set_body(b->data(), b->size());
+      }
+      else
+      {
+        set_body(nullptr, 0);
+      }
+    }
+
+    void set_body(const uint8_t* b, size_t s)
+    {
       body = b;
+      body_size = s;
 
       headers[headers::CONTENT_LENGTH] =
         fmt::format("{}", get_content_length());
@@ -170,7 +177,7 @@ namespace http
 
       const auto body_view = (header_only || body == nullptr) ?
         std::string_view() :
-        std::string_view((char const*)body->data(), body->size());
+        std::string_view((char const*)body, body_size);
 
       const auto request_string = fmt::format(
         "{} {} HTTP/1.1\r\n"
@@ -198,7 +205,7 @@ namespace http
     {
       const auto body_view = (header_only || body == nullptr) ?
         std::string_view() :
-        std::string_view((char const*)body->data(), body->size());
+        std::string_view((char const*)body, body_size);
 
       const auto response_string = fmt::format(
         "HTTP/1.1 {} {}\r\n"
