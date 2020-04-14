@@ -100,7 +100,6 @@ namespace ccf
         version,
         [](kv::Version a, EncryptionKey const& b) { return b.version <= a; });
 
-
       if (search == encryption_keys.rend())
       {
         throw std::logic_error(fmt::format(

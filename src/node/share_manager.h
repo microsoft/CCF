@@ -130,7 +130,8 @@ namespace ccf
   public:
     ShareManager(NetworkState& network_) : network(network_) {}
 
-    void update_key_share_info(Store::Tx& tx)
+    void update_key_share_info(
+      Store::Tx& tx, kv::Version version = kv::NoVersion)
     {
       // TODO: Update this comment
       // First, generated a fresh ledger secrets wrapping key and wrap the
@@ -213,8 +214,9 @@ namespace ccf
         share_index++;
       }
 
-      g.add_key_share_info(
-        {encrypted_ls, encrypted_penultimate_secrets, encrypted_shares});
+      g.add_key_share_info({{version, encrypted_ls},
+                            encrypted_penultimate_secrets,
+                            encrypted_shares});
     }
 
     // For now, the shares are passed directly to this function. Shares should
@@ -237,8 +239,10 @@ namespace ccf
         throw std::logic_error("Failed to retrieve current key share info");
       }
 
-      auto restored_ls =
-        ls_wrapping_key.unwrap(key_share_info->encrypted_ledger_secret);
+      auto restored_ls = ls_wrapping_key.unwrap(
+        key_share_info->encrypted_ledger_secret.encrypted_data);
+
+      std::vector<kv::Version> restored_versions;
 
       // Domino effect: decrypt all the ledger secrets so far
       auto decryption_key = restored_ls.master;
@@ -276,14 +280,16 @@ namespace ccf
         network.ledger_secrets->set_secret(
           std::next(i)->v, decrypted_ls); // TODO: Will probably break latest
                                           // version and penultimate!
+        restored_versions.push_back(std::next(i)->v);
         decryption_key = decrypted_ls;
       }
 
       network.ledger_secrets->set_secret(
         encrypted_past_secrets.back().v, restored_ls.master);
+      restored_versions.push_back(encrypted_past_secrets.back().v);
 
       network.ledger_secrets->dump();
-      return {1};
+      return restored_versions;
     }
   };
 }

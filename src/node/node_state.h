@@ -605,11 +605,9 @@ namespace ccf
       ledger_truncate(last_index);
       LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
 
-      // TODO: Better API for creating first Ledger Secrets after recovery
+      // TODO: Better API for creating first Ledger Secret after recovery
       network.ledger_secrets->set_secret(last_index + 1, LedgerSecret().master);
       setup_encryptor(network.consensus_type);
-
-      // share_manager.update_key_share_info(tx);
 
       g.create_service(network.identity->cert, last_index + 1);
 
@@ -738,8 +736,8 @@ namespace ccf
       if (consensus->is_primary())
       {
         Store::Tx tx;
-        share_manager.update_key_share_info(tx);
 
+        share_manager.update_key_share_info(tx, last_recovered_commit_idx + 1);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1485,8 +1483,15 @@ namespace ccf
             for (auto& [k, v] : w)
             {
               LOG_FAIL_FMT("One write on the ccf.shares table");
+              auto version_ =
+                v.value.encrypted_ledger_secret.version == kv::NoVersion ?
+                version :
+                v.value.encrypted_ledger_secret.version;
+
+              LOG_FAIL_FMT("Actually, the version is {}", version_);
+
               recovery_secret_list.push_back(
-                {version, v.value.encrypted_previous_ledger_secret});
+                {version_, v.value.encrypted_previous_ledger_secret});
             }
           }
           else
