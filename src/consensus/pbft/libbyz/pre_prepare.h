@@ -138,12 +138,18 @@ public:
 
   int64_t get_ctx() const;
 
+  // Set a digest at a specific offset relative to the pre-prepare
   void set_request_digest(uint32_t at, Digest& d);
 
+  // Check if we should change the order the digests to match execution order
   bool should_reorder() const;
 
+  // Set use the original order of digests and stop of future attempts to
+  // reorder digests
   void record_tx_execution_conflict();
 
+  // Free some memory that is no longer required once the pre-prepare has been
+  // sent
   void cleanup_after_send();
 
   class Requests_iter
