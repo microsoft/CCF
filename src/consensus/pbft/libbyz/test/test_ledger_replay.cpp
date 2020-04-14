@@ -41,7 +41,8 @@ public:
       std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& msgs,
       ByzInfo& info,
       uint32_t num_requests,
-      uint64_t nonce) {
+      uint64_t nonce,
+      bool executed_single_threaded) {
       for (uint32_t i = 0; i < num_requests; ++i)
       {
         std::unique_ptr<ExecCommandMsg>& msg = msgs[i];

@@ -62,7 +62,7 @@ inline void Request::comp_digest(Digest& d)
 
   d = Digest(
     (char*)&(rep().cid),
-    sizeof(int) + sizeof(uint64_t) + sizeof(Request_id) + rep().command_size);
+    sizeof(short) + sizeof(short) + sizeof(Request_id) + rep().command_size);
 }
 
 void Request::authenticate(int act_len, bool read_only)

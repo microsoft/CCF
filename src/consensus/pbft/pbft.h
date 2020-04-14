@@ -343,12 +343,12 @@ namespace pbft
     std::shared_ptr<enclave::RPCSessions> rpcsessions;
     SeqNo global_commit_seqno;
     View last_commit_view;
-    std::unique_ptr<pbft::PbftStore> store;
+    std::shared_ptr<pbft::PbftStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
     Index latest_stable_ae_index = 0;
 
-    // When this is set, only public domain is deserialised when receving append
-    // entries
+    // When this is set, only public domain is deserialised when receiving
+    // append entries
     bool public_only = false;
     std::vector<ViewChangeInfo> view_change_list;
 
@@ -407,7 +407,7 @@ namespace pbft
 
       pbft_network = std::make_unique<PbftEnclaveNetwork>(
         local_id, channels, nodes, latest_stable_ae_index);
-      pbft_config = std::make_unique<PbftConfigCcf>(rpc_map);
+      pbft_config = std::make_unique<PbftConfigCcf>(rpc_map, store);
 
       auto used_bytes = Byz_init_replica(
         node_info,

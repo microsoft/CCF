@@ -19,17 +19,17 @@ const int Max_message_size = 32768;
 
 // Minimum required alignment for correctly accessing message fields.
 // Must be a power of 2.
-#define ALIGNMENT 8
+const uint32_t alignment = 8;
 
 // bool ALIGNED(void *ptr) or bool ALIGNED(long sz)
 // Effects: Returns true iff the argument is aligned to ALIGNMENT
-#define ALIGNED(ptr) (((uintptr_t)(ptr)) % ALIGNMENT == 0)
+#define ALIGNED(ptr) (((uintptr_t)(ptr)) % alignment == 0)
 
 // int ALIGNED_SIZE(int sz)
 // Effects: Increases sz to the least multiple of ALIGNMENT greater
 // than size.
 #define ALIGNED_SIZE(sz) \
-  ((ALIGNED(sz)) ? (sz) : (sz) - (sz) % ALIGNMENT + ALIGNMENT)
+  ((ALIGNED(sz)) ? (sz) : (sz) - (sz) % alignment + alignment)
 
 //
 // All messages have the following format:

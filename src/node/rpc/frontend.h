@@ -56,6 +56,9 @@ namespace ccf
     std::chrono::milliseconds ms_to_sig = std::chrono::milliseconds(1000);
     bool request_storing_disabled = false;
 
+    using PreExec = std::function<void(
+      Store::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend)>;
+
     void update_consensus()
     {
       auto c = tables.get_consensus().get();
@@ -213,7 +216,8 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
       Store::Tx& tx,
-      CallerId caller_id)
+      CallerId caller_id,
+      PreExec pre_exec = {})
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -345,6 +349,10 @@ namespace ccf
       {
         try
         {
+          if (pre_exec)
+          {
+            pre_exec(tx, *ctx.get(), *this);
+          }
           func(args);
 
           if (!ctx->should_apply_writes())
@@ -556,23 +564,28 @@ namespace ccf
 
       update_consensus();
 
+      PreExec fn = {};
+
       if (!playback)
       {
-        auto req_view = tx.get_view(*pbft_requests_map);
-        req_view->put(
-          0,
-          {ctx->session->original_caller.value().caller_id,
-           ctx->session->caller_cert,
-           ctx->get_serialised_request(),
-           ctx->pbft_raw});
+        fn =
+          [](Store::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
+            auto req_view = tx.get_view(*frontend.pbft_requests_map);
+            req_view->put(
+              0,
+              {ctx.session->original_caller.value().caller_id,
+               ctx.session->caller_cert,
+               ctx.get_serialised_request(),
+               ctx.pbft_raw});
+          };
       }
 
       auto rep =
-        process_command(ctx, tx, ctx->session->original_caller->caller_id);
+        process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
 
       version = tx.get_version();
 
-      return {rep.value(), version};
+      return {std::move(rep.value()), version};
     }
 
     crypto::Sha256Hash get_merkle_root() override
