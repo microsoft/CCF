@@ -393,6 +393,7 @@ namespace client
 
       if (options.transactions_per_s > 0) {
         write_delay_us = 1000000 / options.transactions_per_s;
+        connection->set_tcp_nodelay(true);
       }
 
       last_write_time = std::chrono::high_resolution_clock::now();
