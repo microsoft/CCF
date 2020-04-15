@@ -138,8 +138,6 @@ public:
 
     Message_rep* msg; // Pointer to the contents of the message.
     int max_size; // Maximum number of bytes that can be stored in "msg"
-                  // or "-1" if this instance is not responsible for
-                  // deallocating the storage in msg.
     int32_t counter;
     bool should_delete = false;
   };
