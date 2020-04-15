@@ -147,6 +147,11 @@ namespace pbft
 #endif
     }
 
+    bool should_send_on_other_thread(int tag)
+    {
+      return tag == Pre_prepare_tag || tag == Prepare_tag || tag == Commit_tag;
+    }
+
   public:
     PbftEnclaveNetwork(
       NodeId id,
@@ -232,42 +237,10 @@ namespace pbft
     static void send_authenticated_msg_cb(
       std::unique_ptr<enclave::Tmsg<SendAuthenticatedMsg>> msg)
     {
-      std::vector<uint8_t> serialized_msg;
-      if (msg->data.should_encrypt)
-      {
-        PbftHeader hdr = {PbftMsgType::encrypted_pbft_message,
-                          msg->data.self->id};
+      auto self = msg->data.self;
 
-        size_t space = msg->data.msg_buffer->msg->size;
-        serialized_msg.resize(space);
-        auto data_ = serialized_msg.data();
-        msg->data.self->serialize_message(
-          data_,
-          space,
-          (const uint8_t*)msg->data.msg_buffer->msg,
-          msg->data.msg_buffer->msg->size);
-
-        msg->data.self->n2n_channels->send_encrypted(
-          ccf::NodeMsgType::consensus_msg, msg->data.to, serialized_msg, hdr);
-      }
-      else
-      {
-        PbftHeader hdr = {PbftMsgType::pbft_message, msg->data.self->id};
-
-        auto space = (sizeof(PbftHeader) + msg->data.msg_buffer->msg->size);
-        serialized_msg.resize(space);
-        auto data_ = serialized_msg.data();
-        serialized::write<PbftHeader>(data_, space, hdr);
-
-        msg->data.self->serialize_message(
-          data_,
-          space,
-          (const uint8_t*)msg->data.msg_buffer->msg,
-          msg->data.msg_buffer->msg->size);
-
-        msg->data.self->n2n_channels->send_authenticated(
-          ccf::NodeMsgType::consensus_msg, msg->data.to, serialized_msg);
-      }
+      self->send_authenticated_msg(
+        msg->data.should_encrypt, msg->data.msg_buffer, msg->data.to);
 
       if (
         enclave::ThreadMessaging::thread_messaging.get_thread_id() !=
@@ -280,6 +253,42 @@ namespace pbft
         enclave::ThreadMessaging::thread_messaging
           .add_task<SendAuthenticatedMsg>(
             enclave::ThreadMessaging::main_thread, std::move(msg));
+      }
+    }
+
+    void send_authenticated_msg(
+      bool should_encrypt,
+      const Ref<Message::MsgBufCounter>& msg_buffer,
+      pbft::NodeId to)
+    {
+      std::vector<uint8_t> serialized_msg;
+      if (should_encrypt)
+      {
+        PbftHeader hdr = {PbftMsgType::encrypted_pbft_message, id};
+
+        size_t space = msg_buffer->msg->size;
+        serialized_msg.resize(space);
+        auto data_ = serialized_msg.data();
+        serialize_message(
+          data_, space, (const uint8_t*)msg_buffer->msg, msg_buffer->msg->size);
+
+        n2n_channels->send_encrypted(
+          ccf::NodeMsgType::consensus_msg, to, serialized_msg, hdr);
+      }
+      else
+      {
+        PbftHeader hdr = {PbftMsgType::pbft_message, id};
+
+        auto space = (sizeof(PbftHeader) + msg_buffer->msg->size);
+        serialized_msg.resize(space);
+        auto data_ = serialized_msg.data();
+        serialized::write<PbftHeader>(data_, space, hdr);
+
+        serialize_message(
+          data_, space, (const uint8_t*)msg_buffer->msg, msg_buffer->msg->size);
+
+        n2n_channels->send_authenticated(
+          ccf::NodeMsgType::consensus_msg, to, serialized_msg);
       }
     }
 
@@ -313,11 +322,13 @@ namespace pbft
       }
 
       bool encrypt = should_encrypt(msg->tag());
-      auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedMsg>>(
-        &send_authenticated_msg_cb, encrypt, msg->get_msg_buffer(), this, to);
-
-      if (enclave::ThreadMessaging::thread_count > 1)
+      if (
+        enclave::ThreadMessaging::thread_count > 1 &&
+        !should_send_on_other_thread(msg->tag()))
       {
+        auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedMsg>>(
+          &send_authenticated_msg_cb, encrypt, msg->get_msg_buffer(), this, to);
+
         uint16_t tid = enclave::ThreadMessaging::get_execution_thread(
           ++execution_thread_counter);
         enclave::ThreadMessaging::thread_messaging
@@ -325,7 +336,7 @@ namespace pbft
       }
       else
       {
-        tmsg->cb(std::move(tmsg));
+        send_authenticated_msg(encrypt, msg->get_msg_buffer(), to);
       }
 
       return msg->size();

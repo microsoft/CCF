@@ -144,7 +144,7 @@ public:
     bool should_delete = false;
   };
 
-  Ref<MsgBufCounter> get_msg_buffer()
+  Ref<MsgBufCounter> get_msg_buffer() const
   {
     return msg;
   }
