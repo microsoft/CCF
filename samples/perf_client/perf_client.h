@@ -64,7 +64,7 @@ namespace client
     size_t max_writes_ahead = 0;
     size_t latency_rounds = 1;
     size_t generator_seed = 42u;
-    size_t ttransactions_per_s = 0;
+    size_t transactions_per_s = 0;
 
     bool sign = false;
     bool no_create = false;
@@ -127,7 +127,7 @@ namespace client
 
       app.add_option(
         "--transaction-rate", 
-        ttransactions_per_s,
+        transactions_per_s,
         "The number of transactions per second to send"
       );
 
@@ -391,8 +391,8 @@ namespace client
       size_t read;
       size_t written;
 
-      if (options.ttransactions_per_s > 0) {
-        write_delay_us = 1000000 / options.ttransactions_per_s;
+      if (options.transactions_per_s > 0) {
+        write_delay_us = 1000000 / options.transactions_per_s;
       }
 
       last_write_time = std::chrono::high_resolution_clock::now();
