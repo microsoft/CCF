@@ -37,3 +37,4 @@ jobs:
       artifact_name: 'SGX_Release'
       ctest_filter: '-LE "benchmark|perf"'
       install_prefix: '${{ parameters.build.install.install_prefix }}'
+      tls_report: true
