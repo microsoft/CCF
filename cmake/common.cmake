@@ -22,14 +22,6 @@ else()
   unset(NODES)
 endif()
 
-option(COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
-
-if(${COLORED_OUTPUT})
-  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    add_compile_options(-fcolor-diagnostics)
-  endif()
-endif()
-
 option(VERBOSE_LOGGING "Enable verbose logging" OFF)
 set(TEST_HOST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
@@ -165,13 +157,6 @@ set(HTTP_PARSER_SOURCES ${CCF_DIR}/3rdparty/http-parser/http_parser.c)
 
 find_library(CRYPTO_LIBRARY crypto)
 
-function(add_enclave_library_c name files)
-  add_library(${name} STATIC ${files})
-  target_compile_options(${name} PRIVATE -nostdinc)
-  target_link_libraries(${name} PRIVATE openenclave::oelibc)
-  set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-endfunction()
-
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/secp256k1.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
@@ -192,7 +177,11 @@ function(add_unit_test name)
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
-  set_property(TEST ${name} APPEND PROPERTY LABELS unit_test)
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY LABELS unit_test
+  )
 endfunction()
 
 if("sgx" IN_LIST COMPILE_TARGETS)
