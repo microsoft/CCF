@@ -13,13 +13,13 @@ import tempfile
 import base64
 import requests
 import urllib.parse
+import websocket
 from requests_http_signature import HTTPSignatureAuth
 from http.client import HTTPResponse
 from io import BytesIO
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import asymmetric
-from websocket import create_connection
 from loguru import logger as LOG
 
 
@@ -417,10 +417,14 @@ class WSClient:
         self.request_timeout = request_timeout
 
     def request(self, request):
-        ws = create_connection(
+        LOG.info("Creating WSS connection")
+        ws = websocket.create_connection(
             f"wss://{self.host}:{self.port}",
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
         )
+        payload = json.dumps(request.params).encode()
+        frame = websocket.ABNF(1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, payload)
+        ws.send_frame(frame)
 
     def signed_request(self, request):
         raise NotImplementedError("Signed requests not yet implemented over WebSockets")
@@ -435,7 +439,7 @@ class CCFClient:
 
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(*args, **kwargs)
-        elif os.getenv("WEBSOCKETS_CLIENT"):
+        elif os.getenv("WEBSOCKETS_CLIENT") or kwargs.get('ws'):
             self.client_impl = WSClient(*args, **kwargs)
         else:
             self.client_impl = RequestClient(*args, **kwargs)
@@ -489,6 +493,7 @@ def client(
     binary_dir=".",
     connection_timeout=3,
     request_timeout=3,
+    ws=False,
 ):
     c = CCFClient(
         host=host,
@@ -501,6 +506,7 @@ def client(
         binary_dir=binary_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,
+        ws=ws,
     )
 
     if log_file is not None:

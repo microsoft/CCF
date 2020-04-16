@@ -15,15 +15,18 @@ namespace http
   {
   protected:
     http::Parser& p;
+    http::RequestProcessor* proc;
     bool is_websocket = false;
 
     HTTPEndpoint(
       http::Parser& p_,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
+      std::unique_ptr<tls::Context> ctx,
+      http::RequestProcessor* proc_ = nullptr) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(p_)
+      p(p_),
+      proc(proc_)
     {}
 
   public:
@@ -106,10 +109,38 @@ namespace http
       }
       else
       {
-        LOG_FAIL_FMT(
+        LOG_INFO_FMT(
           "Receiving data after endpoint has been upgraded to websocket.");
-        LOG_FAIL_FMT("Closing connection.");
-        close();
+        
+        auto header = read(2, true);
+        if (header[0] & 0x80)
+        {
+          LOG_INFO_FMT("Got: {0:#x}", header[0]);
+          if (header[0] == 0x82)
+          {
+            uint16_t size = header[1];
+            if (size & 0x8)
+            {
+              auto payload_size = read(2, true);
+              size = ntohs(*(uint16_t *) payload_size.data());
+            }
+            LOG_FAIL_FMT("Going to receive {} bytes", size);
+            auto payload = read(size, true);
+            LOG_FAIL_FMT("Received [{}]", std::string(payload.begin(), payload.end()));
+            //TODO: pass to message processing
+            close();
+          }
+          else
+          {
+            LOG_FAIL_FMT("Only binary messages are supported.");
+            close();  
+          }
+        }
+        else
+        {
+          LOG_FAIL_FMT("Fragmented messages are not supported.");
+          close();
+        }
       }
     }
   };
