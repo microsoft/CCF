@@ -72,6 +72,7 @@ class Response:
             d["error"] = self.error
         return d
 
+    @staticmethod
     def from_requests_response(rr):
         content_type = rr.headers.get("content-type")
         if content_type == "application/json":
@@ -92,6 +93,7 @@ class Response:
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
         )
 
+    @staticmethod
     def from_raw(raw):
         sock = FakeSocket(raw)
         response = HTTPResponse(sock)

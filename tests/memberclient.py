@@ -1,7 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import sys
-import os
 import http
 
 import infra.e2e_args
@@ -10,7 +8,6 @@ import infra.consortium
 from infra.proposal import ProposalState
 
 import suite.test_requirements as reqs
-import random
 
 from loguru import logger as LOG
 
@@ -22,6 +19,8 @@ def test_set_recovery_threshold(network, args, recovery_threshold=None):
         # we should select a random threshold between 1 and the
         # total number of active members
         return
+
+    primary, _ = network.find_primary()
 
     already_active_member = network.consortium.get_any_active_member()
     saved_share = already_active_member.get_and_decrypt_recovery_share(primary)

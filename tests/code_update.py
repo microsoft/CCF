@@ -4,8 +4,6 @@ import infra.e2e_args
 import infra.ccf
 import infra.path
 import infra.proc
-import json
-import logging
 import os
 import subprocess
 import sys
@@ -33,7 +31,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        primary, others = network.find_nodes()
+        primary, _ = network.find_nodes()
 
         LOG.info("Adding a new node")
         new_node = network.create_and_trust_node(args.package, "localhost", args)

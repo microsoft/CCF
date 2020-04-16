@@ -26,12 +26,10 @@ class Consortium:
         self.key_generator = key_generator
         self.common_dir = common_dir
         for m_id in member_ids:
-            new_member = infra.member.Member(
-                len(self.members), curve, key_generator, common_dir
-            )
+            new_member = infra.member.Member(m_id, curve, key_generator, common_dir)
             new_member.set_active()
             self.members.append(new_member)
-        self.recovery_threshold = recovery_threshold or len(self.members)
+        self.recovery_threshold = recovery_threshold if recovery_threshold is not None else len(self.members)
 
     def generate_and_propose_new_member(self, remote_node, curve):
         # The Member returned by this function is in state ACCEPTED. The new Member

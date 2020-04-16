@@ -1,10 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
-import getpass
-import time
-import logging
-import shutil
 import infra.ccf
 import infra.proc
 import infra.notification
@@ -12,8 +7,6 @@ import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
 import subprocess
-
-from loguru import logger as LOG
 
 
 @reqs.description("Running TLS test against CCF")

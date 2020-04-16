@@ -26,7 +26,7 @@ def ephemeral_range():
                 "tcp",
             ]
         )
-        match = re.compile("Start Port\s+: (?P<port>\d+)", re.MULTILINE).search(
+        match = re.compile(r"Start Port\s+: (?P<port>\d+)", re.MULTILINE).search(
             str(output)
         )
         if not match:

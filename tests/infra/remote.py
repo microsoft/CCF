@@ -347,11 +347,11 @@ class SSHRemote(CmdMixin):
 
 
 @contextmanager
-def ssh_remote(name, hostname, files, cmd):
+def ssh_remote(*args, **kwargs):
     """
     Context Manager wrapper for SSHRemote
     """
-    remote = SSHRemote(name, hostname, files, cmd)
+    remote = SSHRemote(*args, **kwargs)
     try:
         remote.setup()
         remote.start()
@@ -725,15 +725,11 @@ class CCFRemote(object):
 
 
 @contextmanager
-def ccf_remote(
-    lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
-):
+def ccf_remote(*args, **kwargs):
     """
     Context Manager wrapper for CCFRemote
     """
-    remote = CCFRemote(
-        lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
-    )
+    remote = CCFRemote(*args, **kwargs)
     try:
         remote.setup()
         remote.start()

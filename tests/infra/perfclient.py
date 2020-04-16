@@ -6,8 +6,6 @@ import infra.runner
 import infra.e2e_args
 from infra.perf import PERF_COLUMNS
 
-from loguru import logger as LOG
-
 
 def cli_args(add=lambda x: None, accept_unknown=False):
     parser = argparse.ArgumentParser()
