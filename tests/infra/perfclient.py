@@ -16,7 +16,7 @@ def cli_args(add=lambda x: None, accept_unknown=False):
     parser.add_argument(
         "-n",
         "--nodes",
-        help="List of hostnames[,pub_hostnames:ports]. If empty, two nodes are spawned locally",
+        help="List of hostnames[,pub_hostnames:ports]. If empty, spawn minimum working number of local nodes (minimum depends on consensus)",
         action="append",
     )
     client_args_group = parser.add_mutually_exclusive_group()
