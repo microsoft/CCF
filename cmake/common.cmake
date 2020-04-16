@@ -177,7 +177,11 @@ function(add_unit_test name)
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${CCF_DIR}/tests/unit_test_wrapper.sh ${name})
-  set_property(TEST ${name} APPEND PROPERTY LABELS unit_test)
+  set_property(
+    TEST ${name}
+    APPEND
+    PROPERTY LABELS unit_test
+  )
 endfunction()
 
 if("sgx" IN_LIST COMPILE_TARGETS)

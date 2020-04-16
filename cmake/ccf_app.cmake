@@ -168,8 +168,8 @@ function(add_ccf_app name)
   endif()
 endfunction()
 
-# Convenience wrapper to build C-libraries that can be linked in
-# enclave, ie. in a CCF application.
+# Convenience wrapper to build C-libraries that can be linked in enclave, ie. in
+# a CCF application.
 function(add_enclave_library_c name files)
   add_library(${name} STATIC ${files})
   target_compile_options(${name} PRIVATE -nostdinc)
