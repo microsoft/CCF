@@ -1,24 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import socket
-import ssl
-import struct
-import select
 import contextlib
 import json
 import time
 import os
 import subprocess
 import tempfile
-import base64
 import requests
 import urllib.parse
 from requests_http_signature import HTTPSignatureAuth
 from http.client import HTTPResponse
 from io import BytesIO
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import asymmetric
 from websocket import create_connection
 from loguru import logger as LOG
 

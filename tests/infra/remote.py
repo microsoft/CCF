@@ -4,12 +4,9 @@ import os
 import time
 from enum import Enum
 import paramiko
-import logging
 import subprocess
-import getpass
 from contextlib import contextmanager
 import infra.path
-import json
 import uuid
 import ctypes
 import signal

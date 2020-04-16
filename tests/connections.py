@@ -9,7 +9,6 @@ import getpass
 import os
 import time
 import logging
-import multiprocessing
 from random import seed
 import infra.ccf
 import infra.proc

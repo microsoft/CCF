@@ -7,7 +7,6 @@ import json
 import http
 import time
 import logging
-import multiprocessing
 import shutil
 import random
 import infra.ccf

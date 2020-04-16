@@ -4,7 +4,6 @@ import os
 import getpass
 import time
 import logging
-import multiprocessing
 import shutil
 from random import seed
 import infra.ccf

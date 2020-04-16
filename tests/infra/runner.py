@@ -3,14 +3,11 @@
 import getpass
 import time
 import logging
-import json
 from random import seed
 import infra.ccf
 import infra.proc
 import infra.remote_client
 import infra.rates
-import os
-import re
 import cimetrics.upload
 
 from loguru import logger as LOG

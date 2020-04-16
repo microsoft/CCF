@@ -3,7 +3,6 @@
 
 import array
 import os
-import json
 import time
 import http
 import random

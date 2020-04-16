@@ -10,9 +10,6 @@ import http
 import os
 
 
-from loguru import logger as LOG
-
-
 class NoRecoveryShareFound(Exception):
     pass
 

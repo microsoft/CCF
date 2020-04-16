@@ -3,8 +3,6 @@
 
 from enum import Enum
 
-from loguru import logger as LOG
-
 
 class ProposalNotCreated(Exception):
     pass

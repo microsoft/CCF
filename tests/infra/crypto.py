@@ -11,7 +11,7 @@ from coincurve.context import GLOBAL_CONTEXT
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.encoding import RawEncoder
 
-from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
+from cryptography.x509 import load_der_x509_certificate
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,

@@ -5,7 +5,7 @@ import getpass
 import os
 import time
 import logging
-import multiprocessing
+import 
 import infra.e2e_args
 from random import seed
 import infra.ccf

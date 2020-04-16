@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import argparse
 import os
-import logging
 import infra.runner
 import infra.e2e_args
 from infra.perf import PERF_COLUMNS

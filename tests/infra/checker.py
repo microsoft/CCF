@@ -1,11 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.node
 import json
 import time
-
-from loguru import logger as LOG
 
 
 def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=3):

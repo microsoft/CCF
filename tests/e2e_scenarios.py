@@ -5,7 +5,6 @@ import getpass
 import json
 import time
 import logging
-import multiprocessing
 import shutil
 import random
 import infra.ccf

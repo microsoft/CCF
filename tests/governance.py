@@ -5,7 +5,6 @@ import sys
 import getpass
 import time
 import logging
-import multiprocessing
 import shutil
 import subprocess
 from random import seed

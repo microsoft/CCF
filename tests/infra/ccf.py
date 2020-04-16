@@ -1,11 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import json
 import os
 import time
 import logging
 from contextlib import contextmanager
-from glob import glob
 from enum import Enum, IntEnum
 import infra.clients
 import infra.path
@@ -14,7 +12,6 @@ import infra.node
 import infra.consortium
 import ssl
 import random
-import http
 from math import ceil
 
 from loguru import logger as LOG
