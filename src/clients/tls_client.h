@@ -188,14 +188,10 @@ public:
     return buf;
   }
 
-  void set_tcp_nodelay(bool on) {
+  void set_tcp_nodelay(bool on)
+  {
     int option = on ? 1 : 0;
     setsockopt(
-      server_fd.fd,
-      IPPROTO_TCP,
-      TCP_NODELAY,
-      (char *) &option,
-      sizeof(int)
-    );
+      server_fd.fd, IPPROTO_TCP, TCP_NODELAY, (char*)&option, sizeof(int));
   }
 };
