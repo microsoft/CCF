@@ -1,3 +1,6 @@
+parameters:
+  tls_report: false
+
 jobs:
 - job: ${{ parameters.target }}_${{ parameters.suffix }}
   variables:
@@ -35,6 +38,7 @@ jobs:
       - template: publish_build.yml
         parameters:
           artifact_name: ${{ parameters.artifact_name }}
+          tls_report: ${{ parameters.tls_report }}
 
       - template: install.yml
         parameters:

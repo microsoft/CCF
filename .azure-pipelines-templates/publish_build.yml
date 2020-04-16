@@ -1,5 +1,6 @@
-parameters:	
+parameters:
   artifact_name: ''
+  tls_report: false
 
 steps:
 - script: |
@@ -16,3 +17,4 @@ steps:
   inputs:
     artifactName: '${{ parameters.artifact_name }} TLS report'
     targetPath: build/tls_report.html
+  condition: eq('${{ parameters.tls_report }}', true)
