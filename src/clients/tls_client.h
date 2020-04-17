@@ -16,6 +16,8 @@
 #include <mbedtls/error.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/ssl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <string>
 #include <vector>
 
@@ -184,5 +186,12 @@ public:
     }
 
     return buf;
+  }
+
+  void set_tcp_nodelay(bool on)
+  {
+    int option = on ? 1 : 0;
+    setsockopt(
+      server_fd.fd, IPPROTO_TCP, TCP_NODELAY, (char*)&option, sizeof(int));
   }
 };
