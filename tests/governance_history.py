@@ -76,10 +76,9 @@ def run(args):
         proposals_issued += 1
 
         LOG.info("2/3 members accept the proposal")
-        response = network.consortium.vote_using_majority(primary, new_member_proposal)
+        network.consortium.vote_using_majority(primary, new_member_proposal)
         votes_issued += 1
-        assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Accepted.value
+        assert new_member_proposal.state == infra.proposal.ProposalState.Accepted
 
         LOG.info("Unsigned votes are rejected")
         response = network.consortium.get_member_by_id(2).vote(

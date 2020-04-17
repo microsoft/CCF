@@ -121,7 +121,7 @@ class Consortium:
 
         if proposal.state is not ProposalState.Accepted:
             raise infra.proposal.ProposalNotAccepted(proposal)
-        return response
+        return proposal
 
     def get_proposals(self, remote_node):
         script = """
@@ -315,9 +315,8 @@ class Consortium:
         proposal = self.get_any_active_member().propose(
             remote_node, script, recovery_threshold
         )
-        r = self.vote_using_majority(remote_node, proposal)
         self.recovery_threshold = recovery_threshold
-        return r
+        return self.vote_using_majority(remote_node, proposal)
 
     def add_new_code(self, remote_node, new_code_id):
         script = """
