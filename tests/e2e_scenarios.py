@@ -1,12 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import getpass
 import json
-import time
-import logging
-import multiprocessing
-import shutil
+import http
 import random
 import infra.ccf
 import infra.proc

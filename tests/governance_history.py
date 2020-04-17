@@ -7,7 +7,6 @@ import infra.remote
 import infra.crypto
 import infra.ledger
 from infra.proposal import ProposalState
-import json
 import http
 
 from loguru import logger as LOG
@@ -60,7 +59,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        primary, term = network.find_primary()
+        primary, _ = network.find_primary()
 
         ledger_filename = network.find_primary()[0].remote.ledger_path()
         ledger = infra.ledger.Ledger(ledger_filename)
@@ -71,10 +70,7 @@ def run(args):
         ) = count_governance_operations(ledger)
 
         LOG.info("Add new member proposal (implicit vote)")
-        (
-            new_member_proposal,
-            new_member,
-        ) = network.consortium.generate_and_propose_new_member(
+        new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
             primary, curve=infra.ccf.ParticipantsCurve.secp256k1
         )
         proposals_issued += 1
@@ -92,10 +88,7 @@ def run(args):
         assert response.status == http.HTTPStatus.UNAUTHORIZED.value
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
-        (
-            new_member_proposal,
-            new_member,
-        ) = network.consortium.generate_and_propose_new_member(
+        new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
             primary, curve=infra.ccf.ParticipantsCurve.secp256k1
         )
         proposals_issued += 1

@@ -3,15 +3,11 @@
 import getpass
 import time
 import logging
-import multiprocessing
-import json
 from random import seed
 import infra.ccf
 import infra.proc
 import infra.remote_client
 import infra.rates
-import os
-import re
 import cimetrics.upload
 
 from loguru import logger as LOG
@@ -20,19 +16,17 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 
-def number_of_local_nodes(args):
+def minimum_number_of_local_nodes(args):
     """
-    If we are using pbft then we need to have 4 nodes. Otherwise with CFT
-    on 2-core VMs, we start only one node, but on 4 core, we want to start 2.
-    Not 3, because the client is typically running two threads.
+    If we are using pbft then we need to have 4 nodes. CFT will run with 1 nodes, unless it expects a backup
     """
     if args.consensus == "pbft":
         return 4
 
-    if multiprocessing.cpu_count() > 2:
-        return 4
-    else:
-        return 1
+    if args.send_tx_to == "backups":
+        return 2
+
+    return 1
 
 
 def get_command_args(args, get_command):
@@ -83,7 +77,7 @@ def run(get_command, args):
 
     hosts = args.nodes
     if not hosts:
-        hosts = ["localhost"] * number_of_local_nodes(args)
+        hosts = ["localhost"] * minimum_number_of_local_nodes(args)
 
     LOG.info("Starting nodes on {}".format(hosts))
 

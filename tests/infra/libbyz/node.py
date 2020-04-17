@@ -1,8 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import logging
 from loguru import logger
-from subprocess import PIPE, Popen
+from subprocess import Popen
 import paramiko
 
 

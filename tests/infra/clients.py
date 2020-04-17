@@ -1,24 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import socket
-import ssl
-import struct
-import select
 import contextlib
 import json
 import time
 import os
 import subprocess
 import tempfile
-import base64
 import requests
 import urllib.parse
 from requests_http_signature import HTTPSignatureAuth
 from http.client import HTTPResponse
 from io import BytesIO
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import asymmetric
 from websocket import create_connection
 from loguru import logger as LOG
 
@@ -80,6 +72,7 @@ class Response:
             d["error"] = self.error
         return d
 
+    @staticmethod
     def from_requests_response(rr):
         content_type = rr.headers.get("content-type")
         if content_type == "application/json":
@@ -100,6 +93,7 @@ class Response:
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
         )
 
+    @staticmethod
     def from_raw(raw):
         sock = FakeSocket(raw)
         response = HTTPResponse(sock)

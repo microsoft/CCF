@@ -107,8 +107,20 @@ def run(args):
 
     network.stop_all_nodes()
 
-    LOG.success(f"Ran {len(run_tests)}/{len(s.tests)} tests:")
-    LOG.success(f"\n{json.dumps(run_tests, indent=4)}")
+    if success:
+        LOG.success(f"All tests passed. Ran {len(run_tests)}/{len(s.tests)}")
+    else:
+        LOG.error(f"Test failed. Ran {len(run_tests)}/{len(s.tests)}")
+
+    for idx, test in run_tests.items():
+        status = test["status"]
+        if status == TestStatus.success.name:
+            log_fn = LOG.success
+        elif status == TestStatus.skipped.name:
+            log_fn = LOG.warning
+        else:
+            log_fn = LOG.error
+        log_fn(f"Test #{idx}:\n{json.dumps(test, indent=4)}")
 
     if not success:
         sys.exit(1)

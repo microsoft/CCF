@@ -2,14 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import os
 import sys
-import getpass
 import json
 import http
-import time
-import logging
-import multiprocessing
-import shutil
-import random
 import infra.ccf
 import infra.proc
 import infra.e2e_args
@@ -71,7 +65,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
-        primary, term = network.find_primary()
+        primary, _ = network.find_primary()
 
         check = infra.checker.Checker()
 

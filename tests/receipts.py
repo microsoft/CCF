@@ -1,12 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
-import getpass
-import time
-import logging
-import multiprocessing
-import shutil
-from random import seed
 import infra.ccf
 import infra.proc
 import infra.notification
@@ -21,7 +14,7 @@ from loguru import logger as LOG
 @reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
-    primary, backup = network.find_primary_and_any_backup()
+    primary, _ = network.find_primary_and_any_backup()
 
     with primary.node_client() as mc:
         check_commit = infra.checker.Checker(mc, notifications_queue)

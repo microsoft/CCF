@@ -29,6 +29,7 @@ class GcmHeader:
         self._gcm_tag = struct.unpack(f"@{GCM_SIZE_TAG}B", buffer[:GCM_SIZE_TAG])
         self._gcm_iv = struct.unpack(f"@{GCM_SIZE_IV}B", buffer[GCM_SIZE_TAG:])
 
+    @staticmethod
     def size():
         return GCM_SIZE_TAG + GCM_SIZE_IV
 

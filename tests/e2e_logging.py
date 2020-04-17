@@ -154,7 +154,7 @@ def test_forwarding_frontends(network, args):
 def test_update_lua(network, args):
     if args.package == "liblua_generic":
         LOG.info("Updating Lua application")
-        primary, term = network.find_primary()
+        primary, _ = network.find_primary()
 
         check = infra.checker.Checker()
 

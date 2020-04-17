@@ -7,8 +7,6 @@ import time
 import math
 import json
 import create_config
-from node import LocalNode
-from subprocess import PIPE, Popen, run
 import netifaces
 from loguru import logger
 

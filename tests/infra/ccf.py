@@ -1,20 +1,16 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import json
 import os
 import time
 import logging
 from contextlib import contextmanager
-from glob import glob
 from enum import Enum, IntEnum
 import infra.clients
 import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-import ssl
 import random
-import http
 from math import ceil
 
 from loguru import logger as LOG
@@ -170,7 +166,7 @@ class Network:
     def _start_all_nodes(
         self, args, recovery=False, ledger_file=None, sealed_secrets=None
     ):
-        hosts = self.hosts or ["localhost"] * number_of_local.nodes()
+        hosts = self.hosts
 
         if not args.package:
             raise ValueError("A package name must be specified.")
@@ -211,7 +207,7 @@ class Network:
                 raise
         LOG.info("All remotes started")
 
-        primary, term = self.find_primary()
+        primary, _ = self.find_primary()
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
 
         return primary
@@ -329,7 +325,7 @@ class Network:
                     else infra.node.NodeStatus.TRUSTED
                 ),
             )
-        except TimeoutError as err:
+        except TimeoutError:
             # The node can be safely discarded since it has not been
             # attributed a unique node_id by CCF
             LOG.error(f"New pending node {new_node.node_id} failed to join the network")
@@ -409,7 +405,7 @@ class Network:
             self.status = ServiceStatus.OPEN
 
     def wait_for_all_nodes_to_be_trusted(self, timeout=3):
-        primary, term = self.find_primary()
+        primary, _ = self.find_primary()
         for n in self.nodes:
             self.consortium.wait_for_node_to_exist_in_store(
                 primary, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
@@ -450,14 +446,14 @@ class Network:
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
-            primary, term = self.find_primary(timeout=timeout)
+            primary, _ = self.find_primary(timeout=timeout)
         return [n for n in self.get_joined_nodes() if n != primary]
 
     def find_any_backup(self, primary=None, timeout=3):
         return random.choice(self.find_backups(primary=primary, timeout=timeout))
 
     def find_nodes(self, timeout=3):
-        primary, term = self.find_primary(timeout=timeout)
+        primary, _ = self.find_primary(timeout=timeout)
         backups = self.find_backups(primary=primary, timeout=timeout)
         return primary, backups
 
