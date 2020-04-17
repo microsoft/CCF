@@ -278,14 +278,15 @@ class CurlClient:
 
             return Response.from_raw(rc.stdout)
 
-    def _request(self, request, is_signed=False): # pylint: disable=method-hidden
+    # pylint: disable=method-hidden
+    def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
         while True:
             try:
                 rid = self._just_request(request, is_signed=is_signed)
                 # Only the first request gets this timeout logic - future calls
                 # call _just_request directly
-                self._request = self._just_request # pylint: disable=E0202
+                self._request = self._just_request
                 return rid
             except CCFConnectionException as e:
                 # If the handshake fails to due to node certificate not yet
@@ -362,7 +363,8 @@ class RequestClient:
         response = self.session.request(timeout=self.request_timeout, **request_args)
         return Response.from_requests_response(response)
 
-    def _request(self, request, is_signed=False): # pylint: disable=method-hidden
+    # pylint: disable=method-hidden
+    def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
         while True:
             try:
@@ -411,7 +413,8 @@ class WSClient:
         self.request_timeout = request_timeout
 
     def request(self, request):
-        ws = create_connection( # pylint: disable=unused-variable
+        # pylint: disable=unused-variable
+        ws = create_connection(
             f"wss://{self.host}:{self.port}",
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
         )

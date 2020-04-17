@@ -5,7 +5,8 @@ from enum import Enum
 
 
 class ProposalNotCreated(Exception):
-    pass
+    def __init__(self, response):
+        self.response = response
 
 
 class ProposalNotAccepted(Exception):

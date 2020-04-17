@@ -51,7 +51,7 @@ def test_add_member(network, args):
         new_member.get_and_decrypt_recovery_share(primary)
         assert False, "New accepted members are not given recovery shares"
     except infra.member.NoRecoveryShareFound as e:
-        assert e.args[0].error == "Member is not active"
+        assert e.response.error == "Member is not active"
 
     new_member.ack(primary)  # Activate new member
 
@@ -89,7 +89,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        primary, term = network.find_primary()
+        primary, _ = network.find_primary()
 
         LOG.info("Original members can ACK")
         network.consortium.get_any_active_member().ack(primary)
@@ -166,12 +166,12 @@ def run(args):
         return Calls:call("trust_node", node_id)
         """
         try:
-            proposal = new_member.propose(primary, script, 0)
+            new_member.propose(primary, script, 0)
             assert (
                 False
             ), "New non-active member should get insufficient rights response"
         except infra.proposal.ProposalNotCreated as e:
-            assert e.args[0].status == http.HTTPStatus.FORBIDDEN.value
+            assert e.response.status == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("New member ACK")
         new_member.ack(primary)
@@ -228,8 +228,8 @@ def run(args):
             )
             assert False, "Retired member cannot make a new proposal"
         except infra.proposal.ProposalNotCreated as e:
-            assert e.args[0].status == http.HTTPStatus.FORBIDDEN.value
-            assert e.args[0].error == "Member is not active"
+            assert e.response.status == http.HTTPStatus.FORBIDDEN.value
+            assert e.response.error == "Member is not active"
 
         LOG.debug("New member should still be able to make a new proposal")
         new_proposal = new_member.propose(primary, script, 0)
@@ -242,7 +242,7 @@ def run(args):
         try:
             test_retire_member(network, args)
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.args[0].state == infra.proposal.ProposalState.Failed
+            assert e.proposal.state == infra.proposal.ProposalState.Failed
 
         test_add_member(network, args)
         test_retire_member(network, args)
@@ -257,12 +257,12 @@ def run(args):
             "Setting the recovery threshold above the number of active members is not possible"
         )
         try:
-            resp = network.consortium.set_recovery_threshold(
+            network.consortium.set_recovery_threshold(
                 primary,
                 recovery_threshold=len(network.consortium.get_active_members()) + 1,
             )
         except infra.proposal.ProposalNotAccepted as e:
-            assert e.args[0].state == infra.proposal.ProposalState.Failed
+            assert e.proposal.state == infra.proposal.ProposalState.Failed
 
 
 if __name__ == "__main__":

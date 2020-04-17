@@ -63,6 +63,7 @@ def run(args):
                             check(
                                 r,
                                 error=lambda status, msg: status
+                                # pylint: disable=no-member
                                 == http.HTTPStatus(tx.get("expected_error")).value,
                             )
 

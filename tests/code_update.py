@@ -53,7 +53,7 @@ def run(args):
         ), f"Adding a node with unsupported code id {new_code_id} should fail"
 
         # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
-        primary, others = network.find_primary()
+        primary, _ = network.find_primary()
 
         network.consortium.add_new_code(primary, new_code_id)
 

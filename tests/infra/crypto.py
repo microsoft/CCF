@@ -5,6 +5,7 @@ import base64
 from enum import IntEnum
 
 import coincurve
+# pylint: disable=no-name-in-module
 from coincurve._libsecp256k1 import ffi, lib
 from coincurve.context import GLOBAL_CONTEXT
 
@@ -98,6 +99,7 @@ def verify_recover_secp256k1_bc_native(
     ret = lib.secp256k1_ecdsa_verify(
         context.ctx, native_standard_sig, msg_hash, native_public_key
     )
+    return ret
 
 
 def verify_recover_secp256k1_bc(
