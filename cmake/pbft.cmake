@@ -89,8 +89,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   add_library(
     libcommontest STATIC
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/network_udp_mt.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/itimer.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/time_types.cpp
     ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/statistics.cpp
@@ -145,13 +143,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     )
 
   endfunction()
-
-  add_executable(
-    pbft_controller_test
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_controller_main.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp
-  )
-  pbft_add_executable(pbft_controller_test)
 
   # Unit tests
   add_unit_test(
