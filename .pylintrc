@@ -68,16 +68,12 @@ confidence=
 
 enable=all
 
-disable=R, # Disable all refactoring messages
-        bad-continuation,
-        invalid-name,
-        missing-function-docstring,
-        missing-class-docstring,
-        missing-module-docstring,
-        no-else-return,
-        unused-argument
-
-
+disable=R, # Disable all refactoring messages - prefer readability to minimalism
+        C, # Disable all convention messages - rely on formatter to maintain style
+        unused-argument,
+        broad-except,
+        fixme, # TODOs handled by a separate script - any accepted by that should be accepted here as well
+        redefined-outer-name, # Appears safe - caused by `if __name__ == "__main__"` pattern
 
 
 [REPORTS]

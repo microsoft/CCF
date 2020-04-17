@@ -69,7 +69,7 @@ class CCFRemoteClient(object):
         self.remote.start()
 
     def debug_node_cmd(self):
-        return self.remote._dbg()
+        return self.remote.debug_node_cmd()
 
     def stop(self):
         try:

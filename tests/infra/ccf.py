@@ -107,6 +107,7 @@ class Network:
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
+        self.common_dir = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
         if not os.path.isfile(self.key_generator):
             raise FileNotFoundError(
@@ -248,8 +249,8 @@ class Network:
             self.key_generator,
             self.common_dir,
         )
-        self.initial_users = list(range(max(0, args.initial_user_count)))
-        self.create_users(self.initial_users, args.participants_curve)
+        initial_users = list(range(max(0, args.initial_user_count)))
+        self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
 
@@ -269,7 +270,7 @@ class Network:
                 remote_node=primary, app_script=args.js_app_script
             )
 
-        self.consortium.add_users(primary, self.initial_users)
+        self.consortium.add_users(primary, initial_users)
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
@@ -528,6 +529,7 @@ class Network:
             for node in self.get_joined_nodes():
                 try:
                     max_sealed_version = int(
+                        # pylint: disable=unnecessary-lambda
                         max(node.get_sealed_secrets(), key=lambda x: int(x))
                     )
                     if max_sealed_version >= version:
@@ -544,7 +546,7 @@ class Network:
 
 @contextmanager
 def network(
-    hosts, binary_directory=".", dbg_nodes=[], perf_nodes=[], pdb=False, txs=None
+    hosts, binary_directory=".", dbg_nodes=None, perf_nodes=None, pdb=False, txs=None
 ):
     """
     Context manager for Network class.
@@ -557,6 +559,11 @@ def network(
     :return: a Network instance that can be used to create/access nodes, handle the genesis state (add members, create
     node.json), and stop all the nodes that belong to the network
     """
+    if dbg_nodes is None:
+        dbg_nodes = []
+    if perf_nodes is None:
+        perf_nodes = []
+
     net = Network(
         hosts=hosts,
         binary_dir=binary_directory,

@@ -12,6 +12,7 @@ import os
 
 class NoRecoveryShareFound(Exception):
     def __init__(self, response):
+        super(NoRecoveryShareFound, self).__init__()
         self.response = response
 
 
