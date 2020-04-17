@@ -119,7 +119,7 @@ def run(args):
         assert proposal_entry.state == ProposalState.Open
 
         LOG.info("Rest of consortium accept the proposal")
-        response = network.consortium.vote_using_majority(primary, new_member_proposal)
+        network.consortium.vote_using_majority(primary, new_member_proposal)
         assert new_member_proposal.state == ProposalState.Accepted
 
         # Manually add new member to consortium
@@ -180,7 +180,7 @@ def run(args):
         trust_node_proposal = new_member.propose(primary, script, 0, vote_for=True)
 
         LOG.debug("Members vote to accept the accept node proposal")
-        response = network.consortium.vote_using_majority(primary, trust_node_proposal)
+        network.consortium.vote_using_majority(primary, trust_node_proposal)
         assert trust_node_proposal.state == infra.proposal.ProposalState.Accepted
 
         LOG.info("New member makes a new proposal")

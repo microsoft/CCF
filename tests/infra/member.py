@@ -62,7 +62,10 @@ class Member:
                 raise infra.proposal.ProposalNotCreated(r)
 
             return infra.proposal.Proposal(
-                self.member_id, r.result["proposal_id"], vote_for
+                proposer_id=self.member_id,
+                proposal_id=r.result["proposal_id"],
+                state=infra.proposal.ProposalState(r.result["state"]),
+                has_proposer_voted_for=vote_for,
             )
 
     def vote(
