@@ -22,7 +22,7 @@
 # -- Project information -----------------------------------------------------
 
 project = u"CCF"
-copyright = u"2018, Microsoft Research"
+copyright = u"2018, Microsoft Research"  # pylint: disable=redefined-builtin
 author = u"Microsoft Research"
 
 # The short X.Y version

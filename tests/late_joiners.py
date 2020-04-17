@@ -117,7 +117,8 @@ def run_requests(
                 c = clients[node_id % len(clients)]
                 try:
                     check_commit(
-                        c.rpc("LOG_record", {"id": req_id, "msg": long_msg}), result=True
+                        c.rpc("LOG_record", {"id": req_id, "msg": long_msg}),
+                        result=True,
                     )
                 except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
                     LOG.info("Trying to access a suspended network")
