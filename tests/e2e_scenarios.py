@@ -62,9 +62,11 @@ def run(args):
                         if tx.get("expected_error") is not None:
                             check(
                                 r,
-                                error=lambda status, msg: status
+                                error=lambda status, msg, transaction=tx: status
                                 # pylint: disable=no-member
-                                == http.HTTPStatus(tx.get("expected_error")).value,
+                                == http.HTTPStatus(
+                                    transaction.get("expected_error")
+                                ).value,
                             )
 
                         elif tx.get("expected_result") is not None:

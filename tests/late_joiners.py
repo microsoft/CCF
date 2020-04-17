@@ -112,18 +112,18 @@ def run_requests(
                 clients.append(es.enter_context(node.user_client()))
             node_id = 0
             long_msg = "X" * (2 ** 14)
-            for id in range(start_id, (start_id + total_requests)):
+            for req_id in range(start_id, (start_id + total_requests)):
                 node_id += 1
                 c = clients[node_id % len(clients)]
                 try:
                     check_commit(
-                        c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True
+                        c.rpc("LOG_record", {"id": req_id, "msg": long_msg}), result=True
                     )
                 except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
                     LOG.info("Trying to access a suspended network")
                     if cant_fail:
                         raise RuntimeError(e)
-                id += 1
+                req_id += 1
 
         wait_for_nodes(nodes, final_msg, final_msg_id)
 
