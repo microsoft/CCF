@@ -51,24 +51,28 @@ class LedgerDomain:
 
     def _read(self):
         while self._buffer_size > self._unpacker.tell():
-            map_start_indicator = self._read_next()
+            # map_start_indicator
+            self._read_next()
             map_name = self._read_next_string()
             records = {}
             self._tables[map_name] = records
-            read_version = self._read_next()
 
-            read_count = self._read_next()
+            # read_version
+            self._read_next()
+
+            # read_count
+            self._read_next()
 
             write_count = self._read_next()
             if write_count:
-                for i in range(write_count):
+                for _ in range(write_count):
                     k = self._read_next()
                     val = self._read_next()
                     records[k] = val
 
             remove_count = self._read_next()
             if remove_count:
-                for i in range(remove_count):
+                for _ in range(remove_count):
                     k = self._read_next()
                     records[k] = None
 

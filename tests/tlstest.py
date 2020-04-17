@@ -14,7 +14,9 @@ import subprocess
 def test(network, args, notifications_queue=None):
     node = network.nodes[0]
     endpoint = f"https://{node.host}:{node.rpc_port}"
-    r = subprocess.run(["testssl/testssl.sh", "--outfile", "tls_report", endpoint])
+    r = subprocess.run(
+        ["testssl/testssl.sh", "--outfile", "tls_report", endpoint], check=False
+    )
     assert r.returncode == 0
 
 

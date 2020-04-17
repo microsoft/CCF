@@ -33,6 +33,7 @@ class Node:
         self.perf = perf
         self.remote = None
         self.network_state = NodeNetworkState.stopped
+        self.common_dir = None
 
         hosts, *port = host.split(":")
         self.host, *self.pubhost = hosts.split(",")
@@ -274,11 +275,11 @@ def node(node_id, host, binary_directory, debug=False, perf=False, pdb=False):
     :param perf: default: False. If set, node will run under perf record
     :return: a Node instance that can be used to build a CCF network
     """
-    node = Node(
+    this_node = Node(
         node_id=node_id, host=host, binary_dir=binary_directory, debug=debug, perf=perf
     )
     try:
-        yield node
+        yield this_node
     except Exception:
         if pdb:
             import pdb
@@ -287,4 +288,4 @@ def node(node_id, host, binary_directory, debug=False, perf=False, pdb=False):
         else:
             raise
     finally:
-        node.stop()
+        this_node.stop()

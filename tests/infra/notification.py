@@ -27,6 +27,7 @@ class PostQueueRequestHandler(http.server.BaseHTTPRequestHandler):
         else:
             self.queue.put(body)
 
+    # pylint: disable=redefined-builtin
     def log_message(self, format, *args):
         pass
 

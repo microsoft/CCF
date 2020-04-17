@@ -77,7 +77,5 @@ def working_dir(path):
     os.chdir(path)
     try:
         yield
-    except Exception:
-        raise
     finally:
         os.chdir(cwd)

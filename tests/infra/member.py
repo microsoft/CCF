@@ -11,7 +11,9 @@ import os
 
 
 class NoRecoveryShareFound(Exception):
-    pass
+    def __init__(self, response):
+        super(NoRecoveryShareFound, self).__init__()
+        self.response = response
 
 
 class MemberStatus(Enum):

@@ -117,7 +117,7 @@ def run(get_command, args):
 
         if args.network_only:
             for remote_client in clients:
-                LOG.info(f"Client can be run with: {remote_client.remote._cmd()}")
+                LOG.info(f"Client can be run with: {remote_client.remote.get_cmd()}")
             while True:
                 time.sleep(60)
         else:

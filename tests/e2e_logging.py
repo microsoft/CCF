@@ -40,14 +40,14 @@ def test_large_messages(network, args):
         check = infra.checker.Checker()
 
         with primary.user_client() as c:
-            id = 44
+            log_id = 44
             for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
-                    c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True,
+                    c.rpc("LOG_record", {"id": log_id, "msg": long_msg}), result=True,
                 )
-                check(c.get("LOG_get", {"id": id}), result={"msg": long_msg})
-                id += 1
+                check(c.get("LOG_get", {"id": log_id}), result={"msg": long_msg})
+                log_id += 1
 
     return network
 
@@ -58,7 +58,7 @@ def test_cert_prefix(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
-        for user_id in network.initial_users:
+        for user_id in network.user_ids:
             with primary.user_client(user_id) as c:
                 log_id = 101
                 msg = "This message will be prefixed"

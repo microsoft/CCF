@@ -5,7 +5,7 @@ import base64
 from enum import IntEnum
 
 import coincurve
-from coincurve._libsecp256k1 import ffi, lib
+from coincurve._libsecp256k1 import ffi, lib  # pylint: disable=no-name-in-module
 from coincurve.context import GLOBAL_CONTEXT
 
 from nacl.public import PrivateKey, PublicKey, Box
@@ -98,6 +98,7 @@ def verify_recover_secp256k1_bc_native(
     ret = lib.secp256k1_ecdsa_verify(
         context.ctx, native_standard_sig, msg_hash, native_public_key
     )
+    return ret
 
 
 def verify_recover_secp256k1_bc(
@@ -139,7 +140,7 @@ def verify_request_sig(raw_cert, sig, req, request_body, md):
     except InvalidSignature as e:
         # we support a non-standard curve, which is also being
         # used for bitcoin.
-        if pub_key._curve.name != "secp256k1":
+        if pub_key._curve.name != "secp256k1":  # pylint: disable=protected-access
             raise e
 
         verify_recover_secp256k1_bc(sig, req)
