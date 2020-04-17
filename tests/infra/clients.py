@@ -6,13 +6,14 @@ import time
 import os
 import subprocess
 import tempfile
-import requests
 import urllib.parse
-from requests_http_signature import HTTPSignatureAuth
 from http.client import HTTPResponse
 from io import BytesIO
-from websocket import create_connection
+
+import requests
 from loguru import logger as LOG
+from requests_http_signature import HTTPSignatureAuth
+from websocket import create_connection
 
 
 def truncate(string, max_len=256):
@@ -30,8 +31,11 @@ CCF_READ_ONLY_HEADER = "x-ccf-read-only"
 
 class Request:
     def __init__(
-        self, method, params=None, readonly_hint=None, http_verb="POST", headers={}
+        self, method, params=None, readonly_hint=None, http_verb="POST", headers=None
     ):
+        if headers is None:
+            headers = {}
+
         self.method = method
         self.params = params
         self.readonly_hint = readonly_hint
@@ -266,7 +270,7 @@ class CurlClient:
                 cmd.extend(["--cert", self.cert])
 
             LOG.debug(f"Running: {' '.join(cmd)}")
-            rc = subprocess.run(cmd, capture_output=True)
+            rc = subprocess.run(cmd, capture_output=True, check=False)
 
             if rc.returncode != 0:
                 if rc.returncode == 60:  # PEER_FAILED_VERIFICATION

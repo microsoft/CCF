@@ -60,113 +60,24 @@ confidence=
 # --enable=similarities". If you want to run only the classes checker, but have
 # no Warning level messages displayed, use "--disable=all --enable=classes
 # --disable=W".
-disable=all
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
 # multiple time (only on the command line, not in the configuration file where
 # it should appear only once). See also the "--disable" option for examples.
-enable=syntax-error,
-       unrecognized-inline-option,
-       bad-option-value,
-       init-is-generator,
-       return-in-init,
-       function-redefined,
-       not-in-loop,
-       return-outside-function,
-       yield-outside-function,
-       nonexistent-operator,
-       duplicate-argument-name,
-       abstract-class-instantiated,
-       bad-reversed-sequence,
-       too-many-star-expressions,
-       invalid-star-assignment-target,
-       star-needs-assignment-target,
-       nonlocal-and-global,
-       continue-in-finally,
-       nonlocal-without-binding,
-       used-prior-global-declaration,
-       method-hidden,
-       access-member-before-definition,
-       no-method-argument,
-       no-self-argument,
-       invalid-slots-object,
-       assigning-non-slot,
-       invalid-slots,
-       inherit-non-class,
-       inconsistent-mro,
-       duplicate-bases,
-       non-iterator-returned,
-       unexpected-special-method-signature,
-       invalid-length-returned,
-       import-error,
-       relative-beyond-top-level,
-       used-before-assignment,
-       undefined-variable,
-       undefined-all-variable,
-       invalid-all-object,
-       no-name-in-module,
-       unpacking-non-sequence,
-       bad-except-order,
-       raising-bad-type,
-       bad-exception-context,
-       misplaced-bare-raise,
-       raising-non-exception,
-       notimplemented-raised,
-       catching-non-exception,
-       bad-super-call,
-       no-member,
-       not-callable,
-       assignment-from-no-return,
-       no-value-for-parameter,
-       too-many-function-args,
-       unexpected-keyword-arg,
-       redundant-keyword-arg,
-       missing-kwoa,
-       invalid-sequence-index,
-       invalid-slice-index,
-       assignment-from-none,
-       not-context-manager,
-       invalid-unary-operand-type,
-       unsupported-binary-operation,
-       repeated-keyword,
-       not-an-iterable,
-       not-a-mapping,
-       unsupported-membership-test,
-       unsubscriptable-object,
-       unsupported-assignment-operation,
-       unsupported-delete-operation,
-       invalid-metaclass,
-       logging-unsupported-format,
-       logging-format-truncated,
-       logging-too-many-args,
-       logging-too-few-args,
-       bad-format-character,
-       truncated-format-string,
-       mixed-format-string,
-       format-needs-mapping,
-       missing-format-string-key,
-       too-many-format-args,
-       too-few-format-args,
-       bad-str-strip-call,
-       yield-inside-async-function,
-       not-async-context-manager,
-       fatal,
-       astroid-error,
-       parse-error,
-       method-check-failed,
-       unreachable,
-       duplicate-key,
-       unnecessary-semicolon,
-       global-variable-not-assigned,
-       unused-import,
-       unused-variable,
-       unused-wildcard-import,
-       unbalanced-tuple-unpacking,
-       binary-op-exception,
-       bad-format-string,
-       anomalous-backslash-in-string,
-       bad-open-mode
+
+enable=all
+
+disable=R, # Disable all refactoring messages
+        bad-continuation,
+        invalid-name,
+        missing-function-docstring,
+        missing-class-docstring,
+        missing-module-docstring,
+        no-else-return,
+        unused-argument
+
+
 
 
 [REPORTS]
@@ -185,7 +96,7 @@ msg-template={line},{column},{category},{symbol}:{msg}
 # Set the output format. Available formats are text, parseable, colorized, json
 # and msvs (visual studio). You can also give a reporter class, e.g.
 # mypackage.mymodule.MyReporterClass.
-output-format=text
+output-format=colorized
 
 # Tells whether to display a full report or only the messages.
 reports=no
