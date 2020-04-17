@@ -1083,11 +1083,6 @@ namespace ccf
     {
       try
       {
-        LOG_FAIL_FMT(
-          "By the end of recovery, there are {} encrypted ledger secrets to "
-          "decrypt",
-          recovery_secret_list.size());
-
         finish_recovery_with_shares(
           tx,
           share_manager.restore_key_share_info(

@@ -78,7 +78,7 @@ namespace ccf
       auto shares =
         SecretSharing::split(secret_to_split, active_member_count, threshold);
 
-      // Here, shares are not encrypted and record in the ledger in plain text
+      // Here, shares are not encrypted but recorded in plain text
       EncryptedSharesMap recorded_shares;
       MemberId member_id = 0;
       for (auto const& s : shares)
@@ -95,6 +95,7 @@ namespace ccf
     bool restore_ledger_secrets(
       Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
+      SecretSharing::combine(shares, shares.size());
       return true;
     }
 
