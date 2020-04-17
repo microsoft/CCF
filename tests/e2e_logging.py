@@ -58,7 +58,7 @@ def test_cert_prefix(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
-        for user_id in network.initial_users:
+        for user_id in network.user_ids:
             with primary.user_client(user_id) as c:
                 log_id = 101
                 msg = "This message will be prefixed"

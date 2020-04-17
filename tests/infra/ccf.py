@@ -104,6 +104,7 @@ class Network:
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
+        self.user_ids = []
         self.hosts = hosts
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
@@ -376,6 +377,7 @@ class Network:
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
+        self.user_ids.append(user_id)
 
     def create_users(self, user_ids, curve):
         for user_id in user_ids:
