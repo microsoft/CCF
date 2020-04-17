@@ -149,8 +149,8 @@ class Consortium:
                     infra.proposal.Proposal(
                         proposal_id=int(proposal_id),
                         proposer_id=int(attr["proposer"]),
-                        has_proposer_voted_for=has_proposer_voted_for,
                         state=infra.proposal.ProposalState(attr["state"]),
+                        has_proposer_voted_for=has_proposer_voted_for,
                     )
                 )
         return proposals

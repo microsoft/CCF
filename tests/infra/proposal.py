@@ -30,8 +30,8 @@ class Proposal:
         self,
         proposer_id,
         proposal_id,
+        state,
         has_proposer_voted_for=True,
-        state=ProposalState.Open,
     ):
         self.proposer_id = proposer_id
         self.proposal_id = proposal_id
