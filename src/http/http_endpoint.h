@@ -11,6 +11,23 @@
 
 namespace http
 {
+  std::vector<uint8_t> wsh(const std::vector<uint8_t>& frame)
+  {
+    bool lh = frame.size() > 125;
+    std::vector<uint8_t> h(lh ? 4 : 2);
+    h[0] = 0x82;
+    if (lh)
+    {
+      h[1] = 0x7f;
+      *((uint16_t * ) &h[2]) = htons(frame.size());
+    }
+    else
+    {
+      h[1] = frame.size();
+    }
+    return h;
+  }
+
   class HTTPEndpoint : public enclave::TLSEndpoint
   {
   protected:
@@ -285,6 +302,12 @@ namespace http
         }
         else
         {
+          if (is_websocket)
+          {
+            auto h = wsh(response.value());
+            LOG_INFO_FMT("Sending WS header {} {} {} {}", h[0], h[1], h[2], h[3]);
+            send_buffered(h);
+          }
           send_buffered(response.value());
           flush();
         }

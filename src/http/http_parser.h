@@ -526,7 +526,7 @@ namespace ws
             assert (data.size() == size);
             proc.handle_request(
               http_method::HTTP_POST,
-              "LOG_record",
+              "/users/LOG_record",
               {},
               {{"Content-type", "application/json"}},
               std::move(data));
