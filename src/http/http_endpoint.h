@@ -15,18 +15,18 @@ namespace http
   {
   protected:
     http::Parser& p;
-    http::RequestProcessor* proc;
+    ws::Parser& wp;
     bool is_websocket = false;
 
     HTTPEndpoint(
       http::Parser& p_,
+      ws::Parser& wp_,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx,
-      http::RequestProcessor* proc_ = nullptr) :
+      std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
       p(p_),
-      proc(proc_)
+      wp(wp_)
     {}
 
   public:
@@ -111,35 +111,21 @@ namespace http
       {
         LOG_INFO_FMT(
           "Receiving data after endpoint has been upgraded to websocket.");
-        
-        auto header = read(2, true);
-        if (header[0] & 0x80)
+
+        size_t to_read = 2;
+        while (true)
         {
-          LOG_INFO_FMT("Got: {0:#x}", header[0]);
-          if (header[0] == 0x82)
+          auto buf = read(to_read, true);
+          if (!buf.size())
           {
-            uint16_t size = header[1];
-            if (size & 0x8)
-            {
-              auto payload_size = read(2, true);
-              size = ntohs(*(uint16_t *) payload_size.data());
-            }
-            LOG_FAIL_FMT("Going to receive {} bytes", size);
-            auto payload = read(size, true);
-            LOG_FAIL_FMT("Received [{}]", std::string(payload.begin(), payload.end()));
-            //TODO: pass to message processing
+            return; //TODO: This will not work!
+          }
+          to_read = wp.consume(buf);
+          if (!to_read)
+          {
             close();
+            return;
           }
-          else
-          {
-            LOG_FAIL_FMT("Only binary messages are supported.");
-            close();  
-          }
-        }
-        else
-        {
-          LOG_FAIL_FMT("Fragmented messages are not supported.");
-          close();
         }
       }
     }
@@ -149,6 +135,7 @@ namespace http
   {
   private:
     http::RequestParser request_parser;
+    ws::RequestParser ws_request_parser;
 
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
@@ -162,8 +149,9 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
+      HTTPEndpoint(request_parser, ws_request_parser, session_id, writer_factory, std::move(ctx)),
       request_parser(*this),
+      ws_request_parser(*this),
       rpc_map(rpc_map),
       session_id(session_id)
     {}
@@ -321,15 +309,17 @@ namespace http
   {
   private:
     http::ResponseParser response_parser;
+    ws::ResponseParser ws_response_parser;
 
   public:
     HTTPClientEndpoint(
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
+      HTTPEndpoint(response_parser, ws_response_parser, session_id, writer_factory, std::move(ctx)),
       ClientEndpoint(session_id, writer_factory),
-      response_parser(*this)
+      response_parser(*this),
+      ws_response_parser(*this)
     {}
 
     void send_request(const std::vector<uint8_t>& data) override

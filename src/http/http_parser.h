@@ -5,6 +5,8 @@
 #include "enclave/tls_endpoint.h"
 #include "http_builder.h"
 
+#include <arpa/inet.h>
+
 #include <algorithm>
 #include <cctype>
 #include <http-parser/http_parser.h>
@@ -430,5 +432,112 @@ namespace http
         std::move(headers),
         std::move(body_buf));
     }
+  };
+}
+
+namespace ws
+{
+  enum ParserState
+  {
+    INIT,
+    READ_LEN,
+    READ_BODY
+  };
+
+  class Parser
+  {
+    public:
+      virtual size_t consume(std::vector<uint8_t>&) = 0;
+  };
+
+  class ResponseParser: public Parser
+  {
+    private:
+      http::ResponseProcessor& proc;
+
+    public:
+      ResponseParser(http::ResponseProcessor& proc_) : proc(proc_)
+      {}
+
+      size_t consume(std::vector<uint8_t>& data) override
+      {
+        throw std::logic_error("Not implemented");
+      }
+  };
+
+  class RequestParser: public Parser
+  {
+    private:
+      http::RequestProcessor& proc;
+      uint16_t size = 0;
+      ParserState state = INIT;
+
+    public:
+      RequestParser(http::RequestProcessor& proc_) : proc(proc_)
+      {}
+
+      size_t consume(std::vector<uint8_t>& data) override
+      {
+        switch (state)
+        {
+          case INIT:
+          {
+            assert(data.size() == 2);
+
+            bool fin = data[0] & 0x80;
+            if (!fin)
+            {
+              LOG_FAIL_FMT("Masked messages aren't support.");
+              return 0;
+            }
+            else
+            {
+              if (data[0] == 0x82)
+              {
+                size = data[1];
+                if (size & 0x8)
+                {
+                  state = READ_LEN;
+                  return 2;
+                }
+                else
+                {
+                  state = READ_BODY;
+                  return size;
+                }
+              }
+              else
+              {
+                LOG_FAIL_FMT("Only binary unmasked messages are supported.");
+                return 0;
+              }
+            }
+          }
+          case READ_LEN:
+          {
+            assert(data.size() == 2);
+
+            size = ntohs(*(uint16_t *) data.data());
+            state = READ_BODY;
+            return size;
+          }
+          case READ_BODY:
+          {
+            assert (data.size() == size);
+            proc.handle_request(
+              http_method::HTTP_POST,
+              "LOG_record",
+              {},
+              {{"Content-type", "application/json"}},
+              std::move(data));
+            state = INIT;
+            return 2;
+          }
+          default:
+          {
+            throw std::logic_error("Unknown state");
+          }
+        }
+      }
   };
 }

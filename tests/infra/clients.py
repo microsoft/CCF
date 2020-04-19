@@ -425,6 +425,7 @@ class WSClient:
         payload = json.dumps(request.params).encode()
         frame = websocket.ABNF(1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, payload)
         ws.send_frame(frame)
+        return ws.recv()
 
     def signed_request(self, request):
         raise NotImplementedError("Signed requests not yet implemented over WebSockets")
