@@ -119,10 +119,10 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   endif()
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(TEST_ENCLAVE_TYPE "-e debug")
+    set(TEST_ENCLAVE_TYPE -e debug)
   endif()
 else()
-  set(TEST_ENCLAVE_TYPE "-e virtual")
+  set(TEST_ENCLAVE_TYPE -e virtual)
 endif()
 
 # Lua module
