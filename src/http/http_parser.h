@@ -488,13 +488,14 @@ namespace ws
             bool fin = data[0] & 0x80;
             if (!fin)
             {
-              LOG_FAIL_FMT("Masked messages aren't support.");
+              LOG_FAIL_FMT("Fragment messages aren't support.");
               return 0;
             }
             else
             {
               if (data[0] == 0x82)
               {
+                // TODO: check mask
                 size = data[1];
                 switch(size)
                 {
