@@ -13,12 +13,13 @@ namespace http
 {
   std::vector<uint8_t> wsh(const std::vector<uint8_t>& frame)
   {
+    LOG_INFO_FMT("Frame size: {}", frame.size());
     bool lh = frame.size() > 125;
     std::vector<uint8_t> h(lh ? 4 : 2);
     h[0] = 0x82;
     if (lh)
     {
-      h[1] = 0x7f;
+      h[1] = 0x7e;
       *((uint16_t * ) &h[2]) = htons(frame.size());
     }
     else

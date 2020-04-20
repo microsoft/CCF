@@ -5,7 +5,7 @@
 #include "enclave/tls_endpoint.h"
 #include "http_builder.h"
 
-#include <arpa/inet.h>
+#include <endian.h>
 
 #include <algorithm>
 #include <cctype>
@@ -440,7 +440,8 @@ namespace ws
   enum ParserState
   {
     INIT,
-    READ_LEN,
+    READ_SLEN,
+    READ_LLEN,
     READ_BODY
   };
 
@@ -495,15 +496,23 @@ namespace ws
               if (data[0] == 0x82)
               {
                 size = data[1];
-                if (size & 0x8)
+                switch(size)
                 {
-                  state = READ_LEN;
-                  return 2;
-                }
-                else
-                {
-                  state = READ_BODY;
-                  return size;
+                  case 0x7f:
+                  {
+                    state = READ_LLEN;
+                    return 8;
+                  }
+                  case 0x7e:
+                  {
+                    state = READ_SLEN;
+                    return 2;
+                  }
+                  default:
+                  {
+                    state = READ_BODY;
+                    return size;
+                  }
                 }
               }
               else
@@ -513,11 +522,19 @@ namespace ws
               }
             }
           }
-          case READ_LEN:
+          case READ_SLEN:
           {
             assert(data.size() == 2);
 
-            size = ntohs(*(uint16_t *) data.data());
+            size = be16toh(*(uint16_t *) data.data());
+            state = READ_BODY;
+            return size;
+          }
+          case READ_LLEN:
+          {
+            assert(data.size() == 8);
+
+            size = be64toh(*(uint64_t *) data.data());
             state = READ_BODY;
             return size;
           }
