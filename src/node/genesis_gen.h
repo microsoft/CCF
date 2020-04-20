@@ -374,7 +374,7 @@ namespace ccf
       return active_members_info;
     }
 
-    void add_key_share_info(const KeyShareInfo& key_share_info)
+    void add_key_share_info(const RecoverySharesInfo& key_share_info)
     {
       auto shares_view = tx.get_view(tables.shares);
       shares_view->put(0, key_share_info);

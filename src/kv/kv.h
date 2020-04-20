@@ -196,7 +196,7 @@ namespace kv
 
     /** Reset local transaction commit handler
      */
-    void reset_local_hook()
+    void unset_local_hook()
     {
       std::lock_guard<SpinLock> guard(sl);
       local_hook = nullptr;
@@ -210,6 +210,14 @@ namespace kv
     {
       std::lock_guard<SpinLock> guard(sl);
       global_hook = hook;
+    }
+
+    /** Reset global transaction commit handler
+     */
+    void unset_global_hook()
+    {
+      std::lock_guard<SpinLock> guard(sl);
+      global_hook = nullptr;
     }
 
     /** Get security domain of a Map

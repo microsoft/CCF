@@ -200,10 +200,7 @@ namespace ccf
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> term_history;
     kv::Version last_recovered_commit_idx = 1;
-
-    std::list<RecoveryLedgerSecret>
-      recovery_secret_list; // TODO: Don't forget to clean this when the
-                            // recovery is done
+    std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
 
     consensus::Index ledger_idx = 0;
 
@@ -740,7 +737,8 @@ namespace ccf
 
         // Shares for the new ledger secret can only be written now, once the
         // previous ledger secrets have been recovered
-        share_manager.update_key_share_info(tx, last_recovered_commit_idx + 1);
+        share_manager.update_recovery_shares_info(
+          tx, last_recovered_commit_idx + 1);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1020,6 +1018,14 @@ namespace ccf
       // once the local hook on the secrets table has been triggered. The
       // corresponding new ledger secret is only sealed on global hook.
 
+      // TODO: Add new ledger secret to LedgerSecrets
+      // Issue new shares
+
+      // Note: There should be a way to add the pending secret to the
+      // LedgerSecrets and add that secret to it without confirming it.
+      // Also, on replay, it should be the transaction hook version + 1 which
+      // should be used (good except for the very first transaction).
+
       broadcast_ledger_secret(tx, LedgerSecret());
 
       return true;
@@ -1068,11 +1074,11 @@ namespace ccf
     {
       try
       {
-        share_manager.update_key_share_info(tx);
+        share_manager.update_recovery_shares_info(tx);
       }
       catch (const std::logic_error& e)
       {
-        LOG_FAIL_FMT("Failed to update key share info: {}", e.what());
+        LOG_FAIL_FMT("Failed to update recovery shares info: {}", e.what());
         return false;
       }
       return true;
@@ -1085,12 +1091,14 @@ namespace ccf
       {
         finish_recovery_with_shares(
           tx,
-          share_manager.restore_key_share_info(
-            tx, shares, recovery_secret_list));
+          share_manager.restore_recovery_shares_info(
+            tx, shares, recovery_ledger_secrets));
+
+        recovery_ledger_secrets.clear();
       }
       catch (const std::logic_error& e)
       {
-        LOG_FAIL_FMT("Failed to restore key share info: {}", e.what());
+        LOG_FAIL_FMT("Failed to restore recovery shares info: {}", e.what());
         return false;
       }
 
@@ -1486,27 +1494,20 @@ namespace ccf
               // If the version is not set (e.g. rekeying), use the version from
               // the hook. Otherwise (e.g. recovery), use the version specified.
               auto version_ =
-                v.value.encrypted_ledger_secret.version == kv::NoVersion ?
+                v.value.wrapped_latest_ledger_secret.version == kv::NoVersion ?
                 version :
-                v.value.encrypted_ledger_secret.version;
+                v.value.wrapped_latest_ledger_secret.version;
 
-              recovery_secret_list.push_back(
+              recovery_ledger_secrets.push_back(
                 {version_, v.value.encrypted_previous_ledger_secret});
             }
-          }
-          else
-          {
-            LOG_FAIL_FMT(
-              "Some shares read but node is not recovering. Version {}",
-              version);
           }
         });
     }
 
     void reset_recovery_hook()
     {
-      LOG_FAIL_FMT("Resetted recovery hooks");
-      network.shares.reset_local_hook();
+      network.shares.unset_local_hook();
     }
 
     void setup_n2n_channels()
