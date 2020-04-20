@@ -104,12 +104,9 @@ Pre_prepare::Pre_prepare(
   if (prepared_cert == nullptr)
   {
     // if there are no pre-prepare proofs (e.g. no-op pre-prepare)
-    // then set zero out the rest of the allocated message
+    // then zero out the rest of the allocated message
     rep().num_prev_pp_sig = 0;
-    size_t s = sizeof(Pre_prepare_rep) + rep().rset_size +
-      rep().n_big_reqs * sizeof(Digest);
-    uint8_t* sigs = (uint8_t*)contents() + s;
-    std::memset(sigs, 0, size() - s);
+    std::memset(proofs(), 0, size() - size_to_proofs());
   }
   else
   {

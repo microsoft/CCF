@@ -275,6 +275,10 @@ private:
   uint8_t* proofs();
   // Effects: Returns a pointer to the first prepare proof in this.
 
+  size_t size_to_proofs();
+  // Effects: Returns the bytes we need to bypass to get to the start
+  // of the prepare proofs
+
   size_t proofs_size();
   // Effects: Returns the number of prepapre proofs in this
 };
@@ -301,7 +305,12 @@ inline Digest* Pre_prepare::big_reqs()
 
 inline uint8_t* Pre_prepare::proofs()
 {
-  return (uint8_t*)contents() + sizeof(Pre_prepare_rep) + rep().rset_size +
+  return (uint8_t*)contents() + size_to_proofs();
+}
+
+inline size_t Pre_prepare::size_to_proofs()
+{
+  return sizeof(Pre_prepare_rep) + rep().rset_size +
     rep().n_big_reqs * sizeof(Digest);
 }
 
