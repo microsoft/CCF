@@ -110,7 +110,7 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    if args.enclave_type != "debug":
+    if args.enclave_type == "virtual":
         LOG.warning("Skipping code update test with virtual enclave")
         sys.exit()
 
