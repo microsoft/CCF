@@ -316,7 +316,7 @@ class SSHRemote(CmdMixin):
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {env} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
 
-    def _dbg(self):
+    def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {DBG} --args {cmd}"
 
@@ -473,7 +473,7 @@ class LocalRemote(CmdMixin):
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {cmd} 1> {self.out} 2> {self.err}"
 
-    def _dbg(self):
+    def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {DBG} --args {cmd}"
 
