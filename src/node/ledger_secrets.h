@@ -51,7 +51,6 @@ namespace ccf
 
     void add_secret(kv::Version v, LedgerSecret&& secret, bool force_seal)
     {
-      LOG_FAIL_FMT("Adding new ledger secrets at {}", v);
       if (secrets_map.size() >= 1)
       {
         if (v > latest_version)
@@ -82,9 +81,6 @@ namespace ccf
       {
         latest_version = v;
       }
-
-      LOG_FAIL_FMT("Penultimate: {}", penultimate_version);
-      LOG_FAIL_FMT("Latest: {}", latest_version);
     }
 
   public:
