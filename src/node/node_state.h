@@ -286,7 +286,8 @@ namespace ccf
 
           // Create initial secrets and seal immediately
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
-          network.ledger_secrets->set_secret(1, LedgerSecret().master);
+          // network.ledger_secrets->set_secret(1, LedgerSecret().master);
+          network.ledger_secrets->init();
           network.ledger_secrets->seal_all();
 
           network.encryption_key = std::make_unique<NetworkEncryptionKey>(
@@ -598,8 +599,9 @@ namespace ccf
         "index: {}",
         last_recovered_commit_idx);
 
-      network.ledger_secrets->set_secret(
-        last_recovered_commit_idx + 1, LedgerSecret().master);
+      // network.ledger_secrets->set_secret(
+      //   last_recovered_commit_idx + 1, LedgerSecret().master);
+      network.ledger_secrets->init(last_recovered_commit_idx + 1);
       setup_encryptor(network.consensus_type);
 
       g.create_service(network.identity->cert, last_recovered_commit_idx + 1);
@@ -852,7 +854,9 @@ namespace ccf
         LOG_INFO_FMT("Initiating end of recovery (primary)");
 
         // Unseal past network secrets
-        auto past_secrets_idx = network.ledger_secrets->restore(sealed_secrets);
+        // auto past_secrets_idx =
+        // network.ledger_secrets->restore(sealed_secrets);
+        std::vector<kv::Version> past_secrets_idx;
 
         // Emit signature to certify transactions that happened on public
         // network
@@ -1401,6 +1405,7 @@ namespace ccf
                                        const Secrets::State& s,
                                        const Secrets::Write& w) {
         bool has_secrets = false;
+        std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
 
         for (auto& [v, secret_set] : w)
         {
@@ -1439,16 +1444,18 @@ namespace ccf
 
               if (is_part_of_public_network())
               {
-                // When recovering, set the past secret as a ledger secret to
-                // be sealed at the end of the recovery
-                if (!network.ledger_secrets->set_secret(
-                      secret_version, plain_secret))
-                {
-                  throw std::logic_error(fmt::format(
-                    "Cannot set ledger secrets at version {} because they "
-                    "already exist",
-                    secret_version));
-                }
+                restored_secrets.push_back(
+                  {secret_version, LedgerSecret(plain_secret)});
+                // // When recovering, set the past secret as a ledger secret to
+                // // be sealed at the end of the recovery
+                // if (!network.ledger_secrets->set_secret(
+                //       secret_version, plain_secret))
+                // {
+                //   throw std::logic_error(fmt::format(
+                //     "Cannot set ledger secrets at version {} because they "
+                //     "already exist",
+                //     secret_version));
+                // }
               }
               else
               {
@@ -1466,6 +1473,7 @@ namespace ccf
         // When recovering, trigger end of recovery protocol
         if (has_secrets && is_part_of_public_network())
         {
+          network.ledger_secrets->restore(std::move(restored_secrets));
           backup_finish_recovery();
         }
       });

@@ -116,7 +116,7 @@ namespace ccf
       // the shares table.
 
       auto ls_wrapping_key = LedgerSecretWrappingKey();
-      auto encrypted_ls =
+      auto wrapped_latest_ls =
         ls_wrapping_key.wrap(network.ledger_secrets->get_latest());
 
       std::vector<uint8_t> encrypted_previous_secret = {};
@@ -167,7 +167,7 @@ namespace ccf
         share_index++;
       }
 
-      g.add_key_share_info({{latest_ls_version, encrypted_ls},
+      g.add_key_share_info({{latest_ls_version, wrapped_latest_ls},
                             encrypted_previous_secret,
                             encrypted_shares});
     }
@@ -193,17 +193,22 @@ namespace ccf
           "Failed to retrieve current recovery shares info");
       }
 
-      auto restored_ls = ls_wrapping_key.unwrap(
-        key_share_info->wrapped_latest_ledger_secret.encrypted_data);
-
-      network.ledger_secrets->set_secret(
-        encrypted_recovery_secrets.back().next_version, restored_ls.master);
+      std::list<LedgerSecrets::VersionedLedgerSecret> restored_ledger_secrets;
 
       // For now, we keep track of the restored versions so that the recovered
       // ledger secrets can be broadcast to backups
       std::vector<kv::Version> restored_versions;
       restored_versions.push_back(
         encrypted_recovery_secrets.back().next_version);
+
+      auto restored_ls = ls_wrapping_key.unwrap(
+        key_share_info->wrapped_latest_ledger_secret.encrypted_data);
+
+      // network.ledger_secrets->set_secret(
+      //   encrypted_recovery_secrets.back().next_version, restored_ls.master);
+
+      restored_ledger_secrets.push_back(
+        {encrypted_recovery_secrets.back().next_version, restored_ls});
 
       auto decryption_key = restored_ls.master;
       for (auto i = encrypted_recovery_secrets.rbegin();
@@ -233,11 +238,17 @@ namespace ccf
             std::next(i)->next_version));
         }
 
-        network.ledger_secrets->set_secret(
-          std::next(i)->next_version, decrypted_ls);
+        restored_ledger_secrets.push_back(
+          {std::next(i)->next_version, LedgerSecret(decrypted_ls)});
+
+        // network.ledger_secrets->set_secret(
+        //   std::next(i)->next_version, decrypted_ls);
         restored_versions.push_back(std::next(i)->next_version);
         decryption_key = decrypted_ls;
       }
+
+      restored_ledger_secrets.reverse();
+      network.ledger_secrets->restore(std::move(restored_ledger_secrets));
 
       return restored_versions;
     }

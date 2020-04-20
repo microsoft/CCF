@@ -115,12 +115,12 @@ namespace ccf
       is_recovery(is_recovery_)
     {
       // Create map of existing encryption keys from the recorded ledger secrets
-      for (auto const& s : ls->secrets_map)
+      for (auto const& s : ls->secrets_list)
       {
         encryption_keys.emplace_back(EncryptionKey{
-          s.first,
-          s.second.master,
-          crypto::KeyAesGcm(s.second.master),
+          s.version,
+          s.secret.master,
+          crypto::KeyAesGcm(s.secret.master),
         });
       }
     }
@@ -256,7 +256,8 @@ namespace ccf
       {
         for (auto const& k : keys_to_seal)
         {
-          ledger_secrets->set_secret(k.version, k.raw_key);
+          // TODO: Fix this
+          // ledger_secrets->set_secret(k.version, k.raw_key);
           ledger_secrets->seal_secret(k.version);
         }
       }
