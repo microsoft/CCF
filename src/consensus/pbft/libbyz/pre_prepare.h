@@ -249,6 +249,9 @@ public:
   bool set_digest(int64_t signed_version = std::numeric_limits<int64_t>::min());
   // Effects: calculates and sets the digest.
 
+  void sign();
+  // Effects: signs the pre prepare
+
   bool is_signed();
   // Effects: checks if there is a signature over the pre_prepare message
 

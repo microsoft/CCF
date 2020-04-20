@@ -38,6 +38,7 @@ Pre_prepare::Pre_prepare(
   rep().view = v;
   rep().seqno = s;
   rep().replicated_state_merkle_root.fill(0);
+  rep().ctx = INT64_MIN;
   rep().last_gov_req_updated = 0;
   rep().flags.should_reorder = true;
   rep().flags.contains_gov_req = false;
@@ -102,7 +103,13 @@ Pre_prepare::Pre_prepare(
 
   if (prepared_cert == nullptr)
   {
+    // if there are no pre-prepare proofs (e.g. no-op pre-prepare)
+    // then set zero out the rest of the allocated message
     rep().num_prev_pp_sig = 0;
+    size_t s = sizeof(Pre_prepare_rep) + rep().rset_size +
+      rep().n_big_reqs * sizeof(Digest);
+    uint8_t* sigs = (uint8_t*)contents() + s;
+    std::memset(sigs, 0, size() - s);
   }
   else
   {
@@ -232,14 +239,18 @@ bool Pre_prepare::set_digest(int64_t signed_version)
   }
 
   rep().digest = d;
+  return true;
+}
 
+void Pre_prepare::sign()
+{
 #ifdef SIGN_BATCH
   pbft::GlobalState::get_replica().set_next_expected_sig_offset();
   rep().sig_size = pbft::GlobalState::get_node().gen_signature(
-    d.digest(), d.digest_size(), rep().batch_digest_signature);
+    rep().digest.digest(),
+    rep().digest.digest_size(),
+    rep().batch_digest_signature);
 #endif
-
-  return true;
 }
 
 bool Pre_prepare::calculate_digest(Digest& d)
