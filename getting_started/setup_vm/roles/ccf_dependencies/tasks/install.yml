@@ -25,7 +25,7 @@
     update_cache: yes
   become: yes
 
-- name: Download mbedtls-everest
+- name: Download mbedtls
   get_url:
     url: https://github.com/ARMmbed/mbedtls/archive/{{ mbedtls_src }}
     dest: "{{ workspace }}/{{ mbedtls_src }}"
