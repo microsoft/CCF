@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -e
+
+echo "DRIVER INFO:"
+modinfo intel_sgx
+echo ""
+echo ""
+
+echo "PSW INFO:"
+apt list --installed 2>/dev/null | grep libsgx
+echo ""
+echo ""
+
+echo "DCAP CLIENT INFO:"
+apt list --installed 2>/dev/null | grep az-dcap
+echo ""
+echo ""
+
+echo "SGX INFO:"
+/opt/openenclave/bin/oesgx
