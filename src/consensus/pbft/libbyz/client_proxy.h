@@ -484,10 +484,8 @@ void ClientProxy<T, C>::retransmit()
     LOG_INFO_FMT("Retransmitting req id: {}", out_req->request_id());
     INCR_OP(req_retrans);
 
-#ifndef ENFORCE_EXACTLY_ONCE
     ctx->t_reps.clear();
     ctx->c_reps.clear();
-#endif
 
     n_retrans++;
     bool ro = out_req->is_read_only();

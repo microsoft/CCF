@@ -31,13 +31,17 @@ Pre_prepare::Pre_prepare(
       (pbft_max_signature_size + sizeof(uint64_t)) *
         pbft::GlobalState::get_node()
           .num_of_replicas()), // signatures for the previous pre_prepare
-  nonce(nonce_)
+  nonce(nonce_),
+  big_req_ds(std::make_unique<Digest[]>(Max_requests_in_batch))
+
 {
   rep().view = v;
   rep().seqno = s;
   rep().replicated_state_merkle_root.fill(0);
-  rep().contains_gov_req = false;
   rep().last_gov_req_updated = 0;
+  rep().flags.should_reorder = true;
+  rep().flags.contains_gov_req = false;
+  rep().flags.padding = 0;
 
   Digest dh;
   Digest::Context context;
@@ -50,7 +54,6 @@ Pre_prepare::Pre_prepare(
   // Fill in the request portion with as many requests as possible
   // and compute digest.
   requests_in_batch = 0;
-  Digest big_req_ds[Max_requests_in_batch];
   int n_big_reqs = 0;
   char* next_req = requests();
 #ifndef USE_PKEY
@@ -63,46 +66,23 @@ Pre_prepare::Pre_prepare(
 
   for (Request* req = reqs.first(); req != 0; req = reqs.first())
   {
-    if (req->size() <= Request::big_req_thresh)
+    // Big requests are sent offline and their digests are sent
+    // with pre-prepare message.
+    if (
+      n_big_reqs < Max_requests_in_batch &&
+      next_req + sizeof(Digest) <= max_req)
     {
-      // Small requests are inlined in the pre-prepare message.
-      if (
-        next_req + req->size() <= max_req &&
-        requests_in_batch < Max_requests_in_batch)
-      {
-#pragma GCC diagnostic push
-        memcpy(next_req, req->contents(), req->size());
-#pragma GCC diagnostic pop
-        next_req += req->size();
-        requests_in_batch++;
-        PBFT_ASSERT(ALIGNED(next_req), "Improperly aligned pointer");
-        delete reqs.remove();
-      }
-      else
-      {
-        break;
-      }
+      big_req_ds[n_big_reqs++] = req->digest();
+
+      // Add request to replica's big reqs table.
+      pbft::GlobalState::get_replica().big_reqs()->add_pre_prepare(
+        reqs.remove(), s, v);
+      max_req -= sizeof(Digest);
+      requests_in_batch++;
     }
     else
     {
-      // Big requests are sent offline and their digests are sent
-      // with pre-prepare message.
-      if (
-        n_big_reqs < Max_requests_in_batch &&
-        next_req + sizeof(Digest) <= max_req)
-      {
-        big_req_ds[n_big_reqs++] = req->digest();
-
-        // Add request to replica's big reqs table.
-        pbft::GlobalState::get_replica().big_reqs()->add_pre_prepare(
-          reqs.remove(), s, v);
-        max_req -= sizeof(Digest);
-        requests_in_batch++;
-      }
-      else
-      {
-        break;
-      }
+      break;
     }
   }
   rep().rset_size = next_req - requests();
@@ -168,6 +148,32 @@ Pre_prepare::Pre_prepare(
   rep().padding.fill(0);
 #endif
   trim();
+}
+
+void Pre_prepare::set_request_digest(uint32_t at, Digest& d)
+{
+  *(big_reqs() + at) = d;
+}
+
+bool Pre_prepare::should_reorder() const
+{
+  return rep().flags.should_reorder;
+}
+
+void Pre_prepare::record_tx_execution_conflict()
+{
+  rep().flags.should_reorder = false;
+  auto n_big_reqs = rep().n_big_reqs;
+  for (int i = 0; i < n_big_reqs; i++)
+  {
+    *(big_reqs() + i) = big_req_ds[i];
+  }
+  big_req_ds.reset(nullptr);
+}
+
+void Pre_prepare::cleanup_after_send()
+{
+  big_req_ds.reset(nullptr);
 }
 
 Pre_prepare* Pre_prepare::clone(View v) const
@@ -261,7 +267,7 @@ bool Pre_prepare::calculate_digest(Digest& d)
       context,
       (const char*)rep().replicated_state_merkle_root.data(),
       rep().replicated_state_merkle_root.size());
-    d.update_last(context, (char*)&rep().contains_gov_req, sizeof(uint64_t));
+    d.update_last(context, (char*)&rep().flags, sizeof(short));
     d.update_last(context, (char*)&rep().last_gov_req_updated, sizeof(Seqno));
     d.update_last(context, (char*)&rep().hashed_nonce, sizeof(uint64_t));
     d.update_last(context, (char*)&rep().ctx, sizeof(rep().ctx));
@@ -477,7 +483,7 @@ void Pre_prepare::set_merkle_roots_and_ctx(
 void Pre_prepare::set_last_gov_request(
   Seqno last_seqno_with_gov_req, bool did_exec_gov_req)
 {
-  rep().contains_gov_req = did_exec_gov_req;
+  rep().flags.contains_gov_req = did_exec_gov_req;
   rep().last_gov_req_updated = last_seqno_with_gov_req;
 }
 

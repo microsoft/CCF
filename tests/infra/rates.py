@@ -1,8 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import json
-import infra.proc
-import collections
 from statistics import mean, harmonic_mean, median, pstdev
 
 from loguru import logger as LOG
@@ -24,16 +22,16 @@ class TxRates:
         def format_title(s):
             out_list.append(f"{s:-^42}")
 
-        def format(s, n):
+        def format_line(s, n):
             out_list.append(f"--- {s:>20}: {n:>12.2f} ---")
 
         format_title("Summary")
-        format("mean", mean(self.tx_rates_data))
-        format("harmonic mean", harmonic_mean(self.tx_rates_data))
-        format("standard deviation", pstdev(self.tx_rates_data))
-        format("median", median(self.tx_rates_data))
-        format("max", max(self.tx_rates_data))
-        format("min", min(self.tx_rates_data))
+        format_line("mean", mean(self.tx_rates_data))
+        format_line("harmonic mean", harmonic_mean(self.tx_rates_data))
+        format_line("standard deviation", pstdev(self.tx_rates_data))
+        format_line("median", median(self.tx_rates_data))
+        format_line("max", max(self.tx_rates_data))
+        format_line("min", min(self.tx_rates_data))
 
         format_title("Histogram")
         buckets_list = self.histogram_data["buckets"]

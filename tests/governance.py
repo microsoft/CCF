@@ -2,13 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 import sys
-import getpass
-import time
-import logging
-import multiprocessing
-import shutil
 import subprocess
-from random import seed
 import infra.ccf
 import infra.path
 import infra.proc
@@ -26,11 +20,9 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        primary, backups = network.find_nodes()
+        primary, _ = network.find_nodes()
 
         with primary.node_client() as mc:
-            check_commit = infra.checker.Checker(mc)
-            check = infra.checker.Checker()
             r = mc.get("getQuotes")
             quotes = r.result["quotes"]
             assert len(quotes) == len(hosts)

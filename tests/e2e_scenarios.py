@@ -1,12 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import getpass
 import json
-import time
-import logging
-import multiprocessing
-import shutil
+import http
 import random
 import infra.ccf
 import infra.proc
@@ -66,8 +62,11 @@ def run(args):
                         if tx.get("expected_error") is not None:
                             check(
                                 r,
-                                error=lambda status, msg: status
-                                == http.HTTPStatus(tx.get("expected_error")).value,
+                                error=lambda status, msg, transaction=tx: status
+                                # pylint: disable=no-member
+                                == http.HTTPStatus(
+                                    transaction.get("expected_error")
+                                ).value,
                             )
 
                         elif tx.get("expected_result") is not None:

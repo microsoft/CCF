@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import logging
 import subprocess
 from subprocess import run
 
@@ -11,7 +10,7 @@ def ccall(*args, path=None, log_output=True):
     suffix = f" [cwd: {path}]" if path else ""
     cmd = " ".join(args)
     LOG.info(f"{cmd}{suffix}")
-    result = run(args, capture_output=True, cwd=path)
+    result = run(args, capture_output=True, cwd=path, check=False)
     if result.stdout and log_output:
         LOG.debug("stdout: {}".format(result.stdout.decode().strip()))
     if result.stderr and log_output:

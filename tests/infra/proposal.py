@@ -3,15 +3,16 @@
 
 from enum import Enum
 
-from loguru import logger as LOG
-
 
 class ProposalNotCreated(Exception):
-    pass
+    def __init__(self, response):
+        super(ProposalNotCreated, self).__init__()
+        self.response = response
 
 
 class ProposalNotAccepted(Exception):
     def __init__(self, proposal):
+        super(ProposalNotAccepted, self).__init__()
         self.proposal = proposal
 
 
@@ -26,11 +27,7 @@ class ProposalState(Enum):
 
 class Proposal:
     def __init__(
-        self,
-        proposer_id,
-        proposal_id,
-        has_proposer_voted_for=True,
-        state=ProposalState.Open,
+        self, proposer_id, proposal_id, state, has_proposer_voted_for=True,
     ):
         self.proposer_id = proposer_id
         self.proposal_id = proposal_id

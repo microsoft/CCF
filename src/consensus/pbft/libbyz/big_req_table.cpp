@@ -13,17 +13,12 @@
 Big_req_table::Big_req_table(size_t num_of_replicas) :
   breqs(max_out),
   last_stable(0),
-  last_view(0),
-  unmatched(num_of_replicas)
+  last_view(0)
 {
   max_entries = max_out * Max_requests_in_batch;
 }
 
-Big_req_table::Big_req_table() :
-  breqs(max_out),
-  last_stable(0),
-  last_view(0),
-  unmatched(pbft::GlobalState::get_node().num_of_replicas())
+Big_req_table::Big_req_table() : breqs(max_out), last_stable(0), last_view(0)
 {
   max_entries = max_out * Max_requests_in_batch;
 }
@@ -327,7 +322,7 @@ void Big_req_table::mark_stable(Seqno ls, Req_queue& rqueue)
             bre->r->request_id(),
             bre->r->client_id(),
             bre->r->digest().hash());
-          it++;
+          ++it;
           continue;
         }
       }
@@ -337,7 +332,7 @@ void Big_req_table::mark_stable(Seqno ls, Req_queue& rqueue)
     }
     else
     {
-      it++;
+      ++it;
     }
   }
 }
@@ -358,7 +353,7 @@ void Big_req_table::view_change(View v)
     }
     else
     {
-      it++;
+      ++it;
     }
   }
 }

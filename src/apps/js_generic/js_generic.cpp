@@ -68,7 +68,7 @@ namespace ccfapp
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     auto log_table_view = (LogTable::TxView*)JS_GetContextOpaque(ctx);
-    if (!JS_IsInteger(argv[0]))
+    if (JS_VALUE_GET_TAG(argv[0]) != JS_TAG_INT)
       return JS_EXCEPTION;
     int32_t i = JS_VALUE_GET_INT(argv[0]);
     auto str = log_table_view->get(i);
@@ -82,7 +82,7 @@ namespace ccfapp
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     auto log_table_view = (LogTable::TxView*)JS_GetContextOpaque(ctx);
-    if (!JS_IsInteger(argv[0]))
+    if (JS_VALUE_GET_TAG(argv[0]) != JS_TAG_INT)
       return JS_EXCEPTION;
     int32_t i = JS_VALUE_GET_INT(argv[0]);
     auto v = JS_ToCString(ctx, argv[1]);

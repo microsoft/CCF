@@ -1,19 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import sys
-import os
-import infra.proc
-
 import infra.e2e_args
-import getpass
-import os
 import time
-import logging
-import multiprocessing
-from random import seed
 import infra.ccf
 import infra.proc
-import json
 import contextlib
 import resource
 import psutil
@@ -30,7 +20,7 @@ def run(args):
     ) as network:
         check = infra.checker.Checker()
         network.start_and_join(args)
-        primary, others = network.find_nodes()
+        primary, _ = network.find_nodes()
 
         primary_pid = primary.remote.remote.proc.pid
         num_fds = psutil.Process(primary_pid).num_fds()

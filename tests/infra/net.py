@@ -26,7 +26,7 @@ def ephemeral_range():
                 "tcp",
             ]
         )
-        match = re.compile("Start Port\s+: (?P<port>\d+)", re.MULTILINE).search(
+        match = re.compile(r"Start Port\s+: (?P<port>\d+)", re.MULTILINE).search(
             str(output)
         )
         if not match:
@@ -66,8 +66,6 @@ def probably_free_remote_port(host):
             s.close()
         except socket.error:
             return port
-        except socket.gaierror:
-            raise
     raise RuntimeError("Couldn't get a free port after {} tries!".format(tries))
 
 

@@ -1,26 +1,19 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import socket
-import ssl
-import struct
-import select
 import contextlib
 import json
 import time
 import os
 import subprocess
 import tempfile
-import base64
-import requests
 import urllib.parse
-from requests_http_signature import HTTPSignatureAuth
 from http.client import HTTPResponse
 from io import BytesIO
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import asymmetric
-from websocket import create_connection
+
+import requests
 from loguru import logger as LOG
+from requests_http_signature import HTTPSignatureAuth
+from websocket import create_connection
 
 
 def truncate(string, max_len=256):
@@ -38,8 +31,11 @@ CCF_READ_ONLY_HEADER = "x-ccf-read-only"
 
 class Request:
     def __init__(
-        self, method, params=None, readonly_hint=None, http_verb="POST", headers={}
+        self, method, params=None, readonly_hint=None, http_verb="POST", headers=None
     ):
+        if headers is None:
+            headers = {}
+
         self.method = method
         self.params = params
         self.readonly_hint = readonly_hint
@@ -80,6 +76,7 @@ class Response:
             d["error"] = self.error
         return d
 
+    @staticmethod
     def from_requests_response(rr):
         content_type = rr.headers.get("content-type")
         if content_type == "application/json":
@@ -100,6 +97,7 @@ class Response:
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
         )
 
+    @staticmethod
     def from_raw(raw):
         sock = FakeSocket(raw)
         response = HTTPResponse(sock)
@@ -272,7 +270,7 @@ class CurlClient:
                 cmd.extend(["--cert", self.cert])
 
             LOG.debug(f"Running: {' '.join(cmd)}")
-            rc = subprocess.run(cmd, capture_output=True)
+            rc = subprocess.run(cmd, capture_output=True, check=False)
 
             if rc.returncode != 0:
                 if rc.returncode == 60:  # PEER_FAILED_VERIFICATION
@@ -284,6 +282,7 @@ class CurlClient:
 
             return Response.from_raw(rc.stdout)
 
+    # pylint: disable=method-hidden
     def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
         while True:
@@ -368,6 +367,7 @@ class RequestClient:
         response = self.session.request(timeout=self.request_timeout, **request_args)
         return Response.from_requests_response(response)
 
+    # pylint: disable=method-hidden
     def _request(self, request, is_signed=False):
         end_time = time.time() + self.connection_timeout
         while True:
@@ -417,6 +417,7 @@ class WSClient:
         self.request_timeout = request_timeout
 
     def request(self, request):
+        # pylint: disable=unused-variable
         ws = create_connection(
             f"wss://{self.host}:{self.port}",
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},

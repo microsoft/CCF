@@ -66,11 +66,7 @@ Replica::Replica(
   brt(node_info.general_info.num_replicas),
   pbft_requests_map(pbft_requests_map_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_),
-#ifdef ENFORCE_EXACTLY_ONCE
-  replies(mem, nbytes, num_principals),
-#else
   replies(mem, nbytes),
-#endif
   rep_cb(nullptr),
   global_commit_cb(nullptr),
   entropy(tls::create_entropy()),
@@ -478,7 +474,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, true));
 
-  exec_command(vec_exec_cmds, playback_byz_info, 1, 0);
+  exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
 
   auto owned_req = req.release();
@@ -819,12 +815,6 @@ void Replica::handle(Request* m)
     LOG_TRACE << "Received request with rid: " << m->request_id()
               << " with cid: " << m->client_id() << std::endl;
 
-#ifdef ENFORCE_EXACTLY_ONCE
-    int client_id = m->client_id();
-    Request_id rid = m->request_id();
-    Request_id last_rid = replies.req_id(client_id);
-    if (last_rid < rid)
-#endif
     {
       if (id() == primary())
       {
@@ -855,25 +845,6 @@ void Replica::handle(Request* m)
         }
       }
     }
-#ifdef ENFORCE_EXACTLY_ONCE
-    else if (last_rid == rid)
-    {
-      // Retransmit reply.
-      if (replies.is_committed(client_id))
-      {
-        LOG_DEBUG << "Retransmit reply for client id: " << client_id
-                  << " in view: " << view() << " with rid: " << rid
-                  << std::endl;
-        INCR_OP(message_counts_retransmitted[Reply_tag]);
-        replies.send_reply(client_id, view(), id(), false);
-      }
-      else if (id() != primary() && rqueue.append(m))
-      {
-        start_vtimer_if_request_waiting();
-        return;
-      }
-    }
-#endif
   }
   else
   {
@@ -949,15 +920,18 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       self->requests_per_batch.insert(
         {self->next_pp_seqno, ctx->requests_in_batch});
 
+      if (pbft::GlobalState::get_node().f() > 0)
+      {
+        self->send(pp, All_replicas);
+        pp->cleanup_after_send();
+      }
+
       if (self->ledger_writer)
       {
         self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
       }
-      if (pbft::GlobalState::get_node().f() > 0)
-      {
-        self->send(pp, All_replicas);
-      }
-      else
+
+      if (pbft::GlobalState::get_node().f() == 0)
       {
         self->send_prepare(self->next_pp_seqno, info);
       }
@@ -1132,11 +1106,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
           {
             self->gov_req_track.update(pp->seqno());
           }
-
-          if (self->ledger_writer)
-          {
-            self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
-          }
         }
 
         Prepare* p = new Prepare(
@@ -1149,6 +1118,12 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
         int send_node_id =
           (msg->send_only_to_self ? self->node_id : All_replicas);
         self->send(p, send_node_id);
+
+        if (self->ledger_writer && !self->is_primary())
+        {
+          self->last_te_version = self->ledger_writer->write_pre_prepare(pp);
+        }
+
         Prepared_cert& pc = self->plog.fetch(msg->seqno);
         pc.add_mine(p);
         LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
@@ -1877,9 +1852,7 @@ void Replica::send_view_change()
   LOG_INFO << "elog:" << std::endl;
   elog.dump_state(std::cout);
 
-#ifndef ENFORCE_EXACTLY_ONCE
   replies.clear();
-#endif
 
   rollback_to_globally_comitted();
 
@@ -2213,12 +2186,10 @@ void Replica::global_commit(Pre_prepare* pp)
 
 void Replica::execute_prepared(bool committed)
 {
-#ifndef ENFORCE_EXACTLY_ONCE
   if (committed)
   {
     return;
   }
-#endif
 
   Pre_prepare* pp = prepared_pre_prepare(last_executed + 1);
 
@@ -2234,18 +2205,12 @@ void Replica::execute_prepared(bool committed)
       int client_id = request.client_id();
       Request_id rid = request.request_id();
 
-#ifdef ENFORCE_EXACTLY_ONCE
-      Reply* reply = replies.reply(client_id);
-      PBFT_ASSERT(reply != nullptr, "Reply not in replies");
-      bool reply_is_committed = replies.is_committed(client_id);
-#else
       Reply* reply = replies.reply(client_id, rid, last_executed + 1);
       bool reply_is_committed = false;
       if (reply == nullptr)
       {
         continue;
       }
-#endif
       // int reply_size = reply->size();
 
       if (reply->request_id() == rid && reply_is_committed == committed)
@@ -2271,11 +2236,7 @@ void Replica::execute_prepared(bool committed)
 #endif
         {
           // Send full reply.
-#ifdef ENFORCE_EXACTLY_ONCE
-          replies.send_reply(client_id, view(), id(), !committed);
-#else
           replies.send_reply(client_id, rid, last_executed + 1, view(), id());
-#endif
         }
       }
     }
@@ -2331,6 +2292,26 @@ void Replica::execute_tentative_request_end(ExecCommandMsg& msg, ByzInfo& info)
   Request r(reinterpret_cast<Request_rep*>(msg.req_start));
   r.set_replier(msg.replier);
 
+  if (
+    pbft::GlobalState::get_replica().is_primary() &&
+    info.pre_prepare != nullptr && // Make sure this is not playback
+    info.pre_prepare->should_reorder() // Check if we should be reordering
+  )
+  {
+    if (info.ctx > 0)
+    {
+      info.pre_prepare->set_request_digest(
+        info.ctx - info.version_before_execution_start - 1, r.digest());
+    }
+    else
+    {
+      LOG_INFO_FMT(
+        "Forcing single threaded execution on secondary replicas, seqno:{}",
+        info.pre_prepare->seqno());
+      info.pre_prepare->record_tx_execution_conflict();
+    }
+  }
+
   if (info.ctx > msg.max_local_commit_value)
   {
     msg.max_local_commit_value = info.ctx;
@@ -2382,12 +2363,14 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce)
     "in execute tentative for seqno {} and last_tentnative_execute {}",
     pp->seqno(),
     last_tentative_execute);
+  info.pre_prepare = pp;
 
   uint32_t num_requests;
   if (create_execute_commands(
         pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
-    exec_command(vec_exec_cmds, info, num_requests, nonce);
+    exec_command(
+      vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
     return true;
   }
   return false;
@@ -2405,6 +2388,7 @@ bool Replica::execute_tentative(
   void(cb)(Pre_prepare*, Replica*, std::unique_ptr<ExecTentativeCbCtx>),
   std::unique_ptr<ExecTentativeCbCtx> ctx)
 {
+  ctx->info.pre_prepare = pp;
   uint32_t num_requests;
   if (create_execute_commands(
         pp, ctx->info.max_local_commit_value, vec_exec_cmds, num_requests))
@@ -2430,7 +2414,8 @@ bool Replica::execute_tentative(
       }
     }
 
-    exec_command(vec_exec_cmds, info, num_requests, nonce);
+    exec_command(
+      vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
     if (!node_info.general_info.support_threading)
     {
       cb(pp, this, std::move(ctx));
@@ -2528,12 +2513,8 @@ void Replica::execute_committed(bool was_f_0)
         {
           int client_id = request.client_id();
 
-#ifdef ENFORCE_EXACTLY_ONCE
-          replies.commit_reply(client_id);
-#endif
-
           // Remove the request from rqueue if present.
-          if (rqueue.remove(client_id, request.request_id()))
+          if (rqueue.remove(client_id, request.request_id(), request.user_id()))
           {
             LOG_TRACE_FMT(
               "Removed request with cid rid {} {}",
@@ -2643,9 +2624,7 @@ void Replica::new_state(Seqno c)
     has_nv_state = true;
   }
 
-#ifndef ENFORCE_EXACTLY_ONCE
   replies.clear();
-#endif
 
 #ifdef DEBUG_SLOW
   debug_slow_timer->start();
@@ -2671,13 +2650,6 @@ void Replica::new_state(Seqno c)
   {
     last_executed = last_tentative_execute = c;
     stats.last_executed = last_executed;
-
-#ifdef ENFORCE_EXACTLY_ONCE
-    if (replies.new_state(&rqueue))
-    {
-      vtimer->stop();
-    }
-#endif
 
     rqueue.clear();
 
@@ -2776,10 +2748,6 @@ void Replica::mark_stable(Seqno n, bool have_state)
     PBFT_ASSERT(last_tentative_execute < last_stable, "Invalid state");
     last_executed = last_tentative_execute = last_stable;
     stats.last_executed = last_executed;
-
-#ifdef ENFORCE_EXACTLY_ONCE
-    replies.new_state(&rqueue);
-#endif
 
     if (last_stable > last_prepared)
     {
@@ -3139,6 +3107,7 @@ void Replica::send_null()
         view(), next_pp_seqno, empty, requests_in_batch, nonce, ps);
       pp->set_digest();
       send(pp, All_replicas);
+      pp->cleanup_after_send();
       plog.fetch(next_pp_seqno).add_mine(pp);
     }
   }

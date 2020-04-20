@@ -2,9 +2,9 @@
 # Licensed under the Apache 2.0 License.
 
 # Note: this needs to be done before project(), otherwise CMAKE_*_COMPILER is
-# already set by CMake If the user has not expressed any choice, we attempt to
+# already set by CMake. If the user has not expressed any choice, we attempt to
 # default to Clang >= 7 If they have expressed even a partial choice, the usual
-# CMake selection logic applies If we cannot find both a suitable clang and a
+# CMake selection logic applies. If we cannot find both a suitable clang and a
 # suitable clang++, the usual CMake selection logic applies
 if((NOT CMAKE_C_COMPILER)
    AND (NOT CMAKE_CXX_COMPILER)
@@ -51,6 +51,14 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel"
                                     "RelWithDebInfo"
   )
+endif()
+
+option(COLORED_OUTPUT "Always produce ANSI-colored output (Clang only)." TRUE)
+
+if(${COLORED_OUTPUT})
+  if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    add_compile_options(-fcolor-diagnostics)
+  endif()
 endif()
 
 set(CMAKE_CXX_STANDARD 17)

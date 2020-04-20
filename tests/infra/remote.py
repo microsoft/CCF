@@ -4,12 +4,9 @@ import os
 import time
 from enum import Enum
 import paramiko
-import logging
 import subprocess
-import getpass
 from contextlib import contextmanager
 import infra.path
-import json
 import uuid
 import ctypes
 import signal
@@ -33,10 +30,10 @@ def popen(*args, **kwargs):
     return subprocess.Popen(*args, **kwargs)
 
 
-def coverage_enabled(bin):
+def coverage_enabled(binary):
     return (
         subprocess.run(
-            f"nm -C {bin} | grep __llvm_coverage_mapping", shell=True
+            f"nm -C {binary} | grep __llvm_coverage_mapping", shell=True, check=False
         ).returncode
         == 0
     )
@@ -258,7 +255,7 @@ class SSHRemote(CmdMixin):
         We create a pty on the remote host under which to run the command, so as to
         get a SIGHUP on disconnection.
         """
-        cmd = self._cmd()
+        cmd = self.get_cmd()
         LOG.info("[{}] {}".format(self.hostname, cmd))
         self.client.exec_command(cmd, get_pty=True)
         self.pid()
@@ -314,7 +311,7 @@ class SSHRemote(CmdMixin):
         self._connect()
         self._setup_files()
 
-    def _cmd(self):
+    def get_cmd(self):
         env = " ".join(f"{key}={value}" for key, value in self.env.items())
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {env} {cmd} 1> {self.out} 2> {self.err} 0< /dev/null"
@@ -350,11 +347,11 @@ class SSHRemote(CmdMixin):
 
 
 @contextmanager
-def ssh_remote(name, hostname, files, cmd):
+def ssh_remote(*args, **kwargs):
     """
     Context Manager wrapper for SSHRemote
     """
-    remote = SSHRemote(name, hostname, files, cmd)
+    remote = SSHRemote(*args, **kwargs)
     try:
         remote.setup()
         remote.start()
@@ -431,7 +428,7 @@ class LocalRemote(CmdMixin):
         """
         Start cmd. stdout and err are captured to file locally.
         """
-        cmd = self._cmd()
+        cmd = self.get_cmd()
         LOG.info(f"[{self.hostname}] {cmd} (env: {self.env})")
         self.stdout = open(self.out, "wb")
         self.stderr = open(self.err, "wb")
@@ -472,7 +469,7 @@ class LocalRemote(CmdMixin):
         """
         self._setup_files()
 
-    def _cmd(self):
+    def get_cmd(self):
         cmd = " ".join(self.cmd)
         return f"cd {self.root} && {cmd} 1> {self.out} 2> {self.err}"
 
@@ -686,7 +683,7 @@ class CCFRemote(object):
             self.remote.get("network_enc_pubk.pem", dst_path)
 
     def debug_node_cmd(self):
-        return self.remote._dbg()
+        return self.remote.debug_node_cmd()
 
     def stop(self):
         errors, fatal_errors = [], []
@@ -728,15 +725,11 @@ class CCFRemote(object):
 
 
 @contextmanager
-def ccf_remote(
-    lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
-):
+def ccf_remote(*args, **kwargs):
     """
     Context Manager wrapper for CCFRemote
     """
-    remote = CCFRemote(
-        lib_path, local_node_id, host, pubhost, node_port, rpc_port, args, remote_class
-    )
+    remote = CCFRemote(*args, **kwargs)
     try:
         remote.setup()
         remote.start()

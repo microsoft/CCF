@@ -1,16 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import argparse
-import getpass
-import os
-import time
-import logging
-import multiprocessing
 import infra.e2e_args
-from random import seed
 import infra.ccf
 import infra.logging_app as app
-import json
 import suite.test_requirements as reqs
 
 from loguru import logger as LOG
@@ -40,7 +32,7 @@ def test(network, args, use_shares=False):
         recovered_network.wait_for_node_commit_sync(args.consensus)
     LOG.info("Public CFTR started")
 
-    primary, term = recovered_network.find_primary()
+    primary, _ = recovered_network.find_primary()
 
     LOG.info("Members verify that the new nodes have joined the network")
     recovered_network.wait_for_all_nodes_to_be_trusted()
@@ -78,7 +70,7 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        for recovery_idx in range(args.recovery):
+        for _ in range(args.recovery):
             recovered_network = test(network, args, use_shares=args.use_shares)
             network.stop_all_nodes()
             network = recovered_network

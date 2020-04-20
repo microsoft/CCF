@@ -19,17 +19,12 @@
 #include "partition.h"
 #include "prepared_cert.h"
 #include "receive_message_base.h"
+#include "rep_info.h"
 #include "req_queue.h"
 #include "stable_estimator.h"
 #include "state.h"
 #include "types.h"
 #include "view_info.h"
-
-#ifdef ENFORCE_EXACTLY_ONCE
-#  include "rep_info_exactly_once.h"
-#else
-#  include "rep_info.h"
-#endif
 
 class Request;
 class Reply;
@@ -477,11 +472,7 @@ private:
   std::unordered_map<int, std::unique_ptr<Checkpoint>> stable_checkpoints;
 
   // Last replies sent to each principal.
-#ifdef ENFORCE_EXACTLY_ONCE
-  Rep_info_exactly_once replies;
-#else
   Rep_info replies;
-#endif
 
   ByzInfo playback_byz_info;
   bool did_exec_gov_req = false;

@@ -25,7 +25,11 @@ namespace pbft
     static constexpr uint32_t min_update_merkle_tree_interval = 10;
 
   public:
-    PbftConfigCcf(std::shared_ptr<enclave::RPCMap> rpc_map_) : rpc_map(rpc_map_)
+    PbftConfigCcf(
+      std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::shared_ptr<pbft::PbftStore> store_) :
+      rpc_map(rpc_map_),
+      store(store_)
     {}
 
     ~PbftConfigCcf() = default;
@@ -47,6 +51,7 @@ namespace pbft
 
   private:
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::shared_ptr<pbft::PbftStore> store;
 
     IMessageReceiveBase* message_receive_base;
 
@@ -68,6 +73,7 @@ namespace pbft
 
       std::unique_ptr<ExecCommandMsg> msg;
       ByzInfo& info;
+      kv::Version version;
       std::shared_ptr<enclave::RpcHandler> frontend;
       PbftConfigCcf* self;
       bool is_first_request;
@@ -81,7 +87,10 @@ namespace pbft
       ByzInfo& info = execution_ctx.info;
       std::shared_ptr<enclave::RpcHandler> frontend = execution_ctx.frontend;
 
-      execution_ctx.msg->cb(*execution_ctx.msg.get(), info);
+      ExecCommandMsg& exec_msg = *execution_ctx.msg.get();
+
+      info.ctx = execution_ctx.version;
+      execution_ctx.msg->cb(exec_msg, info);
 
       --info.pending_cmd_callbacks;
 
@@ -149,6 +158,7 @@ namespace pbft
       auto ctx = enclave::make_rpc_context(
         session, request.raw, {req_start, req_start + req_size});
       ctx->is_create_request = c->data.is_first_request;
+      ctx->set_apply_writes(true);
 
       const auto actor_opt = http::extract_actor(*ctx);
       if (!actor_opt.has_value())
@@ -180,7 +190,7 @@ namespace pbft
       {
         rep = frontend->process_pbft(ctx);
       }
-      info.ctx = rep.version;
+      execution_ctx.version = rep.version;
 
       outb.contents = self->message_receive_base->create_response_message(
         client, rid, rep.result.size(), execution_ctx.nonce);
@@ -212,8 +222,10 @@ namespace pbft
           msgs,
         ByzInfo& info,
         uint32_t num_requests,
-        uint64_t nonce) {
+        uint64_t nonce,
+        bool executed_single_threaded) {
         info.pending_cmd_callbacks = num_requests;
+        info.version_before_execution_start = store->current_version();
         for (uint32_t i = 0; i < num_requests; ++i)
         {
           std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
@@ -225,6 +237,10 @@ namespace pbft
           if (info.cb != nullptr)
           {
             int tid = reply_thread;
+            if (executed_single_threaded && tid > 1)
+            {
+              tid = (enclave::ThreadMessaging::thread_count - 1);
+            }
             enclave::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
               tid, std::move(execution_ctx));
           }
