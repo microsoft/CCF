@@ -286,8 +286,6 @@ namespace ccf
 
           // Create initial secrets and seal immediately
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
-
-          // TODO: We need a better API for the ledger secrets
           network.ledger_secrets->set_secret(1, LedgerSecret().master);
           network.ledger_secrets->seal_all();
 
@@ -348,7 +346,7 @@ namespace ccf
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
           // Once the public recovery is complete, the existing encryptor is
-          // replaced with, using the recovered ledger secrets.
+          // replaced, using the recovered ledger secrets.
           setup_encryptor(network.consensus_type);
 
           setup_recovery_hook();
@@ -600,7 +598,6 @@ namespace ccf
         "index: {}",
         last_recovered_commit_idx);
 
-      // TODO: Better API for creating first Ledger Secret after recovery
       network.ledger_secrets->set_secret(
         last_recovered_commit_idx + 1, LedgerSecret().master);
       setup_encryptor(network.consensus_type);
@@ -1017,14 +1014,6 @@ namespace ccf
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered. The
       // corresponding new ledger secret is only sealed on global hook.
-
-      // TODO: Add new ledger secret to LedgerSecrets
-      // Issue new shares
-
-      // Note: There should be a way to add the pending secret to the
-      // LedgerSecrets and add that secret to it without confirming it.
-      // Also, on replay, it should be the transaction hook version + 1 which
-      // should be used (good except for the very first transaction).
 
       broadcast_ledger_secret(tx, LedgerSecret());
 
