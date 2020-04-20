@@ -18,14 +18,16 @@ def mk_new(name, contents):
         mk(name, contents)
 
 
-def build_lib_path(lib_name, enclave_type="debug"):
+def build_lib_path(lib_name, enclave_type=None):
     VIRTUAL_EXT = ".virtual.so"
     SIGNED_EXT = ".enclave.so.signed"
     if os.path.isfile(lib_name):
-        if enclave_type == "virtual" and VIRTUAL_EXT not in lib_name:
-            raise ValueError(f"Virtual mode requires {VIRTUAL_EXT} enclave image")
-        elif enclave_type == "debug" and SIGNED_EXT not in lib_name:
-            raise ValueError(f"Real enclave requires {SIGNED_EXT} enclave image")
+        if enclave_type == "virtual":
+            if VIRTUAL_EXT not in lib_name:
+                raise ValueError(f"Virtual mode requires {VIRTUAL_EXT} enclave image")
+        else:
+            if SIGNED_EXT not in lib_name:
+                raise ValueError(f"Real enclave requires {SIGNED_EXT} enclave image")
         return lib_name
     else:
         ext = VIRTUAL_EXT if enclave_type == "virtual" else SIGNED_EXT
