@@ -117,8 +117,12 @@ if("sgx" IN_LIST COMPILE_TARGETS)
       set(QUOTES_ENABLED ON)
     endif()
   endif()
+
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(TEST_ENCLAVE_TYPE "-e debug")
+  endif()
 else()
-  set(TEST_ENCLAVE_TYPE -e virtual)
+  set(TEST_ENCLAVE_TYPE "-e virtual")
 endif()
 
 # Lua module
