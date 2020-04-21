@@ -146,15 +146,15 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   # Unit tests
   add_unit_test(
-    ledger_replay_test
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/test_ledger_replay.cpp
+    replica_unit_tests
+    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_unit_tests.cpp
   )
   target_include_directories(
-    ledger_replay_test
+    replica_unit_tests
     PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks
   )
-  target_link_libraries(ledger_replay_test PRIVATE libcommontest.mock)
-  use_libbyz(ledger_replay_test)
-  add_san(ledger_replay_test)
-  set_property(TEST ledger_replay_test PROPERTY LABELS pbft)
+  target_link_libraries(replica_unit_tests PRIVATE libcommontest.mock)
+  use_libbyz(replica_unit_tests)
+  add_san(replica_unit_tests)
+  set_property(TEST replica_unit_tests PROPERTY LABELS pbft)
 endif()
