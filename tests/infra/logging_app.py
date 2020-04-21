@@ -47,7 +47,7 @@ class LoggingTxs:
         LOG.success(f"Verifying all logging txs")
         for n in network.get_joined_nodes():
             with n.node_client() as mc:
-                check = infra.checker.Checker()
+                check = infra.checker.Checker(mc)
                 with n.user_client() as uc:
                     for pub_tx_index in self.pub:
                         check(
