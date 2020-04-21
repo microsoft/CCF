@@ -165,12 +165,12 @@ void check_store_load(F frontend, K k, V v)
 
   // store
   const auto store_packed = make_pc("store", {{"k", k}, {"v", v}});
-  auto store_ctx = enclave::make_rpc_context(user_session, store_packed);
+  auto store_ctx = http::make_rpc_context(user_session, store_packed);
   check_success(frontend->process(store_ctx).value(), true);
 
   // load and check that we get the right result
   const auto load_packed = make_pc("load", {{"k", k}});
-  auto load_ctx = enclave::make_rpc_context(user_session, load_packed);
+  auto load_ctx = http::make_rpc_context(user_session, load_packed);
   check_success(frontend->process(load_ctx).value(), v);
 }
 
@@ -206,7 +206,7 @@ TEST_CASE("simple lua apps")
 
     // call "missing"
     const auto packed = make_pc("missing", {});
-    auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    auto rpc_ctx = http::make_rpc_context(user_session, packed);
     auto response = check_error(
       frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
     CHECK(
@@ -227,7 +227,7 @@ TEST_CASE("simple lua apps")
     // call "echo" function with "hello"
     const string verb = "hello";
     const auto packed = make_pc("echo", {{"verb", verb}});
-    auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    auto rpc_ctx = http::make_rpc_context(user_session, packed);
     check_success(frontend->process(rpc_ctx).value(), verb);
   }
 
@@ -266,7 +266,7 @@ TEST_CASE("simple lua apps")
 
     // (3) attempt to read non-existing key (set of integers)
     const auto packed = make_pc("load", {{"k", set{5, 6, 7}}});
-    auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+    auto rpc_ctx = http::make_rpc_context(user_session, packed);
     check_error(frontend->process(rpc_ctx).value(), HTTP_STATUS_BAD_REQUEST);
   }
 
@@ -292,7 +292,7 @@ TEST_CASE("simple lua apps")
 
     // (1) read out members table
     const auto packed = make_pc("get_members", {});
-    auto get_ctx = enclave::make_rpc_context(user_session, packed);
+    auto get_ctx = http::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {
       {"0", {{}, dummy_key_share, MemberStatus::ACTIVE}},
@@ -304,7 +304,7 @@ TEST_CASE("simple lua apps")
     const auto put_packed = make_pc(
       "put_member",
       {{"k", 99}, {"v", MemberInfo{{}, {}, MemberStatus::ACTIVE}}});
-    auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
+    auto put_ctx = http::make_rpc_context(user_session, put_packed);
     check_error(
       frontend->process(put_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
   }
@@ -384,28 +384,28 @@ TEST_CASE("simple bank")
   {
     const auto create_packed =
       make_pc(create_method, {{"dst", 1}, {"amt", 123}});
-    auto create_ctx = enclave::make_rpc_context(user_session, create_packed);
+    auto create_ctx = http::make_rpc_context(user_session, create_packed);
     check_success<bool>(frontend->process(create_ctx).value(), true);
 
     const auto read_packed = make_pc(read_method, {{"account", 1}});
-    auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    auto read_ctx = http::make_rpc_context(user_session, read_packed);
     check_success(frontend->process(read_ctx).value(), 123);
   }
 
   {
     const auto create_packed =
       make_pc(create_method, {{"dst", 2}, {"amt", 999}});
-    auto create_ctx = enclave::make_rpc_context(user_session, create_packed);
+    auto create_ctx = http::make_rpc_context(user_session, create_packed);
     check_success<bool>(frontend->process(create_ctx).value(), true);
 
     const auto read_packed = make_pc(read_method, {{"account", 2}});
-    auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    auto read_ctx = http::make_rpc_context(user_session, read_packed);
     check_success(frontend->process(read_ctx).value(), 999);
   }
 
   {
     const auto read_packed = make_pc(read_method, {{"account", 3}});
-    auto read_ctx = enclave::make_rpc_context(user_session, read_packed);
+    auto read_ctx = http::make_rpc_context(user_session, read_packed);
     check_error(frontend->process(read_ctx).value(), HTTP_STATUS_BAD_REQUEST);
   }
 
@@ -413,15 +413,15 @@ TEST_CASE("simple bank")
     const auto transfer_packed =
       make_pc(transfer_method, {{"src", 1}, {"dst", 2}, {"amt", 5}});
     auto transfer_ctx =
-      enclave::make_rpc_context(user_session, transfer_packed);
+      http::make_rpc_context(user_session, transfer_packed);
     check_success<bool>(frontend->process(transfer_ctx).value(), true);
 
     const auto read1_packed = make_pc(read_method, {{"account", 1}});
-    auto read1_ctx = enclave::make_rpc_context(user_session, read1_packed);
+    auto read1_ctx = http::make_rpc_context(user_session, read1_packed);
     check_success(frontend->process(read1_ctx).value(), 123 - 5);
 
     const auto read2_packed = make_pc(read_method, {{"account", 2}});
-    auto read2_ctx = enclave::make_rpc_context(user_session, read2_packed);
+    auto read2_ctx = http::make_rpc_context(user_session, read2_packed);
     check_success(frontend->process(read2_ctx).value(), 999 + 5);
   }
 }
@@ -452,7 +452,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_trace_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -466,7 +466,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_debug_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -480,7 +480,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_info_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -494,7 +494,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_fail_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
 
@@ -507,7 +507,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_fatal_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
     }
@@ -517,7 +517,7 @@ TEST_CASE("pre-populated environment")
     set_handler(network, log_throws_nil_method, {log_throws_nil});
     {
       const auto packed = make_pc(log_throws_nil_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
     }
@@ -528,7 +528,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_throws_bool_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       check_error(
         frontend->process(rpc_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
     }
@@ -540,7 +540,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(log_no_throw_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       check_success(frontend->process(rpc_ctx).value(), true);
     }
   }
@@ -569,7 +569,7 @@ TEST_CASE("pre-populated environment")
 
     {
       const auto packed = make_pc(invalid_params_method, {});
-      auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
+      auto rpc_ctx = http::make_rpc_context(user_session, packed);
       const auto r = parse_response_body<std::vector<http_status>>(
         parse_response(frontend->process(rpc_ctx).value()));
 

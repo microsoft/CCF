@@ -155,7 +155,7 @@ namespace pbft
       auto session = std::make_shared<enclave::SessionContext>(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
 
-      auto ctx = enclave::make_rpc_context(
+      auto ctx = http::make_rpc_context(
         session, request.raw, {req_start, req_start + req_size});
       ctx->is_create_request = c->data.is_first_request;
       ctx->set_apply_writes(true);

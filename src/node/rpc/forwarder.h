@@ -113,7 +113,7 @@ namespace ccf
       auto session = std::make_shared<enclave::SessionContext>(
         client_session_id, caller_id, caller_cert);
 
-      auto context = enclave::make_rpc_context(session, raw_request);
+      auto context = http::make_rpc_context(session, raw_request);
 
       return std::make_tuple(context, r.first.from_node);
     }

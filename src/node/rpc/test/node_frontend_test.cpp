@@ -50,7 +50,7 @@ TResponse frontend_process(
   auto serialise_request = r.build_request();
 
   auto session = std::make_shared<enclave::SessionContext>(0, caller);
-  auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
+  auto rpc_ctx = http::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 
   CHECK(serialised_response.has_value());

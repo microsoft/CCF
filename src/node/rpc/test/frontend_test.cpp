@@ -471,7 +471,7 @@ TEST_CASE("process_pbft")
 
   auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_id, user_caller_der);
-  auto ctx = enclave::make_rpc_context(session, request.raw);
+  auto ctx = http::make_rpc_context(session, request.raw);
   frontend.process_pbft(ctx);
 
   Store::Tx tx;
@@ -509,7 +509,7 @@ TEST_CASE("process with signatures")
     constexpr auto rpc_name = "this_rpc_doesnt_exist";
     const auto invalid_call = create_simple_request(rpc_name);
     const auto serialized_call = invalid_call.build_request();
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = http::make_rpc_context(user_session, serialized_call);
 
     const auto serialized_response = frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -524,9 +524,9 @@ TEST_CASE("process with signatures")
     const auto serialized_signed_call = signed_call.build_request();
 
     auto simple_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_simple_call);
+      http::make_rpc_context(user_session, serialized_simple_call);
     auto signed_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
+      http::make_rpc_context(user_session, serialized_signed_call);
 
     INFO("Unsigned RPC");
     {
@@ -559,9 +559,9 @@ TEST_CASE("process with signatures")
     const auto serialized_signed_call = signed_call.build_request();
 
     auto simple_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_simple_call);
+      http::make_rpc_context(user_session, serialized_simple_call);
     auto signed_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
+      http::make_rpc_context(user_session, serialized_signed_call);
 
     INFO("Unsigned RPC");
     {
@@ -596,7 +596,7 @@ TEST_CASE("process with signatures")
     const auto [signed_call, signed_req] = create_signed_request(simple_call);
     const auto serialized_signed_call = signed_call.build_request();
     auto signed_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
+      http::make_rpc_context(user_session, serialized_signed_call);
 
     const auto serialized_response =
       frontend_nostore.process(signed_rpc_ctx).value();
@@ -621,11 +621,11 @@ TEST_CASE("process with caller")
     const auto simple_call = create_simple_request("empty_function_no_auth");
     const auto serialized_simple_call = simple_call.build_request();
     auto authenticated_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_simple_call);
+      http::make_rpc_context(user_session, serialized_simple_call);
     auto invalid_rpc_ctx =
-      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+      http::make_rpc_context(invalid_session, serialized_simple_call);
     auto anonymous_rpc_ctx =
-      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
+      http::make_rpc_context(anonymous_session, serialized_simple_call);
 
     INFO("Valid authentication");
     {
@@ -660,11 +660,11 @@ TEST_CASE("process with caller")
     const auto simple_call = create_simple_request("empty_function");
     const auto serialized_simple_call = simple_call.build_request();
     auto authenticated_rpc_ctx =
-      enclave::make_rpc_context(user_session, serialized_simple_call);
+      http::make_rpc_context(user_session, serialized_simple_call);
     auto invalid_rpc_ctx =
-      enclave::make_rpc_context(invalid_session, serialized_simple_call);
+      http::make_rpc_context(invalid_session, serialized_simple_call);
     auto anonymous_rpc_ctx =
-      enclave::make_rpc_context(anonymous_session, serialized_simple_call);
+      http::make_rpc_context(anonymous_session, serialized_simple_call);
 
     INFO("Valid authentication");
     {
@@ -709,7 +709,7 @@ TEST_CASE("No certs table")
 
   INFO("Authenticated caller");
   {
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = http::make_rpc_context(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -719,7 +719,7 @@ TEST_CASE("No certs table")
   INFO("Anonymous caller");
   {
     auto rpc_ctx =
-      enclave::make_rpc_context(anonymous_session, serialized_call);
+      http::make_rpc_context(anonymous_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -737,7 +737,7 @@ TEST_CASE("Member caller")
   SUBCASE("valid caller")
   {
     auto member_rpc_ctx =
-      enclave::make_rpc_context(member_session, serialized_call);
+      http::make_rpc_context(member_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(member_rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -746,7 +746,7 @@ TEST_CASE("Member caller")
 
   SUBCASE("invalid caller")
   {
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = http::make_rpc_context(user_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -771,7 +771,7 @@ TEST_CASE("MinimalHandleFunction")
         create_signed_request(echo_call, &serialized_body);
       const auto serialized_call = signed_call.build_request();
 
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto rpc_ctx = http::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -789,7 +789,7 @@ TEST_CASE("MinimalHandleFunction")
       echo_call.set_query_params(j_params);
       const auto serialized_call = echo_call.build_request();
 
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto rpc_ctx = http::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -804,7 +804,7 @@ TEST_CASE("MinimalHandleFunction")
       const auto [signed_call, signed_req] = create_signed_request(get_caller);
       const auto serialized_call = signed_call.build_request();
 
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto rpc_ctx = http::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == HTTP_STATUS_OK);
 
@@ -820,7 +820,7 @@ TEST_CASE("MinimalHandleFunction")
     const auto [signed_call, signed_req] = create_signed_request(dont_fail);
     const auto serialized_call = signed_call.build_request();
 
-    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+    auto rpc_ctx = http::make_rpc_context(user_session, serialized_call);
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
   }
@@ -843,7 +843,7 @@ TEST_CASE("MinimalHandleFunction")
         create_signed_request(fail, &serialized_body);
       const auto serialized_call = signed_call.build_request();
 
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_call);
+      auto rpc_ctx = http::make_rpc_context(user_session, serialized_call);
       auto response = parse_response(frontend.process(rpc_ctx).value());
       CHECK(response.status == err);
       CHECK(
@@ -868,7 +868,7 @@ TEST_CASE("Restricted verbs")
     {
       http::Request get("get_only", verb);
       const auto serialized_get = get.build_request();
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_get);
+      auto rpc_ctx = http::make_rpc_context(user_session, serialized_get);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_GET)
@@ -888,7 +888,7 @@ TEST_CASE("Restricted verbs")
     {
       http::Request post("post_only", verb);
       const auto serialized_post = post.build_request();
-      auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_post);
+      auto rpc_ctx = http::make_rpc_context(user_session, serialized_post);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_POST)
@@ -909,7 +909,7 @@ TEST_CASE("Restricted verbs")
       http::Request put_or_delete("put_or_delete", verb);
       const auto serialized_put_or_delete = put_or_delete.build_request();
       auto rpc_ctx =
-        enclave::make_rpc_context(user_session, serialized_put_or_delete);
+        http::make_rpc_context(user_session, serialized_put_or_delete);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
       if (verb == HTTP_PUT || verb == HTTP_DELETE)
@@ -972,7 +972,7 @@ TEST_CASE("Explicit commitability")
 
       const auto serialized_request = request.build_request();
       auto rpc_ctx =
-        enclave::make_rpc_context(user_session, serialized_request);
+        http::make_rpc_context(user_session, serialized_request);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
 
@@ -1008,7 +1008,7 @@ TEST_CASE("Explicit commitability")
 
         const auto serialized_request = request.build_request();
         auto rpc_ctx =
-          enclave::make_rpc_context(user_session, serialized_request);
+          http::make_rpc_context(user_session, serialized_request);
         const auto serialized_response = frontend.process(rpc_ctx).value();
         const auto response = parse_response(serialized_response);
 
@@ -1043,7 +1043,7 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto [signed_call, signed_req] = create_signed_request();
   auto serialized_signed_call = signed_call.build_request();
   auto rpc_ctx =
-    enclave::make_rpc_context(user_session, serialized_signed_call);
+    http::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
   CHECK(response.status == HTTP_STATUS_OK);
 }
@@ -1068,8 +1068,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto serialized_call = simple_call.build_request();
 
   auto backup_ctx =
-    enclave::make_rpc_context(backup_user_session, serialized_call);
-  auto ctx = enclave::make_rpc_context(user_session, serialized_call);
+    http::make_rpc_context(backup_user_session, serialized_call);
+  auto ctx = http::make_rpc_context(user_session, serialized_call);
 
   {
     INFO("Backup frontend without forwarder does not forward");
@@ -1139,7 +1139,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     {
       INFO("Known caller");
       auto ctx =
-        enclave::make_rpc_context(user_session, serialized_call_no_auth);
+        http::make_rpc_context(user_session, serialized_call_no_auth);
 
       const auto r = user_frontend_backup.process(ctx);
       REQUIRE(!r.has_value());
@@ -1162,7 +1162,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     {
       INFO("Unknown caller");
       auto ctx =
-        enclave::make_rpc_context(invalid_session, serialized_call_no_auth);
+        http::make_rpc_context(invalid_session, serialized_call_no_auth);
 
       const auto r = user_frontend_backup.process(ctx);
       REQUIRE(!r.has_value());
@@ -1227,7 +1227,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto [signed_call, signed_req] = create_signed_request();
     auto serialized_signed_call = signed_call.build_request();
     auto signed_ctx =
-      enclave::make_rpc_context(user_session, serialized_signed_call);
+      http::make_rpc_context(user_session, serialized_signed_call);
     const auto r = user_frontend_backup.process(signed_ctx);
     REQUIRE(!r.has_value());
     REQUIRE(channel_stub->size() == 1);
@@ -1284,7 +1284,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto node_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, node_caller);
-  auto ctx = enclave::make_rpc_context(node_session, serialized_call);
+  auto ctx = http::make_rpc_context(node_session, serialized_call);
   const auto r = node_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);
@@ -1324,7 +1324,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
 
-  auto ctx = enclave::make_rpc_context(user_session, serialized_call);
+  auto ctx = http::make_rpc_context(user_session, serialized_call);
   const auto r = user_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);
@@ -1366,7 +1366,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto write_req = create_simple_request();
   auto serialized_call = write_req.build_request();
 
-  auto ctx = enclave::make_rpc_context(member_session, serialized_call);
+  auto ctx = http::make_rpc_context(member_session, serialized_call);
   const auto r = member_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
   REQUIRE(channel_stub->size() == 1);

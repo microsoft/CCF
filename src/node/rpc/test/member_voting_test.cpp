@@ -139,7 +139,7 @@ auto frontend_process(
 {
   auto session = std::make_shared<enclave::SessionContext>(
     0, tls::make_verifier(caller)->der_cert_data());
-  auto rpc_ctx = enclave::make_rpc_context(session, serialized_request);
+  auto rpc_ctx = http::make_rpc_context(session, serialized_request);
   auto serialized_response = frontend.process(rpc_ctx);
 
   DOCTEST_CHECK(serialized_response.has_value());

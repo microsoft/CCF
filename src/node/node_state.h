@@ -1271,7 +1271,7 @@ namespace ccf
     {
       auto node_session = std::make_shared<enclave::SessionContext>(
         enclave::InvalidSessionId, node_cert);
-      auto ctx = enclave::make_rpc_context(node_session, packed);
+      auto ctx = http::make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
 
