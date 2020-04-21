@@ -423,9 +423,9 @@ class WSClient:
             sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
         )
         payload = json.dumps(request.params).encode()
+        # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
         frame = websocket.ABNF(1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, payload)
         ws.send_frame(frame)
-        print("Here")
         return ws.recv_frame()
 
     def signed_request(self, request):

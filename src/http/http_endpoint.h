@@ -11,30 +11,13 @@
 
 namespace http
 {
-  std::vector<uint8_t> wsh(const std::vector<uint8_t>& frame)
-  {
-    LOG_INFO_FMT("Frame size: {}", frame.size());
-    bool lh = frame.size() > 125;
-    std::vector<uint8_t> h(lh ? 4 : 2);
-    h[0] = 0x82;
-    if (lh)
-    {
-      h[1] = 0x7e;
-      *((uint16_t * ) &h[2]) = htons(frame.size());
-    }
-    else
-    {
-      h[1] = frame.size();
-    }
-    return h;
-  }
-
   class HTTPEndpoint : public enclave::TLSEndpoint
   {
   protected:
     http::Parser& p;
     ws::Parser& wp;
     bool is_websocket = false;
+    size_t ws_next_read = 2;
 
     HTTPEndpoint(
       http::Parser& p_,
@@ -67,7 +50,6 @@ namespace http
     void recv_(const uint8_t* data, size_t size)
     {
       recv_buffered(data, size);
-
       LOG_TRACE_FMT("recv called with {} bytes", size);
 
       if (!is_websocket)
@@ -247,17 +229,28 @@ namespace http
             std::make_shared<enclave::SessionContext>(session_id, peer_cert());
         }
 
-        std::shared_ptr<HttpRpcContext> rpc_ctx = nullptr;
+        std::shared_ptr<enclave::RpcContext> rpc_ctx = nullptr;
         try
         {
-          rpc_ctx = std::make_shared<HttpRpcContext>(
-            request_index++,
-            session_ctx,
-            verb,
-            path,
-            query,
-            std::move(headers),
-            std::move(body));
+          if (is_websocket)
+          {
+            rpc_ctx = std::make_shared<ws::WsRpcContext>(
+              request_index++,
+              session_ctx,
+              path,
+              std::move(body));
+          }
+          else
+          {
+            rpc_ctx = std::make_shared<HttpRpcContext>(
+              request_index++,
+              session_ctx,
+              verb,
+              path,
+              query,
+              std::move(headers),
+              std::move(body));
+          }
         }
         catch (std::exception& e)
         {
@@ -303,12 +296,7 @@ namespace http
         }
         else
         {
-          if (is_websocket)
-          {
-            auto h = wsh(response.value());
-            LOG_INFO_FMT("Sending WS header {} {} {} {}", h[0], h[1], h[2], h[3]);
-            send_buffered(h);
-          }
+          LOG_INFO_FMT("Sending {}", std::string(response.value().begin(), response.value().end()));
           send_buffered(response.value());
           flush();
         }

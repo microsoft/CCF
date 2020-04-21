@@ -30,18 +30,9 @@ def test(network, args, notifications_queue=None):
         msg = "Hello world"
 
         LOG.info("Write/Read on primary")
-        with primary.user_client() as c:
-            check_commit(c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True)
-            r = c.get("LOG_get", {"id": 42})
-            check(r, result={"msg": msg})
-            r = c.get("getReceipt", {"commit": r.commit})
-            check(
-                c.rpc("verifyReceipt", {"receipt": r.result["receipt"]}),
-                result={"valid": True},
-            )
-            invalid = r.result["receipt"]
-            invalid[-3] += 1
-            check(c.rpc("verifyReceipt", {"receipt": invalid}), result={"valid": False})
+        with primary.user_client(ws=True) as c:
+            r = c.rpc("LOG_record", {"id": 42, "msg": msg})
+            assert r.data == b'true\n'
 
     return network
 
