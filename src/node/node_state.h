@@ -346,7 +346,7 @@ namespace ccf
           // It is necessary to give an encryptor to the store for it to
           // deserialise the public domain when recovering the public ledger.
           // Once the public recovery is complete, the existing encryptor is
-          // replaced, using the recovered ledger secrets.
+          // replaced with a new one initialised with recovered ledger secrets.
           setup_encryptor(network.consensus_type);
 
           setup_recovery_hook();
