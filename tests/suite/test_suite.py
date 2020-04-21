@@ -1,11 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import e2e_logging
 import reconfiguration
 import recovery
 import rekey
-import random
 
 from inspect import signature, Parameter
 

@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import os
 from contextlib import contextmanager
-import logging
 
 from loguru import logger as LOG
 
@@ -78,7 +77,5 @@ def working_dir(path):
     os.chdir(path)
     try:
         yield
-    except Exception:
-        raise
     finally:
         os.chdir(cwd)

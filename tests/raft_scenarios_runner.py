@@ -60,7 +60,7 @@ def strip_log_lines(text):
 
 
 if __name__ == "__main__":
-    driver, path, doc = sys.argv[1:]
+    driver, path, doc = sys.argv[1], sys.argv[2], sys.argv[3]
     err_list = []
     test_result = True
 

@@ -14,6 +14,7 @@
 
 // STL/3rdparty
 #include <CLI11/CLI11.hpp>
+#include <chrono>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <random>
@@ -63,6 +64,7 @@ namespace client
     size_t max_writes_ahead = 0;
     size_t latency_rounds = 1;
     size_t generator_seed = 42u;
+    size_t transactions_per_s = 0;
 
     bool sign = false;
     bool no_create = false;
@@ -122,6 +124,11 @@ namespace client
         ->required(false)
         ->check(CLI::ExistingFile);
       app.add_option("--generator-seed", generator_seed);
+
+      app.add_option(
+        "--transaction-rate",
+        transactions_per_s,
+        "The number of transactions per second to send");
 
       // Transaction counts and batching details
       app
@@ -289,6 +296,9 @@ namespace client
     timing::ResponseTimes response_times;
     timing::CommitPoint last_response_commit = {0, 0};
 
+    std::chrono::high_resolution_clock::time_point last_write_time;
+    std::chrono::nanoseconds write_delay_ns = std::chrono::nanoseconds::zero();
+
     std::shared_ptr<RpcTlsClient> create_connection(bool force_unsigned = false)
     {
       // Create a cert if this is our first rpc_connection
@@ -379,6 +389,14 @@ namespace client
       size_t read;
       size_t written;
 
+      if (options.transactions_per_s > 0)
+      {
+        write_delay_ns =
+          std::chrono::nanoseconds{1000000000 / options.transactions_per_s};
+        connection->set_tcp_nodelay(true);
+      }
+
+      last_write_time = std::chrono::high_resolution_clock::now();
       kick_off_timing();
 
       // Repeat for each session
@@ -431,6 +449,12 @@ namespace client
       size_t& written,
       const std::shared_ptr<RpcTlsClient>& connection)
     {
+      while (std::chrono::high_resolution_clock::now() - last_write_time <
+             write_delay_ns)
+      {
+        continue;
+      }
+
       // Record time of sent requests
       if (response_times.is_timing_active())
       {
@@ -438,6 +462,8 @@ namespace client
       }
 
       connection->write(tx.rpc.encoded);
+      last_write_time = std::chrono::high_resolution_clock::now();
+
       ++written;
 
       // Optimistically read (non-blocking) any current responses

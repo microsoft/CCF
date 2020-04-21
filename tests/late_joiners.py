@@ -1,12 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
-import getpass
 import time
-import logging
-import multiprocessing
-import shutil
-from random import seed
 import infra.ccf
 import infra.proc
 import infra.notification
@@ -118,18 +112,19 @@ def run_requests(
                 clients.append(es.enter_context(node.user_client()))
             node_id = 0
             long_msg = "X" * (2 ** 14)
-            for id in range(start_id, (start_id + total_requests)):
+            for req_id in range(start_id, (start_id + total_requests)):
                 node_id += 1
                 c = clients[node_id % len(clients)]
                 try:
                     check_commit(
-                        c.rpc("LOG_record", {"id": id, "msg": long_msg}), result=True
+                        c.rpc("LOG_record", {"id": req_id, "msg": long_msg}),
+                        result=True,
                     )
                 except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
                     LOG.info("Trying to access a suspended network")
                     if cant_fail:
                         raise RuntimeError(e)
-                id += 1
+                req_id += 1
 
         wait_for_nodes(nodes, final_msg, final_msg_id)
 
@@ -141,7 +136,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        first_node, backups = network.find_nodes()
+        first_node, _ = network.find_nodes()
         all_nodes = network.get_joined_nodes()
         term_info = find_primary(network)
         first_msg = "Hello, world!"
@@ -150,8 +145,7 @@ def run(args):
         final_msg = "Goodbye, world!"
 
         with first_node.node_client() as mc:
-            check_commit = infra.checker.Checker(mc)
-            check = infra.checker.Checker()
+            check = infra.checker.Checker(mc)
 
             run_requests(all_nodes, TOTAL_REQUESTS, 0, first_msg, 1000)
             term_info.update(find_primary(network))

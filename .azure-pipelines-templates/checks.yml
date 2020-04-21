@@ -4,6 +4,9 @@ jobs:
 
   ${{ insert }}: ${{ parameters.env }}
 
+  variables:
+    python_files: sphinx/ tests/ notice-check.py
+
   steps:
     - checkout: self
       clean: true
@@ -33,7 +36,7 @@ jobs:
         python3.7 -m venv env
         source env/bin/activate
         pip install black
-        black --check sphinx/ tests/ notice-check.py
+        black --check $(python_files)
       displayName: 'Check Python code format'
       condition: succeededOrFailed()
 
@@ -42,4 +45,13 @@ jobs:
         pip install cmake_format
         cmake-format --check CMakeLists.txt $(find ./cmake ./samples ./src ./tests -name "*.cmake" | tr "\n" " ")
       displayName: 'Check CMake code format'
+      condition: succeededOrFailed()
+      
+    - script: |
+        python3.7 -m venv env
+        source env/bin/activate
+        pip install -U -r tests/requirements.txt
+        pip install pylint
+        pylint $(python_files)
+      displayName: 'Run pylint'
       condition: succeededOrFailed()

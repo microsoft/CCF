@@ -3,7 +3,6 @@
 
 import array
 import os
-import json
 import time
 import http
 import random
@@ -27,12 +26,12 @@ class Consortium:
         self.key_generator = key_generator
         self.common_dir = common_dir
         for m_id in member_ids:
-            new_member = infra.member.Member(
-                len(self.members), curve, key_generator, common_dir
-            )
+            new_member = infra.member.Member(m_id, curve, key_generator, common_dir)
             new_member.set_active()
             self.members.append(new_member)
-        self.recovery_threshold = recovery_threshold or len(self.members)
+        self.recovery_threshold = (
+            recovery_threshold if recovery_threshold is not None else len(self.members)
+        )
 
     def generate_and_propose_new_member(self, remote_node, curve):
         # The Member returned by this function is in state ACCEPTED. The new Member
@@ -122,7 +121,7 @@ class Consortium:
 
         if proposal.state is not ProposalState.Accepted:
             raise infra.proposal.ProposalNotAccepted(proposal)
-        return response
+        return proposal
 
     def get_proposals(self, remote_node):
         script = """
@@ -150,8 +149,8 @@ class Consortium:
                     infra.proposal.Proposal(
                         proposal_id=int(proposal_id),
                         proposer_id=int(attr["proposer"]),
-                        has_proposer_voted_for=has_proposer_voted_for,
                         state=infra.proposal.ProposalState(attr["state"]),
+                        has_proposer_voted_for=has_proposer_voted_for,
                     )
                 )
         return proposals
@@ -316,9 +315,8 @@ class Consortium:
         proposal = self.get_any_active_member().propose(
             remote_node, script, recovery_threshold
         )
-        r = self.vote_using_majority(remote_node, proposal)
         self.recovery_threshold = recovery_threshold
-        return r
+        return self.vote_using_majority(remote_node, proposal)
 
     def add_new_code(self, remote_node, new_code_id):
         script = """

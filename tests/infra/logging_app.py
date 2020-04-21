@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.ccf
+import infra.checker
 
 from loguru import logger as LOG
 
@@ -45,10 +45,10 @@ class LoggingTxs:
 
     def verify(self, network):
         LOG.success(f"Verifying all logging txs")
-        primary, term = network.find_primary()
+        primary, _ = network.find_primary()
 
-        with primary.node_client() as mc:
-            check = infra.checker.Checker()
+        with primary.node_client() as nc:
+            check = infra.checker.Checker(nc)
 
             with primary.user_client() as uc:
 

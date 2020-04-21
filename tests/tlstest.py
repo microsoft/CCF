@@ -1,10 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
-import getpass
-import time
-import logging
-import shutil
 import infra.ccf
 import infra.proc
 import infra.notification
@@ -13,15 +8,15 @@ import suite.test_requirements as reqs
 import infra.e2e_args
 import subprocess
 
-from loguru import logger as LOG
-
 
 @reqs.description("Running TLS test against CCF")
 @reqs.at_least_n_nodes(1)
 def test(network, args, notifications_queue=None):
     node = network.nodes[0]
     endpoint = f"https://{node.host}:{node.rpc_port}"
-    r = subprocess.run(["testssl/testssl.sh", "--outfile", "tls_report", endpoint])
+    r = subprocess.run(
+        ["testssl/testssl.sh", "--outfile", "tls_report", endpoint], check=False
+    )
     assert r.returncode == 0
 
 

@@ -3,8 +3,9 @@ parameters:
 
 steps:
 - script: |
-    cat /proc/cpuinfo
-  displayName: /proc/cpuinfo
+    tests/sgxinfo.sh
+    cat /proc/cpuinfo | grep flags | uniq
+  displayName: Platform Info
   condition: succeededOrFailed()
 
 - script: |

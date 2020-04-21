@@ -547,7 +547,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
     "Deserialised pre prepare but it was not found in the pre prepares map");
   auto pre_prepare = pp.value();
 
-  LOG_TRACE_FMT("playback pre-prepare {}", pre_prepare.seqno);
+  LOG_TRACE_FMT("Playback pre-prepare {}", pre_prepare.seqno);
   auto executable_pp = create_message<Pre_prepare>(
     pre_prepare.contents.data(), pre_prepare.contents.size());
   auto seqno = executable_pp->seqno();
@@ -909,6 +909,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
         self->gov_req_track.last_seqno(), info.did_exec_gov_req);
       pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
       pp->set_digest(self->signed_version.load());
+      pp->sign();
       self->plog.fetch(self->next_pp_seqno).add_mine(pp);
 
       info.last_exec_gov_req = self->gov_req_track.last_seqno();
@@ -2044,7 +2045,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       pc.add_mine(pp);
       if (execute_tentative(pp, info, pp->get_nonce()))
       {
-        if (ledger_writer && req_in_pp > 0)
+        if (ledger_writer)
         {
           last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
         }
@@ -2058,7 +2059,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
       if (execute_tentative(pp, info, nonce))
       {
-        if (ledger_writer && req_in_pp > 0)
+        if (ledger_writer)
         {
           last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
         }
@@ -3106,6 +3107,7 @@ void Replica::send_null()
       Pre_prepare* pp = new Pre_prepare(
         view(), next_pp_seqno, empty, requests_in_batch, nonce, ps);
       pp->set_digest();
+      pp->sign();
       send(pp, All_replicas);
       pp->cleanup_after_send();
       plog.fetch(next_pp_seqno).add_mine(pp);

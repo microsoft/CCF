@@ -4,9 +4,6 @@ import infra.ccf
 import infra.notification
 import suite.test_requirements as reqs
 import infra.e2e_args
-import time
-
-from loguru import logger as LOG
 
 
 @reqs.description("Rekey the ledger once")
