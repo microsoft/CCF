@@ -204,33 +204,38 @@ using PbftWriteStoreType = pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>;
 struct PbftState
 {
   std::shared_ptr<ccf::Store> write_store;
-  PbftWriteStoreType* write_pbft_store;
-  pbft::RequestsMap* pbft_requests_map;
-  ccf::Signatures* signatures;
-  pbft::PrePreparesMap* pbft_pre_prepares_map;
+  std::unique_ptr<PbftWriteStoreType> write_pbft_store;
+  pbft::RequestsMap& pbft_requests_map;
+  ccf::Signatures& signatures;
+  pbft::PrePreparesMap& pbft_pre_prepares_map;
   std::vector<char> service_mem;
   ExecutionMock exec_mock;
 
-  PbftState(std::shared_ptr<ccf::Store> ws, PbftWriteStoreType* wps) : write_store(ws), write_pbft_store(wps),
-  service_mem(mem_size, 0), exec_mock(0) {}
+  PbftState() :
+    write_store(std::make_shared<ccf::Store>(
+      pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
+    pbft_requests_map(write_store->create<pbft::RequestsMap>(
+      pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC)),
+    signatures(write_store->create<ccf::Signatures>(ccf::Tables::SIGNATURES)),
+    pbft_pre_prepares_map(write_store->create<pbft::PrePreparesMap>(
+      pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC)),
+    service_mem(mem_size, 0),
+    exec_mock(0)
+  {
+    write_pbft_store = std::make_unique<PbftWriteStoreType>(write_store);
+  }
 };
 
-void create_r(PbftState& pbft_state)
-{  
-  pbft_state.pbft_requests_map = &pbft_state.write_store->create<pbft::RequestsMap>(
-      pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC);
-
-  pbft_state.signatures = &pbft_state.write_store->create<ccf::Signatures>(ccf::Tables::SIGNATURES);
-  pbft_state.pbft_pre_prepares_map = &pbft_state.write_store->create<pbft::PrePreparesMap>(
-    pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC);
-
+void init_test_state(PbftState& pbft_state)
+{
   create_replica(
     pbft_state.service_mem,
     *pbft_state.write_pbft_store,
-    *pbft_state.pbft_requests_map,
-    *pbft_state.pbft_pre_prepares_map,
-    *pbft_state.signatures);
-  pbft::GlobalState::get_replica().register_exec(pbft_state.exec_mock.exec_command);
+    pbft_state.pbft_requests_map,
+    pbft_state.pbft_pre_prepares_map,
+    pbft_state.signatures);
+  pbft::GlobalState::get_replica().register_exec(
+    pbft_state.exec_mock.exec_command);
 }
 
 TEST_CASE("Test Ledger Replay")
@@ -240,22 +245,21 @@ TEST_CASE("Test Ledger Replay")
     std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
   INFO("Create dummy pre-prepares and write them to ledger");
   {
-    auto write_store = std::make_shared<ccf::Store>(
-      pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
-    write_store->set_consensus(write_consensus);
-    auto& write_derived_map = write_store->create<std::string, std::string>(
-      "derived_map", kv::SecurityDomain::PUBLIC);
-    auto write_pbft_store =
-      std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
-        write_store);
+    PbftState pbft_state;
+    init_test_state(pbft_state);
 
-    PbftState pbft_state(write_store, write_pbft_store.get());
-    create_r(pbft_state);
+    pbft_state.write_store->set_consensus(write_consensus);
+    auto& write_derived_map =
+      pbft_state.write_store->create<std::string, std::string>(
+        "derived_map", kv::SecurityDomain::PUBLIC);
 
     for (size_t i = 1; i < total_requests; i++)
     {
       auto request = create_and_store_request(
-        i, *write_pbft_store, *pbft_state.pbft_requests_map, &write_derived_map);
+        i,
+        *pbft_state.write_pbft_store,
+        pbft_state.pbft_requests_map,
+        &write_derived_map);
       // replica handle request (creates and writes pre prepare to ledger)
       pbft::GlobalState::get_replica().handle(request);
     }
@@ -269,23 +273,22 @@ TEST_CASE("Test Ledger Replay")
   {
     // initialise a corrupt store that will follow the write store but with
     // the requests and merkle root off and use it later to trigger rollbacks
-    auto corrupt_store = std::make_shared<ccf::Store>(
-      pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
-    corrupt_store->set_consensus(corrupt_consensus);
-    auto corr_pbft_store =
-      std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
-        corrupt_store);
-    PbftState pbft_state(corrupt_store, corr_pbft_store.get());
-    create_r(pbft_state);
+    PbftState pbft_state;
+    init_test_state(pbft_state);
+    pbft_state.write_store->set_consensus(corrupt_consensus);
+
     pbft_state.exec_mock.command_counter++;
 
-    LedgerWriter ledger_writer(*corr_pbft_store, *pbft_state.pbft_pre_prepares_map, *pbft_state.signatures);
+    LedgerWriter ledger_writer(
+      *pbft_state.write_pbft_store,
+      pbft_state.pbft_pre_prepares_map,
+      pbft_state.signatures);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)
     {
-      auto request =
-        create_and_store_request(i, *corr_pbft_store, *pbft_state.pbft_requests_map);
+      auto request = create_and_store_request(
+        i, *pbft_state.write_pbft_store, pbft_state.pbft_requests_map);
 
       // request is compatible but pre-prepare root is different
       rqueue.append(request);
@@ -311,18 +314,14 @@ TEST_CASE("Test Ledger Replay")
     "Read the ledger entries and replay them out of order, while being "
     "corrupt, and in order");
   {
-    auto store = std::make_shared<ccf::Store>(
-      pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
-    auto consensus = std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
-    store->set_consensus(consensus);
-    auto& derived_map = store->create<std::string, std::string>(
-      "derived_map", kv::SecurityDomain::PUBLIC);
-    auto replica_store =
-      std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
-        store);
+    PbftState pbft_state;
+    init_test_state(pbft_state);
 
-    PbftState pbft_state(store, replica_store.get());
-    create_r(pbft_state);
+    auto consensus = std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
+    pbft_state.write_store->set_consensus(consensus);
+    auto& derived_map =
+      pbft_state.write_store->create<std::string, std::string>(
+        "derived_map", kv::SecurityDomain::PUBLIC);
 
     // create rollback cb
     size_t call_rollback = 0;
@@ -336,7 +335,7 @@ TEST_CASE("Test Ledger Replay")
       };
 
     pbft::register_rollback_ctx.called = &call_rollback;
-    pbft::register_rollback_ctx.store = replica_store.get();
+    pbft::register_rollback_ctx.store = pbft_state.write_pbft_store.get();
     pbft::register_rollback_ctx.execution_mock = &pbft_state.exec_mock;
 
     pbft::GlobalState::get_replica().register_rollback_cb(
@@ -350,14 +349,15 @@ TEST_CASE("Test Ledger Replay")
 
     // apply out of order first
     REQUIRE(
-      store->deserialise(entries.back()) == kv::DeserialiseSuccess::FAILED);
+      pbft_state.write_store->deserialise(entries.back()) ==
+      kv::DeserialiseSuccess::FAILED);
 
     ccf::Store::Tx tx;
-    auto req_view = tx.get_view(*pbft_state.pbft_requests_map);
+    auto req_view = tx.get_view(pbft_state.pbft_requests_map);
     auto req = req_view->get(0);
     REQUIRE(!req.has_value());
 
-    auto pp_view = tx.get_view(*pbft_state.pbft_pre_prepares_map);
+    auto pp_view = tx.get_view(pbft_state.pbft_pre_prepares_map);
     auto pp = pp_view->get(0);
     REQUIRE(!pp.has_value());
 
@@ -381,7 +381,8 @@ TEST_CASE("Test Ledger Replay")
         // rollback
         ccf::Store::Tx tx;
         REQUIRE(
-          store->deserialise_views(corrupt_entry, false, nullptr, &tx) ==
+          pbft_state.write_store->deserialise_views(
+            corrupt_entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
         REQUIRE_THROWS_AS(
           pbft::GlobalState::get_replica().playback_pre_prepare(tx),
@@ -391,7 +392,7 @@ TEST_CASE("Test Ledger Replay")
         // rolled back latest request so need to re-execute
         ccf::Store::Tx re_exec_tx;
         REQUIRE(
-          store->deserialise_views(
+          pbft_state.write_store->deserialise_views(
             lastest_executed_request, false, nullptr, &re_exec_tx) ==
           kv::DeserialiseSuccess::PASS);
         pbft::GlobalState::get_replica().playback_request(re_exec_tx);
@@ -403,12 +404,13 @@ TEST_CASE("Test Ledger Replay")
         // odd entries are pre prepares
         ccf::Store::Tx tx;
         REQUIRE(
-          store->deserialise_views(entry, false, nullptr, &tx) ==
+          pbft_state.write_store->deserialise_views(
+            entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
         pbft::GlobalState::get_replica().playback_pre_prepare(tx);
 
         ccf::Store::Tx read_tx;
-        auto pp_view = read_tx.get_view(*pbft_state.pbft_pre_prepares_map);
+        auto pp_view = read_tx.get_view(pbft_state.pbft_pre_prepares_map);
         auto pp = pp_view->get(0);
         REQUIRE(pp.has_value());
         REQUIRE(pp.value().seqno == seqno);
@@ -419,8 +421,8 @@ TEST_CASE("Test Ledger Replay")
         // even entries are requests
         ccf::Store::Tx tx;
         REQUIRE(
-          store->deserialise_views(entry, false, nullptr, &tx) ==
-          kv::DeserialiseSuccess::PASS);
+          pbft_state.write_store->deserialise_views(
+            entry, false, nullptr, &tx) == kv::DeserialiseSuccess::PASS);
         pbft::GlobalState::get_replica().playback_request(tx);
         // pre-prepares are committed in playback_pre_prepare
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -428,7 +430,7 @@ TEST_CASE("Test Ledger Replay")
         ccf::Store::Tx read_tx;
         lastest_executed_request = entry;
         // even entries are requests
-        auto req_view = read_tx.get_view(*pbft_state.pbft_requests_map);
+        auto req_view = read_tx.get_view(pbft_state.pbft_requests_map);
         auto req = req_view->get(0);
         REQUIRE(req.has_value());
         REQUIRE(req.value().raw.size() > 0);
@@ -452,20 +454,15 @@ TEST_CASE("Test Ledger Replay")
 void no_op_pre_prepare(
   std::vector<uint8_t>& pp_contents, size_t& pp_digest_hash)
 {
-  auto write_store = std::make_shared<ccf::Store>(
-    pbft::replicate_type_pbft, pbft::replicated_tables_pbft);
-  auto write_pbft_store =
-    std::make_unique<pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>>(
-      write_store);
-
-  PbftState pbft_state(write_store, write_pbft_store.get());
+  PbftState pbft_state;
+  init_test_state(pbft_state);
 
   // Null request
   Req_queue empty;
   size_t requests_in_batch;
   View v = 0;
   Seqno sn = 1;
-  auto pp = new Pre_prepare(v, sn, empty, requests_in_batch, 0);
+  auto pp = std::make_unique<Pre_prepare>(v, sn, empty, requests_in_batch, 0);
   pp->set_digest();
   pp_digest_hash = pp->digest().hash();
   std::copy(
@@ -474,7 +471,7 @@ void no_op_pre_prepare(
     std::back_inserter(pp_contents));
 
   // replica handle no op pre-prepare (creates and writes pre prepare to ledger)
-  pbft::GlobalState::get_replica().process_message(pp);
+  pbft::GlobalState::get_replica().process_message(pp.release());
   DOCTEST_REQUIRE(pbft_state.exec_mock.command_counter == 0);
 }
 
@@ -491,5 +488,9 @@ TEST_CASE("Test No Ops")
   no_op_pre_prepare(second_pp_contents, second_digest);
   INFO("Compare the two no op pre-prepares");
   REQUIRE(first_digest == second_digest);
-  REQUIRE(first_pp_contents == second_pp_contents);
+  REQUIRE(first_pp_contents.size() == second_pp_contents.size());
+  REQUIRE(std::equal(
+    first_pp_contents.begin(),
+    first_pp_contents.end(),
+    second_pp_contents.begin()));
 }
