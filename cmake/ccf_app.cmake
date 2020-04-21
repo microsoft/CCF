@@ -38,7 +38,7 @@ find_package(OpenEnclave 0.8 CONFIG REQUIRED)
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   if(TARGET ${name})
-    # Produce a debuggable variant. This doesn't need to be 'signed', but oesign
+    # Produce a debuggable variant. This doesn't need to be signed, but oesign
     # also stamps the other config (heap size etc) which _are_ needed
     set(DEBUG_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.debuggable.conf)
 
