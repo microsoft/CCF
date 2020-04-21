@@ -101,7 +101,7 @@ endforeach()
 
 # Install specific utilities
 install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
-        DESTINATION bin
+                 ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin
 )
 
 # Install getting_started scripts for VM creation and setup
