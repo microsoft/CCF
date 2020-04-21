@@ -43,7 +43,7 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(DEBUG_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.debuggable.conf)
 
     # Need to put in a temp folder, as oesign has a fixed output path, so
-    # multiple calls will force unnecessary rebuild
+    # multiple calls will force unnecessary rebuilds
     set(TMP_FOLDER ${CMAKE_CURRENT_BINARY_DIR}/${name}_tmp)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
