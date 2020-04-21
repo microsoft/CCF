@@ -19,7 +19,7 @@ TEST_CASE("Simple encryption/decryption")
   // Setting 1 ledger secret, valid for version 1+
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
+  secrets->init();
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -43,7 +43,7 @@ TEST_CASE("Two ciphers from same plaintext are different - RaftTxEncryptor")
 {
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
+  secrets->init();
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -68,7 +68,7 @@ TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
 {
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
+  secrets->init();
   auto encryptor = std::make_shared<ccf::PbftTxEncryptor>(secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -95,7 +95,7 @@ TEST_CASE("Additional data")
   // Setting 1 ledger secret, valid for version 1+
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
+  secrets->init();
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(node_id, secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
@@ -129,8 +129,8 @@ TEST_CASE("Encryption/decryption with multiple ledger secrets")
   // Setting 2 ledger secrets, valid from version 1 and 4
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
-  secrets->set_secret(4, std::vector<uint8_t>(16, 0x43));
+  secrets->init();
+  secrets->add_new_secret(4, LedgerSecret());
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(node_id, secrets);
 
   INFO("Encryption with key at version 1");

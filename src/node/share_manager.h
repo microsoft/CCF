@@ -204,9 +204,6 @@ namespace ccf
       auto restored_ls = ls_wrapping_key.unwrap(
         key_share_info->wrapped_latest_ledger_secret.encrypted_data);
 
-      // network.ledger_secrets->set_secret(
-      //   encrypted_recovery_secrets.back().next_version, restored_ls.master);
-
       restored_ledger_secrets.push_back(
         {encrypted_recovery_secrets.back().next_version, restored_ls});
 
@@ -241,8 +238,6 @@ namespace ccf
         restored_ledger_secrets.push_back(
           {std::next(i)->next_version, LedgerSecret(decrypted_ls)});
 
-        // network.ledger_secrets->set_secret(
-        //   std::next(i)->next_version, decrypted_ls);
         restored_versions.push_back(std::next(i)->next_version);
         decryption_key = decrypted_ls;
       }

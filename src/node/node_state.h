@@ -286,7 +286,6 @@ namespace ccf
 
           // Create initial secrets and seal immediately
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
-          // network.ledger_secrets->set_secret(1, LedgerSecret().master);
           network.ledger_secrets->init();
           network.ledger_secrets->seal_all();
 
@@ -599,8 +598,6 @@ namespace ccf
         "index: {}",
         last_recovered_commit_idx);
 
-      // network.ledger_secrets->set_secret(
-      //   last_recovered_commit_idx + 1, LedgerSecret().master);
       network.ledger_secrets->init(last_recovered_commit_idx + 1);
       setup_encryptor(network.consensus_type);
 
@@ -854,9 +851,8 @@ namespace ccf
         LOG_INFO_FMT("Initiating end of recovery (primary)");
 
         // Unseal past network secrets
-        // auto past_secrets_idx =
-        // network.ledger_secrets->restore(sealed_secrets);
-        std::vector<kv::Version> past_secrets_idx;
+        auto past_secrets_idx =
+          network.ledger_secrets->restore_sealed(sealed_secrets);
 
         // Emit signature to certify transactions that happened on public
         // network
@@ -1446,16 +1442,6 @@ namespace ccf
               {
                 restored_secrets.push_back(
                   {secret_version, LedgerSecret(plain_secret)});
-                // // When recovering, set the past secret as a ledger secret to
-                // // be sealed at the end of the recovery
-                // if (!network.ledger_secrets->set_secret(
-                //       secret_version, plain_secret))
-                // {
-                //   throw std::logic_error(fmt::format(
-                //     "Cannot set ledger secrets at version {} because they "
-                //     "already exist",
-                //     secret_version));
-                // }
               }
               else
               {
@@ -1473,6 +1459,13 @@ namespace ccf
         // When recovering, trigger end of recovery protocol
         if (has_secrets && is_part_of_public_network())
         {
+          restored_secrets.sort(
+            [](
+              const LedgerSecrets::VersionedLedgerSecret& a,
+              const LedgerSecrets::VersionedLedgerSecret& b) {
+              return a.version < b.version;
+            });
+
           network.ledger_secrets->restore(std::move(restored_secrets));
           backup_finish_recovery();
         }

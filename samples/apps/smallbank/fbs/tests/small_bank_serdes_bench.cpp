@@ -29,9 +29,7 @@ inline void clobber_memory()
 std::shared_ptr<ccf::LedgerSecrets> create_ledger_secrets()
 {
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
-  auto new_secret = ccf::LedgerSecret();
-  secrets->set_secret(
-    1, new_secret.master); // Create new secrets valid from version 1
+  secrets->init();
 
   return secrets;
 }
