@@ -415,18 +415,20 @@ class WSClient:
         self.key = key
         self.ca = ca
         self.request_timeout = request_timeout
+        self.ws = None
 
     def request(self, request):
-        LOG.info("Creating WSS connection")
-        ws = websocket.create_connection(
-            f"wss://{self.host}:{self.port}",
-            sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
-        )
+        if not self.ws:
+            LOG.info("Creating WSS connection")
+            self.ws = websocket.create_connection(
+                f"wss://{self.host}:{self.port}",
+                sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
+            )
         payload = json.dumps(request.params).encode()
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
         frame = websocket.ABNF(1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, payload)
-        ws.send_frame(frame)
-        return ws.recv_frame()
+        self.ws.send_frame(frame)
+        return self.ws.recv_frame()
 
     def signed_request(self, request):
         raise NotImplementedError("Signed requests not yet implemented over WebSockets")

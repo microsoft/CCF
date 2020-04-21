@@ -52,7 +52,27 @@ namespace http
       recv_buffered(data, size);
       LOG_TRACE_FMT("recv called with {} bytes", size);
 
-      if (!is_websocket)
+      if (is_websocket)
+      {
+        while (true)
+        {
+          auto r = read(ws_next_read, true);
+          if (r.empty())
+          {
+            return;
+          }
+          else
+          {
+            ws_next_read = wp.consume(r);
+            if (!ws_next_read)
+            {
+              close();
+              return;
+            }
+          }
+        }
+      }
+      else
       {
         auto buf = read(4096, false);
         auto data = buf.data();
@@ -103,27 +123,6 @@ namespace http
           catch (const std::exception& e)
           {
             LOG_FAIL_FMT("Error parsing request: {}", e.what());
-            return;
-          }
-        }
-      }
-      else
-      {
-        LOG_INFO_FMT(
-          "Receiving data after endpoint has been upgraded to websocket.");
-
-        size_t to_read = 2;
-        while (true)
-        {
-          auto buf = read(to_read, true);
-          if (!buf.size())
-          {
-            return; //TODO: This will not work!
-          }
-          to_read = wp.consume(buf);
-          if (!to_read)
-          {
-            close();
             return;
           }
         }

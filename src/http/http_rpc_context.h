@@ -488,10 +488,7 @@ namespace ws
         default:
           throw std::logic_error("Unreachable");
       }
-      LOG_INFO_FMT("h PRE [{}]", std::string(h.begin(), h.end()));
       h.insert(h.end(), response_body.begin(), response_body.end());
-      LOG_INFO_FMT("h POST [{}]", std::string(h.begin(), h.end()));
-      LOG_INFO_FMT("Return body: {}", h.size());
       return h;
     }
   };
