@@ -469,7 +469,8 @@ void no_op_pre_prepare(
     pp->contents() + pp->size(),
     std::back_inserter(pp_contents));
 
-  // replica handle no op pre-prepare (creates and writes pre prepare to ledger)
+  // replica handle no op pre-prepare with empty request, so no execution should
+  // occur
   pbft::GlobalState::get_replica().process_message(pp.release());
   DOCTEST_REQUIRE(pbft_state.exec_mock.command_counter == 0);
 }
