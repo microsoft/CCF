@@ -215,6 +215,7 @@ struct PbftState
   PbftState() :
     store(std::make_shared<ccf::Store>(
       pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
+    pbft_store(std::make_unique<PbftStoreType>(store)),
     pbft_requests_map(store->create<pbft::RequestsMap>(
       pbft::Tables::PBFT_REQUESTS, kv::SecurityDomain::PUBLIC)),
     signatures(store->create<ccf::Signatures>(ccf::Tables::SIGNATURES)),
@@ -222,9 +223,7 @@ struct PbftState
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC)),
     service_mem(mem_size, 0),
     exec_mock(0)
-  {
-    pbft_store = std::make_unique<PbftStoreType>(store);
-  }
+  {}
 };
 
 void init_test_state(PbftState& pbft_state)
