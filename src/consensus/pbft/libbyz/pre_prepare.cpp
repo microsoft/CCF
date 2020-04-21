@@ -106,7 +106,9 @@ Pre_prepare::Pre_prepare(
     // if there are no pre-prepare proofs (e.g. no-op pre-prepare)
     // then zero out the rest of the allocated message
     rep().num_prev_pp_sig = 0;
-    std::memset(proofs(), 0, size() - size_to_proofs());
+    // same as proofs() + size() - size_to_proofs()
+    auto end_of_proofs = (uint8_t*)contents() + size();
+    std::fill(proofs(), end_of_proofs, 0);
   }
   else
   {
