@@ -114,7 +114,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/google/flatbuffers",
-          "commitHash": "bf9eb67ab9371755c6bcece13cadc7693bcbf264"
+          "commitHash": "6df40a2471737b27271bdd9b900ab5f3aec746c7"
         }
       }
     },
