@@ -180,6 +180,7 @@ inline bool Reply::match(Reply* r)
     return false;
   }
 
+  LOG_INFO_FMT("reply match");
   return (rep().n == r->rep().n) &
     ((!is_tentative() & !r->is_tentative()) | (view() == r->view()));
 }

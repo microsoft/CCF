@@ -201,11 +201,11 @@ public:
   // Playback methods
   void playback_request(ccf::Store::Tx& tx);
   // Effects: Requests are executed
-  void populate_certificates(Pre_prepare* pp, bool add_mine = false);
+  void populate_certificates(Pre_prepare* pp);
   // Effects: The pre-prepare contains the prepare proofs
   // of the previous seqno. We use the proofs to create
   // "Prepare" messages for the previous seqno and add those prepares
-  // to the plog. If add_mine is true, we also creates and adds the "Prepare"
+  // to the plog. Also creates and adds the "Prepare"
   // message for the caller
   void playback_pre_prepare(ccf::Store::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match

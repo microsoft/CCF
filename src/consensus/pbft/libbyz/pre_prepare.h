@@ -336,6 +336,7 @@ inline Seqno Pre_prepare::seqno() const
 
 inline bool Pre_prepare::match(const Prepare* p) const
 {
+  LOG_INFO_FMT("pre prepare with prepare match");
   PBFT_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
   return digest() == p->digest();
 }
