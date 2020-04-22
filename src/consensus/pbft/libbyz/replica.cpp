@@ -2044,7 +2044,6 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
     if (encryptor)
     {
-      LOG_INFO_FMT("Setting encryptor with view {} for seqno {}", prev_view, i);
       encryptor->set_view(prev_view);
     }
     if (primary() == id())
