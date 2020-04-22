@@ -488,7 +488,7 @@ namespace ws
             bool fin = data[0] & 0x80;
             if (!fin)
             {
-              LOG_FAIL_FMT("Fragment messages aren't support.");
+              LOG_FAIL_FMT("Fragment messages aren't supported.");
               return 0;
             }
             else
