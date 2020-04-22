@@ -31,7 +31,12 @@ def run(args):
             mrenclave = primary_quote["mrenclave"]
 
             oed = subprocess.run(
-                [args.oesign, "dump", "-e", infra.path.build_lib_path(args.package)],
+                [
+                    args.oesign,
+                    "dump",
+                    "-e",
+                    infra.path.build_lib_path(args.package, args.enclave_type),
+                ],
                 capture_output=True,
                 check=True,
             )
