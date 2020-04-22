@@ -37,7 +37,9 @@ def run(args):
         new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
 
-        new_code_id = get_code_id(infra.path.build_lib_path(args.patched_file_name))
+        new_code_id = get_code_id(
+            infra.path.build_lib_path(args.patched_file_name, args.enclave_type)
+        )
 
         LOG.info(f"Adding a node with unsupported code id {new_code_id}")
         code_not_found_exception = None
@@ -110,7 +112,7 @@ if __name__ == "__main__":
         )
 
     args = infra.e2e_args.cli_args(add)
-    if args.enclave_type != "debug":
+    if args.enclave_type == "virtual":
         LOG.warning("Skipping code update test with virtual enclave")
         sys.exit()
 
