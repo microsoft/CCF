@@ -10,7 +10,7 @@ from loguru import logger as LOG
 
 @reqs.description("Recovering a network")
 @reqs.recover(number_txs=2)
-def test(network, args, use_shares=False):
+def test(network, args, use_shares=True):
     if use_shares:
         LOG.warning("Using member key shares for recovery (experimental)")
 
