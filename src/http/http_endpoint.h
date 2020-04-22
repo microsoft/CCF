@@ -295,7 +295,6 @@ namespace http
         }
         else
         {
-          LOG_INFO_FMT("Sending {}", std::string(response.value().begin(), response.value().end()));
           send_buffered(response.value());
           flush();
         }
