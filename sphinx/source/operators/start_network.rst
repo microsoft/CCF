@@ -15,7 +15,6 @@ To create a new CCF network, the first node of the network should be started wit
 
     $ cchost
     --enclave-file /path/to/enclave_library
-    --enclave-type debug
     --node-address node_ip:node_port
     --rpc-address <ccf-node-address>
     --public-rpc-address <ccf-node-public-address>
@@ -54,7 +53,6 @@ To add a new node to an existing opening network, other nodes should be started 
 
     $ cchost
     --enclave-file /path/to/enclave_library
-    --enclave-type debug
     --node-address node_ip:node_port
     --rpc-address <ccf-node-address>
     --public-rpc-address <ccf-node-public-address>

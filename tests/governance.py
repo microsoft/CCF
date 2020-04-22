@@ -31,7 +31,12 @@ def run(args):
             mrenclave = primary_quote["mrenclave"]
 
             oed = subprocess.run(
-                [args.oesign, "dump", "-e", infra.path.build_lib_path(args.package)],
+                [
+                    args.oesign,
+                    "dump",
+                    "-e",
+                    infra.path.build_lib_path(args.package, args.enclave_type),
+                ],
                 capture_output=True,
                 check=True,
             )
@@ -53,7 +58,7 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args(add=add)
 
-    if args.enclave_type != "debug":
+    if args.enclave_type == "virtual":
         LOG.warning("This test can only run in real enclaves, skipping")
         sys.exit(0)
 

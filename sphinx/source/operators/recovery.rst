@@ -24,7 +24,6 @@ To initiate the first phase of the recovery protocol, one or several nodes shoul
 
     $ cchost
     --enclave-file /path/to/enclave_library
-    --enclave-type debug
     --node-address node_ip:node_port
     --rpc-address <ccf-node-address>
     --public-rpc-address <ccf-node-public-address>
