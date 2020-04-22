@@ -32,9 +32,9 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|suite|tlstest"'
+      ctest_args: '-R late_joiners --repeat-until-fail 50'
     SGX:
-      ctest_args: '-LE "benchmark|perf|suite|tlstest"'
+      ctest_args: '-R late_joiners --repeat-until-fail 50'
     Release:
       ctest_args: '-LE "tlstest"'
     perf:
