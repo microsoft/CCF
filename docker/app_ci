@@ -1,4 +1,4 @@
-FROM ccfciteam/ccf-ci-18.04-oe-8fe3697:latest
+FROM ccfciteam/ccf-ci-18.04-oe-0.9.0-rc1:latest
 
 ARG VERSION=0.9.3
 ARG TARBALL=ccf.tar.gz
