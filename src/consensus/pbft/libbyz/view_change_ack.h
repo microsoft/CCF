@@ -101,7 +101,6 @@ inline Digest& View_change_ack::vc_digest() const
 
 inline bool View_change_ack::match(const View_change_ack* p) const
 {
-  LOG_INFO_FMT("view change ack match");
   PBFT_ASSERT(view() == p->view(), "Invalid argument");
   return vc_id() == p->vc_id() && vc_digest() == p->vc_digest();
 }
