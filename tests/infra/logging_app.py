@@ -45,21 +45,17 @@ class LoggingTxs:
 
     def verify(self, network):
         LOG.success(f"Verifying all logging txs")
-        primary, _ = network.find_primary()
-
-        with primary.node_client() as nc:
-            check = infra.checker.Checker(nc)
-
-            with primary.user_client() as uc:
-
-                for pub_tx_index in self.pub:
-                    check(
-                        uc.get("LOG_get_pub", {"id": pub_tx_index}),
-                        result={"msg": self.pub[pub_tx_index]},
-                    )
-
-                for priv_tx_index in self.priv:
-                    check(
-                        uc.get("LOG_get", {"id": priv_tx_index}),
-                        result={"msg": self.priv[priv_tx_index]},
-                    )
+        for n in network.get_joined_nodes():
+            with n.node_client() as mc:
+                check = infra.checker.Checker(mc)
+                with n.user_client() as uc:
+                    for pub_tx_index in self.pub:
+                        check(
+                            uc.get("LOG_get_pub", {"id": pub_tx_index}),
+                            result={"msg": self.pub[pub_tx_index]},
+                        )
+                    for priv_tx_index in self.priv:
+                        check(
+                            uc.get("LOG_get", {"id": priv_tx_index}),
+                            result={"msg": self.priv[priv_tx_index]},
+                        )
