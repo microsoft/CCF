@@ -3,7 +3,6 @@
 #pragma once
 
 #include "enclave/tls_endpoint.h"
-#include "http_builder.h"
 #include "http_proc.h"
 
 #include <algorithm>
@@ -47,7 +46,7 @@ namespace ws
   {
   private:
     http::RequestProcessor& proc;
-    uint16_t size = 0;
+    uint64_t size = 0;
     ParserState state = INIT;
 
   public:
