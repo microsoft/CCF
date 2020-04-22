@@ -48,12 +48,15 @@ int main(int argc, char** argv)
 
   enum EnclaveType
   {
+    RELEASE,
     DEBUG,
     VIRTUAL
   };
 
   std::vector<std::pair<std::string, EnclaveType>> enclave_type_map = {
-    {"debug", EnclaveType::DEBUG}, {"virtual", EnclaveType::VIRTUAL}};
+    {"release", EnclaveType::RELEASE},
+    {"debug", EnclaveType::DEBUG},
+    {"virtual", EnclaveType::VIRTUAL}};
 
   EnclaveType enclave_type;
   app.add_option("-t,--enclave-type", enclave_type, "Enclave type")
@@ -400,6 +403,10 @@ int main(int argc, char** argv)
 
     switch (enclave_type)
     {
+      case EnclaveType::RELEASE:
+      {
+        break;
+      }
       case EnclaveType::DEBUG:
       {
         oe_flags |= OE_ENCLAVE_FLAG_DEBUG;

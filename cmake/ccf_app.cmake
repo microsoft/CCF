@@ -38,11 +38,44 @@ find_package(OpenEnclave 0.8 CONFIG REQUIRED)
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   if(TARGET ${name})
+    # Produce a debuggable variant. This doesn't need to be signed, but oesign
+    # also stamps the other config (heap size etc) which _are_ needed
+    set(DEBUG_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.debuggable.conf)
+
+    # Need to put in a temp folder, as oesign has a fixed output path, so
+    # multiple calls will force unnecessary rebuilds
+    set(TMP_FOLDER ${CMAKE_CURRENT_BINARY_DIR}/${name}_tmp)
+    add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+      COMMAND cp ${app_oe_conf_path} ${DEBUG_CONF_NAME}
+      COMMAND echo "Debug=1" >> ${DEBUG_CONF_NAME}
+      COMMAND mkdir -p ${TMP_FOLDER}
+      COMMAND ln -s ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
+              ${TMP_FOLDER}/lib${name}.so
+      COMMAND openenclave::oesign sign -e ${TMP_FOLDER}/lib${name}.so -c
+              ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path}
+      COMMAND mv ${TMP_FOLDER}/lib${name}.so.signed
+              ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+      COMMAND rm -rf ${TMP_FOLDER}
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${app_oe_conf_path}
+              ${enclave_sign_key_path}
+    )
+
+    add_custom_target(
+      ${name}_debuggable ALL
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+    )
+
+    # Produce a releaseable signed variant. This is NOT debuggable - oegdb
+    # cannot be attached
+    set(SIGNED_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.signed.conf)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
+      COMMAND cp ${app_oe_conf_path} ${SIGNED_CONF_NAME}
+      COMMAND echo "Debug=0" >> ${SIGNED_CONF_NAME}
       COMMAND
         openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-        ${app_oe_conf_path} -k ${enclave_sign_key_path}
+        ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${app_oe_conf_path}
               ${enclave_sign_key_path}
     )

@@ -48,7 +48,7 @@ def test_add_as_many_pending_nodes(network, args):
 
 @reqs.description("Add node with untrusted code version")
 def test_add_node_untrusted_code(network, args):
-    if args.enclave_type == "debug":
+    if args.enclave_type != "virtual":
         LOG.info("Adding an invalid node (unknown code id)")
         code_not_found_exception = None
         try:
