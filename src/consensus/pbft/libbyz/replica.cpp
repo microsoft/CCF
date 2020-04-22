@@ -1217,10 +1217,7 @@ void Replica::handle(Prepare* m)
     has_complete_new_view())
   {
     Prepared_cert& ps = plog.fetch(ms);
-    auto add = ps.add(m);
-    auto cp = ps.is_complete();
-    LOG_INFO_FMT("add was {} complete was {}", add, cp);
-    if (add && ps.is_complete())
+    if (ps.add(m) && ps.is_complete())
     {
       send_commit(ms, f() == 0);
     }
@@ -1869,12 +1866,10 @@ void Replica::send_view_change()
   {
     Prepared_cert& pc = plog.fetch(i);
     pc.update();
-    LOG_INFO_FMT("update called for seqno {}", i);
     Certificate<Commit>& cc = clog.fetch(i);
 
     if (pc.is_complete())
     {
-      LOG_INFO_FMT("Adding complete {}", i);
       vi.add_complete(pc.rem_pre_prepare());
     }
     else
@@ -1882,7 +1877,6 @@ void Replica::send_view_change()
       Prepare* p = pc.my_prepare();
       if (p != 0)
       {
-        LOG_INFO_FMT("Adding incomplete prepare {}", i);
         vi.add_incomplete(i, p->digest());
       }
       else
@@ -1890,7 +1884,6 @@ void Replica::send_view_change()
         Pre_prepare* pp = pc.my_pre_prepare();
         if (pp != 0)
         {
-          LOG_INFO_FMT("Adding incomplete pre prepare {}", i);
           vi.add_incomplete(i, pp->digest());
         }
       }
@@ -2081,16 +2074,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       }
 
       Prepare* p = new Prepare(v, i, d, nonce, nullptr, pp->is_signed());
-
-      if (!pc.add_mine(p))
-      {
-        LOG_INFO_FMT("Failed to add my prepare cert for seqno {}", i);
-      }
-      else
-      {
-        LOG_INFO_FMT(
-          "Added my prepare cert for seqno {} with digest {}", i, d.hash());
-      }
+      pc.add_mine(p);
       send(p, All_replicas);
     }
 

@@ -102,7 +102,6 @@ inline bool Checkpoint::stable() const
 
 inline bool Checkpoint::match(const Checkpoint* c) const
 {
-  LOG_INFO_FMT("checkpoint match");
   PBFT_ASSERT(seqno() == c->seqno(), "Invalid argument");
   return digest() == c->digest();
 }

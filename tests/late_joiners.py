@@ -143,11 +143,6 @@ def run(args):
         second_msg = "Hello, world hello!"
         catchup_msg = "Hey world!"
         final_msg = "Goodbye, world!"
-        election_timeout_secs = (
-            args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
-            else args.raft_election_timeout / 1000
-        )
 
         with first_node.node_client() as mc:
             check = infra.checker.Checker(mc)
@@ -173,10 +168,6 @@ def run(args):
             assert_node_up_to_date(check, late_joiner, first_msg, 1000)
             assert_node_up_to_date(check, late_joiner, second_msg, 2000)
 
-            # LOG.success(
-            #     f"Sleeping for {election_timeout + 1} seconds for all the nodes to sync before killing one off"
-            # )
-            # time.sleep(1)
             if not args.skip_suspension:
                 # kill the old node(s) and ensure we are still making progress with the new one(s)
                 for node in nodes_to_kill:
@@ -202,7 +193,11 @@ def run(args):
                     suspended_nodes.append(node.node_id)
 
                 for t, node in timeouts:
-                    et = election_timeout_secs
+                    et = (
+                        args.pbft_view_change_timeout / 1000
+                        if args.consensus == "pbft"
+                        else args.raft_election_timeout / 1000
+                    )
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
                         # if pbft suspend the primary for > 2 the elecetion timeout
                         # in order to make sure view changes will be triggered
