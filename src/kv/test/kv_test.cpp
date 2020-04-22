@@ -276,8 +276,8 @@ TEST_CASE("Local commit hooks")
 
   INFO("Write without hooks");
   {
-    map.set_local_hook(nullptr);
-    map.set_global_hook(nullptr);
+    map.unset_local_hook();
+    map.unset_global_hook();
 
     Store::Tx tx;
     auto view = tx.get_view(map);

@@ -845,22 +845,23 @@ namespace ccf
 
       auto get_encrypted_recovery_share =
         [this](RequestArgs& args, nlohmann::json&& params) {
-          // Only active members are given recovery shares
           if (!check_member_active(args.tx, args.caller_id))
           {
-            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              "Only active members are given recovery shares");
           }
 
           std::optional<EncryptedShare> enc_s;
-          auto current_keyshare =
+          auto recovery_shares_info =
             args.tx.get_view(this->network.shares)->get(0);
-          if (!current_keyshare.has_value())
+          if (!recovery_shares_info.has_value())
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Failed to retrieve current key share info");
+              "Failed to retrieve current recovery shares info");
           }
-          for (auto const& s : current_keyshare->encrypted_shares)
+          for (auto const& s : recovery_shares_info->encrypted_shares)
           {
             if (s.first == args.caller_id)
             {

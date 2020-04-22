@@ -51,7 +51,7 @@ def test_add_member(network, args):
         new_member.get_and_decrypt_recovery_share(primary)
         assert False, "New accepted members are not given recovery shares"
     except infra.member.NoRecoveryShareFound as e:
-        assert e.response.error == "Member is not active"
+        assert e.response.error == "Only active members are given recovery shares"
 
     new_member.ack(primary)  # Activate new member
 

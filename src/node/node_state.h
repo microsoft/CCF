@@ -200,6 +200,7 @@ namespace ccf
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> term_history;
     kv::Version last_recovered_commit_idx = 1;
+    std::list<RecoveredLedgerSecret> recovery_ledger_secrets;
 
     consensus::Index ledger_idx = 0;
 
@@ -282,7 +283,12 @@ namespace ccf
         {
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
+
+          // Create initial secrets and seal immediately
           network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
+          network.ledger_secrets->init();
+          network.ledger_secrets->seal_all();
+
           network.encryption_key = std::make_unique<NetworkEncryptionKey>(
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
@@ -331,13 +337,19 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          // Create temporary network secrets but do not seal yet
-          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal, false);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
           network.encryption_key = std::make_unique<NetworkEncryptionKey>(
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
           setup_history();
+
+          // It is necessary to give an encryptor to the store for it to
+          // deserialise the public domain when recovering the public ledger.
+          // Once the public recovery is complete, the existing encryptor is
+          // replaced with a new one initialised with recovered ledger secrets.
           setup_encryptor(network.consensus_type);
+
+          setup_recovery_hook();
 
           // Accept members connections for members to finish recovery once
           // the public ledger has been read
@@ -579,18 +591,17 @@ namespace ccf
       Store::Tx tx;
       GenesisGenerator g(network, tx);
 
-      auto last_sig = g.get_last_signature();
-      kv::Version last_index = 0;
-      if (last_sig.has_value())
-        last_index = last_sig->index;
+      network.tables->rollback(last_recovered_commit_idx);
+      ledger_truncate(last_recovered_commit_idx);
+      LOG_INFO_FMT(
+        "End of public ledger recovery - Truncating ledger to last signed "
+        "index: {}",
+        last_recovered_commit_idx);
 
-      network.tables->rollback(last_index);
-      ledger_truncate(last_index);
-      LOG_INFO_FMT("Truncating ledger to last signed index: {}", last_index);
+      network.ledger_secrets->init(last_recovered_commit_idx + 1);
+      setup_encryptor(network.consensus_type);
 
-      network.ledger_secrets->promote_secret(1, last_index + 1);
-
-      g.create_service(network.identity->cert, last_index + 1);
+      g.create_service(network.identity->cert, last_recovered_commit_idx + 1);
 
       g.retire_active_nodes();
 
@@ -617,7 +628,9 @@ namespace ccf
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)
+      {
         h->set_node_id(self);
+      }
 
       setup_raft(true);
 
@@ -639,11 +652,11 @@ namespace ccf
 #endif
 
       if (g.finalize() != kv::CommitSuccess::OK)
+      {
         throw std::logic_error(
           "Could not commit transaction when starting recovered public "
           "network");
-
-      LOG_INFO_FMT("Restarted network");
+      }
 
       sm.advance(State::partOfPublicNetwork);
     }
@@ -717,8 +730,11 @@ namespace ccf
       if (consensus->is_primary())
       {
         Store::Tx tx;
-        share_manager.update_key_share_info(tx);
 
+        // Shares for the new ledger secret can only be written now, once the
+        // previous ledger secrets have been recovered
+        share_manager.update_recovery_shares_info(
+          tx, last_recovered_commit_idx + 1);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -732,6 +748,7 @@ namespace ccf
         }
       }
 
+      reset_recovery_hook();
       reset_quote();
       sm.advance(State::partOfNetwork);
     }
@@ -834,7 +851,8 @@ namespace ccf
         LOG_INFO_FMT("Initiating end of recovery (primary)");
 
         // Unseal past network secrets
-        auto past_secrets_idx = network.ledger_secrets->restore(sealed_secrets);
+        auto past_secrets_idx =
+          network.ledger_secrets->restore_sealed(sealed_secrets);
 
         // Emit signature to certify transactions that happened on public
         // network
@@ -997,8 +1015,7 @@ namespace ccf
       // once the local hook on the secrets table has been triggered. The
       // corresponding new ledger secret is only sealed on global hook.
 
-      auto new_ledger_secret = LedgerSecret(true);
-      broadcast_ledger_secret(tx, new_ledger_secret);
+      broadcast_ledger_secret(tx, LedgerSecret());
 
       return true;
     }
@@ -1046,11 +1063,11 @@ namespace ccf
     {
       try
       {
-        share_manager.update_key_share_info(tx);
+        share_manager.update_recovery_shares_info(tx);
       }
       catch (const std::logic_error& e)
       {
-        LOG_FAIL_FMT("Failed to update key share info: {}", e.what());
+        LOG_FAIL_FMT("Failed to update recovery shares info: {}", e.what());
         return false;
       }
       return true;
@@ -1062,11 +1079,15 @@ namespace ccf
       try
       {
         finish_recovery_with_shares(
-          tx, share_manager.restore_key_share_info(tx, shares));
+          tx,
+          share_manager.restore_recovery_shares_info(
+            tx, shares, recovery_ledger_secrets));
+
+        recovery_ledger_secrets.clear();
       }
       catch (const std::logic_error& e)
       {
-        LOG_FAIL_FMT("Failed to restore key share info: {}", e.what());
+        LOG_FAIL_FMT("Failed to restore recovery shares info: {}", e.what());
         return false;
       }
 
@@ -1380,6 +1401,7 @@ namespace ccf
                                        const Secrets::State& s,
                                        const Secrets::Write& w) {
         bool has_secrets = false;
+        std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
 
         for (auto& [v, secret_set] : w)
         {
@@ -1418,16 +1440,8 @@ namespace ccf
 
               if (is_part_of_public_network())
               {
-                // When recovering, set the past secret as a ledger secret to
-                // be sealed at the end of the recovery
-                if (!network.ledger_secrets->set_secret(
-                      secret_version, plain_secret))
-                {
-                  throw std::logic_error(fmt::format(
-                    "Cannot set ledger secrets at version {} because they "
-                    "already exist",
-                    secret_version));
-                }
+                restored_secrets.push_back(
+                  {secret_version, LedgerSecret(plain_secret)});
               }
               else
               {
@@ -1445,9 +1459,45 @@ namespace ccf
         // When recovering, trigger end of recovery protocol
         if (has_secrets && is_part_of_public_network())
         {
+          restored_secrets.sort(
+            [](
+              const LedgerSecrets::VersionedLedgerSecret& a,
+              const LedgerSecrets::VersionedLedgerSecret& b) {
+              return a.version < b.version;
+            });
+
+          network.ledger_secrets->restore(std::move(restored_secrets));
           backup_finish_recovery();
         }
       });
+    }
+
+    void setup_recovery_hook()
+    {
+      network.shares.set_local_hook(
+        [this](
+          kv::Version version, const Shares::State& s, const Shares::Write& w) {
+          if (is_reading_public_ledger())
+          {
+            for (auto& [k, v] : w)
+            {
+              // If the version is not set (e.g. rekeying), use the version from
+              // the hook. Otherwise (e.g. recovery), use the version specified.
+              auto version_ =
+                v.value.wrapped_latest_ledger_secret.version == kv::NoVersion ?
+                version :
+                v.value.wrapped_latest_ledger_secret.version;
+
+              recovery_ledger_secrets.push_back(
+                {version_, v.value.encrypted_previous_ledger_secret});
+            }
+          }
+        });
+    }
+
+    void reset_recovery_hook()
+    {
+      network.shares.unset_local_hook();
     }
 
     void setup_n2n_channels()

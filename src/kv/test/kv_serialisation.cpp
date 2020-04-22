@@ -327,7 +327,7 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     // Here, a real encryptor is needed to protect the integrity of the
     // transactions
     auto secrets = std::make_shared<ccf::LedgerSecrets>();
-    secrets->set_secret(1, std::vector<uint8_t>(16, 0x42));
+    secrets->init();
     auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
 
     Store kv_store(consensus);

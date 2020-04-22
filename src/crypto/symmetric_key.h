@@ -45,6 +45,17 @@ namespace crypto
       *reinterpret_cast<uint64_t*>(iv) = seq;
     }
 
+    void set_iv(uint8_t* iv_, size_t size)
+    {
+      if (size != SIZE_IV)
+      {
+        throw std::logic_error(
+          fmt::format("Specified IV is not of size {}", SIZE_IV));
+      }
+
+      memcpy(iv, iv_, size);
+    }
+
     CBuffer get_iv() const
     {
       return {iv, SIZE_IV};
