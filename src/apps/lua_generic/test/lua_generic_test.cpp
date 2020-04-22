@@ -412,8 +412,7 @@ TEST_CASE("simple bank")
   {
     const auto transfer_packed =
       make_pc(transfer_method, {{"src", 1}, {"dst", 2}, {"amt", 5}});
-    auto transfer_ctx =
-      http::make_rpc_context(user_session, transfer_packed);
+    auto transfer_ctx = http::make_rpc_context(user_session, transfer_packed);
     check_success<bool>(frontend->process(transfer_ctx).value(), true);
 
     const auto read1_packed = make_pc(read_method, {{"account", 1}});

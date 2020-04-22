@@ -718,8 +718,7 @@ TEST_CASE("No certs table")
 
   INFO("Anonymous caller");
   {
-    auto rpc_ctx =
-      http::make_rpc_context(anonymous_session, serialized_call);
+    auto rpc_ctx = http::make_rpc_context(anonymous_session, serialized_call);
     std::vector<uint8_t> serialized_response =
       frontend.process(rpc_ctx).value();
     auto response = parse_response(serialized_response);
@@ -971,8 +970,7 @@ TEST_CASE("Explicit commitability")
       request.set_body(&serialized_body);
 
       const auto serialized_request = request.build_request();
-      auto rpc_ctx =
-        http::make_rpc_context(user_session, serialized_request);
+      auto rpc_ctx = http::make_rpc_context(user_session, serialized_request);
       const auto serialized_response = frontend.process(rpc_ctx).value();
       const auto response = parse_response(serialized_response);
 
@@ -1007,8 +1005,7 @@ TEST_CASE("Explicit commitability")
         request.set_body(&serialized_body);
 
         const auto serialized_request = request.build_request();
-        auto rpc_ctx =
-          http::make_rpc_context(user_session, serialized_request);
+        auto rpc_ctx = http::make_rpc_context(user_session, serialized_request);
         const auto serialized_response = frontend.process(rpc_ctx).value();
         const auto response = parse_response(serialized_response);
 
@@ -1042,8 +1039,7 @@ TEST_CASE("Signed read requests can be executed on backup")
 
   auto [signed_call, signed_req] = create_signed_request();
   auto serialized_signed_call = signed_call.build_request();
-  auto rpc_ctx =
-    http::make_rpc_context(user_session, serialized_signed_call);
+  auto rpc_ctx = http::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
   CHECK(response.status == HTTP_STATUS_OK);
 }
@@ -1138,8 +1134,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     {
       INFO("Known caller");
-      auto ctx =
-        http::make_rpc_context(user_session, serialized_call_no_auth);
+      auto ctx = http::make_rpc_context(user_session, serialized_call_no_auth);
 
       const auto r = user_frontend_backup.process(ctx);
       REQUIRE(!r.has_value());

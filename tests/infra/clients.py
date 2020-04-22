@@ -15,6 +15,7 @@ from loguru import logger as LOG
 from requests_http_signature import HTTPSignatureAuth
 import websocket
 
+
 def truncate(string, max_len=256):
     if len(string) > max_len:
         return string[: max_len - 3] + "..."
@@ -421,7 +422,11 @@ class WSClient:
             LOG.info("Creating WSS connection")
             self.ws = websocket.create_connection(
                 f"wss://{self.host}:{self.port}",
-                sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
+                sslopt={
+                    "certfile": self.cert,
+                    "keyfile": self.key,
+                    "ca_certs": self.ca,
+                },
             )
         payload = json.dumps(request.params).encode()
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
@@ -442,7 +447,7 @@ class CCFClient:
 
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(*args, **kwargs)
-        elif os.getenv("WEBSOCKETS_CLIENT") or kwargs.get('ws'):
+        elif os.getenv("WEBSOCKETS_CLIENT") or kwargs.get("ws"):
             self.client_impl = WSClient(*args, **kwargs)
         else:
             self.client_impl = RequestClient(*args, **kwargs)

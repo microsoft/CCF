@@ -530,10 +530,7 @@ class Network:
             rekeyed_nodes = []
             for node in self.get_joined_nodes():
                 try:
-                    max_sealed_version = int(
-                        # pylint: disable=unnecessary-lambda
-                        max(node.get_sealed_secrets(), key=lambda x: int(x))
-                    )
+                    max_sealed_version = int(max(node.get_sealed_secrets(), key=int))
                     if max_sealed_version >= version:
                         rekeyed_nodes.append(node)
                 except IndexError:

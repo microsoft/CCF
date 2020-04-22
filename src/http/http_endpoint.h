@@ -7,6 +7,8 @@
 #include "enclave/rpc_map.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
+#include "ws_parser.h"
+#include "ws_rpc_context.h"
 #include "ws_upgrade.h"
 
 namespace http
@@ -148,7 +150,12 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(request_parser, ws_request_parser, session_id, writer_factory, std::move(ctx)),
+      HTTPEndpoint(
+        request_parser,
+        ws_request_parser,
+        session_id,
+        writer_factory,
+        std::move(ctx)),
       request_parser(*this),
       ws_request_parser(*this),
       rpc_map(rpc_map),
@@ -234,10 +241,7 @@ namespace http
           if (is_websocket)
           {
             rpc_ctx = std::make_shared<ws::WsRpcContext>(
-              request_index++,
-              session_ctx,
-              path,
-              std::move(body));
+              request_index++, session_ctx, path, std::move(body));
           }
           else
           {
@@ -326,7 +330,12 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(response_parser, ws_response_parser, session_id, writer_factory, std::move(ctx)),
+      HTTPEndpoint(
+        response_parser,
+        ws_response_parser,
+        session_id,
+        writer_factory,
+        std::move(ctx)),
       ClientEndpoint(session_id, writer_factory),
       response_parser(*this),
       ws_response_parser(*this)
