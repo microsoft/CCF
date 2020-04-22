@@ -34,6 +34,19 @@ namespace http
     return actor;
   }
 
+  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  {
+    http_status status = (http_status)code;
+    std::vector<uint8_t> data(msg.begin(), msg.end());
+    auto response = http::Response(status);
+
+    response.set_header(
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+    response.set_body(&data);
+
+    return response.build_response();
+  };
+
   class HttpRpcContext : public enclave::RpcContext
   {
   private:
@@ -290,6 +303,12 @@ namespace http
 
       http_response.set_body(&response_body);
       return http_response.build_response();
+    }
+
+    virtual std::vector<uint8_t> serialise_error(
+      size_t code, const std::string& msg) const override
+    {
+      return error(code, msg);
     }
   };
 

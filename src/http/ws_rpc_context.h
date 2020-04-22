@@ -8,6 +8,11 @@
 
 namespace ws
 {
+  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  {
+    return std::vector<uint8_t>(msg.begin(), msg.end());
+  };
+
   class WsRpcContext : public enclave::RpcContext
   {
   private:
@@ -199,6 +204,12 @@ namespace ws
       }
       h.insert(h.end(), response_body.begin(), response_body.end());
       return h;
+    }
+
+    virtual std::vector<uint8_t> serialise_error(
+      size_t code, const std::string& msg) const override
+    {
+      return error(code, msg);
     }
   };
 }

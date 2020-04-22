@@ -167,40 +167,6 @@ namespace http
       send_raw(data);
     }
 
-    void send_response(
-      const std::string& data,
-      http_status status = HTTP_STATUS_OK,
-      const std::string& content_type = http::headervalues::contenttype::TEXT)
-    {
-      send_response(
-        std::vector<uint8_t>(data.begin(), data.end()), status, content_type);
-    }
-
-    void send_response(
-      const std::vector<uint8_t>& data,
-      http_status status = HTTP_STATUS_OK,
-      const std::string& content_type = http::headervalues::contenttype::JSON)
-    {
-      if (data.empty() && status == HTTP_STATUS_OK)
-      {
-        status = HTTP_STATUS_NO_CONTENT;
-      }
-
-      auto response = http::Response(status);
-
-      if (status == HTTP_STATUS_NO_CONTENT)
-      {
-        send_raw(response.build_response(true));
-        return;
-      }
-
-      response.set_header(http::headers::CONTENT_TYPE, content_type);
-      response.set_body(&data);
-
-      send_raw(response.build_response(true));
-      send_raw(data);
-    }
-
     void handle_request(
       http_method verb,
       const std::string_view& path,
@@ -257,16 +223,27 @@ namespace http
         }
         catch (std::exception& e)
         {
-          send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
+          if (is_websocket)
+          {
+            send_buffered(ws::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+          }
+          else
+          {
+            send_buffered(http::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+          }
+          flush();
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
         {
-          send_response(fmt::format(
-            "Request path must contain '/[actor]/[method]'. Unable to parse "
-            "'{}'.\n",
-            rpc_ctx->get_method()));
+          send_buffered(rpc_ctx->serialise_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format(
+              "Request path must contain '/[actor]/[method]'. Unable to parse "
+              "'{}'.\n",
+              rpc_ctx->get_method())));
+          flush();
           return;
         }
 
@@ -275,17 +252,19 @@ namespace http
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
-          send_response(
-            fmt::format("Unknown session '{}'.\n", actor_s),
-            HTTP_STATUS_NOT_FOUND);
+          send_buffered(rpc_ctx->serialise_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Unknown session '{}'.\n", actor_s)));
+          flush();
           return;
         }
 
         if (!search.value()->is_open())
         {
-          send_response(
-            fmt::format("Session '{}' is not open.\n", actor_s),
-            HTTP_STATUS_NOT_FOUND);
+          send_buffered(rpc_ctx->serialise_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Session '{}' is not open.\n", actor_s)));
+          flush();
           return;
         }
 
@@ -305,9 +284,19 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        send_response(
-          fmt::format("Exception:\n{}\n", e.what()),
-          HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        if (is_websocket)
+        {
+          send_buffered(ws::error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("Exception:\n{}\n", e.what())));
+        }
+        else
+        {
+          send_buffered(http::error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("Exception:\n{}\n", e.what())));
+        }
+        flush();
 
         // On any exception, close the connection.
         LOG_TRACE_FMT("Closing connection due to exception: {}", e.what());

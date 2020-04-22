@@ -107,5 +107,8 @@ namespace enclave
     virtual bool should_apply_writes() const = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
+
+    virtual std::vector<uint8_t> serialise_error(
+      size_t code, const std::string& msg) const = 0;
   };
 }
