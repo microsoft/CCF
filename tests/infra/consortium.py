@@ -165,7 +165,9 @@ class Consortium:
         )
         self.vote_using_majority(remote_node, proposal)
 
-        with remote_node.member_client() as c:
+        with remote_node.member_client(
+            member_id=self.get_any_active_member().member_id
+        ) as c:
             r = c.request("read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
             assert r.result["status"] == infra.node.NodeStatus.RETIRED.name
 
@@ -226,6 +228,14 @@ class Consortium:
         return self.vote_using_majority(
             remote_node, proposal, wait_for_global_commit=True,
         )
+
+    def update_recovery_shares(self, remote_node):
+        script = """
+        tables = ...
+        return Calls:call("update_recovery_shares")
+        """
+        proposal = self.get_any_active_member().propose(remote_node, script)
+        return self.vote_using_majority(remote_node, proposal)
 
     def add_users(self, remote_node, users):
         for u in users:
@@ -388,7 +398,9 @@ class Consortium:
             ), f"Service status {current_status} (expected {status.name})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
-        with remote_node.member_client() as c:
+        with remote_node.member_client(
+            member_id=self.get_any_active_member().member_id
+        ) as c:
             r = c.rpc("read", {"table": "ccf.nodes", "key": node_id})
 
             if r.error is not None or (

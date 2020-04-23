@@ -24,15 +24,16 @@ class TestStatus(Enum):
 
 def run(args):
 
+    seed = None
     if os.getenv("SHUFFLE_SUITE"):
         seed = os.getenv("SHUFFLE_SUITE_SEED")
         if seed is None:
             seed = time.time()
         seed = int(seed)
-        LOG.info(f"Shuffling suite with seed: {seed}")
+        LOG.success(f"Shuffling full suite with seed {seed}")
         random.seed(seed)
-        random.shuffle(s.tests)
-    s.validate_tests_signature(s.tests)
+        random.shuffle(s.full_suite)
+    s.validate_tests_signature(s.full_suite)
 
     if args.enforce_reqs is False:
         LOG.warning("Test requirements will be ignored")
@@ -44,13 +45,13 @@ def run(args):
     )
     network.start_and_join(args)
 
-    LOG.info(f"Running {len(s.tests)} tests for {args.test_duration} seconds")
+    LOG.info(f"Running {len(s.full_suite)} full_suite for {args.test_duration} seconds")
 
     run_tests = {}
     success = True
     elapsed = args.test_duration
 
-    for i, test in enumerate(s.tests):
+    for i, test in enumerate(s.full_suite):
         status = None
         reason = None
 
@@ -111,9 +112,12 @@ def run(args):
     network.stop_all_nodes()
 
     if success:
-        LOG.success(f"All tests passed. Ran {len(run_tests)}/{len(s.tests)}")
+        LOG.success(f"Full suite passed. Ran {len(run_tests)}/{len(s.full_suite)}")
     else:
-        LOG.error(f"Test failed. Ran {len(run_tests)}/{len(s.tests)}")
+        LOG.error(f"Suite failed. Ran {len(run_tests)}/{len(s.full_suite)}")
+
+    if seed:
+        LOG.info(f"Full suite was shuffled with seed: {seed}")
 
     for idx, test in run_tests.items():
         status = test["status"]
@@ -133,7 +137,7 @@ if __name__ == "__main__":
 
     def add(parser):
         parser.add_argument(
-            "--test-duration", help="Duration of suite of tests (s)", type=int
+            "--test-duration", help="Duration of full suite (s)", type=int
         )
 
     args = infra.e2e_args.cli_args(add)

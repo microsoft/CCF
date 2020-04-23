@@ -731,9 +731,9 @@ namespace ccf
       {
         Store::Tx tx;
 
-        // Shares for the new ledger secret can only be written now, once the
+        // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
-        share_manager.update_recovery_shares_info(
+        share_manager.issue_shares_on_recovery(
           tx, last_recovered_commit_idx + 1);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
@@ -1016,7 +1016,7 @@ namespace ccf
       // corresponding new ledger secret is only sealed on global hook.
 
       auto new_ledger_secret = LedgerSecret();
-      share_manager.update_recovery_shares_info(tx, new_ledger_secret);
+      share_manager.issue_shares_on_rekey(tx, new_ledger_secret);
       broadcast_ledger_secret(tx, new_ledger_secret);
 
       return true;
@@ -1065,7 +1065,7 @@ namespace ccf
     {
       try
       {
-        share_manager.update_recovery_shares_info(tx);
+        share_manager.issue_shares(tx);
       }
       catch (const std::logic_error& e)
       {
@@ -1502,9 +1502,18 @@ namespace ccf
                   v.value.wrapped_latest_ledger_secret.version;
               }
 
-              recovery_ledger_secrets.push_back(
-                {ledger_secret_version,
-                 v.value.encrypted_previous_ledger_secret});
+              if (
+                !v.value.encrypted_previous_ledger_secret.empty() ||
+                ledger_secret_version == 1)
+              {
+                LOG_TRACE_FMT(
+                  "Adding one encrypted recovery ledger secret at {}",
+                  ledger_secret_version);
+
+                recovery_ledger_secrets.push_back(
+                  {ledger_secret_version,
+                   v.value.encrypted_previous_ledger_secret});
+              }
             }
           }
         });

@@ -141,7 +141,7 @@ namespace ccf
     void set_recovery_shares_info(
       Store::Tx& tx,
       const LedgerSecret& latest_ledger_secret,
-      const std::optional<LedgerSecret>& previous_ledger_secret,
+      const std::optional<LedgerSecret>& previous_ledger_secret = std::nullopt,
       kv::Version latest_ls_version = kv::NoVersion)
     {
       // First, generate a fresh ledger secrets wrapping key and wrap the
@@ -182,21 +182,27 @@ namespace ccf
   public:
     ShareManager(NetworkState& network_) : network(network_) {}
 
-    void update_recovery_shares_info(
-      Store::Tx& tx, const LedgerSecret& new_ledger_secret)
+    void issue_shares(Store::Tx& tx)
     {
-      set_recovery_shares_info(
-        tx, new_ledger_secret, network.ledger_secrets->get_latest());
+      // Assumes that the ledger secrets have not been updated since the
+      // last time shares have been issued (i.e. genesis or re-sharing only)
+      set_recovery_shares_info(tx, network.ledger_secrets->get_latest());
     }
 
-    void update_recovery_shares_info(
-      Store::Tx& tx, kv::Version latest_ls_version = kv::NoVersion)
+    void issue_shares_on_recovery(Store::Tx& tx, kv::Version latest_ls_version)
     {
       set_recovery_shares_info(
         tx,
         network.ledger_secrets->get_latest(),
         network.ledger_secrets->get_penultimate(),
         latest_ls_version);
+    }
+
+    void issue_shares_on_rekey(
+      Store::Tx& tx, const LedgerSecret& new_ledger_secret)
+    {
+      set_recovery_shares_info(
+        tx, new_ledger_secret, network.ledger_secrets->get_latest());
     }
 
     // For now, the shares are passed directly to this function. Shares should
@@ -212,9 +218,8 @@ namespace ccf
       auto ls_wrapping_key =
         LedgerSecretWrappingKey(SecretSharing::combine(shares, shares.size()));
 
-      auto shares_view = tx.get_view(network.shares);
-      auto key_share_info = shares_view->get(0);
-      if (!key_share_info.has_value())
+      auto recovery_shares_info = tx.get_view(network.shares)->get(0);
+      if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
           "Failed to retrieve current recovery shares info");
@@ -229,7 +234,7 @@ namespace ccf
         encrypted_recovery_secrets.back().next_version);
 
       auto restored_ls = ls_wrapping_key.unwrap(
-        key_share_info->wrapped_latest_ledger_secret.encrypted_data);
+        recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
 
       restored_ledger_secrets.push_back(
         {encrypted_recovery_secrets.back().next_version, restored_ls});

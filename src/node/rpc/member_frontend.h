@@ -176,12 +176,10 @@ namespace ccf
            g.retire_member(member_id);
            if (member_info->status == MemberStatus::ACTIVE)
            {
-             // For now, we do not re-key here as the ledger secrets are
-             // only updated on local hook.
-
-             // New shares get issued to remaining active members (i.e. minus
-             // the now-retired member)
-             if (!node.split_ledger_secrets(tx))
+             // A retired member should not have access to the private ledger
+             // going forward. New recovery shares are then issued to remaining
+             // active members.
+             if (!node.rekey_ledger(tx))
              {
                return false;
              }
@@ -351,6 +349,17 @@ namespace ccf
              LOG_FAIL_FMT("Proposal {}: Ledger rekey failed", proposal_id);
            }
            return ledger_rekeyed;
+         }},
+        {"update_recovery_shares",
+         [this](
+           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+           const auto shares_updated = node.split_ledger_secrets(tx);
+           if (!shares_updated)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: Updating recovery shares failed", proposal_id);
+           }
+           return shares_updated;
          }},
         {"set_recovery_threshold",
          [this](
@@ -931,7 +940,8 @@ namespace ccf
           pending_shares.clear();
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Failed to combine recovery shares");
+            "Failed to combine recovery shares and initiate end of recovery "
+            "protocol");
         }
 
         pending_shares.clear();
