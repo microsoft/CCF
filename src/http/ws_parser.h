@@ -4,14 +4,12 @@
 
 #include "enclave/tls_endpoint.h"
 #include "http_proc.h"
-#include "http_proc.h"
 
 #define FLATBUFFERS_TRACK_VERIFIER_BUFFER_SIZE
-#include <in_generated.h>
-
 #include <algorithm>
 #include <cctype>
 #include <endian.h>
+#include <in_generated.h>
 #include <map>
 #include <queue>
 #include <string>
@@ -134,8 +132,12 @@ namespace ws
           }
           auto in = ws::frame::GetInHeader(data.data());
           size_t header_size = v.GetComputedSize();
-          LOG_INFO_FMT("InHeader {} bytes, payload {} bytes", header_size, data.size() - header_size);
-          std::vector<uint8_t> body(data.data() + header_size, data.data() + data.size());
+          LOG_INFO_FMT(
+            "InHeader {} bytes, payload {} bytes",
+            header_size,
+            data.size() - header_size);
+          std::vector<uint8_t> body(
+            data.data() + header_size, data.data() + data.size());
 
           proc.handle_request(
             http_method::HTTP_POST,

@@ -18,6 +18,7 @@ import websocket
 import flatbuffers
 from ws.frame import InHeader
 
+
 def truncate(string, max_len=256):
     if len(string) > max_len:
         return string[: max_len - 3] + "..."
@@ -431,7 +432,7 @@ class WSClient:
                 },
             )
         payload = json.dumps(request.params).encode()
-        
+
         builder = flatbuffers.Builder(1)
         path = builder.CreateString("/" + request.method)
         InHeader.InHeaderStart(builder)

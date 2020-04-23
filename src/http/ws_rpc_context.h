@@ -8,39 +8,40 @@
 
 namespace ws
 {
-  static std::vector<uint8_t> serialise(size_t code, const std::vector<uint8_t>& body)
+  static std::vector<uint8_t> serialise(
+    size_t code, const std::vector<uint8_t>& body)
   {
-      size_t sz_size = 0;
-      if (body.size() > 125)
+    size_t sz_size = 0;
+    if (body.size() > 125)
+    {
+      sz_size = body.size() > std::numeric_limits<uint16_t>::max() ? 8 : 2;
+    }
+    std::vector<uint8_t> h(2 + sz_size);
+    h[0] = 0x82;
+    switch (sz_size)
+    {
+      case 0:
       {
-        sz_size = body.size() > std::numeric_limits<uint16_t>::max() ? 8 : 2;
+        h[1] = body.size();
+        break;
       }
-      std::vector<uint8_t> h(2 + sz_size);
-      h[0] = 0x82;
-      switch (sz_size)
+      case 2:
       {
-        case 0:
-        {
-          h[1] = body.size();
-          break;
-        }
-        case 2:
-        {
-          h[1] = 0x7e;
-          *((uint16_t*)&h[2]) = htons(body.size());
-          break;
-        }
-        case 8:
-        {
-          h[1] = 0x7f;
-          *((uint64_t*)&h[2]) = htobe64(body.size());
-          break;
-        }
-        default:
-          throw std::logic_error("Unreachable");
+        h[1] = 0x7e;
+        *((uint16_t*)&h[2]) = htons(body.size());
+        break;
       }
-      h.insert(h.end(), body.begin(), body.end());
-      return h;
+      case 8:
+      {
+        h[1] = 0x7f;
+        *((uint64_t*)&h[2]) = htobe64(body.size());
+        break;
+      }
+      default:
+        throw std::logic_error("Unreachable");
+    }
+    h.insert(h.end(), body.begin(), body.end());
+    return h;
   };
 
   static std::vector<uint8_t> error(size_t code, const std::string& msg)

@@ -9,6 +9,7 @@ import infra.e2e_args
 
 from loguru import logger as LOG
 
+
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
 @reqs.at_least_n_nodes(2)
