@@ -11,7 +11,7 @@ namespace asynchost
 {
   class TimeUpdaterImpl
   {
-    using TClock = std::chrono::high_resolution_clock;
+    using TClock = std::chrono::steady_clock;
     TClock::time_point creation_time;
 
     std::atomic<std::chrono::microseconds> us_since_creation;
