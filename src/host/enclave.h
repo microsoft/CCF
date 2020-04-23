@@ -76,7 +76,8 @@ namespace host
       std::vector<uint8_t>& network_enc_pubk,
       StartType start_type,
       ConsensusType consensus_type,
-      size_t num_worker_thread)
+      size_t num_worker_thread,
+      std::atomic<uint64_t>* rdtsc_location)
     {
       bool ret;
       size_t node_cert_len = 0;
@@ -103,7 +104,8 @@ namespace host
         &network_enc_pubk_len,
         start_type,
         consensus_type,
-        num_worker_thread);
+        num_worker_thread,
+        rdtsc_location);
 
       if (err != OE_OK)
       {

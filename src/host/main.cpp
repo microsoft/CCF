@@ -539,6 +539,8 @@ int main(int argc, char** argv)
     start_type = StartType::Recover;
   }
 
+  std::atomic<uint64_t> rdtsc_location;
+
   enclave.create_node(
     enclave_config,
     ccf_config,
@@ -547,7 +549,8 @@ int main(int argc, char** argv)
     network_enc_pubk,
     start_type,
     consensus,
-    num_worker_threads);
+    num_worker_threads,
+    &rdtsc_location);
 
   LOG_INFO_FMT("Created new node");
 
