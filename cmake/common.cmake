@@ -398,10 +398,12 @@ function(add_e2e_test)
       TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
     )
 
-    set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
-      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
-    )
+    if(${DEFAULT_ENCLAVE_TYPE})
+      set_property(
+        TEST ${PARSED_ARGS_NAME} APPEND
+        PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+      )
+    endif()
   endif()
 endfunction()
 
