@@ -22,8 +22,8 @@ std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
 
 namespace enclave
 {
-  std::atomic<uint64_t>* rdtsc_source = nullptr;
-  uint64_t last_rdtsc_value = 0u;
+  std::atomic<std::chrono::microseconds>* host_time = nullptr;
+  std::chrono::microseconds last_value(0);
 }
 
 extern "C"
@@ -44,7 +44,7 @@ extern "C"
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_threads,
-    void* rdtsc_location)
+    void* time_location)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
@@ -62,8 +62,8 @@ extern "C"
       return false;
     }
 
-    enclave::rdtsc_source =
-      static_cast<decltype(enclave::rdtsc_source)>(rdtsc_location);
+    enclave::host_time =
+      static_cast<decltype(enclave::host_time)>(time_location);
 
     EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
 

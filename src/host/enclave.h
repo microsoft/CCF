@@ -77,7 +77,7 @@ namespace host
       StartType start_type,
       ConsensusType consensus_type,
       size_t num_worker_thread,
-      std::atomic<uint64_t>* rdtsc_location)
+      void* time_location)
     {
       bool ret;
       size_t node_cert_len = 0;
@@ -105,7 +105,7 @@ namespace host
         start_type,
         consensus_type,
         num_worker_thread,
-        rdtsc_location);
+        time_location);
 
       if (err != OE_OK)
       {

@@ -123,7 +123,7 @@ extern "C"
     StartType start_type,
     ConsensusType consensus_type,
     size_t num_worker_thread,
-    void* rdtsc_location)
+    void* time_location)
   {
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
@@ -144,7 +144,7 @@ extern "C"
       start_type,
       consensus_type,
       num_worker_thread,
-      rdtsc_location);
+      time_location);
     return *_retval ? OE_OK : OE_FAILURE;
   }
 

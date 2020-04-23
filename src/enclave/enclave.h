@@ -5,8 +5,8 @@
 #include "crypto/hash.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
-#include "interface.h"
 #include "enclave_time.h"
+#include "interface.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
@@ -248,7 +248,7 @@ namespace enclave
         }
 
         bp.run(circuit->read_from_outside(), [](size_t consecutive_idles) {
-          static uint64_t idling_start_time;
+          static std::chrono::microseconds idling_start_time;
           const auto time_now = enclave::get_enclave_time();
 
           if (consecutive_idles == 0)
@@ -256,11 +256,12 @@ namespace enclave
             idling_start_time = time_now;
           }
 
-          // TODO: Use time rather than cycles so we can reason about this?
-          if ((time_now - idling_start_time) > 1'000'000)
+          // Handle initial idles by pausing, eventually sleep (in host)
+          constexpr std::chrono::milliseconds timeout(5);
+
+          if ((time_now - idling_start_time) > timeout)
           {
-            // We've been idling a while - go sleep in host-space
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            std::this_thread::sleep_for(timeout);
           }
           else
           {

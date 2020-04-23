@@ -3,24 +3,25 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 
 namespace enclave
 {
-  extern std::atomic<uint64_t>* rdtsc_source;
-  extern uint64_t last_rdtsc_value;
+  extern std::atomic<std::chrono::microseconds>* host_time;
+  extern std::chrono::microseconds last_value;
 
-  static uint64_t get_enclave_time()
+  static std::chrono::microseconds get_enclave_time()
   {
     // Update cached value if possible, but never move backwards
-    if (rdtsc_source != nullptr)
+    if (host_time != nullptr)
     {
-      const auto current_rdtsc_value = rdtsc_source->load();
-      if (current_rdtsc_value > last_rdtsc_value)
+      const auto current_time = host_time->load();
+      if (current_time > last_value)
       {
-        last_rdtsc_value = current_rdtsc_value;
+        last_value = current_time;
       }
     }
 
-    return last_rdtsc_value;
+    return last_value;
   }
 }

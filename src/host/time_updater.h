@@ -5,24 +5,30 @@
 #include "timer.h"
 
 #include <atomic>
+#include <chrono>
 
 namespace asynchost
 {
   class TimeUpdaterImpl
   {
-    std::atomic<uint64_t> rdtsc_value;
+    using TClock = std::chrono::high_resolution_clock;
+    TClock::time_point creation_time;
+
+    std::atomic<std::chrono::microseconds> us_since_creation;
 
   public:
-    TimeUpdaterImpl() {}
+    TimeUpdaterImpl() : creation_time(TClock::now()) {}
 
-    std::atomic<uint64_t>* get_value()
+    std::atomic<std::chrono::microseconds>* get_value()
     {
-      return &rdtsc_value;
+      return &us_since_creation;
     }
 
     void on_timer()
     {
-      rdtsc_value = __rdtsc();
+      const auto now = TClock::now();
+      us_since_creation = std::chrono::duration_cast<std::chrono::microseconds>(
+        now - creation_time);
     }
   };
 
