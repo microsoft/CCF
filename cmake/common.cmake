@@ -119,10 +119,10 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   endif()
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(TEST_ENCLAVE_TYPE -e debug)
+    set(DEFAULT_ENCLAVE_TYPE debug)
   endif()
 else()
-  set(TEST_ENCLAVE_TYPE -e virtual)
+  set(DEFAULT_ENCLAVE_TYPE virtual)
 endif()
 
 # Lua module
@@ -312,13 +312,8 @@ set(WORKER_THREADS
 )
 
 set(CCF_NETWORK_TEST_ARGS
-    ${TEST_ENCLAVE_TYPE}
-    -l
-    ${TEST_HOST_LOGGING_LEVEL}
-    -g
-    ${CCF_DIR}/src/runtime_config/gov.lua
-    --worker-threads
-    ${WORKER_THREADS}
+    -l ${TEST_HOST_LOGGING_LEVEL} -g ${CCF_DIR}/src/runtime_config/gov.lua
+    --worker-threads ${WORKER_THREADS}
 )
 
 # SNIPPET_START: Lua generic application
@@ -401,6 +396,11 @@ function(add_e2e_test)
     endif()
     set_property(
       TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    )
+
+    set_property(
+      TEST ${PARSED_ARGS_NAME} APPEND
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
 endfunction()

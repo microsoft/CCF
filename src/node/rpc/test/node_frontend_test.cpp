@@ -86,8 +86,7 @@ TEST_CASE("Add a node to an opening service")
 
   network.identity = std::make_unique<NetworkIdentity>();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
-  network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
-  network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
+  network.ledger_secrets->init();
   network.encryption_key = std::make_unique<NetworkEncryptionKey>();
 
   // Node certificate
@@ -208,8 +207,8 @@ TEST_CASE("Add a node to an open service")
 
   network.identity = std::make_unique<NetworkIdentity>();
   network.ledger_secrets = std::make_shared<LedgerSecrets>();
-  network.ledger_secrets->set_secret(0, std::vector<uint8_t>(16, 0x42));
-  network.ledger_secrets->set_secret(10, std::vector<uint8_t>(16, 0x44));
+  network.ledger_secrets->init();
+  network.ledger_secrets->add_new_secret(4, LedgerSecret());
   network.encryption_key = std::make_unique<NetworkEncryptionKey>();
 
   gen.create_service({});

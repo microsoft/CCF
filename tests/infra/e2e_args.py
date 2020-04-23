@@ -35,7 +35,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "-e",
         "--enclave-type",
         help="Enclave type",
-        default=os.getenv("TEST_ENCLAVE", "release"),
+        default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_TYPE", "release")),
         choices=("release", "debug", "virtual"),
     )
     parser.add_argument(
