@@ -7,6 +7,10 @@
 #include "spin_lock.h"
 #include "thread_messaging.h"
 
+#ifdef INSIDE_ENCLAVE
+#  include "../enclave/enclave_time.h"
+#endif
+
 #include <atomic>
 #include <condition_variable>
 #include <map>
@@ -202,6 +206,7 @@ namespace messaging
 
     size_t run(ringbuffer::Reader& r)
     {
+      uint64_t last_time = 0;
       size_t total_read = 0;
 
       uint16_t tid = thread_ids[std::this_thread::get_id()];
@@ -221,6 +226,14 @@ namespace messaging
 
         if (num_read == 0 && !task_run)
         {
+#ifdef INSIDE_ENCLAVE
+          const auto time_now = enclave::get_enclave_time();
+          if (time_now != last_time)
+          {
+            LOG_INFO_FMT("Idle at {}", time_now);
+            last_time = time_now;
+          }
+#endif
           CCF_PAUSE();
         }
       }

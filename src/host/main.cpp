@@ -13,6 +13,7 @@
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "ticker.h"
+#include "time_updater.h"
 
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
@@ -466,6 +467,12 @@ int main(int argc, char** argv)
   asynchost::Ticker ticker(tick_period_ms, writer_factory, [](auto s) {
     logger::config::set_start(s);
   });
+  
+  // regularly update the time given to the enclave
+  asynchost::TimeUpdater time_updater(1);
+
+  // set initial time for logger
+  logger::config::set_start(std::chrono::system_clock::now());
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
@@ -539,8 +546,6 @@ int main(int argc, char** argv)
     start_type = StartType::Recover;
   }
 
-  std::atomic<uint64_t> rdtsc_location;
-
   enclave.create_node(
     enclave_config,
     ccf_config,
@@ -550,7 +555,7 @@ int main(int argc, char** argv)
     start_type,
     consensus,
     num_worker_threads,
-    &rdtsc_location);
+    time_updater->behaviour.get_value());
 
   LOG_INFO_FMT("Created new node");
 
