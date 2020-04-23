@@ -6,15 +6,25 @@
 #include "http_parser.h"
 #include "http_sig.h"
 
+#define FLATBUFFERS_TRACK_VERIFIER_BUFFER_SIZE
+#include <out_generated.h>
+
 namespace ws
 {
   static std::vector<uint8_t> serialise(
     size_t code, const std::vector<uint8_t>& body)
   {
+    flatbuffers::FlatBufferBuilder builder(32);
+    auto out = ws::frame::CreateOutHeader(builder, code, 0, 0, 0);
+    builder.Finish(out);
+    size_t header_size = builder.GetSize();
+
+    size_t frame_size = body.size() + header_size;
+
     size_t sz_size = 0;
-    if (body.size() > 125)
+    if (frame_size > 125)
     {
-      sz_size = body.size() > std::numeric_limits<uint16_t>::max() ? 8 : 2;
+      sz_size = frame_size > std::numeric_limits<uint16_t>::max() ? 8 : 2;
     }
     std::vector<uint8_t> h(2 + sz_size);
     h[0] = 0x82;
@@ -22,24 +32,28 @@ namespace ws
     {
       case 0:
       {
-        h[1] = body.size();
+        h[1] = frame_size;
         break;
       }
       case 2:
       {
         h[1] = 0x7e;
-        *((uint16_t*)&h[2]) = htons(body.size());
+        *((uint16_t*)&h[2]) = htons(frame_size);
         break;
       }
       case 8:
       {
         h[1] = 0x7f;
-        *((uint64_t*)&h[2]) = htobe64(body.size());
+        *((uint64_t*)&h[2]) = htobe64(frame_size);
         break;
       }
       default:
         throw std::logic_error("Unreachable");
     }
+    h.insert(
+      h.end(),
+      builder.GetBufferPointer(),
+      builder.GetBufferPointer() + header_size);
     h.insert(h.end(), body.begin(), body.end());
     return h;
   };

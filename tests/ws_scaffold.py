@@ -23,7 +23,7 @@ def test(network, args, notifications_queue=None):
     with primary.user_client(ws=True) as c:
         for i in range(1, 51):
             r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})
-            assert r.data == b"true\n", r.data
+            assert r.result == b"true\n", r.__dict__
 
     return network
 
