@@ -7,10 +7,6 @@
 #include "spin_lock.h"
 #include "thread_messaging.h"
 
-#ifdef INSIDE_ENCLAVE
-#  include "../enclave/enclave_time.h"
-#endif
-
 #include <atomic>
 #include <condition_variable>
 #include <map>
@@ -154,6 +150,12 @@ namespace messaging
 
   using RingbufferDispatcher = Dispatcher<ringbuffer::Message>;
 
+  using IdleBehaviour = std::function<void(size_t)>;
+  static void default_idle_behaviour(size_t num_consecutive_idles)
+  {
+    CCF_PAUSE();
+  }
+
   class BufferProcessor
   {
     RingbufferDispatcher dispatcher;
@@ -204,10 +206,11 @@ namespace messaging
       return total_read;
     };
 
-    size_t run(ringbuffer::Reader& r)
+    size_t run(
+      ringbuffer::Reader& r, IdleBehaviour idler = default_idle_behaviour)
     {
-      uint64_t last_time = 0;
       size_t total_read = 0;
+      size_t consecutive_idles = 0u;
 
       uint16_t tid = thread_ids[std::this_thread::get_id()];
       enclave::Task& task =
@@ -216,25 +219,18 @@ namespace messaging
       while (!finished.load())
       {
         auto num_read = read_n(-1, r);
-        if (num_read != 0)
-        {
-          total_read += num_read;
-        }
+        total_read += num_read;
 
         bool task_run =
           enclave::ThreadMessaging::thread_messaging.run_one(task);
 
         if (num_read == 0 && !task_run)
         {
-#ifdef INSIDE_ENCLAVE
-          const auto time_now = enclave::get_enclave_time();
-          if (time_now != last_time)
-          {
-            LOG_INFO_FMT("Idle at {}", time_now);
-            last_time = time_now;
-          }
-#endif
-          CCF_PAUSE();
+          idler(consecutive_idles++);
+        }
+        else
+        {
+          consecutive_idles = 0;
         }
       }
 

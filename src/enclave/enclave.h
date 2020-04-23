@@ -6,6 +6,7 @@
 #include "ds/logger.h"
 #include "ds/oversized.h"
 #include "interface.h"
+#include "enclave_time.h"
 #include "node/entities.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
@@ -245,7 +246,27 @@ namespace enclave
         {
           node.start_ledger_recovery();
         }
-        bp.run(circuit->read_from_outside());
+
+        bp.run(circuit->read_from_outside(), [](size_t consecutive_idles) {
+          static uint64_t idling_start_time;
+          const auto time_now = enclave::get_enclave_time();
+
+          if (consecutive_idles == 0)
+          {
+            idling_start_time = time_now;
+          }
+
+          // TODO: Use time rather than cycles so we can reason about this?
+          if ((time_now - idling_start_time) > 1'000'000)
+          {
+            // We've been idling a while - go sleep in host-space
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+          }
+          else
+          {
+            CCF_PAUSE();
+          }
+        });
         return true;
       }
 #ifndef VIRTUAL_ENCLAVE
