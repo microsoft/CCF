@@ -177,7 +177,7 @@ namespace ccf
            if (member_info->status == MemberStatus::ACTIVE)
            {
              // A retired member should not have access to the private ledger
-             // going forward. New recovery shares are then issued to remaining
+             // going forward. New recovery shares are also issued to remaining
              // active members.
              if (!node.rekey_ledger(tx))
              {

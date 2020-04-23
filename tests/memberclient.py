@@ -80,7 +80,7 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
     already_active_member = network.consortium.get_any_active_member()
     saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
 
-    if func == test_retire_member:
+    if func is test_retire_member:
         # When retiring a member, the active member which retrieved their share
         # should not be retired for them to be able to compare their share afterwards.
         member_to_retire = [
@@ -89,7 +89,7 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
             if m is not already_active_member
         ][0]
         func(network, args, member_to_retire)
-    elif func == test_set_recovery_threshold and "recovery_threshold" in kwargs:
+    elif func is test_set_recovery_threshold and "recovery_threshold" in kwargs:
         func(network, args, recovery_threshold=kwargs["recovery_threshold"])
     else:
         func(network, args)
@@ -254,12 +254,6 @@ def run(args):
         LOG.debug("New member should still be able to make a new proposal")
         new_proposal = new_member.propose(primary, script, 0)
         assert new_proposal.state == ProposalState.Open
-
-        assert_recovery_shares_update(test_set_recovery_threshold, network, args)
-        assert_recovery_shares_update(test_add_member, network, args)
-        assert_recovery_shares_update(test_retire_member, network, args)
-
-        test_set_recovery_threshold(network, args, recovery_threshold=None)
 
         LOG.info(
             "Recovery threshold is originally set to the original number of members"
