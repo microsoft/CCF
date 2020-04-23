@@ -9,7 +9,6 @@ import infra.e2e_args
 
 from loguru import logger as LOG
 
-
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
 @reqs.at_least_n_nodes(2)
@@ -23,7 +22,7 @@ def test(network, args, notifications_queue=None):
     with primary.user_client(ws=True) as c:
         for i in range(1, 51):
             r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})
-            assert r.data == b"true\n"
+            assert r.data == b"true\n", r.data
 
     return network
 

@@ -41,6 +41,11 @@ option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(TLS_TEST "TLS Test using https://github.com/drwetter/testssl.sh" OFF)
 option(BUILD_SMALLBANK "Build SmallBank sample app and clients" ON)
 
+
+generate_flatbuffer(${CCF_DIR}/src/http/fbs in)
+generate_flatbuffer(${CCF_DIR}/src/http/fbs out)
+add_custom_target(ccf_fbs ALL DEPENDS ${CCF_GENERATED_DIR}/in_generated.h ${CCF_GENERATED_DIR}/out_generated.h)
+
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
@@ -93,6 +98,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   add_dependencies(ccf ccf.enclave)
+  add_dependencies(ccf.enclave ccf_fbs)
 endif()
 
 if("virtual" IN_LIST COMPILE_TARGETS)
@@ -148,6 +154,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
 
   add_dependencies(ccf ccf.virtual)
+  add_dependencies(ccf.virtual ccf_fbs)
 endif()
 
 install(EXPORT ccf DESTINATION cmake)

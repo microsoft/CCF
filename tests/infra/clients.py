@@ -15,6 +15,8 @@ from loguru import logger as LOG
 from requests_http_signature import HTTPSignatureAuth
 import websocket
 
+import flatbuffers
+from ws.frame import InHeader
 
 def truncate(string, max_len=256):
     if len(string) > max_len:
@@ -429,8 +431,16 @@ class WSClient:
                 },
             )
         payload = json.dumps(request.params).encode()
+        
+        builder = flatbuffers.Builder(1)
+        path = builder.CreateString("/" + request.method)
+        InHeader.InHeaderStart(builder)
+        InHeader.InHeaderAddPath(builder, path)
+        header = InHeader.InHeaderEnd(builder)
+        builder.Finish(header)
+        h = builder.Output()
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
-        frame = websocket.ABNF(1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, payload)
+        frame = websocket.ABNF(1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, h + payload)
         self.ws.send_frame(frame)
         return self.ws.recv_frame()
 

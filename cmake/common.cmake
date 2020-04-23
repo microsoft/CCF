@@ -375,7 +375,7 @@ function(add_e2e_test)
     # Make python test client framework importable
     set_property(
       TEST ${PARSED_ARGS_NAME} APPEND
-      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_GENERATED_DIR}:${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
 
     if(SHUFFLE_SUITE)
@@ -450,7 +450,7 @@ function(add_perf_test)
     TEST ${PARSED_ARGS_NAME} APPEND
     PROPERTY
       ENVIRONMENT
-      "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
+      "PYTHONPATH=${CCF_GENERATED_DIR}:${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
   set_property(
@@ -491,7 +491,7 @@ endfunction()
 function(generate_flatbuffer path name)
   add_custom_command(
     OUTPUT ${CCF_GENERATED_DIR}/${name}_generated.h
-    COMMAND flatc -o "${CCF_GENERATED_DIR}" --cpp ${path}/${name}.fbs
+    COMMAND flatc -o "${CCF_GENERATED_DIR}" --python --cpp ${path}/${name}.fbs
     DEPENDS ${path}/${name}.fbs
   )
   install(FILES ${CCF_GENERATED_DIR}/${name}_generated.h

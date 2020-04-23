@@ -225,25 +225,24 @@ namespace http
         {
           if (is_websocket)
           {
-            send_buffered(ws::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(ws::error(HTTP_STATUS_BAD_REQUEST, e.what()));
           }
           else
           {
-            send_buffered(http::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+            send_raw(http::error(HTTP_STATUS_BAD_REQUEST, e.what()));
           }
-          flush();
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
         {
-          send_buffered(rpc_ctx->serialise_error(
+          LOG_TRACE_FMT("UH OH");
+          send_raw(rpc_ctx->serialise_error(
             HTTP_STATUS_NOT_FOUND,
             fmt::format(
               "Request path must contain '/[actor]/[method]'. Unable to parse "
               "'{}'.\n",
               rpc_ctx->get_method())));
-          flush();
           return;
         }
 
@@ -252,19 +251,17 @@ namespace http
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
-          send_buffered(rpc_ctx->serialise_error(
+          send_raw(rpc_ctx->serialise_error(
             HTTP_STATUS_NOT_FOUND,
             fmt::format("Unknown session '{}'.\n", actor_s)));
-          flush();
           return;
         }
 
         if (!search.value()->is_open())
         {
-          send_buffered(rpc_ctx->serialise_error(
+          send_raw(rpc_ctx->serialise_error(
             HTTP_STATUS_NOT_FOUND,
             fmt::format("Session '{}' is not open.\n", actor_s)));
-          flush();
           return;
         }
 
@@ -286,17 +283,16 @@ namespace http
       {
         if (is_websocket)
         {
-          send_buffered(ws::error(
+          send_raw(ws::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             fmt::format("Exception:\n{}\n", e.what())));
         }
         else
         {
-          send_buffered(http::error(
+          send_raw(http::error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             fmt::format("Exception:\n{}\n", e.what())));
         }
-        flush();
 
         // On any exception, close the connection.
         LOG_TRACE_FMT("Closing connection due to exception: {}", e.what());

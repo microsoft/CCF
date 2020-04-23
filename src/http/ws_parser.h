@@ -4,6 +4,10 @@
 
 #include "enclave/tls_endpoint.h"
 #include "http_proc.h"
+#include "http_proc.h"
+
+#define FLATBUFFERS_TRACK_VERIFIER_BUFFER_SIZE
+#include <in_generated.h>
 
 #include <algorithm>
 #include <cctype>
@@ -121,12 +125,24 @@ namespace ws
         case READ_BODY:
         {
           assert(data.size() == size);
+
+          auto v = flatbuffers::Verifier(data.data(), data.size());
+          if (!ws::frame::VerifyInHeaderBuffer(v))
+          {
+            LOG_FAIL_FMT("Failed to verify InHeader");
+            return 0;
+          }
+          auto in = ws::frame::GetInHeader(data.data());
+          size_t header_size = v.GetComputedSize();
+          LOG_INFO_FMT("InHeader {} bytes, payload {} bytes", header_size, data.size() - header_size);
+          std::vector<uint8_t> body(data.data() + header_size, data.data() + data.size());
+
           proc.handle_request(
             http_method::HTTP_POST,
-            "/users/LOG_record",
+            in->path()->str(),
             {},
             {{"Content-type", "application/json"}},
-            std::move(data));
+            std::move(body));
           state = INIT;
           return 2;
         }

@@ -10,3 +10,4 @@ requests-http-signature
 flatbuffers
 websocket-client
 pynacl
+flatbuffers

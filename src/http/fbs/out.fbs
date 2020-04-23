@@ -1,0 +1,14 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.	
+// Licensed under the Apache 2.0 License.
+
+namespace ws.frame;
+
+table OutHeader
+{
+    status:uint16;
+    commit:uint64;
+    term:uint64;
+    global_commit:uint64;
+}
+
+root_type OutHeader;
