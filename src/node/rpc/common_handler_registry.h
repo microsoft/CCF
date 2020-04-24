@@ -237,7 +237,8 @@ namespace ccf
       };
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
-        .set_auto_schema<GetCommit>();
+        .set_auto_schema<GetCommit>()
+        .set_execute_locally(true);
       install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)
