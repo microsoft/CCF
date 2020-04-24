@@ -287,30 +287,10 @@ namespace ccf
              this->network.user_code_ids,
              proposal_id);
          }},
-        {"accept_recovery",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
-           if (node.is_part_of_public_network())
-           {
-             const auto recovery_successful =
-               node.finish_recovery(tx, args, false);
-             if (!recovery_successful)
-             {
-               LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
-             }
-             return recovery_successful;
-           }
-           else
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node is not part of public network", proposal_id);
-             return false;
-           }
-         }},
         // For now, members can propose to accept a recovery with shares. In
         // that case, members will have to submit their shares after this
         // proposal is accepted.
-        {"accept_recovery_with_shares",
+        {"accept_recovery",
          [this](
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())

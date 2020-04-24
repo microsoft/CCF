@@ -223,11 +223,7 @@ class Consortium:
         return Calls:call("rekey_ledger")
         """
         proposal = self.get_any_active_member().propose(remote_node, script)
-        # Wait for global commit since sealed secrets are disclosed only
-        # when the rekey transaction is globally committed.
-        return self.vote_using_majority(
-            remote_node, proposal, wait_for_global_commit=True,
-        )
+        return self.vote_using_majority(remote_node, proposal)
 
     def update_recovery_shares(self, remote_node):
         script = """
@@ -274,20 +270,10 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, script, new_js_app)
         return self.vote_using_majority(remote_node, proposal)
 
-    def accept_recovery(self, remote_node, sealed_secrets):
-        script = """
-        tables, sealed_secrets = ...
-        return Calls:call("accept_recovery", sealed_secrets)
-        """
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, sealed_secrets
-        )
-        return self.vote_using_majority(remote_node, proposal)
-
-    def accept_recovery_with_shares(self, remote_node):
+    def accept_recovery(self, remote_node):
         script = """
         tables = ...
-        return Calls:call("accept_recovery_with_shares")
+        return Calls:call("accept_recovery")
         """
         proposal = self.get_any_active_member().propose(remote_node, script)
         return self.vote_using_majority(remote_node, proposal)

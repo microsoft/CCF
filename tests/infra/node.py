@@ -214,10 +214,6 @@ class Node:
     def get_ledger(self):
         return self.remote.get_ledger()
 
-    def get_sealed_secrets(self):
-        with open(self.remote.get_sealed_secrets()) as s:
-            return json.load(s)
-
     def user_client(self, user_id=0, **kwargs):
         return infra.clients.client(
             self.host,
