@@ -202,7 +202,7 @@ def run(args):
                         else args.raft_election_timeout / 1000
                     )
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
-                        # if pbft suspend the primary for > 2 the elecetion timeout
+                        # if pbft suspend the primary for > 2 the election timeout
                         # in order to make sure view changes will be triggered
                         et += 1.5 * et
                     tm = Timer(t, timeout_handler, args=[node, True, et])
