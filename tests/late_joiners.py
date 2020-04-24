@@ -47,6 +47,27 @@ def find_primary(network):
     return term_info
 
 
+def get_node_local_commit(node):
+    with node.node_client() as c:
+        r = c.get("getCommit")
+        return r.commit, r.global_commit
+
+
+def wait_for_late_joiner(old_node, late_joiner):
+    old_node_lc, old_node_gc = get_node_local_commit(old_node)
+    LOG.success(
+        f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
+    )
+    while True:
+        lc, gc = get_node_local_commit(late_joiner)
+        LOG.success(
+            f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
+        )
+        if lc >= old_node_lc:
+            break
+        time.sleep(1)
+
+
 def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
     with node.user_client() as c:
         # Wait until final_msg_id is available in the node.
@@ -71,27 +92,6 @@ def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
                 )
                 time.sleep(0.1)
         raise AssertionError(f"{node.nodeid} is not up to date")
-
-
-def get_node_local_commit(node):
-    with node.node_client() as c:
-        r = c.get("getCommit")
-        return r.commit, r.global_commit
-
-
-def wait_for_late_joiner(old_node, late_joiner):
-    old_node_lc, old_node_gc = get_node_local_commit(old_node)
-    LOG.success(
-        f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
-    )
-    while True:
-        lc, gc = get_node_local_commit(late_joiner)
-        LOG.success(
-            f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
-        )
-        if lc >= old_node_lc:
-            break
-        time.sleep(1)
 
 
 def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
@@ -190,6 +190,9 @@ def run(args):
             # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
             run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
             term_info.update(find_primary(network))
+
+            assert_network_up_to_date(check, late_joiner, first_msg, 1000)
+            assert_network_up_to_date(check, late_joiner, second_msg, 2000)
 
             # wait for late joiner to cathcup before killing one of the other nodes
             wait_for_late_joiner(first_node, late_joiner)
