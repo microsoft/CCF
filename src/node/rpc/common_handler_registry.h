@@ -55,6 +55,19 @@ namespace ccf
           "Failed to get commit info from Consensus");
       };
 
+      auto get_local_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
+        if (consensus != nullptr)
+        {
+          kv::Version commit = tables->commit_version();
+          auto term = consensus->get_view(commit);
+          return make_success(GetCommit::Out{term, commit});
+        }
+
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          "Failed to get local commit info from Consensus");
+      };
+
       auto get_metrics = [this](Store::Tx& tx, nlohmann::json&& params) {
         auto result = metrics.get_metrics();
         return make_success(result);
@@ -237,7 +250,10 @@ namespace ccf
       };
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
-        .set_auto_schema<GetCommit>()
+        .set_auto_schema<GetCommit>();
+      install(
+        GeneralProcs::GET_LOCAL_COMMIT, json_adapter(get_local_commit), Read)
+        .set_auto_schema<void, GetCommit::Out>()
         .set_execute_locally(true);
       install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
         .set_auto_schema<void, GetMetrics::Out>()
