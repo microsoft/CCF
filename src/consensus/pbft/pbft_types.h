@@ -100,7 +100,7 @@ namespace pbft
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
               auto sig_view = tx.get_view(signatures);
-              ccf::Signature sig_value({root});
+              ccf::Signature sig_value(root);
               sig_view->put(0, sig_value);
               return tx.commit_reserved();
             },
@@ -122,7 +122,7 @@ namespace pbft
         if (p)
         {
           auto sig_view = tx.get_view(signatures);
-          ccf::Signature sig_value({root});
+          ccf::Signature sig_value(root);
           sig_view->put(0, sig_value);
           auto success = tx.commit();
           if (success == kv::CommitSuccess::OK)
