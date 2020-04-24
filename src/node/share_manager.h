@@ -35,7 +35,7 @@ namespace ccf
     {}
 
     template <typename T>
-    T get_raw_data()
+    T get_raw_data() const
     {
       T ret;
       std::copy_n(data.begin(), data.size(), ret.begin());
@@ -102,54 +102,22 @@ namespace ccf
   private:
     NetworkState& network;
 
-  public:
-    ShareManager(NetworkState& network_) : network(network_) {}
-
-    void update_recovery_shares_info(
-      Store::Tx& tx, kv::Version latest_ls_version = kv::NoVersion)
+    EncryptedSharesMap compute_encrypted_shares(
+      Store::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
     {
-      // First, generate a fresh ledger secrets wrapping key and wrap the
-      // latest ledger secret with it. Then, encrypt the penultimate ledger
-      // secret with the latest ledger secret and split the ledger secret
-      // wrapping key, allocating a new share for each active member. Finally,
-      // encrypt each share with the public key of each member and record it in
-      // the shares table.
-
-      auto ls_wrapping_key = LedgerSecretWrappingKey();
-      auto wrapped_latest_ls =
-        ls_wrapping_key.wrap(network.ledger_secrets->get_latest());
-
-      std::vector<uint8_t> encrypted_previous_secret = {};
-      auto previous_ledger_secret = network.ledger_secrets->get_penultimate();
-
-      if (previous_ledger_secret.has_value())
-      {
-        crypto::GcmCipher encrypted_pls(previous_ledger_secret->master.size());
-        auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
-        encrypted_pls.hdr.set_iv(iv.data(), iv.size());
-
-        crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
-          .encrypt(
-            encrypted_pls.hdr.get_iv(),
-            previous_ledger_secret->master,
-            nullb,
-            encrypted_pls.cipher.data(),
-            encrypted_pls.hdr.tag);
-
-        encrypted_previous_secret = encrypted_pls.serialise();
-      }
+      EncryptedSharesMap encrypted_shares;
 
       auto secret_to_split =
         ls_wrapping_key.get_raw_data<SecretSharing::SplitSecret>();
 
       GenesisGenerator g(network, tx);
       auto active_members_info = g.get_active_members_keyshare();
-      size_t threshold = g.get_recovery_threshold();
+      size_t recovery_threshold = g.get_recovery_threshold();
+
       auto shares = SecretSharing::split(
-        secret_to_split, active_members_info.size(), threshold);
+        secret_to_split, active_members_info.size(), recovery_threshold);
 
       size_t share_index = 0;
-      EncryptedSharesMap encrypted_shares;
       for (auto const& [member_id, enc_pub_key] : active_members_info)
       {
         auto nonce = tls::create_entropy()->random(crypto::Box::NONCE_SIZE);
@@ -167,9 +135,74 @@ namespace ccf
         share_index++;
       }
 
+      return encrypted_shares;
+    }
+
+    void set_recovery_shares_info(
+      Store::Tx& tx,
+      const LedgerSecret& latest_ledger_secret,
+      const std::optional<LedgerSecret>& previous_ledger_secret = std::nullopt,
+      kv::Version latest_ls_version = kv::NoVersion)
+    {
+      // First, generate a fresh ledger secrets wrapping key and wrap the
+      // latest ledger secret with it. Then, encrypt the penultimate ledger
+      // secret with the latest ledger secret and split the ledger secret
+      // wrapping key, allocating a new share for each active member. Finally,
+      // encrypt each share with the public key of each member and record it in
+      // the shares table.
+
+      auto ls_wrapping_key = LedgerSecretWrappingKey();
+      auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
+
+      std::vector<uint8_t> encrypted_previous_secret = {};
+      if (previous_ledger_secret.has_value())
+      {
+        crypto::GcmCipher encrypted_previous_ls(
+          previous_ledger_secret->master.size());
+        auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
+        encrypted_previous_ls.hdr.set_iv(iv.data(), iv.size());
+
+        crypto::KeyAesGcm(latest_ledger_secret.master)
+          .encrypt(
+            encrypted_previous_ls.hdr.get_iv(),
+            previous_ledger_secret->master,
+            nullb,
+            encrypted_previous_ls.cipher.data(),
+            encrypted_previous_ls.hdr.tag);
+
+        encrypted_previous_secret = encrypted_previous_ls.serialise();
+      }
+
+      GenesisGenerator g(network, tx);
       g.add_key_share_info({{latest_ls_version, wrapped_latest_ls},
                             encrypted_previous_secret,
-                            encrypted_shares});
+                            compute_encrypted_shares(tx, ls_wrapping_key)});
+    }
+
+  public:
+    ShareManager(NetworkState& network_) : network(network_) {}
+
+    void issue_shares(Store::Tx& tx)
+    {
+      // Assumes that the ledger secrets have not been updated since the
+      // last time shares have been issued (i.e. genesis or re-sharing only)
+      set_recovery_shares_info(tx, network.ledger_secrets->get_latest());
+    }
+
+    void issue_shares_on_recovery(Store::Tx& tx, kv::Version latest_ls_version)
+    {
+      set_recovery_shares_info(
+        tx,
+        network.ledger_secrets->get_latest(),
+        network.ledger_secrets->get_penultimate(),
+        latest_ls_version);
+    }
+
+    void issue_shares_on_rekey(
+      Store::Tx& tx, const LedgerSecret& new_ledger_secret)
+    {
+      set_recovery_shares_info(
+        tx, new_ledger_secret, network.ledger_secrets->get_latest());
     }
 
     // For now, the shares are passed directly to this function. Shares should
@@ -185,9 +218,8 @@ namespace ccf
       auto ls_wrapping_key =
         LedgerSecretWrappingKey(SecretSharing::combine(shares, shares.size()));
 
-      auto shares_view = tx.get_view(network.shares);
-      auto key_share_info = shares_view->get(0);
-      if (!key_share_info.has_value())
+      auto recovery_shares_info = tx.get_view(network.shares)->get(0);
+      if (!recovery_shares_info.has_value())
       {
         throw std::logic_error(
           "Failed to retrieve current recovery shares info");
@@ -202,7 +234,7 @@ namespace ccf
         encrypted_recovery_secrets.back().next_version);
 
       auto restored_ls = ls_wrapping_key.unwrap(
-        key_share_info->wrapped_latest_ledger_secret.encrypted_data);
+        recovery_shares_info->wrapped_latest_ledger_secret.encrypted_data);
 
       restored_ledger_secrets.push_back(
         {encrypted_recovery_secrets.back().next_version, restored_ls});

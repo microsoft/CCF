@@ -4,10 +4,13 @@
 import reconfiguration
 import recovery
 import rekey
+import memberclient
 
 from inspect import signature, Parameter
 
-tests = [
+# This suite tests that rekeying, network configuration changes
+# and recoveries can be interleaved
+suite_rekey_recovery = [
     recovery.test,
     reconfiguration.test_add_node,
     rekey.test,
@@ -16,6 +19,23 @@ tests = [
     rekey.test,
     reconfiguration.test_add_node,
 ]
+
+# This suite tests that membership changes and recoveries can be interleaved
+suite_membership_recovery = [
+    memberclient.test_add_member,
+    recovery.test,
+    memberclient.test_retire_member,
+    recovery.test,
+    memberclient.test_set_recovery_threshold,
+    recovery.test,
+    memberclient.test_update_recovery_shares,
+    recovery.test,
+]
+
+
+full_suite = []
+full_suite.extend(suite_rekey_recovery)
+full_suite.extend(suite_membership_recovery)
 
 #
 # Test functions are expected to be in the following format:
