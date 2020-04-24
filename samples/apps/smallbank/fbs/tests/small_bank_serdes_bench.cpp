@@ -131,7 +131,7 @@ static void run_mt_benchmark(picobench::state& s, std::vector<uint8_t> data)
   s.start_timer();
   for (int i = 0; i < s.iterations(); i++)
   {
-    crypto::Sha256Hash rh({{data.data(), data.size()}});
+    crypto::Sha256Hash rh({data.data(), data.size()});
     tree.append(rh);
     clobber_memory();
   }
