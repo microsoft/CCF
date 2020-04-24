@@ -13,11 +13,11 @@ import requests
 
 from loguru import logger as LOG
 
-# pbft will store up to 64 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
+# pbft will store up to 34 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
 # If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
-# By sending 33 RPC requests and a getCommit for each of them (what raft consideres as a read pbft will process as a write),
-# we are sure that we will have to go via the ledger to help late joiners catch up (total 66 reqs > 64)
-TOTAL_REQUESTS = 33
+# By sending 18 RPC requests and a getCommit for each of them (what raft consideres as a read pbft will process as a write),
+# we are sure that we will have to go via the ledger to help late joiners catch up (total 36 reqs > 34)
+TOTAL_REQUESTS = 18
 
 s = random.randint(1, 10)
 LOG.info(f"setting seed to {s}")
@@ -167,6 +167,9 @@ def run(args):
 
             assert_node_up_to_date(check, late_joiner, first_msg, 1000)
             assert_node_up_to_date(check, late_joiner, second_msg, 2000)
+
+            # wait for late joiner to cathcup before killing one of the other nodes
+            time.sleep(2 * (args.pbft_view_change_timeout / 1000))
 
             if not args.skip_suspension:
                 # kill the old node(s) and ensure we are still making progress with the new one(s)
