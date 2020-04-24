@@ -288,6 +288,9 @@ namespace ccf
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
         .set_auto_schema<GetCommit>();
+      install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
+        .set_auto_schema<GetTxStatus>()
+        .set_http_get_only();
       install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)
