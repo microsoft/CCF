@@ -295,13 +295,12 @@ namespace ccf
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
            {
-             const auto recovery_successful =
-               node.finish_recovery(tx, nullptr, true);
-             if (!recovery_successful)
+             const auto accept_recovery = node.accept_recovery(tx);
+             if (!accept_recovery)
              {
                LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
              }
-             return recovery_successful;
+             return accept_recovery;
            }
            else
            {

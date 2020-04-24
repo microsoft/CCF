@@ -830,70 +830,22 @@ namespace ccf
       LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }
 
-    bool finish_recovery(
-      Store::Tx& tx,
-      const nlohmann::json& sealed_secrets,
-      bool with_shares) override
+    bool accept_recovery(Store::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      if (with_shares)
-      {
-        GenesisGenerator g(network, tx);
-        if (!g.service_wait_for_shares())
-        {
-          return false;
-        }
-      }
-      else
-      {
-        LOG_INFO_FMT("Initiating end of recovery (primary)");
-
-        // Unseal past network secrets
-        auto past_secrets_idx =
-          network.ledger_secrets->restore_sealed(sealed_secrets);
-
-        // Emit signature to certify transactions that happened on public
-        // network
-        history->emit_signature();
-
-        // For all nodes in the new network, write all past network secrets to
-        // the secrets table, encrypted with the respective public keys
-        for (auto const& secret_idx : past_secrets_idx)
-        {
-          auto secret = network.ledger_secrets->get_secret(secret_idx);
-          if (!secret.has_value())
-          {
-            LOG_FAIL_FMT(
-              "Ledger secrets have not been restored: {}", secret_idx);
-            return false;
-          }
-
-          // Do not broadcast the ledger secrets to self since they were already
-          // restored from sealed file
-          broadcast_ledger_secret(tx, secret.value(), secret_idx, true);
-        }
-
-        // Setup new temporary store and record current version/root
-        setup_private_recovery_store();
-
-        // Start reading private security domain of ledger
-        ledger_idx = 0;
-        read_ledger_idx(++ledger_idx);
-
-        sm.advance(State::readingPrivateLedger);
-      }
-      return true;
+      GenesisGenerator g(network, tx);
+      return g.service_wait_for_shares();
     }
 
-    bool finish_recovery_with_shares(
+    bool finish_recovery(
       Store::Tx& tx, const std::vector<kv::Version>& restored_versions)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery with shares (primary)");
+      LOG_INFO_FMT("Initiating end of recovery (primary)");
 
       // Emit signature to certify transactions that happened on public
       // network
@@ -1080,7 +1032,7 @@ namespace ccf
     {
       try
       {
-        finish_recovery_with_shares(
+        finish_recovery(
           tx,
           share_manager.restore_recovery_shares_info(
             tx, shares, recovery_ledger_secrets));
