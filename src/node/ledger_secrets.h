@@ -110,7 +110,6 @@ namespace ccf
       secrets_list.splice(secrets_list.begin(), std::move(restored_secrets));
     }
 
-    // s
     std::optional<LedgerSecret> get_secret(kv::Version v)
     {
       for (auto const& s : secrets_list)
