@@ -1502,8 +1502,8 @@ namespace ccf
                   v.value.wrapped_latest_ledger_secret.version;
               }
 
-              // No encrypted ledger secret are stored in the case of a pure re-share
-              // (i.e. no ledger rekey).
+              // No encrypted ledger secret are stored in the case of a pure
+              // re-share (i.e. no ledger rekey).
               if (
                 !v.value.encrypted_previous_ledger_secret.empty() ||
                 ledger_secret_version == 1)
