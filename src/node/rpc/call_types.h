@@ -25,6 +25,27 @@ namespace ccf
     };
   };
 
+  struct GetTxStatus
+  {
+    struct In
+    {
+      uint64_t view;
+      int64_t index;
+    };
+
+    enum TxStatus
+    {
+      Pending,
+      Committed,
+      Lost,
+    };
+
+    struct Out
+    {
+      TxStatus status;
+    };
+  };
+
   struct GetMetrics
   {
     struct HistogramResults

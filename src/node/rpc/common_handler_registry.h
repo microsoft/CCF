@@ -55,6 +55,56 @@ namespace ccf
           "Failed to get commit info from Consensus");
       };
 
+      auto get_tx_status = [this](Store::Tx& tx, nlohmann::json&& params) {
+        const auto in = params.get<GetTxStatus::In>();
+
+        if (consensus != nullptr)
+        {
+          const auto actual_view = consensus->get_view(in.index);
+
+          if (actual_view == 0)
+          {
+            // This node has not seen this index yet - assume transaction is
+            // still pending (in-flight)
+            // TODO: Should this be distinguished from some other known-locally
+            // pending?
+            return make_success(GetTxStatus::TxStatus::Pending);
+          }
+          else if (actual_view < in.view)
+          {
+            // The requested transaction was committed in an _earlier_ view?
+            // Should be impossible for 'real' requests, but essentially the
+            // same as Lost (this index is not what you think it is, and never
+            // will be)
+            return make_success(GetTxStatus::TxStatus::Lost);
+          }
+          else if (actual_view > in.view)
+          {
+            // View has advanced (election occurred) and a new transaction has
+            // happened at this index. The requested transaction has been lost,
+            // as though it never happened
+            return make_success(GetTxStatus::TxStatus::Lost);
+          }
+          else // actual_view == in.view
+          {
+            // This node knows about the expected transaction view.index locally
+            // - see if this has been globally committed
+            const auto global_commit_index = consensus->get_commit_seqno();
+            if (global_commit_index >= in.index)
+            {
+              return make_success(GetTxStatus::TxStatus::Committed);
+            }
+            else
+            {
+              return make_success(GetTxStatus::TxStatus::Pending);
+            }
+          }
+        }
+
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Consensus is not yet configured");
+      };
+
       auto get_metrics = [this](Store::Tx& tx, nlohmann::json&& params) {
         auto result = metrics.get_metrics();
         return make_success(result);
