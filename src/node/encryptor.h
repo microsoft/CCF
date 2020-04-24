@@ -230,10 +230,9 @@ namespace ccf
     void compact(kv::Version version) override
     {
       std::lock_guard<SpinLock> guard(lock);
-      std::list<KeyInfo> keys_to_seal;
+      std::list<KeyInfo> keys_to_set_as_ls;
 
-      // Remove keys that have been superseded by a newer key. News keys are
-      // sealed on compact.
+      // Remove keys that have been superseded by a newer key.
       while (encryption_keys.size() > 1)
       {
         auto k = encryption_keys.begin();
@@ -243,7 +242,7 @@ namespace ccf
           break;
         }
 
-        keys_to_seal.emplace_back(
+        keys_to_set_as_ls.emplace_back(
           KeyInfo{std::next(k)->version, std::next(k)->raw_key});
 
         if (k->version < version)
@@ -254,7 +253,7 @@ namespace ccf
 
       if (!is_recovery)
       {
-        for (auto const& k : keys_to_seal)
+        for (auto const& k : keys_to_set_as_ls)
         {
           ledger_secrets->add_new_secret(k.version, k.raw_key);
         }
