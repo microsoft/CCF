@@ -537,7 +537,7 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME late_joiners
+    NAME late_joiners_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
     CONSENSUS pbft
   )

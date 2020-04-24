@@ -350,7 +350,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
   if (current_view < reply->view())
   {
-    LOG_INFO_FMT(
+    LOG_DEBUG_FMT(
       "Updating client proxy view from {} to {}", current_view, reply->view());
     ctx->t_reps.clear();
     ctx->c_reps.clear();

@@ -1166,7 +1166,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
 void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
-  LOG_DEBUG_FMT("Sending commit for seqno: {}", s);
+  LOG_TRACE_FMT("Sending commit for seqno: {}", s);
   size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
