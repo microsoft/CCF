@@ -456,7 +456,7 @@ namespace ccf
 
     void append(const uint8_t* replicated, size_t replicated_size) override
     {
-      crypto::Sha256Hash rh({{replicated, replicated_size}});
+      crypto::Sha256Hash rh({replicated, replicated_size});
       log_hash(rh, APPEND);
       replicated_state_tree.append(rh);
     }
