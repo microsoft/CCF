@@ -467,7 +467,7 @@ int main(int argc, char** argv)
   asynchost::Ticker ticker(tick_period_ms, writer_factory, [](auto s) {
     logger::config::set_start(s);
   });
-  
+
   // regularly update the time given to the enclave
   asynchost::TimeUpdater time_updater(1);
 
