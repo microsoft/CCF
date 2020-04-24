@@ -110,65 +110,7 @@ namespace ccf
       secrets_list.splice(secrets_list.begin(), std::move(restored_secrets));
     }
 
-    // std::vector<kv::Version> restore_sealed(
-    //   const nlohmann::json& sealed_secrets)
-    // {
-    //   std::list<VersionedLedgerSecret> restored_secrets;
-    //   std::vector<kv::Version> restored_versions;
-
-    //   for (auto it = sealed_secrets.begin(); it != sealed_secrets.end(); ++it)
-    //   {
-    //     auto s = seal->unseal(it.value());
-    //     kv::Version v = std::stoi(it.key());
-    //     if (!s.has_value())
-    //     {
-    //       throw std::logic_error(
-    //         fmt::format("Ledger secret could not be unsealed: {}", v));
-    //     }
-
-    //     LOG_DEBUG_FMT("Ledger secret successfully unsealed at version {}", v);
-
-    //     restored_secrets.push_back({v, LedgerSecret(s.value())});
-    //     restored_versions.push_back(v);
-    //   }
-
-    //   restore(std::move(restored_secrets));
-
-    //   return restored_versions;
-    // }
-
-    // void seal_secret(kv::Version v)
-    // {
-    //   if (!seal)
-    //   {
-    //     throw std::logic_error("No seal set to seal ledger secret");
-    //   }
-
-    //   for (auto const& s : secrets_list)
-    //   {
-    //     if (s.version == v)
-    //     {
-    //       if (!seal->seal(s.version, s.secret.master))
-    //       {
-    //         throw std::logic_error(fmt::format(
-    //           "Ledger secret at version {} could not be sealed", v));
-    //       }
-    //       return;
-    //     }
-    //   }
-
-    //   throw std::logic_error(
-    //     fmt::format("Ledger secret to seal at version {} does not exist", v));
-    // }
-
-    // void seal_all()
-    // {
-    //   for (auto const& s : secrets_list)
-    //   {
-    //     seal_secret(s.version);
-    //   }
-    // }
-
+    // s
     std::optional<LedgerSecret> get_secret(kv::Version v)
     {
       for (auto const& s : secrets_list)
