@@ -236,36 +236,39 @@ def run(args):
         response = new_member.vote(primary, trust_node_proposal, accept=False)
         assert response.status == params_error
 
-        LOG.debug("New member proposes to retire member 0")
-        network.consortium.retire_member(
-            primary, network.consortium.get_member_by_id(0)
-        )
-
-        LOG.debug("Retired member cannot make a new proposal")
-        try:
-            response = network.consortium.get_member_by_id(0).propose(
-                primary, script, 0
+        # Membership changes trigger re-sharing and re-keying and are
+        # only supported with Raft
+        if args.consensus == "raft":
+            LOG.debug("New member proposes to retire member 0")
+            network.consortium.retire_member(
+                primary, network.consortium.get_member_by_id(0)
             )
-            assert False, "Retired member cannot make a new proposal"
-        except infra.proposal.ProposalNotCreated as e:
-            assert e.response.status == http.HTTPStatus.FORBIDDEN.value
-            assert e.response.error == "Member is not active"
 
-        LOG.debug("New member should still be able to make a new proposal")
-        new_proposal = new_member.propose(primary, script, 0)
-        assert new_proposal.state == ProposalState.Open
+            LOG.debug("Retired member cannot make a new proposal")
+            try:
+                response = network.consortium.get_member_by_id(0).propose(
+                    primary, script, 0
+                )
+                assert False, "Retired member cannot make a new proposal"
+            except infra.proposal.ProposalNotCreated as e:
+                assert e.response.status == http.HTTPStatus.FORBIDDEN.value
+                assert e.response.error == "Member is not active"
 
-        LOG.info(
-            "Recovery threshold is originally set to the original number of members"
-        )
-        LOG.info("Retiring a member should not be possible")
-        try:
+            LOG.debug("New member should still be able to make a new proposal")
+            new_proposal = new_member.propose(primary, script, 0)
+            assert new_proposal.state == ProposalState.Open
+
+            LOG.info(
+                "Recovery threshold is originally set to the original number of members"
+            )
+            LOG.info("Retiring a member should not be possible")
+            try:
+                assert_recovery_shares_update(test_retire_member, network, args)
+            except infra.proposal.ProposalNotAccepted as e:
+                assert e.proposal.state == infra.proposal.ProposalState.Failed
+
+            assert_recovery_shares_update(test_add_member, network, args)
             assert_recovery_shares_update(test_retire_member, network, args)
-        except infra.proposal.ProposalNotAccepted as e:
-            assert e.proposal.state == infra.proposal.ProposalState.Failed
-
-        assert_recovery_shares_update(test_add_member, network, args)
-        assert_recovery_shares_update(test_retire_member, network, args)
 
         LOG.info("Set different recovery thresholds")
         assert_recovery_shares_update(
