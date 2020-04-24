@@ -21,7 +21,6 @@
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
-#include "seal.h"
 #include "secret_share.h"
 #include "share_manager.h"
 #include "timer.h"
@@ -181,7 +180,6 @@ namespace ccf
     std::shared_ptr<kv::TxHistory> history;
     std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
 
-    std::shared_ptr<Seal> seal;
     ShareManager share_manager;
 
     //
@@ -221,7 +219,6 @@ namespace ccf
       rpcsessions(rpcsessions),
       notifier(notifier),
       timers(timers),
-      seal(std::make_shared<Seal>(writer_factory)),
       share_manager(network)
     {
       ::EverCrypt_AutoConfig2_init();
@@ -284,10 +281,8 @@ namespace ccf
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
 
-          // Create initial secrets and seal immediately
-          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.ledger_secrets->init();
-          network.ledger_secrets->seal_all();
 
           network.encryption_key = std::make_unique<NetworkEncryptionKey>(
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
@@ -337,7 +332,7 @@ namespace ccf
 
           network.identity =
             std::make_unique<NetworkIdentity>("CN=CCF Network");
-          network.ledger_secrets = std::make_shared<LedgerSecrets>(seal);
+          network.ledger_secrets = std::make_shared<LedgerSecrets>();
           network.encryption_key = std::make_unique<NetworkEncryptionKey>(
             tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
 
@@ -431,8 +426,8 @@ namespace ccf
           {
             network.identity =
               std::make_unique<NetworkIdentity>(resp.network_info.identity);
-            network.ledger_secrets = std::make_shared<LedgerSecrets>(
-              std::move(resp.network_info.ledger_secrets), seal);
+            network.ledger_secrets =
+              std::make_shared<LedgerSecrets>(resp.network_info.ledger_secrets);
             network.encryption_key = std::make_unique<NetworkEncryptionKey>(
               std::move(resp.network_info.encryption_key));
 
@@ -723,9 +718,6 @@ namespace ccf
         consensus->resume_replication();
       }
 
-      // Seal all known network secrets
-      network.ledger_secrets->seal_all();
-
       // Open the service
       if (consensus->is_primary())
       {
@@ -798,10 +790,6 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<NullTxEncryptor>();
 #else
-      // Recovery encryptor should not seal ledger secrets on compaction.
-      // Since private ledger recovery is done in a temporary store, ledger
-      // secrets are only sealed once the recovery is successful.
-
       if (network.consensus_type == ConsensusType::PBFT)
       {
         recovery_encryptor =
@@ -964,8 +952,7 @@ namespace ccf
       sm.expect(State::partOfNetwork);
 
       // Effects of ledger rekey are only observed from the next transaction,
-      // once the local hook on the secrets table has been triggered. The
-      // corresponding new ledger secret is only sealed on global hook.
+      // once the local hook on the secrets table has been triggered.
 
       auto new_ledger_secret = LedgerSecret();
       share_manager.issue_shares_on_rekey(tx, new_ledger_secret);
