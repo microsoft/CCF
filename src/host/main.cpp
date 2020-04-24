@@ -471,9 +471,6 @@ int main(int argc, char** argv)
   // regularly update the time given to the enclave
   asynchost::TimeUpdater time_updater(1);
 
-  // set initial time for logger
-  logger::config::set_start(std::chrono::system_clock::now());
-
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
     bp, circuit.read_from_inside(), non_blocking_factory);
