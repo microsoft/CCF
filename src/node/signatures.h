@@ -32,7 +32,7 @@ namespace ccf
       commit(0)
     {}
 
-    Signature(crypto::Sha256Hash root_) :
+    Signature(const crypto::Sha256Hash& root_) :
       node(0),
       index(0),
       term(0),
