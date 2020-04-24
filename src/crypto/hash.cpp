@@ -29,10 +29,20 @@ void crypto::Sha256Hash::evercrypt_sha256(const CBuffer& data, uint8_t* h)
     EverCrypt_Hash_create(Spec_Hash_Definitions_SHA2_256);
   EverCrypt_Hash_init(state);
 
-  EverCrypt_Hash_update_multi(
-    state, const_cast<uint8_t*>(data.p), data.rawSize());
-  EverCrypt_Hash_update_last(
-    state, const_cast<uint8_t*>(data.p), data.rawSize());
+  constexpr auto block_size = 64u; // No way to ask evercrypt for this
+
+  const auto data_begin = const_cast<uint8_t*>(data.p);
+  const auto size = data.rawSize();
+  const auto full_blocks = size / block_size;
+
+  const auto full_blocks_size = full_blocks * block_size;
+  const auto full_blocks_end = data_begin + full_blocks_size;
+
+  // update_multi takes complete blocks
+  EverCrypt_Hash_update_multi(state, data_begin, full_blocks_size);
+
+  // update_last takes start of last chunk (NOT a full block!), and _total size_
+  EverCrypt_Hash_update_last(state, full_blocks_end, size);
 
   EverCrypt_Hash_finish(state, h);
   EverCrypt_Hash_free(state);

@@ -80,7 +80,7 @@ TEST_CASE("Sha256 interesting size consistency test")
     crypto::Sha256Hash h1, h2;
     crypto::Sha256Hash::evercrypt_sha256(data, h1.h.data());
     crypto::Sha256Hash::mbedtls_sha256(data, h2.h.data());
-    REQUIRE(h1 == h2);
+    CHECK(h1 == h2);
   }
 }
 
