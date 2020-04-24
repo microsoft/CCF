@@ -444,7 +444,7 @@ class WSClient:
         frame = websocket.ABNF(1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, h + payload)
         self.ws.send_frame(frame)
         out = self.ws.recv_frame().data
-        ohs = 20  # Calculate, somehow
+        ohs = 48  # Calculate, somehow
         oh = OutHeader.OutHeader.GetRootAsOutHeader(out, 0)
         return Response(
             oh.Status(), out[ohs:], {}, oh.Commit(), oh.Term(), oh.GlobalCommit()

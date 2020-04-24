@@ -12,10 +12,15 @@
 namespace ws
 {
   static std::vector<uint8_t> serialise(
-    size_t code, const std::vector<uint8_t>& body)
+    size_t code,
+    const std::vector<uint8_t>& body,
+    kv::Version commit = 0,
+    kv::Consensus::View term = 0,
+    kv::Version global_commit = 0)
   {
     flatbuffers::FlatBufferBuilder builder(32);
-    auto out = ws::frame::CreateOutHeader(builder, code, 0, 0, 0);
+    auto out =
+      ws::frame::CreateOutHeader(builder, code, commit, term, global_commit);
     builder.Finish(out);
     size_t header_size = builder.GetSize();
 
@@ -82,6 +87,10 @@ namespace ws
     bool canonicalised = false;
 
     std::optional<bool> explicit_apply_writes = std::nullopt;
+
+    size_t commit = 0;
+    size_t term = 0;
+    size_t global_commit = 0;
 
     void canonicalise()
     {
@@ -204,6 +213,21 @@ namespace ws
       const std::string_view& name, const std::string_view& value) override
     {}
 
+    virtual void set_commit(kv::Version cv) override
+    {
+      commit = cv;
+    }
+
+    virtual void set_term(kv::Consensus::View t) override
+    {
+      term = t;
+    }
+
+    virtual void set_global_commit(kv::Version gc) override
+    {
+      global_commit = gc;
+    }
+
     virtual void set_apply_writes(bool apply) override
     {
       explicit_apply_writes = apply;
@@ -222,7 +246,8 @@ namespace ws
 
     virtual std::vector<uint8_t> serialise_response() const override
     {
-      return serialise(response_status, response_body);
+      return serialise(
+        response_status, response_body, commit, term, global_commit);
     }
 
     virtual std::vector<uint8_t> serialise_error(

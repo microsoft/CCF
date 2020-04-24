@@ -18,8 +18,6 @@ def test(network, args, notifications_queue=None):
 
     msg = "Hello world"
     LOG.info("Write/Read on primary")
-    # TODO: input frame should have path, body and authorise field
-    # output frame should have index, term, return code and body
     with primary.user_client(ws=True) as c:
         for i in range(1, 51):
             r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})

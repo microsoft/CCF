@@ -96,6 +96,10 @@ namespace enclave
 
     virtual void set_response_status(int status) = 0;
 
+    virtual void set_commit(kv::Version) = 0;
+    virtual void set_term(kv::Consensus::View) = 0;
+    virtual void set_global_commit(kv::Version) = 0;
+
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) = 0;
     virtual void set_response_header(const std::string_view& name, size_t n)

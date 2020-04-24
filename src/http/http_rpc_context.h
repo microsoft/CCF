@@ -276,6 +276,22 @@ namespace http
       response_headers[std::string(name)] = value;
     }
 
+    virtual void set_commit(kv::Version cv) override
+    {
+      set_response_header(http::headers::CCF_COMMIT, fmt::format("{}", cv));
+    }
+
+    virtual void set_term(kv::Consensus::View t) override
+    {
+      set_response_header(http::headers::CCF_TERM, fmt::format("{}", t));
+    }
+
+    virtual void set_global_commit(kv::Version gc) override
+    {
+      set_response_header(
+        http::headers::CCF_GLOBAL_COMMIT, fmt::format("{}", gc));
+    }
+
     virtual void set_apply_writes(bool apply) override
     {
       explicit_apply_writes = apply;
