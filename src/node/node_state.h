@@ -731,9 +731,9 @@ namespace ccf
       {
         Store::Tx tx;
 
-        // Shares for the new ledger secret can only be written now, once the
+        // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
-        share_manager.update_recovery_shares_info(
+        share_manager.issue_shares_on_recovery(
           tx, last_recovered_commit_idx + 1);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
@@ -1015,7 +1015,9 @@ namespace ccf
       // once the local hook on the secrets table has been triggered. The
       // corresponding new ledger secret is only sealed on global hook.
 
-      broadcast_ledger_secret(tx, LedgerSecret());
+      auto new_ledger_secret = LedgerSecret();
+      share_manager.issue_shares_on_rekey(tx, new_ledger_secret);
+      broadcast_ledger_secret(tx, new_ledger_secret);
 
       return true;
     }
@@ -1063,7 +1065,7 @@ namespace ccf
     {
       try
       {
-        share_manager.update_recovery_shares_info(tx);
+        share_manager.issue_shares(tx);
       }
       catch (const std::logic_error& e)
       {
@@ -1481,15 +1483,39 @@ namespace ccf
           {
             for (auto& [k, v] : w)
             {
-              // If the version is not set (e.g. rekeying), use the version from
-              // the hook. Otherwise (e.g. recovery), use the version specified.
-              auto version_ =
-                v.value.wrapped_latest_ledger_secret.version == kv::NoVersion ?
-                version :
-                v.value.wrapped_latest_ledger_secret.version;
+              kv::Version ledger_secret_version;
+              if (version == 1)
+              {
+                // Special case for the genesis transaction, which is applicable
+                // from the very first transaction
+                ledger_secret_version = 1;
+              }
+              else
+              {
+                // If the version is not set (rekeying), use the version
+                // from the hook plus one. Otherwise (recovery), use the
+                // version specified.
+                ledger_secret_version =
+                  v.value.wrapped_latest_ledger_secret.version ==
+                    kv::NoVersion ?
+                  (version + 1) :
+                  v.value.wrapped_latest_ledger_secret.version;
+              }
 
-              recovery_ledger_secrets.push_back(
-                {version_, v.value.encrypted_previous_ledger_secret});
+              // No encrypted ledger secret are stored in the case of a pure
+              // re-share (i.e. no ledger rekey).
+              if (
+                !v.value.encrypted_previous_ledger_secret.empty() ||
+                ledger_secret_version == 1)
+              {
+                LOG_TRACE_FMT(
+                  "Adding one encrypted recovery ledger secret at {}",
+                  ledger_secret_version);
+
+                recovery_ledger_secrets.push_back(
+                  {ledger_secret_version,
+                   v.value.encrypted_previous_ledger_secret});
+              }
             }
           }
         });
