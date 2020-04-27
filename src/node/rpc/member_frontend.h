@@ -32,10 +32,10 @@ namespace ccf
 
   struct SubmitRecoveryShare
   {
-    std::vector<uint8_t> share;
+    std::vector<uint8_t> recovery_share;
   };
   DECLARE_JSON_TYPE(SubmitRecoveryShare)
-  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, share)
+  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, recovery_share)
 
   class MemberHandlers : public CommonHandlerRegistry
   {
@@ -298,7 +298,7 @@ namespace ccf
              const auto accept_recovery = node.accept_recovery(tx);
              if (!accept_recovery)
              {
-               LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
+               LOG_FAIL_FMT("Proposal {}: Accept recovery failed", proposal_id);
              }
              return accept_recovery;
            }
@@ -871,7 +871,8 @@ namespace ccf
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
         json_adapter(get_encrypted_recovery_share),
         Read)
-        .set_auto_schema<void, EncryptedShare>();
+        .set_auto_schema<void, EncryptedShare>()
+        .set_http_get_only();
 
       auto submit_recovery_share = [this](
                                      RequestArgs& args,
@@ -901,7 +902,9 @@ namespace ccf
 
         SecretSharing::Share share;
         std::copy_n(
-          in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+          in.recovery_share.begin(),
+          SecretSharing::SHARE_LENGTH,
+          share.begin());
 
         pending_shares.emplace_back(share);
         if (pending_shares.size() < g.get_recovery_threshold())

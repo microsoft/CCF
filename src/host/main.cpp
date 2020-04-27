@@ -304,7 +304,8 @@ int main(int argc, char** argv)
     *start,
     members_info,
     "--member-info",
-    "Initial consortium members information (public identity,public key share)")
+    "Initial consortium members information (public identity,recovery public "
+    "key)")
     ->required();
 
   std::optional<size_t> recovery_threshold;

@@ -29,13 +29,13 @@ class Member:
         self.member_id = member_id
         self.status = MemberStatus.ACCEPTED
 
-        # For now, all members are given a recovery key share
+        # For now, all members are given an encryption key (for recovery)
         member = f"member{member_id}"
         infra.proc.ccall(
             self.key_generator,
             f"--name={member}",
             f"--curve={curve.name}",
-            "--gen-key-share",
+            "--gen-enc-key",
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
@@ -124,7 +124,7 @@ class Member:
 
     def get_and_decrypt_recovery_share(self, remote_node):
         with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc("getEncryptedRecoveryShare")
+            r = mc.get("getEncryptedRecoveryShare")
 
             if r.status != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
@@ -132,9 +132,7 @@ class Member:
             # For now, members rely on a copy of the original network encryption
             # public key to decrypt their shares
             ctx = infra.crypto.CryptoBoxCtx(
-                os.path.join(
-                    self.common_dir, f"member{self.member_id}_kshare_priv.pem"
-                ),
+                os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem"),
                 os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
             )
 
@@ -145,7 +143,8 @@ class Member:
     def submit_recovery_share(self, remote_node, decrypted_recovery_share):
         with remote_node.member_client(member_id=self.member_id) as mc:
             r = mc.rpc(
-                "submitRecoveryShare", params={"share": list(decrypted_recovery_share)}
+                "submitRecoveryShare",
+                params={"recovery_share": list(decrypted_recovery_share)},
             )
             assert r.error is None, f"Error submitting recovery share: {r.error}"
             return r
