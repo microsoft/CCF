@@ -8,7 +8,7 @@ Accepting Recovery
 
 Once the public recovered network has been established by operators, members are allowed to vote to confirm that the configuration of the new network is suitable to complete the recovery procedure.
 
-The first member proposes to recover the network:
+A member proposes to recover the network and other members can vote on the proposal:
 
 .. code-block:: bash
 
