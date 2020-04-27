@@ -207,7 +207,7 @@ class Node:
                 assert (
                     rep.error is None and rep.result is not None
                 ), f"An error occured after node {self.node_id} joined the network"
-        except infra.clients.CCFConnectionException as e:
+        except infra.clients.CCFConnectionException:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_ledger(self):
