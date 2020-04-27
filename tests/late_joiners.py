@@ -105,7 +105,6 @@ def run_requests(
 ):
     with nodes[0].node_client() as mc:
         check_commit = infra.checker.Checker(mc)
-        check = infra.checker.Checker()
         clients = []
         with contextlib.ExitStack() as es:
             for node in nodes:

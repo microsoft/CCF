@@ -44,7 +44,7 @@ class LoggingTxs:
         network.wait_for_node_commit_sync(consensus)
 
     def verify(self, network):
-        LOG.success(f"Verifying all logging txs")
+        LOG.success("Verifying all logging txs")
         for n in network.get_joined_nodes():
             with n.node_client() as mc:
                 check = infra.checker.Checker(mc)

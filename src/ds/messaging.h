@@ -150,6 +150,12 @@ namespace messaging
 
   using RingbufferDispatcher = Dispatcher<ringbuffer::Message>;
 
+  using IdleBehaviour = std::function<void(size_t)>;
+  static void default_idle_behaviour(size_t num_consecutive_idles)
+  {
+    CCF_PAUSE();
+  }
+
   class BufferProcessor
   {
     RingbufferDispatcher dispatcher;
@@ -200,9 +206,11 @@ namespace messaging
       return total_read;
     };
 
-    size_t run(ringbuffer::Reader& r)
+    size_t run(
+      ringbuffer::Reader& r, IdleBehaviour idler = default_idle_behaviour)
     {
       size_t total_read = 0;
+      size_t consecutive_idles = 0u;
 
       uint16_t tid = thread_ids[std::this_thread::get_id()];
       enclave::Task& task =
@@ -211,17 +219,18 @@ namespace messaging
       while (!finished.load())
       {
         auto num_read = read_n(-1, r);
-        if (num_read != 0)
-        {
-          total_read += num_read;
-        }
+        total_read += num_read;
 
         bool task_run =
           enclave::ThreadMessaging::thread_messaging.run_one(task);
 
         if (num_read == 0 && !task_run)
         {
-          CCF_PAUSE();
+          idler(consecutive_idles++);
+        }
+        else
+        {
+          consecutive_idles = 0;
         }
       }
 
