@@ -3,6 +3,7 @@
 #include "../ds/logger.h"
 #include "../ds/spin_lock.h"
 #include "enclave.h"
+#include "enclave_time.h"
 
 #include <chrono>
 #include <msgpack/msgpack.hpp>
@@ -18,6 +19,12 @@ std::atomic<uint16_t> num_pending_threads = 0;
 
 enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+
+namespace enclave
+{
+  std::atomic<std::chrono::microseconds>* host_time = nullptr;
+  std::chrono::microseconds last_value(0);
+}
 
 extern "C"
 {
@@ -36,7 +43,8 @@ extern "C"
     size_t* network_enc_pubk_len,
     StartType start_type,
     ConsensusType consensus_type,
-    size_t num_worker_threads)
+    size_t num_worker_threads,
+    void* time_location)
   {
     std::lock_guard<SpinLock> guard(create_lock);
 
@@ -53,6 +61,9 @@ extern "C"
     {
       return false;
     }
+
+    enclave::host_time =
+      static_cast<decltype(enclave::host_time)>(time_location);
 
     EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
 
