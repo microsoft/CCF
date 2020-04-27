@@ -91,6 +91,11 @@ namespace ccf
 
     LedgerSecret get_latest()
     {
+      if (secrets_list.size() == 0)
+      {
+        throw std::logic_error(
+          "Could not retrieve latest ledger secret: no secret set");
+      }
       return secrets_list.back().secret;
     }
 
@@ -98,7 +103,7 @@ namespace ccf
     {
       if (secrets_list.size() <= 1)
       {
-        return {};
+        return std::nullopt;
       }
       return std::next(secrets_list.rbegin())->secret;
     }
@@ -191,7 +196,7 @@ namespace ccf
         }
       }
       LOG_FAIL_FMT("Ledger secret at version {} does not exist", v);
-      return {};
+      return std::nullopt;
     }
   };
 }

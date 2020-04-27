@@ -77,11 +77,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
     )
     parser.add_argument(
-        "--wait-with-client",
-        help="If set, the python client is used to query joining nodes",
-        action="store_true",
-    )
-    parser.add_argument(
         "--raft-election-timeout",
         help="Raft maximum election timeout for each node in the network",
         type=int,
