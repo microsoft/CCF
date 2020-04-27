@@ -13,11 +13,11 @@ import requests
 
 from loguru import logger as LOG
 
-# pbft will store up to 64 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
+# pbft will store up to 34 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
 # If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
-# By sending 33 RPC requests and a getCommit for each of them (what raft consideres as a read pbft will process as a write),
-# we are sure that we will have to go via the ledger to help late joiners catch up (total 66 reqs > 64)
-TOTAL_REQUESTS = 33
+# By sending 18 RPC requests and a getCommit for each of them (what raft consideres as a read pbft will process as a write),
+# we are sure that we will have to go via the ledger to help late joiners catch up (total 36 reqs > 34)
+TOTAL_REQUESTS = 18
 
 s = random.randint(1, 10)
 LOG.info(f"setting seed to {s}")
@@ -47,7 +47,28 @@ def find_primary(network):
     return term_info
 
 
-def assert_node_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
+def get_node_local_commit(node):
+    with node.node_client() as c:
+        r = c.get("getLocalCommit")
+        return r.commit, r.global_commit
+
+
+def wait_for_late_joiner(old_node, late_joiner):
+    old_node_lc, old_node_gc = get_node_local_commit(old_node)
+    LOG.success(
+        f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
+    )
+    while True:
+        lc, gc = get_node_local_commit(late_joiner)
+        LOG.success(
+            f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
+        )
+        if lc >= old_node_lc:
+            break
+        time.sleep(1)
+
+
+def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
     with node.user_client() as c:
         # Wait until final_msg_id is available in the node.
         # We need to catch timeout and assertion errors as
@@ -97,7 +118,7 @@ def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
                         time.sleep(0.1)
         # assert all nodes are caught up
         for node in nodes:
-            assert_node_up_to_date(check, node, final_msg, final_msg_id)
+            assert_network_up_to_date(check, node, final_msg, final_msg_id)
 
 
 def run_requests(
@@ -142,6 +163,11 @@ def run(args):
         second_msg = "Hello, world hello!"
         catchup_msg = "Hey world!"
         final_msg = "Goodbye, world!"
+        election_timeout = (
+            args.pbft_view_change_timeout / 1000
+            if args.consensus == "pbft"
+            else args.raft_election_timeout / 1000
+        )
 
         with first_node.node_client() as mc:
             check = infra.checker.Checker(mc)
@@ -164,8 +190,11 @@ def run(args):
             run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
             term_info.update(find_primary(network))
 
-            assert_node_up_to_date(check, late_joiner, first_msg, 1000)
-            assert_node_up_to_date(check, late_joiner, second_msg, 2000)
+            assert_network_up_to_date(check, late_joiner, first_msg, 1000)
+            assert_network_up_to_date(check, late_joiner, second_msg, 2000)
+
+            # wait for late joiner to cathcup before killing one of the other nodes
+            wait_for_late_joiner(first_node, late_joiner)
 
             if not args.skip_suspension:
                 # kill the old node(s) and ensure we are still making progress with the new one(s)
@@ -186,23 +215,18 @@ def run(args):
                     if i % 2 != 0 and args.consensus == "pbft":
                         continue
                     LOG.success(f"Will suspend node with id {node.node_id}")
-                    t = random.uniform(1, 2)
+                    t = random.uniform(0, 2)
                     LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
                     timeouts.append((t, node))
                     suspended_nodes.append(node.node_id)
 
                 for t, node in timeouts:
-                    et = (
-                        args.pbft_view_change_timeout / 1000
-                        if args.consensus == "pbft"
-                        else args.raft_election_timeout / 1000
-                    )
-
+                    suspend_time = election_timeout
                     if node.node_id == cur_primary_id and args.consensus == "pbft":
-                        # if pbft suspend the primary for twice the elecetion timeout
+                        # if pbft suspend the primary for more than twice the election timeout
                         # in order to make sure view changes will be triggered
-                        et += et
-                    tm = Timer(t, timeout_handler, args=[node, True, et])
+                        suspend_time = 2.5 * suspend_time
+                    tm = Timer(t, timeout_handler, args=[node, True, suspend_time])
                     tm.start()
 
                 run_requests(

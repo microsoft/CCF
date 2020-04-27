@@ -38,6 +38,10 @@ Prepare::Prepare(
   {
     rep().id = pbft::GlobalState::get_node().id();
   }
+  else
+  {
+    rep().id = id;
+  }
 
   Digest dh;
   Digest::Context context;

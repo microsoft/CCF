@@ -69,6 +69,7 @@ public:
 
 private:
   IMessageReceiveBase& my_replica;
+  View current_view;
   RequestIdGenerator request_id_generator;
 
   struct RequestContext
@@ -157,6 +158,7 @@ private:
 template <class T, class C>
 ClientProxy<T, C>::ClientProxy(
   IMessageReceiveBase& my_replica, int min_rtimeout_, int max_rtimeout_) :
+  current_view(my_replica.view()),
   min_rtimeout(min_rtimeout_),
   max_rtimeout(max_rtimeout_),
   my_replica(my_replica),
@@ -346,6 +348,15 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
             << " reply->full: " << (reply->full() ? "true" : "false")
             << " reps.cvalue: " << (void*)ctx->t_reps.cvalue() << std::endl;
 
+  if (current_view < reply->view())
+  {
+    LOG_DEBUG_FMT(
+      "Updating client proxy view from {} to {}", current_view, reply->view());
+    ctx->t_reps.clear();
+    ctx->c_reps.clear();
+    current_view = reply->view();
+  }
+
   Certificate<Reply>& reps =
     (reply->is_tentative()) ? ctx->t_reps : ctx->c_reps;
 
@@ -483,9 +494,6 @@ void ClientProxy<T, C>::retransmit()
 
     LOG_INFO_FMT("Retransmitting req id: {}", out_req->request_id());
     INCR_OP(req_retrans);
-
-    ctx->t_reps.clear();
-    ctx->c_reps.clear();
 
     n_retrans++;
     bool ro = out_req->is_read_only();

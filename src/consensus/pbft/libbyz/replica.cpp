@@ -484,7 +484,7 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   }
 }
 
-void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
+void Replica::populate_certificates(Pre_prepare* pp)
 {
   if (pp->seqno() <= 0)
   {
@@ -523,18 +523,16 @@ void Replica::populate_certificates(Pre_prepare* pp, bool add_mine)
         p_id);
       prev_prepared_cert.add(p);
     }
-    if (add_mine)
-    {
-      LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_seqno);
-      Prepare* p = new Prepare(
-        prev_pp->view(),
-        prev_pp->seqno(),
-        prev_pp->digest(),
-        prev_pp->get_nonce(),
-        nullptr,
-        prev_pp->is_signed());
-      prev_prepared_cert.add_mine(p);
-    }
+
+    LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_seqno);
+    Prepare* p = new Prepare(
+      prev_pp->view(),
+      prev_pp->seqno(),
+      prev_pp->digest(),
+      prev_pp->get_nonce(),
+      nullptr,
+      prev_pp->is_signed());
+    prev_prepared_cert.add_mine(p);
   }
 }
 
@@ -584,7 +582,7 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
       "last_executed and pre prepares seqno don't match in playback pre "
       "prepare");
 
-    populate_certificates(executable_pp.get(), true);
+    populate_certificates(executable_pp.get());
 
     auto& prepared_cert = plog.fetch(executable_pp->seqno());
     prepared_cert.add(executable_pp.release());
@@ -1026,11 +1024,14 @@ void Replica::handle(Pre_prepare* m)
 
   const Seqno ms = m->seqno();
 
-  LOG_TRACE << "Received pre prepare with seqno: " << ms
-            << ", in_wv:" << (in_wv(m) ? "true" : "false")
-            << ", low_bound:" << low_bound << ", has complete_new_view:"
-            << (has_complete_new_view() ? "true" : "false") << std::endl;
-
+  LOG_TRACE_FMT(
+    "Received pre prepare with seqno: {}, digest: {}, in_wv: {}, low_bound: "
+    "{}, has complete_new_view: {}",
+    ms,
+    m->digest().hash(),
+    in_wv(m),
+    low_bound,
+    has_complete_new_view());
   if (in_wv(m) && ms > low_bound && has_complete_new_view())
   {
     LOG_TRACE << "processing pre prepare with seqno: " << ms << std::endl;
@@ -1165,6 +1166,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
 void Replica::send_commit(Seqno s, bool send_only_to_self)
 {
+  LOG_TRACE_FMT("Sending commit for seqno: {}", s);
   size_t before_f = f();
   // Executing request before sending commit improves performance
   // for null requests. May not be true in general.
@@ -1207,6 +1209,7 @@ void Replica::handle(Prepare* m)
   }
 
   const Seqno ms = m->seqno();
+  LOG_DEBUG_FMT("handle prepare {}", ms);
   // Only accept prepare messages that are not sent by the primary for
   // current view.
   if (
@@ -2039,6 +2042,10 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       req_in_pp++;
     }
 
+    if (encryptor)
+    {
+      encryptor->set_view(prev_view);
+    }
     if (primary() == id())
     {
       ByzInfo info;
