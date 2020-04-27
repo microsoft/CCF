@@ -107,7 +107,7 @@ def run_to_destruction(args):
                 wsm += 5000
         except Exception as e:
             sleep_time = 3
-            LOG.info(f"Large write set caused an exception, as expected")
+            LOG.info("Large write set caused an exception, as expected")
             LOG.info(f"Exception was: {e}")
             LOG.info(f"Waiting {sleep_time}s for node to terminate")
 

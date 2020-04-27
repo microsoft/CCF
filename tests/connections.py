@@ -50,7 +50,7 @@ def run(args):
 
             num_fds = psutil.Process(primary_pid).num_fds()
             LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
-            LOG.info(f"Disconnecting clients")
+            LOG.info("Disconnecting clients")
 
         time.sleep(1)
         num_fds = psutil.Process(primary_pid).num_fds()
@@ -71,7 +71,7 @@ def run(args):
 
             num_fds = psutil.Process(primary_pid).num_fds()
             LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
-            LOG.info(f"Disconnecting clients")
+            LOG.info("Disconnecting clients")
 
         time.sleep(1)
         num_fds = psutil.Process(primary_pid).num_fds()

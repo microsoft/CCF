@@ -48,7 +48,7 @@ def ensure_reqs(check_reqs):
 
 def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
-        primary, term = network.find_primary()
+        primary, _ = network.find_primary()
         with primary.user_client() as c:
             response = c.get("listMethods")
             supported_methods = response.result["methods"]
