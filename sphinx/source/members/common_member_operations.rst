@@ -71,7 +71,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     true
 
-Once the proposal is accepted (``"result":true``), all subsequent transactions (in this case, with a ``commit`` index greater than ``104``) will be encrypted with a fresh new ledger encryption key. This key is sealed to disk once the rekey transaction is globally committed.
+Once the proposal is accepted (``"result":true``), all subsequent transactions will be encrypted with a fresh new ledger encryption key.
 
 Updating Recovery Threshold
 ---------------------------

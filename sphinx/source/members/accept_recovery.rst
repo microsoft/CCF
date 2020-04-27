@@ -65,6 +65,10 @@ When the recovery threshold is reached, the ``submitRecoveryShare`` RPC returns 
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
+Once the recovery of the private ledger is complete on a quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.
+
+.. note:: Recovery shares are updated every time a new member is added or retired and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``update_recovery_shares`` proposal.
+
 Summary Diagram
 ---------------
 
@@ -102,10 +106,6 @@ Summary Diagram
         Note over Node 2: Recovery procedure complete
         Note over Node 3: Recovery procedure complete
 
-
-Once the recovery of the private ledger is complete on a quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.
-
-.. note:: Recovery shares are updated every time a new member is added or retired and when the ledger is rekeyed. It also possible for members to update the recovery shares via the ``update_recovery_shares`` proposal.
 
 .. rubric:: Footnotes
 
