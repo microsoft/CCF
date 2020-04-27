@@ -34,9 +34,6 @@ class ParticipantsCurve(IntEnum):
     secp256k1 = 1
     # ed25519 = 2 TODO: Unsupported for now
 
-    def __str__(self):
-        return self.name
-
     def next(self):
         return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
 
@@ -304,7 +301,7 @@ class Network:
             if self.ignoring_shutdown_errors:
                 LOG.warning("Ignoring shutdown errors")
             else:
-                raise NodeShutdownError(f"Fatal error found during node shutdown")
+                raise NodeShutdownError("Fatal error found during node shutdown")
 
     def create_and_add_pending_node(
         self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT

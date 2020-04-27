@@ -135,7 +135,7 @@ class Member:
                 os.path.join(
                     self.common_dir, f"member{self.member_id}_kshare_priv.pem"
                 ),
-                os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+                os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
             )
 
             nonce_bytes = bytes(r.result["nonce"])

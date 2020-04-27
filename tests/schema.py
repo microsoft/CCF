@@ -28,7 +28,7 @@ def run(args):
 
         for method in methods:
             schema_found = False
-            schema_response = client.get(f"getSchema", params={"method": method})
+            schema_response = client.get("getSchema", params={"method": method})
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
