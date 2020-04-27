@@ -73,7 +73,7 @@ def run(args):
             reason = str(ce)
             new_network = network
 
-        except Exception as e:
+        except Exception:
             LOG.exception(f"Test {s.test_name(test)} failed")
             status = TestStatus.failure
             new_network = network
