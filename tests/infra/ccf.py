@@ -10,6 +10,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
+from infra.tx_status import TxStatus
 import random
 from math import ceil
 
@@ -478,15 +479,25 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.get("getCommit")
+                    resp = c.get(
+                        "getTxStatus",
+                        {"view": term_leader, "index": local_commit_leader},
+                    )
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
-                    if (
-                        resp.global_commit >= local_commit_leader
-                        and resp.result["term"] == term_leader
-                    ):
+                    status = TxStatus(resp.result["status"])
+                    if status == TxStatus.Committed:
                         caught_up_nodes.append(node)
+                    elif status == TxStatus.Lost:
+                        raise RuntimeError(
+                            f"Node {node.node_id} reports transaction {term_leader}.{local_commit_leader} has been lost and will never be committed"
+                        )
+                    elif status == TxStatus.Pending:
+                        pass
+                    else:
+                        raise RuntimeError(f"Unhandled tx status: {status}")
+
             if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break
             time.sleep(0.1)
