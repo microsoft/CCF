@@ -62,13 +62,15 @@ namespace ccf
         {
           const auto actual_view = consensus->get_view(in.index);
 
+          GetTxStatus::Out out;
+
           if (actual_view == 0)
           {
             // This node has not seen this index yet - assume transaction is
             // still pending (in-flight)
             // TODO: Should this be distinguished from some other known-locally
             // pending?
-            return make_success(GetTxStatus::TxStatus::Pending);
+            out.status = GetTxStatus::TxStatus::Pending;
           }
           else if (actual_view < in.view)
           {
@@ -76,14 +78,14 @@ namespace ccf
             // Should be impossible for 'real' requests, but essentially the
             // same as Lost (this index is not what you think it is, and never
             // will be)
-            return make_success(GetTxStatus::TxStatus::Lost);
+            out.status = GetTxStatus::TxStatus::Lost;
           }
           else if (actual_view > in.view)
           {
             // View has advanced (election occurred) and a new transaction has
             // happened at this index. The requested transaction has been lost,
             // as though it never happened
-            return make_success(GetTxStatus::TxStatus::Lost);
+            out.status = GetTxStatus::TxStatus::Lost;
           }
           else // actual_view == in.view
           {
@@ -92,13 +94,15 @@ namespace ccf
             const auto global_commit_index = consensus->get_commit_seqno();
             if (global_commit_index >= in.index)
             {
-              return make_success(GetTxStatus::TxStatus::Committed);
+              out.status = GetTxStatus::TxStatus::Committed;
             }
             else
             {
-              return make_success(GetTxStatus::TxStatus::Pending);
+              out.status = GetTxStatus::TxStatus::Pending;
             }
           }
+
+          return make_success(out);
         }
 
         return make_error(
