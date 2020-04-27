@@ -5,7 +5,9 @@ import math
 import infra.ccf
 import infra.proc
 import infra.e2e_args
+import http
 
+from infra.tx_status import TxStatus
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits
@@ -22,15 +24,27 @@ def wait_for_index_globally_committed(index, term, nodes):
         up_to_date_f = []
         for f in nodes:
             with f.node_client() as c:
-                res = c.get("getCommit", {"commit": index})
-                if res.result["term"] == term and (res.global_commit >= index):
+                r = c.get("getTxStatus", {"view": term, "index": index})
+                assert (
+                    r.status == http.HTTPStatus.OK
+                ), f"getTxStatus request returned status {r.status}"
+                status = TxStatus(r.result["status"])
+                if status == TxStatus.Committed:
                     up_to_date_f.append(f.node_id)
+                elif status == TxStatus.Lost:
+                    raise RuntimeError(
+                        f"Node {f.node_id} reports transaction {term}.{index} has been lost and will never be committed"
+                    )
+                elif status == TxStatus.Pending:
+                    pass
+                else:
+                    raise RuntimeError(f"Unhandled tx status: {status}")
         if len(up_to_date_f) == len(nodes):
             break
         time.sleep(0.1)
     assert len(up_to_date_f) == len(
         nodes
-    ), "Only {} out of {} backups are up to date".format(len(up_to_date_f), len(nodes))
+    ), "Only {} out of {} nodes are up to date".format(len(up_to_date_f), len(nodes))
 
 
 def run(args):
