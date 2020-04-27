@@ -13,6 +13,7 @@
 #include "rpc_connections.h"
 #include "sig_term.h"
 #include "ticker.h"
+#include "time_updater.h"
 
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
@@ -467,6 +468,9 @@ int main(int argc, char** argv)
     logger::config::set_start(s);
   });
 
+  // regularly update the time given to the enclave
+  asynchost::TimeUpdater time_updater(1);
+
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
     bp, circuit.read_from_inside(), non_blocking_factory);
@@ -547,7 +551,8 @@ int main(int argc, char** argv)
     network_enc_pubk,
     start_type,
     consensus,
-    num_worker_threads);
+    num_worker_threads,
+    time_updater->behaviour.get_value());
 
   LOG_INFO_FMT("Created new node");
 
