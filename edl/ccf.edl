@@ -23,7 +23,8 @@ enclave {
             [out] size_t* network_enc_pubk_len,
             StartType start_type,
             ConsensusType consensus_type,
-            size_t num_worker_thread
+            size_t num_worker_thread,
+            [user_check] void* time_location
         );
 
         public bool enclave_run();

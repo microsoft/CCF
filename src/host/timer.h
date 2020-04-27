@@ -11,9 +11,11 @@ namespace asynchost
   template <typename Behaviour>
   class Timer : public with_uv_handle<uv_timer_t>
   {
+  public:
+    Behaviour behaviour;
+
   private:
     friend class close_ptr<Timer<Behaviour>>;
-    Behaviour behaviour;
 
     template <typename... Args>
     Timer(uint64_t repeat_ms, Args&&... args) :
