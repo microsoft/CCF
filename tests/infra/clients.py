@@ -175,7 +175,7 @@ class RPCFileLogger(RPCLogger):
 
     def log_response(self, response):
         with open(self.path, "a") as f:
-            f.write(f"<< Response:" + os.linesep)
+            f.write("<< Response:" + os.linesep)
             json.dump(response.to_dict() if response else "None", f, indent=2)
             f.write(os.linesep)
 
