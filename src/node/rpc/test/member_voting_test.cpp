@@ -82,16 +82,10 @@ void set_whitelists(GenesisGenerator& gen)
     gen.set_whitelist(wl.first, wl.second);
 }
 
-std::vector<uint8_t> sign_json(nlohmann::json j, tls::KeyPairPtr& kp_)
-{
-  auto contents = nlohmann::json::to_msgpack(j);
-  return kp_->sign(contents);
-}
-
 std::vector<uint8_t> create_request(
-  const json& params, const string& method_name)
+  const json& params, const string& method_name, http_method verb = HTTP_POST)
 {
-  http::Request r(method_name);
+  http::Request r(method_name, verb);
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        jsonrpc::pack(params, default_pack);
   r.set_body(&body);
@@ -1587,7 +1581,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   DOCTEST_INFO("Retrieve recovery shares");
   {
     const auto get_recovery_shares =
-      create_request(nullptr, "getEncryptedRecoveryShare");
+      create_request(nullptr, "getEncryptedRecoveryShare", HTTP_GET);
 
     for (auto const& m : members)
     {

@@ -306,12 +306,6 @@ auto history = std::make_shared<NullTxHistory>(
 
 StubNodeState stub_node;
 
-std::vector<uint8_t> sign_json(nlohmann::json j)
-{
-  auto contents = nlohmann::json::to_msgpack(j);
-  return kp->sign(contents);
-}
-
 auto create_simple_request(
   const std::string& method = "empty_function",
   jsonrpc::Pack pack = default_pack)
