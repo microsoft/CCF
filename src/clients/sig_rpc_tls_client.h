@@ -22,18 +22,11 @@ public:
   PreparedRpc gen_request(
     const std::string& method,
     const CBuffer params,
-    const std::string& content_type =
-      http::headervalues::contenttype::MSGPACK) override
+    const std::string& content_type,
+    http_method verb = HTTP_POST) override
   {
-    return {gen_request_internal(method, params, key_pair, content_type),
+    return {gen_request_internal(method, params, key_pair, content_type, verb),
             next_send_id++};
-  }
-
-  PreparedRpc gen_request(
-    const std::string& method, const nlohmann::json& params) override
-  {
-    auto p = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
-    return gen_request(method, {p.data(), p.size()});
   }
 };
 
