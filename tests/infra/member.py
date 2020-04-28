@@ -133,7 +133,7 @@ class Member:
             # public key to decrypt their shares
             ctx = infra.crypto.CryptoBoxCtx(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem"),
-                os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+                os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
             )
 
             nonce_bytes = bytes(r.result["nonce"])
