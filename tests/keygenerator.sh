@@ -21,9 +21,9 @@ generate_encryption_key=false
 function usage()
 {
     echo "Generates identity private key and self-signed certificates for CCF participants."
-    echo "Optionally generates a ed25519 key pair for share encryption (required for consortium members)."
+    echo "Optionally generates a x25519 key pair for share encryption (required for consortium members)."
     echo "Usage:"""
-    echo "  $0 --name=participant_name [--curve=$DEFAULT_CURVE] [--gen-key-share]"
+    echo "  $0 --name=participant_name [--curve=$DEFAULT_CURVE] [--gen-enc-key]"
     echo ""
     echo "Supported curves are: $SUPPORTED_CURVES"
 }
@@ -42,7 +42,7 @@ while [ "$1" != "" ]; do
         -c|--curve)
             curve="$VALUE"
             ;;
-        -g|--gen-key-share)
+        -g|--gen-enc-key)
             generate_encryption_key=true
             ;;
         *)
@@ -86,18 +86,18 @@ fi
 
 openssl req -new -key "$privk" -x509 -nodes -days 365 -out "$cert" -"$digest" -subj=/CN="$name"
 
-echo "Identity certificate generated at:   $cert (to be registered in CCF)"
 echo "Identity private key generated at:   $privk"
+echo "Identity certificate generated at:   $cert (to be registered in CCF)"
 
 if "$generate_encryption_key"; then
-    echo "-- Generating key share pair for participant \"$name\"..."
+    echo "-- Generating encryption key pair for participant \"$name\"..."
 
-    keyshare_priv="$name"_kshare_priv.pem
-    keyshare_pub="$name"_kshare_pub.pem
+    enc_priv="$name"_enc_priv.pem
+    enc_pub="$name"_enc_pub.pem
 
-    openssl genpkey -out "$keyshare_priv" -algorithm "$ENCRYPTION_CURVE"
-    openssl pkey -in "$keyshare_priv" -pubout -out "$keyshare_pub"
+    openssl genpkey -out "$enc_priv" -algorithm "$ENCRYPTION_CURVE"
+    openssl pkey -in "$enc_priv" -pubout -out "$enc_pub"
 
-    echo "Key share public key generated at:   $keyshare_pub (to be registered in CCF)"
-    echo "Key share private key generated at:  $keyshare_priv"
+    echo "Encryption private key generated at:  $enc_priv"
+    echo "Encryption public key generated at:   $enc_pub (to be registered in CCF)"
 fi

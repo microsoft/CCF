@@ -34,9 +34,6 @@ class ParticipantsCurve(IntEnum):
     secp256k1 = 1
     # ed25519 = 2 TODO: Unsupported for now
 
-    def __str__(self):
-        return self.name
-
     def next(self):
         return ParticipantsCurve((self.value + 1) % len(ParticipantsCurve))
 
@@ -165,9 +162,7 @@ class Network:
                     raise
             node.network_state = infra.node.NodeNetworkState.joined
 
-    def _start_all_nodes(
-        self, args, recovery=False, ledger_file=None, sealed_secrets=None
-    ):
+    def _start_all_nodes(self, args, recovery=False, ledger_file=None):
         hosts = self.hosts
 
         if not args.package:
@@ -196,7 +191,6 @@ class Network:
                         node.recover(
                             lib_name=args.package,
                             ledger_file=ledger_file,
-                            sealed_secrets=sealed_secrets,
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
@@ -280,11 +274,9 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
-    def start_in_recovery(self, args, ledger_file, sealed_secrets):
+    def start_in_recovery(self, args, ledger_file):
         self.common_dir = get_common_folder_name(args.workspace, args.label)
-        primary = self._start_all_nodes(
-            args, recovery=True, ledger_file=ledger_file, sealed_secrets=sealed_secrets
-        )
+        primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
 
@@ -304,7 +296,7 @@ class Network:
             if self.ignoring_shutdown_errors:
                 LOG.warning("Ignoring shutdown errors")
             else:
-                raise NodeShutdownError(f"Fatal error found during node shutdown")
+                raise NodeShutdownError("Fatal error found during node shutdown")
 
     def create_and_add_pending_node(
         self, lib_name, host, args, target_node=None, timeout=JOIN_TIMEOUT
@@ -519,31 +511,6 @@ class Network:
             if consensus == "raft"
             else sorted(commits) == commits
         ), "All nodes in sync"
-
-    def wait_for_sealed_secrets_at_version(self, version, timeout=5):
-        """
-        Wait for a sealed secret at a version larger than "version" to be sealed
-        on all nodes.
-        """
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            rekeyed_nodes = []
-            for node in self.get_joined_nodes():
-                try:
-                    max_sealed_version = int(
-                        # pylint: disable=unnecessary-lambda
-                        max(node.get_sealed_secrets(), key=lambda x: int(x))
-                    )
-                    if max_sealed_version >= version:
-                        rekeyed_nodes.append(node)
-                except IndexError:
-                    pass
-            if len(rekeyed_nodes) == len(self.get_joined_nodes()):
-                break
-            time.sleep(0.1)
-        assert len(rekeyed_nodes) == len(
-            self.get_joined_nodes()
-        ), f"Only {len(rekeyed_nodes)} (out of {len(self.get_joined_nodes())}) nodes have been rekeyed"
 
 
 @contextmanager

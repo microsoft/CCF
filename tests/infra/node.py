@@ -7,7 +7,6 @@ import infra.remote
 import infra.net
 import infra.path
 import infra.clients
-import json
 import os
 
 from loguru import logger as LOG
@@ -208,15 +207,11 @@ class Node:
                 assert (
                     rep.error is None and rep.result is not None
                 ), f"An error occured after node {self.node_id} joined the network"
-        except infra.clients.CCFConnectionException as e:
+        except infra.clients.CCFConnectionException:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_ledger(self):
         return self.remote.get_ledger()
-
-    def get_sealed_secrets(self):
-        with open(self.remote.get_sealed_secrets()) as s:
-            return json.load(s)
 
     def user_client(self, user_id=0, **kwargs):
         return infra.clients.client(

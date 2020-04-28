@@ -32,10 +32,10 @@ namespace ccf
 
   struct SubmitRecoveryShare
   {
-    std::vector<uint8_t> share;
+    std::vector<uint8_t> recovery_share;
   };
   DECLARE_JSON_TYPE(SubmitRecoveryShare)
-  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, share)
+  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, recovery_share)
 
   class MemberHandlers : public CommonHandlerRegistry
   {
@@ -286,41 +286,20 @@ namespace ccf
              this->network.user_code_ids,
              proposal_id);
          }},
+        // For now, members can propose to accept a recovery with shares. In
+        // that case, members will have to submit their shares after this
+        // proposal is accepted.
         {"accept_recovery",
          [this](
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
            {
-             const auto recovery_successful =
-               node.finish_recovery(tx, args, false);
-             if (!recovery_successful)
+             const auto accept_recovery = node.accept_recovery(tx);
+             if (!accept_recovery)
              {
-               LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
+               LOG_FAIL_FMT("Proposal {}: Accept recovery failed", proposal_id);
              }
-             return recovery_successful;
-           }
-           else
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Node is not part of public network", proposal_id);
-             return false;
-           }
-         }},
-        // For now, members can propose to accept a recovery with shares. In
-        // that case, members will have to submit their shares after this
-        // proposal is accepted.
-        {"accept_recovery_with_shares",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
-           if (node.is_part_of_public_network())
-           {
-             const auto recovery_successful =
-               node.finish_recovery(tx, nullptr, true);
-             if (!recovery_successful)
-             {
-               LOG_FAIL_FMT("Proposal {}: Recovery failed", proposal_id);
-             }
-             return recovery_successful;
+             return accept_recovery;
            }
            else
            {
@@ -902,7 +881,8 @@ namespace ccf
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
         json_adapter(get_encrypted_recovery_share),
         Read)
-        .set_auto_schema<void, EncryptedShare>();
+        .set_auto_schema<void, EncryptedShare>()
+        .set_http_get_only();
 
       auto submit_recovery_share = [this](
                                      RequestArgs& args,
@@ -932,7 +912,9 @@ namespace ccf
 
         SecretSharing::Share share;
         std::copy_n(
-          in.share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+          in.recovery_share.begin(),
+          SecretSharing::SHARE_LENGTH,
+          share.begin());
 
         pending_shares.emplace_back(share);
         if (pending_shares.size() < g.get_recovery_threshold())

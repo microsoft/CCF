@@ -5,6 +5,7 @@
 #include "crypto/hash.h"
 #include "ds/logger.h"
 #include "ds/oversized.h"
+#include "enclave_time.h"
 #include "interface.h"
 #include "node/entities.h"
 #include "node/network_state.h"
@@ -245,7 +246,28 @@ namespace enclave
         {
           node.start_ledger_recovery();
         }
-        bp.run(circuit->read_from_outside());
+
+        bp.run(circuit->read_from_outside(), [](size_t consecutive_idles) {
+          static std::chrono::microseconds idling_start_time;
+          const auto time_now = enclave::get_enclave_time();
+
+          if (consecutive_idles == 0)
+          {
+            idling_start_time = time_now;
+          }
+
+          // Handle initial idles by pausing, eventually sleep (in host)
+          constexpr std::chrono::milliseconds timeout(5);
+
+          if ((time_now - idling_start_time) > timeout)
+          {
+            std::this_thread::sleep_for(timeout);
+          }
+          else
+          {
+            CCF_PAUSE();
+          }
+        });
         return true;
       }
 #ifndef VIRTUAL_ENCLAVE
