@@ -253,8 +253,8 @@ namespace timing
           record_receive(response.id, commit_ids);
         }
 
-        // TODO: Should be exposing API types cleanly, so they can be consumed
-        // cleanly from C++ clients
+        // NB: Eventual header re-org should be exposing API types, so
+        // they can be consumed cleanly from C++ clients
         const auto tx_status = body["status"];
         if (tx_status == "PENDING")
         {
