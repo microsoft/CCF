@@ -9,6 +9,11 @@ modinfo intel_sgx
 echo ""
 echo ""
 
+echo "DRIVER LOADED:"
+lsmod | grep intel_sgx || echo "Not loaded"
+echo ""
+echo ""
+
 echo "PSW INFO:"
 apt list --installed 2>/dev/null | grep libsgx
 echo ""
