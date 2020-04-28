@@ -66,7 +66,9 @@ To guarantee that their request is successfully committed to the ledger, a user 
 
     {"status":"COMMITTED"}
 
-This example queries the status of the request versioned at index 18, in view 2 (written 2.18 for conciseness). The response indicates this was successfully committed. Note that once a request has been assigned a version number, this version number will never be associated with a different transaction. In normal operation, the next requests will be given versions 2.19, then 2.20, and so on, and after a short delay 2.18 will be globally committed. If the network is unable to reach consensus then it will trigger a leadership election. In this case the user's next request may be given a version 3.16, followed by 3.17, then 3.18. The index is reused, but in a different term; the service knows that 2.18 can never be assigned, so it has been lost.
+This example queries the status of the request versioned at index 18, in view 2 (written 2.18 for conciseness). The response indicates this was successfully committed, while the headers show that the service has since made progress with other requests incrementing the global commit index.
+
+Note that once a request has been assigned a version number, this version number will never be associated with a different transaction. In normal operation, the next requests will be given versions 2.19, then 2.20, and so on, and after a short delay 2.18 will be globally committed. If requests are submitted in parallel, they will be applied in a consistent order indicated by their assigned versions. If the network is unable to reach consensus, it will trigger a leadership election which increments the term. In this case the user's next request may be given a version 3.16, followed by 3.17, then 3.18. The index is reused, but in a different term; the service knows that 2.18 can never be assigned, so it has been lost.
 
 Transaction receipts
 --------------------
@@ -77,12 +79,7 @@ To obtain a receipt, a user needs to issue a ``getReceipt`` RPC for a particular
 
 .. code-block:: bash
 
-    $ cat get_receipt.json
-    {
-      "commit": 23
-    }
-
-    $ curl https://<ccf-node-address>/users/getReceipt --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @get_receipt.json -H "content-type: application/json"
+    $ curl -X GET "https://<ccf-node-address>/users/getReceipt?commit=23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
       "receipt": [ ... ],
     }
