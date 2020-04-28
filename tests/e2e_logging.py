@@ -52,6 +52,30 @@ def test_large_messages(network, args):
     return network
 
 
+@reqs.description("Write/Read/Delete messages on primary")
+@reqs.supports_methods("LOG_record", "LOG_get", "LOG_remove")
+def test_remove(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.node_client() as nc:
+        check_commit = infra.checker.Checker(nc)
+        check = infra.checker.Checker()
+
+        with primary.user_client() as c:
+            log_id = 44
+            for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
+                long_msg = "X" * (2 ** p)
+                check_commit(
+                    c.rpc("LOG_record", {"id": log_id, "msg": long_msg}), result=True,
+                )
+                check(c.get("LOG_get", {"id": log_id}), result={"msg": long_msg})
+                check(c.get("LOG_remove", {"id": log_id}), result=None)
+                check(c.get("LOG_get", {"id": log_id}), result={"error": "No such key"})
+                log_id += 1
+
+    return network
+
+
 @reqs.description("Write/Read with cert prefix")
 @reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
 def test_cert_prefix(network, args):
@@ -215,6 +239,7 @@ def run(args):
                 verify=args.package is not "libjs_generic",
             )
             network = test_large_messages(network, args)
+            network = test_remove(network, args)
             network = test_forwarding_frontends(network, args)
             network = test_update_lua(network, args)
             network = test_cert_prefix(network, args)
