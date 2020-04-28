@@ -422,6 +422,7 @@ void prepare_callers()
 
   GenesisGenerator g(network, tx);
   g.init_values();
+  g.create_service({});
   user_id = g.add_user(user_caller);
   nos_id = g.add_user(nos_caller);
   member_id = g.add_member(member_caller, dummy_key_share);
@@ -435,6 +436,7 @@ void add_callers_primary_store()
   network2.tables->clear();
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
+  g.create_service({});
   user_id = g.add_user(user_caller);
   member_id = g.add_member(member_caller, dummy_key_share);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
@@ -452,6 +454,7 @@ void add_callers_pbft_store()
 
   GenesisGenerator g(pbft_network, gen_tx);
   g.init_values();
+  g.create_service({});
   user_id = g.add_user(user_caller);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }

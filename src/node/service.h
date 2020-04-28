@@ -9,10 +9,6 @@
 
 namespace ccf
 {
-  // ServiceId is used at the key of the SERVICE table. As there is only one
-  // service active at a given time, this key is always 0.
-  using ServiceId = uint64_t;
-
   enum class ServiceStatus
   {
     OPENING = 1,
@@ -47,5 +43,7 @@ namespace ccf
   DECLARE_JSON_TYPE(ServiceInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, version, cert, status);
 
-  using Service = Store::Map<ServiceId, ServiceInfo>;
+  // As there is only one service active at a given time, the key for the
+  // Service table is always 0.
+  using Service = Store::Map<size_t, ServiceInfo>;
 }
