@@ -44,68 +44,6 @@ Once the proposal has been accepted, nodes running the new code are authorised t
 
 .. note:: The safest way to restart or replace nodes is by stopping a single node running the old version and starting a node running the new version as a sequence of operations, in order to avoid a situation in which most nodes have been stopped, and new nodes will not be able to join since it would be impossible to reach a majority of nodes agreeing to accept new nodes (this restriction is imposed by the consensus algorithm).
 
-Accepting Recovery
-------------------
-
-Once the public recovered network has been established by operators (see :ref:`operators/recovery:Establishing a Recovered Public Network`), members are allowed to vote to confirm that the configuration of the new network is suitable to complete the recovery procedure.
-
-The first member proposes to recover the network, passing the sealed ledger secrets file to the new network:
-
-.. code-block:: bash
-
-    $ cat accept_recovery.json
-    {
-        "parameter": [<sealed secrets>],
-        "script": {
-            "text": "tables, sealed_secrets = ...; return Calls:call(\"accept_recovery\", sealed_secrets)"
-        }
-    }
-
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json -H "content-type: application/json"
-    {
-        "completed": false,
-        "id": 1
-    }
-
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
-    false
-
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
-    true
-
-Once the proposal to recover the network has passed under the rules of the :term:`constitution`, the ledger secrets are unsealed and each node begins recovery of the private ledger entries.
-
-.. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
-
-.. mermaid::
-
-    sequenceDiagram
-        participant Members
-        participant Users
-        participant Node 2
-        participant Node 3
-
-        Members->>+Node 2: Propose recovery + sealed ledger secrets
-        Node 2-->>Members: Proposal ID
-        loop Wait constitution rule is met
-            Members->>+Node 2: Vote(s) for Proposal ID
-        end
-        Note over Node 2: Proposal completes successfully
-
-        Note over Node 2: Reading Private Ledger...
-        Note over Node 3: Reading Private Ledger...
-
-        Note over Node 2: Part of Network
-        Note over Node 3: Part of Network
-
-        loop Business transactions
-            Users->>+Node 2: Request
-            Node 2-->>Users: Response
-            Users->>+Node 3: Request
-            Node 3-->>Users: Response
-        end
-
-Once the recovery of the private ledger is complete on a consensus quorum of nodes that have joined the new network, the ledger is fully recovered and users are able to continue issuing business transactions.
 
 Rekeying Ledger
 ---------------
@@ -116,7 +54,6 @@ To limit the scope of key compromise, members of the consortium can refresh the 
 
     $ cat rekey_ledger.json
     {
-        "parameter": [<sealed secrets>],
         "script": {
             "text": "return Calls:call(\"rekey_ledger\")"
         }
@@ -134,4 +71,37 @@ To limit the scope of key compromise, members of the consortium can refresh the 
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     true
 
-Once the proposal is accepted (``"result":true``), all subsequent transactions (in this case, with a ``commit`` index greater than ``104``) will be encrypted with a fresh new ledger encryption key. This key is sealed to disk once the rekey transaction is globally committed.
+Once the proposal is accepted (``"result":true``), all subsequent transactions will be encrypted with a fresh new ledger encryption key.
+
+Updating Recovery Threshold
+---------------------------
+
+To protect the ledger secrets required to recover an existing service, CCF requires :ref:`members to submit their recovery shares <members/accept_recovery:Submitting Recovery Shares>`.
+
+.. note:: The initial value of the recovery threshold is set via the ``--recovery-threshold`` option to the starting CCF node. If this value is unspecified, it is set to the initial number of consortium members.
+
+The number of member shares required to restore the private ledger (``recovery_threshold``) is part of the service configuration and can be updated by members via the usual propose and vote process.
+
+.. code-block:: bash
+
+    $ cat set_recovery_threshold.json
+    {
+        "parameter": <new_recovery_threshold>,
+        "script": {
+            "text": "return Calls:call(\"set_recovery_threshold\")"
+        }
+    }
+
+    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
+    {
+        "completed": false,
+        "id": 1
+    }
+
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    false
+
+    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    true
+
+.. note:: The new recovery threshold has to be in the range between 1 and the current number of active members.

@@ -26,9 +26,6 @@ namespace asynchost
     ringbuffer::Reader& r;
     ringbuffer::NonBlockingWriterFactory& nbwf;
 
-    // Sealed secrets file path
-    std::string sealed_secrets_file;
-
   public:
     HandleRingbufferImpl(
       messaging::BufferProcessor& bp,
@@ -57,40 +54,6 @@ namespace asynchost
 
           std::cerr << msg << std::endl << std::flush;
           throw std::logic_error(msg);
-        });
-
-      DISPATCHER_SET_MESSAGE_HANDLER(
-        bp,
-        AdminMessage::sealed_secrets,
-        [this](const uint8_t* data, size_t size) {
-          auto [version, sealed_secrets_] =
-            ringbuffer::read_message<AdminMessage::sealed_secrets>(data, size);
-
-          auto sealed_secrets_json =
-            files::slurp_json(sealed_secrets_file, true);
-
-          // If the sealed secrets file does not already exist, create it with
-          // the current timestamp and process id
-          if (sealed_secrets_json.empty())
-          {
-            auto t = std::time(nullptr);
-            auto tm = *std::localtime(&t);
-            std::stringstream date_ss;
-            date_ss << std::put_time(&tm, "%Y%m%d%H%M%S");
-            sealed_secrets_file = "sealed_secrets." + date_ss.str() + "." +
-              std::to_string(getpid());
-          }
-
-          LOG_DEBUG_FMT(
-            "Writing sealed secrets for version {} to {}",
-            version,
-            sealed_secrets_file);
-
-          sealed_secrets_json[std::to_string(version)] = sealed_secrets_;
-
-          // Override existing sealed secrets file
-          std::ofstream osealsecrets(sealed_secrets_file, std::ios::trunc);
-          osealsecrets << sealed_secrets_json;
         });
     }
 

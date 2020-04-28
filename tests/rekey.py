@@ -11,17 +11,7 @@ import infra.e2e_args
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     primary, _ = network.find_primary()
-
-    # Retrieve current index version to check for sealed secrets later
-    with primary.node_client() as nc:
-        check_commit = infra.checker.Checker(nc)
-        res = nc.rpc("mkSign")
-        check_commit(res, result=True)
-        version_before_rekey = res.commit
-
     network.consortium.rekey_ledger(primary)
-    network.wait_for_sealed_secrets_at_version(version_before_rekey)
-
     return network
 
 

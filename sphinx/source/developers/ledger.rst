@@ -12,7 +12,7 @@ Each entry in the ledger corresponds to a transaction (or delta) committed by th
 
 When a transaction is committed, each affected ``Store::Map`` is serialised in different security domains (i.e. public or private), based on the policy set when the ``Store::Map`` was created (default is private). Public ``Store::Map`` are serialised and stored in the ledger as plaintext while private ``Store::Map`` are serialised and encrypted before being stored.
 
-Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :ref:`developers/cryptography:Algorithms and Curves`). This key is kept secure inside each enclave and sealed to disk for service recovery. See :ref:`members/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
+Ledger entries are integrity-protected and encrypted using a symmetric key shared by all trusted nodes (see :ref:`developers/cryptography:Algorithms and Curves`). This key is kept secure inside each enclave. See :ref:`members/common_member_operations:Rekeying Ledger` for details on how members can rotate the ledger encryption key.
 
 Note that even if a transaction only affects a private ``Store::Map``, unencrypted information such as the version number is always present in the serialised entry. More information about the ledger entry format is available in the :ref:`developers/kv/kv_serialisation:Serialised Format` section.
 
