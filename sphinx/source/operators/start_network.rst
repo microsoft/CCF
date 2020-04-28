@@ -23,19 +23,20 @@ To create a new CCF network, the first node of the network should be started wit
     --node-cert-file /path/to/node_certificate
     start
     --network-cert-file /path/to/network_certificate
-    --member-info /path/to/member1_cert,/path/to/member1_kshare_pub
-    [--member-info /path/to/member2_cert,/path/to/member2_kshare_pub ...]
+    --network-enc-pubk-file /path/to/network_encryption_pubk
+    --member-info /path/to/member1_cert,/path/to/member1_enc_pub
+    [--member-info /path/to/member2_cert,/path/to/member2_enc_pub ...]
     --gov-script /path/to/lua/governance_script
 
 CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported) or by specifying domain names. If domain names are to be used then ``--domain`` should be passed to the node at startup. Once a DNS has been setup it will be possible to connect to the node over TLS by using the node's domain name.
 
 .. note:: To start a CCF node in `virtual` mode, operators should run ``$ cchost.virtual --enclave-file /path/to/virtual_enclave_library ...``
 
-When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file``.
+When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file`` as well as the network encryption public key used by members during recovery via ``--network-enc-pubk-file``.
 
 .. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
 
-The certificates and key-share public keys of initial members of the consortium are specified via ``--member-info``. For example, if 3 members should be added to CCF, operators should specify ``--member-info member1_cert.pem,member1_kshare_pub.pem``, ``--member-info member2_cert.pem,member2_kshare_pub.pem``, ``--member-info member3_cert.pem,member3_kshare_pub.pem``.
+The certificates and recovery public keys of initial members of the consortium are specified via ``--member-info``. For example, if 3 members should be added to CCF, operators should specify ``--member-info member1_cert.pem,member1_enc_pub.pem``, ``--member-info member2_cert.pem,member2_enc_pub.pem``, ``--member-info member3_cert.pem,member3_enc_pub.pem``.
 
 The :term:`constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
 
@@ -68,8 +69,7 @@ If the network has not yet been opened by members (see :ref:`members/open_networ
 
 If the network has already been opened to users, members need to trust the joining node before it can become part of the network (see :ref:`members/common_member_operations:Trusting a New Node`).
 
-.. note:: When starting up the network or when joining an existing network, the secrets required to decrypt the ledger are sealed and written to a file so that the network can later be recovered. See :ref:`operators/recovery:Catastrophic Recovery` for more details on how to recover a crashed network.
-.. note:: If starting up the network with PBFT enabled as the consensus protocol, be sure to add the ``--consensus pbft`` CLI argument when starting up the node. For more info on the provided consensus protocols please see :ref:`here <developers/consensus:Consensus Protocols>`
+.. note:: If starting up the network with PBFT enabled as the consensus protocol, be sure to add the ``--consensus pbft`` CLI argument when starting up the node. For more information on the provided consensus protocols please see :ref:`here <developers/consensus:Consensus Protocols>`
 
 Using a Configuration File
 --------------------------
@@ -88,7 +88,7 @@ Using a Configuration File
 
     [<subcommand, one of [start, join, recover]>]
     network-cert-file = <network-cert-file-name>
-    member-info = "<member_cert.pem>,<member_kshare_pub.pem>"
+    member-info = "<member_cert.pem>,<member_enc_pub.pem>"
     gov-script = <gov-script-name>
 
 .. code-block:: ini
@@ -103,7 +103,7 @@ Using a Configuration File
 
     [<subcommand, one of [start, join, recover]>]
     network-cert-file = <network-cert-file-name>
-    member-info = "<member_cert.pem>,<member_kshare_pub.pem>"
+    member-info = "<member_cert.pem>,<member_enc_pub.pem>"
     gov-script = <gov-script-name>
 
 To pass configuration files, use the ``--config`` option: ``./cchost --config=config.ini``. An error will be generated if the configuration file contains extra fields. Options in the configuration file will be read along with normal command line arguments. Additional information for configuration files in CLI11 can be found `here <https://cliutils.github.io/CLI11/book/chapters/config.html>`_.

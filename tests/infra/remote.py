@@ -528,7 +528,6 @@ class CCFRemote(object):
         notify_server=None,
         gov_script=None,
         ledger_file=None,
-        sealed_secrets=None,
         json_log_path=None,
         binary_dir=".",
     ):
@@ -702,18 +701,6 @@ class CCFRemote(object):
 
     def set_perf(self):
         self.remote.set_perf()
-
-    def get_sealed_secrets(self):
-        files = self.remote.list_files()
-        sealed_secrets_files = []
-        for f in files:
-            if f.startswith("sealed_secrets."):
-                sealed_secrets_files.append(f)
-
-        latest_sealed_secrets = sorted(sealed_secrets_files, reverse=True)[0]
-        self.remote.get(latest_sealed_secrets, self.common_dir)
-
-        return os.path.join(self.common_dir, latest_sealed_secrets)
 
     def get_ledger(self):
         self.remote.get(self.ledger_file_name, self.common_dir)
