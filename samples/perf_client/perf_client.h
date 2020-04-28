@@ -7,7 +7,6 @@
 
 // CCF
 #include "clients/rpc_tls_client.h"
-#include "clients/sig_rpc_tls_client.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/logger.h"
@@ -304,18 +303,17 @@ namespace client
       // Create a cert if this is our first rpc_connection
       const bool is_first = get_cert();
 
-      const auto conn = (options.sign && !force_unsigned) ?
-        std::make_shared<SigRpcTlsClient>(
-          key,
-          options.server_address.hostname,
-          options.server_address.port,
-          nullptr,
-          tls_cert) :
-        std::make_shared<RpcTlsClient>(
-          options.server_address.hostname,
-          options.server_address.port,
-          nullptr,
-          tls_cert);
+      auto conn = std::make_shared<RpcTlsClient>(
+        options.server_address.hostname,
+        options.server_address.port,
+        nullptr,
+        tls_cert);
+
+      if (options.sign && !force_unsigned)
+      {
+        conn->create_key_pair(key);
+      }
+
       conn->set_prefix("users");
 
       // Report ciphersuite of first client (assume it is the same for each)

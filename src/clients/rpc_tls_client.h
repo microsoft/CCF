@@ -35,6 +35,7 @@ public:
 protected:
   http::ResponseParser parser;
   std::optional<std::string> prefix;
+  tls::KeyPairPtr key_pair = nullptr;
 
   size_t next_send_id = 0;
   size_t next_recv_id = 0;
@@ -42,7 +43,6 @@ protected:
   std::vector<uint8_t> gen_request_internal(
     const std::string& method,
     const CBuffer params,
-    tls::KeyPairPtr kp,
     const std::string& content_type,
     http_method verb)
   {
@@ -56,9 +56,9 @@ protected:
     r.set_body(params.p, params.n);
     r.set_header(http::headers::CONTENT_TYPE, content_type);
 
-    if (kp != nullptr)
+    if (key_pair != nullptr)
     {
-      http::sign_request(r, kp);
+      http::sign_request(r, key_pair);
     }
 
     return r.build_request();
@@ -90,13 +90,18 @@ public:
     parser(*this)
   {}
 
-  virtual PreparedRpc gen_request(
+  void create_key_pair(const tls::Pem priv_key)
+  {
+    key_pair = tls::make_key_pair(priv_key);
+  }
+
+  PreparedRpc gen_request(
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
     http_method verb = HTTP_POST)
   {
-    return {gen_request_internal(method, params, nullptr, content_type, verb),
+    return {gen_request_internal(method, params, content_type, verb),
             next_send_id++};
   }
 
