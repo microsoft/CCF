@@ -52,29 +52,21 @@ Checking for Commit
 
 Because of the decentralised nature of CCF, a request is committed to the ledger only once a number of nodes have agreed on that request.
 
-To guarantee that their request is successfully committed to the ledger, a user needs to issue a ``getCommit`` request, specifying the ``commit`` version received in the response. If CCF returns a ``global-commit`` greater than the ``commit`` version at which the ``LOG_record`` request was issued `and` that result ``commit`` is in the same ``term``, then the request was committed to the ledger.
+To guarantee that their request is successfully committed to the ledger, a user should issue a ``getTxStatus`` request, specifying the transaction version received in the response. The response may say the initial transaction is still pending global commit, has been globally committed, or has been lost due to a consensus leadership change (in which case the request should be resubmitted).
 
 .. code-block:: bash
 
-    $ cat get_commit.json
-    {
-      "commit": 23
-    }
-
-    $ curl https://<ccf-node-address>/users/getCommit --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @get_commit.json -H "content-type: application/json" -i
+    $ curl -X GET "https://127.244.92.148:39297/users/getTxStatus?view=2&index=18" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -i
     HTTP/1.1 200 OK
-    content-length: 32
+    content-length: 23
     content-type: application/json
-    x-ccf-commit: 33
-    x-ccf-global-commit: 33
-    x-ccf-term: 2
+    x-ccf-commit: 42
+    x-ccf-global-commit: 40
+    x-ccf-term: 5
 
-    {
-      "commit": 23,
-      "term": 2
-    }
+    {"status":"COMMITTED"}
 
-In this example, the ``result`` field indicates that the request was executed at ``23`` (``commit``), and in term ``2``, the same term that the ``LOG_record`` executed in. Moreover, the ``global_commit`` (``33``) is now greater than the ``commit`` version. The ``LOG_record`` request issued earlier was successfully committed to the ledger.
+This example queries the status of the request versioned at index 18, in view 2 (written 2.18 for conciseness). The response indicates this was successfully committed. Note that once a request has been assigned a version number, this version number will never be associated with a different transaction. In normal operation, the next requests will be given versions 2.19, then 2.20, and so on, and after a short delay 2.18 will be globally committed. If the network is unable to reach consensus then it will trigger a leadership election. In this case the user's next request may be given a version 3.16, followed by 3.17, then 3.18. The index is reused, but in a different term; the service knows that 2.18 can never be assigned, so it has been lost.
 
 Transaction receipts
 --------------------
