@@ -36,16 +36,9 @@ namespace ccf
       HandlerRegistry::init_handlers(t);
 
       auto get_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
-        GetCommit::In in{};
-        if (!params.is_null())
-        {
-          in = params.get<GetCommit::In>();
-        }
-
-        kv::Version commit = in.commit.value_or(tables->commit_version());
-
         if (consensus != nullptr)
         {
+          const auto commit = tables->commit_version();
           auto term = consensus->get_view(commit);
           return make_success(GetCommit::Out{term, commit});
         }
@@ -298,7 +291,7 @@ namespace ccf
       };
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
-        .set_auto_schema<GetCommit>();
+        .set_auto_schema<void, GetCommit::Out>();
       install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
         .set_auto_schema<GetTxStatus>()
         .set_execute_locally(true)
