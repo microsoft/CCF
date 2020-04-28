@@ -68,15 +68,23 @@ namespace ccf
           {
             // This node has not seen this index yet - assume transaction is
             // still pending (in-flight)
-            // TODO: Should this be distinguished from some other known-locally
-            // pending?
+
+            // NB: There are subtleties here around elections. It is tempting to
+            // say that if the local view has advanced past the target view,
+            // then the target version is Lost. This node may be mid-election,
+            // where the eventual winner has this version and will successfully
+            // replicate it. For safety, we consider all such transactions to be
+            // pending. This means they may be pending indefinitely
+            // (requesting 1.8, the service is stable with no new transactions
+            // at 2.5)!
             out.status = GetTxStatus::TxStatus::Pending;
           }
           else if (actual_term < in.term)
           {
             // The requested transaction was committed in an _earlier_ view?
-            // Should be impossible for 'real' query, but essentially the
-            // same as Lost ("this version does not exist, and never will")
+            // Should be impossible for queries about real assigned versions,
+            // but essentially the same as the case below ("this version does
+            // not exist, and never will")
             out.status = GetTxStatus::TxStatus::Lost;
           }
           else if (actual_term > in.term)
@@ -89,8 +97,7 @@ namespace ccf
           else // actual_term == in.term
           {
             // This node knows about the expected transaction term.commit
-            // locally
-            // - see if this has been globally committed
+            // locally. Check if this has been globally committed
             const auto global_commit_index = consensus->get_commit_seqno();
             if (global_commit_index >= in.commit)
             {
