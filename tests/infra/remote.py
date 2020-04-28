@@ -638,8 +638,7 @@ class CCFRemote(object):
                 f"Unexpected CCFRemote start type {start_type}. Should be start, join or recover"
             )
 
-        # Necessary for the az-dcap-client >=1.1 (https://github.com/microsoft/Azure-DCAP-Client/issues/84)
-        env = {"HOME": os.environ["HOME"]}
+        env = {}
         self.profraw = None
         if enclave_type == "virtual":
             env["UBSAN_OPTIONS"] = "print_stacktrace=1"
