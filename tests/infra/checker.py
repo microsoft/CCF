@@ -27,7 +27,7 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
 
     end_time = time.time() + timeout
     while time.time() < end_time:
-        r = node_client.get("getTxStatus", {"view": term, "index": commit_index})
+        r = node_client.get("getTxStatus", {"term": term, "commit": commit_index})
         assert (
             r.status == http.HTTPStatus.OK
         ), f"getTxStatus request returned status {r.status}"

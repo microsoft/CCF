@@ -29,8 +29,8 @@ namespace ccf
   {
     struct In
     {
-      uint64_t view;
-      int64_t index;
+      uint64_t term;
+      int64_t commit;
     };
 
     enum TxStatus

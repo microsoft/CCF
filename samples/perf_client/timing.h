@@ -220,8 +220,8 @@ namespace timing
       const CommitPoint& target, bool record = true)
     {
       auto params = nlohmann::json::object();
-      params["view"] = target.term;
-      params["index"] = target.index;
+      params["term"] = target.term;
+      params["commit"] = target.index;
 
       constexpr auto get_tx_status = "getTxStatus";
 

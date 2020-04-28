@@ -481,7 +481,7 @@ class Network:
                 with node.node_client() as c:
                     resp = c.get(
                         "getTxStatus",
-                        {"view": term_leader, "index": local_commit_leader},
+                        {"term": term_leader, "commit": local_commit_leader},
                     )
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again

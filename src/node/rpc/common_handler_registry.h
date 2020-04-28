@@ -60,11 +60,11 @@ namespace ccf
 
         if (consensus != nullptr)
         {
-          const auto actual_view = consensus->get_view(in.index);
+          const auto actual_term = consensus->get_view(in.commit);
 
           GetTxStatus::Out out;
 
-          if (actual_view == 0)
+          if (actual_term == 0)
           {
             // This node has not seen this index yet - assume transaction is
             // still pending (in-flight)
@@ -72,27 +72,27 @@ namespace ccf
             // pending?
             out.status = GetTxStatus::TxStatus::Pending;
           }
-          else if (actual_view < in.view)
+          else if (actual_term < in.term)
           {
             // The requested transaction was committed in an _earlier_ view?
-            // Should be impossible for 'real' requests, but essentially the
-            // same as Lost (this index is not what you think it is, and never
-            // will be)
+            // Should be impossible for 'real' query, but essentially the
+            // same as Lost ("this version does not exist, and never will")
             out.status = GetTxStatus::TxStatus::Lost;
           }
-          else if (actual_view > in.view)
+          else if (actual_term > in.term)
           {
             // View has advanced (election occurred) and a new transaction has
             // happened at this index. The requested transaction has been lost,
             // as though it never happened
             out.status = GetTxStatus::TxStatus::Lost;
           }
-          else // actual_view == in.view
+          else // actual_term == in.term
           {
-            // This node knows about the expected transaction view.index locally
+            // This node knows about the expected transaction term.commit
+            // locally
             // - see if this has been globally committed
             const auto global_commit_index = consensus->get_commit_seqno();
-            if (global_commit_index >= in.index)
+            if (global_commit_index >= in.commit)
             {
               out.status = GetTxStatus::TxStatus::Committed;
             }
