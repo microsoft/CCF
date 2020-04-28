@@ -279,8 +279,8 @@ class Consortium:
     def store_current_network_encryption_key(self):
         cmd = [
             "cp",
-            os.path.join(self.common_dir, f"network_enc_pubk.pem"),
-            os.path.join(self.common_dir, f"network_enc_pubk_orig.pem"),
+            os.path.join(self.common_dir, "network_enc_pubk.pem"),
+            os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
         ]
         infra.proc.ccall(*cmd).check_returncode()
 
