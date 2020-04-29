@@ -15,6 +15,18 @@
 namespace files
 {
   /**
+   * @brief Checks if a path exists
+   *
+   * @param path path to check
+   * @return true if the file exists.
+   */
+  bool exists(const std::string& file)
+  {
+    std::ifstream f(file.c_str());
+    return f.good();
+  }
+
+  /**
    * @brief Tries to read a file as byte vector.
    *
    * @param file the path
@@ -24,8 +36,7 @@ namespace files
    */
   std::vector<uint8_t> slurp(const std::string& file, bool optional = false)
   {
-    using namespace std;
-    ifstream f(file, ios::binary | ios::ate);
+    std::ifstream f(file, std::ios::binary | std::ios::ate);
 
     if (!f)
     {
@@ -41,9 +52,9 @@ namespace files
     }
 
     auto size = f.tellg();
-    f.seekg(0, ios::beg);
+    f.seekg(0, std::ios::beg);
 
-    vector<uint8_t> data(size);
+    std::vector<uint8_t> data(size);
     f.read((char*)data.data(), size);
 
     if (!optional && !f)
