@@ -88,8 +88,7 @@ namespace ccf
 
     auto add_member(
       const std::vector<uint8_t>& member_cert_pem,
-      const std::vector<uint8_t>& member_keyshare_pub,
-      MemberStatus member_status = MemberStatus::ACTIVE)
+      const std::vector<uint8_t>& member_keyshare_pub)
     {
       auto [m, mc, v, ma, sig] = tx.get_view(
         tables.members,
@@ -104,13 +103,31 @@ namespace ccf
       auto member_cert_der =
         tls::make_verifier({pem.data(), pem.data() + pem.size()})
           ->der_cert_data();
-      auto member_id = mc->get(member_cert_der);
 
-      // Cert should be unique
+      auto member_id = mc->get(member_cert_der);
       if (member_id.has_value())
       {
         throw std::logic_error(fmt::format(
           "Member certificate already exists (member {})", member_id.value()));
+      }
+
+      MemberStatus member_status = MemberStatus::ACCEPTED;
+      auto service_status = get_service_status();
+      if (!service_status.has_value())
+      {
+        throw std::logic_error("Failed to get active service");
+      }
+
+      // If the service is opening, members are added as ACTIVE
+      if (service_status.value() == ServiceStatus::OPENING)
+      {
+        if (get_active_members_count() >= max_active_members_count)
+        {
+          throw std::logic_error(fmt::format(
+            "No more than {} active members are allowed",
+            max_active_members_count));
+        }
+        member_status = MemberStatus::ACTIVE;
       }
 
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
