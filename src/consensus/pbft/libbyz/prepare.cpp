@@ -54,18 +54,7 @@ Prepare::Prepare(
   rep().digest_padding.fill(0);
   if (is_signed)
   {
-    struct signature
-    {
-      // uint32_t magic = 0xba5eba11;
-      NodeId id;
-      Digest d;
-      Digest n;
-
-      signature(Digest d_, NodeId id_, Digest nonce) : d(d_), id(id_), n(nonce)
-      {}
-    };
-
-    signature s(d, rep().id, rep().hashed_nonce);
+    PrepareSignature s(d, rep().id, rep().hashed_nonce);
 
     rep().digest_sig_size = pbft::GlobalState::get_node().gen_signature(
       reinterpret_cast<char*>(&s), sizeof(s), rep().batch_digest_signature);

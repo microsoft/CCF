@@ -201,12 +201,22 @@ public:
   // Playback methods
   void playback_request(ccf::Store::Tx& tx);
   // Effects: Requests are executed
+
   void populate_certificates(Pre_prepare* pp);
   // Effects: The pre-prepare contains the prepare proofs
   // of the previous seqno. We use the proofs to create
   // "Prepare" messages for the previous seqno and add those prepares
-  // to the plog. Also creates and adds the "Prepare"
-  // message for the caller
+  // to the plog, if the proofs are valid. Also creates and adds the "Prepare"
+  // message for the caller. Calls "Replica::add_certs_if_valid" to do the proof
+  // validation and "Prepare" creation
+
+  void add_certs_if_valid(
+    Pre_prepare* pp, Pre_prepare* prev_pp, Prepared_cert& prev_prepared_cert);
+  // Effects: Checks the validity of the prepare proofs in "pp" that correspond
+  // to the "prev_pp" pre prepare message, and if the proofs are valid then
+  // "Prepare" messages for the prev_pp seqno are created and added to the "prev_prepared_cert".
+  // Also creates and adds the "Prepare" message for the caller
+
   void playback_pre_prepare(ccf::Store::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback

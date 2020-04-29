@@ -484,17 +484,7 @@ bool Pre_prepare::ValidProofs_iter::get(
     is_valid_proof = false;
   }
 
-  struct signature
-  {
-    // uint32_t magic = 0xba5eba11;
-    NodeId id;
-    Digest d;
-    Digest n;
-
-    signature(Digest d_, NodeId id_, Digest nonce) : d(d_), id(id_), n(nonce) {}
-  };
-
-  signature s(prepare_digest, id, ic->nonce);
+  PrepareSignature s(prepare_digest, id, ic->nonce);
 
   if (!sender_principal->verify_signature(
         reinterpret_cast<char*>(&s), sizeof(s), ic->sig.data(), ic->sig_size))

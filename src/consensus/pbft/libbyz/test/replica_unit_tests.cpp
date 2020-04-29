@@ -545,6 +545,10 @@ TEST_CASE("Verify prepare proof")
       nullptr,
       first_pp->is_signed(),
       node_id);
+    // this gives the first_pp pointer ownership to the prepared_cert
+    // we want to use first_pp later on, so make sure to release first_pp before
+    // it goes out of scope to avoid double deletion
+    prepared_cert->add(first_pp.get());
   }
   INFO(
     "Create the next pre prepare that takes the prepared_cert that contains "
@@ -594,12 +598,21 @@ TEST_CASE("Verify prepare proof")
     REQUIRE(ret.second); // deserialized OK
     auto second_pre_prepare = deserialize_pre_prepare(ret.first, pbft_state);
     // validate the signature in the proof here
-    Pre_prepare::ValidProofs_iter vp_iter(second_pre_prepare.get());
-    int p_id;
-    bool valid;
-    while (vp_iter.get(p_id, valid, first_pp->digest()))
-    {
-      REQUIRE(valid);
-    }
+
+    Prepared_cert new_node_prepared_cert;
+    // new_node_prepared_cert claims first_pp pointer ownership, make sure to
+    // release before end of test
+    new_node_prepared_cert.add(prepared_cert->pre_prepare());
+    REQUIRE(new_node_prepared_cert.my_prepare() == nullptr);
+    REQUIRE(!new_node_prepared_cert.is_pp_correct());
+    pbft::GlobalState::get_replica().add_certs_if_valid(
+      second_pre_prepare.get(), first_pp.get(), new_node_prepared_cert);
+    REQUIRE(new_node_prepared_cert.my_prepare() != nullptr);
+    REQUIRE(new_node_prepared_cert.is_pp_correct());
+    // cleanup
+    // release first_pp since it will be deleted by new_node_prepared_cert which
+    // claimed it's ownership last
+    prepared_cert->rem_pre_prepare();
+    first_pp.release();
   }
 }

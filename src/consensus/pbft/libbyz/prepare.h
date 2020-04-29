@@ -7,6 +7,7 @@
 
 #include "digest.h"
 #include "message.h"
+#include "nodeinfo.h"
 #include "tls/key_pair.h"
 #include "types.h"
 
@@ -44,6 +45,19 @@ struct Prepare_rep : public Message_rep
 static_assert(
   sizeof(Prepare_rep) + pbft_max_signature_size < Max_message_size,
   "Invalid size");
+
+struct PrepareSignature
+{
+  NodeId id;
+  Digest d;
+  Digest n;
+
+  PrepareSignature(Digest d_, NodeId id_, Digest nonce) :
+    d(d_),
+    id(id_),
+    n(nonce)
+  {}
+};
 
 class Prepare : public Message
 {
