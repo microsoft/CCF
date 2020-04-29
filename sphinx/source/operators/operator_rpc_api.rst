@@ -13,6 +13,8 @@ Retrieves quote of single contacted node.
 Example
 -------
 
+.. code-block:: json
+
     {
         "quotes": [
             {
