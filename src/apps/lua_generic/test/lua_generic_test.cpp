@@ -182,6 +182,7 @@ TEST_CASE("simple lua apps")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
@@ -318,6 +319,7 @@ TEST_CASE("simple bank")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);
@@ -434,6 +436,7 @@ TEST_CASE("pre-populated environment")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNotifier notifier;
   // create network with 1 user and 3 active members
   auto frontend = init_frontend(network, gen, notifier, 1, 3);

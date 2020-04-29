@@ -380,8 +380,17 @@ int main(int argc, char** argv)
     {
       throw std::logic_error(fmt::format(
         "--rpc-address ({}) does not appear to specify valid IP address. "
-        "Please specify a domain name via the --domain option.",
+        "Please specify a domain name via the --domain option",
         rpc_address.hostname));
+    }
+
+    if (*start || *join)
+    {
+      if (files::exists(ledger_file))
+      {
+        throw std::logic_error(fmt::format(
+          "Ledger file {} is created by node on start/join", ledger_file));
+      }
     }
 
     if (*start)
