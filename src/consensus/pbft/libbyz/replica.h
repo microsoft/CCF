@@ -214,8 +214,9 @@ public:
     Pre_prepare* pp, Pre_prepare* prev_pp, Prepared_cert& prev_prepared_cert);
   // Effects: Checks the validity of the prepare proofs in "pp" that correspond
   // to the "prev_pp" pre prepare message, and if the proofs are valid then
-  // "Prepare" messages for the prev_pp seqno are created and added to the "prev_prepared_cert".
-  // Also creates and adds the "Prepare" message for the caller
+  // "Prepare" messages for the prev_pp seqno are created and added to the
+  // "prev_prepared_cert". Also creates and adds the "Prepare" message for the
+  // caller
 
   void playback_pre_prepare(ccf::Store::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match

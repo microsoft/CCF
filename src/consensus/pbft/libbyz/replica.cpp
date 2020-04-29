@@ -510,15 +510,18 @@ void Replica::add_certs_if_valid(
     }
   }
 
-  LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_pp->seqno());
-  Prepare* p = new Prepare(
-    prev_pp->view(),
-    prev_pp->seqno(),
-    prev_pp->digest(),
-    prev_pp->get_nonce(),
-    nullptr,
-    prev_pp->is_signed());
-  prev_prepared_cert.add_mine(p);
+  if (prev_prepared_cert.is_pp_correct())
+  {
+    LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_pp->seqno());
+    Prepare* p = new Prepare(
+      prev_pp->view(),
+      prev_pp->seqno(),
+      prev_pp->digest(),
+      prev_pp->get_nonce(),
+      nullptr,
+      prev_pp->is_signed());
+    prev_prepared_cert.add_mine(p);
+  }
 }
 
 void Replica::populate_certificates(Pre_prepare* pp)
@@ -1048,15 +1051,15 @@ void Replica::handle(Pre_prepare* m)
 
     // Only accept message if we never accepted another pre-prepare
     // for the same view and sequence number and the message is valid.
-    if (ms == playback_pp_seqno + 1)
-    {
-      // previous pre prepare was executed during playback, we need to add the
-      // prepares for it, as the prepare proofs for the previous pre-prepare
-      // are in the next pre prepare message
-      populate_certificates(m);
-    }
     if (pc.add(m))
     {
+      if (ms == playback_pp_seqno + 1)
+      {
+        // previous pre prepare was executed during playback, we need to add the
+        // prepares for it, as the prepare proofs for the previous pre-prepare
+        // are in the next pre prepare message
+        populate_certificates(pc.pre_prepare());
+      }
       send_prepare(ms);
     }
     return;
