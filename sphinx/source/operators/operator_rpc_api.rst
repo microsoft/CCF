@@ -8,7 +8,8 @@ getQuote
 
 Retrieves quote of single contacted node.
 
-.. jsonschema:: ../schemas/getQuote_result.json
+.. literalinclude:: ../schemas/getQuote_result.json
+    :language: json
 
 Example
 -------
@@ -30,7 +31,8 @@ getQuotes
 
 Retrieves quotes of all trusted nodes.
 
-.. jsonschema:: ../schemas/getQuotes_result.json
+.. literalinclude:: ../schemas/getQuotes_result.json
+    :language: json
 
 Example
 -------
@@ -55,7 +57,8 @@ Example
 getSignedIndex
 ~~~~~~~~~~~~~~
 
-.. jsonschema:: ../schemas/getSignedIndex_result.json
+.. literalinclude:: ../schemas/getSignedIndex_result.json
+    :language: json
 
 Example
 -------
