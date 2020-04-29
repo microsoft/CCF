@@ -34,7 +34,7 @@ def test(network, args, notifications_queue=None, verify=True):
 
 
 @reqs.description("Protocol-illegal traffic")
-@reqs.supports_methods("LOG_record")
+@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
@@ -286,7 +286,9 @@ def run(args):
                 notifications_queue,
                 verify=args.package is not "libjs_generic",
             )
-            network = test_illegal(network, args)
+            network = test_illegal(
+                network, args, verify=args.package is not "libjs_generic"
+            )
             network = test_large_messages(network, args)
             network = test_remove(network, args)
             network = test_forwarding_frontends(network, args)
