@@ -9,12 +9,34 @@ return {
       for (kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return {msg: tables.log.get(JSON.parse(v))};
+          try
+          {
+            return {msg: tables.data.get(JSON.parse(v).toString())};
+          }
+          catch (err)
+          {
+            return {error: err.message}
+          }
         }
       }
       throw "Could not find 'id' in query";
     }
     get(query)
+  ]],
+
+  LOG_remove = [[
+    function remove(query)
+    {
+      const elements = query.split("&");
+      for (kv of elements) {
+        const [k, v] = kv.split("=");
+        if (k == "id") {
+          return tables.data.remove(JSON.parse(v).toString());
+        }
+      }
+      throw "Could not find 'id' in query";
+    }
+    remove(query)
   ]],
 
   LOG_get_pub = [[
@@ -24,7 +46,7 @@ return {
       for (kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return {msg: tables.log.get(JSON.parse(v))};
+          return {msg: tables.data.get(JSON.parse(v).toString())};
         }
       }
       throw "Could not find 'id' in query";
@@ -35,7 +57,7 @@ return {
   LOG_record = [[
     function record(params)
     {
-      tables.log.put(params.id, params.msg);
+      tables.data.put(params.id.toString(), params.msg);
       return true;
     }
     record(JSON.parse(body))
@@ -44,7 +66,7 @@ return {
   LOG_record_pub = [[
     function record(params)
     {
-      tables.log.put(params.id, params.msg);
+      tables.data.put(params.id.toString(), params.msg);
       return true;
     }
     record(JSON.parse(body))
