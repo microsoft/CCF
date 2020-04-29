@@ -31,8 +31,10 @@ namespace ccf
     size_t committed_seqno)
   {
     const bool is_committed = committed_seqno >= target_seqno;
+    const bool views_match = local_view == target_view;
+    const bool view_known = local_view != VIEW_UNKNOWN;
 
-    if (is_committed && local_view == VIEW_UNKNOWN)
+    if (is_committed && !view_known)
     {
       throw std::logic_error(fmt::format(
         "Should know local view for seqnos up to {}, but have no view for {}",
@@ -50,63 +52,41 @@ namespace ccf
         committed_view));
     }
 
-    if (local_view == VIEW_UNKNOWN)
+    if (is_committed)
     {
-      // This seqno is not known locally - determine if this tx id is
-      // still possible.
-      if (committed_view > target_view)
+      // The requested seqno has been committed, so we know for certain whether
+      // the requested tx id is committed or not
+      if (views_match)
       {
-        // We have reached global commit in a later term, so this tx id is
-        // now impossible
-        return TxStatus::Invalid;
+        return TxStatus::Committed;
       }
       else
       {
-        return TxStatus::Unknown;
+        return TxStatus::Invalid;
       }
+    }
+    else if (local_view == target_view)
+    {
+      // This node knows about the requested tx id, but it is not globally
+      // committed
+      return TxStatus::Pending;
+    }
+    else if (committed_view > target_view)
+    {
+      // This node has seen the seqno in a different view, and committed
+      // further, so the requested tx id is impossible
+      return TxStatus::Invalid;
     }
     else
     {
-      // This seqno is known - does it match the requested tx id?
-      const bool is_committed = committed_seqno >= target_seqno;
-      if (local_view == target_view)
-      {
-        // This tx id matches a known tx - is it globally committed?
-        if (is_committed)
-        {
-          // This tx id is globally committed
-          return TxStatus::Committed;
-        }
-        else
-        {
-          // Not yet
-          return TxStatus::Pending;
-        }
-      }
-      else
-      {
-        if (is_committed)
-        {
-          // A different tx id with the same seqno has been committed -
-          // the requested tx is impossible
-          return TxStatus::Invalid;
-        }
-        else if (local_view < target_view)
-        {
-          // This seqno was seen locally in an earlier view - don't know
-          // which got committed, but the requested tx id is unknown
-          return TxStatus::Unknown;
-        }
-        else if (local_view > target_view)
-        {
-          // This seqno was seen locally in a later view - this means work
-          // is happening in a later view, and the requested tx id is
-          // impossible
-          return TxStatus::Invalid;
-        }
-      }
+      // Otherwise, we cannot state anything about this tx id. The most common
+      // reason is that the local_view is unknown (this transaction has never
+      // existed, or has not reached this node yet). It is also possible that
+      // this node believes locally that this tx id is impossible, but does not
+      // have a global commit to back this up - it will eventually receive
+      // either a global commit confirming this belief, or an election and
+      // global commit where this tx id is valid
+      return TxStatus::Unknown;
     }
-
-    throw std::logic_error("TODO: Make this unreachable");
   }
 }
