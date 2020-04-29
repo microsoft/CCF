@@ -475,8 +475,8 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     resp = c.get(
-                        "getTxStatus",
-                        {"term": term_leader, "commit": local_commit_leader},
+                        "tx",
+                        {"view": term_leader, "seqno": local_commit_leader},
                     )
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
@@ -484,14 +484,12 @@ class Network:
                     status = TxStatus(resp.result["status"])
                     if status == TxStatus.Committed:
                         caught_up_nodes.append(node)
-                    elif status == TxStatus.Lost:
+                    elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction {term_leader}.{local_commit_leader} has been lost and will never be committed"
+                            f"Node {node.node_id} reports transaction ID {term_leader}.{local_commit_leader} is invalid and will never be committed"
                         )
-                    elif status == TxStatus.Pending:
-                        pass
                     else:
-                        raise RuntimeError(f"Unhandled tx status: {status}")
+                        pass
 
             if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break

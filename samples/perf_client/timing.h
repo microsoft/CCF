@@ -226,7 +226,7 @@ namespace timing
       constexpr auto get_tx_status = "tx";
 
       LOG_INFO_FMT(
-        "Waiting for global commit {}.{}", target.term, target.index);
+        "Waiting for transaction ID {}.{}", target.term, target.index);
 
       while (true)
       {
@@ -253,10 +253,10 @@ namespace timing
           record_receive(response.id, commit_ids);
         }
 
-        // NB: Eventual header re-org should be exposing API types, so
+        // NB: Eventual header re-org should be exposing API types so
         // they can be consumed cleanly from C++ clients
         const auto tx_status = body["status"];
-        if (tx_status == "PENDING")
+        if (tx_status == "PENDING" || tx_status == "UNKNOWN")
         {
           // Commit is pending, poll again
           this_thread::sleep_for(10us);
@@ -272,10 +272,10 @@ namespace timing
             commit_ids.global);
           return response;
         }
-        else if (tx_status == "LOST")
+        else if (tx_status == "INVALID")
         {
           throw std::logic_error(fmt::format(
-            "Pending transaction {}.{} was lost", target.term, target.index));
+            "Transaction {}.{} is now marked as invalid", target.term, target.index));
         }
         else
         {

@@ -23,7 +23,7 @@ namespace ccf
 
   constexpr size_t VIEW_UNKNOWN = 0;
 
-  TxStatus get_tx_status(
+  static TxStatus get_tx_status(
     size_t target_view,
     size_t target_seqno,
     size_t local_view,

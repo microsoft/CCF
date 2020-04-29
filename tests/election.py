@@ -27,18 +27,16 @@ def wait_for_index_globally_committed(index, term, nodes):
                 r = c.get("tx", {"view": term, "seqno": index})
                 assert (
                     r.status == http.HTTPStatus.OK
-                ), f"tx request returned status {r.status}"
+                ), f"tx request returned HTTP status {r.status}"
                 status = TxStatus(r.result["status"])
                 if status == TxStatus.Committed:
                     up_to_date_f.append(f.node_id)
-                elif status == TxStatus.Lost:
+                elif status == TxStatus.Invalid:
                     raise RuntimeError(
-                        f"Node {f.node_id} reports transaction {term}.{index} has been lost and will never be committed"
+                        f"Node {f.node_id} reports transaction ID {term}.{index} is invalid and will never be committed"
                     )
-                elif status == TxStatus.Pending:
-                    pass
                 else:
-                    raise RuntimeError(f"Unhandled tx status: {status}")
+                    pass
         if len(up_to_date_f) == len(nodes):
             break
         time.sleep(0.1)

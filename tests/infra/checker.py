@@ -27,21 +27,19 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
 
     end_time = time.time() + timeout
     while time.time() < end_time:
-        r = node_client.get("getTxStatus", {"term": term, "commit": commit_index})
+        r = node_client.get("tx", {"view": term, "seqno": commit_index})
         assert (
             r.status == http.HTTPStatus.OK
-        ), f"getTxStatus request returned status {r.status}"
+        ), f"tx request returned HTTP status {r.status}"
         status = TxStatus(r.result["status"])
         if status == TxStatus.Committed:
             return
-        elif status == TxStatus.Lost:
+        elif status == TxStatus.Invalid:
             raise RuntimeError(
-                f"Transaction {term}.{commit_index} has been lost and will never be committed"
+                f"Transaction ID {term}.{commit_index} is marked invalid and will never be committed"
             )
-        elif status == TxStatus.Pending:
-            time.sleep(0.1)
         else:
-            raise RuntimeError(f"Unhandled tx status: {status}")
+            time.sleep(0.1)
     raise TimeoutError("Timed out waiting for commit")
 
 

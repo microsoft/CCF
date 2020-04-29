@@ -3,15 +3,16 @@
   "properties": {
     "status": {
       "enum": [
+        "UNKNOWN",
         "PENDING",
         "COMMITTED",
-        "LOST"
+        "INVALID"
       ]
     }
   },
   "required": [
     "status"
   ],
-  "title": "getTxStatus/result",
+  "title": "tx/result",
   "type": "object"
 }
