@@ -113,9 +113,16 @@ namespace ccf
       auto session = std::make_shared<enclave::SessionContext>(
         client_session_id, caller_id, caller_cert);
 
-      auto context = enclave::make_rpc_context(session, raw_request);
-
-      return std::make_tuple(context, r.first.from_node);
+      try
+      {
+        auto context = enclave::make_rpc_context(session, raw_request);
+        return std::make_tuple(context, r.first.from_node);
+      }
+      catch (const std::exception& err)
+      {
+        LOG_FAIL_FMT("Invalid forwarded request: {}", err.what());
+        return std::nullopt;
+      }
     }
 
     bool send_forwarded_response(
