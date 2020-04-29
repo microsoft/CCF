@@ -7,6 +7,9 @@ import infra.logging_app as app
 import infra.e2e_args
 import inspect
 import http
+import ssl
+import socket
+import os
 
 from loguru import logger as LOG
 
@@ -15,6 +18,42 @@ from loguru import logger as LOG
 @reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None, verify=True):
+    txs = app.LoggingTxs(notifications_queue=notifications_queue)
+    txs.issue(
+        network=network, number_txs=1, consensus=args.consensus,
+    )
+    txs.issue(
+        network=network, number_txs=1, on_backup=True, consensus=args.consensus,
+    )
+    if verify:
+        txs.verify(network)
+    else:
+        LOG.warning("Skipping log messages verification")
+
+    return network
+
+
+@reqs.description("Protocol-illegal traffic")
+@reqs.supports_methods("LOG_record")
+@reqs.at_least_n_nodes(2)
+def test_illegal(network, args, notifications_queue=None, verify=True):
+    # Send malformed HTTP traffic and check the connection is closed
+    context = ssl.create_default_context(
+        cafile=os.path.join(network.common_dir, "networkcert.pem")
+    )
+    context.load_cert_chain(
+        certfile=os.path.join(network.common_dir, "user0_cert.pem"),
+        keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
+    )
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    conn = context.wrap_socket(
+        sock, server_side=False, server_hostname=network.nodes[0].host
+    )
+    conn.connect((network.nodes[0].host, network.nodes[0].rpc_port))
+    conn.sendall(b"NOTAVERB ")
+    rv = conn.recv(1024)
+    assert rv == b"", rv
+    # Valid transactions are still accepted
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
     txs.issue(
         network=network, number_txs=1, consensus=args.consensus,
@@ -247,6 +286,7 @@ def run(args):
                 notifications_queue,
                 verify=args.package is not "libjs_generic",
             )
+            network = test_illegal(network, args)
             network = test_large_messages(network, args)
             network = test_remove(network, args)
             network = test_forwarding_frontends(network, args)

@@ -100,7 +100,7 @@ namespace http
           catch (const std::exception& e)
           {
             LOG_FAIL_FMT("Error parsing request: {}", e.what());
-            return;
+            close();
           }
         }
       }
