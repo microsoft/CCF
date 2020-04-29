@@ -342,6 +342,11 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      tx_status_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
+    )
+
+    add_unit_test(
       member_voting_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/member_voting_test.cpp
     )

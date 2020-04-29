@@ -74,13 +74,8 @@ namespace ccf
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, term, commit)
 
-  DECLARE_JSON_ENUM(
-    GetTxStatus::TxStatus,
-    {{GetTxStatus::TxStatus::Pending, "PENDING"},
-     {GetTxStatus::TxStatus::Committed, "COMMITTED"},
-     {GetTxStatus::TxStatus::Lost, "LOST"}})
   DECLARE_JSON_TYPE(GetTxStatus::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::In, commit, term)
+  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::In, view, seqno)
   DECLARE_JSON_TYPE(GetTxStatus::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, status)
 

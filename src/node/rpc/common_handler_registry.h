@@ -66,55 +66,13 @@ namespace ccf
 
         if (consensus != nullptr)
         {
-          const auto actual_term = consensus->get_view(in.commit);
+          const auto tx_view = consensus->get_view(in.seqno);
+          const auto committed_seqno = consensus->get_commit_seqno();
+          const auto committed_view = consensus->get_view(committed_seqno);
 
           GetTxStatus::Out out;
-
-          if (actual_term == 0)
-          {
-            // This node has not seen this index yet - assume transaction is
-            // still pending (in-flight)
-
-            // NB: There are subtleties here around elections. It is tempting to
-            // say that if the local view has advanced past the target view,
-            // then the target version is Lost. This node may be mid-election,
-            // where the eventual winner has this version and will successfully
-            // replicate it. For safety, we consider all such transactions to be
-            // pending. This means they may be pending indefinitely
-            // (requesting 1.8, the service is stable with no new transactions
-            // at 2.5)!
-            out.status = GetTxStatus::TxStatus::Pending;
-          }
-          else if (actual_term < in.term)
-          {
-            // The requested transaction was committed in an _earlier_ view?
-            // Should be impossible for queries about real assigned versions,
-            // but essentially the same as the case below ("this version does
-            // not exist, and never will")
-            out.status = GetTxStatus::TxStatus::Lost;
-          }
-          else if (actual_term > in.term)
-          {
-            // View has advanced (election occurred) and a new transaction has
-            // happened at this index. The requested transaction has been lost,
-            // as though it never happened
-            out.status = GetTxStatus::TxStatus::Lost;
-          }
-          else // actual_term == in.term
-          {
-            // This node knows about the expected transaction term.commit
-            // locally. Check if this has been globally committed
-            const auto global_commit_index = consensus->get_commit_seqno();
-            if (global_commit_index >= in.commit)
-            {
-              out.status = GetTxStatus::TxStatus::Committed;
-            }
-            else
-            {
-              out.status = GetTxStatus::TxStatus::Pending;
-            }
-          }
-
+          out.status = ccf::get_tx_status(in.view, in.seqno, tx_view, committed_view, committed_seqno);
+          
           return make_success(out);
         }
 

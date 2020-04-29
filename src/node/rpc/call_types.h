@@ -6,6 +6,7 @@
 #include "node/ledger_secrets.h"
 #include "node/nodes.h"
 #include "node_call_types.h"
+#include "tx_status.h"
 
 #include <nlohmann/json.hpp>
 
@@ -24,15 +25,8 @@ namespace ccf
   {
     struct In
     {
-      uint64_t term;
-      int64_t commit;
-    };
-
-    enum TxStatus
-    {
-      Pending,
-      Committed,
-      Lost,
+      uint64_t view;
+      uint32_t seqno;
     };
 
     struct Out
