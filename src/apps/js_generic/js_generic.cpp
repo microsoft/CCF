@@ -13,7 +13,7 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using LogTable = ccf::Store::Map<int32_t, std::string>;
+  using Table = ccf::Store::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
 
   static JSValue js_print(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -67,45 +67,90 @@ namespace ccfapp
   static JSValue js_get(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto log_table_view = (LogTable::TxView*)JS_GetContextOpaque(ctx);
-    if (JS_VALUE_GET_TAG(argv[0]) != JS_TAG_INT)
-      return JS_EXCEPTION;
-    int32_t i = JS_VALUE_GET_INT(argv[0]);
-    auto str = log_table_view->get(i);
-    if (str.has_value())
-      return JS_NewStringLen(ctx, str.value().data(), str.value().size());
+    auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    if (!JS_IsString(argv[0]))
+      return JS_ThrowTypeError(ctx, "Argument must be a string");
+
+    size_t sz = 0;
+    auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
+    auto v = table_view->get(std::vector<uint8_t>(k, k + sz));
+    JS_FreeCString(ctx, k);
+
+    if (v.has_value())
+      return JS_NewStringLen(
+        ctx, (const char*)v.value().data(), v.value().size());
     else
-      return JS_EXCEPTION;
+      return JS_ThrowRangeError(ctx, "No such key");
+  }
+
+  static JSValue js_remove(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
+    if (argc != 1)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 1", argc);
+
+    if (!JS_IsString(argv[0]))
+      return JS_ThrowTypeError(ctx, "Argument must be a string");
+
+    size_t sz = 0;
+    auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
+    auto v = table_view->remove(std::vector<uint8_t>(k, k + sz));
+    JS_FreeCString(ctx, k);
+
+    if (v)
+      return JS_NULL;
+    else
+      return JS_ThrowRangeError(ctx, "Failed to remove at key");
   }
 
   static JSValue js_put(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto log_table_view = (LogTable::TxView*)JS_GetContextOpaque(ctx);
-    if (JS_VALUE_GET_TAG(argv[0]) != JS_TAG_INT)
-      return JS_EXCEPTION;
-    int32_t i = JS_VALUE_GET_INT(argv[0]);
-    auto v = JS_ToCString(ctx, argv[1]);
-    if (!log_table_view->put(i, v))
+    auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
+    if (argc != 2)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 2", argc);
+
+    if (!(JS_IsString(argv[0]) && JS_IsString(argv[0])))
+      return JS_ThrowTypeError(ctx, "Arguments must be strings");
+
+    auto r = JS_NULL;
+
+    size_t k_sz = 0;
+    auto k = JS_ToCStringLen(ctx, &k_sz, argv[0]);
+    std::vector<uint8_t> k_(k, k + k_sz);
+
+    size_t v_sz = 0;
+    auto v = JS_ToCStringLen(ctx, &v_sz, argv[1]);
+    std::vector<uint8_t> v_(v, v + v_sz);
+
+    if (!table_view->put(k_, v_))
     {
-      JS_FreeCString(ctx, v);
-      return JS_EXCEPTION;
+      r = JS_ThrowRangeError(ctx, "Could not insert at key");
     }
+
+    JS_FreeCString(ctx, k);
     JS_FreeCString(ctx, v);
-    return JS_NULL;
+    return r;
   }
 
   class JSHandlers : public UserHandlerRegistry
   {
   private:
     NetworkTables& network;
-    LogTable& log_table;
+    Table& table;
 
   public:
     JSHandlers(NetworkTables& network) :
       UserHandlerRegistry(network),
       network(network),
-      log_table(network.tables->create<LogTable>("log"))
+      table(network.tables->create<Table>("data"))
     {
       auto& tables = *network.tables;
 
@@ -144,7 +189,7 @@ namespace ccfapp
           throw std::runtime_error("Failed to initialise QuickJS context");
         }
 
-        auto ltv = args.tx.get_view(log_table);
+        auto ltv = args.tx.get_view(table);
         JS_SetContextOpaque(ctx, (void*)ltv);
 
         auto global_obj = JS_GetGlobalObject(ctx);
@@ -157,13 +202,18 @@ namespace ccfapp
           JS_NewCFunction(ctx, ccfapp::js_print, "log", 1));
         JS_SetPropertyStr(ctx, global_obj, "console", console);
 
-        auto log = JS_NewObject(ctx);
+        auto data = JS_NewObject(ctx);
         JS_SetPropertyStr(
-          ctx, log, "get", JS_NewCFunction(ctx, ccfapp::js_get, "get", 1));
+          ctx, data, "get", JS_NewCFunction(ctx, ccfapp::js_get, "get", 1));
         JS_SetPropertyStr(
-          ctx, log, "put", JS_NewCFunction(ctx, ccfapp::js_put, "put", 2));
+          ctx, data, "put", JS_NewCFunction(ctx, ccfapp::js_put, "put", 2));
+        JS_SetPropertyStr(
+          ctx,
+          data,
+          "remove",
+          JS_NewCFunction(ctx, ccfapp::js_remove, "remove", 1));
         auto tables_ = JS_NewObject(ctx);
-        JS_SetPropertyStr(ctx, tables_, "log", log);
+        JS_SetPropertyStr(ctx, tables_, "data", data);
         JS_SetPropertyStr(ctx, global_obj, "tables", tables_);
 
         const auto& request_query = args.rpc_ctx->get_request_query();
