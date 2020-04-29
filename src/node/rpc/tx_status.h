@@ -8,18 +8,18 @@ namespace ccf
 {
   enum class TxStatus
   {
-    TxUnknown,
-    Replicating,
+    Unknown,
+    Pending,
     Committed,
-    NotCommitted,
+    Invalid,
   };
 
   DECLARE_JSON_ENUM(
     TxStatus,
-    {{TxStatus::TxUnknown, "TX_UNKNOWN"},
-     {TxStatus::Replicating, "REPLICATING"},
+    {{TxStatus::Unknown, "UNKNOWN"},
+     {TxStatus::Pending, "PENDING"},
      {TxStatus::Committed, "COMMITTED"},
-     {TxStatus::NotCommitted, "NOT_COMMITTED"}});
+     {TxStatus::Invalid, "INVALID"}});
 
   constexpr size_t VIEW_UNKNOWN = 0;
 
@@ -58,11 +58,11 @@ namespace ccf
       {
         // We have reached global commit in a later term, so this tx id is
         // now impossible
-        return TxStatus::NotCommitted;
+        return TxStatus::Invalid;
       }
       else
       {
-        return TxStatus::TxUnknown;
+        return TxStatus::Unknown;
       }
     }
     else
@@ -80,7 +80,7 @@ namespace ccf
         else
         {
           // Not yet
-          return TxStatus::Replicating;
+          return TxStatus::Pending;
         }
       }
       else
@@ -89,20 +89,20 @@ namespace ccf
         {
           // A different tx id with the same seqno has been committed -
           // the requested tx is impossible
-          return TxStatus::NotCommitted;
+          return TxStatus::Invalid;
         }
         else if (local_view < target_view)
         {
           // This seqno was seen locally in an earlier view - don't know
           // which got committed, but the requested tx id is unknown
-          return TxStatus::TxUnknown;
+          return TxStatus::Unknown;
         }
         else if (local_view > target_view)
         {
           // This seqno was seen locally in a later view - this means work
           // is happening in a later view, and the requested tx id is
           // impossible
-          return TxStatus::NotCommitted;
+          return TxStatus::Invalid;
         }
       }
     }

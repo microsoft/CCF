@@ -24,10 +24,10 @@ def wait_for_index_globally_committed(index, term, nodes):
         up_to_date_f = []
         for f in nodes:
             with f.node_client() as c:
-                r = c.get("getTxStatus", {"term": term, "commit": index})
+                r = c.get("tx", {"view": term, "seqno": index})
                 assert (
                     r.status == http.HTTPStatus.OK
-                ), f"getTxStatus request returned status {r.status}"
+                ), f"tx request returned status {r.status}"
                 status = TxStatus(r.result["status"])
                 if status == TxStatus.Committed:
                     up_to_date_f.append(f.node_id)
