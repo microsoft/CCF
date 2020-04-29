@@ -89,6 +89,7 @@ public:
 
 #ifdef SIGN_BATCH
   PbftSignature& digest_sig() const;
+  size_t digest_sig_size() const;
 #endif
 
   bool is_proof() const;
@@ -103,6 +104,8 @@ public:
 
   uint64_t get_nonce() const;
   // Effects: returns the unhashed nonce
+
+  Digest get_hashed_nonce() const;
 
 private:
   uint64_t nonce;
@@ -142,6 +145,11 @@ inline PbftSignature& Prepare::digest_sig() const
 {
   return rep().batch_digest_signature;
 }
+
+inline size_t Prepare::digest_sig_size() const
+{
+  return rep().digest_sig_size;
+}
 #endif
 
 inline bool Prepare::is_proof() const
@@ -158,4 +166,9 @@ inline bool Prepare::match(const Prepare* p) const
 inline uint64_t Prepare::get_nonce() const
 {
   return nonce;
+}
+
+inline Digest Prepare::get_hashed_nonce() const
+{
+  return rep().hashed_nonce;
 }

@@ -56,7 +56,7 @@ Prepare::Prepare(
   {
     struct signature
     {
-      uint32_t magic = 0xba5eba11;
+      // uint32_t magic = 0xba5eba11;
       NodeId id;
       Digest d;
       Digest n;

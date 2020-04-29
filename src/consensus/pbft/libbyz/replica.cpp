@@ -504,24 +504,27 @@ void Replica::populate_certificates(Pre_prepare* pp)
   auto prev_pp = prev_prepared_cert.pre_prepare();
   if (prev_pp != nullptr)
   {
-    Pre_prepare::ValidProofs_iter vp_iter(prev_pp);
+    Pre_prepare::ValidProofs_iter vp_iter(pp);
     int p_id;
     bool valid;
-    while (vp_iter.get(p_id, valid) && valid)
+    while (vp_iter.get(p_id, valid, prev_pp->digest()))
     {
-      LOG_DEBUG_FMT(
-        "Adding prepare for principal with id {} for seqno {}",
-        p_id,
-        prev_seqno);
-      Prepare* p = new Prepare(
-        prev_pp->view(),
-        prev_pp->seqno(),
-        prev_pp->digest(),
-        prev_pp->get_nonce(),
-        nullptr,
-        prev_pp->is_signed(),
-        p_id);
-      prev_prepared_cert.add(p);
+      if (valid)
+      {
+        LOG_DEBUG_FMT(
+          "Adding prepare for principal with id {} for seqno {}",
+          p_id,
+          prev_seqno);
+        Prepare* p = new Prepare(
+          prev_pp->view(),
+          prev_pp->seqno(),
+          prev_pp->digest(),
+          prev_pp->get_nonce(),
+          nullptr,
+          prev_pp->is_signed(),
+          p_id);
+        prev_prepared_cert.add(p);
+      }
     }
 
     LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_seqno);
@@ -1039,15 +1042,15 @@ void Replica::handle(Pre_prepare* m)
 
     // Only accept message if we never accepted another pre-prepare
     // for the same view and sequence number and the message is valid.
+    if (ms == playback_pp_seqno + 1)
+    {
+      // previous pre prepare was executed during playback, we need to add the
+      // prepares for it, as the prepare proofs for the previous pre-prepare
+      // are in the next pre prepare message
+      populate_certificates(m);
+    }
     if (pc.add(m))
     {
-      if (ms == playback_pp_seqno + 1)
-      {
-        // previous pre prepare was executed during playback, we need to add the
-        // prepares for it, as the prepare proofs for the previous pre-prepare
-        // are in the next pre prepare message
-        populate_certificates(m);
-      }
       send_prepare(ms);
     }
     return;

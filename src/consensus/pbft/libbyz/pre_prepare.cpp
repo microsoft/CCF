@@ -120,7 +120,7 @@ Pre_prepare::Pre_prepare(
 
     for (const auto& p : proof)
     {
-      Included_sig* ic = reinterpret_cast<Included_sig*>(sigs);
+      IncludedSig* ic = reinterpret_cast<IncludedSig*>(sigs);
       ic->pid = p.first;
       std::copy(
         p.second.signature.begin(), p.second.signature.end(), ic->sig.begin());
@@ -129,14 +129,16 @@ Pre_prepare::Pre_prepare(
         ic->sig.end() + ALIGNED_SIZE(pbft_max_signature_size) -
           pbft_max_signature_size,
         0);
-      sigs += ALIGNED_SIZE(sizeof(Included_sig));
+      ic->sig_size = p.second.sig_size;
+      ic->nonce = p.second.nonce;
+      sigs += ALIGNED_SIZE(sizeof(IncludedSig));
     }
   }
 
   // Compute authenticator and update size.
   int old_size = sizeof(Pre_prepare_rep) + rep().rset_size +
     rep().n_big_reqs * sizeof(Digest) +
-    rep().num_prev_pp_sig * ALIGNED_SIZE(sizeof(Included_sig));
+    rep().num_prev_pp_sig * ALIGNED_SIZE(sizeof(IncludedSig));
 
 #ifndef USE_PKEY
   set_size(old_size + pbft::GlobalState::get_node().auth_size());
@@ -463,17 +465,46 @@ Pre_prepare::ValidProofs_iter::ValidProofs_iter(Pre_prepare* m)
   proofs_left = m->proofs_size();
 }
 
-bool Pre_prepare::ValidProofs_iter::get(int& id, bool& is_valid_proof)
+bool Pre_prepare::ValidProofs_iter::get(
+  int& id, bool& is_valid_proof, Digest& prepare_digest)
 {
+  is_valid_proof = true;
   if (proofs_left <= 0)
   {
     return false;
   }
 
-  auto* ic = reinterpret_cast<Included_sig*>(proofs);
+  auto* ic = reinterpret_cast<IncludedSig*>(proofs);
   id = ic->pid;
-  is_valid_proof = true;
-  proofs += ALIGNED_SIZE(sizeof(Included_sig));
+
+  auto sender_principal = pbft::GlobalState::get_node().get_principal(id);
+  if (!sender_principal)
+  {
+    LOG_INFO_FMT("Sender principal has not been configured yet {}", id);
+    is_valid_proof = false;
+  }
+
+  struct signature
+  {
+    // uint32_t magic = 0xba5eba11;
+    NodeId id;
+    Digest d;
+    Digest n;
+
+    signature(Digest d_, NodeId id_, Digest nonce) : d(d_), id(id_), n(nonce) {}
+  };
+
+  signature s(prepare_digest, id, ic->nonce);
+
+  if (!sender_principal->verify_signature(
+        reinterpret_cast<char*>(&s), sizeof(s), ic->sig.data(), ic->sig_size))
+  {
+    LOG_INFO << "failed to verify signature on the digest, seqno:"
+             << msg->seqno() << std::endl;
+    is_valid_proof = false;
+  }
+
+  proofs += ALIGNED_SIZE(sizeof(IncludedSig));
   proofs_left--;
 
   return true;

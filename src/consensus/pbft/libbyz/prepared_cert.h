@@ -121,7 +121,8 @@ public:
 
   struct PrePrepareProof
   {
-    std::vector<uint8_t> cert;
+    Digest nonce;
+    size_t sig_size;
     PbftSignature signature;
   };
 
@@ -159,6 +160,8 @@ inline bool Prepared_cert::add(Prepare* m)
   PrePrepareProof proof;
   std::copy(
     std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));
+  proof.nonce = m->get_hashed_nonce();
+  proof.sig_size = m->digest_sig_size();
 #endif
 
   bool result = prepare_cert.add(m);
@@ -166,7 +169,6 @@ inline bool Prepared_cert::add(Prepare* m)
 #ifdef SIGN_BATCH
   if (result)
   {
-    proof.cert = principal->get_cert();
     pre_prepare_proof.insert({id, proof});
   }
 #endif
