@@ -565,7 +565,7 @@ TEST_CASE("Verify prepare proof")
       pbft_state.signatures);
 
     // let this node know about the node that signed the prepare
-    // otherwise we can't add it's prepare to the prepared cert
+    // otherwise we can't add its prepare to the prepared cert
     pbft::GlobalState::get_node().add_principal(
       prepare_node_info.general_info.principal_info[0]);
 
@@ -590,7 +590,7 @@ TEST_CASE("Verify prepare proof")
     init_test_state(pbft_state);
 
     // let this node know about the node that signed the prepare
-    // so that it's cert can be looked up when verifying the prepare signature
+    // so that its cert can be looked up when verifying the prepare signature
     pbft::GlobalState::get_node().add_principal(
       prepare_node_info.general_info.principal_info[0]);
 
@@ -611,7 +611,7 @@ TEST_CASE("Verify prepare proof")
     REQUIRE(new_node_prepared_cert.is_pp_correct());
     // cleanup
     // release first_pp since it will be deleted by new_node_prepared_cert which
-    // claimed it's ownership last
+    // claimed its ownership last
     prepared_cert->rem_pre_prepare();
     first_pp.release();
   }
