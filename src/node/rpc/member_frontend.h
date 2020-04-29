@@ -135,8 +135,7 @@ namespace ccf
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
-           auto new_member_id =
-             g.add_member(parsed.cert, parsed.keyshare, MemberStatus::ACCEPTED);
+           auto new_member_id = g.add_member(parsed.cert, parsed.keyshare);
 
            return true;
          }},
@@ -779,12 +778,23 @@ namespace ccf
           ma_view->put(
             args.caller_id, MemberAck(s->root, signed_request.value()));
         }
+
         // update member status to ACTIVE
         auto members = args.tx.get_view(this->network.members);
         auto member = members->get(args.caller_id);
         if (member->status == MemberStatus::ACCEPTED)
         {
           member->status = MemberStatus::ACTIVE;
+
+          GenesisGenerator g(this->network, args.tx);
+          if (g.get_active_members_count() >= max_active_members_count)
+          {
+            return make_error(
+              HTTP_STATUS_FORBIDDEN,
+              fmt::format(
+                "No more than {} active members are allowed",
+                max_active_members_count));
+          }
           members->put(args.caller_id, *member);
 
           // New active members are allocated a new recovery share
@@ -950,6 +960,8 @@ namespace ccf
         }
 
         g.init_values();
+        g.create_service(in.network_cert);
+
         for (auto& [cert, k_encryption_key] : in.members_info)
         {
           g.add_member(cert, k_encryption_key);
@@ -998,8 +1010,6 @@ namespace ccf
 
         g.set_gov_scripts(
           lua::Interpreter().invoke<nlohmann::json>(in.gov_script));
-
-        g.create_service(in.network_cert);
 
         LOG_INFO_FMT("Created service");
         return make_success(true);

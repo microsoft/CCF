@@ -181,7 +181,7 @@ auto init_frontend(
   for (uint8_t i = 0; i < n_members; i++)
   {
     member_certs.push_back(get_cert_data(i, kp));
-    gen.add_member(member_certs.back(), {}, MemberStatus::ACTIVE);
+    gen.add_member(member_certs.back(), {});
   }
 
   set_whitelists(gen);
@@ -198,11 +198,11 @@ DOCTEST_TEST_CASE("Member query/read")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNodeState node;
   MemberRpcFrontend frontend(network, node);
   frontend.open();
-  const auto member_id =
-    gen.add_member(member_cert, {}, MemberStatus::ACCEPTED);
+  const auto member_id = gen.add_member(member_cert, {});
   gen.finalize();
 
   const enclave::SessionContext member_session(
@@ -302,12 +302,12 @@ DOCTEST_TEST_CASE("Proposer ballot")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
 
   const auto proposer_cert = get_cert_data(0, kp);
-  const auto proposer_id =
-    gen.add_member(proposer_cert, {}, MemberStatus::ACTIVE);
+  const auto proposer_id = gen.add_member(proposer_cert, {});
   const auto voter_cert = get_cert_data(1, kp);
-  const auto voter_id = gen.add_member(voter_cert, {}, MemberStatus::ACTIVE);
+  const auto voter_id = gen.add_member(voter_cert, {});
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -404,20 +404,22 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNodeState node(std::make_shared<NetworkTables>(network));
   // add three initial active members
   // the proposer
-  auto proposer_id = gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
+  auto proposer_id = gen.add_member(member_cert, {});
 
   // the voters
   const auto voter_a_cert = get_cert_data(1, kp);
-  auto voter_a = gen.add_member(voter_a_cert, {}, MemberStatus::ACTIVE);
+  auto voter_a = gen.add_member(voter_a_cert, {});
   const auto voter_b_cert = get_cert_data(2, kp);
-  auto voter_b = gen.add_member(voter_b_cert, {}, MemberStatus::ACTIVE);
+  auto voter_b = gen.add_member(voter_b_cert, {});
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.set_recovery_threshold(1);
+  gen.open_service();
   gen.finalize();
   MemberRpcFrontend frontend(network, node);
   frontend.open();
@@ -602,13 +604,14 @@ DOCTEST_TEST_CASE("Accept node")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNodeState node;
   auto new_kp = tls::make_key_pair();
 
   const auto member_0_cert = get_cert_data(0, new_kp);
   const auto member_1_cert = get_cert_data(1, kp);
-  const auto member_0 = gen.add_member(member_0_cert, {}, MemberStatus::ACTIVE);
-  const auto member_1 = gen.add_member(member_1_cert, {}, MemberStatus::ACTIVE);
+  const auto member_0 = gen.add_member(member_0_cert, {});
+  const auto member_1 = gen.add_member(member_1_cert, {});
 
   // node to be tested
   // new node certificate
@@ -825,6 +828,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
       Store::Tx gen_tx;
       GenesisGenerator gen(network, gen_tx);
       gen.init_values();
+      gen.create_service({});
       StubNodeState node;
       nlohmann::json recovery_threshold = 4;
 
@@ -877,6 +881,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
           Store::Tx gen_tx;
           GenesisGenerator gen(network, gen_tx);
           gen.init_values();
+          gen.create_service({});
           StubNodeState node;
 
           const auto sensitive_put =
@@ -912,10 +917,11 @@ DOCTEST_TEST_CASE("Remove proposal")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
 
   StubNodeState node;
-  gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
-  gen.add_member(cert, {}, MemberStatus::ACTIVE);
+  gen.add_member(member_cert, {});
+  gen.add_member(cert, {});
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
@@ -1003,6 +1009,7 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNodeState node;
   std::vector<std::vector<uint8_t>> member_certs;
   auto frontend = init_frontend(network, gen, node, 3, member_certs);
@@ -1070,11 +1077,12 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNodeState node;
   const auto voter_a_cert = get_cert_data(1, kp);
-  auto voter_a = gen.add_member(voter_a_cert, {}, MemberStatus::ACTIVE);
+  auto voter_a = gen.add_member(voter_a_cert, {});
   const auto voter_b_cert = get_cert_data(2, kp);
-  auto voter_b = gen.add_member(voter_b_cert, {}, MemberStatus::ACTIVE);
+  auto voter_b = gen.add_member(voter_b_cert, {});
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_veto_script_file));
   gen.finalize();
@@ -1121,9 +1129,10 @@ DOCTEST_TEST_CASE("Add user via proposed call")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   StubNodeState node;
   const auto member_cert = get_cert_data(0, kp);
-  gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
+  gen.add_member(member_cert, {});
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
@@ -1163,18 +1172,18 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
 
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
-  const auto operator_id =
-    gen.add_member(operator_cert, {}, MemberStatus::ACTIVE);
+  const auto operator_id = gen.add_member(operator_cert, {});
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
+    members[gen.add_member(cert, {})] = cert;
   }
 
   set_whitelists(gen);
@@ -1272,6 +1281,7 @@ DOCTEST_TEST_CASE("Passing operator vote")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   auto new_kp = tls::make_key_pair();
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
@@ -1280,15 +1290,14 @@ DOCTEST_TEST_CASE("Passing operator vote")
 
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
-  const auto operator_id =
-    gen.add_member(operator_cert, {}, MemberStatus::ACTIVE);
+  const auto operator_id = gen.add_member(operator_cert, {});
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
+    members[gen.add_member(cert, {})] = cert;
   }
 
   set_whitelists(gen);
@@ -1358,6 +1367,7 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
+  gen.create_service({});
   auto new_kp = tls::make_key_pair();
   auto new_ca = new_kp->self_sign("CN=new node");
   NodeInfo ni;
@@ -1366,15 +1376,14 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
 
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
-  const auto operator_id =
-    gen.add_member(operator_cert, {}, MemberStatus::ACTIVE);
+  const auto operator_id = gen.add_member(operator_cert, {});
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
+    members[gen.add_member(cert, {})] = cert;
   }
 
   set_whitelists(gen);
@@ -1472,7 +1481,8 @@ DOCTEST_TEST_CASE("User data")
   Store::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
-  const auto member_id = gen.add_member(member_cert, {}, MemberStatus::ACTIVE);
+  gen.create_service({});
+  const auto member_id = gen.add_member(member_cert, {});
   const auto user_id = gen.add_user(user_cert);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -1569,7 +1579,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     for (size_t i = 0; i < members_count; i++)
     {
       auto cert = get_cert_data(i, kp);
-      members[gen.add_member(cert, {}, MemberStatus::ACTIVE)] = cert;
+      members[gen.add_member(cert, {})] = cert;
     }
     gen.set_recovery_threshold(recovery_threshold);
     DOCTEST_REQUIRE(node.split_ledger_secrets(gen_tx));
@@ -1636,6 +1646,86 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       {
         DOCTEST_REQUIRE(ret);
         break;
+      }
+    }
+  }
+}
+
+DOCTEST_TEST_CASE("Maximum number of active members")
+{
+  logger::config::level() = logger::INFO;
+
+  NetworkTables network;
+  network.tables->set_encryptor(encryptor);
+  auto node = StubNodeState(std::make_shared<NetworkTables>(network));
+  MemberRpcFrontend frontend(network, node);
+  frontend.open();
+
+  DOCTEST_INFO("Service is opening");
+  {
+    Store::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
+    gen.init_values();
+    gen.create_service({});
+
+    for (size_t i = 0; i < max_active_members_count + 1; i++)
+    {
+      auto cert = get_cert_data(i, kp);
+      if (i == max_active_members_count)
+      {
+        DOCTEST_REQUIRE_THROWS_AS_MESSAGE(
+          gen.add_member(cert, {}),
+          std::logic_error,
+          fmt::format(
+            "No more than {} active members are allowed",
+            max_active_members_count));
+      }
+      else
+      {
+        gen.add_member(cert, {});
+      }
+    }
+  }
+
+  DOCTEST_INFO("Service is open");
+  {
+    std::map<size_t, ccf::Cert> members;
+
+    Store::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
+    gen.init_values();
+    gen.create_service({});
+    gen.open_service();
+    gen.set_recovery_threshold(1);
+
+    // Service is open so members are added as ACCEPTED
+    for (size_t i = 0; i < max_active_members_count + 1; i++)
+    {
+      auto cert = get_cert_data(i, kp);
+      members[gen.add_member(cert, {})] = cert;
+    }
+    gen.finalize();
+
+    for (auto const& m : members)
+    {
+      const auto state_digest_req =
+        create_request(nullptr, "updateAckStateDigest");
+      const auto ack = parse_response_body<StateDigest>(
+        frontend_process(frontend, state_digest_req, m.second));
+
+      StateDigest params;
+      params.state_digest = ack.state_digest;
+      const auto ack_req = create_signed_request(params, "ack", kp);
+      const auto resp = frontend_process(frontend, ack_req, m.second);
+
+      if (m.first >= max_active_members_count)
+      {
+        DOCTEST_CHECK(resp.status == HTTP_STATUS_FORBIDDEN);
+      }
+      else
+      {
+        DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
+        DOCTEST_CHECK(parse_response_body<bool>(resp));
       }
     }
   }
