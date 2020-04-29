@@ -101,6 +101,7 @@ namespace http
           {
             LOG_FAIL_FMT("Error parsing request: {}", e.what());
             close();
+            break;
           }
         }
       }
