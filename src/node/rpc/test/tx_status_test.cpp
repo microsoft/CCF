@@ -57,4 +57,41 @@ TEST_CASE("normal flow")
     CHECK(get_tx_status(3, 10, 4, 4, 14) == TxStatus::NotCommitted);
     CHECK(get_tx_status(3, 10, 4, 5, 15) == TxStatus::NotCommitted);
   }
+
+  // Impossible: view for all seqnos up to global_seqno must be known
+  // get_tx_status(a, N, 0, b, >N)
+}
+
+TEST_CASE("edge cases")
+{
+  {
+    INFO("seqno is known locally in an old view");
+
+    // Node has heard about 2.10 locally, but has not committed to 10
+    CHECK(get_tx_status(3, 10, 2, 2, 8) == TxStatus::TxUnknown);
+    // Impossible: remembering a later commit from an earlier term - should have
+    // been rolled back
+    // CHECK(get_tx_status(3, 10, 2, 3, 8) == TxStatus::TxUnknown);
+
+    // Node knows 2.10 (or later) has been committed - 3.10 is impossible
+    CHECK(get_tx_status(3, 10, 2, 2, 10) == TxStatus::NotCommitted);
+    CHECK(get_tx_status(3, 10, 2, 2, 11) == TxStatus::NotCommitted);
+    CHECK(get_tx_status(3, 10, 2, 3, 11) == TxStatus::NotCommitted);
+    // Impossible: local doesn't match global
+    // CHECK(get_tx_status(3, 10, 2, 3, 10) == TxStatus::NotCommitted);
+  }
+
+  {
+    INFO("Node is in a newer view");
+
+    // Impossible: cannot have local progress in a view without an initial
+    // global point in that view get_tx_status(a, b, N, <N, c)
+
+    CHECK(get_tx_status(3, 10, 0, 4, 8) == TxStatus::NotCommitted);
+    CHECK(get_tx_status(3, 10, 4, 4, 8) == TxStatus::NotCommitted);
+    CHECK(get_tx_status(3, 10, 4, 4, 10) == TxStatus::NotCommitted);
+    CHECK(get_tx_status(3, 10, 4, 4, 11) == TxStatus::NotCommitted);
+    CHECK(get_tx_status(3, 10, 4, 5, 11) == TxStatus::NotCommitted);
+    CHECK(get_tx_status(3, 10, 4, 5, 12) == TxStatus::NotCommitted);
+  }
 }

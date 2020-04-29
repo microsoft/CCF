@@ -21,6 +21,8 @@ namespace ccf
      {TxStatus::Committed, "COMMITTED"},
      {TxStatus::NotCommitted, "NOT_COMMITTED"}});
 
+  constexpr size_t VIEW_UNKNOWN = 0;
+
   TxStatus get_tx_status(
     size_t target_view,
     size_t target_seqno,
@@ -28,7 +30,7 @@ namespace ccf
     size_t committed_view,
     size_t committed_seqno)
   {
-    if (local_view == 0)
+    if (local_view == VIEW_UNKNOWN)
     {
       // This seqno is not known locally - determine if this tx id is
       // still possible.
