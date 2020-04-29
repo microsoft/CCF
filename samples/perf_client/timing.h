@@ -275,7 +275,9 @@ namespace timing
         else if (tx_status == "INVALID")
         {
           throw std::logic_error(fmt::format(
-            "Transaction {}.{} is now marked as invalid", target.term, target.index));
+            "Transaction {}.{} is now marked as invalid",
+            target.term,
+            target.index));
         }
         else
         {

@@ -475,8 +475,7 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     resp = c.get(
-                        "tx",
-                        {"view": term_leader, "seqno": local_commit_leader},
+                        "tx", {"view": term_leader, "seqno": local_commit_leader},
                     )
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
