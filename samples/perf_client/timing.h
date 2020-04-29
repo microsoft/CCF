@@ -212,7 +212,7 @@ namespace timing
       receives.push_back({Clock::now() - start_time, rpc_id, commit});
     }
 
-    // Repeatedly calls getTxStatus RPC until the target index has been
+    // Repeatedly calls GET /tx RPC until the target seqno has been
     // committed (or will never be committed), returns first confirming
     // response. Calls record_[send/response], if record is true.
     // Throws on errors, or if target is rolled back
@@ -220,10 +220,10 @@ namespace timing
       const CommitPoint& target, bool record = true)
     {
       auto params = nlohmann::json::object();
-      params["term"] = target.term;
-      params["commit"] = target.index;
+      params["view"] = target.term;
+      params["seqno"] = target.index;
 
-      constexpr auto get_tx_status = "getTxStatus";
+      constexpr auto get_tx_status = "tx";
 
       LOG_INFO_FMT(
         "Waiting for global commit {}.{}", target.term, target.index);

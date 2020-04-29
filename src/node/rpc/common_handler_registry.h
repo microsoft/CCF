@@ -72,7 +72,6 @@ namespace ccf
 
           GetTxStatus::Out out;
           out.status = ccf::get_tx_status(in.view, in.seqno, tx_view, committed_view, committed_seqno);
-          
           return make_success(out);
         }
 

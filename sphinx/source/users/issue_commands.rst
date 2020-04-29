@@ -52,7 +52,7 @@ Checking for Commit
 
 Because of the decentralised nature of CCF, a request is committed to the ledger only once a number of nodes have agreed on that request.
 
-To guarantee that their request is successfully committed to the ledger, a user should issue a ``getTxStatus`` request, specifying the transaction version received in the response. The response may say the initial transaction is still pending global commit, has been globally committed, or has been lost due to a consensus leadership change (in which case the request should be resubmitted).
+To guarantee that their request is successfully committed to the ledger, a user should issue a ``GET /tx`` request, specifying the transaction version received in the response. The response may say the initial transaction is still pending global commit, has been globally committed, or has been not been committed (in which case the request may be resubmitted).
 
 .. code-block:: bash
 
