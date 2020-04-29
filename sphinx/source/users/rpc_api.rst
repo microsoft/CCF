@@ -65,7 +65,6 @@ Common Methods
 getCommit
 ~~~~~~~~~
 
-.. jsonschema:: ../schemas/getCommit_params.json
 .. jsonschema:: ../schemas/getCommit_result.json
 
 getPrimaryInfo
