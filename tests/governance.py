@@ -23,13 +23,6 @@ def run(args):
         primary, _ = network.find_nodes()
 
         with primary.node_client() as mc:
-            r = mc.get("getQuotes")
-            quotes = r.result["quotes"]
-            assert len(quotes) == len(hosts)
-            primary_quote = quotes[0]
-            assert primary_quote["node_id"] == 0
-            mrenclave = primary_quote["mrenclave"]
-
             oed = subprocess.run(
                 [
                     args.oesign,
@@ -46,7 +39,21 @@ def run(args):
                 if line.startswith("mrenclave=")
             ]
             expected_mrenclave = lines[0].strip().split("=")[1]
-            assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
+
+            r = mc.get("getQuote")
+            quotes = r.result["quotes"]
+            assert len(quotes) == 1
+            primary_quote = quotes[0]
+            assert primary_quote["node_id"] == 0
+            primary_mrenclave = primary_quote["mrenclave"]
+            assert primary_mrenclave == expected_mrenclave, (primary_mrenclave, expected_mrenclave)
+
+            r = mc.get("getQuotes")
+            quotes = r.result["quotes"]
+            assert len(quotes) == len(hosts)
+            for quote in quotes:
+                mrenclave = quote["mrenclave"]
+                assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
 
 
 if __name__ == "__main__":
