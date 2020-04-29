@@ -13,7 +13,6 @@ Retrieves quote of single contacted node.
 Example
 -------
 
-
     {
         "quotes": [
             {
@@ -23,7 +22,6 @@ Example
             }
         ]
     }
-
 
 getQuotes
 ~~~~~~~~~
