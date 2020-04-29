@@ -30,6 +30,26 @@ namespace ccf
     size_t committed_view,
     size_t committed_seqno)
   {
+    const bool is_committed = committed_seqno >= target_seqno;
+
+    if (is_committed && local_view == VIEW_UNKNOWN)
+    {
+      throw std::logic_error(fmt::format(
+        "Should know local view for seqnos up to {}, but have no view for {}",
+        committed_seqno,
+        target_seqno));
+    }
+
+    if (local_view > committed_view)
+    {
+      throw std::logic_error(fmt::format(
+        "Should not believe {} occurred in view {}, ahead of the current "
+        "committed view {}",
+        target_view,
+        local_view,
+        committed_view));
+    }
+
     if (local_view == VIEW_UNKNOWN)
     {
       // This seqno is not known locally - determine if this tx id is

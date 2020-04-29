@@ -57,13 +57,21 @@ TEST_CASE("normal flow")
     CHECK(get_tx_status(3, 10, 4, 4, 14) == TxStatus::NotCommitted);
     CHECK(get_tx_status(3, 10, 4, 5, 15) == TxStatus::NotCommitted);
   }
-
-  // Impossible: view for all seqnos up to global_seqno must be known
-  // get_tx_status(a, N, 0, b, >N)
 }
 
 TEST_CASE("edge cases")
 {
+  {
+    INFO("Unknown views");
+    // Impossible: view for all global txs must be known
+    // get_tx_status(a, N, 0, b, >=N)
+    CHECK_THROWS(get_tx_status(3, 10, 0, 1, 10));
+    CHECK_THROWS(get_tx_status(3, 10, 0, 1, 11));
+    CHECK_THROWS(get_tx_status(3, 10, 0, 3, 10));
+    CHECK_THROWS(get_tx_status(3, 10, 0, 3, 11));
+    CHECK_THROWS(get_tx_status(3, 10, 0, 4, 10));
+    CHECK_THROWS(get_tx_status(3, 10, 0, 4, 11));
+  }
   {
     INFO("seqno is known locally in an old view");
 
@@ -85,7 +93,17 @@ TEST_CASE("edge cases")
     INFO("Node is in a newer view");
 
     // Impossible: cannot have local progress in a view without an initial
-    // global point in that view get_tx_status(a, b, N, <N, c)
+    // global point in that view
+    // get_tx_status(a, b, N, <N, c)
+    CHECK_THROWS(get_tx_status(3, 10, 2, 1, 8));
+    CHECK_THROWS(get_tx_status(3, 10, 2, 1, 10));
+    CHECK_THROWS(get_tx_status(3, 10, 2, 1, 12));
+    CHECK_THROWS(get_tx_status(3, 10, 3, 2, 8));
+    CHECK_THROWS(get_tx_status(3, 10, 3, 2, 10));
+    CHECK_THROWS(get_tx_status(3, 10, 3, 2, 12));
+    CHECK_THROWS(get_tx_status(3, 10, 4, 3, 8));
+    CHECK_THROWS(get_tx_status(3, 10, 4, 3, 10));
+    CHECK_THROWS(get_tx_status(3, 10, 4, 3, 12));
 
     CHECK(get_tx_status(3, 10, 0, 4, 8) == TxStatus::NotCommitted);
     CHECK(get_tx_status(3, 10, 4, 4, 8) == TxStatus::NotCommitted);
