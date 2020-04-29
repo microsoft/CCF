@@ -447,19 +447,6 @@ if(BUILD_TESTS)
     CONSENSUS raft
   )
 
-  # Lua sample app (tx regulator) end to end test
-  add_e2e_test(
-    NAME lua_txregulator_test
-    PYTHON_SCRIPT
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS
-      --app-script
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
-      --datafile
-      ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
-  )
-
   add_e2e_test(
     NAME recovery_tests
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
@@ -476,35 +463,11 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME end_to_end_scenario
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --scenario
-                    ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
-  )
-
-  add_e2e_test(
-    NAME lua_end_to_end_logging
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
-  )
-
-  add_e2e_test(
     NAME lua_end_to_end_batched
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS raft
     ADDITIONAL_ARGS --app-script
                     ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
-  )
-
-  add_e2e_test(
-    NAME js_end_to_end_logging
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-    CONSENSUS raft
-    ADDITIONAL_ARGS --js-app-script
-                    ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
   )
 
   if(QUOTES_ENABLED)
@@ -549,6 +512,43 @@ if(BUILD_TESTS)
   endif()
 
   foreach(CONSENSUS ${CONSENSUSES})
+    # Lua sample app (tx regulator) end to end test
+    add_e2e_test(
+      NAME lua_txregulator_test_${CONSENSUS}
+      PYTHON_SCRIPT
+        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/tests/txregulatorclient.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS
+        --app-script
+        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/app/txregulator.lua
+        --datafile
+        ${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/txregulator/dataset/sample_data.csv
+    )
+
+    add_e2e_test(
+      NAME js_end_to_end_logging_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS --js-app-script
+                      ${CMAKE_SOURCE_DIR}/src/apps/logging/logging_js.lua
+    )
+
+    add_e2e_test(
+      NAME end_to_end_scenario_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS --scenario
+                      ${CMAKE_SOURCE_DIR}/tests/simple_logging_scenario.json
+    )
+
+    add_e2e_test(
+      NAME lua_end_to_end_logging_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS --app-script
+                      ${CMAKE_SOURCE_DIR}/src/apps/logging/logging.lua
+    )
+
     add_e2e_test(
       NAME member_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/memberclient.py
