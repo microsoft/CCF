@@ -65,26 +65,33 @@ Common Methods
 getCommit
 ~~~~~~~~~
 
-.. jsonschema:: ../schemas/getCommit_params.json
-.. jsonschema:: ../schemas/getCommit_result.json
+.. literalinclude:: ../schemas/getCommit_params.json
+    :language: json
+.. literalinclude:: ../schemas/getCommit_result.json
+    :language: json
 
 getPrimaryInfo
 ~~~~~~~~~~~~~~
 
-.. jsonschema:: ../schemas/getPrimaryInfo_result.json
+.. literalinclude:: ../schemas/getPrimaryInfo_result.json
+    :language: json
 
 getMetrics
 ~~~~~~~~~~
 
-.. jsonschema:: ../schemas/getMetrics_result.json
+.. literalinclude:: ../schemas/getMetrics_result.json
+    :language: json
 
 getSchema
 ~~~~~~~~~
 
-.. jsonschema:: ../schemas/getSchema_params.json
-.. jsonschema:: ../schemas/getSchema_result.json
+.. literalinclude:: ../schemas/getSchema_params.json
+    :language: json
+.. literalinclude:: ../schemas/getSchema_result.json
+    :language: json
 
 listMethods
 ~~~~~~~~~~~
 
-.. jsonschema:: ../schemas/listMethods_result.json
+.. literalinclude:: ../schemas/listMethods_result.json
+    :language: json
