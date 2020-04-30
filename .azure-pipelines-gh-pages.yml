@@ -32,7 +32,7 @@ jobs:
         source env/bin/activate
         pip install wheel
         pip install -U -r requirements.txt
-        sphinx-multiversion source build/html
+        sphinx-multiversion -W doc build/html
       displayName: Sphinx
       workingDirectory: sphinx
 
@@ -43,7 +43,7 @@ jobs:
         git add .
         git commit -m "[ci skip] commit generated documentation"
       displayName: 'Commit pages'
-      workingDirectory: sphinx/build/html
+      workingDirectory: build/html
 
     - task: DownloadSecureFile@1
       inputs:
@@ -62,9 +62,9 @@ jobs:
       condition: |
         and(not(eq(variables['Build.Reason'], 'PullRequest')),
             eq(variables['Build.SourceBranch'], 'refs/heads/master'))
-      workingDirectory: sphinx/build/html
+      workingDirectory: build/html
 
     - script: rm deploy_key || true
       displayName: 'Make sure key is removed'
-      workingDirectory: sphinx/build/html
+      workingDirectory: build/html
       condition: always()

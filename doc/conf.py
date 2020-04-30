@@ -177,7 +177,7 @@ todo_include_todos = True
 # -- Breathe configuration
 
 # Setup the breathe extension
-breathe_projects = {"CCF": "doxygen/xml"}
+breathe_projects = {"CCF": "../doxygen/xml"}
 breathe_default_project = "CCF"
 
 """
@@ -192,7 +192,7 @@ html_context = {
 
 # Set up multiversion extension
 
-smv_tag_whitelist = r"^nv.*$"
+smv_tag_whitelist = r"^v.*$"
 smv_branch_whitelist = r"^doc_version$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"

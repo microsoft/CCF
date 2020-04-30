@@ -5,14 +5,14 @@ Once an application is complete, it needs to be built into a shared object, and 
 
 Using `cmake`, an application can be built and then signed using the functions provided by CCF's ``CCF/cmake/ccf.cmake``. For example, for the ``lua_generic`` application:
 
-.. literalinclude:: ../../../cmake/common.cmake
+.. literalinclude:: ../../cmake/common.cmake
     :language: cmake
     :start-after: SNIPPET_START: Lua generic application
     :end-before: SNIPPET_END: Lua generic application
 
 The :term:`Open Enclave` configuration file (``oe_sign.conf``) should be placed under the same directory as the source files for the application. For example:
 
-.. literalinclude:: ../../../src/apps/logging/oe_sign.conf
+.. literalinclude:: ../../src/apps/logging/oe_sign.conf
 
 .. note:: The `Open Enclave documentation <https://github.com/openenclave/openenclave/blob/master/docs/GettingStartedDocs/buildandsign.md#signing-the-enclave>`_ provides details about the enclave settings in the ``oe_sign.conf`` configuration file.
 
