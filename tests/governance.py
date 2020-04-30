@@ -46,7 +46,10 @@ def run(args):
             primary_quote = quotes[0]
             assert primary_quote["node_id"] == 0
             primary_mrenclave = primary_quote["mrenclave"]
-            assert primary_mrenclave == expected_mrenclave, (primary_mrenclave, expected_mrenclave)
+            assert primary_mrenclave == expected_mrenclave, (
+                primary_mrenclave,
+                expected_mrenclave,
+            )
 
             r = mc.get("getQuotes")
             quotes = r.result["quotes"]
