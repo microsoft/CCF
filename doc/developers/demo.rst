@@ -5,7 +5,7 @@ This document explains how the Python testing infrastructure is used to run a co
 
 The script ``tests/e2e_scenarios.py`` reads a test scenario from json. This json file can specify which app the network should run, how many nodes it should create, and the list of transactions to run. ``tests/simple_logging_scenario.json`` is an example scenario file showing the expected format:
 
-.. literalinclude:: ../../../tests/simple_logging_scenario.json
+.. literalinclude:: ../../tests/simple_logging_scenario.json
     :language: json
 
 To see how this is run in the main test suite, look at the `Test command` used by CTest:
@@ -32,7 +32,7 @@ To run manually with your own scenario:
 
 This first loads the scenario from the given json file, extracting setup fields:
 
-.. literalinclude:: ../../../tests/e2e_scenarios.py
+.. literalinclude:: ../../tests/e2e_scenarios.py
     :language: python
     :start-after: SNIPPET_START: parsing
     :end-before: SNIPPET_END: parsing
@@ -40,7 +40,7 @@ This first loads the scenario from the given json file, extracting setup fields:
 
 Given the above ``scenario.json`` this should create 2 nodes on the local machine running the ``logging`` example app. The script then creates the requested CCF network:
 
-.. literalinclude:: ../../../tests/e2e_scenarios.py
+.. literalinclude:: ../../tests/e2e_scenarios.py
     :language: python
     :start-after: SNIPPET_START: create_network
     :end-before: SNIPPET_END: create_network

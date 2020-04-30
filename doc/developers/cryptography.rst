@@ -46,7 +46,7 @@ Authenticated encryption in CCF relies on AES256-GCM. Ledger authentication reli
 
 Public-key certificates, signatures, and ephemeral Diffie-Hellman key exchanges all rely on elliptic curves. The supported curves are listed in `tls/curve.h`:
 
-    .. literalinclude:: ../../../src/tls/curve.h
+    .. literalinclude:: ../../src/tls/curve.h
         :language: cpp
         :start-after: SNIPPET_START: supported_curves
         :end-before: SNIPPET_END: supported_curves

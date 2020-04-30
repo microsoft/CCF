@@ -17,7 +17,7 @@ RPC Handler
 
 The following shows an implementation of the Logging application, where each RPC method handler (e.g., ``LOG_get``) is a separate entry in *APP_SCRIPTS*:
 
-.. literalinclude:: ../../../src/apps/logging/logging.lua
+.. literalinclude:: ../../src/apps/logging/logging.lua
     :language: lua
 
 Here, functionality shared between the handlers (e.g., ``env.jsucc()``) and app-specific error codes (e.g., ``MESSAGE_EMPTY``) are defined in the ``__environment`` script.
@@ -27,7 +27,7 @@ Interface
 
 The interface between Lua RPC handlers and the rest of CCF is simple. A fixed set of parameters is passed to a Lua RPC handler on invocation:
 
-.. literalinclude:: ../../../src/apps/logging/logging.lua
+.. literalinclude:: ../../src/apps/logging/logging.lua
     :language: lua
     :start-after: SNIPPET_START: lua_params
     :end-before: SNIPPET_END: lua_params

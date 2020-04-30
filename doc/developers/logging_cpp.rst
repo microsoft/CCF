@@ -32,7 +32,7 @@ The Logging application simply has:
 
     Table creation happens in the app's constructor:
 
-    .. literalinclude:: ../../../src/apps/logging/logging.cpp
+    .. literalinclude:: ../../src/apps/logging/logging.cpp
         :language: cpp
         :start-after: SNIPPET_START: constructor
         :end-before: SNIPPET_END: constructor
