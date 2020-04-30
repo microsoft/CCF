@@ -546,8 +546,8 @@ TEST_CASE("Verify prepare proof")
       first_pp->is_signed(),
       node_id);
     // this gives the first_pp pointer ownership to the prepared_cert
-    // we want to use first_pp later on, so make sure to release first_pp before
-    // it goes out of scope to avoid double deletion
+    // we want to use first_pp later on, so make sure to release from cert
+    // before it goes out of scope to avoid double deletion
     prepared_cert->add(first_pp.get());
   }
   INFO(
@@ -610,9 +610,8 @@ TEST_CASE("Verify prepare proof")
     REQUIRE(new_node_prepared_cert.my_prepare() != nullptr);
     REQUIRE(new_node_prepared_cert.is_pp_correct());
     // cleanup
-    // release first_pp since it will be deleted by new_node_prepared_cert which
-    // claimed its ownership last
+    // release first_pp since from the certs that claimed ownership
     prepared_cert->rem_pre_prepare();
-    first_pp.release();
+    new_node_prepared_cert.rem_pre_prepare();
   }
 }
