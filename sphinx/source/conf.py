@@ -48,8 +48,7 @@ extensions = [
     "breathe",
     "sphinxcontrib.mermaid",
     "sphinx.ext.autosectionlabel",
-    "sphinx.ext.githubpages",
-    "sphinx-jsonschema",
+    "sphinx.ext.githubpages"
 ]
 
 autosectionlabel_prefix_document = True
