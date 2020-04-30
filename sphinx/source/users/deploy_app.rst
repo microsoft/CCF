@@ -1,7 +1,7 @@
 Deploying an Application
 ========================
 
-The quickest way to deploy a CCF application is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :ref:`enclave image <developers/index:Writing CCF Applications>` to run.
+The quickest way to deploy a CCF application is to use the `start_test_network.sh <https://github.com/microsoft/CCF/blob/master/start_test_network.sh>`_ test script, specifying the :ref:`enclave image <developers/index:Building Apps>` to run.
 
 The script creates a new test CCF network composed of 3 nodes running locally. All the governance requests required to open the network to users are automatically issued.
 

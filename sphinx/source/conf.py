@@ -192,7 +192,7 @@ html_context = {
 
 # Set up multiversion extension
 
-smv_tag_whitelist = r"^v.*$"
+smv_tag_whitelist = r"^nv.*$"
 smv_branch_whitelist = r"^doc_version$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"

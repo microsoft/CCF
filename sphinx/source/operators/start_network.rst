@@ -3,7 +3,7 @@ Starting a New Network
 
 .. note:: Before creating a new network:
 
-    - The :ref:`identity of the initial members of the consortium must be created <members/index:Member Governance>`.
+    - The :ref:`identity of the initial members of the consortium must be created <members/index:Governance>`.
     - The :ref:`constitution should have been agreed by the initial members <members/constitution:Constitution>`.
 
 Starting the First Node
@@ -38,7 +38,7 @@ When starting up, the node generates its own key pair and outputs the certificat
 
 The certificates and recovery public keys of initial members of the consortium are specified via ``--member-info``. For example, if 3 members should be added to CCF, operators should specify ``--member-info member1_cert.pem,member1_enc_pub.pem``, ``--member-info member2_cert.pem,member2_enc_pub.pem``, ``--member-info member3_cert.pem,member3_enc_pub.pem``.
 
-The :term:`constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
+The :term:`Constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
 
 The network is now in its opening state and any new nodes can join the network without being trusted by members.
 

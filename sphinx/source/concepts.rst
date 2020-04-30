@@ -12,12 +12,12 @@ Network and Nodes
 
 A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), or enclave, such as :term:`SGX`. As such, a CCF network is decentralised and highly-available.
 
-Nodes are run and maintained by :term:`operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
+Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
 Application
 -----------
 
-Each node runs the same application (a.k.a. transaction engine). An application is a collection of endpoints that can be triggered by trusted :term:`users`' commands over :term:`TLS`.
+Each node runs the same application (a.k.a. transaction engine). An application is a collection of endpoints that can be triggered by trusted :term:`Users`' commands over :term:`TLS`.
 
 Each endpoint mutates an in-enclave-memory Key-Value Store that is replicated across all nodes in the network. Changes to the Key-Value Store must be agreed by a variable number of nodes, depending on the consensus algorithm selected (either Raft or PBFT), before being applied.
 
@@ -35,7 +35,7 @@ The integrity of the ledger is guaranteed by a Merkle tree whose root is periodi
 Governance
 ----------
 
-A CCF network is governed by a consortium of :term:`members`. The :term:`constitution`, recorded in the ledger itself, defines a set of rules that members must follow.
+A CCF network is governed by a consortium of :term:`Members`. The :term:`Constitution`, recorded in the ledger itself, defines a set of rules that members must follow.
 
 Members can submit proposals to modify the state of the Key-Value Store. For example, members can vote to allow a new trusted user to issue requests to the application or to add a new member to the consortium.
 
