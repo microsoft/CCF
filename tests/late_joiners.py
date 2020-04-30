@@ -160,7 +160,7 @@ def run(args):
             args=args,
             num_txs=int(TOTAL_REQUESTS / 2),
             start_idx=1000,
-            timeout=30 * len(all_nodes),
+            timeout=30,
             can_fail=True,
             wait_for_sync=True,
         )

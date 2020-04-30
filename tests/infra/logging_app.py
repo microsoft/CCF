@@ -53,8 +53,8 @@ class LoggingTxs:
                             "LOG_record_pub",
                             {"id": self.next_pub_index, "msg": pub_msg,},
                         )
-                        check_commit_n(rep_priv, result=True)
-                        check_commit(rep_pub, result=True)
+                        check_commit_n(rep_priv, result=True, timeout=timeout)
+                        check_commit(rep_pub, result=True, timeout=timeout)
 
                         self.priv[self.next_priv_index] = priv_msg
                         self.pub[self.next_pub_index] = pub_msg
