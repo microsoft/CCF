@@ -35,13 +35,12 @@ def timeout_handler(node, suspend, election_timeout):
         node.resume()
 
 
-def find_primary(network, args, term_info):
+def update_term_info(network, term_info):
     try:
         cur_primary, cur_term = network.find_primary()
         term_info[cur_term] = cur_primary.node_id
     except TimeoutError:
         LOG.info("Trying to access a suspended network")
-    return network
 
 
 @reqs.description("Running transactions against logging app")
@@ -121,6 +120,7 @@ def test_suspend_nodes(network, args, nodes_to_keep):
             suspend_time = 2.5 * suspend_time
         tm = Timer(t, timeout_handler, args=[node, True, suspend_time])
         tm.start()
+    return network
 
 
 @reqs.description("Retiring backup(s)")
@@ -142,10 +142,10 @@ def run(args):
         network.start_and_join(args)
         all_nodes = network.get_joined_nodes()
         term_info = {}
-        find_primary(network, args, term_info)
+        update_term_info(network, term_info)
 
         test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
-        find_primary(network, args, term_info)
+        update_term_info(network, term_info)
 
         nodes_to_kill = [network.find_any_backup()]
         nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
@@ -189,7 +189,7 @@ def run(args):
             can_fail=True,
         )
 
-        find_primary(network, args, term_info)
+        update_term_info(network, term_info)
 
         # check nodes have resumed normal execution before shutting down
         test_run_txs(
