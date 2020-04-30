@@ -51,7 +51,7 @@ def find_primary(network, args, term_info):
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
 @reqs.at_least_n_nodes(3)
-def run_txs_on(
+def run_txs(
     network,
     args,
     nodes=None,
@@ -73,13 +73,12 @@ def run_txs_on(
     if nodes is None:
         nodes = network.get_joined_nodes()
     num_nodes = len(nodes)
-    txs_per_node = max(1, int(num_txs / num_nodes))
 
-    for node in nodes:
+    for tx in range(num_txs):
         txs.issue_on_node(
             network=network,
-            remote_node=node,
-            number_txs=txs_per_node,
+            remote_node=nodes[tx % num_nodes],
+            number_txs=1,
             consensus=args.consensus,
         )
 
@@ -116,7 +115,7 @@ def run(args):
             else args.raft_election_timeout / 1000
         )
 
-        run_txs_on(network=network, args=args, num_txs=TOTAL_REQUESTS)
+        run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
         find_primary(network, args, term_info)
 
         nodes_to_kill = [network.find_any_backup()]
@@ -128,7 +127,7 @@ def run(args):
 
         # some requests to be processed while the late joiner catches up
         # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
-        run_txs_on(
+        run_txs(
             network=network,
             args=args,
             num_txs=int(TOTAL_REQUESTS / 2),
@@ -145,7 +144,13 @@ def run(args):
                 node.stop()
 
             # check nodes are ok after we killed one off
-            run_txs_on(network=network, args=args, nodes=nodes_to_keep, start_idx=2000)
+            run_txs(
+                network=network,
+                args=args,
+                nodes=nodes_to_keep,
+                num_txs=len(nodes_to_keep),
+                start_idx=2000,
+            )
 
             find_primary(network, args, term_info)
             cur_term = max(term_info.keys())
@@ -174,7 +179,7 @@ def run(args):
                 tm.start()
 
             # run txs while nodes get suspended
-            run_txs_on(
+            run_txs(
                 network=network,
                 args=args,
                 nodes=nodes_to_keep,
@@ -185,7 +190,13 @@ def run(args):
             find_primary(network, args, term_info)
 
             # check nodes have resumed normal execution before shutting down
-            run_txs_on(network=network, args=args, nodes=nodes_to_keep, start_idx=4000)
+            run_txs(
+                network=network,
+                args=args,
+                nodes=nodes_to_keep,
+                num_txs=len(nodes_to_keep),
+                start_idx=4000,
+            )
 
             # we have asserted that all nodes are caught up
             # assert that view changes actually did occur
