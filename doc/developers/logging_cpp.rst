@@ -3,31 +3,7 @@ Logging (C++)
 
 A C++ transaction engine exposes itself to CCF by implementing:
 
-.. literalinclude:: ../../../src/enclave/app_interface.h
-    :language: cpp
-    :start-after: SNIPPET_START: rpc_handler
-    :end-before: SNIPPET_END: rpc_handler
-    :dedent: 2
-
-a
-
 .. literalinclude:: ../../src/enclave/app_interface.h
-    :language: cpp
-    :start-after: SNIPPET_START: rpc_handler
-    :end-before: SNIPPET_END: rpc_handler
-    :dedent: 2
-
-b
-
-.. literalinclude:: ../src/enclave/app_interface.h
-    :language: cpp
-    :start-after: SNIPPET_START: rpc_handler
-    :end-before: SNIPPET_END: rpc_handler
-    :dedent: 2
-
-c
-
-.. literalinclude:: src/enclave/app_interface.h
     :language: cpp
     :start-after: SNIPPET_START: rpc_handler
     :end-before: SNIPPET_END: rpc_handler
@@ -35,7 +11,7 @@ c
 
 The Logging application simply has:
 
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: rpc_handler
     :end-before: SNIPPET_END: rpc_handler
@@ -48,7 +24,7 @@ The Logging application simply has:
 
     The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:
 
-    .. literalinclude:: ../../../src/apps/logging/logging.cpp
+    .. literalinclude:: ../../src/apps/logging/logging.cpp
         :language: cpp
         :start-after: SNIPPET: table_definition
         :lines: 1
@@ -67,7 +43,7 @@ RPC Handler
 
 The handler returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::UserRpcFrontend`, providing an implementation of :cpp:class:`ccf::HandlerRegistry`:
 
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET: inherit_frontend
     :lines: 1
@@ -75,7 +51,7 @@ The handler returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :c
 
 The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and installs handler functions or lambdas for each transaction type. These take a transaction object and the request's ``params``, interact with the KV tables, and return a result:
 
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: get
     :end-before: SNIPPET_END: get
@@ -85,7 +61,7 @@ This handler uses the simple signatures provided by the ``json_adapter`` wrapper
 
 Each function is installed as the handler for a specific RPC ``method``, the name of the HTTP resource at which your handler will be invoked:
 
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: install_get
     :end-before: SNIPPET_END: install_get
@@ -95,7 +71,7 @@ The return value from ``install`` is a ``Handler&`` object which can be used to 
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``RequestArgs&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: log_record_text
     :end-before: SNIPPET_END: log_record_text
@@ -105,7 +81,7 @@ Rather than parsing the request body as JSON and extracting the message from it,
 
 This general form of handler (taking a single ``RequestArgs&`` parameter) also allows a handler to see additional caller context. An example of this is the ``log_record_prefix_cert`` handler:
 
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: log_record_prefix_cert
     :end-before: SNIPPET_END: log_record_prefix_cert
@@ -124,7 +100,7 @@ API Schema
 
 These handlers also demonstrate two different ways of defining schema for RPCs, and validating incoming requests against them. The record/get methods operating on public tables have manually defined schema and use [#valijson]_ for validation, returning an error if the input is not compliant with the schema:
 
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: valijson_record_public
     :end-before: SNIPPET_END: valijson_record_public
@@ -134,13 +110,13 @@ This provides robust, extensible validation using the full JSON schema spec.
 
 The methods operating on private tables use an alternative approach, with a macro-generated schema and parser converting compliant requests into a PoD C++ object:
 
-.. literalinclude:: ../../../src/apps/logging/logging_schema.h
+.. literalinclude:: ../../src/apps/logging/logging_schema.h
     :language: cpp
     :start-after: SNIPPET_START: macro_validation_macros
     :end-before: SNIPPET_END: macro_validation_macros
     :dedent: 2
 
-.. literalinclude:: ../../../src/apps/logging/logging.cpp
+.. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
     :start-after: SNIPPET_START: macro_validation_record
     :end-before: SNIPPET_END: macro_validation_record

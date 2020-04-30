@@ -177,7 +177,7 @@ todo_include_todos = True
 # -- Breathe configuration
 
 # Setup the breathe extension
-breathe_projects = {"CCF": "../../doxygen/xml"}
+breathe_projects = {"CCF": "doxygen/xml"}
 breathe_default_project = "CCF"
 
 """
@@ -218,5 +218,5 @@ def setup(self):
     import subprocess
     from pathlib import Path
 
-    subprocess.run(["rm", "doxygen"], cwd=Path.cwd() / "..", check=False)
-    subprocess.run(["doxygen"], cwd=Path.cwd() / "..", check=True)
+    subprocess.run(["rm", "doxygen"], check=False)
+    subprocess.run(["doxygen"], check=True)
