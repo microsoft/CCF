@@ -29,6 +29,16 @@ if((NOT ${IS_VALID_TARGET}))
   )
 endif()
 
+# Find OpenEnclave package, preferring local version if found (in the install case)
+find_package(
+  OpenEnclave
+  0.9
+  CONFIG
+  REQUIRED
+  PATHS
+  ${CMAKE_CURRENT_LIST_DIR}/../openenclave
+  NO_DEFAULT_PATH
+)
 find_package(OpenEnclave 0.9 CONFIG REQUIRED)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
