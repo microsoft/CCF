@@ -121,12 +121,12 @@ namespace ccf
       for (auto const& [member_id, enc_pub_key] : active_members_info)
       {
         auto nonce = tls::create_entropy()->random(crypto::Box::NONCE_SIZE);
-        auto share_raw = std::vector<uint8_t>(
+        auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
 
         auto enc_pub_key_raw = tls::PublicX25519::parse(tls::Pem(enc_pub_key));
         auto encrypted_share = crypto::Box::create(
-          share_raw,
+          raw_share,
           nonce,
           enc_pub_key_raw,
           network.encryption_key->private_raw);
@@ -205,18 +205,55 @@ namespace ccf
         tx, new_ledger_secret, network.ledger_secrets->get_latest());
     }
 
+    // bool check_share_is_valid(
+    //   Store::Tx& tx, const std::vector<uint8_t>& raw_share, MemberId member_id)
+    // {
+    //   auto recovery_shares_info = tx.get_view(network.shares)->get(0);
+    //   if (!recovery_shares_info.has_value())
+    //   {
+    //     throw std::logic_error(
+    //       "Failed to retrieve current recovery shares info");
+    //   }
+
+    //   auto member_info = tx.get_view(network.members)->get(member_id);
+    //   if (!member_info.has_value())
+    //   {
+    //     throw std::logic_error(fmt::format(
+    //       "Could not check recovery share for unknown member {}", member_id));
+    //   }
+
+    //   bool share_is_valid = false;
+    //   for (auto const& s : recovery_shares_info.value().encrypted_shares)
+    //   {
+    //     if (
+    //       s.first == member_id &&
+    //       encrypt_share(raw_share, s.second.nonce, member_info->keyshare) ==
+    //         s.second.encrypted_share)
+    //     {
+    //       share_is_valid = true;
+    //     }
+    //   }
+
+    //   return share_is_valid;
+    // }
+
     // For now, the shares are passed directly to this function. Shares should
     // be retrieved from the KV instead.
     std::vector<kv::Version> restore_recovery_shares_info(
       Store::Tx& tx,
-      const std::vector<SecretSharing::Share>& shares,
+      const std::map<MemberId, SecretSharing::Share>& shares,
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
     {
       // First, re-assemble the ledger secret wrapping key from the given
       // shares. Then, unwrap the latest ledger secret and use it to decrypt the
       // previous ledger secret and so on.
-      auto ls_wrapping_key =
-        LedgerSecretWrappingKey(SecretSharing::combine(shares, shares.size()));
+      std::vector<SecretSharing::Share> share_vec;
+      for (auto const& s : shares)
+      {
+        share_vec.emplace_back(s.second);
+      }
+      auto ls_wrapping_key = LedgerSecretWrappingKey(
+        SecretSharing::combine(share_vec, share_vec.size()));
 
       auto recovery_shares_info = tx.get_view(network.shares)->get(0);
       if (!recovery_shares_info.has_value())

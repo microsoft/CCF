@@ -32,7 +32,7 @@ namespace ccf
 
   struct SubmitRecoveryShare
   {
-    std::vector<uint8_t> recovery_share;
+    std::string recovery_share;
   };
   DECLARE_JSON_TYPE(SubmitRecoveryShare)
   DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, recovery_share)
@@ -348,13 +348,20 @@ namespace ccf
         {"update_recovery_shares",
          [this](
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
-           const auto shares_updated = node.split_ledger_secrets(tx);
-           if (!shares_updated)
+           //  const auto shares_updated = node.split_ledger_secrets(tx);
+           try
+           {
+             share_manager.issue_shares(tx);
+           }
+           catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: Updating recovery shares failed", proposal_id);
+               "Proposal {}: Updating recovery shares failed ({})",
+               proposal_id,
+               e.what());
+             return false;
            }
-           return shares_updated;
+           return true;
          }},
         {"set_recovery_threshold",
          [this](
@@ -383,7 +390,9 @@ namespace ccf
            g.set_recovery_threshold(new_recovery_threshold);
 
            // Update recovery shares (same number of shares)
-           return node.split_ledger_secrets(tx);
+           share_manager.issue_shares(tx);
+           return true;
+           //  return node.split_ledger_secrets(tx);
          }},
       };
 
@@ -550,17 +559,18 @@ namespace ccf
 
     NetworkTables& network;
     AbstractNodeState& node;
-    const lua::TxScriptRunner tsr;
+    ShareManager& share_manager;
     // For now, shares are not stored in the KV
-    std::vector<SecretSharing::Share> pending_shares;
+    std::map<MemberId, SecretSharing::Share> pending_shares;
 
-    static constexpr auto SIZE_NONCE = 16;
+    const lua::TxScriptRunner tsr;
 
   public:
     MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
       CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
+      share_manager(node.get_share_manager()),
       tsr(network)
     {}
 
@@ -815,12 +825,13 @@ namespace ccf
           members->put(args.caller_id, *member);
 
           // New active members are allocated a new recovery share
-          if (!node.split_ledger_secrets(args.tx))
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Error splitting ledger secrets");
-          }
+          // if (!share_manager.split_ledger_secrets(args.tx))
+          share_manager.issue_shares(args.tx);
+          // {
+          //   return make_error(
+          //     HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          //     "Error splitting ledger secrets");
+          // }
         }
         return make_success(true);
       };
@@ -925,19 +936,28 @@ namespace ccf
             HTTP_STATUS_FORBIDDEN, "Node is already recovering private ledger");
         }
 
+        // TODO: Unit test the whole thing here!
+        if (pending_shares.find(args.caller_id) != pending_shares.end())
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            fmt::format(
+              "Member {} cannot submit their recovery share twice",
+              args.caller_id));
+        }
+
         const auto in = params.get<SubmitRecoveryShare>();
+        auto raw_recovery_share = tls::raw_from_b64(in.recovery_share);
 
         SecretSharing::Share share;
         std::copy_n(
-          in.recovery_share.begin(),
+          raw_recovery_share.begin(),
           SecretSharing::SHARE_LENGTH,
           share.begin());
 
-        pending_shares.emplace_back(share);
+        pending_shares.emplace(args.caller_id, share);
         if (pending_shares.size() < g.get_recovery_threshold())
         {
-          // The number of shares required to re-assemble the secret has not
-          // yet been reached
           return make_success(false);
         }
 
@@ -988,12 +1008,7 @@ namespace ccf
 
         g.add_consensus(in.consensus_type);
 
-        if (!node.split_ledger_secrets(tx))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Error splitting ledger secrets");
-        }
+        share_manager.issue_shares(tx);
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,

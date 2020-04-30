@@ -1000,29 +1000,35 @@ namespace ccf
       });
     };
 
-    bool split_ledger_secrets(Store::Tx& tx) override
+    ShareManager& get_share_manager() override
     {
-      try
-      {
-        share_manager.issue_shares(tx);
-      }
-      catch (const std::logic_error& e)
-      {
-        LOG_FAIL_FMT("Failed to update recovery shares info: {}", e.what());
-        return false;
-      }
-      return true;
+      return share_manager;
     }
 
+    // bool split_ledger_secrets(Store::Tx& tx) override
+    // {
+    //   try
+    //   {
+    //     share_manager.issue_shares(tx);
+    //   }
+    //   catch (const std::logic_error& e)
+    //   {
+    //     LOG_FAIL_FMT("Failed to update recovery shares info: {}", e.what());
+    //     return false;
+    //   }
+    //   return true;
+    // }
+
     bool restore_ledger_secrets(
-      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+      Store::Tx& tx,
+      const std::map<MemberId, SecretSharing::Share>& submitted_shares) override
     {
       try
       {
         finish_recovery(
           tx,
           share_manager.restore_recovery_shares_info(
-            tx, shares, recovery_ledger_secrets));
+            tx, submitted_shares, recovery_ledger_secrets));
 
         recovery_ledger_secrets.clear();
       }

@@ -8,6 +8,9 @@ import infra.proposal
 import infra.crypto
 import http
 import os
+import base64
+
+from loguru import logger as LOG
 
 
 class NoRecoveryShareFound(Exception):
@@ -136,15 +139,18 @@ class Member:
                 os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
             )
 
-            nonce_bytes = bytes(r.result["nonce"])
-            encrypted_share_bytes = bytes(r.result["encrypted_share"])
-            return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
+            return base64.b64encode(
+                ctx.decrypt(
+                    base64.b64decode(r.result["encrypted_recovery_share"]),
+                    base64.b64decode(r.result["nonce"]),
+                )
+            ).decode()
 
     def submit_recovery_share(self, remote_node, decrypted_recovery_share):
         with remote_node.member_client(member_id=self.member_id) as mc:
             r = mc.rpc(
                 "submitRecoveryShare",
-                params={"recovery_share": list(decrypted_recovery_share)},
+                params={"recovery_share": decrypted_recovery_share},
             )
             assert r.error is None, f"Error submitting recovery share: {r.error}"
             return r
