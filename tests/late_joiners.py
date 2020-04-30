@@ -35,7 +35,6 @@ def timeout_handler(node, suspend, election_timeout):
         node.resume()
 
 
-@reqs.description("Find current primary")
 def find_primary(network, args, term_info):
     try:
         cur_primary, cur_term = network.find_primary()
@@ -48,7 +47,7 @@ def find_primary(network, args, term_info):
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
 @reqs.at_least_n_nodes(3)
-def run_txs(
+def test_run_txs(
     network,
     args,
     nodes=None,
@@ -64,7 +63,7 @@ def run_txs(
         notifications_queue=notifications_queue,
         tx_index_start=start_idx,
         can_fail=can_fail,
-        timeout=30,
+        timeout=timeout,
         wait_for_sync=wait_for_sync,
     )
     if nodes is None:
@@ -88,9 +87,49 @@ def run_txs(
 
 
 @reqs.description("Adding a very late joiner")
-def add_late_joiner(network, args, nodes_to_keep):
+def test_add_late_joiner(network, args, nodes_to_keep):
     new_node = network.create_and_trust_node(args.package, "localhost", args)
     nodes_to_keep.append(new_node)
+    return network
+
+
+@reqs.description("Suspend nodes")
+@reqs.at_least_n_nodes(3)
+def test_suspend_nodes(network, args, nodes_to_keep):
+    cur_primary, _ = network.find_primary()
+
+    # first timer determines after how many seconds each node will be suspended
+    timeouts = []
+    for i, node in enumerate(nodes_to_keep):
+        # if pbft suspend half of them including the primary
+        if i % 2 != 0 and args.consensus == "pbft":
+            continue
+        LOG.success(f"Will suspend node with id {node.node_id}")
+        t = random.uniform(0, 2)
+        LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
+        timeouts.append((t, node))
+
+    for t, node in timeouts:
+        suspend_time = (
+            args.pbft_view_change_timeout / 1000
+            if args.consensus == "pbft"
+            else args.raft_election_timeout / 1000
+        )
+        if node.node_id == cur_primary.node_id and args.consensus == "pbft":
+            # if pbft suspend the primary for more than twice the election timeout
+            # in order to make sure view changes will be triggered
+            suspend_time = 2.5 * suspend_time
+        tm = Timer(t, timeout_handler, args=[node, True, suspend_time])
+        tm.start()
+
+
+@reqs.description("Retiring backup(s)")
+def test_retire_nodes(network, args, nodes_to_kill):
+    primary, _ = network.find_primary()
+    for backup_to_retire in nodes_to_kill:
+        LOG.success(f"Stopping node {backup_to_retire.node_id}")
+        network.consortium.retire_node(primary, backup_to_retire)
+        backup_to_retire.stop()
     return network
 
 
@@ -105,113 +144,73 @@ def run(args):
         term_info = {}
         find_primary(network, args, term_info)
 
-        election_timeout = (
-            args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
-            else args.raft_election_timeout / 1000
-        )
-
-        run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
+        test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
         find_primary(network, args, term_info)
 
         nodes_to_kill = [network.find_any_backup()]
         nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
 
         # check that a new node can catch up after all the requests
-        add_late_joiner(network, args, nodes_to_keep)
+        test_add_late_joiner(network, args, nodes_to_keep)
 
         # some requests to be processed while the late joiner catches up
         # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
-        run_txs(
+        test_run_txs(
             network=network,
             args=args,
             num_txs=int(TOTAL_REQUESTS / 2),
             start_idx=1000,
-            timeout=30,
+            timeout=30 * len(all_nodes),
             can_fail=True,
             wait_for_sync=True,
         )
 
-        if not args.skip_suspension:
-            # kill the old node(s) and ensure we are still making progress with the new one(s)
-            for node in nodes_to_kill:
-                LOG.info(f"Stopping node {node.node_id}")
-                node.stop()
+        # kill the old node(s) and ensure we are still making progress with the new one(s)
+        test_retire_nodes(network, args, nodes_to_kill)
 
-            # check nodes are ok after we killed one off
-            run_txs(
-                network=network,
-                args=args,
-                nodes=nodes_to_keep,
-                num_txs=len(nodes_to_keep),
-                start_idx=2000,
-            )
+        # check nodes are ok after we killed one off
+        test_run_txs(
+            network=network,
+            args=args,
+            nodes=nodes_to_keep,
+            num_txs=len(nodes_to_keep),
+            start_idx=2000,
+        )
 
-            find_primary(network, args, term_info)
-            cur_term = max(term_info.keys())
-            cur_primary_id = term_info[cur_term]
+        test_suspend_nodes(network, args, nodes_to_keep)
 
-            # first timer determines after how many seconds each node will be suspended
-            timeouts = []
-            suspended_nodes = []
-            for i, node in enumerate(nodes_to_keep):
-                # if pbft suspend half of them including the primary
-                if i % 2 != 0 and args.consensus == "pbft":
-                    continue
-                LOG.success(f"Will suspend node with id {node.node_id}")
-                t = random.uniform(0, 2)
-                LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
-                timeouts.append((t, node))
-                suspended_nodes.append(node.node_id)
+        # run txs while nodes get suspended
+        test_run_txs(
+            network=network,
+            args=args,
+            nodes=nodes_to_keep,
+            num_txs=4 * TOTAL_REQUESTS,
+            start_idx=3000,
+            can_fail=True,
+        )
 
-            for t, node in timeouts:
-                suspend_time = election_timeout
-                if node.node_id == cur_primary_id and args.consensus == "pbft":
-                    # if pbft suspend the primary for more than twice the election timeout
-                    # in order to make sure view changes will be triggered
-                    suspend_time = 2.5 * suspend_time
-                tm = Timer(t, timeout_handler, args=[node, True, suspend_time])
-                tm.start()
+        find_primary(network, args, term_info)
 
-            # run txs while nodes get suspended
-            run_txs(
-                network=network,
-                args=args,
-                nodes=nodes_to_keep,
-                num_txs=4 * TOTAL_REQUESTS,
-                start_idx=3000,
-                can_fail=True,
-            )
-            find_primary(network, args, term_info)
+        # check nodes have resumed normal execution before shutting down
+        test_run_txs(
+            network=network,
+            args=args,
+            nodes=nodes_to_keep,
+            num_txs=len(nodes_to_keep),
+            start_idx=4000,
+        )
 
-            # check nodes have resumed normal execution before shutting down
-            run_txs(
-                network=network,
-                args=args,
-                nodes=nodes_to_keep,
-                num_txs=len(nodes_to_keep),
-                start_idx=4000,
-            )
+        # we have asserted that all nodes are caught up
+        # assert that view changes actually did occur
+        assert len(term_info) > 1
 
-            # we have asserted that all nodes are caught up
-            # assert that view changes actually did occur
-            assert len(term_info) > 1
-
-            LOG.success("----------- terms and primaries recorded -----------")
-            for term, primary in term_info.items():
-                LOG.success(f"term {term} - primary {primary}")
+        LOG.success("----------- terms and primaries recorded -----------")
+        for term, primary in term_info.items():
+            LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":
-
-    def add(parser):
-        parser.add_argument(
-            "--skip-suspension",
-            help="Don't suspend any nodes (i.e. just do late join)",
-            action="store_true",
-        )
-
-    args = infra.e2e_args.cli_args(add)
+    args = infra.e2e_args.cli_args()
     if args.js_app_script:
         args.package = "libjs_generic"
     elif args.app_script:
