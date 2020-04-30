@@ -217,7 +217,6 @@ html_context = {
 
 def setup(self):
     import subprocess
-    from pathlib import Path
 
     subprocess.run(["rm", "doxygen"], check=False)
     subprocess.run(["doxygen"], check=True)
