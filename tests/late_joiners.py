@@ -140,7 +140,6 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        first_node, _ = network.find_nodes()
         all_nodes = network.get_joined_nodes()
         term_info = {}
         update_term_info(network, term_info)
