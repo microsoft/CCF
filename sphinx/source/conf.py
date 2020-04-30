@@ -49,7 +49,6 @@ extensions = [
     "sphinxcontrib.mermaid",
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.githubpages",
-    "sphinx-jsonschema",
     "sphinx_multiversion",
 ]
 
