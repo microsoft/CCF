@@ -5,9 +5,5 @@ pygments-style-solarized
 bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
-<<<<<<< HEAD
-sphinx-jsonschema
 sphinx-multiversion
 pydata-sphinx-theme
-=======
->>>>>>> master
