@@ -976,7 +976,7 @@ namespace ccf
           {
             GetQuotes::Quote q;
             q.node_id = nid;
-            q.raw = ni.quote;
+            q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 
 #ifdef GET_QUOTE
             if (this->network.consensus_type != ConsensusType::PBFT)
