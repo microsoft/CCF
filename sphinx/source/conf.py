@@ -195,7 +195,6 @@ html_context = {
 smv_tag_whitelist = r"^v.*$"
 smv_branch_whitelist = r"^master$"
 smv_remote_whitelist = None
-smv_released_pattern = r"^tags/.*$"
 smv_outputdir_format = "{ref.name}"
 
 # PyData theme options

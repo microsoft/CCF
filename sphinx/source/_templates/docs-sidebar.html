@@ -34,11 +34,9 @@
     </ul>
 
     {% if versions %}
-    <ul>
-      {%- for item in versions %}
-      <li><a href="{{ item.url }}">{{ item.name }}</a></li>
-      {%- endfor %}
-    </ul>
+    {%- for item in versions %}
+    <span class="lbadge"><a href="{{ item.url }}">{{ item.name }}</a></span>
+    {%- endfor %}
     {% endif %}
 
 </nav>
