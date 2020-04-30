@@ -9,6 +9,30 @@ A C++ transaction engine exposes itself to CCF by implementing:
     :end-before: SNIPPET_END: rpc_handler
     :dedent: 2
 
+a
+
+.. literalinclude:: ../../src/enclave/app_interface.h
+    :language: cpp
+    :start-after: SNIPPET_START: rpc_handler
+    :end-before: SNIPPET_END: rpc_handler
+    :dedent: 2
+
+b
+
+.. literalinclude:: ../src/enclave/app_interface.h
+    :language: cpp
+    :start-after: SNIPPET_START: rpc_handler
+    :end-before: SNIPPET_END: rpc_handler
+    :dedent: 2
+
+c
+
+.. literalinclude:: src/enclave/app_interface.h
+    :language: cpp
+    :start-after: SNIPPET_START: rpc_handler
+    :end-before: SNIPPET_END: rpc_handler
+    :dedent: 2
+
 The Logging application simply has:
 
 .. literalinclude:: ../../../src/apps/logging/logging.cpp
