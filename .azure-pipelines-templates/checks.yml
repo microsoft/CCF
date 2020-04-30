@@ -5,7 +5,7 @@ jobs:
   ${{ insert }}: ${{ parameters.env }}
 
   variables:
-    python_files: sphinx/ tests/ notice-check.py
+    python_files: tests/ notice-check.py
 
   steps:
     - checkout: self
