@@ -1,12 +1,12 @@
 Opening a Network
 =================
 
-This sections assumes that a set of nodes has already been started by :term:`operators`. See :ref:`operators/start_network:Starting a New Network`.
+This sections assumes that a set of nodes has already been started by :term:`Operators`. See :ref:`operators/start_network:Starting a New Network`.
 
 Adding Users
 ------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, :ref:`the identities of trusted users should be generated <users/index:Using CCF Applications>`.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, :ref:`the identities of trusted users should be generated <users/index:Using Apps>`.
 
 Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``user_cert`` is the PEM certificate of the user -- see :ref:`developers/cryptography:Cryptography` for a list of supported algorithms):
 

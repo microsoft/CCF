@@ -186,7 +186,7 @@ html_context = {
     "display_github": True,
     "github_user": "Microsoft",
     "github_repo": "CCF",
-    "github_version": "master/sphinx/source/",
+    "github_version": "master/doc/",
 }
 """
 
@@ -210,7 +210,7 @@ html_context = {
     "github_user": "Microsoft",
     "github_repo": "CCF",
     "github_version": "master",
-    "doc_path": "sphinx/source",
+    "doc_path": "doc/",
 }
 
 

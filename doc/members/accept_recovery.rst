@@ -31,7 +31,7 @@ A member proposes to recover the network and other members can vote on the propo
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     true
 
-Once the proposal to recover the network has passed under the rules of the :term:`constitution`, the recovered service is ready for members to submit their recovery shares.
+Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.
 
 Submitting Recovery Shares
 --------------------------
