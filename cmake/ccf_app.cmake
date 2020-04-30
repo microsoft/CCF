@@ -34,7 +34,6 @@ find_package(
   OpenEnclave
   0.9
   CONFIG
-  REQUIRED
   PATHS
   ${CMAKE_CURRENT_LIST_DIR}/../openenclave
   NO_DEFAULT_PATH
