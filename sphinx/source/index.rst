@@ -18,5 +18,3 @@ CCF documentation
     users/index.rst
 
     glossary
-    design/index.rst
-

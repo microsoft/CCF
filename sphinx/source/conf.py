@@ -201,7 +201,7 @@ smv_outputdir_format = '{ref.name}'
 
 # PyData theme options
 
-#html_logo = "_static/ccf.svg"
+html_logo = "_static/ccf.svg"
 
 html_theme_options = {
     "github_url": "https://github.com/Microsoft/CCF",
