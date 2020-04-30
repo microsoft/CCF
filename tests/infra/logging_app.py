@@ -42,28 +42,32 @@ class LoggingTxs:
 
             with remote_node.user_client() as uc:
                 for _ in range(self.tx_index_start, self.tx_index_start + number_txs):
-                    try:
-                        priv_msg = f"Private message at index {self.next_priv_index}"
-                        pub_msg = f"Public message at index {self.next_pub_index}"
-                        rep_priv = uc.rpc(
-                            "LOG_record",
-                            {"id": self.next_priv_index, "msg": priv_msg,},
-                        )
-                        rep_pub = uc.rpc(
-                            "LOG_record_pub",
-                            {"id": self.next_pub_index, "msg": pub_msg,},
-                        )
-                        check_commit_n(rep_priv, result=True, timeout=self.timeout)
-                        check_commit(rep_pub, result=True, timeout=self.timeout)
+                    end_time = time.time() + self.timeout
+                    while time.time() < end_time:
+                        try:
+                            priv_msg = (
+                                f"Private message at index {self.next_priv_index}"
+                            )
+                            pub_msg = f"Public message at index {self.next_pub_index}"
+                            rep_priv = uc.rpc(
+                                "LOG_record",
+                                {"id": self.next_priv_index, "msg": priv_msg,},
+                            )
+                            rep_pub = uc.rpc(
+                                "LOG_record_pub",
+                                {"id": self.next_pub_index, "msg": pub_msg,},
+                            )
+                            check_commit_n(rep_priv, result=True)
+                            check_commit(rep_pub, result=True)
 
-                        self.priv[self.next_priv_index] = priv_msg
-                        self.pub[self.next_pub_index] = pub_msg
-                        self.next_priv_index += 1
-                        self.next_pub_index += 1
-                    except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
-                        LOG.info("Network is unavailable")
-                        if not self.can_fail:
-                            raise RuntimeError(e)
+                            self.priv[self.next_priv_index] = priv_msg
+                            self.pub[self.next_pub_index] = pub_msg
+                            self.next_priv_index += 1
+                            self.next_pub_index += 1
+                        except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
+                            LOG.info("Network is unavailable")
+                            if not self.can_fail:
+                                raise RuntimeError(e)
 
         if self.wait_for_sync:
             self.node_commit_sync(network, consensus)
