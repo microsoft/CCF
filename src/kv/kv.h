@@ -337,12 +337,6 @@ namespace kv
 
       TxView(const TxView& that) = delete;
 
-      virtual ~TxView()
-      {
-        // If we are destructed, prevent future access.
-        commit_version = 0;
-      }
-
       /** Get value for key
        *
        * This returns the value for the key inside the transaction. If the key
