@@ -35,7 +35,11 @@
 
     {% if versions %}
     {%- for item in versions %}
-    <span class="badge"><a href="{{ item.url }}">{{ item.name }}</a></span>
+      <ul>
+        <li>
+          <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
+        </li>
+      </ul>
     {%- endfor %}
     {% endif %}
 

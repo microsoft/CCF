@@ -218,9 +218,5 @@ def setup(self):
     import subprocess
     from pathlib import Path
 
-    print("HHHHHHHHHHHHHH")
-    subprocess.run(["pwd"])
-    subprocess.run(["ls"])
-
     subprocess.run(["rm", "doxygen"], cwd=Path.cwd() / "..", check=False)
     subprocess.run(["doxygen"], cwd=Path.cwd() / "..", check=True)
