@@ -6,3 +6,5 @@ bottle
 sphinx-autobuild
 sphinxcontrib-mermaid
 sphinx-jsonschema
+sphinx-multiversion
+pydata-sphinx-theme

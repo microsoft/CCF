@@ -50,6 +50,7 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.githubpages",
     "sphinx-jsonschema",
+    "sphinx_multiversion",
 ]
 
 autosectionlabel_prefix_document = True
@@ -87,7 +88,7 @@ pygments_style = "solarizeddark"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "sphinx_rtd_theme"
+html_theme = "pydata_sphinx_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -108,7 +109,7 @@ html_static_path = ["_static"]
 # default: ``['localtoc.html', 'relations.html', 'sourcelink.html',
 # 'searchbox.html']``.
 #
-# html_sidebars = {}
+#html_sidebars = {}
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
@@ -180,10 +181,36 @@ todo_include_todos = True
 breathe_projects = {"CCF": "../../doxygen/xml"}
 breathe_default_project = "CCF"
 
+"""
 html_context = {
     "source_url_prefix": "https://github.com/Microsoft/CCF",
     "display_github": True,
     "github_user": "Microsoft",
     "github_repo": "CCF",
     "github_version": "master/sphinx/source/",
+}
+"""
+
+# Set up multiversion extension
+
+smv_tag_whitelist = r'^v.*$'
+smv_branch_whitelist = r'^doc_version$'
+smv_remote_whitelist = None
+smv_released_pattern = r'^tags/.*$'
+smv_outputdir_format = '{ref.name}'
+
+# PyData theme options
+
+#html_logo = "_static/ccf.svg"
+
+html_theme_options = {
+    "github_url": "https://github.com/Microsoft/CCF",
+    "use_edit_page_button": True,
+}
+
+html_context = {
+    "github_user": "Microsoft",
+    "github_repo": "CCF",
+    "github_version": "master",
+    "doc_path": "sphinx/source",
 }

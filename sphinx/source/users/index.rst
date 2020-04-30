@@ -1,5 +1,5 @@
-Using CCF Applications
-======================
+Using Apps
+==========
 
 To generate the certificate and private key of trusted users should be generated as follows. For example, for one user:
 

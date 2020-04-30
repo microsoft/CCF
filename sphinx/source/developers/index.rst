@@ -1,5 +1,5 @@
-Writing CCF Applications
-========================
+Building Apps
+=============
 
 This section describes how CCF applications can be developed and deployed to a CCF network.
 

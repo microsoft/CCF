@@ -1,5 +1,5 @@
-Operating a Network
-===================
+Operations
+==========
 
 This section describes how :term:`operators` manage the different nodes constituting a CCF network.
 

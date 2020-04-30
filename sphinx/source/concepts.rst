@@ -1,5 +1,5 @@
-CCF Concepts
-============
+Concepts
+========
 
 This page provides a broad overview of the key concepts and components of CCF.
 
