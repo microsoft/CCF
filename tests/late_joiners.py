@@ -123,16 +123,6 @@ def test_suspend_nodes(network, args, nodes_to_keep):
     return network
 
 
-@reqs.description("Retiring backup(s)")
-def test_retire_nodes(network, args, nodes_to_kill):
-    primary, _ = network.find_primary()
-    for backup_to_retire in nodes_to_kill:
-        LOG.success(f"Stopping node {backup_to_retire.node_id}")
-        network.consortium.retire_node(primary, backup_to_retire)
-        backup_to_retire.stop()
-    return network
-
-
 def run(args):
     hosts = ["localhost", "localhost", "localhost"]
 
@@ -166,7 +156,9 @@ def run(args):
         )
 
         # kill the old node(s) and ensure we are still making progress with the new one(s)
-        test_retire_nodes(network, args, nodes_to_kill)
+        for backup_to_retire in nodes_to_kill:
+            LOG.success(f"Stopping node {backup_to_retire.node_id}")
+            backup_to_retire.stop()
 
         # check nodes are ok after we killed one off
         test_run_txs(
