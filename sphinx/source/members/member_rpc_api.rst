@@ -1,66 +1,84 @@
 Member RPC API
 ==============
 
-As well as the following methods, :ref:`users/rpc_api:Common Methods` also available to members.
+As well as the following methods, :ref:`users/rpc_api:Common Methods` are also available to members.
 
 ack
 ---
 
-.. jsonschema:: ../schemas/ack_params.json
-.. jsonschema:: ../schemas/ack_result.json
+.. literalinclude:: ../schemas/ack_params.json
+    :language: json
+.. literalinclude:: ../schemas/ack_result.json
+    :language: json
 
 complete
 --------
 
-.. jsonschema:: ../schemas/complete_params.json
-.. jsonschema:: ../schemas/complete_result.json
+.. literalinclude:: ../schemas/complete_params.json
+    :language: json
+.. literalinclude:: ../schemas/complete_result.json
+    :language: json
 
 propose
 -------
 
-.. jsonschema:: ../schemas/propose_params.json
-.. jsonschema:: ../schemas/propose_result.json
+.. literalinclude:: ../schemas/propose_params.json
+    :language: json
+.. literalinclude:: ../schemas/propose_result.json
+    :language: json
 
 query
 -----
 
-.. jsonschema:: ../schemas/query_params.json
-.. jsonschema:: ../schemas/query_result.json
+.. literalinclude:: ../schemas/query_params.json
+    :language: json
+.. literalinclude:: ../schemas/query_result.json
+    :language: json
 
 read
 ----
 
-.. jsonschema:: ../schemas/read_params.json
-.. jsonschema:: ../schemas/read_result.json
+.. literalinclude:: ../schemas/read_params.json
+    :language: json
+.. literalinclude:: ../schemas/read_result.json
+    :language: json
 
 updateAckStateDigest
 --------------------
 
-.. jsonschema:: ../schemas/updateAckStateDigest_result.json
+.. literalinclude:: ../schemas/updateAckStateDigest_result.json
+    :language: json
 
 vote
 ----
 
-.. jsonschema:: ../schemas/vote_params.json
-.. jsonschema:: ../schemas/vote_result.json
+.. literalinclude:: ../schemas/vote_params.json
+    :language: json
+.. literalinclude:: ../schemas/vote_result.json
+    :language: json
 
 withdraw
 --------
 
-.. jsonschema:: ../schemas/withdraw_params.json
-.. jsonschema:: ../schemas/withdraw_result.json
+.. literalinclude:: ../schemas/withdraw_params.json
+    :language: json
+.. literalinclude:: ../schemas/withdraw_result.json
+    :language: json
 
 getEncryptedRecoveryShare
 -------------------------
 
 .. warning:: Experimental
 
-.. jsonschema:: ../schemas/getEncryptedRecoveryShare_result.json
+.. literalinclude:: ../schemas/getEncryptedRecoveryShare_result.json
+    :language: json
 
 submitRecoveryShare
 -------------------
 
 .. warning:: Experimental
 
-.. jsonschema:: ../schemas/submitRecoveryShare_params.json
-.. jsonschema:: ../schemas/submitRecoveryShare_result.json
+.. literalinclude:: ../schemas/submitRecoveryShare_params.json
+    :language: json
+.. literalinclude:: ../schemas/submitRecoveryShare_result.json
+    :language: json
