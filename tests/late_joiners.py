@@ -140,6 +140,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
+        first_node, _ = network.find_nodes()
         all_nodes = network.get_joined_nodes()
         term_info = {}
         update_term_info(network, term_info)
@@ -174,7 +175,7 @@ def run(args):
             args=args,
             nodes=nodes_to_keep,
             num_txs=len(nodes_to_keep),
-            start_idx=2000,
+            start_idx=3000,
         )
 
         test_suspend_nodes(network, args, nodes_to_keep)
@@ -185,7 +186,7 @@ def run(args):
             args=args,
             nodes=nodes_to_keep,
             num_txs=4 * TOTAL_REQUESTS,
-            start_idx=3000,
+            start_idx=4000,
             can_fail=True,
         )
 
@@ -197,7 +198,7 @@ def run(args):
             args=args,
             nodes=nodes_to_keep,
             num_txs=len(nodes_to_keep),
-            start_idx=4000,
+            start_idx=5000,
         )
 
         # we have asserted that all nodes are caught up

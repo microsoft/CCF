@@ -79,7 +79,7 @@ class LoggingTxs:
             try:
                 network.wait_for_node_commit_sync(consensus)
                 break
-            except TimeoutError as e:
+            except (TimeoutError, infra.clients.CCFConnectionException) as e:
                 LOG.error("Timeout error while waiting for nodes to sync")
                 if not self.can_fail:
                     raise RuntimeError(e)
