@@ -132,7 +132,7 @@ namespace ccf
       crypto::Sha256Hash hash{raw_cert_pem};
 
       if (
-        parsed_quote.report_data_size != crypto::Sha256Hash::SIZE &&
+        parsed_quote.report_data_size != OE_REPORT_DATA_SIZE ||
         memcmp(
           hash.h.data(), parsed_quote.report_data, crypto::Sha256Hash::SIZE) !=
           0)
