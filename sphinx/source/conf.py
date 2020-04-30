@@ -108,7 +108,7 @@ html_static_path = ["_static"]
 # default: ``['localtoc.html', 'relations.html', 'sourcelink.html',
 # 'searchbox.html']``.
 #
-#html_sidebars = {}
+# html_sidebars = {}
 
 
 # -- Options for HTMLHelp output ---------------------------------------------
@@ -192,11 +192,11 @@ html_context = {
 
 # Set up multiversion extension
 
-smv_tag_whitelist = r'^v.*$'
-smv_branch_whitelist = r'^doc_version$'
+smv_tag_whitelist = r"^v.*$"
+smv_branch_whitelist = r"^doc_version$"
 smv_remote_whitelist = None
-smv_released_pattern = r'^tags/.*$'
-smv_outputdir_format = '{ref.name}'
+smv_released_pattern = r"^tags/.*$"
+smv_outputdir_format = "{ref.name}"
 
 # PyData theme options
 
@@ -213,3 +213,11 @@ html_context = {
     "github_version": "master",
     "doc_path": "sphinx/source",
 }
+
+
+def setup(self):
+    import subprocess
+    from pathlib import Path
+
+    subprocess.run(["rm", "doxygen"], cwd=Path.cwd() / "..", check=False)
+    subprocess.run(["doxygen"], cwd=Path.cwd() / "..", check=True)
