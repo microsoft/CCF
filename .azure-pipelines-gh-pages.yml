@@ -34,7 +34,6 @@ jobs:
         pip install -U -r requirements.txt
         sphinx-multiversion doc build/html
       displayName: Sphinx
-      workingDirectory: sphinx
 
     - script: |
         git init
