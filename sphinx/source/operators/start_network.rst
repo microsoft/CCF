@@ -111,14 +111,14 @@ To pass configuration files, use the ``--config`` option: ``./cchost --config=co
 Opening a Network to Users
 --------------------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <members/open_network:Opening a Network>` to :term:`users` via governance.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, :ref:`members should vote to open the network <members/open_network:Opening a Network>` to :term:`Users` via governance.
 
 Summary diagram
 ---------------
 
 Once a node is part of the network (started with either the ``start`` or ``join`` option), members are authorised to issue governance transactions and eventually open the network (see :ref:`members/open_network:Opening a Network`). Only then are users authorised to issue commands to CCF.
 
-.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`members/index:Member Governance` for more information about member governance.
+.. note:: After the network is open to users, members can still issue governance transactions to CCF (for example, adding new users or additional members to the consortium or updating the Lua app, when applicable). See :ref:`members/index:Governance` for more information about member governance.
 
 The following diagram summarises the steps required to bootstrap a CCF network:
 

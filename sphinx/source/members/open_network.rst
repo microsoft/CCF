@@ -6,7 +6,7 @@ This sections assumes that a set of nodes has already been started by :term:`ope
 Adding Users
 ------------
 
-Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`users`. First, :ref:`the identities of trusted users should be generated <users/index:Using CCF Applications>`.
+Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, :ref:`the identities of trusted users should be generated <users/index:Using CCF Applications>`.
 
 Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``user_cert`` is the PEM certificate of the user -- see :ref:`developers/cryptography:Cryptography` for a list of supported algorithms):
 
@@ -51,7 +51,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
     $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
     true
 
-The user is successfully added once a the proposal has received enough votes under the rules of the :term:`constitution` (indicated by the response body ``true``).
+The user is successfully added once a the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body ``true``).
 
 The user can then make user RPCs, for example ``whoAmI`` to retrieve the unique caller ID assigned to them by CCF:
 
@@ -87,7 +87,7 @@ Registering the Lua Application
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``1``, as per ``"result":{"completed":false,"id":1}``).
 
-The Lua application is successfully registered once the proposal has received enough votes under the rules of the :term:`constitution`.
+The Lua application is successfully registered once the proposal has received enough votes under the rules of the :term:`Constitution`.
 
 Opening the Network
 -------------------
@@ -111,4 +111,4 @@ Once users are added to the opening network, members should decide to make a pro
 
 Other members are then able to vote for the proposal using the returned proposal id (here ``2``, as per ``"result":{"completed":false,"id":2}``).
 
-Once the proposal has received enough votes under the rules of the :term:`constitution` (``"result":true``), the network is opened to users (see :ref:`developers/example:Example Application` for a simple business logic and transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).
+Once the proposal has received enough votes under the rules of the :term:`Constitution` (``"result":true``), the network is opened to users (see :ref:`developers/example:Example Application` for a simple business logic and transactions). It is only then that users are able to execute transactions on the business logic defined by the enclave file (``--enclave-file`` option to ``cchost``).

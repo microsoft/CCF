@@ -1,7 +1,7 @@
 Operations
 ==========
 
-This section describes how :term:`operators` manage the different nodes constituting a CCF network.
+This section describes how :term:`Operators` manage the different nodes constituting a CCF network.
 
 .. toctree::
     :maxdepth: 2
