@@ -193,13 +193,14 @@ html_context = {
 # Set up multiversion extension
 
 smv_tag_whitelist = r"^v.*$"
-smv_branch_whitelist = r"^(master|doc_version)$"
+smv_branch_whitelist = r"^master$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 
 # PyData theme options
 
 html_logo = "_static/ccf.svg"
+html_favicon = "_static/favicon.ico"
 
 html_theme_options = {
     "github_url": "https://github.com/Microsoft/CCF",
