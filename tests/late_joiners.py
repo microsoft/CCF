@@ -9,6 +9,8 @@ import infra.e2e_args
 from threading import Timer
 import random
 import contextlib
+import suite.test_requirements as reqs
+import infra.logging_app as app
 import requests
 
 from loguru import logger as LOG
@@ -17,12 +19,70 @@ from loguru import logger as LOG
 # If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
 # By sending 18 RPC requests and a getCommit for each of them (what raft consideres as a read pbft will process as a write),
 # we are sure that we will have to go via the ledger to help late joiners catch up (total 36 reqs > 34)
-TOTAL_REQUESTS = 18
+TOTAL_REQUESTS = 9
 
 s = random.randint(1, 10)
 LOG.info(f"setting seed to {s}")
 random.seed(s)
 
+@reqs.description("Running transactions against logging app")
+@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
+@reqs.at_least_n_nodes(3)
+def run_txs(network, args, num_txs, timeout=3, can_fail=False, on_backup=False, notifications_queue=None, verify=True):
+    txs = app.LoggingTxs(notifications_queue=notifications_queue)
+    if can_fail:
+        txs.set_fail_tolerance(can_fail)
+        txs.set_sync_timeout(30)
+    num_nodes = len(network.get_joined_nodes())
+    txs_per_node = int(num_txs / num_nodes)
+    on_backup = on_backup
+
+    for _ in range(0, num_nodes):
+        txs.issue(
+            network=network, number_txs=txs_per_node, on_backup=on_backup, consensus=args.consensus,
+        )
+        # first batch might have run on primary, but issue all else on backups
+        on_backup = True
+
+    if verify:
+        txs.verify_last_tx(network)
+    else:
+        LOG.warning("Skipping log messages verification")
+
+    return network
+
+@reqs.description("Running transactions against logging app")
+@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
+@reqs.at_least_n_nodes(3)
+def run_txs_on(network, args, nodes, num_txs, timeout=3, can_fail=False, on_backup=False, notifications_queue=None, verify=True):
+    txs = app.LoggingTxs(notifications_queue=notifications_queue)
+    if can_fail:
+        txs.set_fail_tolerance(can_fail)
+        txs.set_sync_timeout(30)
+        txs.set_sync(True)
+    num_nodes = len(nodes)
+    txs_per_node = int(num_txs / num_nodes)
+    on_backup = on_backup
+
+    for node in nodes:
+        txs.issue_on_node(
+            network=network, remote_node=node, number_txs=txs_per_node, on_backup=on_backup, consensus=args.consensus,
+        )
+        # first batch might have run on primary, but issue all else on backups
+        on_backup = True
+
+    if verify:
+        txs.verify_last_tx(network)
+    else:
+        LOG.warning("Skipping log messages verification")
+
+    return network
+
+@reqs.description("Adding a very late joiner")
+def add_late_joiner(network, args):
+    new_node = network.create_and_trust_node(args.package, "localhost", args)
+    assert new_node
+    return new_node
 
 def timeout_handler(node, suspend, election_timeout):
     if suspend:
@@ -169,86 +229,79 @@ def run(args):
             else args.raft_election_timeout / 1000
         )
 
-        with first_node.node_client() as mc:
-            check = infra.checker.Checker(mc)
+        network = run_txs(
+            network,
+            args,
+            TOTAL_REQUESTS,
+        )
 
-            run_requests(all_nodes, TOTAL_REQUESTS, 0, first_msg, 1000)
+        term_info.update(find_primary(network))
+
+        nodes_to_kill = [network.find_any_backup()]
+        nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
+
+        # check that a new node can catch up after all the requests
+        LOG.info("Adding a very late joiner")
+        
+        late_joiner = add_late_joiner(network, args)
+        nodes_to_keep.append(late_joiner)
+
+        # some requests to be processed while the late joiner catches up
+        # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
+        # run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
+        network = run_txs(network, args, int(TOTAL_REQUESTS / 2), 30, True)
+        
+        term_info.update(find_primary(network))
+
+        # wait for late joiner to cathcup before killing one of the other nodes
+        wait_for_late_joiner(first_node, late_joiner)
+
+        if not args.skip_suspension:
+            # kill the old node(s) and ensure we are still making progress with the new one(s)
+            for node in nodes_to_kill:
+                LOG.info(f"Stopping node {node.node_id}")
+                node.stop()
+
+            wait_for_nodes(nodes_to_keep, catchup_msg, 3000)
+
+            cur_primary, _ = network.find_primary()
+            cur_primary_id = cur_primary.node_id
+
+            # first timer determines after how many seconds each node will be suspended
+            timeouts = []
+            suspended_nodes = []
+            for i, node in enumerate(nodes_to_keep):
+                # if pbft suspend half of them including the primary
+                if i % 2 != 0 and args.consensus == "pbft":
+                    continue
+                LOG.success(f"Will suspend node with id {node.node_id}")
+                t = random.uniform(0, 2)
+                LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
+                timeouts.append((t, node))
+                suspended_nodes.append(node.node_id)
+
+            for t, node in timeouts:
+                suspend_time = election_timeout
+                if node.node_id == cur_primary_id and args.consensus == "pbft":
+                    # if pbft suspend the primary for more than twice the election timeout
+                    # in order to make sure view changes will be triggered
+                    suspend_time = 2.5 * suspend_time
+                tm = Timer(t, timeout_handler, args=[node, True, suspend_time])
+                tm.start()
+
+            run_txs_on(network, args, nodes_to_keep, 2 * TOTAL_REQUESTS, 3, True, True)
+
             term_info.update(find_primary(network))
 
-            nodes_to_kill = [network.find_any_backup()]
-            nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
+            wait_for_nodes(nodes_to_keep, final_msg, 5000)
 
-            # check that a new node can catch up after all the requests
-            LOG.info("Adding a very late joiner")
-            late_joiner = network.create_and_trust_node(
-                lib_name=args.package, host="localhost", args=args,
-            )
-            nodes_to_keep.append(late_joiner)
+            # we have asserted that all nodes are caught up
+            # assert that view changes actually did occur
+            assert len(term_info) > 1
 
-            # some requests to be processed while the late joiner catches up
-            # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
-            run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
-            term_info.update(find_primary(network))
-
-            assert_network_up_to_date(check, late_joiner, first_msg, 1000)
-            assert_network_up_to_date(check, late_joiner, second_msg, 2000)
-
-            # wait for late joiner to cathcup before killing one of the other nodes
-            wait_for_late_joiner(first_node, late_joiner)
-
-            if not args.skip_suspension:
-                # kill the old node(s) and ensure we are still making progress with the new one(s)
-                for node in nodes_to_kill:
-                    LOG.info(f"Stopping node {node.node_id}")
-                    node.stop()
-
-                wait_for_nodes(nodes_to_keep, catchup_msg, 3000)
-
-                cur_primary, _ = network.find_primary()
-                cur_primary_id = cur_primary.node_id
-
-                # first timer determines after how many seconds each node will be suspended
-                timeouts = []
-                suspended_nodes = []
-                for i, node in enumerate(nodes_to_keep):
-                    # if pbft suspend half of them including the primary
-                    if i % 2 != 0 and args.consensus == "pbft":
-                        continue
-                    LOG.success(f"Will suspend node with id {node.node_id}")
-                    t = random.uniform(0, 2)
-                    LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
-                    timeouts.append((t, node))
-                    suspended_nodes.append(node.node_id)
-
-                for t, node in timeouts:
-                    suspend_time = election_timeout
-                    if node.node_id == cur_primary_id and args.consensus == "pbft":
-                        # if pbft suspend the primary for more than twice the election timeout
-                        # in order to make sure view changes will be triggered
-                        suspend_time = 2.5 * suspend_time
-                    tm = Timer(t, timeout_handler, args=[node, True, suspend_time])
-                    tm.start()
-
-                run_requests(
-                    nodes_to_keep,
-                    2 * TOTAL_REQUESTS,
-                    2001,
-                    final_msg,
-                    4000,
-                    cant_fail=False,
-                )
-
-                term_info.update(find_primary(network))
-
-                wait_for_nodes(nodes_to_keep, final_msg, 5000)
-
-                # we have asserted that all nodes are caught up
-                # assert that view changes actually did occur
-                assert len(term_info) > 1
-
-                LOG.success("----------- terms and primaries recorded -----------")
-                for term, primary in term_info.items():
-                    LOG.success(f"term {term} - primary {primary}")
+            LOG.success("----------- terms and primaries recorded -----------")
+            for term, primary in term_info.items():
+                LOG.success(f"term {term} - primary {primary}")
 
 
 if __name__ == "__main__":
