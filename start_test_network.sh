@@ -4,17 +4,17 @@
 
 set -e
 
-echo "Setting up Python environment..."
-if [ ! -f "env/bin/activate" ]
-    then
-        python3.7 -m venv env
-fi
-source env/bin/activate
+# echo "Setting up Python environment..."
+# if [ ! -f "env/bin/activate" ]
+#     then
+#         python3.7 -m venv env
+# fi
+# source env/bin/activate
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 
-pip install -q -U -r "${PATH_HERE}"/tests/requirements.txt
-echo "Python environment successfully setup"
+# pip install -q -U -r "${PATH_HERE}"/tests/requirements.txt
+# echo "Python environment successfully setup"
 
 CURL_CLIENT=ON \
     python "${PATH_HERE}"/tests/start_network.py \

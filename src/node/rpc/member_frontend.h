@@ -37,6 +37,23 @@ namespace ccf
   DECLARE_JSON_TYPE(SubmitRecoveryShare)
   DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, recovery_share)
 
+  struct GetEncryptedRecoveryShare
+  {
+    std::string encrypted_recovery_share;
+    std::string nonce;
+
+    GetEncryptedRecoveryShare() = default;
+
+    GetEncryptedRecoveryShare(const EncryptedShare& encrypted_share_raw) :
+      encrypted_recovery_share(
+        tls::b64_from_raw(encrypted_share_raw.encrypted_share)),
+      nonce(tls::b64_from_raw(encrypted_share_raw.nonce))
+    {}
+  };
+  DECLARE_JSON_TYPE(GetEncryptedRecoveryShare)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetEncryptedRecoveryShare, encrypted_recovery_share, nonce)
+
   class MemberHandlers : public CommonHandlerRegistry
   {
   private:
@@ -875,13 +892,13 @@ namespace ccf
                 "Recovery share not found for member {}", args.caller_id));
           }
 
-          return make_success(enc_s.value());
+          return make_success(GetEncryptedRecoveryShare(enc_s.value()));
         };
       install(
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
         json_adapter(get_encrypted_recovery_share),
         Read)
-        .set_auto_schema<void, EncryptedShare>()
+        .set_auto_schema<void, GetEncryptedRecoveryShare>()
         .set_http_get_only();
 
       auto submit_recovery_share = [this](
