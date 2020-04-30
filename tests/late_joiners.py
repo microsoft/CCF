@@ -19,70 +19,12 @@ from loguru import logger as LOG
 # If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
 # By sending 18 RPC requests and a getCommit for each of them (what raft consideres as a read pbft will process as a write),
 # we are sure that we will have to go via the ledger to help late joiners catch up (total 36 reqs > 34)
-TOTAL_REQUESTS = 9
+TOTAL_REQUESTS = 9  # x2 is 18 since LoggingTxs app sends a private and a public request for each tx index
 
 s = random.randint(1, 10)
 LOG.info(f"setting seed to {s}")
 random.seed(s)
 
-@reqs.description("Running transactions against logging app")
-@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
-@reqs.at_least_n_nodes(3)
-def run_txs(network, args, num_txs, timeout=3, can_fail=False, on_backup=False, notifications_queue=None, verify=True):
-    txs = app.LoggingTxs(notifications_queue=notifications_queue)
-    if can_fail:
-        txs.set_fail_tolerance(can_fail)
-        txs.set_sync_timeout(30)
-    num_nodes = len(network.get_joined_nodes())
-    txs_per_node = int(num_txs / num_nodes)
-    on_backup = on_backup
-
-    for _ in range(0, num_nodes):
-        txs.issue(
-            network=network, number_txs=txs_per_node, on_backup=on_backup, consensus=args.consensus,
-        )
-        # first batch might have run on primary, but issue all else on backups
-        on_backup = True
-
-    if verify:
-        txs.verify_last_tx(network)
-    else:
-        LOG.warning("Skipping log messages verification")
-
-    return network
-
-@reqs.description("Running transactions against logging app")
-@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
-@reqs.at_least_n_nodes(3)
-def run_txs_on(network, args, nodes, num_txs, timeout=3, can_fail=False, on_backup=False, notifications_queue=None, verify=True):
-    txs = app.LoggingTxs(notifications_queue=notifications_queue)
-    if can_fail:
-        txs.set_fail_tolerance(can_fail)
-        txs.set_sync_timeout(30)
-        txs.set_sync(True)
-    num_nodes = len(nodes)
-    txs_per_node = int(num_txs / num_nodes)
-    on_backup = on_backup
-
-    for node in nodes:
-        txs.issue_on_node(
-            network=network, remote_node=node, number_txs=txs_per_node, on_backup=on_backup, consensus=args.consensus,
-        )
-        # first batch might have run on primary, but issue all else on backups
-        on_backup = True
-
-    if verify:
-        txs.verify_last_tx(network)
-    else:
-        LOG.warning("Skipping log messages verification")
-
-    return network
-
-@reqs.description("Adding a very late joiner")
-def add_late_joiner(network, args):
-    new_node = network.create_and_trust_node(args.package, "localhost", args)
-    assert new_node
-    return new_node
 
 def timeout_handler(node, suspend, election_timeout):
     if suspend:
@@ -96,117 +38,64 @@ def timeout_handler(node, suspend, election_timeout):
         node.resume()
 
 
-def find_primary(network):
-    # track if there is a new primary
-    term_info = {}
+@reqs.description("Find current primary")
+def find_primary(network, args, term_info):
     try:
         cur_primary, cur_term = network.find_primary()
         term_info[cur_term] = cur_primary.node_id
     except TimeoutError:
         LOG.info("Trying to access a suspended network")
-    return term_info
+    return network
 
 
-def get_node_local_commit(node):
-    with node.node_client() as c:
-        r = c.get("getLocalCommit")
-        return r.commit, r.global_commit
-
-
-def wait_for_late_joiner(old_node, late_joiner):
-    old_node_lc, old_node_gc = get_node_local_commit(old_node)
-    LOG.success(
-        f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
-    )
-    while True:
-        lc, gc = get_node_local_commit(late_joiner)
-        LOG.success(
-            f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
-        )
-        if lc >= old_node_lc:
-            break
-        time.sleep(1)
-
-
-def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
-    with node.user_client() as c:
-        # Wait until final_msg_id is available in the node.
-        # We need to catch timeout and assertion errors as
-        # the node (e.g. late joiner) might not be up to date yet
-        # or we might be in the middle of a view change so the node
-        # will not be responsive. This timeout should be reduced when
-        # checkpoints are implemented making catchup take less time
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            try:
-                check(
-                    c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
-                )
-                return
-            except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
-                LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
-                time.sleep(0.1)
-            except AssertionError as e:
-                LOG.error(
-                    f"Assertion error for LOG_get on node {node.node_id}, error:{e}"
-                )
-                time.sleep(0.1)
-        raise AssertionError(f"{node.nodeid} is not up to date")
-
-
-def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
-    # in the event of an early view change this might
-    # take longer than usual to complete and we don't want the test to break here
-    timeout = timeout * len(nodes)
-    with nodes[0].node_client() as mc:
-        check_commit = infra.checker.Checker(mc)
-        check = infra.checker.Checker()
-        for i, node in enumerate(nodes):
-            with node.user_client() as c:
-                end_time = time.time() + timeout
-                while time.time() < end_time:
-                    try:
-                        check_commit(
-                            c.rpc(
-                                "LOG_record", {"id": final_msg_id + i, "msg": final_msg}
-                            ),
-                            result=True,
-                        )
-                        break
-                    except TimeoutError:
-                        LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
-                        time.sleep(0.1)
-        # assert all nodes are caught up
-        for node in nodes:
-            assert_network_up_to_date(check, node, final_msg, final_msg_id)
-
-
-def run_requests(
-    nodes, total_requests, start_id, final_msg, final_msg_id, cant_fail=True
+@reqs.description("Running transactions against logging app")
+@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
+@reqs.at_least_n_nodes(3)
+def run_txs_on(
+    network,
+    args,
+    nodes=None,
+    num_txs=1,
+    start_idx=0,
+    timeout=3,
+    can_fail=False,
+    notifications_queue=None,
+    verify=True,
+    wait_for_sync=False,
 ):
-    with nodes[0].node_client() as mc:
-        check_commit = infra.checker.Checker(mc)
-        clients = []
-        with contextlib.ExitStack() as es:
-            for node in nodes:
-                clients.append(es.enter_context(node.user_client()))
-            node_id = 0
-            long_msg = "X" * (2 ** 14)
-            for req_id in range(start_id, (start_id + total_requests)):
-                node_id += 1
-                c = clients[node_id % len(clients)]
-                try:
-                    check_commit(
-                        c.rpc("LOG_record", {"id": req_id, "msg": long_msg}),
-                        result=True,
-                    )
-                except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
-                    LOG.info("Trying to access a suspended network")
-                    if cant_fail:
-                        raise RuntimeError(e)
-                req_id += 1
+    txs = app.LoggingTxs(
+        notifications_queue=notifications_queue,
+        tx_index_start=start_idx,
+        can_fail=can_fail,
+        timeout=30,
+        wait_for_sync=wait_for_sync,
+    )
+    if nodes is None:
+        nodes = network.get_joined_nodes()
+    num_nodes = len(nodes)
+    txs_per_node = max(1, int(num_txs / num_nodes))
 
-        wait_for_nodes(nodes, final_msg, final_msg_id)
+    for node in nodes:
+        txs.issue_on_node(
+            network=network,
+            remote_node=node,
+            number_txs=txs_per_node,
+            consensus=args.consensus,
+        )
+
+    if verify:
+        txs.verify_last_tx(network)
+    else:
+        LOG.warning("Skipping log messages verification")
+
+    return network
+
+
+@reqs.description("Adding a very late joiner")
+def add_late_joiner(network, args, nodes_to_keep):
+    new_node = network.create_and_trust_node(args.package, "localhost", args)
+    nodes_to_keep.append(new_node)
+    return network
 
 
 def run(args):
@@ -218,43 +107,36 @@ def run(args):
         network.start_and_join(args)
         first_node, _ = network.find_nodes()
         all_nodes = network.get_joined_nodes()
-        term_info = find_primary(network)
-        first_msg = "Hello, world!"
-        second_msg = "Hello, world hello!"
-        catchup_msg = "Hey world!"
-        final_msg = "Goodbye, world!"
+        term_info = {}
+        find_primary(network, args, term_info)
+
         election_timeout = (
             args.pbft_view_change_timeout / 1000
             if args.consensus == "pbft"
             else args.raft_election_timeout / 1000
         )
 
-        network = run_txs(
-            network,
-            args,
-            TOTAL_REQUESTS,
-        )
-
-        term_info.update(find_primary(network))
+        run_txs_on(network=network, args=args, num_txs=TOTAL_REQUESTS)
+        find_primary(network, args, term_info)
 
         nodes_to_kill = [network.find_any_backup()]
         nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
 
         # check that a new node can catch up after all the requests
-        LOG.info("Adding a very late joiner")
-        
-        late_joiner = add_late_joiner(network, args)
-        nodes_to_keep.append(late_joiner)
+        add_late_joiner(network, args, nodes_to_keep)
+        late_joiner = nodes_to_keep[-1]
 
         # some requests to be processed while the late joiner catches up
         # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
-        # run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
-        network = run_txs(network, args, int(TOTAL_REQUESTS / 2), 30, True)
-        
-        term_info.update(find_primary(network))
-
-        # wait for late joiner to cathcup before killing one of the other nodes
-        wait_for_late_joiner(first_node, late_joiner)
+        run_txs_on(
+            network=network,
+            args=args,
+            num_txs=int(TOTAL_REQUESTS / 2),
+            start_idx=1000,
+            timeout=30,
+            can_fail=True,
+            wait_for_sync=True,
+        )
 
         if not args.skip_suspension:
             # kill the old node(s) and ensure we are still making progress with the new one(s)
@@ -262,10 +144,12 @@ def run(args):
                 LOG.info(f"Stopping node {node.node_id}")
                 node.stop()
 
-            wait_for_nodes(nodes_to_keep, catchup_msg, 3000)
+            # check nodes are ok after we killed one off
+            run_txs_on(network=network, args=args, nodes=nodes_to_keep, start_idx=2000)
 
-            cur_primary, _ = network.find_primary()
-            cur_primary_id = cur_primary.node_id
+            find_primary(network, args, term_info)
+            cur_term = max(term_info.keys())
+            cur_primary_id = term_info[cur_term]
 
             # first timer determines after how many seconds each node will be suspended
             timeouts = []
@@ -289,11 +173,19 @@ def run(args):
                 tm = Timer(t, timeout_handler, args=[node, True, suspend_time])
                 tm.start()
 
-            run_txs_on(network, args, nodes_to_keep, 2 * TOTAL_REQUESTS, 3, True, True)
+            # run txs while nodes get suspended
+            run_txs_on(
+                network=network,
+                args=args,
+                nodes=nodes_to_keep,
+                num_txs=4 * TOTAL_REQUESTS,
+                start_idx=3000,
+                can_fail=True,
+            )
+            find_primary(network, args, term_info)
 
-            term_info.update(find_primary(network))
-
-            wait_for_nodes(nodes_to_keep, final_msg, 5000)
+            # check nodes have resumed normal execution before shutting down
+            run_txs_on(network=network, args=args, nodes=nodes_to_keep, start_idx=4000)
 
             # we have asserted that all nodes are caught up
             # assert that view changes actually did occur
