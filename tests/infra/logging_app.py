@@ -64,6 +64,7 @@ class LoggingTxs:
                             self.pub[self.next_pub_index] = pub_msg
                             self.next_priv_index += 1
                             self.next_pub_index += 1
+                            break
                         except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
                             LOG.info("Network is unavailable")
                             if not self.can_fail:
