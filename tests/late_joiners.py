@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import time
 import infra.ccf
 import infra.proc
 import infra.notification
@@ -8,10 +7,8 @@ import infra.net
 import infra.e2e_args
 from threading import Timer
 import random
-import contextlib
 import suite.test_requirements as reqs
 import infra.logging_app as app
-import requests
 
 from loguru import logger as LOG
 
@@ -104,7 +101,6 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        first_node, _ = network.find_nodes()
         all_nodes = network.get_joined_nodes()
         term_info = {}
         find_primary(network, args, term_info)
@@ -123,7 +119,6 @@ def run(args):
 
         # check that a new node can catch up after all the requests
         add_late_joiner(network, args, nodes_to_keep)
-        late_joiner = nodes_to_keep[-1]
 
         # some requests to be processed while the late joiner catches up
         # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
