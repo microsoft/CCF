@@ -583,7 +583,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS -p liblogging --schema-dir
-                      ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+                      ${CMAKE_SOURCE_DIR}/doc/schemas
     )
 
     add_e2e_test(

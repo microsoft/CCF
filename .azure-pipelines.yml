@@ -4,17 +4,6 @@ trigger:
     include:
       - master
       - 'refs/tags/v*'
-  paths:
-    exclude:
-      - 'README.md'
-      - 'CCF-TECHNICAL-REPORT.pdf'
-      - 'Doxyfile'
-      - 'THIRD_PARTY_NOTICES.txt'
-      - 'getting_started/'
-      - 'sphinx/'
-      - '.github/'
-      - '.azure-pipelines-gh-pages.yml'
-      - 'LICENSE'
 
 pr:
   autoCancel: true
