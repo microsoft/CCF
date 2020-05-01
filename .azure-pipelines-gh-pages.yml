@@ -3,15 +3,7 @@ trigger:
   branches:
     include:
       - master
-
-pr:
-  autoCancel: true
-  branches:
-    include:
-      - master
-  paths:
-    include:
-      - '*'
+      - 'refs/tags/v*'
 
 jobs:
 - job: build_and_publish_docs
@@ -25,7 +17,7 @@ jobs:
       submodules: true
 
     - script: |
-        git checkout -b $BUILD_SOURCEBRANCHNAME $BUILD_SOURCEVERSION
+        git checkout -b master $BUILD_SOURCEVERSION
       displayName: Prepare repo
 
     - script: |
@@ -41,6 +33,8 @@ jobs:
         git config --local user.name "Azure Pipelines"
         git config --local user.email "azuredevops@microsoft.com"
         git add .
+        touch .nojekyll
+        git add .nojekyll
         git commit -m "[ci skip] commit generated documentation"
       displayName: 'Commit pages'
       workingDirectory: build/html
