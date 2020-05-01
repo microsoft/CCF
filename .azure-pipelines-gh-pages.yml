@@ -24,8 +24,9 @@ jobs:
       clean: true
       submodules: true
 
-    - script: doxygen
-      displayName: Doxgen
+    - script: |
+        git checkout -b $BUILD_SOURCEBRANCHNAME $BUILD_SOURCEVERSION
+      displayName: Prepare repo
 
     - script: |
         python3.7 -m venv env
