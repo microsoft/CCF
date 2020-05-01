@@ -35,6 +35,8 @@ jobs:
         git add .
         touch .nojekyll
         git add .nojekyll
+        cp ../../doc/index.html .
+        git add index.html
         git commit -m "[ci skip] commit generated documentation"
       displayName: 'Commit pages'
       workingDirectory: build/html
