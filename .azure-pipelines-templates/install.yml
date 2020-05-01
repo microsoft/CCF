@@ -19,6 +19,10 @@ steps:
       -v
   displayName: Test installed CCF
 
+- script: |
+    cp -r /opt/openenclave ${{ parameters.install_prefix }}
+  displayName: Copy OE into install dir
+
 - task: ArchiveFiles@2
   inputs:
     rootFolderOrFile: ${{ parameters.install_prefix }}
