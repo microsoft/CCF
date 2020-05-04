@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.9.3 # CCF_VERSION < This is a search marker for CI version check
+  VERSION 0.10 # CCF_VERSION < This is a search marker for CI version check
   LANGUAGES C CXX
 )
 
@@ -339,6 +339,11 @@ if(BUILD_TESTS)
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
                             secp256k1.host http_parser.host sss.host
+    )
+
+    add_unit_test(
+      tx_status_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
 
     add_unit_test(
