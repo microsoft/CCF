@@ -374,6 +374,7 @@ bool Certificate<T>::add(T* msg)
     bmap.set(id);
     Message_val& val = vals[0];
     val.count++;
+    cur_size = 1;
     c = vals;
     delete c->msg;
     c->msg = msg;
