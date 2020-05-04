@@ -40,7 +40,7 @@ jobs:
       displayName: 'Check Python code format'
       condition: succeededOrFailed()
 
-    - script: ./check-format.sh cmake samples src tests CMakeLists
+    - script: ./check-cmake-format.sh cmake samples src tests CMakeLists
       displayName: 'Check CMake code format'
       condition: succeededOrFailed()
 
