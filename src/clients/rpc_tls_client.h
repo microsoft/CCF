@@ -35,6 +35,7 @@ public:
 protected:
   http::ResponseParser parser;
   std::optional<std::string> prefix;
+  tls::KeyPairPtr key_pair = nullptr;
 
   size_t next_send_id = 0;
   size_t next_recv_id = 0;
@@ -42,8 +43,8 @@ protected:
   std::vector<uint8_t> gen_request_internal(
     const std::string& method,
     const CBuffer params,
-    tls::KeyPairPtr kp = nullptr,
-    const std::string& content_type = http::headervalues::contenttype::MSGPACK)
+    const std::string& content_type,
+    http_method verb)
   {
     auto path = method;
     if (prefix.has_value())
@@ -51,13 +52,13 @@ protected:
       path = fmt::format("/{}/{}", prefix.value(), path);
     }
 
-    auto r = http::Request(path);
+    auto r = http::Request(path, verb);
     r.set_body(params.p, params.n);
     r.set_header(http::headers::CONTENT_TYPE, content_type);
 
-    if (kp != nullptr)
+    if (key_pair != nullptr)
     {
-      http::sign_request(r, kp);
+      http::sign_request(r, key_pair);
     }
 
     return r.build_request();
@@ -68,6 +69,11 @@ protected:
     CBuffer b(raw);
     write(b);
     return read_response();
+  }
+
+  Response call_raw(const PreparedRpc& prep)
+  {
+    return call_raw(prep.encoded);
   }
 
   std::optional<Response> last_response;
@@ -84,33 +90,73 @@ public:
     parser(*this)
   {}
 
-  virtual PreparedRpc gen_request(
+  void create_key_pair(const tls::Pem priv_key)
+  {
+    key_pair = tls::make_key_pair(priv_key);
+  }
+
+  PreparedRpc gen_request(
     const std::string& method,
     const CBuffer params,
-    const std::string& content_type = http::headervalues::contenttype::MSGPACK)
+    const std::string& content_type,
+    http_method verb = HTTP_POST)
   {
-    return {gen_request_internal(method, params, nullptr, content_type),
+    return {gen_request_internal(method, params, content_type, verb),
             next_send_id++};
   }
 
-  virtual PreparedRpc gen_request(
-    const std::string& method, const nlohmann::json& params = nullptr)
+  PreparedRpc gen_request(
+    const std::string& method,
+    const nlohmann::json& params = nullptr,
+    http_method verb = HTTP_POST)
   {
-    auto p = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
-    return gen_request(method, {p.data(), p.size()});
+    std::vector<uint8_t> body;
+    if (!params.is_null())
+    {
+      body = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
+    }
+    return gen_request(
+      method,
+      {body.data(), body.size()},
+      http::headervalues::contenttype::MSGPACK,
+      verb);
   }
 
   Response call(
-    const std::string& method, const nlohmann::json& params = nullptr)
+    const std::string& method,
+    const nlohmann::json& params = nullptr,
+    http_method verb = HTTP_POST)
   {
-    return call_raw(gen_request(method, params).encoded);
+    return call_raw(gen_request(method, params, verb));
   }
 
-  Response call(const std::string& method, const CBuffer params)
+  Response call(
+    const std::string& method,
+    const CBuffer& params,
+    http_method verb = HTTP_POST)
   {
-    return call_raw(
-      gen_request(method, params, http::headervalues::contenttype::OCTET_STREAM)
-        .encoded);
+    return call_raw(gen_request(
+      method, params, http::headervalues::contenttype::OCTET_STREAM, verb));
+  }
+
+  Response post(const std::string& method, const nlohmann::json& params)
+  {
+    return call(method, params, HTTP_POST);
+  }
+
+  Response get(const std::string& method, const nlohmann::json& params)
+  {
+    // GET body is ignored, so params must be placed in query
+    auto full_path = method;
+    for (auto it = params.begin(); it != params.end(); ++it)
+    {
+      full_path += fmt::format(
+        "{}{}={}",
+        it == params.begin() ? "?" : "&",
+        it.key(),
+        it.value().dump());
+    }
+    return call(full_path, nullptr, HTTP_GET);
   }
 
   nlohmann::json unpack_body(const Response& resp)

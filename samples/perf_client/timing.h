@@ -212,35 +212,37 @@ namespace timing
       receives.push_back({Clock::now() - start_time, rpc_id, commit});
     }
 
-    // Repeatedly calls getCommit RPC until the target index has been committed
-    // (or will never be committed), checks it was in expected term, returns
-    // first confirming response. Calls received_response for each response, if
-    // record is true. Throws on errors, or if target is rolled back
+    // Repeatedly calls GET /tx RPC until the target seqno has been
+    // committed (or will never be committed), returns first confirming
+    // response. Calls record_[send/response], if record is true.
+    // Throws on errors, or if target is rolled back
     RpcTlsClient::Response wait_for_global_commit(
       const CommitPoint& target, bool record = true)
     {
       auto params = nlohmann::json::object();
-      params["commit"] = target.index;
+      params["view"] = target.term;
+      params["seqno"] = target.index;
 
-      constexpr auto get_commit = "getCommit";
+      constexpr auto get_tx_status = "tx";
 
       LOG_INFO_FMT(
-        "Waiting for global commit {}.{}", target.term, target.index);
+        "Waiting for transaction ID {}.{}", target.term, target.index);
 
       while (true)
       {
-        const auto response = net_client->call(get_commit, params);
+        const auto response = net_client->get(get_tx_status, params);
 
         if (record)
         {
-          record_send(get_commit, response.id, false);
+          record_send(get_tx_status, response.id, false);
         }
 
         const auto body = net_client->unpack_body(response);
         if (response.status != HTTP_STATUS_OK)
         {
           throw runtime_error(fmt::format(
-            "getCommit failed with status {}: {}",
+            "{} failed with status {}: {}",
+            get_tx_status,
             http_status_str(response.status),
             body.dump()));
         }
@@ -251,49 +253,36 @@ namespace timing
           record_receive(response.id, commit_ids);
         }
 
-        const auto response_term = body["term"].get<size_t>();
-        if (response_term == 0)
+        // NB: Eventual header re-org should be exposing API types so
+        // they can be consumed cleanly from C++ clients
+        const auto tx_status = body["status"];
+        if (tx_status == "PENDING" || tx_status == "UNKNOWN")
         {
           // Commit is pending, poll again
           this_thread::sleep_for(10us);
           continue;
         }
-        else if (response_term < target.term)
+        else if (tx_status == "COMMITTED")
+        {
+          LOG_INFO_FMT("Found global commit {}.{}", target.term, target.index);
+          LOG_INFO_FMT(
+            " (headers term: {}, local: {}, global: {})",
+            commit_ids.term,
+            commit_ids.local,
+            commit_ids.global);
+          return response;
+        }
+        else if (tx_status == "INVALID")
         {
           throw std::logic_error(fmt::format(
-            "Unexpected situation - {} was committed in old term {} (expected "
-            "{})",
-            target.index,
-            response_term,
-            target.term));
-        }
-        else if (response_term == target.term)
-        {
-          // Good, this target commit was committed in the expected term
-          if (commit_ids.global >= target.index)
-          {
-            // ...and this commit has been globally committed
-            LOG_INFO_FMT(
-              "Found global commit {}.{}", target.term, target.index);
-            LOG_INFO_FMT(
-              " (headers term: {}, local: {}, global: {})",
-              commit_ids.term,
-              commit_ids.local,
-              commit_ids.global);
-            return response;
-          }
-
-          // else global commit is still pending
-          continue;
+            "Transaction {}.{} is now marked as invalid",
+            target.term,
+            target.index));
         }
         else
         {
-          throw std::logic_error(fmt::format(
-            "Pending transaction was dropped! Looking for {}.{}, but term has "
-            "advanced to {}",
-            target.term,
-            target.index,
-            response_term));
+          throw std::logic_error(
+            fmt::format("Unhandled tx status: {}", tx_status));
         }
       }
     }

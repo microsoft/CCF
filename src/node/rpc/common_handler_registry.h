@@ -36,16 +36,9 @@ namespace ccf
       HandlerRegistry::init_handlers(t);
 
       auto get_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
-        GetCommit::In in{};
-        if (!params.is_null())
-        {
-          in = params.get<GetCommit::In>();
-        }
-
-        kv::Version commit = in.commit.value_or(tables->commit_version());
-
         if (consensus != nullptr)
         {
+          const auto commit = tables->commit_version();
           auto term = consensus->get_view(commit);
           return make_success(GetCommit::Out{term, commit});
         }
@@ -66,6 +59,25 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           "Failed to get local commit info from Consensus");
+      };
+
+      auto get_tx_status = [this](Store::Tx& tx, nlohmann::json&& params) {
+        const auto in = params.get<GetTxStatus::In>();
+
+        if (consensus != nullptr)
+        {
+          const auto tx_view = consensus->get_view(in.seqno);
+          const auto committed_seqno = consensus->get_commit_seqno();
+          const auto committed_view = consensus->get_view(committed_seqno);
+
+          GetTxStatus::Out out;
+          out.status = ccf::get_tx_status(
+            in.view, in.seqno, tx_view, committed_view, committed_seqno);
+          return make_success(out);
+        }
+
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Consensus is not yet configured");
       };
 
       auto get_metrics = [this](Store::Tx& tx, nlohmann::json&& params) {
@@ -250,11 +262,15 @@ namespace ccf
       };
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
-        .set_auto_schema<GetCommit>();
+        .set_auto_schema<void, GetCommit::Out>();
       install(
         GeneralProcs::GET_LOCAL_COMMIT, json_adapter(get_local_commit), Read)
         .set_auto_schema<void, GetCommit::Out>()
         .set_execute_locally(true);
+      install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
+        .set_auto_schema<GetTxStatus>()
+        .set_execute_locally(true)
+        .set_http_get_only();
       install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)

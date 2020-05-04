@@ -65,8 +65,6 @@ Common Methods
 getCommit
 ~~~~~~~~~
 
-.. literalinclude:: ../schemas/getCommit_params.json
-    :language: json
 .. literalinclude:: ../schemas/getCommit_result.json
     :language: json
 

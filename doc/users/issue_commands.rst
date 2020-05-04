@@ -52,29 +52,41 @@ Checking for Commit
 
 Because of the decentralised nature of CCF, a request is committed to the ledger only once a number of nodes have agreed on that request.
 
-To guarantee that their request is successfully committed to the ledger, a user needs to issue a ``getCommit`` request, specifying the ``commit`` version received in the response. If CCF returns a ``global-commit`` greater than the ``commit`` version at which the ``LOG_record`` request was issued `and` that result ``commit`` is in the same ``term``, then the request was committed to the ledger.
+To guarantee that their request is successfully committed to the ledger, a user should issue a ``GET /tx`` request, specifying the version received in the response. This version is constructed from a view (also called term in some places) and a sequence number (or commit index).
 
 .. code-block:: bash
 
-    $ cat get_commit.json
-    {
-      "commit": 23
-    }
-
-    $ curl https://<ccf-node-address>/users/getCommit --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @get_commit.json -H "content-type: application/json" -i
+    $ curl -X GET "https://<ccf-node-address>/users/tx?view=2&seqno=18" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -i
     HTTP/1.1 200 OK
-    content-length: 32
+    content-length: 23
     content-type: application/json
-    x-ccf-commit: 33
-    x-ccf-global-commit: 33
-    x-ccf-term: 2
+    x-ccf-commit: 42
+    x-ccf-global-commit: 40
+    x-ccf-term: 5
 
-    {
-      "commit": 23,
-      "term": 2
-    }
+    {"status":"COMMITTED"}
 
-In this example, the ``result`` field indicates that the request was executed at ``23`` (``commit``), and in term ``2``, the same term that the ``LOG_record`` executed in. Moreover, the ``global_commit`` (``33``) is now greater than the ``commit`` version. The ``LOG_record`` request issued earlier was successfully committed to the ledger.
+This example queries the status of transaction ID 2.18 (constructed from view 2 and sequence number 18). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests, and global commit index has continued to increase.
+
+The possible statuses are:
+
+- ``UNKNOWN`` - this node has not received a transaction with the given ID
+- ``PENDING`` - this node has received a transaction with the given ID, but does not yet know if the transaction has been committed
+- ``COMMITTED`` - this node knows that this transaction is committed, it is an irrevocable and durable part of the service's transaction history
+- ``INVALID`` - this node knows that the given transaction cannot be committed. This occurs when the view changes, and some pending transactions may be lost and must be resubmitted, but also applies to IDs which are known to be impossible given the current globally committed IDs
+
+On a given node, the possible transitions between states are described in the following diagram:
+
+.. mermaid::
+
+    stateDiagram
+        Unknown --> Pending
+        Pending --> Committed
+        Pending --> Invalid
+
+It is possible that intermediate states are not visible (eg - a transition from Unknown to Committed may never publically show a Pending result). Nodes may disagree on the current state due to communication delays, but will never disagree on transitions (in other words, they may believe a Committed transaction is still Unknown or Pending, but will never report it as Invalid).
+
+Note that transaction IDs are uniquely assigned by the service - once a request has been assigned an ID, this ID will never be associated with a different write transaction. In normal operation, the next requests will be given versions 2.19, then 2.20, and so on, and after a short delay 2.18 will be committed. If requests are submitted in parallel, they will be applied in a consistent order indicated by their assigned versions. If the network is unable to reach consensus, it will trigger a leadership election which increments the view. In this case the user's next request may be given a version 3.16, followed by 3.17, then 3.18. The sequence number is reused, but in a different view; the service knows that 2.18 can never be assigned, so it can report this as an invalid ID. Read-only transactions are an exception - they do not get a unique transaction ID but instead return the ID of the last write transaction whose state they may have read.
 
 Transaction receipts
 --------------------
@@ -85,12 +97,7 @@ To obtain a receipt, a user needs to issue a ``getReceipt`` RPC for a particular
 
 .. code-block:: bash
 
-    $ cat get_receipt.json
-    {
-      "commit": 23
-    }
-
-    $ curl https://<ccf-node-address>/users/getReceipt --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @get_receipt.json -H "content-type: application/json"
+    $ curl -X GET "https://<ccf-node-address>/users/getReceipt?commit=23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
       "receipt": [ ... ],
     }
