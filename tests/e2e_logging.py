@@ -5,11 +5,13 @@ import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
+from infra.tx_status import TxStatus
 import inspect
 import http
 import ssl
 import socket
 import os
+import time
 
 from loguru import logger as LOG
 
@@ -264,6 +266,53 @@ def test_update_lua(network, args):
     return network
 
 
+@reqs.description("Check for commit of every prior transaction")
+@reqs.supports_methods("getCommit", "tx")
+def test_view_history(network, args):
+    primary, _ = network.find_primary()
+    check = infra.checker.Checker()
+
+    with primary.user_client() as c:
+        r = c.get("getCommit")
+        check(c)
+
+        # TODO: These aren't really correct!
+        commit_view = r.term
+        commit_seqno = r.global_commit
+
+        current_view = 1
+        current_seqno = 1
+
+        # TODO: Customisable timeout, handles waiting for _all_
+        end_time = time.time() + 10
+        while time.time() < end_time:
+            r = c.get("tx", {"view": current_view, "seqno": current_seqno})
+            check(r)
+            status = TxStatus(r.result["status"])
+            if status == TxStatus.Committed:
+                LOG.success(f"Found transaction ID {current_view}.{current_seqno}")
+                if current_seqno < commit_seqno:
+                    current_seqno += 1
+                else:
+                    LOG.success("Found all")
+                    break
+            elif status == TxStatus.Invalid:
+                LOG.warning(
+                    f"Found a potential view change: {current_view}.{current_seqno} is invalid"
+                )
+                if current_view < commit_view:
+                    current_view += 1
+                else:
+                    LOG.error(
+                        f"Ran out of views! At committed view {commit_view}, with no valid tx for seqno {current_seqno}"
+                    )
+            else:
+                # This tx is some kind of pending, retry
+                time.sleep(0.1)
+
+    return network
+
+
 def run(args):
     hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
 
@@ -296,6 +345,7 @@ def run(args):
             network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
             network = test_raw_text(network, args)
+            network = test_view_history(network, args)
 
 
 if __name__ == "__main__":
