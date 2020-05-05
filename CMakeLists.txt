@@ -460,6 +460,12 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME rekey_tests
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
+    CONSENSUS raft
+  )
+
+  add_e2e_test(
     NAME test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
