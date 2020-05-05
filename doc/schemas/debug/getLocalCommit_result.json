@@ -16,6 +16,6 @@
     "term",
     "commit"
   ],
-  "title": "getLocalCommit/result",
+  "title": "debug/getLocalCommit/result",
   "type": "object"
 }
