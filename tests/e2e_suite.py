@@ -24,7 +24,10 @@ class TestStatus(Enum):
 
 def run(args):
 
-    chosen_suite = s.all_tests_suite
+    if args.full_suite:
+        chosen_suite = s.all_tests_suite
+    else:
+        chosen_suite = s.recovery_suite
 
     repeats = int(os.getenv("REPEAT_SUITE", "1"))
     chosen_suite = chosen_suite * repeats
@@ -38,8 +41,6 @@ def run(args):
         LOG.success(f"Shuffling full suite with seed {seed}")
         random.seed(seed)
         random.shuffle(chosen_suite)
-        LOG.success(f"Produced shuffled suite: {chosen_suite}")
-        sys.exit(5)
     s.validate_tests_signature(chosen_suite)
 
     if args.enforce_reqs is False:
@@ -145,6 +146,9 @@ if __name__ == "__main__":
     def add(parser):
         parser.add_argument(
             "--test-duration", help="Duration of full suite (s)", type=int
+        )
+        parser.add_argument(
+            "--full-suite", help="Run all known tests", action="store_true"
         )
 
     args = infra.e2e_args.cli_args(add)
