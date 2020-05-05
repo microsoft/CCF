@@ -1,10 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import e2e_logging
+import memberclient
+import receipts
 import reconfiguration
 import recovery
 import rekey
-import memberclient
 
 from inspect import signature, Parameter
 
@@ -36,6 +38,36 @@ suite_membership_recovery = [
 full_suite = []
 full_suite.extend(suite_rekey_recovery)
 full_suite.extend(suite_membership_recovery)
+
+all_tests_suite = [
+    # e2e_logging:
+    e2e_logging.test,
+    e2e_logging.test_illegal,
+    e2e_logging.test_large_messages,
+    e2e_logging.test_remove,
+    e2e_logging.test_cert_prefix,
+    e2e_logging.test_anonymous_caller,
+    e2e_logging.test_raw_text,
+    e2e_logging.test_forwarding_frontends,
+    e2e_logging.test_update_lua,
+    # memberclient:
+    memberclient.test_set_recovery_threshold,
+    memberclient.test_add_member,
+    memberclient.test_retire_member,
+    memberclient.test_update_recovery_shares,
+    # receipts:
+    receipts.test,
+    # reconfiguration:
+    reconfiguration.test_add_node,
+    reconfiguration.test_add_node_from_backup,
+    reconfiguration.test_add_as_many_pending_nodes,
+    reconfiguration.test_add_node_untrusted_code,
+    reconfiguration.test_retire_node,
+    # recovery:
+    recovery.test,
+    # rekey:
+    rekey.test,
+]
 
 #
 # Test functions are expected to be in the following format:
