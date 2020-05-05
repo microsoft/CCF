@@ -1,5 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the Apache 2.0 License.import test_suite
+# Licensed under the Apache 2.0 License.
 
 import infra.e2e_args
 import infra.ccf
@@ -24,7 +24,10 @@ class TestStatus(Enum):
 
 def run(args):
 
-    chosen_suite = s.full_suite
+    chosen_suite = s.all_tests_suite
+
+    repeats = int(os.getenv("REPEAT_SUITE", "1"))
+    chosen_suite = chosen_suite * repeats
 
     seed = None
     if os.getenv("SHUFFLE_SUITE"):
@@ -35,6 +38,8 @@ def run(args):
         LOG.success(f"Shuffling full suite with seed {seed}")
         random.seed(seed)
         random.shuffle(chosen_suite)
+        LOG.success(f"Produced shuffled suite: {chosen_suite}")
+        sys.exit(5)
     s.validate_tests_signature(chosen_suite)
 
     if args.enforce_reqs is False:
