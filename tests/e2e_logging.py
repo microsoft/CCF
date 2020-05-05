@@ -154,7 +154,7 @@ def test_anonymous_caller(network, args):
         primary, _ = network.find_primary()
 
         # Create a new user but do not record its identity
-        network.create_user(4, args.participants_curve)
+        network.create_user(4, args.participants_curve, record=False)
 
         log_id = 101
         msg = "This message is anonymous"
