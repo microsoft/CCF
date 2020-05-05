@@ -49,7 +49,7 @@ def find_primary(network):
 
 def get_node_local_commit(node):
     with node.node_client() as c:
-        r = c.get("getLocalCommit")
+        r = c.get("debug/getLocalCommit")
         return r.commit, r.global_commit
 
 
