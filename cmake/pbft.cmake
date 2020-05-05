@@ -108,7 +108,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_include_directories(
     libcommontest.mock
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test ${EVERCRYPT_INC}
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test
+            ${EVERCRYPT_INC}
   )
 
   target_compile_options(libcommontest.mock PRIVATE -stdlib=libc++)
