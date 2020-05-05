@@ -1400,14 +1400,6 @@ void Replica::register_rollback_cb(
   rollback_info = rb_info;
 }
 
-template <class T>
-std::unique_ptr<T> Replica::create_message(
-  const uint8_t* message_data, size_t data_size)
-{
-  auto msg_type = reinterpret_cast<T*>(create_message(message_data, data_size));
-  return std::unique_ptr<T>(msg_type);
-}
-
 void Replica::handle(Reply* m)
 {
   if (rep_cb != nullptr)
