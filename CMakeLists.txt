@@ -466,11 +466,38 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME test_suite
+    NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
     LABEL suite
-    ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
+    ADDITIONAL_ARGS
+      --test-duration
+      150
+      --enforce-reqs
+      --test-suite
+      rekey_recovery
+      --test-suite
+      rekey_recovery
+  )
+
+  add_e2e_test(
+    NAME full_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    CONSENSUS raft
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration
+      150
+      --enforce-reqs
+      # Repeat the full suite multiple times
+      --test-suite
+      all
+      --test-suite
+      all
+      --test-suite
+      all
+      --test-suite
+      all
   )
 
   add_e2e_test(

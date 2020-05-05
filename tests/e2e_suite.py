@@ -24,13 +24,16 @@ class TestStatus(Enum):
 
 def run(args):
 
-    if args.full_suite:
-        chosen_suite = s.all_tests_suite
-    else:
-        chosen_suite = s.recovery_suite
-
-    repeats = int(os.getenv("REPEAT_SUITE", "1"))
-    chosen_suite = chosen_suite * repeats
+    chosen_suite = []
+    for choice in args.test_suite:
+        if choice == "all":
+            chosen_suite.extend(s.all_tests_suite)
+        elif choice == "membership_recovery":
+            chosen_suite.extend(s.suite_membership_recovery)
+        elif choice == "rekey_recovery":
+            chosen_suite.extend(s.suite_rekey_recovery)
+        else:
+            raise ValueError(f"Unhandled choice: {choice}")
 
     seed = None
     if os.getenv("SHUFFLE_SUITE"):
@@ -148,7 +151,11 @@ if __name__ == "__main__":
             "--test-duration", help="Duration of full suite (s)", type=int
         )
         parser.add_argument(
-            "--full-suite", help="Run all known tests", action="store_true"
+            "--test-suite",
+            help="Which test suites should be run",
+            action="append",
+            choices=("all", "membership_recovery", "rekey_recovery"),
+            default=["all"],
         )
 
     args = infra.e2e_args.cli_args(add)

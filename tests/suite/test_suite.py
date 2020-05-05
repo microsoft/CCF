@@ -34,10 +34,6 @@ suite_membership_recovery = [
     recovery.test,
 ]
 
-recovery_suite = []
-recovery_suite.extend(suite_rekey_recovery)
-recovery_suite.extend(suite_membership_recovery)
-
 all_tests_suite = [
     # e2e_logging:
     e2e_logging.test,
