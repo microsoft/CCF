@@ -116,7 +116,12 @@ public:
 
   template <typename T>
   std::unique_ptr<T> create_message(
-    const uint8_t* message_data, size_t data_size);
+    const uint8_t* message_data, size_t data_size)
+  {
+    auto msg_type =
+      reinterpret_cast<T*>(create_message(message_data, data_size));
+    return std::unique_ptr<T>(msg_type);
+  }
 
   size_t num_correct_replicas() const;
   size_t f() const;
