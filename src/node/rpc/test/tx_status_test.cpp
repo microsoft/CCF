@@ -92,19 +92,6 @@ TEST_CASE("edge cases")
   {
     INFO("Node is in a newer view");
 
-    // Impossible: cannot have local progress in a view without an initial
-    // global point in that view
-    // get_tx_status(a, b, N, <N, c)
-    CHECK_THROWS(get_tx_status(3, 10, 2, 1, 8));
-    CHECK_THROWS(get_tx_status(3, 10, 2, 1, 10));
-    CHECK_THROWS(get_tx_status(3, 10, 2, 1, 12));
-    CHECK_THROWS(get_tx_status(3, 10, 3, 2, 8));
-    CHECK_THROWS(get_tx_status(3, 10, 3, 2, 10));
-    CHECK_THROWS(get_tx_status(3, 10, 3, 2, 12));
-    CHECK_THROWS(get_tx_status(3, 10, 4, 3, 8));
-    CHECK_THROWS(get_tx_status(3, 10, 4, 3, 10));
-    CHECK_THROWS(get_tx_status(3, 10, 4, 3, 12));
-
     CHECK(get_tx_status(3, 10, 0, 4, 8) == TxStatus::Invalid);
     CHECK(get_tx_status(3, 10, 4, 4, 8) == TxStatus::Invalid);
     CHECK(get_tx_status(3, 10, 4, 4, 10) == TxStatus::Invalid);

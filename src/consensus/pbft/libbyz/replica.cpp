@@ -484,6 +484,46 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   }
 }
 
+void Replica::add_certs_if_valid(
+  Pre_prepare* pp, Pre_prepare* prev_pp, Prepared_cert& prev_prepared_cert)
+{
+  Pre_prepare::ValidProofs_iter vp_iter(pp);
+  int p_id;
+  bool valid;
+  while (vp_iter.get(p_id, valid, prev_pp->digest()))
+  {
+    if (valid)
+    {
+      LOG_DEBUG_FMT(
+        "Adding prepare for principal with id {} for seqno {}",
+        p_id,
+        prev_pp->seqno());
+      Prepare* p = new Prepare(
+        prev_pp->view(),
+        prev_pp->seqno(),
+        prev_pp->digest(),
+        prev_pp->get_nonce(),
+        nullptr,
+        prev_pp->is_signed(),
+        p_id);
+      prev_prepared_cert.add(p);
+    }
+  }
+
+  if (prev_prepared_cert.is_pp_correct())
+  {
+    LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_pp->seqno());
+    Prepare* p = new Prepare(
+      prev_pp->view(),
+      prev_pp->seqno(),
+      prev_pp->digest(),
+      prev_pp->get_nonce(),
+      nullptr,
+      prev_pp->is_signed());
+    prev_prepared_cert.add_mine(p);
+  }
+}
+
 void Replica::populate_certificates(Pre_prepare* pp)
 {
   if (pp->seqno() <= 0)
@@ -504,35 +544,7 @@ void Replica::populate_certificates(Pre_prepare* pp)
   auto prev_pp = prev_prepared_cert.pre_prepare();
   if (prev_pp != nullptr)
   {
-    Pre_prepare::ValidProofs_iter vp_iter(prev_pp);
-    int p_id;
-    bool valid;
-    while (vp_iter.get(p_id, valid) && valid)
-    {
-      LOG_DEBUG_FMT(
-        "Adding prepare for principal with id {} for seqno {}",
-        p_id,
-        prev_seqno);
-      Prepare* p = new Prepare(
-        prev_pp->view(),
-        prev_pp->seqno(),
-        prev_pp->digest(),
-        prev_pp->get_nonce(),
-        nullptr,
-        prev_pp->is_signed(),
-        p_id);
-      prev_prepared_cert.add(p);
-    }
-
-    LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_seqno);
-    Prepare* p = new Prepare(
-      prev_pp->view(),
-      prev_pp->seqno(),
-      prev_pp->digest(),
-      prev_pp->get_nonce(),
-      nullptr,
-      prev_pp->is_signed());
-    prev_prepared_cert.add_mine(p);
+    add_certs_if_valid(pp, prev_pp, prev_prepared_cert);
   }
 }
 
@@ -1046,7 +1058,7 @@ void Replica::handle(Pre_prepare* m)
         // previous pre prepare was executed during playback, we need to add the
         // prepares for it, as the prepare proofs for the previous pre-prepare
         // are in the next pre prepare message
-        populate_certificates(m);
+        populate_certificates(pc.pre_prepare());
       }
       send_prepare(ms);
     }
