@@ -306,6 +306,7 @@ def test_view_history(network, args):
                     LOG.error(
                         f"Ran out of views! At committed view {commit_view}, with no valid tx for seqno {current_seqno}"
                     )
+                    raise RuntimeError(f"Can't find commit for seqno {current_seqno}")
             else:
                 # This tx is some kind of pending, retry
                 time.sleep(0.1)
