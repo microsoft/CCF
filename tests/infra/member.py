@@ -36,8 +36,10 @@ class Member:
         member = f"member{member_id}"
         infra.proc.ccall(
             self.key_generator,
-            f"--name={member}",
-            f"--curve={curve.name}",
+            "--name",
+            f"{member}",
+            "--curve",
+            f"{curve.name}",
             "--gen-enc-key",
             path=self.common_dir,
             log_output=False,
@@ -126,6 +128,11 @@ class Member:
             self.status = MemberStatus.ACTIVE
 
     def get_and_decrypt_recovery_share(self, remote_node):
+        LOG.warning(
+            f"About to retrieve and decrypt recovery share... {remote_node.host}:{remote_node.rpc_port}"
+        )
+        while True:
+            pass
         with remote_node.member_client(member_id=self.member_id) as mc:
             r = mc.get("getEncryptedRecoveryShare")
 
@@ -135,7 +142,7 @@ class Member:
             # For now, members rely on a copy of the original network encryption
             # public key to decrypt their shares
             ctx = infra.crypto.CryptoBoxCtx(
-                os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem"),
+                os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
                 os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
             )
 

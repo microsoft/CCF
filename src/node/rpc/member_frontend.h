@@ -936,7 +936,6 @@ namespace ccf
             HTTP_STATUS_FORBIDDEN, "Node is already recovering private ledger");
         }
 
-        // TODO: Unit test the whole thing here!
         if (pending_shares.find(args.caller_id) != pending_shares.end())
         {
           return make_error(
@@ -947,6 +946,8 @@ namespace ccf
         }
 
         const auto in = params.get<SubmitRecoveryShare>();
+
+        // TODO: This seems to crash the server when this fails!!
         auto raw_recovery_share = tls::raw_from_b64(in.recovery_share);
 
         SecretSharing::Share share;
@@ -958,7 +959,11 @@ namespace ccf
         pending_shares.emplace(args.caller_id, share);
         if (pending_shares.size() < g.get_recovery_threshold())
         {
-          return make_success(false);
+          return make_success(fmt::format(
+            "Recovery share successfully submitted. {}/{} recovery shares "
+            "submitted.",
+            pending_shares.size(),
+            g.get_recovery_threshold()));
         }
 
         LOG_DEBUG_FMT(
@@ -974,13 +979,13 @@ namespace ccf
         }
 
         pending_shares.clear();
-        return make_success(true);
+        return make_success("End of recovery protocol successfully initiated.");
       };
       install(
         MemberProcs::SUBMIT_RECOVERY_SHARE,
         json_adapter(submit_recovery_share),
         Write)
-        .set_auto_schema<SubmitRecoveryShare, bool>();
+        .set_auto_schema<SubmitRecoveryShare, std::string>();
 
       auto create = [this](Store::Tx& tx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");

@@ -364,8 +364,10 @@ class Network:
     def create_user(self, user_id, curve):
         infra.proc.ccall(
             self.key_generator,
-            f"--name=user{user_id}",
-            f"--curve={curve.name}",
+            "--name",
+            f"user{user_id}",
+            "--curve",
+            f"{curve.name}",
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
