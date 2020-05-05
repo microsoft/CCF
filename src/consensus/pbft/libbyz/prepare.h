@@ -23,8 +23,8 @@ struct Prepare_rep : public Message_rep
   View view;
   Seqno seqno;
   Digest digest;
-  int id; // id of the replica that generated the message.
   Digest hashed_nonce;
+  int id; // id of the replica that generated the message.
 #ifdef SIGN_BATCH
   size_t digest_sig_size;
   PbftSignature batch_digest_signature;
