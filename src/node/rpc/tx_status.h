@@ -42,16 +42,6 @@ namespace ccf
         target_seqno));
     }
 
-    if (local_view > committed_view)
-    {
-      throw std::logic_error(fmt::format(
-        "Should not believe {} occurred in view {}, ahead of the current "
-        "committed view {}",
-        target_view,
-        local_view,
-        committed_view));
-    }
-
     if (is_committed)
     {
       // The requested seqno has been committed, so we know for certain whether
@@ -65,7 +55,7 @@ namespace ccf
         return TxStatus::Invalid;
       }
     }
-    else if (local_view == target_view)
+    else if (views_match)
     {
       // This node knows about the requested tx id, but it is not globally
       // committed
