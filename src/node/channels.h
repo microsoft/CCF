@@ -102,7 +102,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Invalid nonce, possible replay attack, received:{}, last_seen:{}, "
           "recv_nonce.tid:{}",
-          recv_nonce.nonce,
+          reinterpret_cast<uint64_t>(recv_nonce.nonce),
           *local_nonce,
           recv_nonce.tid);
         return false;
