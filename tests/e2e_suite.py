@@ -152,7 +152,7 @@ if __name__ == "__main__":
         )
         parser.add_argument(
             "--test-suite",
-            help="Which test suites should be run",
+            help="List of test suites should be run",
             action="append",
             choices=("all", "membership_recovery", "rekey_recovery"),
             default=["all"],
