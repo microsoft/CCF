@@ -266,6 +266,28 @@ def test_update_lua(network, args):
     return network
 
 
+def condensed_tx_info(c, commit_view, commit_seqno):
+    all_txs = dict()
+    end_seqno = commit_seqno + 1
+    for view in range(1, commit_view + 1):
+        view_txs = dict()
+        for seqno in range(1, end_seqno):
+            r = c.get("tx", {"view": view, "seqno": seqno})
+            status = TxStatus(r.result["status"])
+            view_txs[seqno] = status
+        all_txs[view] = view_txs
+
+    s = f"commit:{''.join(str((n // 10) % 10) for n in range(end_seqno))}\n"
+    s += f"commit:{''.join(str(n % 10) for n in range(end_seqno))}\n"
+    for view, txs in all_txs.items():
+        line = [" "] * (end_seqno)
+        for seqno, status in txs.items():
+            if status == TxStatus.Committed:
+                line[seqno] = "C"
+        s += f"{view:>6}:" + "".join(line) + "\n"
+    return s
+
+
 @reqs.description("Check for commit of every prior transaction")
 @reqs.supports_methods("getCommit", "tx")
 def test_view_history(network, args):
@@ -276,14 +298,12 @@ def test_view_history(network, args):
         r = c.get("getCommit")
         check(c)
 
-        # TODO: These aren't really correct!
         commit_view = r.term
         commit_seqno = r.global_commit
 
         current_view = 1
         current_seqno = 1
 
-        # TODO: Customisable timeout, handles waiting for _all_
         end_time = time.time() + 10
         while time.time() < end_time:
             r = c.get("tx", {"view": current_view, "seqno": current_seqno})
@@ -295,6 +315,9 @@ def test_view_history(network, args):
                     current_seqno += 1
                 else:
                     LOG.success("Found all")
+                    LOG.success(
+                        f"Summary of tx IDs:\n{condensed_tx_info(c, commit_view, commit_seqno)}"
+                    )
                     break
             elif status == TxStatus.Invalid:
                 LOG.warning(
@@ -305,6 +328,9 @@ def test_view_history(network, args):
                 else:
                     LOG.error(
                         f"Ran out of views! At committed view {commit_view}, with no valid tx for seqno {current_seqno}"
+                    )
+                    LOG.error(
+                        f"Summary of tx IDs:\n{condensed_tx_info(c, commit_view, commit_seqno)}"
                     )
                     raise RuntimeError(f"Can't find commit for seqno {current_seqno}")
             else:
