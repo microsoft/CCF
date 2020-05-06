@@ -278,6 +278,11 @@ def test_view_history(network, args):
             commit_view = r.term
             commit_seqno = r.global_commit
 
+            # Temporarily disable logging of RPCs for readability
+            rpc_loggers = c.rpc_loggers
+            c.rpc_loggers = ()
+            LOG.warning("RPC logging temporarily suppressed")
+
             # Retrieve status for all possible Tx IDs
             seqno_to_views = {}
             for seqno in range(1, commit_seqno + 1):
@@ -290,12 +295,17 @@ def test_view_history(network, args):
                         views.append(view)
                 seqno_to_views[seqno] = views
 
+            c.rpc_loggers = rpc_loggers
+            LOG.warning("RPC logging restored")
+
             # Check we have exactly one Tx ID for each seqno
             txs_ok = True
             for seqno, views in seqno_to_views.items():
                 if len(views) != 1:
                     txs_ok = False
-                    LOG.error(f"Node {node.node_id}: Found {len(views)} committed Tx IDs for seqno {seqno}")
+                    LOG.error(
+                        f"Node {node.node_id}: Found {len(views)} committed Tx IDs for seqno {seqno}"
+                    )
 
             tx_ids_condensed = ", ".join(
                 " OR ".join(f"{view}.{seqno}" for view in views or ["UNKNOWN"])
@@ -303,10 +313,16 @@ def test_view_history(network, args):
             )
 
             if txs_ok:
-                LOG.success(f"Node {node.node_id}: Found a valid sequence of Tx IDs:\n{tx_ids_condensed}")
+                LOG.success(
+                    f"Node {node.node_id}: Found a valid sequence of Tx IDs:\n{tx_ids_condensed}"
+                )
             else:
-                LOG.error(f"Node {node.node_id}: Invalid sequence of Tx IDs:\n{tx_ids_condensed}")
-                raise RuntimeError(f"Node {node.node_id}: Incomplete or inconsistent view history")
+                LOG.error(
+                    f"Node {node.node_id}: Invalid sequence of Tx IDs:\n{tx_ids_condensed}"
+                )
+                raise RuntimeError(
+                    f"Node {node.node_id}: Incomplete or inconsistent view history"
+                )
 
     return network
 
