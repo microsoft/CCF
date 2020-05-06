@@ -68,15 +68,11 @@ withdraw
 getEncryptedRecoveryShare
 -------------------------
 
-.. warning:: Experimental
-
 .. literalinclude:: ../schemas/getEncryptedRecoveryShare_result.json
     :language: json
 
 submitRecoveryShare
 -------------------
-
-.. warning:: Experimental
 
 .. literalinclude:: ../schemas/submitRecoveryShare_params.json
     :language: json
