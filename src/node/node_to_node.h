@@ -8,7 +8,8 @@
 #include "nodetypes.h"
 
 #include <algorithm>
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 
 namespace ccf
 {
