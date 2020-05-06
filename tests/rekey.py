@@ -3,8 +3,8 @@
 import infra.ccf
 import infra.notification
 import suite.test_requirements as reqs
+import infra.logging_app as app
 import infra.e2e_args
-import e2e_logging
 
 
 @reqs.description("Rekey the ledger once")
@@ -24,17 +24,18 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network.txs.issue(
-            network=network, number_txs=3, consensus=args.get("consensus"),
+        txs = app.LoggingTxs()
+        txs.issue(
+            network=network, number_txs=3, consensus=args.consensus,
         )
-        network.txs.verify(network=network)
+        txs.verify(network=network)
 
         network = test(network, args)
 
-        network.txs.issue(
-            network=network, number_txs=3, consensus=args.get("consensus"),
+        txs.issue(
+            network=network, number_txs=3, consensus=args.consensus,
         )
-        network.txs.verify(network=network)
+        txs.verify(network=network)
 
 
 if __name__ == "__main__":
