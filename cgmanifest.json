@@ -86,7 +86,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/http-parser",
-          "commitHash": "5c17dad400e45c5a442a63f250fff2638d144682"
+          "commitHash": "2343fd6b5214b2ded2cdcf76de2bf60903bb90cd"
         }
       }
     },
