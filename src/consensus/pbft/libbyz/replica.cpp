@@ -574,7 +574,6 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
   waiting_for_playback_pp = false;
   playback_max_local_commit_value = INT64_MIN;
 
-  playback_byz_info.last_exec_gov_req = gov_req_track.last_seqno();
   playback_byz_info.did_exec_gov_req = did_exec_gov_req;
   update_gov_req_info(playback_byz_info, executable_pp.get());
   did_exec_gov_req = false;
