@@ -1,5 +1,4 @@
-#ifndef __VALIJSON_DEBUG_HPP
-#define __VALIJSON_DEBUG_HPP
+#pragma once
 
 #include <string>
 
@@ -29,5 +28,3 @@ std::string nodeTypeAsString(const AdapterType &node) {
 
 } // end namespace internal
 } // end namespace valijson
-
-#endif
