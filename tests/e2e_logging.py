@@ -287,7 +287,7 @@ def test_view_history(network, args):
             seqno_to_views = {}
             for seqno in range(1, commit_seqno + 1):
                 views = []
-                for view in range(commit_view + 1):
+                for view in range(1, commit_view + 1):
                     r = c.get("tx", {"view": view, "seqno": seqno})
                     check(r)
                     status = TxStatus(r.result["status"])
