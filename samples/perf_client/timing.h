@@ -41,7 +41,12 @@ namespace fmt
     template <typename FormatContext>
     auto format(const timing::Measure& e, FormatContext& ctx)
     {
-      return format_to(ctx.out(), "sample_count: {}, average: {}, variance: {}", e.sample_count, e.average, e.variance);
+      return format_to(
+        ctx.out(),
+        "sample_count: {}, average: {}, variance: {}",
+        e.sample_count,
+        e.average,
+        e.variance);
     }
   };
 }
