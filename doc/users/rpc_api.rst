@@ -68,6 +68,15 @@ getCommit
 .. literalinclude:: ../schemas/getCommit_result.json
     :language: json
 
+tx/result
+~~~~~~~~~
+
+.. literalinclude:: ../schemas/tx_params.json
+    :language: json
+
+.. literalinclude:: ../schemas/tx_result.json
+    :language: json
+
 getPrimaryInfo
 ~~~~~~~~~~~~~~
 
