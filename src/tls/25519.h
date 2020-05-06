@@ -6,7 +6,8 @@
 #include "pem.h"
 #include "tls.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <mbedtls/asn1write.h>
 #include <mbedtls/pem.h>
 
