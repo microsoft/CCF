@@ -1,21 +1,21 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "seqno": {
-      "maximum": 4294967295,
-      "minimum": 0,
+    "commit": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
       "type": "number"
     },
-    "view": {
+    "term": {
       "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "number"
     }
   },
   "required": [
-    "view",
-    "seqno"
+    "term",
+    "commit"
   ],
-  "title": "tx/params",
+  "title": "debug/getLocalCommit/result",
   "type": "object"
 }
