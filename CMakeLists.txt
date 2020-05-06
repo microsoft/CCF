@@ -477,7 +477,7 @@ if(BUILD_TESTS)
       --test-suite
       rekey_recovery
       --test-suite
-      rekey_recovery
+      membership_recovery
   )
 
   # Disabled for now, as some shuffles are still unstable

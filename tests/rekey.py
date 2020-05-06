@@ -15,6 +15,7 @@ def test(network, args):
     network.consortium.rekey_ledger(primary)
     return network
 
+
 def run(args):
     hosts = ["localhost", "localhost"]
 
@@ -23,9 +24,17 @@ def run(args):
     ) as network:
         network.start_and_join(args)
 
-        network = e2e_logging.test(network, args)
+        network.txs.issue(
+            network=network, number_txs=3, consensus=args.get("consensus"),
+        )
+        network.txs.verify(network=network)
+
         network = test(network, args)
-        network = e2e_logging.test(network, args)
+
+        network.txs.issue(
+            network=network, number_txs=3, consensus=args.get("consensus"),
+        )
+        network.txs.verify(network=network)
 
 
 if __name__ == "__main__":
