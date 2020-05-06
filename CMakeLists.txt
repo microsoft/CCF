@@ -73,6 +73,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     PUBLIC openenclave::oeenclave
            openenclave::oelibcxx
            openenclave::oelibc
+           -static-libgcc
+           -lgcc
            ccfcrypto.enclave
            evercrypt.enclave
            http_parser.enclave
@@ -125,6 +127,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            -lc++
            -lc++abi
            -lc++fs
+           -static-libgcc
+           -lgcc
            ccfcrypto.host
            evercrypt.host
            http_parser.host
