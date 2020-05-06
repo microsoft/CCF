@@ -275,7 +275,7 @@ def test_view_history(network, args):
         #    there are too many IDs to test exhaustively
         # We could rectify this by making this test non-exhaustive (bisecting for view changes,
         # sampling within a view), but for now it is exhaustive and Raft-only
-        LOG.warning(f"Skipping view reconstruction in PBFT")
+        LOG.warning("Skipping view reconstruction in PBFT")
         return network
 
     check = infra.checker.Checker()
