@@ -480,6 +480,8 @@ if(BUILD_TESTS)
       membership_recovery
   )
 
+  # ~~~
+  # ^ This is a cmake-format fence to prevent it reflowing the following comment:
   # Disabled for now, as some shuffles are still unstable
   #  add_e2e_test(
   #    NAME full_test_suite
@@ -500,6 +502,7 @@ if(BUILD_TESTS)
   #      --test-suite
   #      all
   #  )
+  # ~~~
 
   add_e2e_test(
     NAME lua_end_to_end_batched
