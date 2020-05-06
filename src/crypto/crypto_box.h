@@ -8,7 +8,8 @@ extern "C"
 #include <evercrypt/Hacl_NaCl.h>
 }
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <vector>
 
 namespace crypto

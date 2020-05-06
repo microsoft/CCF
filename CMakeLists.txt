@@ -73,6 +73,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     PUBLIC openenclave::oeenclave
            openenclave::oelibcxx
            openenclave::oelibc
+           -static-libgcc
+           -lgcc
            ccfcrypto.enclave
            evercrypt.enclave
            http_parser.enclave
@@ -125,6 +127,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            -lc++
            -lc++abi
            -lc++fs
+           -static-libgcc
+           -lgcc
            ccfcrypto.host
            evercrypt.host
            http_parser.host
@@ -453,19 +457,55 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME recovery_tests
+    NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
     ADDITIONAL_ARGS --recovery 2
   )
 
   add_e2e_test(
-    NAME test_suite
+    NAME rekey_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
+    CONSENSUS raft
+  )
+
+  add_e2e_test(
+    NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
     LABEL suite
-    ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
+    ADDITIONAL_ARGS
+      --test-duration
+      150
+      --enforce-reqs
+      --test-suite
+      rekey_recovery
+      --test-suite
+      membership_recovery
   )
+
+  # cmake-format: off
+  # Disabled for now, as some shuffles are still unstable
+  #  add_e2e_test(
+  #    NAME full_test_suite
+  #    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+  #    CONSENSUS raft
+  #    LABEL suite
+  #    ADDITIONAL_ARGS
+  #      --test-duration
+  #      1200
+  #      --enforce-reqs
+  #      # Repeat the full suite multiple times
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #  )
+  # cmake-format: on
 
   add_e2e_test(
     NAME lua_end_to_end_batched
@@ -490,7 +530,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME governance_tests
+      NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
@@ -584,7 +624,7 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
-      NAME schema_tests_${CONSENSUS}
+      NAME schema_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS -p liblogging --schema-dir
@@ -605,7 +645,7 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
-      NAME election_tests_${CONSENSUS}
+      NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
