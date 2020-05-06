@@ -266,28 +266,6 @@ def test_update_lua(network, args):
     return network
 
 
-def condensed_tx_info(c, commit_view, commit_seqno):
-    all_txs = dict()
-    end_seqno = commit_seqno + 1
-    for view in range(1, commit_view + 1):
-        view_txs = dict()
-        for seqno in range(1, end_seqno):
-            r = c.get("tx", {"view": view, "seqno": seqno})
-            status = TxStatus(r.result["status"])
-            view_txs[seqno] = status
-        all_txs[view] = view_txs
-
-    s = f"commit:{''.join(str((n // 10) % 10) for n in range(end_seqno))}\n"
-    s += f"commit:{''.join(str(n % 10) for n in range(end_seqno))}\n"
-    for view, txs in all_txs.items():
-        line = [" "] * (end_seqno)
-        for seqno, status in txs.items():
-            if status == TxStatus.Committed:
-                line[seqno] = "C"
-        s += f"{view:>6}:" + "".join(line) + "\n"
-    return s
-
-
 @reqs.description("Check for commit of every prior transaction")
 @reqs.supports_methods("getCommit", "tx")
 def test_view_history(network, args):
@@ -301,41 +279,36 @@ def test_view_history(network, args):
         commit_view = r.term
         commit_seqno = r.global_commit
 
-        current_view = 1
-        current_seqno = 1
+        # Retrieve status for all possible Tx IDs
+        seqno_to_views = dict()
+        end_seqno = commit_seqno + 1
+        for seqno in range(1, end_seqno):
+            views = []
+            for view in range(commit_view + 1):
+                r = c.get("tx", {"view": view, "seqno": seqno})
+                check(r)
+                status = TxStatus(r.result["status"])
+                if status == TxStatus.Committed:
+                    views.append(view)
+            seqno_to_views[seqno] = views
 
-        end_time = time.time() + 10
-        while time.time() < end_time:
-            r = c.get("tx", {"view": current_view, "seqno": current_seqno})
-            check(r)
-            status = TxStatus(r.result["status"])
-            if status == TxStatus.Committed:
-                LOG.success(f"Found transaction ID {current_view}.{current_seqno}")
-                if current_seqno < commit_seqno:
-                    current_seqno += 1
-                else:
-                    LOG.success("Found all")
-                    LOG.success(
-                        f"Summary of tx IDs:\n{condensed_tx_info(c, commit_view, commit_seqno)}"
-                    )
-                    break
-            elif status == TxStatus.Invalid:
-                LOG.warning(
-                    f"Found a potential view change: {current_view}.{current_seqno} is invalid"
-                )
-                if current_view < commit_view:
-                    current_view += 1
-                else:
-                    LOG.error(
-                        f"Ran out of views! At committed view {commit_view}, with no valid tx for seqno {current_seqno}"
-                    )
-                    LOG.error(
-                        f"Summary of tx IDs:\n{condensed_tx_info(c, commit_view, commit_seqno)}"
-                    )
-                    raise RuntimeError(f"Can't find commit for seqno {current_seqno}")
-            else:
-                # This tx is some kind of pending, retry
-                time.sleep(0.1)
+        # Check we have exactly one Tx ID for each seqno
+        txs_ok = True
+        for seqno, views in seqno_to_views.items():
+            if len(views) != 1:
+                txs_ok = False
+                LOG.error(f"Found {len(views)} committed Tx IDs for seqno {seqno}")
+
+        tx_ids_condensed = ", ".join(
+            " OR ".join(f"{view}.{seqno}" for view in views or ["UNKNOWN"])
+            for seqno, views in seqno_to_views.items()
+        )
+
+        if txs_ok:
+            LOG.success(f"Found a valid sequence of Tx IDs:\n{tx_ids_condensed}")
+        else:
+            LOG.error(f"Invalid sequence of Tx IDs:\n{tx_ids_condensed}")
+            raise RuntimeError("Incomplete or inconsistent view history")
 
     return network
 
