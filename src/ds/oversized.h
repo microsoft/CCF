@@ -6,7 +6,8 @@
 #include "ring_buffer.h"
 #include "serialized.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <unordered_map>
 
 namespace oversized

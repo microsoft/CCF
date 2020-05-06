@@ -5,7 +5,8 @@
 #include "tls/entropy.h"
 
 #include <array>
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <iostream>
 #include <optional>
 #include <vector>

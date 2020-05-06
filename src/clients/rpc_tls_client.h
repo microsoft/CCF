@@ -8,7 +8,8 @@
 #include "node/rpc/json_rpc.h"
 #include "tls_client.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <optional>
