@@ -480,25 +480,26 @@ if(BUILD_TESTS)
       rekey_recovery
   )
 
-  add_e2e_test(
-    NAME full_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    CONSENSUS raft
-    LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      150
-      --enforce-reqs
-      # Repeat the full suite multiple times
-      --test-suite
-      all
-      --test-suite
-      all
-      --test-suite
-      all
-      --test-suite
-      all
-  )
+  # Disabled for now, as some shuffles are still unstable
+  #  add_e2e_test(
+  #    NAME full_test_suite
+  #    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+  #    CONSENSUS raft
+  #    LABEL suite
+  #    ADDITIONAL_ARGS
+  #      --test-duration
+  #      1200
+  #      --enforce-reqs
+  #      # Repeat the full suite multiple times
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #  )
 
   add_e2e_test(
     NAME lua_end_to_end_batched
