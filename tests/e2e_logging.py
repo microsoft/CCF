@@ -268,45 +268,45 @@ def test_update_lua(network, args):
 @reqs.description("Check for commit of every prior transaction")
 @reqs.supports_methods("getCommit", "tx")
 def test_view_history(network, args):
-    primary, _ = network.find_primary()
     check = infra.checker.Checker()
 
-    with primary.user_client() as c:
-        r = c.get("getCommit")
-        check(c)
+    for node in network.get_joined_nodes():
+        with node.user_client() as c:
+            r = c.get("getCommit")
+            check(c)
 
-        commit_view = r.term
-        commit_seqno = r.global_commit
+            commit_view = r.term
+            commit_seqno = r.global_commit
 
-        # Retrieve status for all possible Tx IDs
-        seqno_to_views = {}
-        for seqno in range(1, commit_seqno + 1):
-            views = []
-            for view in range(commit_view + 1):
-                r = c.get("tx", {"view": view, "seqno": seqno})
-                check(r)
-                status = TxStatus(r.result["status"])
-                if status == TxStatus.Committed:
-                    views.append(view)
-            seqno_to_views[seqno] = views
+            # Retrieve status for all possible Tx IDs
+            seqno_to_views = {}
+            for seqno in range(1, commit_seqno + 1):
+                views = []
+                for view in range(commit_view + 1):
+                    r = c.get("tx", {"view": view, "seqno": seqno})
+                    check(r)
+                    status = TxStatus(r.result["status"])
+                    if status == TxStatus.Committed:
+                        views.append(view)
+                seqno_to_views[seqno] = views
 
-        # Check we have exactly one Tx ID for each seqno
-        txs_ok = True
-        for seqno, views in seqno_to_views.items():
-            if len(views) != 1:
-                txs_ok = False
-                LOG.error(f"Found {len(views)} committed Tx IDs for seqno {seqno}")
+            # Check we have exactly one Tx ID for each seqno
+            txs_ok = True
+            for seqno, views in seqno_to_views.items():
+                if len(views) != 1:
+                    txs_ok = False
+                    LOG.error(f"Node {node.node_id}: Found {len(views)} committed Tx IDs for seqno {seqno}")
 
-        tx_ids_condensed = ", ".join(
-            " OR ".join(f"{view}.{seqno}" for view in views or ["UNKNOWN"])
-            for seqno, views in seqno_to_views.items()
-        )
+            tx_ids_condensed = ", ".join(
+                " OR ".join(f"{view}.{seqno}" for view in views or ["UNKNOWN"])
+                for seqno, views in seqno_to_views.items()
+            )
 
-        if txs_ok:
-            LOG.success(f"Found a valid sequence of Tx IDs:\n{tx_ids_condensed}")
-        else:
-            LOG.error(f"Invalid sequence of Tx IDs:\n{tx_ids_condensed}")
-            raise RuntimeError("Incomplete or inconsistent view history")
+            if txs_ok:
+                LOG.success(f"Node {node.node_id}: Found a valid sequence of Tx IDs:\n{tx_ids_condensed}")
+            else:
+                LOG.error(f"Node {node.node_id}: Invalid sequence of Tx IDs:\n{tx_ids_condensed}")
+                raise RuntimeError(f"Node {node.node_id}: Incomplete or inconsistent view history")
 
     return network
 
