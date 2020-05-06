@@ -279,7 +279,7 @@ def test_view_history(network, args):
         commit_seqno = r.global_commit
 
         # Retrieve status for all possible Tx IDs
-        seqno_to_views = dict()
+        seqno_to_views = {}
         for seqno in range(1, commit_seqno + 1):
             views = []
             for view in range(commit_view + 1):
