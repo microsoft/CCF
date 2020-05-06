@@ -10,6 +10,8 @@ import rekey
 
 from inspect import signature, Parameter
 
+suites = dict()
+
 # This suite tests that rekeying, network configuration changes
 # and recoveries can be interleaved
 suite_rekey_recovery = [
@@ -21,6 +23,7 @@ suite_rekey_recovery = [
     rekey.test,
     reconfiguration.test_add_node,
 ]
+suites["rekey_recovery"] = suite_rekey_recovery
 
 # This suite tests that membership changes and recoveries can be interleaved
 suite_membership_recovery = [
@@ -33,6 +36,7 @@ suite_membership_recovery = [
     memberclient.test_update_recovery_shares,
     recovery.test,
 ]
+suites["membership_recovery"] = suite_membership_recovery
 
 all_tests_suite = [
     # e2e_logging:
@@ -64,6 +68,7 @@ all_tests_suite = [
     # rekey:
     rekey.test,
 ]
+suites["all"] = all_tests_suite
 
 #
 # Test functions are expected to be in the following format:

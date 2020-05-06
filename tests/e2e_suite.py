@@ -26,13 +26,9 @@ def run(args):
 
     chosen_suite = []
     for choice in args.test_suite:
-        if choice == "all":
-            chosen_suite.extend(s.all_tests_suite)
-        elif choice == "membership_recovery":
-            chosen_suite.extend(s.suite_membership_recovery)
-        elif choice == "rekey_recovery":
-            chosen_suite.extend(s.suite_rekey_recovery)
-        else:
+        try:
+            chosen_suite.extend(s.suites[choice])
+        except KeyError:
             raise ValueError(f"Unhandled choice: {choice}")
 
     seed = None
@@ -154,7 +150,7 @@ if __name__ == "__main__":
             "--test-suite",
             help="List of test suites should be run",
             action="append",
-            choices=("all", "membership_recovery", "rekey_recovery"),
+            choices=s.suites.keys(),
             default=["all"],
         )
 
