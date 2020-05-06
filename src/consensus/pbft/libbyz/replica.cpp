@@ -489,11 +489,6 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   auto owned_req = req.release();
   if (!brt.add_request(owned_req))
   {
-    LOG_INFO_FMT(
-      "Add request failed {} {} {}",
-      owned_req->request_id(),
-      owned_req->client_id(),
-      owned_req->digest().hash());
     delete owned_req;
   }
 }
@@ -2779,7 +2774,6 @@ void Replica::mark_stable(Seqno n, bool have_state)
   elog.truncate(last_stable);
   state.discard_checkpoints(last_stable, last_executed);
   brt.mark_stable(last_stable, rqueue);
-  LOG_INFO_FMT("Mark stable at {} for gov req track", last_stable - 1);
   gov_req_track.mark_stable(last_stable - 1);
 
   if (mark_stable_cb != nullptr)
