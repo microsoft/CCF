@@ -269,6 +269,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/term_history.cpp
     )
     target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
 
