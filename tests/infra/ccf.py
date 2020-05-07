@@ -475,7 +475,7 @@ class Network:
             time.sleep(1)
         assert (
             commit_leader != 0
-        ), f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {local_commit_leader})"
+        ), f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {commit_leader})"
 
         end_time = time.time() + timeout
         while time.time() < end_time:
