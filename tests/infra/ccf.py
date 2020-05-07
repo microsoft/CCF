@@ -473,10 +473,9 @@ class Network:
                 if commit_leader != 0:
                     break
             time.sleep(1)
-        if commit_leader == 0:
-            raise RuntimeError(
-                f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {local_commit_leader})"
-            )
+        assert (
+            commit_leader != 0
+        ), f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {local_commit_leader})"
 
         end_time = time.time() + timeout
         while time.time() < end_time:
