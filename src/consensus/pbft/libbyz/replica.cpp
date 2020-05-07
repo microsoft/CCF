@@ -2065,15 +2065,18 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       send(p, All_replicas);
     }
 
-    if (did_execute && ledger_writer)
+    if (did_execute)
     {
-      last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
-    }
+      if (ledger_writer)
+      {
+        last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
+      }
 
-    if (did_execute && req_in_pp > 0)
-    {
-      // not a null op
-      update_gov_req_info(info, pp);
+      if (req_in_pp > 0)
+      {
+        // not a null op
+        update_gov_req_info(info, pp);
+      }
     }
 
     if (i <= last_executed || pc.is_complete())
