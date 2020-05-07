@@ -46,7 +46,9 @@ namespace raft
         if (idx < current_latest_index)
         {
           throw std::logic_error(fmt::format(
-            "Index must not move backwards ({} < {})", idx, current_latest_index));
+            "Index must not move backwards ({} < {})",
+            idx,
+            current_latest_index));
         }
       }
 

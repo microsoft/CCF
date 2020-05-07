@@ -80,7 +80,8 @@ TEST_CASE("Edge case term histories" * doctest::test_suite("termhistory"))
   }
 
   {
-    INFO("Subsequent calls on same term must not move backward from term start");
+    INFO(
+      "Subsequent calls on same term must not move backward from term start");
     TermHistory history;
     history.update(2, 2);
     CHECK(history.term_at(0) == TermHistory::InvalidTerm);

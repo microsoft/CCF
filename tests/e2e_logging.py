@@ -387,7 +387,6 @@ def test_tx_statuses(network, args):
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
-        current_status = TxStatus.Unknown
         target_view = r.term
         target_seqno = r.commit
         SentTxs.update_status(target_view, target_seqno)
