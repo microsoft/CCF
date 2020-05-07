@@ -363,6 +363,15 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   }
 }
 
+void Replica::update_gov_req_info(ByzInfo& info, Pre_prepare* pre_prepare)
+{
+  info.last_exec_gov_req = gov_req_track.last_seqno();
+  if (info.did_exec_gov_req)
+  {
+    gov_req_track.update(pre_prepare->seqno());
+  }
+}
+
 bool Replica::compare_execution_results(
   const ByzInfo& info, Pre_prepare* pre_prepare)
 {
@@ -565,12 +574,9 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
   waiting_for_playback_pp = false;
   playback_max_local_commit_value = INT64_MIN;
 
-  playback_byz_info.last_exec_gov_req = gov_req_track.last_seqno();
-  if (did_exec_gov_req)
-  {
-    gov_req_track.update(executable_pp->seqno());
-    did_exec_gov_req = false;
-  }
+  playback_byz_info.did_exec_gov_req = did_exec_gov_req;
+  update_gov_req_info(playback_byz_info, executable_pp.get());
+  did_exec_gov_req = false;
 
   if (compare_execution_results(playback_byz_info, executable_pp.get()))
   {
@@ -922,11 +928,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       pp->sign();
       self->plog.fetch(self->next_pp_seqno).add_mine(pp);
 
-      info.last_exec_gov_req = self->gov_req_track.last_seqno();
-      if (info.did_exec_gov_req)
-      {
-        self->gov_req_track.update(pp->seqno());
-      }
+      self->update_gov_req_info(info, pp);
 
       self->requests_per_batch.insert(
         {self->next_pp_seqno, ctx->requests_in_batch});
@@ -1105,7 +1107,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
                   std::unique_ptr<ExecTentativeCbCtx> msg) {
         if (self->ledger_writer && !self->is_primary())
         {
-          msg->info.last_exec_gov_req = self->gov_req_track.last_seqno();
+          self->update_gov_req_info(msg->info, pp);
           if (!self->compare_execution_results(msg->info, pp))
           {
             PBFT_ASSERT_FMT_FAIL(
@@ -1114,11 +1116,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
             self->try_send_prepare();
             return;
-          }
-
-          if (msg->info.did_exec_gov_req)
-          {
-            self->gov_req_track.update(pp->seqno());
           }
         }
 
@@ -2050,35 +2047,36 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     {
       encryptor->set_view(prev_view);
     }
+
+    ByzInfo info;
+    bool did_execute = false;
     if (primary() == id())
     {
-      ByzInfo info;
       pc.add_mine(pp);
-      if (execute_tentative(pp, info, pp->get_nonce()))
-      {
-        if (ledger_writer)
-        {
-          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
-        }
-      }
+      did_execute = execute_tentative(pp, info, pp->get_nonce());
     }
     else
     {
-      ByzInfo info;
       pc.add_old(pp);
       uint64_t nonce = entropy->random64();
-
-      if (execute_tentative(pp, info, nonce))
-      {
-        if (ledger_writer)
-        {
-          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
-        }
-      }
-
+      did_execute = execute_tentative(pp, info, nonce);
       Prepare* p = new Prepare(v, i, d, nonce, nullptr, pp->is_signed());
       pc.add_mine(p);
       send(p, All_replicas);
+    }
+
+    if (did_execute)
+    {
+      if (ledger_writer)
+      {
+        last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
+      }
+
+      if (req_in_pp > 0)
+      {
+        // not a null op
+        update_gov_req_info(info, pp);
+      }
     }
 
     if (i <= last_executed || pc.is_complete())

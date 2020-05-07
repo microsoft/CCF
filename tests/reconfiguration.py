@@ -23,6 +23,7 @@ def test_add_node(network, args):
 
 
 @reqs.description("Adding a valid node from a backup")
+@reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
     backup = network.find_any_backup()
     new_node = network.create_and_trust_node(

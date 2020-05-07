@@ -362,7 +362,7 @@ class Network:
 
         return new_node
 
-    def create_user(self, user_id, curve):
+    def create_user(self, user_id, curve, record=True):
         infra.proc.ccall(
             self.key_generator,
             f"--name=user{user_id}",
@@ -370,7 +370,8 @@ class Network:
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
-        self.user_ids.append(user_id)
+        if record:
+            self.user_ids.append(user_id)
 
     def create_users(self, user_ids, curve):
         for user_id in user_ids:
@@ -426,7 +427,7 @@ class Network:
                         res = c.get("getPrimaryInfo")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            term = res.term
+                            term = res.result["current_term"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
@@ -461,22 +462,27 @@ class Network:
     def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
         Wait for all nodes to have joined the network and globally replicated
-        all transactions executed on the primary (including the transactions
+        all transactions globally executed on the primary (including transactions
         which added the nodes).
         """
-        with primary.node_client() as c:
-            res = c.get("getCommit")
-            local_commit_leader = res.commit
-            term_leader = res.term
+        for _ in range(timeout):
+            with primary.node_client() as c:
+                resp = c.get("getCommit")
+                commit_leader = resp.result["commit"]
+                term_leader = resp.result["term"]
+                if commit_leader != 0:
+                    break
+            time.sleep(1)
+        assert (
+            commit_leader != 0
+        ), f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {commit_leader})"
 
         end_time = time.time() + timeout
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.get(
-                        "tx", {"view": term_leader, "seqno": local_commit_leader},
-                    )
+                    resp = c.get("tx", {"view": term_leader, "seqno": commit_leader},)
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -485,7 +491,7 @@ class Network:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {term_leader}.{local_commit_leader} is invalid and will never be committed"
+                            f"Node {node.node_id} reports transaction ID {term_leader}.{commit_leader} is invalid and will never be committed"
                         )
                     else:
                         pass

@@ -15,7 +15,8 @@
 #include "rpc_exception.h"
 #include "tls/verifier.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -373,7 +374,7 @@ namespace ccf
               if (consensus != nullptr)
               {
                 ctx->set_response_header(
-                  http::headers::CCF_TERM, consensus->get_view());
+                  http::headers::CCF_TERM, consensus->get_view(cv));
                 ctx->set_response_header(
                   http::headers::CCF_GLOBAL_COMMIT,
                   consensus->get_commit_seqno());

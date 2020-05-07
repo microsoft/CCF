@@ -91,7 +91,7 @@ def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
                     f"Assertion error for LOG_get on node {node.node_id}, error:{e}"
                 )
                 time.sleep(0.1)
-        raise AssertionError(f"{node.nodeid} is not up to date")
+        raise AssertionError(f"{node.node_id} is not up to date")
 
 
 def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
@@ -122,7 +122,7 @@ def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
 
 
 def run_requests(
-    nodes, total_requests, start_id, final_msg, final_msg_id, cant_fail=True
+    nodes, total_requests, start_id, final_msg, final_msg_id, ignore_failures=False
 ):
     with nodes[0].node_client() as mc:
         check_commit = infra.checker.Checker(mc)
@@ -140,10 +140,10 @@ def run_requests(
                         c.rpc("LOG_record", {"id": req_id, "msg": long_msg}),
                         result=True,
                     )
-                except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
+                except (TimeoutError, requests.exceptions.ReadTimeout, RuntimeError):
                     LOG.info("Trying to access a suspended network")
-                    if cant_fail:
-                        raise RuntimeError(e)
+                    if not ignore_failures:
+                        raise
                 req_id += 1
 
         wait_for_nodes(nodes, final_msg, final_msg_id)
@@ -235,7 +235,7 @@ def run(args):
                     2001,
                     final_msg,
                     4000,
-                    cant_fail=False,
+                    ignore_failures=True,
                 )
 
                 term_info.update(find_primary(network))

@@ -6,7 +6,8 @@
 #include "tls/base64.h"
 #include "tls/hash.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <http-parser/http_parser.h>
 #include <map>
 #include <string>
