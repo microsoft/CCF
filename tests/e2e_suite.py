@@ -25,6 +25,10 @@ class TestStatus(Enum):
 def run(args):
 
     chosen_suite = []
+
+    if not args.test_suite:
+        args.test_suite = ["all"]
+
     for choice in args.test_suite:
         try:
             chosen_suite.extend(s.suites[choice])
@@ -151,7 +155,6 @@ if __name__ == "__main__":
             help="List of test suites should be run",
             action="append",
             choices=s.suites.keys(),
-            default=["all"],
         )
 
     args = infra.e2e_args.cli_args(add)
