@@ -347,7 +347,9 @@ class SentTxs:
     def update_status(view, seqno, status=None):
         current_status = SentTxs.txs[view][seqno]
         if status is None:
-            # If you don't know the current status, just ensure it is present but don't change it
+            # If you don't know the current status, we exit here. Since we have
+            # accessed the value in the defaultdict, we have recorded this tx id
+            # so it will be returned by future calls to get_all_tx_ids()
             return
 
         if status != current_status:
