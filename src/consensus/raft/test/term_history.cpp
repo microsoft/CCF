@@ -157,13 +157,13 @@ TEST_CASE("Initialised term histories" * doctest::test_suite("termhistory"))
     CHECK(history.term_at(19) == 2);
     CHECK(history.term_at(20) == 3);
 
-    history.initialise({6, 6});
+    history.initialise({6});
     CHECK(history.term_at(4) == TermHistory::InvalidTerm);
     CHECK(history.term_at(8) == 1);
     CHECK(history.term_at(19) == 1);
     CHECK(history.term_at(20) == 1);
 
-    history.initialise({3, 3, 3, 3, 5, 6, 12});
+    history.initialise({3, 3, 3, 5, 6, 12});
     CHECK(history.term_at(4) == 3);
     CHECK(history.term_at(8) == 5);
     CHECK(history.term_at(19) == 6);
