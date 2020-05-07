@@ -50,6 +50,7 @@ all_tests_suite = [
     e2e_logging.test_forwarding_frontends,
     e2e_logging.test_update_lua,
     e2e_logging.test_view_history,
+    e2e_logging.test_tx_statuses,
     # memberclient:
     memberclient.test_set_recovery_threshold,
     memberclient.test_add_member,
