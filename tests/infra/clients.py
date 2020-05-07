@@ -9,6 +9,10 @@ import tempfile
 import urllib.parse
 from http.client import HTTPResponse
 from io import BytesIO
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.ssl_ import create_urllib3_context
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 import requests
 from loguru import logger as LOG
@@ -225,6 +229,7 @@ class CurlClient:
                 cmd = [os.path.join(self.binary_dir, "scurl.sh")]
             else:
                 cmd = ["curl"]
+                cmd += ["-vv"]
 
             url = f"https://{self.host}:{self.port}/{request.method}"
 
@@ -309,6 +314,24 @@ class CurlClient:
         return self._request(request, is_signed=True)
 
 
+class TlsAdapter(HTTPAdapter):
+    def __init__(self, ca_file):
+        # Auto detect EC curve to use based on server CA
+        ca_bytes = open(ca_file, "rb").read()
+        self.ca_curve = (
+            x509.load_pem_x509_certificate(ca_bytes, default_backend())
+            .public_key()
+            .curve
+        )
+        super().__init__()
+
+    def init_poolmanager(self, *args, **kwargs):
+        context = create_urllib3_context()
+        context.set_ecdh_curve(self.ca_curve.name)
+        kwargs["ssl_context"] = context
+        return super(TlsAdapter, self).init_poolmanager(*args, **kwargs)
+
+
 class RequestClient:
     def __init__(
         self,
@@ -332,6 +355,7 @@ class RequestClient:
         self.session = requests.Session()
         self.session.verify = self.ca
         self.session.cert = (self.cert, self.key)
+        self.session.mount("https://", TlsAdapter(self.ca))
 
     def _just_request(self, request, is_signed=False):
         auth_value = None
