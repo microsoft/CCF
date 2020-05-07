@@ -83,7 +83,6 @@ def run(args):
                     primary.node_id, current_term
                 )
             )
-            commit_index = None
             with primary.user_client() as c:
                 res = c.rpc(
                     "LOG_record",
@@ -95,6 +94,7 @@ def run(args):
                 )
                 check(res, result=True)
                 commit_index = res.commit
+                commit_term = res.term
 
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_index_globally_committed(
