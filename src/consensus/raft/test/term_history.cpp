@@ -103,6 +103,70 @@ TEST_CASE("Edge case term histories" * doctest::test_suite("termhistory"))
     CHECK(history.term_at(3) == 2);
     CHECK(history.term_at(4) == 2);
   }
+
+  {
+    INFO("Highest matching term is returned");
+    TermHistory history;
+    history.update(2, 2);
+    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(2) == 2);
+    CHECK(history.term_at(3) == 2);
+    CHECK(history.term_at(4) == 2);
+
+    history.update(2, 4);
+    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(2) == 4);
+    CHECK(history.term_at(3) == 4);
+    CHECK(history.term_at(4) == 4);
+
+    history.update(2, 3);
+    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(2) == 4);
+    CHECK(history.term_at(3) == 4);
+    CHECK(history.term_at(4) == 4);
+  }
 }
 
-TEST_CASE("Initialised term histories" * doctest::test_suite("termhistory")) {}
+TEST_CASE("Initialised term histories" * doctest::test_suite("termhistory"))
+{
+  {
+    INFO("Initialise validates the given term history");
+    TermHistory history;
+    CHECK_NOTHROW(history.initialise({}));
+    CHECK_NOTHROW(history.initialise({1}));
+    CHECK_NOTHROW(history.initialise({2}));
+    CHECK_NOTHROW(history.initialise({1, 2}));
+    CHECK_NOTHROW(history.initialise({2, 2}));
+    CHECK_NOTHROW(history.initialise({2, 4, 4, 10}));
+    CHECK_THROWS(history.initialise({2, 1}));
+    CHECK_THROWS(history.initialise({1, 2, 1}));
+    CHECK_THROWS(history.initialise({2, 4, 4, 10, 9}));
+  }
+
+  {
+    INFO("Initialise overwrites term history");
+    TermHistory history;
+    history.update(5, 1);
+    history.update(10, 2);
+    history.update(20, 3);
+    CHECK(history.term_at(4) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(8) == 1);
+    CHECK(history.term_at(19) == 2);
+    CHECK(history.term_at(20) == 3);
+
+    history.initialise({6, 6});
+    CHECK(history.term_at(4) == TermHistory::InvalidTerm);
+    CHECK(history.term_at(8) == 1);
+    CHECK(history.term_at(19) == 1);
+    CHECK(history.term_at(20) == 1);
+
+    history.initialise({3, 3, 3, 3, 5, 6, 12});
+    CHECK(history.term_at(4) == 3);
+    CHECK(history.term_at(8) == 5);
+    CHECK(history.term_at(19) == 6);
+    CHECK(history.term_at(20) == 6);
+  }
+}

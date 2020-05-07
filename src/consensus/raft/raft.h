@@ -28,7 +28,11 @@ namespace raft
 
     void initialise(const std::vector<Index>& terms_)
     {
-      std::copy(terms_.begin(), terms_.end(), std::back_inserter(terms));
+      if (!std::is_sorted(terms_.begin(), terms_.end()))
+      {
+        throw std::logic_error("Cannot initialise TermHistory from unsorted terms");
+      }
+      terms = terms_;
     }
 
     void update(Index idx, Term term)
