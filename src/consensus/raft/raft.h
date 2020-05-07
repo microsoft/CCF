@@ -878,7 +878,7 @@ namespace raft
       {
         // Reply false, since we already voted for someone else.
         LOG_DEBUG_FMT(
-          "Recv request vote to {} from {}: alredy voted for {}",
+          "Recv request vote to {} from {}: already voted for {}",
           local_id,
           r.from_node,
           voted_for);
