@@ -9,7 +9,8 @@
 #include "tls/hash.h"
 #include "tls/key_pair.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <optional>
 #include <string>
 
