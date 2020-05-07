@@ -1,6 +1,4 @@
 #pragma once
-#ifndef __VALIJSON_SCHEMA_PARSER_HPP
-#define __VALIJSON_SCHEMA_PARSER_HPP
 
 #include <stdexcept>
 #include <iostream>
@@ -1985,7 +1983,7 @@ private:
         constraints::RequiredConstraint constraint;
 
         for (const AdapterType v : node.getArray()) {
-            if (!v.isString()) {
+            if (!v.maybeString()) {
                 throw std::runtime_error("Expected required property name to "
                         "be a string value");
             }
@@ -2028,7 +2026,7 @@ private:
 
         TypeConstraint constraint;
 
-        if (node.isString()) {
+        if (node.maybeString()) {
             const TypeConstraint::JsonType type =
                     TypeConstraint::jsonTypeFromString(node.getString());
 
@@ -2039,10 +2037,10 @@ private:
 
             constraint.addNamedType(type);
 
-        } else if (node.isArray()) {
+        } else if (node.maybeArray()) {
             int index = 0;
             for (const AdapterType v : node.getArray()) {
-                if (v.isString()) {
+                if (v.maybeString()) {
                     const TypeConstraint::JsonType type =
                             TypeConstraint::jsonTypeFromString(v.getString());
 
@@ -2054,7 +2052,7 @@ private:
 
                     constraint.addNamedType(type);
 
-                } else if (v.isObject() && version == kDraft3) {
+                } else if (v.maybeObject() && version == kDraft3) {
                     const std::string childPath = nodePath + "/" +
                             std::to_string(index);
                     const Subschema *subschema = makeOrReuseSchema<AdapterType>(
@@ -2069,7 +2067,7 @@ private:
                 index++;
             }
 
-        } else if (node.isObject() && version == kDraft3) {
+        } else if (node.maybeObject() && version == kDraft3) {
             const Subschema *subschema = makeOrReuseSchema<AdapterType>(
                     rootSchema, rootNode, node, currentScope, nodePath,
                     fetchDoc, NULL, NULL, docCache, schemaCache);
@@ -2115,6 +2113,4 @@ private:
 
 #ifdef __clang__
 #  pragma clang diagnostic pop
-#endif
-
 #endif
