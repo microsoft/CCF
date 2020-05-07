@@ -465,19 +465,19 @@ class Network:
         all transactions globally executed on the primary (including transactions
         which added the nodes).
         """
-        for _ in range(timeout):
+        end_time = time.time() + timeout
+        while time.time() < end_time:
             with primary.node_client() as c:
                 resp = c.get("getCommit")
                 commit_leader = resp.result["commit"]
                 term_leader = resp.result["term"]
                 if commit_leader != 0:
                     break
-            time.sleep(1)
+            time.sleep(0.1)
         assert (
             commit_leader != 0
         ), f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {commit_leader})"
 
-        end_time = time.time() + timeout
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
