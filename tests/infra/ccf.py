@@ -465,9 +465,9 @@ class Network:
         which added the nodes).
         """
         with primary.node_client() as c:
-            res = c.get("getCommit")
-            local_commit_leader = res.commit
-            term_leader = res.term
+            resp = c.get("getCommit")
+            local_commit_leader = resp.result["commit"]
+            term_leader = resp.result["term"]
 
         end_time = time.time() + timeout
         while time.time() < end_time:
