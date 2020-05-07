@@ -20,9 +20,9 @@ class Prepared_cert;
 #pragma pack(1)
 struct IncludedSig
 {
+  Digest nonce;
   uint8_t pid;
   size_t sig_size;
-  Digest nonce;
   PbftSignature sig;
 };
 #pragma pack(pop)
