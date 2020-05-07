@@ -1,5 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the Apache 2.0 License.import test_suite
+# Licensed under the Apache 2.0 License.
 
 import infra.e2e_args
 import infra.ccf
@@ -24,6 +24,17 @@ class TestStatus(Enum):
 
 def run(args):
 
+    chosen_suite = []
+
+    if not args.test_suite:
+        args.test_suite = ["all"]
+
+    for choice in args.test_suite:
+        try:
+            chosen_suite.extend(s.suites[choice])
+        except KeyError:
+            raise ValueError(f"Unhandled choice: {choice}")
+
     seed = None
     if os.getenv("SHUFFLE_SUITE"):
         seed = os.getenv("SHUFFLE_SUITE_SEED")
@@ -32,8 +43,8 @@ def run(args):
         seed = int(seed)
         LOG.success(f"Shuffling full suite with seed {seed}")
         random.seed(seed)
-        random.shuffle(s.full_suite)
-    s.validate_tests_signature(s.full_suite)
+        random.shuffle(chosen_suite)
+    s.validate_tests_signature(chosen_suite)
 
     if args.enforce_reqs is False:
         LOG.warning("Test requirements will be ignored")
@@ -45,13 +56,13 @@ def run(args):
     )
     network.start_and_join(args)
 
-    LOG.info(f"Running {len(s.full_suite)} full_suite for {args.test_duration} seconds")
+    LOG.info(f"Running {len(chosen_suite)} tests for {args.test_duration} seconds")
 
     run_tests = {}
     success = True
     elapsed = args.test_duration
 
-    for i, test in enumerate(s.full_suite):
+    for i, test in enumerate(chosen_suite):
         status = None
         reason = None
 
@@ -112,9 +123,9 @@ def run(args):
     network.stop_all_nodes()
 
     if success:
-        LOG.success(f"Full suite passed. Ran {len(run_tests)}/{len(s.full_suite)}")
+        LOG.success(f"Full suite passed. Ran {len(run_tests)}/{len(chosen_suite)}")
     else:
-        LOG.error(f"Suite failed. Ran {len(run_tests)}/{len(s.full_suite)}")
+        LOG.error(f"Suite failed. Ran {len(run_tests)}/{len(chosen_suite)}")
 
     if seed:
         LOG.info(f"Full suite was shuffled with seed: {seed}")
@@ -138,6 +149,12 @@ if __name__ == "__main__":
     def add(parser):
         parser.add_argument(
             "--test-duration", help="Duration of full suite (s)", type=int
+        )
+        parser.add_argument(
+            "--test-suite",
+            help="List of test suites should be run",
+            action="append",
+            choices=s.suites.keys(),
         )
 
     args = infra.e2e_args.cli_args(add)
