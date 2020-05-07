@@ -374,7 +374,7 @@ namespace ccf
               if (consensus != nullptr)
               {
                 ctx->set_response_header(
-                  http::headers::CCF_TERM, consensus->get_view());
+                  http::headers::CCF_TERM, consensus->get_view(cv));
                 ctx->set_response_header(
                   http::headers::CCF_GLOBAL_COMMIT,
                   consensus->get_commit_seqno());
