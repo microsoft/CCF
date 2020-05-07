@@ -185,6 +185,11 @@ public:
   static Message* create_message(const uint8_t* data, uint32_t size);
   // Effects: Creates a new message from a buffer
 
+  void update_gov_req_info(ByzInfo& info, Pre_prepare* pre_prepare);
+  // Effects: Updates info with the latest gov request seqno
+  // and then updates the gov request tracker with the pre prepare's seqno
+  // if the pre prepare holds any governance requests
+
   bool compare_execution_results(const ByzInfo& info, Pre_prepare* pre_prepare);
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution

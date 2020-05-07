@@ -362,7 +362,7 @@ class Network:
 
         return new_node
 
-    def create_user(self, user_id, curve):
+    def create_user(self, user_id, curve, record=True):
         infra.proc.ccall(
             self.key_generator,
             f"--name=user{user_id}",
@@ -370,7 +370,8 @@ class Network:
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
-        self.user_ids.append(user_id)
+        if record:
+            self.user_ids.append(user_id)
 
     def create_users(self, user_ids, curve):
         for user_id in user_ids:
