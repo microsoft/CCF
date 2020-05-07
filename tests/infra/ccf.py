@@ -427,7 +427,7 @@ class Network:
                         res = c.get("getPrimaryInfo")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            term = res.term
+                            term = res.result["current_term"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
