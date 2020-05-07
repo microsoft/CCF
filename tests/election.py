@@ -83,7 +83,6 @@ def run(args):
                     primary.node_id, current_term
                 )
             )
-            commit_index = None
             with primary.user_client() as c:
                 res = c.rpc(
                     "LOG_record",
