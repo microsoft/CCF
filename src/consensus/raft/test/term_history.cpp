@@ -80,7 +80,7 @@ TEST_CASE("Edge case term histories" * doctest::test_suite("termhistory"))
   }
 
   {
-    INFO("Update is only applied for the first call per-term");
+    INFO("Subsequent calls on same term must not move backward from term start");
     TermHistory history;
     history.update(2, 2);
     CHECK(history.term_at(0) == TermHistory::InvalidTerm);
@@ -89,19 +89,17 @@ TEST_CASE("Edge case term histories" * doctest::test_suite("termhistory"))
     CHECK(history.term_at(3) == 2);
     CHECK(history.term_at(4) == 2);
 
-    history.update(4, 2);
+    CHECK_NOTHROW(history.update(2, 2));
+    CHECK_NOTHROW(history.update(3, 2));
+    CHECK_NOTHROW(history.update(2, 2));
+    CHECK_NOTHROW(history.update(4, 2));
     CHECK(history.term_at(0) == TermHistory::InvalidTerm);
     CHECK(history.term_at(1) == TermHistory::InvalidTerm);
     CHECK(history.term_at(2) == 2);
     CHECK(history.term_at(3) == 2);
     CHECK(history.term_at(4) == 2);
 
-    history.update(1, 2);
-    CHECK(history.term_at(0) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(1) == TermHistory::InvalidTerm);
-    CHECK(history.term_at(2) == 2);
-    CHECK(history.term_at(3) == 2);
-    CHECK(history.term_at(4) == 2);
+    CHECK_THROWS(history.update(1, 2));
   }
 
   {

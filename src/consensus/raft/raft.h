@@ -29,25 +29,36 @@ namespace raft
 
     void initialise(const std::vector<Index>& terms_)
     {
-      if (!std::is_sorted(terms_.begin(), terms_.end()))
+      terms.clear();
+      for (size_t i = 0; i < terms_.size(); ++i)
       {
-        throw std::logic_error("Cannot initialise TermHistory from unsorted terms");
+        update(terms_[i], i + 1);
       }
-      terms = terms_;
+      LOG_DEBUG_FMT("Initialised terms: {}", fmt::join(terms, ", "));
     }
 
     void update(Index idx, Term term)
     {
-      LOG_INFO_FMT("Updating term to: {} at index: {}", term, idx);
+      LOG_DEBUG_FMT("Updating term to: {} at index: {}", term, idx);
+      if (!terms.empty())
+      {
+        const auto current_latest_index = terms.back();
+        if (idx < current_latest_index)
+        {
+          throw std::logic_error(fmt::format(
+            "Index must not move backwards ({} < {})", idx, current_latest_index));
+        }
+      }
+
       for (auto i = terms.size(); i < term; ++i)
         terms.push_back(idx);
-      LOG_INFO_FMT("Resulting terms: {}", fmt::join(terms, ", "));
+      LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
 
     Term term_at(Index idx)
     {
       auto it = upper_bound(terms.begin(), terms.end(), idx);
-      
+
       // Indices before the index of the first term are unknown
       if (it == terms.begin())
         return InvalidTerm;
