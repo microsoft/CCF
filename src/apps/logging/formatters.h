@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <mbedtls/asn1.h>
 #include <valijson/validator.hpp>
 
@@ -21,7 +22,7 @@ namespace fmt
     auto format(const valijson::ValidationResults::Error& e, FormatContext& ctx)
     {
       return format_to(
-        ctx.begin(), "[{}] {}", fmt::join(e.context, ""), e.description);
+        ctx.out(), "[{}] {}", fmt::join(e.context, ""), e.description);
     }
   };
 
@@ -37,7 +38,7 @@ namespace fmt
     template <typename FormatContext>
     auto format(const valijson::ValidationResults& vr, FormatContext& ctx)
     {
-      return format_to(ctx.begin(), "{}", fmt::join(vr, "\n\t"));
+      return format_to(ctx.out(), "{}", fmt::join(vr, "\n\t"));
     }
   };
 

@@ -12,6 +12,45 @@
 #include <thread>
 #include <vector>
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+#include <mbedtls/asn1.h>
+#include <valijson/validator.hpp>
+
+namespace timing
+{
+  struct Measure
+  {
+    size_t sample_count;
+    double average;
+    double variance;
+  };
+}
+
+namespace fmt
+{
+  template <>
+  struct formatter<timing::Measure>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const timing::Measure& e, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.out(),
+        "sample_count: {}, average: {}, variance: {}",
+        e.sample_count,
+        e.average,
+        e.variance);
+    }
+  };
+}
+
 namespace timing
 {
   using namespace std;
@@ -40,13 +79,6 @@ namespace timing
     const TimeDelta receive_time;
     const size_t rpc_id;
     const optional<CommitIDs> commit;
-  };
-
-  struct Measure
-  {
-    size_t sample_count;
-    double average;
-    double variance;
   };
 
   struct CommitPoint

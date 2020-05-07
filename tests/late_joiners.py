@@ -91,7 +91,7 @@ def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
                     f"Assertion error for LOG_get on node {node.node_id}, error:{e}"
                 )
                 time.sleep(0.1)
-        raise AssertionError(f"{node.nodeid} is not up to date")
+        raise AssertionError(f"{node.node_id} is not up to date")
 
 
 def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):

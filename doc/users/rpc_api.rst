@@ -68,8 +68,8 @@ getCommit
 .. literalinclude:: ../schemas/getCommit_result.json
     :language: json
 
-tx/result
-~~~~~~~~~
+tx
+~~
 
 .. literalinclude:: ../schemas/tx_params.json
     :language: json
