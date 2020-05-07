@@ -124,7 +124,7 @@ protected:
 
   // Map from principal identifiers to Principal*. The first "num_replicas"
   // principals correspond to the replicas.
-  typedef std::unordered_map<int, std::shared_ptr<Principal>> Principal_map;
+  typedef std::map<int, std::shared_ptr<Principal>> Principal_map;
   std::shared_ptr<Principal_map> atomic_principals =
     std::make_shared<Principal_map>();
 

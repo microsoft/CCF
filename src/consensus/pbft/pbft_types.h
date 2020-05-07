@@ -3,6 +3,7 @@
 #pragma once
 
 #include "consensus/pbft/pbft_pre_prepares.h"
+#include "consensus/pbft/pbft_view_changes.h"
 #include "ds/ring_buffer_types.h"
 #include "kv/kv_types.h"
 #include "node/signatures.h"
@@ -11,6 +12,7 @@ namespace pbft
 {
   using Index = int64_t;
   using Term = uint64_t;
+  // using View = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
   using CallerId = uint64_t;
@@ -55,6 +57,9 @@ namespace pbft
       ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(
       ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
+    virtual void commit_view_change(
+      const pbft::ViewChange& view_change,
+      pbft::ViewChangesMap& pbft_view_changes_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
 
@@ -128,6 +133,37 @@ namespace pbft
           if (success == kv::CommitSuccess::OK)
           {
             return tx.get_version();
+          }
+        }
+      }
+    }
+
+    void commit_view_change(
+      const pbft::ViewChange& view_change,
+      pbft::ViewChangesMap& pbft_view_changes_map)
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          auto version = p->next_version();
+          LOG_TRACE_FMT(
+            "Storing view change at view {} for node {}",
+            view_change.view,
+            view_change.node_id);
+          auto success = p->commit(
+            version,
+            [&]() {
+              ccf::Store::Tx tx(version);
+              auto vc_view = tx.get_view(pbft_view_changes_map);
+              vc_view->put(0, view_change);
+              return tx.commit_reserved();
+            },
+            false);
+          if (success == kv::CommitSuccess::OK)
+          {
+            break;
           }
         }
       }

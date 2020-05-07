@@ -8,6 +8,7 @@
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_types.h"
+#include "consensus/pbft/pbft_view_changes.h"
 #include "node/signatures.h"
 #include "nodeinfo.h"
 
@@ -54,6 +55,7 @@ int Byz_init_replica(
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
   ccf::Signatures& signatures,
+  pbft::ViewChangesMap& pbft_view_changes_map,
   pbft::PbftStore& store_,
   IMessageReceiveBase** message_receiver = nullptr);
 /* Requires: "mem" is vm page aligned and "size" is a multiple of the vm page

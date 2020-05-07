@@ -1651,6 +1651,7 @@ namespace ccf
         network.pbft_requests_map,
         network.pbft_pre_prepares_map,
         network.signatures,
+        network.pbft_view_changes_map,
         node_sign_kp->private_key_pem().str(),
         node_cert,
         consensus_config);

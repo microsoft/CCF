@@ -10,6 +10,7 @@
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
+#include "consensus/pbft/pbft_view_changes.h"
 #include "consensus/raft/raft_tables.h"
 #include "entities.h"
 #include "governance_history.h"
@@ -85,6 +86,7 @@ namespace ccf
     //
     pbft::RequestsMap& pbft_requests_map;
     pbft::PrePreparesMap& pbft_pre_prepares_map;
+    pbft::ViewChangesMap& pbft_view_changes_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::RAFT) :
       tables(
@@ -137,7 +139,9 @@ namespace ccf
       pbft_requests_map(
         tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       pbft_pre_prepares_map(
-        tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES))
+        tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES)),
+      pbft_view_changes_map(
+        tables->create<pbft::ViewChangesMap>(pbft::Tables::PBFT_VIEW_CHANGES))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

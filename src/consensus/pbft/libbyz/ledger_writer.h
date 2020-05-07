@@ -5,6 +5,7 @@
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_types.h"
+#include "consensus/pbft/pbft_view_changes.h"
 #include "kv/kv.h"
 #include "ledger.h"
 #include "node/signatures.h"
@@ -18,12 +19,14 @@ private:
   pbft::PbftStore& store;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
   ccf::Signatures& signatures;
+  pbft::ViewChangesMap& pbft_view_changes_map;
 
 public:
   LedgerWriter(
     pbft::PbftStore& store_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
-    ccf::Signatures& signatures_);
+    ccf::Signatures& signatures_,
+    pbft::ViewChangesMap& pbft_view_changes_map_);
   virtual ~LedgerWriter() = default;
   kv::Version write_pre_prepare(Pre_prepare* pp);
   kv::Version write_pre_prepare(Pre_prepare* pp, View view);

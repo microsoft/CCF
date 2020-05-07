@@ -56,6 +56,7 @@ Replica::Replica(
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
   ccf::Signatures& signatures,
+  pbft::ViewChangesMap& pbft_view_changes_map_,
   pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
@@ -66,6 +67,7 @@ Replica::Replica(
   brt(node_info.general_info.num_replicas),
   pbft_requests_map(pbft_requests_map_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_),
+  pbft_view_changes_map(pbft_view_changes_map_),
   replies(mem, nbytes),
   rep_cb(nullptr),
   global_commit_cb(nullptr),
@@ -163,8 +165,8 @@ Replica::Replica(
 
   exec_command = nullptr;
 
-  ledger_writer =
-    std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map, signatures);
+  ledger_writer = std::make_unique<LedgerWriter>(
+    store, pbft_pre_prepares_map, signatures, pbft_view_changes_map);
   encryptor = store.get_encryptor();
 }
 
@@ -1896,11 +1898,6 @@ void Replica::send_view_change()
 
   // Create and send view-change message.
   vi.view_change(v, last_executed, &state);
-
-  // Write the view change proof to the ledger
-#ifdef SIGN_BATCH
-  write_view_change_to_ledger();
-#endif
 }
 
 void Replica::write_view_change_to_ledger()
@@ -1914,7 +1911,7 @@ void Replica::write_view_change_to_ledger()
   for (const auto& it : *principals)
   {
     const std::shared_ptr<Principal>& p = it.second;
-    if (p == nullptr || !p->is_replica())
+    if (p == nullptr)
     {
       continue;
     }
@@ -1925,8 +1922,9 @@ void Replica::write_view_change_to_ledger()
     }
 
     LOG_TRACE_FMT(
-      "Writing view for {} with digest {} to ledger",
+      "Writing view for {} from {} with digest {} to ledger",
       vc->view(),
+      p->pid(),
       vc->digest().hash());
 
     ledger_writer->write_view_change(vc);
@@ -1990,6 +1988,10 @@ void Replica::handle(Network_open* m)
 
 void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 {
+  // Write the view change proof to the ledger
+#ifdef SIGN_BATCH
+  write_view_change_to_ledger();
+#endif
   PBFT_ASSERT(ms >= 0 && ms <= min, "Invalid state");
   LOG_INFO << "Process new view: " << v << " min: " << min << " max: " << max
            << " ms: " << ms << " last_stable: " << last_stable

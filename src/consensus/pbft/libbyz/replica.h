@@ -59,6 +59,7 @@ public:
     pbft::RequestsMap& pbft_requests_map_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
     ccf::Signatures& signatures,
+    pbft::ViewChangesMap& pbft_view_changes_map_,
     pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
@@ -522,6 +523,7 @@ private:
 
   pbft::RequestsMap& pbft_requests_map;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
+  pbft::ViewChangesMap& pbft_view_changes_map;
 
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;

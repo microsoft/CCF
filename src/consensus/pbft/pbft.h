@@ -364,6 +364,7 @@ namespace pbft
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
       ccf::Signatures& signatures,
+      pbft::ViewChangesMap& pbft_view_changes_map,
       const std::string& privk_pem,
       const std::vector<uint8_t>& cert,
       const consensus::Config& consensus_config) :
@@ -418,6 +419,7 @@ namespace pbft
         pbft_requests_map,
         pbft_pre_prepares_map,
         signatures,
+        pbft_view_changes_map,
         *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
