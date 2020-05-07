@@ -94,7 +94,6 @@ def run(args):
                 )
                 check(res, result=True)
                 commit_index = res.commit
-                commit_term = res.term
 
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_index_globally_committed(
