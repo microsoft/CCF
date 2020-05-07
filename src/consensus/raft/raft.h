@@ -20,9 +20,12 @@ namespace raft
 {
   class TermHistory
   {
+    // Entry i stores the first index in term i
     std::vector<Index> terms;
 
   public:
+    static constexpr Term InvalidTerm = 0;
+
     void initialise(const std::vector<Index>& terms_)
     {
       std::copy(terms_.begin(), terms_.end(), std::back_inserter(terms));
@@ -30,17 +33,20 @@ namespace raft
 
     void update(Index idx, Term term)
     {
-      LOG_DEBUG_FMT("Updating term to: {} at index: {}", term, idx);
+      LOG_INFO_FMT("Updating term to: {} at index: {}", term, idx);
       for (auto i = terms.size(); i <= term; ++i)
         terms.push_back(idx);
+      LOG_INFO_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
 
     Term term_at(Index idx)
     {
-      if (idx == 0)
-        return 0;
-
       auto it = upper_bound(terms.begin(), terms.end(), idx);
+      
+      // Indices before the index of the first term are unknown
+      if (it == terms.begin())
+        return InvalidTerm;
+
       return (it - terms.begin()) - 1;
     }
   };
