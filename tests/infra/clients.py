@@ -229,7 +229,6 @@ class CurlClient:
                 cmd = [os.path.join(self.binary_dir, "scurl.sh")]
             else:
                 cmd = ["curl"]
-                cmd += ["-vv"]
 
             url = f"https://{self.host}:{self.port}/{request.method}"
 
