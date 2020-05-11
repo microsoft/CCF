@@ -132,7 +132,7 @@ public:
   // it is set to the tiem when the new view was first sent.
   New_view* new_view();
   // Effects: Returns the new-view message either sent by the calling replica
-  // if calling replic is primary, or the new-view message that caused
+  // if calling replica is primary, or the new-view message that caused
   // a new view to be processed
 
   View_change_ack* my_vc_ack(int id);

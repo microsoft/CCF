@@ -12,7 +12,6 @@ namespace pbft
 {
   using Index = int64_t;
   using Term = uint64_t;
-  // using View = int64_t;
   using NodeId = uint64_t;
   using Node2NodeMsg = uint64_t;
   using CallerId = uint64_t;
@@ -149,7 +148,7 @@ namespace pbft
         {
           auto version = p->next_version();
           LOG_TRACE_FMT(
-            "Storing view change at view {} for node {}",
+            "Storing new view at view {} for node {}",
             view_change.view,
             view_change.node_id);
           auto success = p->commit(

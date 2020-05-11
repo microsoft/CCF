@@ -24,7 +24,7 @@ namespace pbft
   DECLARE_JSON_REQUIRED_FIELDS(NewView, view, node_id, contents);
 
   // size_t is used as the key of the table. This key will always be 0 since we
-  // don't want to store the view changes in the kv over time, we just want to
+  // don't want to store the new views in the kv over time, we just want to
   // get them into the ledger
   using NewViewsMap = ccf::Store::Map<size_t, NewView>;
 }
