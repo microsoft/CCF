@@ -15,6 +15,11 @@
 
 namespace ccf
 {
+  /** TODO:
+   *
+   *
+   *
+   */
   struct RequestArgs
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
@@ -29,9 +34,19 @@ namespace ccf
 
   using HandleFunction = std::function<void(RequestArgs& args)>;
 
+  /** TODO:
+   *
+   *
+   *
+   *
+   */
   class HandlerRegistry
   {
   public:
+    /** TODO:
+     *
+     *
+     */
     enum ReadWrite
     {
       Read,
@@ -39,6 +54,11 @@ namespace ccf
       MayWrite
     };
 
+    /** @brief A <code>Handler</code> represents a user-defined endpoint that
+    can be triggered by authorised users via HTTP requests. A handler is
+    accessible at a specific verb and URI, e.g. POST /app/accounts or GET
+    /app/records.
+    */
     struct Handler
     {
       std::string method;
@@ -48,6 +68,11 @@ namespace ccf
 
       nlohmann::json params_schema = nullptr;
 
+      /** Sets the JSON schema that the request parameters must comply to.
+       *
+       * @param j JSON schema
+       * @return Returns the installed Handler for further modification
+       */
       Handler& set_params_schema(const nlohmann::json& j)
       {
         params_schema = j;
@@ -56,12 +81,23 @@ namespace ccf
 
       nlohmann::json result_schema = nullptr;
 
+      /** Sets the JSON schema that the request response must comply to.
+       *
+       * @param j JSON schema
+       * @return Returns the installed Handler for further modification
+       */
       Handler& set_result_schema(const nlohmann::json& j)
       {
         result_schema = j;
         return *this;
       }
 
+      /** Sets the schema that the request TODO:...
+       *
+       *
+       * @tparam In lala
+       * @tparam Out lala
+       */
       template <typename In, typename Out>
       Handler& set_auto_schema()
       {
@@ -86,6 +122,10 @@ namespace ccf
         return *this;
       }
 
+      /** TODO:
+       *
+       *
+       */
       template <typename T>
       Handler& set_auto_schema()
       {
@@ -95,6 +135,14 @@ namespace ccf
       // If true, client request must be signed
       bool require_client_signature = false;
 
+      /** Requires that the HTTP request is cryptographically signed by
+       * the calling user.
+       *
+       * By default, client signatures are not required.
+       *
+       * @param v Boolean indicating whether the request must be signed
+       * @return Returns the installed Handler for further modification
+       */
       Handler& set_require_client_signature(bool v)
       {
         require_client_signature = v;
@@ -104,6 +152,17 @@ namespace ccf
       // If true, client must be known in certs table
       bool require_client_identity = true;
 
+      /** Requires that the HTTP request is emitted by a user whose public
+       * identity has been registered in advance by consortium members.
+       *
+       * By default, a known client identity is required.
+       *
+       * Warning: It is left to the application developer to implement the
+       * authentication and authorisation mechanism for the handler.
+       *
+       * @param v Boolean indicating whether the user identity must be known
+       * @return Returns the installed Handler for further modification
+       */
       Handler& set_require_client_identity(bool v)
       {
         if (!v && registry != nullptr && !registry->has_certs())
@@ -122,6 +181,20 @@ namespace ccf
       // If true, request is executed without consensus (PBFT only)
       bool execute_locally = false;
 
+      /** Indicates that the execution of the handler does not require
+       * consensus from other nodes in the network. This has effect only if PBFT
+       * is used as the underlying consensus algorithm.
+       *
+       * By default, handlers are not executed locally.
+       *
+       * Warning: Use with caution. This should only be used for non-critical
+       * handlers that do not mutate the state of the key-value store (i.e.
+       * read-only).
+       *
+       * @param v Boolean indicating whether the handler is executed locally, on
+       * the node
+       * @return Returns the installed Handler for further modification
+       */
       Handler& set_execute_locally(bool v)
       {
         execute_locally = v;
@@ -132,6 +205,7 @@ namespace ccf
       // Default is that all verbs are allowed
       uint64_t allowed_verbs_mask = ~0;
 
+      // https://github.com/microsoft/CCF/issues/1102
       Handler& set_allowed_verbs(std::set<http_method>&& allowed_verbs)
       {
         // Reset mask to disallow everything
@@ -146,11 +220,19 @@ namespace ccf
         return *this;
       }
 
+      /** Indicates that the handler will be triggered for the GET HTTP verb.
+       *
+       * @return Returns the installed Handler for further modification
+       */
       Handler& set_http_get_only()
       {
         return set_allowed_verbs({HTTP_GET});
       }
 
+      /** Indicates that the handler will be triggered for the POST HTTP verb.
+       *
+       * @return Returns the installed Handler for further modification
+       */
       Handler& set_http_post_only()
       {
         return set_allowed_verbs({HTTP_POST});
@@ -177,7 +259,7 @@ namespace ccf
 
     virtual ~HandlerRegistry() {}
 
-    /** Install HandleFunction for method name
+    /*** Install HandleFunction for method name
      *
      * If an implementation is already installed for that method, it will be
      * replaced.
@@ -198,7 +280,7 @@ namespace ccf
       return handler;
     }
 
-    /** Set a default HandleFunction
+    /*** Set a default HandleFunction
      *
      * The default HandleFunction is only invoked if no specific HandleFunction
      * was found.
@@ -213,7 +295,7 @@ namespace ccf
       return default_handler.value();
     }
 
-    /** Populate out with all supported methods
+    /*** Populate out with all supported methods
      *
      * This is virtual since the default handler may do its own dispatch
      * internally, so derived implementations must be able to populate the list

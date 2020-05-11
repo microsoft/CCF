@@ -8,6 +8,9 @@
 
 namespace ccf
 {
+  /** @brief The CCF application must be an instance of
+   * <code>UserRpcFrontend</code>.
+   */
   class UserRpcFrontend : public RpcFrontend
   {
   protected:
