@@ -233,9 +233,6 @@ public:
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
 
-  void playback_view_change(ccf::Store::Tx& tx);
-  // Effects: view change messages are verified and the view is updated
-
   bool IsExecutionPending()
   {
     return is_exec_pending;

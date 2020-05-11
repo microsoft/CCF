@@ -57,8 +57,7 @@ namespace pbft
     virtual kv::Version commit_tx(
       ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
     virtual void commit_new_view(
-      const pbft::NewView& view_change,
-      pbft::NewViewsMap& pbft_view_changes_map) = 0;
+      const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
 
@@ -138,8 +137,7 @@ namespace pbft
     }
 
     void commit_new_view(
-      const pbft::NewView& view_change,
-      pbft::NewViewsMap& pbft_view_changes_map)
+      const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map)
     {
       while (true)
       {
@@ -148,15 +146,15 @@ namespace pbft
         {
           auto version = p->next_version();
           LOG_TRACE_FMT(
-            "Storing new view at view {} for node {}",
-            view_change.view,
-            view_change.node_id);
+            "Storing new view message at view {} for node {}",
+            new_view.view,
+            new_view.node_id);
           auto success = p->commit(
             version,
             [&]() {
               ccf::Store::Tx tx(version);
-              auto vc_view = tx.get_view(pbft_view_changes_map);
-              vc_view->put(0, view_change);
+              auto vc_view = tx.get_view(pbft_new_views_map);
+              vc_view->put(0, new_view);
               return tx.commit_reserved();
             },
             false);
