@@ -125,7 +125,7 @@ namespace crypto
   {
   private:
     mutable std::
-      array<mbedtls_gcm_context*, enclave::ThreadMessaging::max_num_threads>
+      array<mbedtls_gcm_context*, threading::ThreadMessaging::max_num_threads>
         ctxs;
 
   public:

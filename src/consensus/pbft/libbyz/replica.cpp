@@ -189,7 +189,7 @@ struct PreVerifyResultCbMsg
 };
 
 static void pre_verify_reply_cb(
-  std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>> req)
+  std::unique_ptr<threading::Tmsg<PreVerifyResultCbMsg>> req)
 {
   Message* m = req->data.m;
   Replica* self = req->data.self;
@@ -206,20 +206,20 @@ static void pre_verify_reply_cb(
   }
 }
 
-static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
+static void pre_verify_cb(std::unique_ptr<threading::Tmsg<PreVerifyCbMsg>> req)
 {
   Message* m = req->data.m;
   Replica* self = req->data.self;
 
-  auto resp =
-    std::make_unique<enclave::Tmsg<PreVerifyResultCbMsg>>(&pre_verify_reply_cb);
+  auto resp = std::make_unique<threading::Tmsg<PreVerifyResultCbMsg>>(
+    &pre_verify_reply_cb);
 
   resp->data.m = m;
   resp->data.self = self;
   resp->data.result = self->pre_verify(m);
 
-  enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
-    enclave::ThreadMessaging::main_thread, std::move(resp));
+  threading::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
+    threading::ThreadMessaging::main_thread, std::move(resp));
 }
 
 static uint64_t verification_thread = 0;
@@ -333,20 +333,21 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 
   uint32_t target_thread = 0;
 
-  if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
+  if (threading::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
   {
-    uint32_t num_worker_thread = enclave::ThreadMessaging::thread_count - 1;
+    uint32_t num_worker_thread = threading::ThreadMessaging::thread_count - 1;
     target_thread = (((Request*)m)->user_id() % num_worker_thread) + 1;
   }
 
   if (f() != 0 && target_thread != 0)
   {
-    auto msg = std::make_unique<enclave::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
+    auto msg =
+      std::make_unique<threading::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
 
     msg->data.m = m;
     msg->data.self = this;
 
-    enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
+    threading::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
       target_thread, std::move(msg));
   }
   else
@@ -377,7 +378,7 @@ bool Replica::compare_execution_results(
 {
   // We are currently not ordering the execution on the backups correctly.
   // This will be resolved in the immediate future.
-  if (enclave::ThreadMessaging::thread_count > 2)
+  if (threading::ThreadMessaging::thread_count > 2)
   {
     return true;
   }

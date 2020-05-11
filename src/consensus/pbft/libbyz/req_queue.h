@@ -86,9 +86,9 @@ private:
     }
   };
   std::unordered_map<Key, std::unique_ptr<RNode>, KeyHash>
-    reqs[enclave::ThreadMessaging::max_num_threads];
+    reqs[threading::ThreadMessaging::max_num_threads];
   mutable snmalloc::DLList<RNode>
-    rnodes[enclave::ThreadMessaging::max_num_threads];
+    rnodes[threading::ThreadMessaging::max_num_threads];
   mutable uint64_t count = 0;
 
   int nelems; // Number of elements in queue
@@ -107,7 +107,7 @@ inline int Req_queue::num_bytes() const
 
 inline Request* Req_queue::first() const
 {
-  uint32_t tcount = enclave::ThreadMessaging::thread_count;
+  uint32_t tcount = threading::ThreadMessaging::thread_count;
   tcount = std::max(tcount, (uint32_t)1);
 
   for (uint32_t i = 0; i < tcount; ++i)

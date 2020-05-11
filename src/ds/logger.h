@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ring_buffer.h"
+#include "thread_ids.h"
 
 #include <chrono>
 #include <cstring>
@@ -19,8 +20,6 @@
 #include <sstream>
 #include <string>
 #include <thread>
-
-extern std::map<std::thread::id, uint16_t> thread_ids;
 
 namespace logger
 {
@@ -317,7 +316,7 @@ namespace logger
       line_number(line_number),
       log_level(ll),
 #ifdef INSIDE_ENCLAVE
-      thread_id(thread_ids[std::this_thread::get_id()])
+      thread_id(threading::get_current_thread_id())
 #else
       thread_id(100)
 #endif

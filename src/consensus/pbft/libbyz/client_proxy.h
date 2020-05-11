@@ -61,7 +61,7 @@ public:
     ClientProxy<T, C>* self;
   };
   static void execute_request_cb(
-    std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg);
+    std::unique_ptr<threading::Tmsg<ExecuteRequestMsg>> msg);
   void execute_request(Request* request);
 
   void recv_reply(Reply* r);
@@ -120,7 +120,7 @@ private:
     std::vector<uint8_t> data;
     ReplyCallback cb;
   };
-  static void send_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
+  static void send_reply(std::unique_ptr<threading::Tmsg<ReplyCbMsg>> msg);
 
   // list of outstanding requests used for retransmissions
   // (we only retransmit the request at the head of the queue)
@@ -236,7 +236,7 @@ bool ClientProxy<T, C>::send_request(
     caller_rid,
     cb,
     owner,
-    thread_ids[std::this_thread::get_id()],
+    threading::get_current_thread_id(),
     milliseconds_since_start,
     std::move(req));
 
@@ -261,14 +261,14 @@ bool ClientProxy<T, C>::send_request(
   }
 
   auto msg =
-    std::make_unique<enclave::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
+    std::make_unique<threading::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
   msg->data.self = this;
   msg->data.request.reset(std::move(req_clone));
 
-  if (enclave::ThreadMessaging::thread_count > 1)
+  if (threading::ThreadMessaging::thread_count > 1)
   {
-    enclave::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
-      enclave::ThreadMessaging::main_thread, std::move(msg));
+    threading::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
+      threading::ThreadMessaging::main_thread, std::move(msg));
   }
   else
   {
@@ -280,7 +280,7 @@ bool ClientProxy<T, C>::send_request(
 
 template <class T, class C>
 void ClientProxy<T, C>::execute_request_cb(
-  std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg)
+  std::unique_ptr<threading::Tmsg<ExecuteRequestMsg>> msg)
 {
   auto self = msg->data.self;
   self->execute_request(msg->data.request.release());
@@ -290,8 +290,8 @@ template <class T, class C>
 void ClientProxy<T, C>::execute_request(Request* request)
 {
   if (
-    thread_ids[std::this_thread::get_id()] !=
-    enclave::ThreadMessaging::main_thread)
+    threading::get_current_thread_id() !=
+    threading::ThreadMessaging::main_thread)
   {
     throw std::logic_error("Execution on incorrect thread");
   }
@@ -314,7 +314,7 @@ void ClientProxy<T, C>::execute_request(Request* request)
 
 template <class T, class C>
 void ClientProxy<T, C>::send_reply(
-  std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
+  std::unique_ptr<threading::Tmsg<ReplyCbMsg>> msg)
 {
   msg->data.cb(msg->data.owner, msg->data.caller_rid, 0, msg->data.data);
 }
@@ -399,15 +399,15 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
             << " client id: " << reply->id() << " seqno: " << reply->seqno()
             << " view " << reply->view() << std::endl;
 
-  auto msg = std::make_unique<enclave::Tmsg<ReplyCbMsg>>(&send_reply);
+  auto msg = std::make_unique<threading::Tmsg<ReplyCbMsg>>(&send_reply);
   msg->data.owner = ctx->owner;
   msg->data.caller_rid = ctx->caller_rid;
   msg->data.cb = ctx->cb;
   msg->data.data.assign(reply_buffer, reply_buffer + reply_len);
 
-  if (enclave::ThreadMessaging::thread_count > 1)
+  if (threading::ThreadMessaging::thread_count > 1)
   {
-    enclave::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
+    threading::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
       ctx->reply_thread, std::move(msg));
   }
   else
