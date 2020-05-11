@@ -22,7 +22,9 @@ namespace tls
     secp256k1_mbedtls = 3,
     secp256k1_bitcoin = 4,
 
-    service_identity_curve_choice = secp384r1,
+    // service_identity_curve_choice = secp384r1,
+    service_identity_curve_choice = secp256k1_bitcoin,
+
   };
   // SNIPPET_END: supported_curves
 
