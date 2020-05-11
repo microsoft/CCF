@@ -11,6 +11,9 @@ import http
 import ssl
 import socket
 import os
+from collections import defaultdict
+import time
+import infra.clients
 
 from loguru import logger as LOG
 
@@ -39,9 +42,9 @@ def test(network, args, notifications_queue=None, verify=True):
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
-    context = ssl.create_default_context(
-        cafile=os.path.join(network.common_dir, "networkcert.pem")
-    )
+    cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
+    context = ssl.create_default_context(cafile=cafile)
+    context.set_ecdh_curve(infra.clients.get_curve(cafile).name)
     context.load_cert_chain(
         certfile=os.path.join(network.common_dir, "user0_cert.pem"),
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
@@ -333,6 +336,89 @@ def test_view_history(network, args):
                 raise RuntimeError(
                     f"Node {node.node_id}: Incomplete or inconsistent view history"
                 )
+
+    return network
+
+
+class SentTxs:
+    # view -> seqno -> status
+    txs = defaultdict(lambda: defaultdict(lambda: TxStatus.Unknown))
+
+    @staticmethod
+    def update_status(view, seqno, status=None):
+        current_status = SentTxs.txs[view][seqno]
+        if status is None:
+            # If you don't know the current status, we exit here. Since we have
+            # accessed the value in the defaultdict, we have recorded this tx id
+            # so it will be returned by future calls to get_all_tx_ids()
+            return
+
+        if status != current_status:
+            valid = False
+            # Only valid transitions from Unknown to any, or Pending to Committed/Invalid
+            if current_status == TxStatus.Unknown:
+                valid = True
+            elif current_status == TxStatus.Pending and (
+                status == TxStatus.Committed or status == TxStatus.Invalid
+            ):
+                valid = True
+
+            if valid:
+                SentTxs.txs[view][seqno] = status
+            else:
+                raise ValueError(
+                    f"Transaction {view}.{seqno} making invalid transition from {current_status} to {status}"
+                )
+
+    @staticmethod
+    def get_all_tx_ids():
+        return [
+            (view, seqno)
+            for view, view_txs in SentTxs.txs.items()
+            for seqno, status in view_txs.items()
+        ]
+
+
+@reqs.description("Build a list of Tx IDs, check they transition states as expected")
+@reqs.supports_methods("LOG_record", "tx")
+def test_tx_statuses(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.user_client() as c:
+        check = infra.checker.Checker()
+        r = c.rpc("LOG_record", {"id": 1, "msg": "Ignored"})
+        check(r)
+        # Until this tx is globally committed, poll for the status of this and some other
+        # related transactions around it (and also any historical transactions we're tracking)
+        target_view = r.term
+        target_seqno = r.commit
+        SentTxs.update_status(target_view, target_seqno)
+        SentTxs.update_status(target_view, target_seqno + 1)
+        SentTxs.update_status(target_view - 1, target_seqno, TxStatus.Invalid)
+
+        end_time = time.time() + 10
+        while True:
+            if time.time() > end_time:
+                raise TimeoutError(
+                    f"Took too long waiting for global commit of {target_view}.{target_seqno}"
+                )
+
+            done = False
+            for view, seqno in SentTxs.get_all_tx_ids():
+                r = c.get("tx", {"view": view, "seqno": seqno})
+                check(r)
+                status = TxStatus(r.result["status"])
+                SentTxs.update_status(view, seqno, status)
+                if (
+                    status == TxStatus.Committed
+                    and target_view == view
+                    and target_seqno == seqno
+                ):
+                    done = True
+
+            if done:
+                break
+            time.sleep(0.1)
 
     return network
 

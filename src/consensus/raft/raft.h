@@ -20,28 +20,52 @@ namespace raft
 {
   class TermHistory
   {
+    // Entry i stores the first index in term i+1
+    // (term 0 doesn't exist, so we store nothing for it)
     std::vector<Index> terms;
 
   public:
+    static constexpr Term InvalidTerm = 0;
+
     void initialise(const std::vector<Index>& terms_)
     {
-      std::copy(terms_.begin(), terms_.end(), std::back_inserter(terms));
+      terms.clear();
+      for (size_t i = 0; i < terms_.size(); ++i)
+      {
+        update(terms_[i], i + 1);
+      }
+      LOG_DEBUG_FMT("Initialised terms: {}", fmt::join(terms, ", "));
     }
 
     void update(Index idx, Term term)
     {
       LOG_DEBUG_FMT("Updating term to: {} at index: {}", term, idx);
-      for (auto i = terms.size(); i <= term; ++i)
+      if (!terms.empty())
+      {
+        const auto current_latest_index = terms.back();
+        if (idx < current_latest_index)
+        {
+          throw std::logic_error(fmt::format(
+            "Index must not move backwards ({} < {})",
+            idx,
+            current_latest_index));
+        }
+      }
+
+      for (auto i = terms.size(); i < term; ++i)
         terms.push_back(idx);
+      LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
 
     Term term_at(Index idx)
     {
-      if (idx == 0)
-        return 0;
-
       auto it = upper_bound(terms.begin(), terms.end(), idx);
-      return (it - terms.begin()) - 1;
+
+      // Indices before the index of the first term are unknown
+      if (it == terms.begin())
+        return InvalidTerm;
+
+      return (it - terms.begin());
     }
   };
 
@@ -856,7 +880,7 @@ namespace raft
       {
         // Reply false, since we already voted for someone else.
         LOG_DEBUG_FMT(
-          "Recv request vote to {} from {}: alredy voted for {}",
+          "Recv request vote to {} from {}: already voted for {}",
           local_id,
           r.from_node,
           voted_for);
