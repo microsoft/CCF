@@ -27,7 +27,7 @@ namespace http
     {}
 
   public:
-    static void recv_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
+    static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<HTTPEndpoint*>(msg->data.self.get())
         ->recv_(msg->data.data.data(), msg->data.data.size());
@@ -35,11 +35,11 @@ namespace http
 
     void recv(const uint8_t* data, size_t size) override
     {
-      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&recv_cb);
+      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();
       msg->data.data.assign(data, data + size);
 
-      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+      threading::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
         execution_thread, std::move(msg));
     }
 
