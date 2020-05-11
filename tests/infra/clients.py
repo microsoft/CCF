@@ -9,6 +9,10 @@ import tempfile
 import urllib.parse
 from http.client import HTTPResponse
 from io import BytesIO
+from requests.adapters import HTTPAdapter
+from urllib3.util.ssl_ import create_urllib3_context
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 import requests
 from loguru import logger as LOG
@@ -191,6 +195,14 @@ def build_query_string(params):
     )
 
 
+def get_curve(ca_file):
+    # Auto detect EC curve to use based on server CA
+    ca_bytes = open(ca_file, "rb").read()
+    return (
+        x509.load_pem_x509_certificate(ca_bytes, default_backend()).public_key().curve
+    )
+
+
 class CurlClient:
     """
     We keep this around in a limited fashion still, because
@@ -218,6 +230,13 @@ class CurlClient:
         self.binary_dir = binary_dir
         self.connection_timeout = connection_timeout
         self.request_timeout = request_timeout
+
+        ca_curve = get_curve(self.ca)
+        if ca_curve.name == "secp256k1":
+            raise RuntimeError(
+                f"CurlClient cannot perform TLS handshake with {ca_curve.name} ECDH curve. "
+                "Use RequestClient class instead."
+            )
 
     def _just_request(self, request, is_signed=False):
         with tempfile.NamedTemporaryFile() as nf:
@@ -309,6 +328,19 @@ class CurlClient:
         return self._request(request, is_signed=True)
 
 
+class TlsAdapter(HTTPAdapter):
+    def __init__(self, ca_file):
+        self.ca_curve = get_curve(ca_file)
+        super().__init__()
+
+    # pylint: disable=signature-differs
+    def init_poolmanager(self, *args, **kwargs):
+        context = create_urllib3_context()
+        context.set_ecdh_curve(self.ca_curve.name)
+        kwargs["ssl_context"] = context
+        return super(TlsAdapter, self).init_poolmanager(*args, **kwargs)
+
+
 class RequestClient:
     def __init__(
         self,
@@ -332,6 +364,7 @@ class RequestClient:
         self.session = requests.Session()
         self.session.verify = self.ca
         self.session.cert = (self.cert, self.key)
+        self.session.mount("https://", TlsAdapter(self.ca))
 
     def _just_request(self, request, is_signed=False):
         auth_value = None
