@@ -20,6 +20,7 @@
 struct VC_info
 {
   Digest d; // digest of view-change message
+  // TODO add the signatures here
 };
 
 struct New_view_rep : public Message_rep

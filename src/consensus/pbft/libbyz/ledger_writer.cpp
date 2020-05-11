@@ -8,11 +8,11 @@ LedgerWriter::LedgerWriter(
   pbft::PbftStore& store_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
   ccf::Signatures& signatures_,
-  pbft::ViewChangesMap& pbft_view_changes_map_) :
+  pbft::NewViewsMap& pbft_new_views_map_) :
   store(store_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_),
   signatures(signatures_),
-  pbft_view_changes_map(pbft_view_changes_map_)
+  pbft_new_views_map(pbft_new_views_map_)
 {}
 
 kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx, Pre_prepare* pp)
@@ -53,14 +53,14 @@ kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
     signatures);
 }
 
-void LedgerWriter::write_view_change(View_change* vc)
+void LedgerWriter::write_new_view(New_view* nv)
 {
   LOG_TRACE_FMT(
-    "Writing view change with view {} for node {}", vc->view(), vc->id());
-  store.commit_view_change(
-    {vc->view(),
-     vc->id(),
-     {(const uint8_t*)vc->contents(),
-      (const uint8_t*)vc->contents() + vc->size()}},
-    pbft_view_changes_map);
+    "Writing new view with view {} for node {}", nv->view(), nv->id());
+  store.commit_new_view(
+    {nv->view(),
+     nv->id(),
+     {(const uint8_t*)nv->contents(),
+      (const uint8_t*)nv->contents() + nv->size()}},
+    pbft_new_views_map);
 }

@@ -59,7 +59,7 @@ public:
     pbft::RequestsMap& pbft_requests_map_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
     ccf::Signatures& signatures,
-    pbft::ViewChangesMap& pbft_view_changes_map_,
+    pbft::NewViewsMap& pbft_new_views_map_,
     pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
@@ -232,6 +232,9 @@ public:
   void playback_pre_prepare(ccf::Store::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
+
+  void playback_view_change(ccf::Store::Tx& tx);
+  // Effects: view change messages are verified and the view is updated
 
   bool IsExecutionPending()
   {
@@ -523,7 +526,7 @@ private:
 
   pbft::RequestsMap& pbft_requests_map;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
-  pbft::ViewChangesMap& pbft_view_changes_map;
+  pbft::NewViewsMap& pbft_new_views_map;
 
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;

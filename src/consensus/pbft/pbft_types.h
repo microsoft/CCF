@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/pbft/pbft_new_views.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
-#include "consensus/pbft/pbft_view_changes.h"
 #include "ds/ring_buffer_types.h"
 #include "kv/kv_types.h"
 #include "node/signatures.h"
@@ -57,9 +57,9 @@ namespace pbft
       ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(
       ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
-    virtual void commit_view_change(
-      const pbft::ViewChange& view_change,
-      pbft::ViewChangesMap& pbft_view_changes_map) = 0;
+    virtual void commit_new_view(
+      const pbft::NewView& view_change,
+      pbft::NewViewsMap& pbft_view_changes_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
 
@@ -138,9 +138,9 @@ namespace pbft
       }
     }
 
-    void commit_view_change(
-      const pbft::ViewChange& view_change,
-      pbft::ViewChangesMap& pbft_view_changes_map)
+    void commit_new_view(
+      const pbft::NewView& view_change,
+      pbft::NewViewsMap& pbft_view_changes_map)
     {
       while (true)
       {
@@ -163,7 +163,7 @@ namespace pbft
             false);
           if (success == kv::CommitSuccess::OK)
           {
-            break;
+            return;
           }
         }
       }

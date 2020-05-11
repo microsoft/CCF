@@ -117,7 +117,7 @@ NodeInfo create_replica(
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
   ccf::Signatures& signatures,
-  pbft::ViewChangesMap& pbft_view_changes_map,
+  pbft::NewViewsMap& pbft_new_views_map,
   NodeId node_id = 0)
 {
   auto node_info = get_node_info(node_id);
@@ -130,7 +130,7 @@ NodeInfo create_replica(
     pbft_requests_map,
     pbft_pre_prepares_map,
     signatures,
-    pbft_view_changes_map,
+    pbft_new_views_map,
     store));
 
   pbft::GlobalState::get_replica().init_state();
@@ -205,7 +205,7 @@ struct PbftState
   pbft::RequestsMap& pbft_requests_map;
   ccf::Signatures& signatures;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
-  pbft::ViewChangesMap& pbft_view_changes_map;
+  pbft::NewViewsMap& pbft_new_views_map;
   std::vector<char> service_mem;
   ExecutionMock exec_mock;
 
@@ -218,8 +218,8 @@ struct PbftState
     signatures(store->create<ccf::Signatures>(ccf::Tables::SIGNATURES)),
     pbft_pre_prepares_map(store->create<pbft::PrePreparesMap>(
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC)),
-    pbft_view_changes_map(store->create<pbft::ViewChangesMap>(
-      pbft::Tables::PBFT_VIEW_CHANGES, kv::SecurityDomain::PUBLIC)),
+    pbft_new_views_map(store->create<pbft::NewViewsMap>(
+      pbft::Tables::PBFT_NEW_VIEWS, kv::SecurityDomain::PUBLIC)),
     service_mem(mem_size, 0),
     exec_mock(0)
   {}
@@ -233,7 +233,7 @@ NodeInfo init_test_state(PbftState& pbft_state, NodeId node_id = 0)
     pbft_state.pbft_requests_map,
     pbft_state.pbft_pre_prepares_map,
     pbft_state.signatures,
-    pbft_state.pbft_view_changes_map,
+    pbft_state.pbft_new_views_map,
     node_id);
   pbft::GlobalState::get_replica().register_exec(
     pbft_state.exec_mock.exec_command);
@@ -300,7 +300,7 @@ TEST_CASE("Test Ledger Replay")
       *pbft_state.pbft_store,
       pbft_state.pbft_pre_prepares_map,
       pbft_state.signatures,
-      pbft_state.pbft_view_changes_map);
+      pbft_state.pbft_new_views_map);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)
@@ -570,7 +570,7 @@ TEST_CASE("Verify prepare proof")
       *pbft_state.pbft_store,
       pbft_state.pbft_pre_prepares_map,
       pbft_state.signatures,
-      pbft_state.pbft_view_changes_map);
+      pbft_state.pbft_new_views_map);
 
     // let this node know about the node that signed the prepare
     // otherwise we can't add its prepare to the prepared cert

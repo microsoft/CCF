@@ -11,7 +11,7 @@
 
 namespace pbft
 {
-  struct ViewChange
+  struct NewView
   {
     int64_t view;
     int node_id;
@@ -20,11 +20,11 @@ namespace pbft
     MSGPACK_DEFINE(view, node_id, contents);
   };
 
-  DECLARE_JSON_TYPE(ViewChange);
-  DECLARE_JSON_REQUIRED_FIELDS(ViewChange, view, node_id, contents);
+  DECLARE_JSON_TYPE(NewView);
+  DECLARE_JSON_REQUIRED_FIELDS(NewView, view, node_id, contents);
 
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the view changes in the kv over time, we just want to
   // get them into the ledger
-  using ViewChangesMap = ccf::Store::Map<size_t, ViewChange>;
+  using NewViewsMap = ccf::Store::Map<size_t, NewView>;
 }
