@@ -11,6 +11,11 @@ namespace threading
 
   static inline uint16_t get_current_thread_id()
   {
+    if (thread_ids.empty())
+    {
+      return 0;
+    }
+
     const auto tid = std::this_thread::get_id();
     const auto it = thread_ids.find(tid);
     if (it == thread_ids.end())
