@@ -13,6 +13,7 @@ import socket
 import os
 from collections import defaultdict
 import time
+import infra.clients
 
 from loguru import logger as LOG
 
@@ -41,9 +42,9 @@ def test(network, args, notifications_queue=None, verify=True):
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
-    context = ssl.create_default_context(
-        cafile=os.path.join(network.common_dir, "networkcert.pem")
-    )
+    cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
+    context = ssl.create_default_context(cafile=cafile)
+    context.set_ecdh_curve(infra.clients.get_curve(cafile).name)
     context.load_cert_chain(
         certfile=os.path.join(network.common_dir, "user0_cert.pem"),
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
