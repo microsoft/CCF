@@ -95,6 +95,7 @@ public:
   // number known to be stable.
 
   void write_new_view_to_ledger();
+  // Effects: writes new view to ledger
 
   void send_view_change();
   // Effects: Send view-change message.

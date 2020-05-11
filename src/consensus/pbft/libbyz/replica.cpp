@@ -1909,7 +1909,8 @@ void Replica::write_new_view_to_ledger()
 
   auto nv = vi.new_view();
   PBFT_ASSERT(nv != nullptr, "Invalid state");
-  LOG_TRACE_FMT("Writing view for {} from {} to ledger", nv->view(), nv->id());
+  LOG_TRACE_FMT(
+    "Writing new view: {} from node: {} to ledger", nv->view(), nv->id());
   ledger_writer->write_new_view(nv);
 }
 
