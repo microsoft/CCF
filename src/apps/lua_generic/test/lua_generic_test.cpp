@@ -266,7 +266,7 @@ TEST_CASE("simple lua apps")
     );
 
     // (3) attempt to read non-existing key (set of integers)
-    const auto packed = make_pc("load", {{"k", set{5, 6, 7}}});
+    const auto packed = make_pc("load", {{"k", set<int>{5, 6, 7}}});
     auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     check_error(frontend->process(rpc_ctx).value(), HTTP_STATUS_BAD_REQUEST);
   }
