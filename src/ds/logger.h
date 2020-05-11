@@ -27,7 +27,7 @@ namespace logger
   enum Level
   {
     TRACE = 0,
-    DBG, // events useful for debugging
+    DEBUG, // events useful for debugging
     INFO, // important events that should be logged even in release mode
     FAIL, // important failures that should always be logged
     FATAL, // fatal errors that lead to a termination of the program/enclave
@@ -487,8 +487,8 @@ namespace logger
 #define LOG_TRACE_FMT(...) LOG_TRACE << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_DEBUG \
-  logger::config::ok(logger::DBG) && \
-    logger::Out() == logger::LogLine(logger::DBG, __FILE__, __LINE__)
+  logger::config::ok(logger::DEBUG) && \
+    logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
 #define LOG_DEBUG_FMT(...) LOG_DEBUG << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_INFO \
