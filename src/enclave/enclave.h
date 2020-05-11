@@ -256,7 +256,8 @@ namespace enclave
             idling_start_time = time_now;
           }
 
-          // If we have pending thread messages, handle them now (and don't sleep)
+          // If we have pending thread messages, handle them now (and don't
+          // sleep)
           {
             uint16_t tid = threading::get_current_thread_id();
             threading::Task& task =

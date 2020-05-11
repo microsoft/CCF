@@ -211,8 +211,8 @@ static void pre_verify_cb(std::unique_ptr<threading::Tmsg<PreVerifyCbMsg>> req)
   Message* m = req->data.m;
   Replica* self = req->data.self;
 
-  auto resp =
-    std::make_unique<threading::Tmsg<PreVerifyResultCbMsg>>(&pre_verify_reply_cb);
+  auto resp = std::make_unique<threading::Tmsg<PreVerifyResultCbMsg>>(
+    &pre_verify_reply_cb);
 
   resp->data.m = m;
   resp->data.self = self;
@@ -341,7 +341,8 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 
   if (f() != 0 && target_thread != 0)
   {
-    auto msg = std::make_unique<threading::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
+    auto msg =
+      std::make_unique<threading::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
 
     msg->data.m = m;
     msg->data.self = this;

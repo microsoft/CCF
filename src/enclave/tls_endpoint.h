@@ -180,8 +180,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
 
       if (r < 0)
@@ -348,8 +347,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -448,8 +446,7 @@ namespace enclave
           return;
 
         default:
-        {
-        }
+        {}
       }
 
       status = status_;
@@ -479,8 +476,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
