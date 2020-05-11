@@ -94,7 +94,7 @@ public:
   // of a propagated request +1; and "ms" is the maximum sequence
   // number known to be stable.
 
-  void write_view_change_to_ledger();
+  void write_new_view_to_ledger();
 
   void send_view_change();
   // Effects: Send view-change message.

@@ -1900,7 +1900,7 @@ void Replica::send_view_change()
   vi.view_change(v, last_executed, &state);
 }
 
-void Replica::write_view_change_to_ledger()
+void Replica::write_new_view_to_ledger()
 {
   if (!ledger_writer)
   {
@@ -1908,6 +1908,7 @@ void Replica::write_view_change_to_ledger()
   }
 
   auto nv = vi.new_view();
+  PBFT_ASSERT(nv != nullptr, "Invalid state");
   LOG_TRACE_FMT("Writing view for {} from {} to ledger", nv->view(), nv->id());
   ledger_writer->write_new_view(nv);
 }
@@ -2072,8 +2073,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     ntimer->start();
   }
 
-  // Write the view change proof to the ledger
-  write_view_change_to_ledger();
+  write_new_view_to_ledger();
 
   if (!has_nv_state)
   {
