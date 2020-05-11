@@ -2,6 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <map>
 #include <thread>
 
@@ -21,7 +24,7 @@ namespace threading
     if (it == thread_ids.end())
     {
       throw std::runtime_error(
-        "Accessed uninitialised thread_ids - ID unknown");
+        fmt::format("Accessed uninitialised thread_ids - ID {} unknown", tid));
     }
 
     return it->second;
