@@ -11,6 +11,14 @@ namespace threading
 
   static inline uint16_t get_current_thread_id()
   {
-    return thread_ids[std::this_thread::get_id()];
+    const auto tid = std::this_thread::get_id();
+    const auto it = thread_ids.find(tid);
+    if (it == thread_ids.end())
+    {
+      throw std::runtime_error(
+        "Accessed uninitialised thread_ids - ID unknown");
+    }
+
+    return it->second;
   }
 }

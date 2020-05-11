@@ -5,6 +5,7 @@
 #include "ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
+#include "ds/thread_messaging.h"
 #include "endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
@@ -179,7 +180,8 @@ namespace enclave
         }
 
         default:
-        {}
+        {
+        }
       }
 
       if (r < 0)
@@ -346,7 +348,8 @@ namespace enclave
         }
 
         default:
-        {}
+        {
+        }
       }
     }
 
@@ -445,7 +448,8 @@ namespace enclave
           return;
 
         default:
-        {}
+        {
+        }
       }
 
       status = status_;
@@ -475,7 +479,8 @@ namespace enclave
         }
 
         default:
-        {}
+        {
+        }
       }
     }
 

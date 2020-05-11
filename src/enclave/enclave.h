@@ -256,6 +256,21 @@ namespace enclave
             idling_start_time = time_now;
           }
 
+          // If we have pending thread messages, handle them now (and don't sleep)
+          {
+            uint16_t tid = threading::get_current_thread_id();
+            threading::Task& task =
+              threading::ThreadMessaging::thread_messaging.get_task(tid);
+
+            bool task_run =
+              threading::ThreadMessaging::thread_messaging.run_one(task);
+
+            if (task_run)
+            {
+              return;
+            }
+          }
+
           // Handle initial idles by pausing, eventually sleep (in host)
           constexpr std::chrono::milliseconds timeout(5);
 
