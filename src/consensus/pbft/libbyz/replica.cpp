@@ -1908,11 +1908,8 @@ void Replica::write_view_change_to_ledger()
   }
 
   auto nv = vi.new_view();
-
-  // LOG_TRACE_FMT("Writing view for {} from {} to ledger", nv->view(),
-  // nv->id());
-
-  // ledger_writer->write_new_view(nv);
+  LOG_TRACE_FMT("Writing view for {} from {} to ledger", nv->view(), nv->id());
+  ledger_writer->write_new_view(nv);
 }
 
 void Replica::handle(New_principal* m)
