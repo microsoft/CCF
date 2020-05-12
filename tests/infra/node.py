@@ -8,6 +8,8 @@ import infra.net
 import infra.path
 import infra.clients
 import os
+import socket
+import time
 
 from loguru import logger as LOG
 
@@ -178,7 +180,12 @@ class Node:
         else:
             if self.perf:
                 self.remote.set_perf()
+            sock = socket.socket()
+            LOG.warning(f"Deliberately binding {self.host}:{self.node_port}")
+            sock.bind((self.host, int(self.node_port)))
             self.remote.start()
+            LOG.warning("And sleeping briefly")
+            time.sleep(1)
         self.remote.get_startup_files(self.common_dir)
         LOG.info("Remote {} started".format(self.node_id))
 
