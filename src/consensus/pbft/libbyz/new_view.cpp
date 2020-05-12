@@ -115,6 +115,7 @@ bool New_view::pre_verify()
   {
     if (vc_info()[i].d == Digest())
     {
+      // we don't have a view change message from this replica
       continue;
     }
     auto sender_principal = pbft::GlobalState::get_node().get_principal(i);
