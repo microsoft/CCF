@@ -122,13 +122,7 @@ Pre_prepare::Pre_prepare(
     {
       IncludedSig* ic = reinterpret_cast<IncludedSig*>(sigs);
       ic->pid = p.first;
-      std::copy(
-        p.second.signature.begin(), p.second.signature.end(), ic->sig.begin());
-      std::fill(
-        ic->sig.end(),
-        ic->sig.end() + ALIGNED_SIZE(pbft_max_signature_size) -
-          pbft_max_signature_size,
-        0);
+      Node::copy_signature(p.second.signature, ic->sig);
       ic->sig_size = p.second.sig_size;
       ic->nonce = p.second.nonce;
       sigs += ALIGNED_SIZE(sizeof(IncludedSig));

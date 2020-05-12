@@ -158,8 +158,7 @@ inline bool Prepared_cert::add(Prepare* m)
 #ifdef SIGN_BATCH
   PbftSignature& digest_sig = m->digest_sig();
   PrePrepareProof proof;
-  std::copy(
-    std::begin(digest_sig), std::end(digest_sig), std::begin(proof.signature));
+  Node::copy_signature(digest_sig, proof.signature);
   proof.nonce = m->get_hashed_nonce();
   proof.sig_size = m->digest_sig_size();
 #endif

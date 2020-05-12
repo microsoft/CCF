@@ -25,13 +25,16 @@ New_view::New_view(View v) : Message(New_view_tag, Max_message_size)
   }
 }
 
-void New_view::add_view_change(int id, Digest& d)
+void New_view::add_view_change(
+  int id, Digest& d, PbftSignature& sig, size_t sig_size)
 {
   PBFT_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Not a replica");
   PBFT_ASSERT(vc_info()[id].d == Digest(), "Duplicate");
 
   VC_info& vci = vc_info()[id];
   vci.d = d;
+  Node::copy_signature(sig, vci.sig);
+  vci.sig_size = sig_size;
 }
 
 void New_view::set_min(Seqno min)
@@ -106,5 +109,31 @@ bool New_view::pre_verify()
     return false;
   }
 
-  return true;
+  // check that New_view has 2f + 1 valid View_change digest signatures
+  auto proof_count = 0;
+  for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
+  {
+    if (vc_info()[i].d == Digest())
+    {
+      continue;
+    }
+    auto sender_principal = pbft::GlobalState::get_node().get_principal(i);
+    if (!sender_principal)
+    {
+      LOG_INFO_FMT("Sender principal has not been configured yet {}", i);
+      continue;
+    }
+    if (sender_principal->verify_signature(
+          vc_info()[i].d.digest(),
+          vc_info()[i].d.digest_size(),
+          vc_info()[i].sig.data(),
+          vc_info()[i].sig_size,
+          true /* allow self*/))
+    {
+      proof_count++;
+    }
+  }
+  LOG_TRACE_FMT("new view has verified {} view change messages", proof_count);
+
+  return proof_count >= (2 * pbft::GlobalState::get_node().f() + 1);
 }
