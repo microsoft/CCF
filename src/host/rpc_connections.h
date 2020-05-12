@@ -99,7 +99,11 @@ namespace asynchost
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
-    bool listen(int64_t id, const std::string& host, const std::string& service)
+    bool listen(
+      int64_t id,
+      const std::string& host,
+      const std::string& service,
+      const std::optional<std::string>& listen_address_file = std::nullopt)
     {
       if (id == 0)
         id = get_next_id();
@@ -111,7 +115,9 @@ namespace asynchost
       }
 
       TCP s;
-      s->set_behaviour(std::make_unique<RPCServerBehaviour>(*this, id));
+      auto behaviour = std::make_unique<RPCServerBehaviour>(*this, id);
+      behaviour->listen_address_file = listen_address_file;
+      s->set_behaviour(std::move(behaviour));
 
       if (!s->listen(host, service))
         return false;

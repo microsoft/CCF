@@ -18,6 +18,9 @@ namespace asynchost
 
     virtual void on_resolve_failed() {}
     virtual void on_listen_failed() {}
+    virtual void on_listening(
+      const std::string& host, const std::string& service)
+    {}
     virtual void on_accept(TCP& peer) {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
@@ -28,6 +31,8 @@ namespace asynchost
   class TCPServerBehaviour : public TCPBehaviour
   {
   public:
+    std::optional<std::string> listen_address_file = std::nullopt;
+
     virtual void on_resolve_failed() override
     {
       throw std::runtime_error("TCP server resolve failed");
@@ -36,6 +41,16 @@ namespace asynchost
     virtual void on_listen_failed() override
     {
       throw std::runtime_error("TCP server listen failed");
+    }
+
+    virtual void on_listening(
+      const std::string& host, const std::string& service) override
+    {
+      if (listen_address_file.has_value())
+      {
+        files::dump(
+          fmt::format("{}\n{}", host, service), listen_address_file.value());
+      }
     }
   };
 
@@ -88,6 +103,26 @@ namespace asynchost
     std::string service;
     addrinfo* addr_base = nullptr;
     addrinfo* addr_current = nullptr;
+
+    bool service_assigned() const
+    {
+      return service != "0";
+    }
+
+    std::string get_address_name() const
+    {
+      const std::string port_suffix =
+        service_assigned() ? fmt::format(":{}", service) : "";
+
+      if (addr_current != nullptr && addr_current->ai_family == AF_INET6)
+      {
+        return fmt::format("[{}]{}", host, port_suffix);
+      }
+      else
+      {
+        return fmt::format("{}{}", host, port_suffix);
+      }
+    }
 
     TCPImpl() : status(FRESH)
     {
@@ -151,10 +186,7 @@ namespace asynchost
     bool listen(const std::string& host, const std::string& service)
     {
       assert_status(FRESH, LISTENING_RESOLVING);
-      static const std::string zero = "0";
-      LOG_INFO_FMT(
-        "Ignoring {}:{}, I'm listening on {}:{}", host, service, host, zero);
-      return resolve(host, zero, false);
+      return resolve(host, service, false);
     }
 
     bool write(size_t len, const uint8_t* data)
@@ -244,8 +276,7 @@ namespace asynchost
       return true;
     }
 
-    static std::string convert_address_to_string(
-      int address_family, sockaddr* sa)
+    void update_resolved_address(int address_family, sockaddr* sa)
     {
       constexpr auto buf_len = UV_IF_NAMESIZE;
       char buf[buf_len] = {};
@@ -259,7 +290,8 @@ namespace asynchost
           LOG_FAIL_FMT("uv_ip6_name failed: {}", uv_strerror(rc));
         }
 
-        return fmt::format("[{}]:{}", buf, ntohs(in6->sin6_port));
+        host = buf;
+        service = fmt::format("{}", ntohs(in6->sin6_port));
       }
       else
       {
@@ -269,7 +301,8 @@ namespace asynchost
           LOG_FAIL_FMT("uv_ip4_name failed: {}", uv_strerror(rc));
         }
 
-        return fmt::format("{}:{}", buf, ntohs(in4->sin_port));
+        host = buf;
+        service = fmt::format("{}", ntohs(in4->sin_port));
       }
     }
 
@@ -279,20 +312,22 @@ namespace asynchost
 
       while (addr_current != nullptr)
       {
-        std::string address = convert_address_to_string(
-          addr_current->ai_family, addr_current->ai_addr);
+        update_resolved_address(addr_current->ai_family, addr_current->ai_addr);
 
         if ((rc = uv_tcp_bind(&uv_handle, addr_current->ai_addr, 0)) < 0)
         {
           addr_current = addr_current->ai_next;
           LOG_FAIL_FMT(
-            "uv_tcp_bind failed on {}: {}", address, uv_strerror(rc));
+            "uv_tcp_bind failed on {}: {}",
+            get_address_name(),
+            uv_strerror(rc));
           continue;
         }
 
         if ((rc = uv_listen((uv_stream_t*)&uv_handle, backlog, on_accept)) < 0)
         {
-          LOG_FAIL_FMT("uv_listen failed on {}: {}", address, uv_strerror(rc));
+          LOG_FAIL_FMT(
+            "uv_listen failed on {}: {}", get_address_name(), uv_strerror(rc));
           addr_current = addr_current->ai_next;
           continue;
         }
@@ -300,17 +335,20 @@ namespace asynchost
         // If bound on port 0 (ie - asking the OS to assign a port), then we
         // need to call uv_tcp_getsockname to retrieve the bound port
         // (addr_current will not contain it)
-        sockaddr_storage sa_storage;
-        const auto sa = (sockaddr*)&sa_storage;
-        int sa_len = sizeof(sa_storage);
-        if ((rc = uv_tcp_getsockname(&uv_handle, sa, &sa_len)) != 0)
+        if (!service_assigned())
         {
-          LOG_FAIL_FMT("uv_tcp_getsockname failed: {}", uv_strerror(rc));
+          sockaddr_storage sa_storage;
+          const auto sa = (sockaddr*)&sa_storage;
+          int sa_len = sizeof(sa_storage);
+          if ((rc = uv_tcp_getsockname(&uv_handle, sa, &sa_len)) != 0)
+          {
+            LOG_FAIL_FMT("uv_tcp_getsockname failed: {}", uv_strerror(rc));
+          }
+          update_resolved_address(addr_current->ai_family, sa);
         }
-        address = convert_address_to_string(addr_current->ai_family, sa);
 
         assert_status(LISTENING_RESOLVING, LISTENING);
-        LOG_INFO_FMT("Listening on {}", address);
+        behaviour->on_listening(host, service);
         return;
       }
 
