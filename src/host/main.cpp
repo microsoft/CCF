@@ -556,7 +556,6 @@ int main(int argc, char** argv)
                                  pbft_view_change_timeout,
                                  pbft_status_interval};
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
-  // TODO: Need to do port assignment _before_ this!
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
                                   node_address.hostname,
