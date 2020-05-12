@@ -204,7 +204,6 @@ class Node:
             rpc_host, rpc_port = f.read().splitlines()
             assert rpc_host == self.host, f"Unexpected change in RPC address from {self.host} to {rpc_host}"
             self.rpc_port = rpc_port
-        LOG.warning(f"Parsed node port {self.node_port} and RPC port {self.rpc_port}")
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
