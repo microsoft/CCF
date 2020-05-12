@@ -59,6 +59,7 @@ public:
     pbft::RequestsMap& pbft_requests_map_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
     ccf::Signatures& signatures,
+    pbft::NewViewsMap& pbft_new_views_map_,
     pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
@@ -93,7 +94,8 @@ public:
   // of a propagated request +1; and "ms" is the maximum sequence
   // number known to be stable.
 
-  void write_view_change_to_ledger();
+  void write_new_view_to_ledger();
+  // Effects: writes new view to ledger
 
   void send_view_change();
   // Effects: Send view-change message.
@@ -522,6 +524,7 @@ private:
 
   pbft::RequestsMap& pbft_requests_map;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
+  pbft::NewViewsMap& pbft_new_views_map;
 
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;

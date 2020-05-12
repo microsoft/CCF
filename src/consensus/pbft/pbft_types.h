@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/pbft/pbft_new_views.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "ds/ring_buffer_types.h"
 #include "kv/kv_types.h"
@@ -55,6 +56,8 @@ namespace pbft
       ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(
       ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
+    virtual void commit_new_view(
+      const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
   };
 
@@ -128,6 +131,36 @@ namespace pbft
           if (success == kv::CommitSuccess::OK)
           {
             return tx.get_version();
+          }
+        }
+      }
+    }
+
+    void commit_new_view(
+      const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map)
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          auto version = p->next_version();
+          LOG_TRACE_FMT(
+            "Storing new view message at view {} for node {}",
+            new_view.view,
+            new_view.node_id);
+          auto success = p->commit(
+            version,
+            [&]() {
+              ccf::Store::Tx tx(version);
+              auto vc_view = tx.get_view(pbft_new_views_map);
+              vc_view->put(0, new_view);
+              return tx.commit_reserved();
+            },
+            false);
+          if (success == kv::CommitSuccess::OK)
+          {
+            return;
           }
         }
       }

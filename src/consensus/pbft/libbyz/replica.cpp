@@ -56,6 +56,7 @@ Replica::Replica(
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
   ccf::Signatures& signatures,
+  pbft::NewViewsMap& pbft_new_views_map_,
   pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
@@ -66,6 +67,7 @@ Replica::Replica(
   brt(node_info.general_info.num_replicas),
   pbft_requests_map(pbft_requests_map_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_),
+  pbft_new_views_map(pbft_new_views_map_),
   replies(mem, nbytes),
   rep_cb(nullptr),
   global_commit_cb(nullptr),
@@ -163,8 +165,8 @@ Replica::Replica(
 
   exec_command = nullptr;
 
-  ledger_writer =
-    std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map, signatures);
+  ledger_writer = std::make_unique<LedgerWriter>(
+    store, pbft_pre_prepares_map, signatures, pbft_new_views_map);
   encryptor = store.get_encryptor();
 }
 
@@ -189,7 +191,7 @@ struct PreVerifyResultCbMsg
 };
 
 static void pre_verify_reply_cb(
-  std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>> req)
+  std::unique_ptr<threading::Tmsg<PreVerifyResultCbMsg>> req)
 {
   Message* m = req->data.m;
   Replica* self = req->data.self;
@@ -206,20 +208,20 @@ static void pre_verify_reply_cb(
   }
 }
 
-static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
+static void pre_verify_cb(std::unique_ptr<threading::Tmsg<PreVerifyCbMsg>> req)
 {
   Message* m = req->data.m;
   Replica* self = req->data.self;
 
-  auto resp =
-    std::make_unique<enclave::Tmsg<PreVerifyResultCbMsg>>(&pre_verify_reply_cb);
+  auto resp = std::make_unique<threading::Tmsg<PreVerifyResultCbMsg>>(
+    &pre_verify_reply_cb);
 
   resp->data.m = m;
   resp->data.self = self;
   resp->data.result = self->pre_verify(m);
 
-  enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
-    enclave::ThreadMessaging::main_thread, std::move(resp));
+  threading::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
+    threading::ThreadMessaging::main_thread, std::move(resp));
 }
 
 static uint64_t verification_thread = 0;
@@ -333,20 +335,21 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 
   uint32_t target_thread = 0;
 
-  if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
+  if (threading::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
   {
-    uint32_t num_worker_thread = enclave::ThreadMessaging::thread_count - 1;
+    uint32_t num_worker_thread = threading::ThreadMessaging::thread_count - 1;
     target_thread = (((Request*)m)->user_id() % num_worker_thread) + 1;
   }
 
   if (f() != 0 && target_thread != 0)
   {
-    auto msg = std::make_unique<enclave::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
+    auto msg =
+      std::make_unique<threading::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
 
     msg->data.m = m;
     msg->data.self = this;
 
-    enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
+    threading::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
       target_thread, std::move(msg));
   }
   else
@@ -377,7 +380,7 @@ bool Replica::compare_execution_results(
 {
   // We are currently not ordering the execution on the backups correctly.
   // This will be resolved in the immediate future.
-  if (enclave::ThreadMessaging::thread_count > 2)
+  if (threading::ThreadMessaging::thread_count > 2)
   {
     return true;
   }
@@ -1896,41 +1899,20 @@ void Replica::send_view_change()
 
   // Create and send view-change message.
   vi.view_change(v, last_executed, &state);
-
-  // Write the view change proof to the ledger
-#ifdef SIGN_BATCH
-  write_view_change_to_ledger();
-#endif
 }
 
-void Replica::write_view_change_to_ledger()
+void Replica::write_new_view_to_ledger()
 {
   if (!ledger_writer)
   {
     return;
   }
 
-  auto principals = get_principals();
-  for (const auto& it : *principals)
-  {
-    const std::shared_ptr<Principal>& p = it.second;
-    if (p == nullptr || !p->is_replica())
-    {
-      continue;
-    }
-    View_change* vc = vi.view_change(p->pid());
-    if (vc == nullptr)
-    {
-      continue;
-    }
-
-    LOG_TRACE_FMT(
-      "Writing view for {} with digest {} to ledger",
-      vc->view(),
-      vc->digest().hash());
-
-    ledger_writer->write_view_change(vc);
-  }
+  auto nv = vi.new_view();
+  PBFT_ASSERT(nv != nullptr, "Invalid state");
+  LOG_TRACE_FMT(
+    "Writing new view: {} from node: {} to ledger", nv->view(), nv->id());
+  ledger_writer->write_new_view(nv);
 }
 
 void Replica::handle(New_principal* m)
@@ -2093,6 +2075,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     ntimer->start();
   }
 
+  write_new_view_to_ledger();
+
   if (!has_nv_state)
   {
 #ifdef DEBUG_SLOW
@@ -2142,7 +2126,6 @@ void Replica::rollback_to_globally_comitted()
   {
     // Rollback to last checkpoint
     PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-
     auto rv = last_gb_version + 1;
 
     if (rollback_cb != nullptr)
@@ -2490,6 +2473,7 @@ void Replica::execute_committed(bool was_f_0)
               pp->seqno());
             return;
           }
+
           last_te_version = ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(
             last_executed + 1 == last_tentative_execute,

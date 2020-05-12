@@ -1713,20 +1713,19 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        auto search = views.find("ccf.pbft.preprepares");
-        if (search != views.end())
+        if (views.find("ccf.pbft.preprepares") != views.end())
         {
           success = DeserialiseSuccess::PASS_PRE_PREPARE;
         }
-        else
+        else if (views.find("ccf.pbft.newviews") != views.end())
         {
-          auto search = views.find("ccf.pbft.requests");
-          if (search == views.end())
-          {
-            // we have deserialised an entry that didn't belong to the pbft
-            // requests nor the pbft pre prepares table
-            return DeserialiseSuccess::FAILED;
-          }
+          success = DeserialiseSuccess::PASS_NEW_VIEW;
+        }
+        else if (views.find("ccf.pbft.requests") == views.end())
+        {
+          // we have deserialised an entry that didn't belong to the pbft
+          // requests, nor the pbft new views, nor the pbft pre prepares table
+          return DeserialiseSuccess::FAILED;
         }
       }
 
