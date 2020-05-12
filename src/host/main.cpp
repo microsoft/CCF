@@ -87,6 +87,13 @@ int main(int argc, char** argv)
     "Address on which to listen for TLS commands coming from other nodes")
     ->required();
 
+  std::string node_address_file = {};
+  app.add_option(
+    "--node-address-file",
+    node_address_file,
+    "Path to which the node's node-to-node address (including potentially "
+    "auto-assigned port) will be written. If empty (default), write nothing");
+
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
     app,
@@ -94,6 +101,13 @@ int main(int argc, char** argv)
     "--rpc-address",
     "Address on which to listen for TLS commands coming from clients")
     ->required();
+
+  std::string rpc_address_file = {};
+  app.add_option(
+    "--rpc-address-file",
+    rpc_address_file,
+    "Path to which the node's RPC address (including potentially "
+    "auto-assigned port) will be written. If empty (default), write nothing");
 
   cli::ParsedAddress public_rpc_address;
   auto public_rpc_address_option = cli::add_address_option(
@@ -510,6 +524,7 @@ int main(int argc, char** argv)
                                  pbft_view_change_timeout,
                                  pbft_status_interval};
   ccf_config.signature_intervals = {sig_max_tx, sig_max_ms};
+  // TODO: Need to do port assignment _before_ this!
   ccf_config.node_info_network = {rpc_address.hostname,
                                   public_rpc_address.hostname,
                                   node_address.hostname,
@@ -577,6 +592,12 @@ int main(int argc, char** argv)
     writer_factory,
     node_address.hostname,
     node_address.port);
+  if (!node_address_file.empty())
+  {
+    files::dump(
+      fmt::format("{}\n{}", node_address.hostname, node_address.port),
+      node_address_file);
+  }
 
   asynchost::NotifyConnections report(
     bp.get_dispatcher(),
@@ -585,7 +606,16 @@ int main(int argc, char** argv)
 
   asynchost::RPCConnections rpc(writer_factory);
   rpc.register_message_handlers(bp.get_dispatcher());
+  // Listen includes DNS resolution and potentially dynamic port assignment (if
+  // requesting port 0). rpc_address will be modified - after calling it holds
+  // the final assigned values.
   rpc.listen(0, rpc_address.hostname, rpc_address.port);
+  if (!rpc_address_file.empty())
+  {
+    files::dump(
+      fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
+      rpc_address_file);
+  }
 
   // Write the node and network certs to disk.
   files::dump(node_cert, node_cert_file);

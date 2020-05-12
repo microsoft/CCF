@@ -18,9 +18,6 @@ namespace asynchost
 
     virtual void on_resolve_failed() {}
     virtual void on_listen_failed() {}
-    virtual void on_listening(
-      const std::string& host, const std::string& service)
-    {}
     virtual void on_accept(TCP& peer) {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
@@ -31,7 +28,7 @@ namespace asynchost
   class TCPServerBehaviour : public TCPBehaviour
   {
   public:
-    std::optional<std::string> listen_address_file = std::nullopt;
+    std::string listen_address_file = "";
 
     virtual void on_resolve_failed() override
     {
@@ -41,16 +38,6 @@ namespace asynchost
     virtual void on_listen_failed() override
     {
       throw std::runtime_error("TCP server listen failed");
-    }
-
-    virtual void on_listening(
-      const std::string& host, const std::string& service) override
-    {
-      if (listen_address_file.has_value())
-      {
-        files::dump(
-          fmt::format("{}\n{}", host, service), listen_address_file.value());
-      }
     }
   };
 
@@ -142,6 +129,16 @@ namespace asynchost
     void set_behaviour(std::unique_ptr<TCPBehaviour> b)
     {
       behaviour = std::move(b);
+    }
+
+    std::string get_host() const
+    {
+      return host;
+    }
+
+    std::string get_service() const
+    {
+      return service;
     }
 
     bool connect(const std::string& host, const std::string& service)
@@ -348,7 +345,6 @@ namespace asynchost
         }
 
         assert_status(LISTENING_RESOLVING, LISTENING);
-        behaviour->on_listening(host, service);
         return;
       }
 

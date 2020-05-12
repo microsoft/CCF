@@ -179,16 +179,15 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp,
       Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      const std::string& host,
-      const std::string& service,
-      const std::optional<std::string>& listen_address_file = std::nullopt) :
+      std::string& host,
+      std::string& service) :
       ledger(ledger),
       to_enclave(writer_factory.create_writer_to_inside())
     {
-      auto behaviour = std::make_unique<NodeServerBehaviour>(*this);
-      behaviour->listen_address_file = listen_address_file;
-      listener->set_behaviour(std::move(behaviour));
+      listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
       listener->listen(host, service);
+      host = listener->get_host();
+      service = listener->get_service();
 
       register_message_handlers(disp);
     }
