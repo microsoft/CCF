@@ -155,6 +155,12 @@ namespace asynchost
 
       NodeServerBehaviour(NodeConnections& parent) : parent(parent) {}
 
+      void on_listening(
+        const std::string& host, const std::string& service) override
+      {
+        LOG_INFO_FMT("Listening for node-to-node on {}:{}", host, service);
+      }
+
       void on_accept(TCP& peer) override
       {
         auto id = parent.get_next_id();

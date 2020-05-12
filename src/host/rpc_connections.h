@@ -69,7 +69,13 @@ namespace asynchost
         id(id)
       {}
 
-      void on_accept(TCP& peer)
+      void on_listening(
+        const std::string& host, const std::string& service) override
+      {
+        LOG_INFO_FMT("Listening for RPCs on {}:{}", host, service);
+      }
+
+      void on_accept(TCP& peer) override
       {
         auto client_id = parent.get_next_id();
         peer->set_behaviour(

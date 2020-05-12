@@ -18,6 +18,11 @@ namespace asynchost
 
     virtual void on_resolve_failed() {}
     virtual void on_listen_failed() {}
+    virtual void on_listening(
+      const std::string& host, const std::string& service)
+    {
+      LOG_INFO_FMT("Listening on {}:{}", host, service);
+    }
     virtual void on_accept(TCP& peer) {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
@@ -345,7 +350,7 @@ namespace asynchost
         }
 
         assert_status(LISTENING_RESOLVING, LISTENING);
-        LOG_INFO_FMT("Listening on {}", get_address_name());
+        behaviour->on_listening(host, service);
         return;
       }
 
