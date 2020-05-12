@@ -384,13 +384,15 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if (*start || *join)
+    if ((*start || *join) && files::exists(ledger_file))
     {
-      if (files::exists(ledger_file))
-      {
-        throw std::logic_error(fmt::format(
-          "Ledger file {} is created by node on start/join", ledger_file));
-      }
+      throw std::logic_error(fmt::format(
+        "On start/join, ledger file should not exist ({})", ledger_file));
+    }
+    else if (*recover && !files::exists(ledger_file))
+    {
+      throw std::logic_error(fmt::format(
+        "On recovery, ledger file should exist ({}) ", ledger_file));
     }
 
     if (*start)
