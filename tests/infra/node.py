@@ -57,12 +57,14 @@ class Node:
         return self.node_id == other.node_id
 
     def _set_ports(self, probably_free_function):
-        if self.rpc_port is None:
-            self.node_port, self.rpc_port = infra.net.two_different(
-                probably_free_function, self.host
-            )
-        else:
-            self.node_port = probably_free_function(self.host)
+        self.rpc_port = 0
+        self.node_port = 0
+        # if self.rpc_port is None:
+        #     self.node_port, self.rpc_port = infra.net.two_different(
+        #         probably_free_function, self.host
+        #     )
+        # else:
+        #     self.node_port = probably_free_function(self.host)
 
     def start(
         self,
@@ -187,7 +189,22 @@ class Node:
             LOG.warning("And sleeping briefly")
             time.sleep(1)
         self.remote.get_startup_files(self.common_dir)
+        self._update_ports()
         LOG.info("Remote {} started".format(self.node_id))
+
+    def _update_ports(self):
+        node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
+        with open(node_address_path, "r") as f:
+            node_host, node_port = f.read().splitlines()
+            assert node_host == self.host, f"Unexpected change in node address from {self.host} to {node_host}"
+            self.node_port = node_port
+
+        rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
+        with open(rpc_address_path, "r") as f:
+            rpc_host, rpc_port = f.read().splitlines()
+            assert rpc_host == self.host, f"Unexpected change in RPC address from {self.host} to {rpc_host}"
+            self.rpc_port = rpc_port
+        LOG.warning(f"Parsed node port {self.node_port} and RPC port {self.rpc_port}")
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:

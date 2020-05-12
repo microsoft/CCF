@@ -345,6 +345,7 @@ namespace asynchost
         }
 
         assert_status(LISTENING_RESOLVING, LISTENING);
+        LOG_INFO_FMT("Listening on {}", get_address_name());
         return;
       }
 
