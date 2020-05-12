@@ -59,6 +59,7 @@ int Byz_init_replica(
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
   ccf::Signatures& signatures,
+  pbft::NewViewsMap& pbft_new_views_map,
   pbft::PbftStore& store,
   IMessageReceiveBase** message_receiver)
 {
@@ -71,6 +72,7 @@ int Byz_init_replica(
     pbft_requests_map,
     pbft_pre_prepares_map,
     signatures,
+    pbft_new_views_map,
     store));
 
   if (message_receiver != nullptr)

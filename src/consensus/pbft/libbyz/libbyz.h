@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "consensus/pbft/pbft_new_views.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_types.h"
@@ -54,6 +55,7 @@ int Byz_init_replica(
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
   ccf::Signatures& signatures,
+  pbft::NewViewsMap& pbft_new_views_map,
   pbft::PbftStore& store_,
   IMessageReceiveBase** message_receiver = nullptr);
 /* Requires: "mem" is vm page aligned and "size" is a multiple of the vm page
