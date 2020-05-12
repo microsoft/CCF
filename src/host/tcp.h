@@ -247,24 +247,56 @@ namespace asynchost
 
       while (addr_current != nullptr)
       {
+        std::string address;
+        {
+          constexpr auto buf_len = UV_IF_NAMESIZE;
+          char buf[buf_len] = {};
+          uint16_t port;
+          if (addr_current->ai_family == AF_INET6)
+          {
+            const auto in6 = (const sockaddr_in6*)addr_current->ai_addr;
+            if (uv_ip6_name(in6, buf, buf_len) == 0)
+            {
+              LOG_FAIL_FMT("Unable to convert IPv6 address to text");
+            }
+            port = ntohs(in6->sin6_port);
+
+            address = fmt::format("[{}]:{}", buf, port);
+          }
+          else
+          {
+            const auto in4 = (const sockaddr_in*)addr_current->ai_addr;
+            if (uv_ip4_name(in4, buf, buf_len) == 0)
+            {
+              LOG_FAIL_FMT("Unable to convert IPv4 address to text");
+            }
+            port = ntohs(in4->sin_port);
+
+            address = fmt::format("{}:{}", buf, port);
+          }
+        }
+
         if ((rc = uv_tcp_bind(&uv_handle, addr_current->ai_addr, 0)) < 0)
         {
           addr_current = addr_current->ai_next;
+          LOG_FAIL_FMT(
+            "uv_tcp_bind failed on {}: {}", address, uv_strerror(rc));
           continue;
         }
 
         if ((rc = uv_listen((uv_stream_t*)&uv_handle, backlog, on_accept)) < 0)
         {
+          LOG_FAIL_FMT("uv_listen failed on {}: {}", address, uv_strerror(rc));
           addr_current = addr_current->ai_next;
           continue;
         }
 
         assert_status(LISTENING_RESOLVING, LISTENING);
+        LOG_INFO_FMT("Listening on {}", address);
         return;
       }
 
       assert_status(LISTENING_RESOLVING, LISTENING_FAILED);
-      LOG_FAIL_FMT("uv_tcp_bind or uv_listen failed: {}", uv_strerror(rc));
       behaviour->on_listen_failed();
     }
 
