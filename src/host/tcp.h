@@ -33,8 +33,6 @@ namespace asynchost
   class TCPServerBehaviour : public TCPBehaviour
   {
   public:
-    std::string listen_address_file = "";
-
     virtual void on_resolve_failed() override
     {
       throw std::runtime_error("TCP server resolve failed");
