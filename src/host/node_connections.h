@@ -148,14 +148,14 @@ namespace asynchost
       }
     };
 
-    class ServerBehaviour : public TCPBehaviour
+    class NodeServerBehaviour : public TCPServerBehaviour
     {
     public:
       NodeConnections& parent;
 
-      ServerBehaviour(NodeConnections& parent) : parent(parent) {}
+      NodeServerBehaviour(NodeConnections& parent) : parent(parent) {}
 
-      void on_accept(TCP& peer)
+      void on_accept(TCP& peer) override
       {
         auto id = parent.get_next_id();
         peer->set_behaviour(std::make_unique<IncomingBehaviour>(parent, id));
@@ -184,7 +184,7 @@ namespace asynchost
       ledger(ledger),
       to_enclave(writer_factory.create_writer_to_inside())
     {
-      listener->set_behaviour(std::make_unique<ServerBehaviour>(*this));
+      listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
       listener->listen(host, service);
 
       register_message_handlers(disp);

@@ -58,28 +58,16 @@ namespace asynchost
       }
     };
 
-    class ServerBehaviour : public TCPBehaviour
+    class RPCServerBehaviour : public TCPServerBehaviour
     {
     public:
       RPCConnections& parent;
       int64_t id;
 
-      ServerBehaviour(RPCConnections& parent, int64_t id) :
+      RPCServerBehaviour(RPCConnections& parent, int64_t id) :
         parent(parent),
         id(id)
       {}
-
-      void on_resolve_failed()
-      {
-        LOG_DEBUG_FMT("rpc resolve failed {}", id);
-        cleanup();
-      }
-
-      void on_listen_failed()
-      {
-        LOG_DEBUG_FMT("rpc connect failed {}", id);
-        cleanup();
-      }
 
       void on_accept(TCP& peer)
       {
@@ -123,7 +111,7 @@ namespace asynchost
       }
 
       TCP s;
-      s->set_behaviour(std::make_unique<ServerBehaviour>(*this, id));
+      s->set_behaviour(std::make_unique<RPCServerBehaviour>(*this, id));
 
       if (!s->listen(host, service))
         return false;

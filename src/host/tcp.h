@@ -25,6 +25,20 @@ namespace asynchost
     virtual void on_disconnect() {}
   };
 
+  class TCPServerBehaviour : public TCPBehaviour
+  {
+  public:
+    virtual void on_resolve_failed() override
+    {
+      throw std::runtime_error("TCP server resolve failed");
+    }
+
+    virtual void on_listen_failed() override
+    {
+      throw std::runtime_error("TCP server listen failed");
+    }
+  };
+
   class TCPImpl : public with_uv_handle<uv_tcp_t>
   {
   private:
