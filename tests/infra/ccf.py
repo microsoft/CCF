@@ -142,7 +142,10 @@ class Network:
 
         # Contact primary if no target node is set
         if target_node is None:
+            for n in self.nodes:
+                LOG.success(f"Node: {n.node_id}")
             target_node, _ = self.find_primary()
+            LOG.error(target_node.host)
 
         node.join(
             lib_name=lib_name,
@@ -200,7 +203,7 @@ class Network:
                 else:
                     self._add_node(node, args.package, args)
             except Exception:
-                LOG.exception("Failed to start node {}".format(i))
+                LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
         LOG.info("All remotes started")
 
@@ -275,8 +278,8 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
-    def start_in_recovery(self, args, ledger_file):
-        self.common_dir = get_common_folder_name(args.workspace, args.label)
+    def start_in_recovery(self, args, ledger_file, common_dir=None):
+        self.common_dir = common_dir or get_common_folder_name(args.workspace, args.label)
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
