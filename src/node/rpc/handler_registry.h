@@ -47,8 +47,7 @@ namespace ccf
     * specific verb and URI, e.g. POST /app/accounts or GET /app/records.
     *
     * Handlers can read from and mutate the state of the replicated key-value
-    store. The effects of Handler execution are handled by the underlying
-    consensus algorithm (either Raft or PBFT).
+    store.
     *
     * A CCF application is a collection of Handlers recorded in the
     application's HandlerRegistry.
@@ -167,8 +166,8 @@ namespace ccf
        *
        * \verbatim embed:rst:leading-asterisk
        * .. warning::
-       *  It is left to the application developer to implement the
-       *  authentication and authorisation mechanisms for the handler.
+       *  If set to false, it is left to the application developer to implement
+       *  the authentication and authorisation mechanisms for the handler.
        * \endverbatim
        *
        * @param v Boolean indicating whether the user identity must be known
@@ -191,20 +190,19 @@ namespace ccf
 
       bool execute_locally = false;
 
-      /** Indicates that the execution of the handler does not require
-       * consensus from other nodes in the network. This has effect only if PBFT
-       * is used as the underlying consensus algorithm.
+      /** Indicates that the execution of the handler does not require consensus
+       * from other nodes in the network.
        *
        * By default, handlers are not executed locally.
        *
        * \verbatim embed:rst:leading-asterisk
        * .. warning::
        *  Use with caution. This should only be used for non-critical handlers
-       *  that do not mutate the state of the key-value store (i.e. read-only).
+       *  that do not read or mutate the state of the key-value store.
        * \endverbatim
        *
        * @param v Boolean indicating whether the handler is executed locally, on
-       * the node
+       * the node receiving the request
        * @return The installed Handler for further modification
        */
       Handler& set_execute_locally(bool v)
@@ -307,7 +305,7 @@ namespace ccf
       return default_handler.value();
     }
 
-    /*** Populate out with all supported methods
+    /** Populate out with all supported methods
      *
      * This is virtual since the default handler may do its own dispatch
      * internally, so derived implementations must be able to populate the list
