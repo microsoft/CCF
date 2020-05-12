@@ -497,6 +497,12 @@ CCF_TO_OE_LOG_LEVEL = {
 }
 
 
+def make_address(host, port=None):
+    if port is not None:
+        return f"{host}:{port}"
+    return host
+
+
 class CCFRemote(object):
     BIN = "cchost"
     DEPS = []
@@ -537,8 +543,6 @@ class CCFRemote(object):
         """
         self.start_type = start_type
         self.local_node_id = local_node_id
-        self.host = host
-        self.pubhost = pubhost
         self.pem = f"{local_node_id}.pem"
         self.node_address_path = f"{local_node_id}.node_address"
         self.rpc_address_path = f"{local_node_id}.rpc_address"
@@ -570,11 +574,11 @@ class CCFRemote(object):
             bin_path,
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
-            f"--node-address={host}:{node_port}",
+            f"--node-address={make_address(host, node_port)}",
             f"--node-address-file={self.node_address_path}",
-            f"--rpc-address={host}:{rpc_port}",
+            f"--rpc-address={make_address(host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",
-            f"--public-rpc-address={pubhost}:{rpc_port}",
+            f"--public-rpc-address={make_address(pubhost, rpc_port)}",
             f"--ledger-file={self.ledger_file_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
