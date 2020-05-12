@@ -151,7 +151,10 @@ namespace asynchost
     bool listen(const std::string& host, const std::string& service)
     {
       assert_status(FRESH, LISTENING_RESOLVING);
-      return resolve(host, service, false);
+      static const std::string zero = "0";
+      LOG_INFO_FMT(
+        "Ignoring {}:{}, I'm listening on {}:{}", host, service, host, zero);
+      return resolve(host, zero, false);
     }
 
     bool write(size_t len, const uint8_t* data)
@@ -241,40 +244,43 @@ namespace asynchost
       return true;
     }
 
+    static std::string convert_address_to_string(
+      int address_family, sockaddr* sa)
+    {
+      constexpr auto buf_len = UV_IF_NAMESIZE;
+      char buf[buf_len] = {};
+      int rc;
+
+      if (address_family == AF_INET6)
+      {
+        const auto in6 = (const sockaddr_in6*)sa;
+        if ((rc = uv_ip6_name(in6, buf, buf_len)) != 0)
+        {
+          LOG_FAIL_FMT("uv_ip6_name failed: {}", uv_strerror(rc));
+        }
+
+        return fmt::format("[{}]:{}", buf, ntohs(in6->sin6_port));
+      }
+      else
+      {
+        const auto in4 = (const sockaddr_in*)sa;
+        if ((rc = uv_ip4_name(in4, buf, buf_len)) != 0)
+        {
+          LOG_FAIL_FMT("uv_ip4_name failed: {}", uv_strerror(rc));
+        }
+
+        return fmt::format("{}:{}", buf, ntohs(in4->sin_port));
+      }
+    }
+
     void listen_resolved()
     {
       int rc;
 
       while (addr_current != nullptr)
       {
-        std::string address;
-        {
-          constexpr auto buf_len = UV_IF_NAMESIZE;
-          char buf[buf_len] = {};
-          uint16_t port;
-          if (addr_current->ai_family == AF_INET6)
-          {
-            const auto in6 = (const sockaddr_in6*)addr_current->ai_addr;
-            if (uv_ip6_name(in6, buf, buf_len) == 0)
-            {
-              LOG_FAIL_FMT("Unable to convert IPv6 address to text");
-            }
-            port = ntohs(in6->sin6_port);
-
-            address = fmt::format("[{}]:{}", buf, port);
-          }
-          else
-          {
-            const auto in4 = (const sockaddr_in*)addr_current->ai_addr;
-            if (uv_ip4_name(in4, buf, buf_len) == 0)
-            {
-              LOG_FAIL_FMT("Unable to convert IPv4 address to text");
-            }
-            port = ntohs(in4->sin_port);
-
-            address = fmt::format("{}:{}", buf, port);
-          }
-        }
+        std::string address = convert_address_to_string(
+          addr_current->ai_family, addr_current->ai_addr);
 
         if ((rc = uv_tcp_bind(&uv_handle, addr_current->ai_addr, 0)) < 0)
         {
@@ -290,6 +296,18 @@ namespace asynchost
           addr_current = addr_current->ai_next;
           continue;
         }
+
+        // If bound on port 0 (ie - asking the OS to assign a port), then we
+        // need to call uv_tcp_getsockname to retrieve the bound port
+        // (addr_current will not contain it)
+        sockaddr_storage sa_storage;
+        const auto sa = (sockaddr*)&sa_storage;
+        int sa_len = sizeof(sa_storage);
+        if ((rc = uv_tcp_getsockname(&uv_handle, sa, &sa_len)) != 0)
+        {
+          LOG_FAIL_FMT("uv_tcp_getsockname failed: {}", uv_strerror(rc));
+        }
+        address = convert_address_to_string(addr_current->ai_family, sa);
 
         assert_status(LISTENING_RESOLVING, LISTENING);
         LOG_INFO_FMT("Listening on {}", address);
