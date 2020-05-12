@@ -16,6 +16,7 @@ from collections import deque
 from loguru import logger as LOG
 
 DBG = os.getenv("DBG", "cgdb")
+FILE_TIMEOUT = 10
 
 _libc = ctypes.CDLL("libc.so.6")
 
@@ -183,7 +184,7 @@ class SSHRemote(CmdMixin):
             session.put(src_path, tgt_path)
         session.close()
 
-    def get(self, file_name, dst_path, timeout=60, target_name=None):
+    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         """
         Get file called `file_name` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
@@ -215,7 +216,7 @@ class SSHRemote(CmdMixin):
             else:
                 raise ValueError(file_name)
 
-    def list_files(self, timeout=60):
+    def list_files(self, timeout=FILE_TIMEOUT):
         files = []
         with sftp_session(self.hostname) as session:
             end_time = time.time() + timeout
@@ -407,7 +408,7 @@ class LocalRemote(CmdMixin):
             src_path = os.path.join(self.common_dir, path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
-    def get(self, file_name, dst_path, timeout=60, target_name=None):
+    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         path = os.path.join(self.root, file_name)
         end_time = time.time() + timeout
         while time.time() < end_time:
@@ -424,7 +425,7 @@ class LocalRemote(CmdMixin):
     def list_files(self):
         return os.listdir(self.root)
 
-    def start(self, timeout=10):
+    def start(self):
         """
         Start cmd. stdout and err are captured to file locally.
         """
