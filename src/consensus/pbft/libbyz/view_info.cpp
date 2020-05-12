@@ -615,6 +615,11 @@ New_view* View_info::my_new_view()
   return last_nvs[id].new_view(t);
 }
 
+New_view* View_info::new_view()
+{
+  return last_nvs[pbft::GlobalState::get_node().primary(view())].new_view();
+}
+
 void View_info::mark_stable(Seqno ls)
 {
   last_stable = ls;

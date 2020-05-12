@@ -56,6 +56,7 @@ Replica::Replica(
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
   ccf::Signatures& signatures,
+  pbft::NewViewsMap& pbft_new_views_map_,
   pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
@@ -66,6 +67,7 @@ Replica::Replica(
   brt(node_info.general_info.num_replicas),
   pbft_requests_map(pbft_requests_map_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_),
+  pbft_new_views_map(pbft_new_views_map_),
   replies(mem, nbytes),
   rep_cb(nullptr),
   global_commit_cb(nullptr),
@@ -163,8 +165,8 @@ Replica::Replica(
 
   exec_command = nullptr;
 
-  ledger_writer =
-    std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map, signatures);
+  ledger_writer = std::make_unique<LedgerWriter>(
+    store, pbft_pre_prepares_map, signatures, pbft_new_views_map);
   encryptor = store.get_encryptor();
 }
 
@@ -1897,41 +1899,20 @@ void Replica::send_view_change()
 
   // Create and send view-change message.
   vi.view_change(v, last_executed, &state);
-
-  // Write the view change proof to the ledger
-#ifdef SIGN_BATCH
-  write_view_change_to_ledger();
-#endif
 }
 
-void Replica::write_view_change_to_ledger()
+void Replica::write_new_view_to_ledger()
 {
   if (!ledger_writer)
   {
     return;
   }
 
-  auto principals = get_principals();
-  for (const auto& it : *principals)
-  {
-    const std::shared_ptr<Principal>& p = it.second;
-    if (p == nullptr || !p->is_replica())
-    {
-      continue;
-    }
-    View_change* vc = vi.view_change(p->pid());
-    if (vc == nullptr)
-    {
-      continue;
-    }
-
-    LOG_TRACE_FMT(
-      "Writing view for {} with digest {} to ledger",
-      vc->view(),
-      vc->digest().hash());
-
-    ledger_writer->write_view_change(vc);
-  }
+  auto nv = vi.new_view();
+  PBFT_ASSERT(nv != nullptr, "Invalid state");
+  LOG_TRACE_FMT(
+    "Writing new view: {} from node: {} to ledger", nv->view(), nv->id());
+  ledger_writer->write_new_view(nv);
 }
 
 void Replica::handle(New_principal* m)
@@ -2094,6 +2075,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     ntimer->start();
   }
 
+  write_new_view_to_ledger();
+
   if (!has_nv_state)
   {
 #ifdef DEBUG_SLOW
@@ -2143,7 +2126,6 @@ void Replica::rollback_to_globally_comitted()
   {
     // Rollback to last checkpoint
     PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-
     auto rv = last_gb_version + 1;
 
     if (rollback_cb != nullptr)
@@ -2491,6 +2473,7 @@ void Replica::execute_committed(bool was_f_0)
               pp->seqno());
             return;
           }
+
           last_te_version = ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(
             last_executed + 1 == last_tentative_execute,
