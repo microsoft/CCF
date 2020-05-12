@@ -29,6 +29,9 @@ namespace ccf
 
   using HandleFunction = std::function<void(RequestArgs& args)>;
 
+  /** The HandlerRegistry records the user-defined Handlers for a given
+   * CCF application.
+   */
   class HandlerRegistry
   {
   public:
@@ -39,6 +42,16 @@ namespace ccf
       MayWrite
     };
 
+    /** A Handler represents a user-defined endpoint that can be invoked by
+    * authorised users via HTTP requests, over TLS. A Handler is accessible at a
+    * specific verb and URI, e.g. POST /app/accounts or GET /app/records.
+    *
+    * Handlers can read from and mutate the state of the replicated key-value
+    store.
+    *
+    * A CCF application is a collection of Handlers recorded in the
+    application's HandlerRegistry.
+    */
     struct Handler
     {
       std::string method;
@@ -48,6 +61,11 @@ namespace ccf
 
       nlohmann::json params_schema = nullptr;
 
+      /** Sets the JSON schema that the request parameters must comply with.
+       *
+       * @param j Request parameters JSON schema
+       * @return The installed Handler for further modification
+       */
       Handler& set_params_schema(const nlohmann::json& j)
       {
         params_schema = j;
@@ -56,12 +74,30 @@ namespace ccf
 
       nlohmann::json result_schema = nullptr;
 
+      /** Sets the JSON schema that the request response must comply with.
+       *
+       * @param j Request response JSON schema
+       * @return The installed Handler for further modification
+       */
       Handler& set_result_schema(const nlohmann::json& j)
       {
         result_schema = j;
         return *this;
       }
 
+      /** Sets the schema that the request parameters and response must comply
+       * with based on JSON-serialisable data structures.
+       *
+       * \verbatim embed:rst:leading-asterisk
+       * .. note::
+       *  See ``DECLARE_JSON_`` serialisation macros for serialising
+       *  user-defined data structures.
+       * \endverbatim
+       *
+       * @tparam In Request parameters JSON-serialisable data structure
+       * @tparam Out Request response JSON-serialisable data structure
+       * @return The installed Handler for further modification
+       */
       template <typename In, typename Out>
       Handler& set_auto_schema()
       {
@@ -86,24 +122,57 @@ namespace ccf
         return *this;
       }
 
+      /** Sets the schema that the request parameters and response must comply
+       * with, based on a single JSON-serialisable data structure.
+       *
+       * \verbatim embed:rst:leading-asterisk
+       * .. note::
+       *   ``T`` data structure should contain two nested ``In`` and ``Out``
+       *   structures for request parameters and response format, respectively.
+       * \endverbatim
+       *
+       * @tparam T Request parameters and response JSON-serialisable data
+       * structure
+       * @return The installed Handler for further modification
+       */
       template <typename T>
       Handler& set_auto_schema()
       {
         return set_auto_schema<typename T::In, typename T::Out>();
       }
 
-      // If true, client request must be signed
       bool require_client_signature = false;
 
+      /** Requires that the HTTP request is cryptographically signed by
+       * the calling user.
+       *
+       * By default, client signatures are not required.
+       *
+       * @param v Boolean indicating whether the request must be signed
+       * @return The installed Handler for further modification
+       */
       Handler& set_require_client_signature(bool v)
       {
         require_client_signature = v;
         return *this;
       }
 
-      // If true, client must be known in certs table
       bool require_client_identity = true;
 
+      /** Requires that the HTTPS request is emitted by a user whose public
+       * identity has been registered in advance by consortium members.
+       *
+       * By default, a known client identity is required.
+       *
+       * \verbatim embed:rst:leading-asterisk
+       * .. warning::
+       *  If set to false, it is left to the application developer to implement
+       *  the authentication and authorisation mechanisms for the handler.
+       * \endverbatim
+       *
+       * @param v Boolean indicating whether the user identity must be known
+       * @return The installed Handler for further modification
+       */
       Handler& set_require_client_identity(bool v)
       {
         if (!v && registry != nullptr && !registry->has_certs())
@@ -119,9 +188,23 @@ namespace ccf
         return *this;
       }
 
-      // If true, request is executed without consensus (PBFT only)
       bool execute_locally = false;
 
+      /** Indicates that the execution of the handler does not require consensus
+       * from other nodes in the network.
+       *
+       * By default, handlers are not executed locally.
+       *
+       * \verbatim embed:rst:leading-asterisk
+       * .. warning::
+       *  Use with caution. This should only be used for non-critical handlers
+       *  that do not read or mutate the state of the key-value store.
+       * \endverbatim
+       *
+       * @param v Boolean indicating whether the handler is executed locally, on
+       * the node receiving the request
+       * @return The installed Handler for further modification
+       */
       Handler& set_execute_locally(bool v)
       {
         execute_locally = v;
@@ -132,6 +215,7 @@ namespace ccf
       // Default is that all verbs are allowed
       uint64_t allowed_verbs_mask = ~0;
 
+      // https://github.com/microsoft/CCF/issues/1102
       Handler& set_allowed_verbs(std::set<http_method>&& allowed_verbs)
       {
         // Reset mask to disallow everything
@@ -146,11 +230,19 @@ namespace ccf
         return *this;
       }
 
+      /** Indicates that the handler is only accessible via the GET HTTP verb.
+       *
+       * @return The installed Handler for further modification
+       */
       Handler& set_http_get_only()
       {
         return set_allowed_verbs({HTTP_GET});
       }
 
+      /** Indicates that the handler is only accessible via the POST HTTP verb.
+       *
+       * @return The installed Handler for further modification
+       */
       Handler& set_http_post_only()
       {
         return set_allowed_verbs({HTTP_POST});
@@ -185,7 +277,7 @@ namespace ccf
      * @param method Method name
      * @param f Method implementation
      * @param read_write Flag if method will Read, Write, MayWrite
-     * @return Returns the installed Handler for further modification
+     * @return The installed Handler for further modification
      */
     Handler& install(
       const std::string& method, HandleFunction f, ReadWrite read_write)
@@ -205,7 +297,7 @@ namespace ccf
      *
      * @param f Method implementation
      * @param read_write Flag if method will Read, Write, MayWrite
-     * @return Returns the installed Handler for further modification
+     * @return The installed Handler for further modification
      */
     Handler& set_default(HandleFunction f, ReadWrite read_write)
     {
