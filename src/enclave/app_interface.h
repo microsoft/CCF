@@ -7,7 +7,7 @@
 namespace ccfapp
 {
   // SNIPPET_START: rpc_handler
-  /** To be implemented by the CCF application
+  /** To be implemented by the application to be registered by CCF.
    *
    * @param network Access to the network's tables
    * @param notifier Access to host notification service

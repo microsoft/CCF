@@ -15,11 +15,6 @@
 
 namespace ccf
 {
-  /** TODO:
-   *
-   *
-   *
-   */
   struct RequestArgs
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
@@ -34,19 +29,12 @@ namespace ccf
 
   using HandleFunction = std::function<void(RequestArgs& args)>;
 
-  /** TODO:
-   *
-   *
-   *
-   *
+  /** The HandlerRegistry records the user-defined Handlers for a given
+   * CCF application.
    */
   class HandlerRegistry
   {
   public:
-    /** TODO:
-     *
-     *
-     */
     enum ReadWrite
     {
       Read,
@@ -54,10 +42,16 @@ namespace ccf
       MayWrite
     };
 
-    /** @brief A <code>Handler</code> represents a user-defined endpoint that
-    can be triggered by authorised users via HTTP requests. A handler is
-    accessible at a specific verb and URI, e.g. POST /app/accounts or GET
-    /app/records.
+    /** A Handler represents a user-defined endpoint that can be invoked by
+    * authorised users via HTTP requests, over TLS. A Handler is accessible at a
+    * specific verb and URI, e.g. POST /app/accounts or GET /app/records.
+    *
+    * Handlers can read from and mutate the state of the replicated key-value
+    store. The effects of Handler execution are handled by the underlying
+    consensus algorithm (either Raft or PBFT).
+    *
+    * A CCF application is a collection of Handlers recorded in the
+    application's HandlerRegistry.
     */
     struct Handler
     {
@@ -68,10 +62,10 @@ namespace ccf
 
       nlohmann::json params_schema = nullptr;
 
-      /** Sets the JSON schema that the request parameters must comply to.
+      /** Sets the JSON schema that the request parameters must comply with.
        *
-       * @param j JSON schema
-       * @return Returns the installed Handler for further modification
+       * @param j Request parameters JSON schema
+       * @return The installed Handler for further modification
        */
       Handler& set_params_schema(const nlohmann::json& j)
       {
@@ -81,10 +75,10 @@ namespace ccf
 
       nlohmann::json result_schema = nullptr;
 
-      /** Sets the JSON schema that the request response must comply to.
+      /** Sets the JSON schema that the request response must comply with.
        *
-       * @param j JSON schema
-       * @return Returns the installed Handler for further modification
+       * @param j Request response JSON schema
+       * @return The installed Handler for further modification
        */
       Handler& set_result_schema(const nlohmann::json& j)
       {
@@ -92,11 +86,18 @@ namespace ccf
         return *this;
       }
 
-      /** Sets the schema that the request TODO:...
+      /** Sets the schema that the request parameters and response must comply
+       * with based on JSON-serialisable data structures.
        *
+       * \verbatim embed:rst:leading-asterisk
+       * .. note::
+       *  See ``DECLARE_JSON_`` serialisation macros for serialising
+       *  user-defined data structures.
+       * \endverbatim
        *
-       * @tparam In lala
-       * @tparam Out lala
+       * @tparam In Request parameters JSON-serialisable data structure
+       * @tparam Out Request response JSON-serialisable data structure
+       * @return The installed Handler for further modification
        */
       template <typename In, typename Out>
       Handler& set_auto_schema()
@@ -122,9 +123,18 @@ namespace ccf
         return *this;
       }
 
-      /** TODO:
+      /** Sets the schema that the request parameters and response must comply
+       * with, based on a single JSON-serialisable data structure.
        *
+       * \verbatim embed:rst:leading-asterisk
+       * .. note::
+       *   ``T`` data structure should contain two nested ``In`` and ``Out``
+       *   structures for request parameters and response format, respectively.
+       * \endverbatim
        *
+       * @tparam T Request parameters and response JSON-serialisable data
+       * structure
+       * @return The installed Handler for further modification
        */
       template <typename T>
       Handler& set_auto_schema()
@@ -132,7 +142,6 @@ namespace ccf
         return set_auto_schema<typename T::In, typename T::Out>();
       }
 
-      // If true, client request must be signed
       bool require_client_signature = false;
 
       /** Requires that the HTTP request is cryptographically signed by
@@ -141,7 +150,7 @@ namespace ccf
        * By default, client signatures are not required.
        *
        * @param v Boolean indicating whether the request must be signed
-       * @return Returns the installed Handler for further modification
+       * @return The installed Handler for further modification
        */
       Handler& set_require_client_signature(bool v)
       {
@@ -149,19 +158,21 @@ namespace ccf
         return *this;
       }
 
-      // If true, client must be known in certs table
       bool require_client_identity = true;
 
-      /** Requires that the HTTP request is emitted by a user whose public
+      /** Requires that the HTTPS request is emitted by a user whose public
        * identity has been registered in advance by consortium members.
        *
        * By default, a known client identity is required.
        *
-       * Warning: It is left to the application developer to implement the
-       * authentication and authorisation mechanism for the handler.
+       * \verbatim embed:rst:leading-asterisk
+       * .. warning::
+       *  It is left to the application developer to implement the
+       *  authentication and authorisation mechanisms for the handler.
+       * \endverbatim
        *
        * @param v Boolean indicating whether the user identity must be known
-       * @return Returns the installed Handler for further modification
+       * @return The installed Handler for further modification
        */
       Handler& set_require_client_identity(bool v)
       {
@@ -178,7 +189,6 @@ namespace ccf
         return *this;
       }
 
-      // If true, request is executed without consensus (PBFT only)
       bool execute_locally = false;
 
       /** Indicates that the execution of the handler does not require
@@ -187,13 +197,15 @@ namespace ccf
        *
        * By default, handlers are not executed locally.
        *
-       * Warning: Use with caution. This should only be used for non-critical
-       * handlers that do not mutate the state of the key-value store (i.e.
-       * read-only).
+       * \verbatim embed:rst:leading-asterisk
+       * .. warning::
+       *  Use with caution. This should only be used for non-critical handlers
+       *  that do not mutate the state of the key-value store (i.e. read-only).
+       * \endverbatim
        *
        * @param v Boolean indicating whether the handler is executed locally, on
        * the node
-       * @return Returns the installed Handler for further modification
+       * @return The installed Handler for further modification
        */
       Handler& set_execute_locally(bool v)
       {
@@ -220,18 +232,18 @@ namespace ccf
         return *this;
       }
 
-      /** Indicates that the handler will be triggered for the GET HTTP verb.
+      /** Indicates that the handler is only accessible via the GET HTTP verb.
        *
-       * @return Returns the installed Handler for further modification
+       * @return The installed Handler for further modification
        */
       Handler& set_http_get_only()
       {
         return set_allowed_verbs({HTTP_GET});
       }
 
-      /** Indicates that the handler will be triggered for the POST HTTP verb.
+      /** Indicates that the handler is only accessible via the POST HTTP verb.
        *
-       * @return Returns the installed Handler for further modification
+       * @return The installed Handler for further modification
        */
       Handler& set_http_post_only()
       {
@@ -259,7 +271,7 @@ namespace ccf
 
     virtual ~HandlerRegistry() {}
 
-    /*** Install HandleFunction for method name
+    /** Install HandleFunction for method name
      *
      * If an implementation is already installed for that method, it will be
      * replaced.
@@ -267,7 +279,8 @@ namespace ccf
      * @param method Method name
      * @param f Method implementation
      * @param read_write Flag if method will Read, Write, MayWrite
-     * @return Returns the installed Handler for further modification
+     * @return Returns the installed <code>Handler</code> for further
+     * modification
      */
     Handler& install(
       const std::string& method, HandleFunction f, ReadWrite read_write)
@@ -280,14 +293,15 @@ namespace ccf
       return handler;
     }
 
-    /*** Set a default HandleFunction
+    /** Set a default HandleFunction
      *
      * The default HandleFunction is only invoked if no specific HandleFunction
      * was found.
      *
      * @param f Method implementation
      * @param read_write Flag if method will Read, Write, MayWrite
-     * @return Returns the installed Handler for further modification
+     * @return Returns the installed <code>Handler</code> for further
+     * modification
      */
     Handler& set_default(HandleFunction f, ReadWrite read_write)
     {
