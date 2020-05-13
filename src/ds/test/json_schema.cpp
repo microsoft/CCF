@@ -168,9 +168,9 @@ TEST_CASE("schema generation")
   }
 }
 
-TEST_CASE("schema types")
+TEST_CASE_TEMPLATE("schema types, integer", T, size_t, ssize_t)
 {
-  std::map<size_t, std::string> m;
+  std::map<T, std::string> m;
   const auto schema = ds::json::build_schema<decltype(m)>("Map");
 
   REQUIRE(schema["type"] == "array");
@@ -183,9 +183,9 @@ TEST_CASE("schema types")
   REQUIRE(schema["items"]["items"][1]["type"] == "string");
 }
 
-TEST_CASE("schema types II")
+TEST_CASE_TEMPLATE("schema types, floating point", T, float, double)
 {
-  std::map<size_t, float> m;
+  std::map<size_t, T> m;
   const auto schema = ds::json::build_schema<decltype(m)>("Map");
 
   REQUIRE(schema["type"] == "array");
