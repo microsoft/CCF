@@ -7,22 +7,22 @@
         "high": {
           "maximum": 2147483647,
           "minimum": -2147483648,
-          "type": "number"
+          "type": "integer"
         },
         "low": {
           "maximum": 2147483647,
           "minimum": -2147483648,
-          "type": "number"
+          "type": "integer"
         },
         "overflow": {
           "maximum": 18446744073709551615,
           "minimum": 0,
-          "type": "number"
+          "type": "integer"
         },
         "underflow": {
           "maximum": 18446744073709551615,
           "minimum": 0,
-          "type": "number"
+          "type": "integer"
         }
       },
       "required": [

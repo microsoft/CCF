@@ -4,12 +4,12 @@
     "commit": {
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
-      "type": "number"
+      "type": "integer"
     },
     "term": {
       "maximum": 18446744073709551615,
       "minimum": 0,
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
