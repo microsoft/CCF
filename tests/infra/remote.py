@@ -16,7 +16,7 @@ from collections import deque
 from loguru import logger as LOG
 
 DBG = os.getenv("DBG", "cgdb")
-FILE_TIMEOUT = 10
+FILE_TIMEOUT = 60
 
 _libc = ctypes.CDLL("libc.so.6")
 
