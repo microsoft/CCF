@@ -36,7 +36,7 @@ class Node:
 
         hosts, *port = host.split(":")
         self.host, *self.pubhost = hosts.split(",")
-        self.rpc_port = port[0] if port else None
+        self.rpc_port = int(port[0]) if port else None
         self.node_port = None
 
         if self.host == "localhost":
@@ -178,6 +178,7 @@ class Node:
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
         with open(node_address_path, "r") as f:
             node_host, node_port = f.read().splitlines()
+            node_port = int(node_port)
             assert (
                 node_host == self.host
             ), f"Unexpected change in node address from {self.host} to {node_host}"
@@ -190,6 +191,7 @@ class Node:
         rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
         with open(rpc_address_path, "r") as f:
             rpc_host, rpc_port = f.read().splitlines()
+            rpc_port = int(rpc_port)
             assert (
                 rpc_host == self.host
             ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
