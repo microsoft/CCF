@@ -16,6 +16,7 @@ from collections import deque
 from loguru import logger as LOG
 
 DBG = os.getenv("DBG", "cgdb")
+FILE_TIMEOUT = 60
 
 _libc = ctypes.CDLL("libc.so.6")
 
@@ -183,7 +184,7 @@ class SSHRemote(CmdMixin):
             session.put(src_path, tgt_path)
         session.close()
 
-    def get(self, file_name, dst_path, timeout=60, target_name=None):
+    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         """
         Get file called `file_name` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
@@ -215,7 +216,7 @@ class SSHRemote(CmdMixin):
             else:
                 raise ValueError(file_name)
 
-    def list_files(self, timeout=60):
+    def list_files(self, timeout=FILE_TIMEOUT):
         files = []
         with sftp_session(self.hostname) as session:
             end_time = time.time() + timeout
@@ -407,7 +408,7 @@ class LocalRemote(CmdMixin):
             src_path = os.path.join(self.common_dir, path)
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
 
-    def get(self, file_name, dst_path, timeout=60, target_name=None):
+    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         path = os.path.join(self.root, file_name)
         end_time = time.time() + timeout
         while time.time() < end_time:
@@ -424,7 +425,7 @@ class LocalRemote(CmdMixin):
     def list_files(self):
         return os.listdir(self.root)
 
-    def start(self, timeout=10):
+    def start(self):
         """
         Start cmd. stdout and err are captured to file locally.
         """
@@ -496,6 +497,12 @@ CCF_TO_OE_LOG_LEVEL = {
 }
 
 
+def make_address(host, port=None):
+    if port is not None:
+        return f"{host}:{port}"
+    return host
+
+
 class CCFRemote(object):
     BIN = "cchost"
     DEPS = []
@@ -536,11 +543,9 @@ class CCFRemote(object):
         """
         self.start_type = start_type
         self.local_node_id = local_node_id
-        self.host = host
-        self.pubhost = pubhost
-        self.node_port = node_port
-        self.rpc_port = rpc_port
-        self.pem = "{}.pem".format(local_node_id)
+        self.pem = f"{local_node_id}.pem"
+        self.node_address_path = f"{local_node_id}.node_address"
+        self.rpc_address_path = f"{local_node_id}.rpc_address"
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
@@ -569,9 +574,11 @@ class CCFRemote(object):
             bin_path,
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
-            f"--node-address={host}:{node_port}",
-            f"--rpc-address={host}:{rpc_port}",
-            f"--public-rpc-address={pubhost}:{rpc_port}",
+            f"--node-address={make_address(host, node_port)}",
+            f"--node-address-file={self.node_address_path}",
+            f"--rpc-address={make_address(host, rpc_port)}",
+            f"--rpc-address-file={self.rpc_address_path}",
+            f"--public-rpc-address={make_address(pubhost, rpc_port)}",
             f"--ledger-file={self.ledger_file_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
@@ -676,6 +683,8 @@ class CCFRemote(object):
 
     def get_startup_files(self, dst_path):
         self.remote.get(self.pem, dst_path)
+        self.remote.get(self.node_address_path, dst_path)
+        self.remote.get(self.rpc_address_path, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
             self.remote.get("network_enc_pubk.pem", dst_path)

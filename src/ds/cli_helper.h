@@ -26,14 +26,11 @@ namespace cli
 
       auto addr = results[0];
       auto found = addr.find_last_of(":");
-      if (found == std::string::npos)
-      {
-        throw CLI::ValidationError(
-          option_name, "Address is not in format host:port");
-      }
-
       auto hostname = addr.substr(0, found);
-      auto port = addr.substr(found + 1);
+
+      // If no port is specified, use port 0 (auto-assign a free port)
+      const auto port =
+        found == std::string::npos ? "0" : addr.substr(found + 1);
 
       // Check if port is in valid range
       int port_int;
@@ -45,10 +42,10 @@ namespace cli
       {
         throw CLI::ValidationError(option_name, "Port is not a number");
       }
-      if (port_int <= 0 || port_int > 65535)
+      if (port_int < 0 || port_int > 65535)
       {
         throw CLI::ValidationError(
-          option_name, "Port number is not in range 1-65535");
+          option_name, "Port number is not in range 0-65535");
       }
 
       parsed.hostname = hostname;
