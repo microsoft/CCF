@@ -19,26 +19,71 @@ from loguru import logger as LOG
 
 class Consortium:
     def __init__(
-        self, member_ids, curve, key_generator, common_dir, recovery_threshold=None
+        self,
+        common_dir,
+        key_generator,
+        member_ids=None,
+        curve=None,
+        recovery_threshold=None,
     ):
         self.common_dir = common_dir
         self.members = []
         self.key_generator = key_generator
-        self.common_dir = common_dir
-        for m_id in member_ids:
-            new_member = infra.member.Member(m_id, curve, key_generator, common_dir)
+        self.members = []
+        self.default_curve = curve
+        for m_id in member_ids or []:
+            new_member = infra.member.Member(
+                m_id, self.default_curve, common_dir, key_generator
+            )
             new_member.set_active()
             self.members.append(new_member)
         self.recovery_threshold = (
             recovery_threshold if recovery_threshold is not None else len(self.members)
         )
 
+    # TODO: Does the consortium keep track of the member IDs during retirement/addition?
+    # TODO: Can we merge this with the constructor?
+    def init_consortium_recovery(self, remote_node):
+        # TODO: How do we know that member_id=0 is not retired?
+        with remote_node.member_client(member_id=0) as nc:
+            r = nc.rpc(
+                "query",
+                {
+                    "text": """tables = ...
+                    active_members_id = {}
+                    accepted_members_id = {}
+                    non_retired_members = {}
+                    tables["ccf.members"]:foreach(function(member_id, details)
+                      -- if details["status"] == "ACTIVE" then
+                      --   table.insert(active_members_id, member_id)
+                      -- elseif details["status"] == "ACCEPTED" then
+                      --   table.insert(accepted_members_id, member_id)
+                      -- end
+                      if details["status"] ~= "RETIRED" then
+                        table.insert(non_retired_members, {member_id, details["status"]})
+                      end
+                    end)
+                    -- return {accepted_members_id, active_members_id}
+                    return non_retired_members
+                    """
+                },
+            )
+            for m in r.result:
+                new_member = infra.member.Member(
+                    m[0], self.default_curve, self.common_dir
+                )
+                if infra.member.MemberStatus[m[1]] == infra.member.MemberStatus.ACTIVE:
+                    new_member.set_active()
+                self.members.append(new_member)
+                LOG.info(f"Successfully recovered {m[1]} member {m[0]}")
+            input()
+
     def generate_and_propose_new_member(self, remote_node, curve):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
         new_member_id = len(self.members)
         new_member = infra.member.Member(
-            new_member_id, curve, self.key_generator, self.common_dir
+            new_member_id, curve, self.common_dir, self.key_generator
         )
 
         script = """

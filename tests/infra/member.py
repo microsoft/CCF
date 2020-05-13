@@ -23,22 +23,23 @@ class MemberStatus(Enum):
 
 
 class Member:
-    def __init__(self, member_id, curve, key_generator, common_dir):
+    def __init__(self, member_id, curve, common_dir, key_generator=None):
         self.key_generator = key_generator
         self.common_dir = common_dir
         self.member_id = member_id
         self.status = MemberStatus.ACCEPTED
 
-        # For now, all members are given an encryption key (for recovery)
-        member = f"member{member_id}"
-        infra.proc.ccall(
-            self.key_generator,
-            f"--name={member}",
-            f"--curve={curve.name}",
-            "--gen-enc-key",
-            path=self.common_dir,
-            log_output=False,
-        ).check_returncode()
+        if key_generator:
+            # For now, all members are given an encryption key (for recovery)
+            member = f"member{member_id}"
+            infra.proc.ccall(
+                self.key_generator,
+                f"--name={member}",
+                f"--curve={curve.name}",
+                "--gen-enc-key",
+                path=self.common_dir,
+                log_output=False,
+            ).check_returncode()
 
     def is_active(self):
         return self.status == MemberStatus.ACTIVE

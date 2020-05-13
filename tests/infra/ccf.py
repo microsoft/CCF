@@ -87,7 +87,7 @@ class Network:
     ):
         self.existing_network = existing_network
         if self.existing_network is None:
-            self.consortium = []
+            self.consortium = None
             self.node_offset = 0
             self.txs = txs
         else:
@@ -144,10 +144,7 @@ class Network:
 
         # Contact primary if no target node is set
         if target_node is None:
-            for n in self.nodes:
-                LOG.success(f"Node: {n.node_id}")
             target_node, _ = self.find_primary()
-            LOG.error(target_node.host)
 
         node.join(
             lib_name=lib_name,
@@ -227,10 +224,10 @@ class Network:
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
-        LOG.info("All remotes started")
+        LOG.info("All nodes started")
 
         primary, _ = self.find_primary()
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
+        # self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
 
         return primary
 
@@ -265,10 +262,10 @@ class Network:
 
         initial_member_ids = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
+            self.common_dir,
+            self.key_generator,
             initial_member_ids,
             args.participants_curve,
-            self.key_generator,
-            self.common_dir,
         )
         initial_users = list(range(max(0, args.initial_user_count)))
         self.create_users(initial_users, args.participants_curve)
@@ -300,11 +297,18 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
+    # TODO: It feels like common_dir should be passed at network creation, not here!!
     def start_in_recovery(self, args, ledger_file, common_dir=None):
+        if common_dir:
+            self.consortium = infra.consortium.Consortium(
+                common_dir, self.key_generator
+            )
+
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
+        self.consortium.init_consortium_recovery(primary)
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
 
@@ -318,7 +322,7 @@ class Network:
             if fatal_errors:
                 fatal_error_found = True
 
-        LOG.info("All remotes stopped...")
+        LOG.info("All nodes stopped...")
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
