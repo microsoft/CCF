@@ -4,6 +4,10 @@ Introduction
 Overview
 --------
 
+.. image:: img/ccf.svg
+  :width: 250
+  :align: right
+
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
 and performant applications that focus on multi-party compute and data. While not limited just to blockchain applications,
 CCF can enable high-scale, confidential blockchain networks that meet key enterprise requirements
@@ -17,7 +21,7 @@ CCF enables enterprise-ready computation or blockchain networks that deliver:
    effectively verify the entire network. This simplifies consensus and thus improves transaction speed and latency — all without compromising security or assuming trust.
 
  * **Richer, more flexible confidentiality models.** Beyond safeguarding data access with encryption-in-use via TEEs, we use industry standards (:term:`TLS` and remote attestation)
-   to ensure secure node communication. Transactions can be processed in the clear or revealed only to authorized parties, without requiring complicated confidentiality schemes. 
+   to ensure secure node communication. Transactions can be processed in the clear or revealed only to authorized parties, without requiring complicated confidentiality schemes.
 
  * **Network and service policy management through non-centralized governance.** The framework provides a network and service configuration to express and manage consortium
    and multi-party policies. Governance actions, such as adding members to the governing consortium or initiating catastrophic recovery, can be managed and recorded through
@@ -31,13 +35,11 @@ A consortium first approach
 
 In a public blockchain network, anyone can transact on the network, actors on the network are pseudo-anonymous and untrusted, and anyone can add nodes to the network
 — with full access to the ledger and with the ability to participate in consensus. Similarly, other distributed data technologies (such as distributed databases)
-can have challenges in multi-party scenarios when it comes to deciding what party operates it and whether that party could choose or could be compelled to act maliciously. 
- 
+can have challenges in multi-party scenarios when it comes to deciding what party operates it and whether that party could choose or could be compelled to act maliciously.
+
 In contrast, in a consortium or multi-party network backed by TEEs, such as CCF, consortium member identities and node identities are known and controlled.
 A trusted network of enclaves running on physical nodes is established without requiring the actors that control those nodes to trust one another
-—  what code is run is controlled and correctness of its output can be guaranteed, simplifying the consensus methods and reducing duplicative validation of data. 
-
-.. image:: img/ccf.svg
+—  what code is run is controlled and correctness of its output can be guaranteed, simplifying the consensus methods and reducing duplicative validation of data.
 
 Microsoft has taken this approach in developing CCF: using :term:`TEE` technology, the enclave of each node in the network (where cryptographically protected data is processed)
 can decide whether it can trust the enclaves of other nodes based on mutual attestation exchange and mutual authentication, regardless of whether the parties involved

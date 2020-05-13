@@ -38,10 +38,6 @@ View_change::View_change(View v, Seqno ls, int id) :
   rep().digest_signature.fill(0);
   rep().padding.fill(0);
 #endif
-
-#ifdef USE_PKEY_VIEW_CHANGES
-  rep().vc_sig_size = 0;
-#endif
   PBFT_ASSERT(ALIGNED(req_info()), "Improperly aligned pointer");
 }
 
@@ -166,9 +162,6 @@ void View_change::re_authenticate(Principal* p)
     rep().digest_signature.fill(0);
 #endif
 
-#ifdef USE_PKEY_VIEW_CHANGES
-    rep().vc_sig_size = 0;
-#endif
     rep().digest = Digest(contents(), old_size);
 
 #ifdef SIGN_BATCH
@@ -178,10 +171,7 @@ void View_change::re_authenticate(Principal* p)
       rep().digest_signature);
 #endif
 
-#ifdef USE_PKEY_VIEW_CHANGES
-    rep().vc_sig_size = pbft::GlobalState::get_node().gen_signature(
-      contents(), old_size, contents() + old_size);
-#else
+#ifndef USE_PKEY_VIEW_CHANGES
     auth_type = Auth_type::out;
     auth_len = old_size;
     auth_dst_offset = old_size;
@@ -261,11 +251,6 @@ bool View_change::verify_digest()
   rep().digest_sig_size = 0;
 #endif
 
-#ifdef USE_PKEY_VIEW_CHANGES
-  auto previous_vc_sig_size = rep().vc_sig_size;
-  rep().vc_sig_size = 0;
-#endif
-
   bool verified =
     (d ==
      Digest(
@@ -275,9 +260,6 @@ bool View_change::verify_digest()
 #ifdef SIGN_BATCH
   rep().digest_signature = previous_digest_signature; // restore signature
   rep().digest_sig_size = previous_digest_sig_size; // restore signature size
-#endif
-#ifdef USE_PKEY_VIEW_CHANGES
-  rep().vc_sig_size = previous_vc_sig_size;
 #endif
   return verified;
 }

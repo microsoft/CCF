@@ -32,7 +32,7 @@ Request::Request(Request_id r, short rr, uint32_t msg_size) :
 {
   rep().cid = pbft::GlobalState::get_node().id();
   rep().rid = r;
-  rep().uid = thread_ids[std::this_thread::get_id()];
+  rep().uid = threading::get_current_thread_id();
   rep().replier = rr;
   rep().command_size = 0;
   set_size(sizeof(Request_rep));
