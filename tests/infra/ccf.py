@@ -85,20 +85,21 @@ class Network:
         existing_network=None,
         txs=None,
     ):
-        if existing_network is None:
+        self.existing_network = existing_network
+        if self.existing_network is None:
             self.consortium = []
             self.node_offset = 0
             self.txs = txs
         else:
-            self.consortium = existing_network.consortium
+            self.consortium = self.existing_network.consortium
             # When creating a new network from an existing one (e.g. for recovery),
             # the node id of the nodes of the new network should start from the node
             # id of the existing network, so that new nodes id match the ones in the
             # nodes KV table
             self.node_offset = (
-                len(existing_network.nodes) + existing_network.node_offset
+                len(self.existing_network.nodes) + self.existing_network.node_offset
             )
-            self.txs = existing_network.txs
+            self.txs = self.existing_network.txs
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
@@ -132,6 +133,7 @@ class Network:
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
         node = infra.node.Node(node_id, host, self.binary_dir, debug, perf)
+        LOG.success(f"Creating node {node.node_id} at {node.host}")
         self.nodes.append(node)
         return node
 
@@ -165,6 +167,20 @@ class Network:
                     LOG.error(f"New node {node.node_id} failed to join the network")
                     raise
             node.network_state = infra.node.NodeNetworkState.joined
+
+    def _adjust_local_node_ids(self, primary):
+        assert (
+            self.existing_network is None
+        ), "Cannot adjust local node IDs if the network was started from an existing network"
+
+        with primary.node_client() as nc:
+            r = nc.get("getPrimaryInfo")
+            first_node_id = r.result["primary_id"]
+            assert (r.result["primary_host"] == primary.host) and (
+                int(r.result["primary_port"]) == primary.rpc_port
+            ), f"Primary is not the node that just started"
+            for n in self.nodes:
+                n.node_id = n.node_id + first_node_id
 
     def _start_all_nodes(self, args, recovery=False, ledger_file=None):
         hosts = self.hosts
@@ -200,6 +216,12 @@ class Network:
                             common_dir=self.common_dir,
                             **forwarded_args,
                         )
+                        # When a recovery network in started without an existing network,
+                        # it is not possible to know the local node IDs before the first
+                        # node is started and has recovered the ledger. The local node IDs
+                        # are adjusted accordingly then.
+                        if self.existing_network is None:
+                            self._adjust_local_node_ids(node)
                 else:
                     self._add_node(node, args.package, args)
             except Exception:
@@ -279,7 +301,9 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(self, args, ledger_file, common_dir=None):
-        self.common_dir = common_dir or get_common_folder_name(args.workspace, args.label)
+        self.common_dir = common_dir or get_common_folder_name(
+            args.workspace, args.label
+        )
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined recovered public network")
