@@ -58,30 +58,24 @@ namespace asynchost
       }
     };
 
-    class ServerBehaviour : public TCPBehaviour
+    class RPCServerBehaviour : public TCPServerBehaviour
     {
     public:
       RPCConnections& parent;
       int64_t id;
 
-      ServerBehaviour(RPCConnections& parent, int64_t id) :
+      RPCServerBehaviour(RPCConnections& parent, int64_t id) :
         parent(parent),
         id(id)
       {}
 
-      void on_resolve_failed()
+      void on_listening(
+        const std::string& host, const std::string& service) override
       {
-        LOG_DEBUG_FMT("rpc resolve failed {}", id);
-        cleanup();
+        LOG_INFO_FMT("Listening for RPCs on {}:{}", host, service);
       }
 
-      void on_listen_failed()
-      {
-        LOG_DEBUG_FMT("rpc connect failed {}", id);
-        cleanup();
-      }
-
-      void on_accept(TCP& peer)
+      void on_accept(TCP& peer) override
       {
         auto client_id = parent.get_next_id();
         peer->set_behaviour(
@@ -111,7 +105,7 @@ namespace asynchost
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
-    bool listen(int64_t id, const std::string& host, const std::string& service)
+    bool listen(int64_t id, std::string& host, std::string& service)
     {
       if (id == 0)
         id = get_next_id();
@@ -123,10 +117,13 @@ namespace asynchost
       }
 
       TCP s;
-      s->set_behaviour(std::make_unique<ServerBehaviour>(*this, id));
+      s->set_behaviour(std::make_unique<RPCServerBehaviour>(*this, id));
 
       if (!s->listen(host, service))
         return false;
+
+      host = s->get_host();
+      service = s->get_service();
 
       sockets.emplace(id, s);
       return true;

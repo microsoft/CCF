@@ -148,14 +148,20 @@ namespace asynchost
       }
     };
 
-    class ServerBehaviour : public TCPBehaviour
+    class NodeServerBehaviour : public TCPServerBehaviour
     {
     public:
       NodeConnections& parent;
 
-      ServerBehaviour(NodeConnections& parent) : parent(parent) {}
+      NodeServerBehaviour(NodeConnections& parent) : parent(parent) {}
 
-      void on_accept(TCP& peer)
+      void on_listening(
+        const std::string& host, const std::string& service) override
+      {
+        LOG_INFO_FMT("Listening for node-to-node on {}:{}", host, service);
+      }
+
+      void on_accept(TCP& peer) override
       {
         auto id = parent.get_next_id();
         peer->set_behaviour(std::make_unique<IncomingBehaviour>(parent, id));
@@ -179,13 +185,15 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp,
       Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      const std::string& host,
-      const std::string& service) :
+      std::string& host,
+      std::string& service) :
       ledger(ledger),
       to_enclave(writer_factory.create_writer_to_inside())
     {
-      listener->set_behaviour(std::make_unique<ServerBehaviour>(*this));
+      listener->set_behaviour(std::make_unique<NodeServerBehaviour>(*this));
       listener->listen(host, service);
+      host = listener->get_host();
+      service = listener->get_service();
 
       register_message_handlers(disp);
     }
