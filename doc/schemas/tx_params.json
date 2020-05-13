@@ -4,12 +4,12 @@
     "seqno": {
       "maximum": 4294967295,
       "minimum": 0,
-      "type": "number"
+      "type": "integer"
     },
     "view": {
       "maximum": 18446744073709551615,
       "minimum": 0,
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
