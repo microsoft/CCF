@@ -136,5 +136,5 @@ bool New_view::pre_verify()
   }
   LOG_TRACE_FMT("new view has verified {} view change messages", proof_count);
 
-  return proof_count >= (2 * pbft::GlobalState::get_node().f() + 1);
+  return proof_count >= pbft::GlobalState::get_node().num_correct_replicas();
 }
