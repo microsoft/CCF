@@ -4,7 +4,7 @@
     "caller_id": {
       "maximum": 18446744073709551615,
       "minimum": 0,
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [

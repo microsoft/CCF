@@ -208,13 +208,13 @@ void NV_info::add(std::unique_ptr<View_change> m)
 #ifdef USE_PKEY_VIEW_CHANGES
   if (is_primary)
   {
-    nv->add_view_change(vcid, vc->digest());
+    nv->add_view_change(vcid, vc->digest(), vc->signature(), vc->sig_size());
     summarize(vc);
   }
 #else
   if (is_primary && vcid == pbft::GlobalState::get_node().id())
   {
-    nv->add_view_change(vcid, vc->digest());
+    nv->add_view_change(vcid, vc->digest(), vc->signature(), vc->sig_size());
     summarize(vc);
   }
 #endif
@@ -280,7 +280,7 @@ bool NV_info::add(View_change_ack* m)
     {
       // This view change has enough acks: add it to the new-view.
       auto vc = vcs[vci].vc.get();
-      nv->add_view_change(vci, vc->digest());
+      nv->add_view_change(vci, vc->digest(), vc->signature(), vc->sig_size());
       summarize(vc);
     }
   }

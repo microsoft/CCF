@@ -87,6 +87,13 @@ int main(int argc, char** argv)
     "Address on which to listen for TLS commands coming from other nodes")
     ->required();
 
+  std::string node_address_file = {};
+  app.add_option(
+    "--node-address-file",
+    node_address_file,
+    "Path to which the node's node-to-node address (including potentially "
+    "auto-assigned port) will be written. If empty (default), write nothing");
+
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
     app,
@@ -94,6 +101,13 @@ int main(int argc, char** argv)
     "--rpc-address",
     "Address on which to listen for TLS commands coming from clients")
     ->required();
+
+  std::string rpc_address_file = {};
+  app.add_option(
+    "--rpc-address-file",
+    rpc_address_file,
+    "Path to which the node's RPC address (including potentially "
+    "auto-assigned port) will be written. If empty (default), write nothing");
 
   cli::ParsedAddress public_rpc_address;
   auto public_rpc_address_option = cli::add_address_option(
@@ -490,6 +504,38 @@ int main(int argc, char** argv)
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);
 
+  // write to a ledger
+  asynchost::Ledger ledger(ledger_file, writer_factory);
+  ledger.register_message_handlers(bp.get_dispatcher());
+
+  // Begin listening for node-to-node and RPC messages.
+  // This includes DNS resolution and potentially dynamic port assignment (if
+  // requesting port 0). The hostname and port may be modified - after calling
+  // it holds the final assigned values.
+  asynchost::NodeConnectionsTickingReconnect node(
+    20, //< Flush reconnections every 20ms
+    bp.get_dispatcher(),
+    ledger,
+    writer_factory,
+    node_address.hostname,
+    node_address.port);
+  if (!node_address_file.empty())
+  {
+    files::dump(
+      fmt::format("{}\n{}", node_address.hostname, node_address.port),
+      node_address_file);
+  }
+
+  asynchost::RPCConnections rpc(writer_factory);
+  rpc.register_message_handlers(bp.get_dispatcher());
+  rpc.listen(0, rpc_address.hostname, rpc_address.port);
+  if (!rpc_address_file.empty())
+  {
+    files::dump(
+      fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
+      rpc_address_file);
+  }
+
   // Initialise the enclave and create a CCF node in it
   const size_t certificate_size = 4096;
   const size_t pubk_size = 1024;
@@ -568,26 +614,10 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Created new node");
 
-  // ledger
-  asynchost::Ledger ledger(ledger_file, writer_factory);
-  ledger.register_message_handlers(bp.get_dispatcher());
-
-  asynchost::NodeConnectionsTickingReconnect node(
-    20, //< Flush reconnections every 20ms
-    bp.get_dispatcher(),
-    ledger,
-    writer_factory,
-    node_address.hostname,
-    node_address.port);
-
   asynchost::NotifyConnections report(
     bp.get_dispatcher(),
     notifications_address.hostname,
     notifications_address.port);
-
-  asynchost::RPCConnections rpc(writer_factory);
-  rpc.register_message_handlers(bp.get_dispatcher());
-  rpc.listen(0, rpc_address.hostname, rpc_address.port);
 
   // Write the node and network certs to disk.
   files::dump(node_cert, node_cert_file);

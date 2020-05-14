@@ -10,7 +10,7 @@
           "node_id": {
             "maximum": 18446744073709551615,
             "minimum": 0,
-            "type": "number"
+            "type": "integer"
           },
           "port": {
             "type": "string"
@@ -28,7 +28,7 @@
     "primary_id": {
       "maximum": 18446744073709551615,
       "minimum": 0,
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [
