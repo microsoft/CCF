@@ -311,14 +311,14 @@ class CurlClient:
                 # call _just_request directly
                 self._request = self._just_request
                 return rid
-            except CCFConnectionException as e:
+            except (CCFConnectionException, TimeoutError) as e:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
                 if time.time() > end_time:
                     raise CCFConnectionException(
                         f"Connection still failing after {self.connection_timeout}s: {e}"
                     )
-                LOG.warning(f"Got SSLError exception: {e}")
+                LOG.warning(f"Got exception: {e}")
                 time.sleep(0.1)
 
     def request(self, request):
@@ -410,17 +410,15 @@ class RequestClient:
                 # call _just_request directly
                 self._request = self._just_request
                 return response
-            except requests.exceptions.SSLError as e:
+            except (requests.exceptions.SSLError, requests.exceptions.ReadTimeout) as e:
                 # If the handshake fails to due to node certificate not yet
                 # being endorsed by the network, sleep briefly and try again
                 if time.time() > end_time:
                     raise CCFConnectionException(
                         f"Connection still failing after {self.connection_timeout}s: {e}"
                     )
-                LOG.warning(f"Got SSLError exception: {e}")
+                LOG.warning(f"Got exception: {e}")
                 time.sleep(0.1)
-            except requests.exceptions.ReadTimeout as e:
-                raise TimeoutError
 
     def request(self, request):
         return self._request(request, is_signed=False)

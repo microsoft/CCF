@@ -130,7 +130,6 @@ class Network:
             self.existing_network is None
         ), "Cannot adjust local node IDs if the network was started from an existing network"
 
-        self.wait_for_state(primary, "partOfPublicNetwork")
         with primary.node_client() as nc:
             r = nc.get("getPrimaryInfo")
             first_node_id = r.result["primary_id"]
@@ -219,6 +218,11 @@ class Network:
                         # node is started and has recovered the ledger. The local node IDs
                         # are adjusted accordingly then.
                         if self.existing_network is None:
+                            self.wait_for_state(
+                                node,
+                                "partOfPublicNetwork",
+                                timeout=args.ledger_recovery_timeout,
+                            )
                             self._adjust_local_node_ids(node)
                 else:
                     self._add_node(node, args.package, args)
@@ -324,7 +328,10 @@ class Network:
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
 
         for node in self.nodes:
-            self.wait_for_state(node, "partOfPublicNetwork")
+            self.wait_for_state(
+                node, "partOfPublicNetwork", timeout=args.ledger_recovery_timeout
+            )
+            # input()
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined public network")
 
@@ -333,7 +340,9 @@ class Network:
         self.consortium.recover_with_shares(primary, defunct_network_enc_pub)
 
         for node in self.nodes:
-            self.wait_for_state(node, "partOfNetwork")
+            self.wait_for_state(
+                node, "partOfNetwork", timeout=args.ledger_recovery_timeout
+            )
 
         self.consortium.check_for_service(
             primary, infra.ccf.ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
@@ -455,7 +464,7 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                with node.node_client() as c:
+                with node.node_client(connection_timeout=timeout) as c:
                     r = c.get("getSignedIndex")
                     if r.result["state"] == state:
                         break
