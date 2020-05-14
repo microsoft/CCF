@@ -55,7 +55,6 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "-g",
         "--gov-script",
         help="Path to governance script",
-        default="../src/runtime_config/gov.lua",
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")

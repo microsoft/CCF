@@ -15,7 +15,7 @@ steps:
       python ${{ parameters.install_prefix }}/bin/start_network.py \
       -p ../../build/liblogging \
       -b ${{ parameters.install_prefix }}/bin \
-      -g ../../src/runtime_config/gov.lua \
+      -g $(pwd)/../../src/runtime_config/gov.lua \
       -v
     cp ./workspace/start_network_0/0.ledger .
     cp ./workspace/start_network_0/network_enc_pubk.pem
