@@ -133,7 +133,6 @@ class Network:
             (str(node_id) in self.perf_nodes) if self.perf_nodes is not None else False
         )
         node = infra.node.Node(node_id, host, self.binary_dir, debug, perf)
-        LOG.success(f"Creating node {node.node_id} at {node.host}")
         self.nodes.append(node)
         return node
 
@@ -298,26 +297,23 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
-    # TODO: It feels like common_dir should be passed at network creation, not here!!
     def start_in_recovery(self, args, ledger_file, common_dir=None):
-        if common_dir:
-            self.consortium = infra.consortium.Consortium(
-                common_dir, self.key_generator
-            )
-
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
         self.store_current_network_encryption_key()
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
 
+        # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
-            self.consortium.init_consortium_recovery(primary)
+            self.consortium = infra.consortium.Consortium(
+                common_dir, self.key_generator, remote_node=primary
+            )
 
         for node in self.nodes:
             self.wait_for_state(node, "partOfPublicNetwork")
         self.wait_for_all_nodes_to_catch_up(primary)
-        LOG.success("Public network successfully started")
+        LOG.success("All nodes joined public network")
 
         self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
         self.consortium.accept_recovery(primary)

@@ -28,14 +28,14 @@ def run(args):
     ) as network:
         if args.recover:
             args.label = args.label + "_recover"
-            LOG.warning(
-                f"Recovering network from ledger {args.ledger} and common dir {args.common_dir}"
+            LOG.info(
+                f"Recovering network from ledger {args.ledger} and common directory {args.common_dir}"
             )
             network.start_in_recovery(args, args.ledger, args.common_dir)
         else:
             network.start_and_join(args)
-        primary, backups = network.find_nodes()
 
+        primary, backups = network.find_nodes()
         LOG.info("Started CCF network with the following nodes:")
         LOG.info(
             "  Node [{:2d}] = {}:{}".format(

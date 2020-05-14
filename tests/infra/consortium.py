@@ -19,65 +19,56 @@ from loguru import logger as LOG
 
 class Consortium:
     def __init__(
-        self,
-        common_dir,
-        key_generator,
-        member_ids=None,
-        curve=None,
-        recovery_threshold=None,
+        self, common_dir, key_generator, member_ids=None, curve=None, remote_node=None
     ):
         self.common_dir = common_dir
         self.members = []
         self.key_generator = key_generator
         self.members = []
-        self.default_curve = curve
-        for m_id in member_ids or []:
-            new_member = infra.member.Member(
-                m_id, self.default_curve, common_dir, key_generator
-            )
-            new_member.set_active()
-            self.members.append(new_member)
-        self.recovery_threshold = (
-            recovery_threshold if recovery_threshold is not None else len(self.members)
-        )
-
-    # TODO: Does the consortium keep track of the member IDs during retirement/addition?
-    # TODO: Can we merge this with the constructor?
-    def init_consortium_recovery(self, remote_node):
-        # TODO: How do we know that member_id=0 is not retired?
-        with remote_node.member_client(member_id=0) as nc:
-            r = nc.rpc(
-                "query",
-                {
-                    "text": """tables = ...
-                    non_retired_members = {}
-                    tables["ccf.members"]:foreach(function(member_id, details)
-                      if details["status"] ~= "RETIRED" then
-                        table.insert(non_retired_members, {member_id, details["status"]})
-                      end
-                    end)
-                    return non_retired_members
-                    """
-                },
-            )
-            for m in r.result:
-                new_member = infra.member.Member(
-                    m[0], self.default_curve, self.common_dir
-                )
-                if infra.member.MemberStatus[m[1]] == infra.member.MemberStatus.ACTIVE:
-                    new_member.set_active()
+        self.recovery_threshold = None
+        # If a list of member IDs is passed in, generate fresh member identities.
+        # Otherwise, recover the state of the consortium from the state of CCF.
+        if member_ids is not None:
+            for m_id in member_ids:
+                new_member = infra.member.Member(m_id, curve, common_dir, key_generator)
+                new_member.set_active()
                 self.members.append(new_member)
-                LOG.info(f"Successfully recovered {m[1]} member {m[0]}")
+            self.recovery_threshold = len(self.members)
+        else:
+            with remote_node.member_client() as mc:
+                r = mc.rpc(
+                    "query",
+                    {
+                        "text": """tables = ...
+                        non_retired_members = {}
+                        tables["ccf.members"]:foreach(function(member_id, details)
+                        if details["status"] ~= "RETIRED" then
+                            table.insert(non_retired_members, {member_id, details["status"]})
+                        end
+                        end)
+                        return non_retired_members
+                        """
+                    },
+                )
+                for m in r.result:
+                    new_member = infra.member.Member(m[0], curve, self.common_dir)
+                    if (
+                        infra.member.MemberStatus[m[1]]
+                        == infra.member.MemberStatus.ACTIVE
+                    ):
+                        new_member.set_active()
+                    self.members.append(new_member)
+                    LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
 
-            r = nc.rpc(
-                "query",
-                {
-                    "text": """tables = ...
-                    return tables["ccf.config"]:get(0)
-                    """
-                },
-            )
-            self.recovery_threshold = r.result["recovery_threshold"]
+                r = mc.rpc(
+                    "query",
+                    {
+                        "text": """tables = ...
+                        return tables["ccf.config"]:get(0)
+                        """
+                    },
+                )
+                self.recovery_threshold = r.result["recovery_threshold"]
 
     def generate_and_propose_new_member(self, remote_node, curve):
         # The Member returned by this function is in state ACCEPTED. The new Member

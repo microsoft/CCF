@@ -29,7 +29,7 @@ class Member:
         self.member_id = member_id
         self.status = MemberStatus.ACCEPTED
 
-        if key_generator:
+        if key_generator is not None:
             # For now, all members are given an encryption key (for recovery)
             member = f"member{member_id}"
             infra.proc.ccall(
@@ -40,6 +40,18 @@ class Member:
                 path=self.common_dir,
                 log_output=False,
             ).check_returncode()
+        else:
+            # If no key generator is passed in, the identity of the member
+            # should have been created in advance (e.g. by a previous network)
+            assert os.path.isfile(
+                os.path.join(self.common_dir, f"member{self.member_id}_privk.pem")
+            )
+            assert os.path.isfile(
+                os.path.join(self.common_dir, f"member{self.member_id}_cert.pem")
+            )
+            assert os.path.isfile(
+                os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem")
+            )
 
     def is_active(self):
         return self.status == MemberStatus.ACTIVE
