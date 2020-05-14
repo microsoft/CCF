@@ -67,7 +67,7 @@
     ninja
   args:
     chdir: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
-  async: 3000
+  async: 8000
   poll: 5
 
 - name: Remove Pre-existing Open Enclave install
