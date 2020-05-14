@@ -53,9 +53,6 @@ namespace kv
   }
 
   template <class S, class D>
-  class Tx;
-
-  template <class S, class D>
   class Store;
 
   template <class K, class V, class H, class S, class D>
@@ -170,7 +167,7 @@ namespace kv
      *
      * @return const std::string&
      */
-    const std::string& get_name() const
+    const std::string& get_name() const override
     {
       return name;
     }
@@ -299,7 +296,6 @@ namespace kv
     class TxView : public AbstractTxView<S, D>
     {
       friend Map;
-      friend Tx<S, D>;
 
     private:
       This& map;
@@ -747,11 +743,6 @@ namespace kv
       }
     };
 
-  private:
-    friend TxView;
-    friend Tx<S, D>;
-    friend Store<S, D>;
-
     TxView* create_view(Version version) override
     {
       lock();
@@ -782,6 +773,10 @@ namespace kv
       unlock();
       return view;
     }
+
+  private:
+    friend TxView;
+    friend Store<S, D>;
 
     void compact(Version v) override
     {

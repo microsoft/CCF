@@ -377,6 +377,7 @@ namespace kv
 
     virtual AbstractStore* get_store() = 0;
     virtual AbstractTxView<S, D>* create_view(Version version) = 0;
+    virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;

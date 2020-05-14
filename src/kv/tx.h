@@ -23,7 +23,7 @@ namespace kv
     std::tuple<typename M::TxView*> get_tuple(M& m)
     {
       // If the M is present, its AbtractTxView must be an M::TxView.
-      auto search = view_list.find(m.name);
+      auto search = view_list.find(m.get_name());
       if (search != view_list.end())
         return std::make_tuple(
           static_cast<typename M::TxView*>(search->second.view.get()));
@@ -47,7 +47,7 @@ namespace kv
       }
 
       typename M::TxView* view = m.create_view(read_version);
-      view_list[m.name] = {&m, std::unique_ptr<AbstractTxView<S, D>>(view)};
+      view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView<S, D>>(view)};
       return std::make_tuple(view);
     }
 
