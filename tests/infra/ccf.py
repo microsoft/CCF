@@ -57,6 +57,7 @@ def get_common_folder_name(workspace, label):
 
 class Network:
     KEY_GEN = "keygenerator.sh"
+    DEFUNCT_NETWORK_ENC_PUBK = "network_enc_pubk_orig.pem"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -296,11 +297,22 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
-    def start_in_recovery(self, args, ledger_file, common_dir=None):
+    def start_in_recovery(
+        self, args, ledger_file, common_dir=None, defunct_network_enc_pub=None,
+    ):
+        """
+        Recovers a CCF network.
+        :param args: command line arguments to configure the CCF nodes.
+        :param ledger_file: ledger file to recover from.
+        :param common_dir: common directory containing member and user keys and certs.
+        :param defunct_network_enc_pub: defunct network encryption public key.
+        """
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
-        self.store_current_network_encryption_key()
+        if defunct_network_enc_pub is None:
+            defunct_network_enc_pub = self.store_current_network_encryption_key()
+
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
 
         # If a common directory was passed in, initialise the consortium from it
@@ -308,6 +320,7 @@ class Network:
             self.consortium = infra.consortium.Consortium(
                 common_dir, self.key_generator, remote_node=primary
             )
+
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
 
         for node in self.nodes:
@@ -317,7 +330,7 @@ class Network:
 
         self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
         self.consortium.accept_recovery(primary)
-        self.consortium.recover_with_shares(primary)
+        self.consortium.recover_with_shares(primary, defunct_network_enc_pub)
 
         for node in self.nodes:
             self.wait_for_state(node, "partOfNetwork")
@@ -331,9 +344,10 @@ class Network:
         cmd = [
             "cp",
             os.path.join(self.common_dir, "network_enc_pubk.pem"),
-            os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
+            os.path.join(self.common_dir, self.DEFUNCT_NETWORK_ENC_PUBK),
         ]
         infra.proc.ccall(*cmd).check_returncode()
+        return os.path.join(self.common_dir, self.DEFUNCT_NETWORK_ENC_PUBK)
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True

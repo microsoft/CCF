@@ -36,22 +36,25 @@ In a different terminal, using the local IP address and port of the CCF nodes di
 Recovering a Service
 --------------------
 
-The ``start_test_network.sh`` script can also be used to automatically recover a defunct network, as per the steps described :ref:`here <members/accept_recovery:Accepting Recovery and Submitting Shares>`. The ledger to be recovered (``--ledger``) and the directory containing the members and users identities and the network encryption public key (``--common-dir``) should be passed as arguments to the script.
+The ``start_test_network.sh`` script can also be used to automatically recover a defunct network, as per the steps described :ref:`here <members/accept_recovery:Accepting Recovery and Submitting Shares>`. The ledger to be recovered (``--ledger``) , the defunct network encryption public key (``--network-enc-pubk``) and the directory containing the members and users identities and the network encryption public key (``--common-dir``) should be passed as arguments to the script.
 
 .. code-block:: bash
 
     $ cd CCF/build
     $ cp ./workspace/test_network_0/0.ledger .
-    $ ../start_test_network.sh -p liblogging.enclave.so.signed --recover --ledger 0.ledger --common-dir ./workspace/test_network_common/
-    [2020-05-14 11:12:56.580] Starting 3 CCF nodes...
-    [2020-05-14 11:12:56.580] Virtual mode enabled
-    [2020-05-14 11:12:56.580] Recovering network from ledger 0.ledger and common directory ./workspace/test_network_common/
-    [2020-05-14 11:13:01.154] Started CCF network with the following nodes:
-    [2020-05-14 11:13:01.155]   Node [ 3] = 127.213.21.224:60433
-    [2020-05-14 11:13:01.155]   Node [ 4] = 127.87.46.254:37443
-    [2020-05-14 11:13:01.155]   Node [ 5] = 127.136.206.136:34330
-    [2020-05-14 11:13:01.155] You can now issue business transactions to the liblogging.virtual.so application.
-    [2020-05-14 11:13:01.155] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
-    [2020-05-14 11:13:01.155] Press Ctrl+C to shutdown the network.
+    $ cp ./workspace/test_network_0/network_enc_pubk.pem .
+    $ ../start_test_network.sh -p liblogging.enclave.so.signed --recover --ledger 0.ledger --network-enc-pubk network_enc_pubk.pem --common-dir ./workspace/test_network_common/
+    [2020-05-14 14:50:19.746] Starting 3 CCF nodes...
+    [2020-05-14 14:50:19.746] Recovering network from:
+    [2020-05-14 14:50:19.746]  - Ledger: 0.ledger
+    [2020-05-14 14:50:19.746]  - Defunct network public encryption key: network_enc_pubk.pem
+    [2020-05-14 14:50:19.746]  - Common directory: ./workspace/test_network_common/
+    [2020-05-14 14:50:24.388] Started CCF network with the following nodes:
+    [2020-05-14 14:50:24.388]   Node [ 3] = 127.191.152.111:40371
+    [2020-05-14 14:50:24.388]   Node [ 4] = 127.184.250.157:35113
+    [2020-05-14 14:50:24.388]   Node [ 5] = 127.175.51.36:34699
+    [2020-05-14 14:50:24.388] You can now issue business transactions to the liblogging.enclave.so.signed application.
+    [2020-05-14 14:50:24.388] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
+    [2020-05-14 14:50:24.388] Press Ctrl+C to shutdown the network.
 
 The effects of transactions committed by the defunct network should then be recovered. Users can also :ref:`issue new business requests <users/issue_commands:Issuing Commands>`.

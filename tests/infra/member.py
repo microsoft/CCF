@@ -135,17 +135,17 @@ class Member:
             assert r.error is None, f"Error ACK: {r.error}"
             self.status = MemberStatus.ACTIVE
 
-    def get_and_decrypt_recovery_share(self, remote_node):
+    def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
         with remote_node.member_client(member_id=self.member_id) as mc:
             r = mc.get("getEncryptedRecoveryShare")
             if r.status != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
-            # For now, members rely on a copy of the original network encryption
-            # public key to decrypt their shares
+            # Members rely on a copy of the original network encryption public
+            # key to decrypt their recovery shares
             ctx = infra.crypto.CryptoBoxCtx(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem"),
-                os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
+                defunct_network_enc_pubk,
             )
 
             nonce_bytes = bytes(r.result["nonce"])

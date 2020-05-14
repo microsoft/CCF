@@ -313,10 +313,12 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, script)
         return self.vote_using_majority(remote_node, proposal)
 
-    def recover_with_shares(self, remote_node):
+    def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
         for m in self.get_active_members():
-            decrypted_share = m.get_and_decrypt_recovery_share(remote_node)
+            decrypted_share = m.get_and_decrypt_recovery_share(
+                remote_node, defunct_network_enc_pubk
+            )
             r = m.submit_recovery_share(remote_node, decrypted_share)
 
             submitted_shares_count += 1
