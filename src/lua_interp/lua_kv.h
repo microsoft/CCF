@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "lua_json.h"
-
 #include "kv/kv.h"
+#include "lua_json.h"
 
 /**
  * @file luajsonKvTable.h
