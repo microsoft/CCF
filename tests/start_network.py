@@ -95,16 +95,15 @@ if __name__ == "__main__":
             default=False,
         )
         parser.add_argument(
-            "--ledger",
-            help="Ledger to recover from",  # TODO: Only if recovering
-            # required=True,
+            "--ledger", help="Ledger to recover from",
         )
         parser.add_argument(
             "--common-dir",
-            help="Ledger to recover from",  # TODO: Only if recovering
-            # required=True,
+            help="Directory containing previous network member identities and network encryption key",
         )
-        # TODO: Add ID of at least one member?
 
     args = infra.e2e_args.cli_args(add)
+    if args.recover and (args.ledger is None or args.common_dir is None):
+        print(f"Error: --recover requires --ledger and --common-dir arguments.")
+        sys.exit(1)
     run(args)
