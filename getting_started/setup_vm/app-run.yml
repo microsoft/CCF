@@ -1,4 +1,6 @@
 - hosts: localhost
+  vars:
+    run_only: true
   tasks:
     - import_role:
         name: intel
