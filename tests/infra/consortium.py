@@ -50,20 +50,12 @@ class Consortium:
                 "query",
                 {
                     "text": """tables = ...
-                    active_members_id = {}
-                    accepted_members_id = {}
                     non_retired_members = {}
                     tables["ccf.members"]:foreach(function(member_id, details)
-                      -- if details["status"] == "ACTIVE" then
-                      --   table.insert(active_members_id, member_id)
-                      -- elseif details["status"] == "ACCEPTED" then
-                      --   table.insert(accepted_members_id, member_id)
-                      -- end
                       if details["status"] ~= "RETIRED" then
                         table.insert(non_retired_members, {member_id, details["status"]})
                       end
                     end)
-                    -- return {accepted_members_id, active_members_id}
                     return non_retired_members
                     """
                 },
@@ -76,7 +68,16 @@ class Consortium:
                     new_member.set_active()
                 self.members.append(new_member)
                 LOG.info(f"Successfully recovered {m[1]} member {m[0]}")
-            input()
+
+            r = nc.rpc(
+                "query",
+                {
+                    "text": """tables = ...
+                    return tables["ccf.config"]:get(0)
+                    """
+                },
+            )
+            self.recovery_threshold = r.result["recovery_threshold"]
 
     def generate_and_propose_new_member(self, remote_node, curve):
         # The Member returned by this function is in state ACCEPTED. The new Member
@@ -321,14 +322,6 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, script)
         return self.vote_using_majority(remote_node, proposal)
 
-    def store_current_network_encryption_key(self):
-        cmd = [
-            "cp",
-            os.path.join(self.common_dir, "network_enc_pubk.pem"),
-            os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
-        ]
-        infra.proc.ccall(*cmd).check_returncode()
-
     def recover_with_shares(self, remote_node):
         submitted_shares_count = 0
         for m in self.get_active_members():
@@ -456,4 +449,10 @@ class Consortium:
             raise TimeoutError(
                 f"Node {node_id} has not yet been recorded in the store"
                 + getattr(node_status, f" with status {node_status.name}", "")
+            )
+
+    def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
+        for n in nodes:
+            self.wait_for_node_to_exist_in_store(
+                remote_node, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
             )

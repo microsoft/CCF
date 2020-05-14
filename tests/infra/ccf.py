@@ -170,6 +170,7 @@ class Network:
             self.existing_network is None
         ), "Cannot adjust local node IDs if the network was started from an existing network"
 
+        self.wait_for_state(primary, "partOfPublicNetwork")
         with primary.node_client() as nc:
             r = nc.get("getPrimaryInfo")
             first_node_id = r.result["primary_id"]
@@ -307,10 +308,36 @@ class Network:
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
+        self.store_current_network_encryption_key()
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
-        self.consortium.init_consortium_recovery(primary)
+
+        if common_dir is not None:
+            self.consortium.init_consortium_recovery(primary)
+
+        for node in self.nodes:
+            self.wait_for_state(node, "partOfPublicNetwork")
         self.wait_for_all_nodes_to_catch_up(primary)
-        LOG.success("All nodes joined recovered public network")
+        LOG.success("Public network successfully started")
+
+        self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
+        self.consortium.accept_recovery(primary)
+        self.consortium.recover_with_shares(primary)
+
+        for node in self.nodes:
+            self.wait_for_state(node, "partOfNetwork")
+
+        self.consortium.check_for_service(
+            primary, infra.ccf.ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
+        )
+        LOG.success("***** Recovered network is now open *****")
+
+    def store_current_network_encryption_key(self):
+        cmd = [
+            "cp",
+            os.path.join(self.common_dir, "network_enc_pubk.pem"),
+            os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
+        ]
+        infra.proc.ccall(*cmd).check_returncode()
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
@@ -431,13 +458,6 @@ class Network:
             )
         if state == "partOfNetwork":
             self.status = ServiceStatus.OPEN
-
-    def wait_for_all_nodes_to_be_trusted(self, timeout=3):
-        primary, _ = self.find_primary()
-        for n in self.nodes:
-            self.consortium.wait_for_node_to_exist_in_store(
-                primary, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
-            )
 
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)

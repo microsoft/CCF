@@ -27,16 +27,11 @@ def run(args):
         hosts=hosts, binary_directory=args.binary_dir, dbg_nodes=args.debug_nodes
     ) as network:
         if args.recover:
-
-            # TODO: Problem:
-            # On recovery, we create a network above but never start it
-            # Instead, we need to discover the node id once we've started one node and use that instead as the offset
+            args.label = args.label + "_recover"
             LOG.warning(
                 f"Recovering network from ledger {args.ledger} and common dir {args.common_dir}"
             )
             network.start_in_recovery(args, args.ledger, args.common_dir)
-
-            # TODO: Do the rest
         else:
             network.start_and_join(args)
         primary, backups = network.find_nodes()

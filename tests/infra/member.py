@@ -126,7 +126,6 @@ class Member:
     def get_and_decrypt_recovery_share(self, remote_node):
         with remote_node.member_client(member_id=self.member_id) as mc:
             r = mc.get("getEncryptedRecoveryShare")
-
             if r.status != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 

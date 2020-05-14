@@ -180,7 +180,7 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
         self.remote.get_startup_files(self.common_dir)
-        LOG.info("Remote {} started".format(self.node_id))
+        LOG.info("Node {} started".format(self.node_id))
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
