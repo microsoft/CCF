@@ -1,0 +1,3 @@
+workspace: "/tmp/"
+debs:
+  - libuv1

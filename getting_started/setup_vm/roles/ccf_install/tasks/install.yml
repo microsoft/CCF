@@ -1,0 +1,21 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Download CCF release
+  get_url:
+    url: "{{ ccf_url }}"
+    dest: "{{ workspace }}"
+
+- name: Create directory
+  file:
+    path: "/opt/ccf-{{ ccf_ver }}"
+    state: directory
+  become: true
+
+- name: Expand CCF release
+  unarchive:
+    src: "/tmp/{{ ccf_tarball }}"
+    dest: "/opt/ccf-{{ ccf_ver }}"
+    extra_opts:
+    - --strip-components=1
+  become: true
