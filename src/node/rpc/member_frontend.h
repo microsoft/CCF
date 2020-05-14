@@ -69,8 +69,7 @@ namespace ccf
       }
     }
 
-    void set_js_scripts(
-      StoreTx& tx, std::map<std::string, std::string> scripts)
+    void set_js_scripts(StoreTx& tx, std::map<std::string, std::string> scripts)
     {
       auto tx_scripts = tx.get_view(network.app_scripts);
 
@@ -114,8 +113,7 @@ namespace ccf
       hardcoded_funcs = {
         // set the lua application script
         {"set_lua_app",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
 
@@ -123,16 +121,14 @@ namespace ccf
          }},
         // set the js application script
         {"set_js_app",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
         // add a new member
         {"new_member",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
            auto new_member_id = g.add_member(parsed.cert, parsed.keyshare);
@@ -141,8 +137,7 @@ namespace ccf
          }},
         // retire an existing member
         {"retire_member",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
            GenesisGenerator g(this->network, tx);
@@ -188,8 +183,7 @@ namespace ccf
          }},
         // add a new user
         {"new_user",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const Cert pem_cert = args;
 
            GenesisGenerator g(this->network, tx);
@@ -198,8 +192,7 @@ namespace ccf
            return true;
          }},
         {"set_user_data",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
            auto users_view = tx.get_view(this->network.users);
            auto user_info = users_view->get(parsed.user_id);
@@ -218,8 +211,7 @@ namespace ccf
          }},
         // accept a node
         {"trust_node",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
@@ -242,8 +234,7 @@ namespace ccf
          }},
         // retire a node
         {"retire_node",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
@@ -266,8 +257,7 @@ namespace ccf
          }},
         // accept new node code ID
         {"new_node_code",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
            return this->add_new_code_id(
              tx,
@@ -277,8 +267,7 @@ namespace ccf
          }},
         // accept new user code ID
         {"new_user_code",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
            return this->add_new_code_id(
              tx,
@@ -290,8 +279,7 @@ namespace ccf
         // that case, members will have to submit their shares after this
         // proposal is accepted.
         {"accept_recovery",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
            {
              const auto accept_recovery = node.accept_recovery(tx);
@@ -309,8 +297,7 @@ namespace ccf
            }
          }},
         {"open_network",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto network_opened = node.open_network(tx);
            if (!network_opened)
            {
@@ -319,8 +306,7 @@ namespace ccf
            return network_opened;
          }},
         {"rekey_ledger",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto ledger_rekeyed = node.rekey_ledger(tx);
            if (!ledger_rekeyed)
            {
@@ -329,8 +315,7 @@ namespace ccf
            return ledger_rekeyed;
          }},
         {"update_recovery_shares",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto shares_updated = node.split_ledger_secrets(tx);
            if (!shares_updated)
            {
@@ -340,8 +325,7 @@ namespace ccf
            return shares_updated;
          }},
         {"set_recovery_threshold",
-         [this](
-           ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, StoreTx& tx, const nlohmann::json& args) {
            const auto new_recovery_threshold = args.get<size_t>();
 
            GenesisGenerator g(this->network, tx);
@@ -552,9 +536,7 @@ namespace ccf
       CommonHandlerRegistry::init_handlers(tables_);
 
       auto read = [this](
-                    StoreTx& tx,
-                    CallerId caller_id,
-                    nlohmann::json&& params) {
+                    StoreTx& tx, CallerId caller_id, nlohmann::json&& params) {
         if (!check_member_status(
               tx, caller_id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {

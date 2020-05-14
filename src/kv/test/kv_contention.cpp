@@ -1,14 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../kv.h"
-#include "../kv_serialiser.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
-
-#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
+#include "kv/kv.h"
+#include "kv/kv_serialiser.h"
 
 #include <atomic>
 #include <chrono>
+#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <doctest/doctest.h>
 #include <string>
 #include <thread>

@@ -200,9 +200,7 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      StoreTx& tx,
-      CallerId caller_id)
+      std::shared_ptr<enclave::RpcContext> ctx, StoreTx& tx, CallerId caller_id)
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -569,16 +567,15 @@ namespace ccf
 
       if (!playback)
       {
-        fn =
-          [](StoreTx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
-            auto req_view = tx.get_view(*frontend.pbft_requests_map);
-            req_view->put(
-              0,
-              {ctx.session->original_caller.value().caller_id,
-               ctx.session->caller_cert,
-               ctx.get_serialised_request(),
-               ctx.pbft_raw});
-          };
+        fn = [](StoreTx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
+          auto req_view = tx.get_view(*frontend.pbft_requests_map);
+          req_view->put(
+            0,
+            {ctx.session->original_caller.value().caller_id,
+             ctx.session->caller_cert,
+             ctx.get_serialised_request(),
+             ctx.pbft_raw});
+        };
       }
 
       auto rep =

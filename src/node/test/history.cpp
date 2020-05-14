@@ -5,7 +5,7 @@
 
 #include "consensus/test/stub_consensus.h"
 #include "enclave/app_interface.h"
-#include "kv/kv.h"
+#include "kv/kv_types.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/nodes.h"

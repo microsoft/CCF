@@ -6,7 +6,7 @@
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_types.h"
-#include "kv/kv.h"
+#include "kv/kv_types.h"
 #include "ledger.h"
 #include "new_view.h"
 #include "node/signatures.h"

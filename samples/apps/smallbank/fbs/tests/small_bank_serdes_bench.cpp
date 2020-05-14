@@ -3,7 +3,6 @@
 #define PICOBENCH_IMPLEMENT
 
 #include "consensus/pbft/pbft_requests.h"
-#include "kv/kv.h"
 #include "node/encryptor.h"
 #include "node/history.h"
 #include "node/rpc/json_rpc.h"

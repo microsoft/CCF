@@ -9,11 +9,6 @@
 #include "kv_types.h"
 
 #include <functional>
-#include <iostream>
-#include <limits>
-#include <list>
-#include <map>
-#include <mutex>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -24,6 +19,7 @@ namespace kv
   {
     struct No
     {};
+
     template <typename T, typename Arg>
     No operator!=(const T&, const Arg&)
     {

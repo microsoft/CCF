@@ -2,7 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv_types.h"
 #include "map.h"
+
+#include <functional>
+#include <map>
 
 namespace kv
 {
@@ -29,8 +33,8 @@ namespace kv
   template <class S, class D>
   struct ViewContainer
   {
-      virtual ~ViewContainer() = default;
-      virtual void set_view_list(OrderedViews<S, D>& view_list) = 0;
+    virtual ~ViewContainer() = default;
+    virtual void set_view_list(OrderedViews<S, D>& view_list) = 0;
   };
 
   // Atomically checks for conflicts then applies the writes in a set of views

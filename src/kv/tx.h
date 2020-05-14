@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv_types.h"
 #include "map.h"
 
 namespace kv
@@ -47,7 +48,8 @@ namespace kv
       }
 
       typename M::TxView* view = m.create_view(read_version);
-      view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView<S, D>>(view)};
+      view_list[m.get_name()] = {&m,
+                                 std::unique_ptr<AbstractTxView<S, D>>(view)};
       return std::make_tuple(view);
     }
 
@@ -152,7 +154,8 @@ namespace kv
       }
 
       auto store = view_list.begin()->second.map->get_store();
-      auto c = apply_views(view_list, [store]() { return store->next_version(); });
+      auto c =
+        apply_views(view_list, [store]() { return store->next_version(); });
       success = c.has_value();
 
       if (!success)
