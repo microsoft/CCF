@@ -178,9 +178,9 @@ class SSHRemote(CmdMixin):
             stat = os.stat(path)
             session.chmod(tgt_path, stat.st_mode)
         for path in self.data_files:
-            tgt_path = os.path.join(self.root, os.path.basename(src_path))
+            tgt_path = os.path.join(self.root, os.path.basename(path))
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
-            session.put(src_path, tgt_path)
+            session.put(path, tgt_path)
         session.close()
 
     def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
