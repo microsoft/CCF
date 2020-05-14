@@ -50,7 +50,7 @@ class Consortium:
                         """
                     },
                 )
-                for m in r.result:
+                for m in r.result or []:
                     new_member = infra.member.Member(m[0], curve, self.common_dir)
                     if (
                         infra.member.MemberStatus[m[1]]
