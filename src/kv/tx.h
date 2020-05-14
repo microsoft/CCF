@@ -7,7 +7,7 @@
 namespace kv
 {
   template <class S, class D>
-  class Tx
+  class Tx : public ViewContainer<S, D>
   {
   private:
     OrderedViews<S, D> view_list;
@@ -78,7 +78,7 @@ namespace kv
 
     Tx(const Tx& that) = delete;
 
-    void set_view_list(OrderedViews<S, D>& view_list_)
+    void set_view_list(OrderedViews<S, D>& view_list_) override
     {
       // if view list is not empty then any coinciding keys will not be
       // overwritten
@@ -152,7 +152,7 @@ namespace kv
       }
 
       auto store = view_list.begin()->second.map->get_store();
-      auto c = commit(view_list, [store]() { return store->next_version(); });
+      auto c = apply_views(view_list, [store]() { return store->next_version(); });
       success = c.has_value();
 
       if (!success)
@@ -216,60 +216,6 @@ namespace kv
 
       if (!success)
         throw std::logic_error("Transaction aborted");
-
-      return version;
-    }
-
-    static std::optional<Version> commit(
-      OrderedViews<S, D>& views, std::function<Version()> f)
-    {
-      // All maps with pending writes are locked, transactions are prepared
-      // and possibly committed, and then all maps with pending writes are
-      // unlocked. This is to prevent transactions from being committed in an
-      // interleaved fashion.
-      Version version = 0;
-      bool has_writes = false;
-
-      for (auto it = views.begin(); it != views.end(); ++it)
-      {
-        if (it->second.view->has_writes())
-        {
-          it->second.map->lock();
-          has_writes = true;
-        }
-      }
-
-      bool ok = true;
-
-      for (auto it = views.begin(); it != views.end(); ++it)
-      {
-        if (!it->second.view->prepare())
-        {
-          ok = false;
-          break;
-        }
-      }
-
-      if (ok && has_writes)
-      {
-        // Get the version number to be used for this commit.
-        version = f();
-
-        for (auto it = views.begin(); it != views.end(); ++it)
-          it->second.view->commit(version);
-
-        for (auto it = views.begin(); it != views.end(); ++it)
-          it->second.view->post_commit();
-      }
-
-      for (auto it = views.begin(); it != views.end(); ++it)
-      {
-        if (it->second.view->has_writes())
-          it->second.map->unlock();
-      }
-
-      if (!ok)
-        return {};
 
       return version;
     }
@@ -342,7 +288,7 @@ namespace kv
       if (view_list.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
 
-      auto c = commit(view_list, [this]() { return version; });
+      auto c = apply_views(view_list, [this]() { return version; });
       success = c.has_value();
 
       if (!success)

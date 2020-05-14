@@ -70,7 +70,7 @@ namespace ccfapp
     const std::vector<GenericTable*> app_tables;
     void add_custom_tables(
       lua::Interpreter& li,
-      ccf::Store::Tx& tx,
+      ccf::StoreTx& tx,
       int& n_registered_tables) const override
     {
       n_registered_tables++;
@@ -182,7 +182,7 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void list_methods(ccf::Store::Tx& tx, ListMethods::Out& out) override
+    void list_methods(ccf::StoreTx& tx, ListMethods::Out& out) override
     {
       UserHandlerRegistry::list_methods(tx, out);
 

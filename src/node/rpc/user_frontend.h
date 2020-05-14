@@ -35,7 +35,7 @@ namespace ccf
     }
 
     bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, Store::Tx& tx) override
+      std::shared_ptr<enclave::RpcContext> ctx, StoreTx& tx) override
     {
       // Lookup the calling user's certificate from the forwarded caller id
       auto users_view = tx.get_view(*users);

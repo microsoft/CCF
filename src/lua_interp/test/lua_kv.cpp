@@ -35,7 +35,7 @@ namespace ccf
     Store tables;
     auto& table = tables.create<TableIS>("test", kv::SecurityDomain::PUBLIC);
 
-    Store::Tx txs;
+    StoreTx txs;
 
     const auto a = "Alice";
     const auto b = "Bob";
@@ -144,7 +144,7 @@ namespace ccf
       {
         tables.compact(tx->end_order());
 
-        Store::Tx next_txs;
+        StoreTx next_txs;
         auto next_tx = next_txs.get_view(table);
 
         REQUIRE(next_tx->put(k, s1));
@@ -176,7 +176,7 @@ namespace ccf
     auto& is = tables.create<TableIS>("test_is", kv::SecurityDomain::PUBLIC);
     auto& sb = tables.create<TableSB>("test_sb", kv::SecurityDomain::PUBLIC);
 
-    Store::Tx txs;
+    StoreTx txs;
     auto tx = txs.get_view(ii, is, sb);
     auto tx_ii = get<0>(tx);
     auto tx_is = get<1>(tx);
@@ -243,7 +243,7 @@ namespace ccf
 
     Store tables;
     auto& table = tables.create<TableVI>("v");
-    Store::Tx txs;
+    StoreTx txs;
     auto tx = txs.get_view(table);
     tx->put(vector<uint8_t>(100, 1), 123);
 
@@ -347,7 +347,7 @@ namespace ccf
 
     Store tables;
     auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
-    Store::Tx txs;
+    StoreTx txs;
     auto tx = txs.get_view(table);
 
     auto create = [tx](int dst, int amt) {
@@ -407,7 +407,7 @@ namespace ccf
 
     Store tables;
     auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
-    Store::Tx txs;
+    StoreTx txs;
     auto tx = txs.get_view(table);
 
     Interpreter li;

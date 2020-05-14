@@ -902,24 +902,4 @@ namespace kv
     // Owning pointer of TxView over that map
     std::unique_ptr<AbstractTxView<S, D>> view;
   };
-
-  // When a collection of Maps are locked, the locks must be acquired in a
-  // stable order to avoid deadlocks. This ordered map will claim in name-order
-  template <class S, class D>
-  using OrderedViews = std::map<std::string, MapView<S, D>>;
-
-  template <typename SP, typename DP>
-  static inline std::
-    map<kv::SecurityDomain, std::vector<AbstractTxView<SP, DP>*>>
-    get_maps_grouped_by_domain(const OrderedViews<SP, DP>& maps)
-  {
-    std::map<kv::SecurityDomain, std::vector<AbstractTxView<SP, DP>*>>
-      grouped_maps;
-    for (auto it = maps.cbegin(); it != maps.cend(); ++it)
-    {
-      grouped_maps[it->second.map->get_security_domain()].push_back(
-        it->second.view.get());
-    }
-    return grouped_maps;
-  }
 }

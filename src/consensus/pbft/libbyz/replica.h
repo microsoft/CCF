@@ -211,7 +211,7 @@ public:
   // passed to us.
 
   // Playback methods
-  void playback_request(ccf::Store::Tx& tx);
+  void playback_request(ccf::StoreTx& tx);
   // Effects: Requests are executed
 
   void populate_certificates(Pre_prepare* pp);
@@ -230,7 +230,7 @@ public:
   // "prev_prepared_cert". Also creates and adds the "Prepare" message for the
   // caller
 
-  void playback_pre_prepare(ccf::Store::Tx& tx);
+  void playback_pre_prepare(ccf::StoreTx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
 
@@ -367,7 +367,7 @@ private:
     Request& request,
     int64_t& max_local_commit_value,
     bool include_markle_roots,
-    ccf::Store::Tx* tx = nullptr,
+    ccf::StoreTx* tx = nullptr,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the
   // request. seqno == -1 means we are running it from playback

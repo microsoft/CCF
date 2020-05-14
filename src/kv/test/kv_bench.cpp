@@ -39,7 +39,7 @@ static void serialise(picobench::state& s)
 
   auto& map0 = kv_store.create<std::string, std::string>("map0", SD);
   auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
-  Store::Tx tx;
+  StoreTx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
@@ -74,7 +74,7 @@ static void deserialise(picobench::state& s)
   auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
   auto& map0_ = kv_store2.create<std::string, std::string>("map0", SD);
   auto& map1_ = kv_store2.create<std::string, std::string>("map1", SD);
-  Store::Tx tx;
+  StoreTx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
@@ -108,7 +108,7 @@ static void commit_latency(picobench::state& s)
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    Store::Tx tx;
+    StoreTx tx;
     auto [tx0, tx1] = tx.get_view(map0, map1);
     for (int iTx = 0; iTx < S; iTx++)
     {

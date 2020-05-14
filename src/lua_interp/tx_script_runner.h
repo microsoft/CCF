@@ -57,7 +57,7 @@ namespace ccf
         }
 
         template <typename T>
-        static void add_table(lua::Interpreter& li, Store::Tx& tx, T& table)
+        static void add_table(lua::Interpreter& li, StoreTx& tx, T& table)
         {
           decltype(auto) name = table.get_name();
 
@@ -73,7 +73,7 @@ namespace ccf
         template <typename T, typename... Tables>
         static void process_tables(
           lua::Interpreter& li,
-          Store::Tx& tx,
+          StoreTx& tx,
           const Whitelist& wl,
           T& table,
           Tables&... tables)
@@ -87,14 +87,14 @@ namespace ccf
           process_tables(li, tx, wl, tables...);
         }
         static void process_tables(
-          lua::Interpreter&, Store::Tx&, const Whitelist&)
+          lua::Interpreter&, StoreTx&, const Whitelist&)
         {}
 
         // helper method to expand parameters in the table tuple
         template <typename... T, std::size_t... Is>
         static void call_process_tables(
           lua::Interpreter& li,
-          Store::Tx& tx,
+          StoreTx& tx,
           const Whitelist& wl,
           const std::tuple<T&...>& tables,
           std::index_sequence<Is...>)
@@ -105,7 +105,7 @@ namespace ccf
       public:
         template <typename T>
         static void create(
-          lua::Interpreter& li, Store::Tx& tx, const std::vector<T*>& tables)
+          lua::Interpreter& li, StoreTx& tx, const std::vector<T*>& tables)
         {
           register_meta<T>(li);
           lua_newtable(li.get_state());
@@ -116,7 +116,7 @@ namespace ccf
         template <typename... T>
         static void create(
           lua::Interpreter& li,
-          Store::Tx& tx,
+          StoreTx& tx,
           const Whitelist& wl,
           const std::tuple<T&...>& tables)
         {
@@ -138,7 +138,7 @@ namespace ccf
           throw std::logic_error("no bytecode or string to load as script");
       }
 
-      Whitelist get_whitelist(Store::Tx& tx, WlId id) const
+      Whitelist get_whitelist(StoreTx& tx, WlId id) const
       {
         const auto wl = tx.get_view(network_tables.whitelists)->get(id);
         if (!wl)
@@ -223,7 +223,7 @@ namespace ccf
       }
 
       virtual void add_custom_tables(
-        lua::Interpreter& li, Store::Tx& tx, int& n_registered_tables) const
+        lua::Interpreter& li, StoreTx& tx, int& n_registered_tables) const
       {}
 
     public:
@@ -251,7 +251,7 @@ namespace ccf
        * @return T the result of the script
        */
       template <typename T, typename... Args>
-      T run(Store::Tx& tx, const TxScript& txs, Args&&... args) const
+      T run(StoreTx& tx, const TxScript& txs, Args&&... args) const
       {
         lua::Interpreter li;
 

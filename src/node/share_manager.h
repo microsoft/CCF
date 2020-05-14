@@ -103,7 +103,7 @@ namespace ccf
     NetworkState& network;
 
     EncryptedSharesMap compute_encrypted_shares(
-      Store::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
+      StoreTx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
     {
       EncryptedSharesMap encrypted_shares;
 
@@ -139,7 +139,7 @@ namespace ccf
     }
 
     void set_recovery_shares_info(
-      Store::Tx& tx,
+      StoreTx& tx,
       const LedgerSecret& latest_ledger_secret,
       const std::optional<LedgerSecret>& previous_ledger_secret = std::nullopt,
       kv::Version latest_ls_version = kv::NoVersion)
@@ -182,14 +182,14 @@ namespace ccf
   public:
     ShareManager(NetworkState& network_) : network(network_) {}
 
-    void issue_shares(Store::Tx& tx)
+    void issue_shares(StoreTx& tx)
     {
       // Assumes that the ledger secrets have not been updated since the
       // last time shares have been issued (i.e. genesis or re-sharing only)
       set_recovery_shares_info(tx, network.ledger_secrets->get_latest());
     }
 
-    void issue_shares_on_recovery(Store::Tx& tx, kv::Version latest_ls_version)
+    void issue_shares_on_recovery(StoreTx& tx, kv::Version latest_ls_version)
     {
       set_recovery_shares_info(
         tx,
@@ -199,7 +199,7 @@ namespace ccf
     }
 
     void issue_shares_on_rekey(
-      Store::Tx& tx, const LedgerSecret& new_ledger_secret)
+      StoreTx& tx, const LedgerSecret& new_ledger_secret)
     {
       set_recovery_shares_info(
         tx, new_ledger_secret, network.ledger_secrets->get_latest());
@@ -208,7 +208,7 @@ namespace ccf
     // For now, the shares are passed directly to this function. Shares should
     // be retrieved from the KV instead.
     std::vector<kv::Version> restore_recovery_shares_info(
-      Store::Tx& tx,
+      StoreTx& tx,
       const std::vector<SecretSharing::Share>& shares,
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
     {

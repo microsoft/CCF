@@ -556,7 +556,7 @@ namespace ccf
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
         network.tables->compact(ledger_idx);
-        Store::Tx tx;
+        StoreTx tx;
         GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
         if (last_sig.has_value())
@@ -593,7 +593,7 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      Store::Tx tx;
+      StoreTx tx;
       GenesisGenerator g(network, tx);
 
       network.tables->rollback(last_recovered_commit_idx);
@@ -731,7 +731,7 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
-        Store::Tx tx;
+        StoreTx tx;
 
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
@@ -828,7 +828,7 @@ namespace ccf
       LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }
 
-    bool accept_recovery(Store::Tx& tx) override
+    bool accept_recovery(StoreTx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
@@ -838,7 +838,7 @@ namespace ccf
     }
 
     bool finish_recovery(
-      Store::Tx& tx, const std::vector<kv::Version>& restored_versions)
+      StoreTx& tx, const std::vector<kv::Version>& restored_versions)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
@@ -950,13 +950,13 @@ namespace ccf
       return sm.check(State::partOfPublicNetwork);
     }
 
-    bool open_network(Store::Tx& tx) override
+    bool open_network(StoreTx& tx) override
     {
       GenesisGenerator g(network, tx);
       return g.open_service();
     }
 
-    bool rekey_ledger(Store::Tx& tx) override
+    bool rekey_ledger(StoreTx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
@@ -972,7 +972,7 @@ namespace ccf
     }
 
     void node_quotes(
-      Store::Tx& tx,
+      StoreTx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {
@@ -1010,7 +1010,7 @@ namespace ccf
       });
     };
 
-    bool split_ledger_secrets(Store::Tx& tx) override
+    bool split_ledger_secrets(StoreTx& tx) override
     {
       try
       {
@@ -1025,7 +1025,7 @@ namespace ccf
     }
 
     bool restore_ledger_secrets(
-      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+      StoreTx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
       try
       {
@@ -1118,7 +1118,7 @@ namespace ccf
     }
 
     void broadcast_ledger_secret(
-      Store::Tx& tx,
+      StoreTx& tx,
       const LedgerSecret& secret,
       kv::Version version = kv::NoVersion,
       bool exclude_self = false)

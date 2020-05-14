@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "tx.h"
+#include "map.h"
+#include "views.h"
 
 namespace kv
 {
@@ -12,7 +13,6 @@ namespace kv
   public:
     template <class K, class V, class H = std::hash<K>>
     using Map = Map<K, V, H, S, D>;
-    using Tx = Tx<S, D>;
 
   private:
     // All collections of Map must be ordered so that we lock their contained
@@ -54,7 +54,7 @@ namespace kv
     DeserialiseSuccess commit_deserialised(
       OrderedViews<S, D>& views, Version& v)
     {
-      auto c = Tx::commit(views, [v]() { return v; });
+      auto c = apply_views(views, [v]() { return v; });
       if (!c.has_value())
       {
         LOG_FAIL_FMT("Failed to commit deserialised Tx at version {}", v);
@@ -294,7 +294,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr,
-      Tx* tx = nullptr)
+      ViewContainer<S, D>* tx = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction.

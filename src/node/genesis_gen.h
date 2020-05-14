@@ -24,7 +24,7 @@ namespace ccf
   {
     NetworkTables& tables;
 
-    Store::Tx& tx;
+    StoreTx& tx;
 
     template <typename T>
     void set_scripts(
@@ -43,7 +43,7 @@ namespace ccf
     }
 
   public:
-    GenesisGenerator(NetworkTables& tables_, Store::Tx& tx_) :
+    GenesisGenerator(NetworkTables& tables_, StoreTx& tx_) :
       tables(tables_),
       tx(tx_)
     {}
