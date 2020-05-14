@@ -171,7 +171,6 @@ class SSHRemote(CmdMixin):
         # files (ledger, secrets) are copied to the remote
         session = self.client.open_sftp()
         for path in self.exe_files:
-            src_path = path
             tgt_path = os.path.join(self.root, os.path.basename(path))
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
             session.put(path, tgt_path)
