@@ -76,7 +76,7 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
 
     recovery_threshold_before = network.consortium.recovery_threshold
     active_members_before = network.consortium.get_active_members()
-    network.consortium.store_current_network_encryption_key()
+    network.store_current_network_encryption_key()
     already_active_member = network.consortium.get_any_active_member()
     saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
 
