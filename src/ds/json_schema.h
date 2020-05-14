@@ -43,7 +43,7 @@ namespace ds
     template <typename T>
     inline void fill_number_schema(nlohmann::json& schema)
     {
-      schema["type"] = "number";
+      schema["type"] = "integer";
       schema["minimum"] = std::numeric_limits<T>::min();
       schema["maximum"] = std::numeric_limits<T>::max();
     }
@@ -132,6 +132,10 @@ namespace ds
       else if constexpr (std::is_integral<T>::value)
       {
         fill_number_schema<T>(schema);
+      }
+      else if constexpr (std::is_floating_point<T>::value)
+      {
+        schema["type"] = "number";
       }
       else if constexpr (std::is_same<T, JsonSchema>::value)
       {
