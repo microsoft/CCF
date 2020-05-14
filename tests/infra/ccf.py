@@ -124,6 +124,21 @@ class Network:
             return self.nodes[-1].node_id + 1
         return self.node_offset
 
+    def _adjust_local_node_ids(self, primary):
+        assert (
+            self.existing_network is None
+        ), "Cannot adjust local node IDs if the network was started from an existing network"
+
+        self.wait_for_state(primary, "partOfPublicNetwork")
+        with primary.node_client() as nc:
+            r = nc.get("getPrimaryInfo")
+            first_node_id = r.result["primary_id"]
+            assert (r.result["primary_host"] == primary.host) and (
+                int(r.result["primary_port"]) == primary.rpc_port
+            ), "Primary is not the node that just started"
+            for n in self.nodes:
+                n.node_id = n.node_id + first_node_id
+
     def create_node(self, host):
         node_id = self._get_next_local_node_id()
         debug = (
@@ -163,21 +178,6 @@ class Network:
                     LOG.error(f"New node {node.node_id} failed to join the network")
                     raise
             node.network_state = infra.node.NodeNetworkState.joined
-
-    def _adjust_local_node_ids(self, primary):
-        assert (
-            self.existing_network is None
-        ), "Cannot adjust local node IDs if the network was started from an existing network"
-
-        self.wait_for_state(primary, "partOfPublicNetwork")
-        with primary.node_client() as nc:
-            r = nc.get("getPrimaryInfo")
-            first_node_id = r.result["primary_id"]
-            assert (r.result["primary_host"] == primary.host) and (
-                int(r.result["primary_port"]) == primary.rpc_port
-            ), f"Primary is not the node that just started"
-            for n in self.nodes:
-                n.node_id = n.node_id + first_node_id
 
     def _start_all_nodes(self, args, recovery=False, ledger_file=None):
         hosts = self.hosts
@@ -227,8 +227,6 @@ class Network:
         LOG.info("All nodes started")
 
         primary, _ = self.find_primary()
-        # self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-
         return primary
 
     def _setup_common_folder(self, gov_script):
@@ -271,6 +269,7 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
+        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
 
         if args.consensus != "pbft":
             self.wait_for_all_nodes_to_catch_up(primary)
@@ -309,6 +308,7 @@ class Network:
             self.consortium = infra.consortium.Consortium(
                 common_dir, self.key_generator, remote_node=primary
             )
+        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
 
         for node in self.nodes:
             self.wait_for_state(node, "partOfPublicNetwork")
