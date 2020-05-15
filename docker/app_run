@@ -1,3 +1,6 @@
+# Application Runtime image
+# Contains the cchost binary and its runtime dependencies
+
 FROM ubuntu:18.04
 
 RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries

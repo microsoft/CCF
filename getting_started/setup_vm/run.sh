@@ -6,4 +6,4 @@ set -ex
 sudo add-apt-repository ppa:ansible/ansible -y
 sudo apt-get update
 sudo apt install ansible -y
-ansible-playbook app-dev.yml
+ansible-playbook $@
