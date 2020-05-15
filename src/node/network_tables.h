@@ -15,6 +15,7 @@
 #include "entities.h"
 #include "governance_history.h"
 #include "kv/map.h"
+#include "kv/store.h"
 #include "members.h"
 #include "nodes.h"
 #include "proposals.h"

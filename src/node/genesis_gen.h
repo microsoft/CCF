@@ -3,6 +3,7 @@
 #pragma once
 #include "code_id.h"
 #include "entities.h"
+#include "kv/tx.h"
 #include "lua_interp/lua_interp.h"
 #include "lua_interp/lua_util.h"
 #include "members.h"
