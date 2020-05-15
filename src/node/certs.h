@@ -5,5 +5,5 @@
 
 namespace ccf
 {
-  using Certs = Store::Map<Cert, ObjectId>;
+  using Certs = kv::Map<Cert, ObjectId>;
 }

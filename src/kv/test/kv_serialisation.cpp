@@ -375,7 +375,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   SUBCASE("baseline")
   {
     auto consensus = std::make_shared<kv::StubConsensus>();
-    using Table = kv::Store::Map<std::vector<int>, std::string>;
+    using Table = kv::Map<std::vector<int>, std::string>;
     kv::Store s0(consensus), s1;
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
@@ -392,7 +392,7 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   SUBCASE("nlohmann")
   {
     auto consensus = std::make_shared<kv::StubConsensus>();
-    using Table = kv::Store::Map<nlohmann::json, nlohmann::json>;
+    using Table = kv::Map<nlohmann::json, nlohmann::json>;
     kv::Store s0(consensus), s1;
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");

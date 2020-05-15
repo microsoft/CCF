@@ -32,7 +32,7 @@ namespace loggingapp
   };
 
   // SNIPPET: table_definition
-  using Table = ccf::Store::Map<size_t, string>;
+  using Table = kv::Map<size_t, string>;
 
   // SNIPPET: inherit_frontend
   class LoggerHandlers : public ccf::UserHandlerRegistry
@@ -85,7 +85,7 @@ namespace loggingapp
     {
       // SNIPPET_START: record
       // SNIPPET_START: macro_validation_record
-      auto record = [this](ccf::Tx& tx, nlohmann::json&& params) {
+      auto record = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
 
@@ -102,7 +102,7 @@ namespace loggingapp
       // SNIPPET_END: record
 
       // SNIPPET_START: get
-      auto get = [this](ccf::Tx& tx, nlohmann::json&& params) {
+      auto get = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingGet::In>();
         auto view = tx.get_view(records);
         auto r = view->get(in.id);
@@ -117,7 +117,7 @@ namespace loggingapp
 
       // SNIPPET_START: record_public
       // SNIPPET_START: valijson_record_public
-      auto record_public = [this](ccf::Tx& tx, nlohmann::json&& params) {
+      auto record_public = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto validation_error =
           validate(params, record_public_params_schema);
 
@@ -141,7 +141,7 @@ namespace loggingapp
       // SNIPPET_END: record_public
 
       // SNIPPET_START: get_public
-      auto get_public = [this](ccf::Tx& tx, nlohmann::json&& params) {
+      auto get_public = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto validation_error =
           validate(params, get_public_params_schema);
 

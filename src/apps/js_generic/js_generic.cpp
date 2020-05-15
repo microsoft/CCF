@@ -13,7 +13,7 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using Table = ccf::Store::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
+  using Table = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
 
   static JSValue js_print(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -275,7 +275,7 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void list_methods(ccf::Tx& tx, ListMethods::Out& out) override
+    void list_methods(kv::Tx& tx, ListMethods::Out& out) override
     {
       UserHandlerRegistry::list_methods(tx, out);
 

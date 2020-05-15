@@ -3,7 +3,7 @@
 #pragma once
 
 #include "consensus/pbft/libbyz/parameters.h"
-#include "node/entities.h"
+#include "kv/map.h"
 
 #include <array>
 #include <msgpack/msgpack.hpp>
@@ -26,5 +26,5 @@ namespace pbft
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the new views in the kv over time, we just want to
   // get them into the ledger
-  using NewViewsMap = ccf::Store::Map<size_t, NewView>;
+  using NewViewsMap = kv::Map<size_t, NewView>;
 }

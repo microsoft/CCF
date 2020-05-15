@@ -49,7 +49,7 @@ namespace kv
     }
   }
 
-  template <class K, class V, class H>
+  template <class K, class V, class H = std::hash<K>>
   class Map : public AbstractMap
   {
   public:

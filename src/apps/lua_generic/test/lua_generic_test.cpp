@@ -141,7 +141,7 @@ auto init_frontend(
 
 void set_handler(NetworkTables& network, const string& method, const Script& h)
 {
-  ccf::Tx tx;
+  kv::Tx tx;
   tx.get_view(network.app_scripts)->put(method, h);
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
@@ -179,7 +179,7 @@ TEST_CASE("simple lua apps")
   NetworkTables network;
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  ccf::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -316,7 +316,7 @@ TEST_CASE("simple bank")
   NetworkTables network;
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  ccf::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -433,7 +433,7 @@ TEST_CASE("pre-populated environment")
   NetworkTables network;
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  ccf::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});

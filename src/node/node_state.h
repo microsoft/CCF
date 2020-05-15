@@ -196,7 +196,7 @@ namespace ccf
     // recovery
     //
     NodeInfoNetwork node_info_network;
-    std::shared_ptr<Store> recovery_store;
+    std::shared_ptr<kv::Store> recovery_store;
     std::shared_ptr<kv::TxHistory> recovery_history;
     std::shared_ptr<kv::AbstractTxEncryptor> recovery_encryptor;
     kv::Version recovery_v;
@@ -560,7 +560,7 @@ namespace ccf
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
         network.tables->compact(ledger_idx);
-        ccf::Tx tx;
+        kv::Tx tx;
         GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
         if (last_sig.has_value())
@@ -597,7 +597,7 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      ccf::Tx tx;
+      kv::Tx tx;
       GenesisGenerator g(network, tx);
 
       network.tables->rollback(last_recovered_commit_idx);
@@ -735,7 +735,7 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
-        ccf::Tx tx;
+        kv::Tx tx;
 
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
@@ -788,7 +788,7 @@ namespace ccf
     void setup_private_recovery_store()
     {
       // Setup recovery store by cloning tables of store
-      recovery_store = std::make_shared<Store>();
+      recovery_store = std::make_shared<kv::Store>();
       recovery_store->clone_schema(*network.tables);
       Signatures* recovery_signature_map =
         recovery_store->get<Signatures>(Tables::SIGNATURES);
@@ -833,7 +833,7 @@ namespace ccf
       LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }
 
-    bool accept_recovery(ccf::Tx& tx) override
+    bool accept_recovery(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
@@ -843,7 +843,7 @@ namespace ccf
     }
 
     bool finish_recovery(
-      ccf::Tx& tx, const std::vector<kv::Version>& restored_versions)
+      kv::Tx& tx, const std::vector<kv::Version>& restored_versions)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
@@ -955,13 +955,13 @@ namespace ccf
       return sm.check(State::partOfPublicNetwork);
     }
 
-    bool open_network(ccf::Tx& tx) override
+    bool open_network(kv::Tx& tx) override
     {
       GenesisGenerator g(network, tx);
       return g.open_service();
     }
 
-    bool rekey_ledger(ccf::Tx& tx) override
+    bool rekey_ledger(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
@@ -977,7 +977,7 @@ namespace ccf
     }
 
     void node_quotes(
-      ccf::Tx& tx,
+      kv::Tx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {
@@ -1015,7 +1015,7 @@ namespace ccf
       });
     };
 
-    bool split_ledger_secrets(ccf::Tx& tx) override
+    bool split_ledger_secrets(kv::Tx& tx) override
     {
       try
       {
@@ -1030,7 +1030,7 @@ namespace ccf
     }
 
     bool restore_ledger_secrets(
-      ccf::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+      kv::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
       try
       {
@@ -1123,7 +1123,7 @@ namespace ccf
     }
 
     void broadcast_ledger_secret(
-      ccf::Tx& tx,
+      kv::Tx& tx,
       const LedgerSecret& secret,
       kv::Version version = kv::NoVersion,
       bool exclude_self = false)
@@ -1496,7 +1496,7 @@ namespace ccf
       setup_cmd_forwarder();
 
       auto raft = std::make_unique<RaftType>(
-        std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
+        std::make_unique<raft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
@@ -1654,7 +1654,7 @@ namespace ccf
       setup_n2n_channels();
 
       consensus = std::make_shared<PbftConsensusType>(
-        std::make_unique<pbft::Adaptor<Store, kv::DeserialiseSuccess>>(
+        std::make_unique<pbft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
         n2n_channels,
         self,

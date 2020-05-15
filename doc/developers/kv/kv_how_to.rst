@@ -82,14 +82,14 @@ If a Key-Value pair was written to a ``Map`` by a previous ``Transaction``, it i
 .. code-block:: cpp
 
     // Assuming that "key1" has already been committed
-    ccf::Tx tx;
+    kv::Tx tx;
     auto view_map1 = tx.get_view(map_priv);
     auto v = view_map1->get("key1"); // v.value() == "value1"
     view_map1->remove("key1");
     auto rc = tx.commit();
 
     // New Transaction
-    ccf::Tx tx_new;
+    kv::Tx tx_new;
     auto view_map1_new = tx.get_view(map_priv);
     auto v1 = view_map1_new->get("key1"); // v1.has_value() == false
 
@@ -165,7 +165,7 @@ A ``View`` offers a :cpp:class:`kv::Map::TxView::foreach` member function to ite
 
     using namespace std;
     // Assuming that "key1":"value1" and "key2":"value2" have already been committed
-    ccf::Tx tx;
+    kv::Tx tx;
     auto view_map1 = tx.get_view(map_priv);
 
     // Outputs:

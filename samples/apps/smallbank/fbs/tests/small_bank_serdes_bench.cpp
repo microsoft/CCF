@@ -59,14 +59,14 @@ std::vector<uint8_t> large_payload(size_t size)
 
 static std::vector<uint8_t> kv_serialized_data(std::vector<uint8_t>& data)
 {
-  ccf::Store kv_store;
+  kv::Store kv_store;
   auto secrets = create_ledger_secrets();
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
   kv_store.set_encryptor(encryptor);
 
   auto& map0 = kv_store.create<pbft::RequestsMap>("map0");
 
-  ccf::Tx tx(kv_store.next_version());
+  kv::Tx tx(kv_store.next_version());
   auto tx0 = tx.get_view(map0);
 
   tx0->put(0, {0, {}, data, {}});

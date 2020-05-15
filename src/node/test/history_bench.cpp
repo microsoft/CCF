@@ -127,7 +127,7 @@ static void append(picobench::state& s)
 {
   ::srand(42);
 
-  Store store;
+  kv::Store store;
   auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
   auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
@@ -167,7 +167,7 @@ static void append_compact(picobench::state& s)
 {
   ::srand(42);
 
-  Store store;
+  kv::Store store;
   auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
   auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 

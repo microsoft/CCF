@@ -107,7 +107,7 @@ namespace ccf
     }
 
     static QuoteVerificationResult verify_enclave_measurement_against_store(
-      ccf::Tx& tx, CodeIDs& code_ids_table, const oe_report_t& parsed_quote)
+      kv::Tx& tx, CodeIDs& code_ids_table, const oe_report_t& parsed_quote)
     {
       auto code_digest = get_digest_from_parsed_quote(parsed_quote);
 
@@ -145,7 +145,7 @@ namespace ccf
 
   public:
     static QuoteVerificationResult verify_quote_against_store(
-      ccf::Tx& tx,
+      kv::Tx& tx,
       CodeIDs& code_ids,
       const std::vector<uint8_t>& raw_quote,
       const Cert& raw_cert_pem)

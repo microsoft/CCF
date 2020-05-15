@@ -4,6 +4,7 @@
 
 #include "enclave/app_interface.h"
 #include "kv/kv_types.h"
+#include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/entities.h"
@@ -18,14 +19,12 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-using namespace ccf;
-
 class DummyConsensus : public kv::StubConsensus
 {
 public:
-  Store* store;
+  kv::Store* store;
 
-  DummyConsensus(Store* store_) : store(store_) {}
+  DummyConsensus(kv::Store* store_) : store(store_) {}
 
   bool replicate(const kv::BatchVector& entries) override
   {
@@ -66,14 +65,14 @@ public:
 TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  Store primary_store;
+  kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
   auto& primary_nodes = primary_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
   auto& primary_signatures = primary_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
-  Store backup_store;
+  kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
   auto& backup_nodes = backup_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
@@ -101,7 +100,7 @@ TEST_CASE("Check signature verification")
 
   INFO("Write certificate");
   {
-    ccf::Tx txs;
+    kv::Tx txs;
     auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
@@ -117,7 +116,7 @@ TEST_CASE("Check signature verification")
 
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
-    ccf::Tx txs;
+    kv::Tx txs;
     auto tx = txs.get_view(primary_signatures);
     ccf::Signature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
@@ -129,14 +128,14 @@ TEST_CASE("Check signature verification")
 TEST_CASE("Check signing works across rollback")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  Store primary_store;
+  kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
   auto& primary_nodes = primary_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
   auto& primary_signatures = primary_store.create<ccf::Signatures>(
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
 
-  Store backup_store;
+  kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
   auto& backup_nodes = backup_store.create<ccf::Nodes>(
     ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
@@ -164,7 +163,7 @@ TEST_CASE("Check signing works across rollback")
 
   INFO("Write certificate");
   {
-    ccf::Tx txs;
+    kv::Tx txs;
     auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
@@ -174,7 +173,7 @@ TEST_CASE("Check signing works across rollback")
 
   INFO("Transaction that we will roll back");
   {
-    ccf::Tx txs;
+    kv::Tx txs;
     auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     tx->put(1, ni);
@@ -214,10 +213,10 @@ TEST_CASE("Check signing works across rollback")
 class CompactingConsensus : public kv::StubConsensus
 {
 public:
-  Store* store;
+  kv::Store* store;
   size_t count = 0;
 
-  CompactingConsensus(Store* store_) : store(store_) {}
+  CompactingConsensus(kv::Store* store_) : store(store_) {}
 
   bool replicate(const kv::BatchVector& entries) override
   {
@@ -260,7 +259,7 @@ TEST_CASE(
   "Batches containing but not ending on a committable transaction should not "
   "halt replication")
 {
-  Store store;
+  kv::Store store;
   std::shared_ptr<CompactingConsensus> consensus =
     std::make_shared<CompactingConsensus>(&store);
   store.set_consensus(consensus);
@@ -272,7 +271,7 @@ TEST_CASE(
 
   INFO("Write first tx");
   {
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -283,7 +282,7 @@ TEST_CASE(
   {
     auto rv = store.next_version();
 
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -292,7 +291,7 @@ TEST_CASE(
     store.commit(
       rv,
       [rv, &other_table]() {
-        ccf::Tx txr(rv);
+        kv::Tx txr(rv);
         auto txrv = txr.get_view(other_table);
         txrv->put(0, 1);
         return txr.commit_reserved();
@@ -303,7 +302,7 @@ TEST_CASE(
 
   INFO("Single tx");
   {
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -314,13 +313,13 @@ TEST_CASE(
 class RollbackConsensus : public kv::StubConsensus
 {
 public:
-  Store* store;
+  kv::Store* store;
   size_t count = 0;
   kv::Version rollback_at;
   kv::Version rollback_to;
 
   RollbackConsensus(
-    Store* store_, kv::Version rollback_at_, kv::Version rollback_to_) :
+    kv::Store* store_, kv::Version rollback_at_, kv::Version rollback_to_) :
     store(store_),
     rollback_at(rollback_at_),
     rollback_to(rollback_to_)
@@ -366,7 +365,7 @@ public:
 TEST_CASE(
   "Check that empty rollback during replicate does not cause replication halts")
 {
-  Store store;
+  kv::Store store;
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 2);
   store.set_consensus(consensus);
@@ -376,7 +375,7 @@ TEST_CASE(
 
   INFO("Write first tx");
   {
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -385,7 +384,7 @@ TEST_CASE(
 
   INFO("Write second tx, causing a rollback");
   {
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -394,7 +393,7 @@ TEST_CASE(
 
   INFO("Single tx");
   {
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -405,7 +404,7 @@ TEST_CASE(
 TEST_CASE(
   "Check that rollback during replicate does not cause replication halts")
 {
-  Store store;
+  kv::Store store;
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 1);
   store.set_consensus(consensus);
@@ -415,7 +414,7 @@ TEST_CASE(
 
   INFO("Write first tx");
   {
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -424,7 +423,7 @@ TEST_CASE(
 
   INFO("Write second tx, causing a rollback");
   {
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -433,7 +432,7 @@ TEST_CASE(
 
   INFO("Single tx");
   {
-    ccf::Tx tx;
+    kv::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);

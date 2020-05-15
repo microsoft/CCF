@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "entities.h"
-#include "kv/kv_types.h"
+#include "kv/map.h"
 #include "node_info_network.h"
 
 #include <msgpack/msgpack.hpp>
@@ -42,7 +42,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfo, cert, quote, encryption_pub_key, status);
 
-  using Nodes = Store::Map<NodeId, NodeInfo>;
+  using Nodes = kv::Map<NodeId, NodeInfo>;
 }
 
 FMT_BEGIN_NAMESPACE

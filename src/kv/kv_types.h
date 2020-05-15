@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensus_types.h"
 #include "crypto/hash.h"
 #include "kv_serialiser.h"
 

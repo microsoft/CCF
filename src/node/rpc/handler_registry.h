@@ -5,6 +5,8 @@
 #include "ds/json_schema.h"
 #include "enclave/rpc_context.h"
 #include "http/http_consts.h"
+#include "kv/store.h"
+#include "kv/tx.h"
 #include "node/certs.h"
 #include "serialization.h"
 
@@ -18,7 +20,7 @@ namespace ccf
   struct RequestArgs
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
-    ccf::Tx& tx;
+    kv::Tx& tx;
     CallerId caller_id;
   };
 
@@ -259,7 +261,7 @@ namespace ccf
     Certs* certs = nullptr;
 
   public:
-    HandlerRegistry(Store& tables, const std::string& certs_table_name = "")
+    HandlerRegistry(kv::Store& tables, const std::string& certs_table_name = "")
     {
       if (!certs_table_name.empty())
       {
@@ -311,7 +313,7 @@ namespace ccf
      * internally, so derived implementations must be able to populate the list
      * with the supported methods however it constructs them.
      */
-    virtual void list_methods(ccf::Tx& tx, ListMethods::Out& out)
+    virtual void list_methods(kv::Tx& tx, ListMethods::Out& out)
     {
       for (const auto& handler : handlers)
       {
@@ -319,7 +321,7 @@ namespace ccf
       }
     }
 
-    virtual void init_handlers(Store& tables) {}
+    virtual void init_handlers(kv::Store& tables) {}
 
     virtual Handler* find_handler(const std::string& method)
     {
@@ -346,7 +348,7 @@ namespace ccf
     }
 
     virtual CallerId get_caller_id(
-      ccf::Tx& tx, const std::vector<uint8_t>& caller)
+      kv::Tx& tx, const std::vector<uint8_t>& caller)
     {
       if (certs == nullptr || caller.empty())
       {

@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "entities.h"
 #include "script.h"
+#include "kv/map.h"
 
 namespace ccf
 {
-  using Scripts = Store::Map<std::string, Script>;
+  using Scripts = kv::Map<std::string, Script>;
 
   struct GovScriptIds
   {

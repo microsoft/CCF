@@ -2,10 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "consensus/consensus_types.h"
 #include "consensus/pbft/pbft_new_views.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "ds/ring_buffer_types.h"
-#include "kv/kv_types.h"
+#include "kv/tx.h"
 #include "node/signatures.h"
 
 namespace pbft
@@ -45,7 +46,7 @@ namespace pbft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr,
-      ccf::Tx* tx = nullptr) = 0;
+      kv::Tx* tx = nullptr) = 0;
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
@@ -55,7 +56,7 @@ namespace pbft
       CBuffer root,
       ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(
-      ccf::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
+      kv::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
     virtual void commit_new_view(
       const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
@@ -74,7 +75,7 @@ namespace pbft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr,
-      ccf::Tx* tx = nullptr)
+      kv::Tx* tx = nullptr)
     {
       auto p = x.lock();
       if (p)
@@ -99,7 +100,7 @@ namespace pbft
           auto success = p->commit(
             version,
             [&]() {
-              ccf::Tx tx(version);
+              kv::Tx tx(version);
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
               auto sig_view = tx.get_view(signatures);
@@ -116,8 +117,7 @@ namespace pbft
       }
     }
 
-    kv::Version commit_tx(
-      ccf::Tx& tx, CBuffer root, ccf::Signatures& signatures)
+    kv::Version commit_tx(kv::Tx& tx, CBuffer root, ccf::Signatures& signatures)
     {
       while (true)
       {
@@ -152,7 +152,7 @@ namespace pbft
           auto success = p->commit(
             version,
             [&]() {
-              ccf::Tx tx(version);
+              kv::Tx tx(version);
               auto vc_view = tx.get_view(pbft_new_views_map);
               vc_view->put(0, new_view);
               return tx.commit_reserved();

@@ -4,6 +4,7 @@
 
 #include "kv_types.h"
 #include "map.h"
+#include "views.h"
 
 namespace kv
 {

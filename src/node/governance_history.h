@@ -4,6 +4,7 @@
 
 #include "ds/json.h"
 #include "entities.h"
+#include "kv/map.h"
 #include "script.h"
 
 #include <msgpack/msgpack.hpp>
@@ -19,5 +20,5 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(GovernanceHistoryEntry)
   DECLARE_JSON_REQUIRED_FIELDS(GovernanceHistoryEntry, signed_request)
-  using GovernanceHistory = Store::Map<MemberId, GovernanceHistoryEntry>;
+  using GovernanceHistory = kv::Map<MemberId, GovernanceHistoryEntry>;
 }

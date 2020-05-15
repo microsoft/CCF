@@ -10,10 +10,6 @@ namespace kv
 {
   class Store : public AbstractStore
   {
-  public:
-    template <class K, class V, class H = std::hash<K>>
-    using Map = Map<K, V, H>;
-
   private:
     // All collections of Map must be ordered so that we lock their contained
     // maps in a stable order. The order here is by map name

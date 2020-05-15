@@ -20,7 +20,7 @@ namespace ccf
     Signatures* signatures = nullptr;
 
     std::optional<NodeId> check_node_exists(
-      ccf::Tx& tx,
+      kv::Tx& tx,
       std::vector<uint8_t>& node_pem,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
@@ -43,7 +43,7 @@ namespace ccf
     }
 
     std::optional<NodeId> check_conflicting_node_network(
-      ccf::Tx& tx, const NodeInfoNetwork& node_info_network)
+      kv::Tx& tx, const NodeInfoNetwork& node_info_network)
     {
       auto nodes_view = tx.get_view(network.nodes);
 
@@ -65,7 +65,7 @@ namespace ccf
     }
 
     auto add_node(
-      ccf::Tx& tx,
+      kv::Tx& tx,
       std::vector<uint8_t>& caller_pem_raw,
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status)
@@ -142,7 +142,7 @@ namespace ccf
       node(node)
     {}
 
-    void init_handlers(Store& tables_) override
+    void init_handlers(kv::Store& tables_) override
     {
       CommonHandlerRegistry::init_handlers(tables_);
 
@@ -250,7 +250,7 @@ namespace ccf
         }
       };
 
-      auto get_signed_index = [this](ccf::Tx& tx) {
+      auto get_signed_index = [this](kv::Tx& tx) {
         GetSignedIndex::Out result;
         if (this->node.is_reading_public_ledger())
         {
@@ -284,7 +284,7 @@ namespace ccf
         return make_success(result);
       };
 
-      auto get_quote = [this](ccf::Tx& tx) {
+      auto get_quote = [this](kv::Tx& tx) {
         GetQuotes::Out result;
         std::set<NodeId> filter;
         filter.insert(this->node.get_node_id());
@@ -293,7 +293,7 @@ namespace ccf
         return make_success(result);
       };
 
-      auto get_quotes = [this](ccf::Tx& tx) {
+      auto get_quotes = [this](kv::Tx& tx) {
         GetQuotes::Out result;
         this->node.node_quotes(tx, result);
 
