@@ -331,7 +331,6 @@ class Network:
             self.wait_for_state(
                 node, "partOfPublicNetwork", timeout=args.ledger_recovery_timeout
             )
-            # input()
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined public network")
 
