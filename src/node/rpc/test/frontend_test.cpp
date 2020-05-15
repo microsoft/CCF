@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "consensus/pbft/pbft_requests.h"
-#include "consensus/test/stub_consensus.h"
+#include "kv/test/stub_consensus.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"

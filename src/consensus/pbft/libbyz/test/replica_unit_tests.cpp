@@ -7,7 +7,7 @@
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
-#include "consensus/test/stub_consensus.h"
+#include "kv/test/stub_consensus.h"
 #include "host/ledger.h"
 #include "message.h"
 #include "network_mock.h"

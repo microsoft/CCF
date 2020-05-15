@@ -1,16 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define DOCTEST_CONFIG_IMPLEMENT
 #include "node/history.h"
 
-#include "consensus/test/stub_consensus.h"
 #include "enclave/app_interface.h"
 #include "kv/kv_types.h"
+#include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/nodes.h"
 #include "node/signatures.h"
 
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 extern "C"
