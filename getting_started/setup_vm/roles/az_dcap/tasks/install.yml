@@ -9,15 +9,15 @@
     state: present
   become: yes
 
-- name: Add Azure CLI sources list
+- name: Add Microsoft sources list
   apt_repository:
-    repo: "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ {{ distro_name.stdout }} main"
+    repo: "deb [arch=amd64] https://packages.microsoft.com/ubuntu/{{ ansible_distribution_version }}/prod {{ ansible_distribution_release }} main"
     state: present
   become: true
 
-- name: Install the Azure CLI
+- name: Install the Azure DCAP Client
   apt:
-    name: azure-cli
+    name: az-dcap-client
     state: present
     force: true
   become: true
