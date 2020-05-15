@@ -8,17 +8,16 @@
 
 namespace kv
 {
-  template <class S, class D>
   class Store : public AbstractStore
   {
   public:
     template <class K, class V, class H = std::hash<K>>
-    using Map = Map<K, V, H, S, D>;
+    using Map = Map<K, V, H>;
 
   private:
     // All collections of Map must be ordered so that we lock their contained
     // maps in a stable order. The order here is by map name
-    using Maps = std::map<std::string, std::unique_ptr<AbstractMap<S, D>>>;
+    using Maps = std::map<std::string, std::unique_ptr<AbstractMap>>;
     Maps maps;
 
     std::shared_ptr<Consensus> consensus = nullptr;
@@ -37,12 +36,11 @@ namespace kv
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
-    template <typename SP, typename DP>
-    inline std::map<kv::SecurityDomain, std::vector<AbstractMap<SP, DP>*>>
+    inline std::map<kv::SecurityDomain, std::vector<AbstractMap*>>
     get_maps_grouped_by_domain(
-      const std::map<std::string, std::unique_ptr<AbstractMap<SP, DP>>>& maps)
+      const std::map<std::string, std::unique_ptr<AbstractMap>>& maps)
     {
-      std::map<kv::SecurityDomain, std::vector<AbstractMap<SP, DP>*>>
+      std::map<kv::SecurityDomain, std::vector<AbstractMap*>>
         grouped_maps;
       for (auto it = maps.begin(); it != maps.end(); ++it)
       {
@@ -53,7 +51,7 @@ namespace kv
     }
 
     DeserialiseSuccess commit_deserialised(
-      OrderedViews<S, D>& views, Version& v)
+      OrderedViews& views, Version& v)
     {
       auto c = apply_views(views, [v]() { return v; });
       if (!c.has_value())
@@ -79,7 +77,7 @@ namespace kv
 
       for (auto& [name, map] : target.maps)
       {
-        maps[name] = std::unique_ptr<AbstractMap<S, D>>(map->clone(this));
+        maps[name] = std::unique_ptr<AbstractMap>(map->clone(this));
       }
     }
 
@@ -215,7 +213,7 @@ namespace kv
 
       auto result =
         new M(this, name, security_domain, replicated, local_hook, global_hook);
-      maps[name] = std::unique_ptr<AbstractMap<S, D>>(result);
+      maps[name] = std::unique_ptr<AbstractMap>(result);
       return *result;
     }
 
@@ -295,7 +293,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr,
-      ViewContainer<S, D>* tx = nullptr)
+      ViewContainer* tx = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction.
@@ -342,7 +340,7 @@ namespace kv
       // need snapshot isolation on the map state, and so do not need to
       // lock all the maps before creating the transaction.
       std::lock_guard<SpinLock> mguard(maps_lock);
-      OrderedViews<S, D> views;
+      OrderedViews views;
 
       for (auto r = d->start_map(); r.has_value(); r = d->start_map())
       {
@@ -377,7 +375,7 @@ namespace kv
         }
 
         views[map_name] = {search->second.get(),
-                           std::unique_ptr<AbstractTxView<S, D>>(view)};
+                           std::unique_ptr<AbstractTxView>(view)};
       }
 
       if (!d->end())
@@ -463,7 +461,7 @@ namespace kv
       return deserialise_views(data, public_only, term);
     }
 
-    bool operator==(const Store<S, D>& that) const
+    bool operator==(const Store& that) const
     {
       // Only used for debugging, not thread safe.
       if (version != that.version)
@@ -486,7 +484,7 @@ namespace kv
       return true;
     }
 
-    bool operator!=(const Store<S, D>& that) const
+    bool operator!=(const Store& that) const
     {
       // Only used for debugging, not thread safe.
       return !(*this == that);
@@ -647,13 +645,13 @@ namespace kv
      * make sure that the private state being swapped in is fully compacted
      * before the swap.
      **/
-    void swap_private_maps(Store<S, D>& store)
+    void swap_private_maps(Store& store)
     {
       std::lock_guard<SpinLock> this_maps_guard(maps_lock);
       std::lock_guard<SpinLock> other_maps_guard(store.maps_lock);
 
       using MapEntry =
-        std::tuple<std::string, AbstractMap<S, D>*, AbstractMap<S, D>*>;
+        std::tuple<std::string, AbstractMap*, AbstractMap*>;
       std::vector<MapEntry> entries;
 
       for (auto& [name, map] : maps)

@@ -1420,7 +1420,7 @@ size_t Replica::f() const
   return Node::f();
 }
 
-void Replica::set_f(ccf::NodeId f)
+void Replica::set_f(size_t f)
 {
   if (max_faulty == 0 && f > 0)
   {

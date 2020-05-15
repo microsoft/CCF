@@ -65,7 +65,7 @@ public:
 
 TEST_CASE("Check signature verification")
 {
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   Store primary_store;
   primary_store.set_encryptor(encryptor);
   auto& primary_nodes = primary_store.create<ccf::Nodes>(
@@ -128,7 +128,7 @@ TEST_CASE("Check signature verification")
 
 TEST_CASE("Check signing works across rollback")
 {
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   Store primary_store;
   primary_store.set_encryptor(encryptor);
   auto& primary_nodes = primary_store.create<ccf::Nodes>(

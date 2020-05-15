@@ -851,7 +851,7 @@ namespace pbft
       }
     }
 
-    void set_f(ccf::NodeId f) override
+    void set_f(size_t f) override
     {
       message_receiver_base->set_f(f);
     }

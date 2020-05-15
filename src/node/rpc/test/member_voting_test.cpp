@@ -39,7 +39,7 @@ auto member_caller = verifier_mem -> der_cert_data();
 auto user_cert = kp -> self_sign("CN=name_user");
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
-auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 constexpr auto default_pack = jsonrpc::Pack::Text;
 

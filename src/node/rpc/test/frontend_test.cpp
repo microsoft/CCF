@@ -292,7 +292,7 @@ public:
 auto kp = tls::make_key_pair();
 NetworkState network;
 NetworkState network2;
-auto encryptor = std::make_shared<NullTxEncryptor>();
+auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 NetworkState pbft_network(ConsensusType::PBFT);
 auto history_kp = tls::make_key_pair();

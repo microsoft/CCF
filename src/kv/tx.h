@@ -7,11 +7,10 @@
 
 namespace kv
 {
-  template <class S, class D>
-  class Tx : public ViewContainer<S, D>
+  class Tx : public ViewContainer
   {
   private:
-    OrderedViews<S, D> view_list;
+    OrderedViews view_list;
     bool committed;
     bool success;
     Version read_version;
@@ -44,8 +43,7 @@ namespace kv
       }
 
       typename M::TxView* view = m.create_view(read_version);
-      view_list[m.get_name()] = {&m,
-                                 std::unique_ptr<AbstractTxView<S, D>>(view)};
+      view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView>(view)};
       return std::make_tuple(view);
     }
 
@@ -76,7 +74,7 @@ namespace kv
 
     Tx(const Tx& that) = delete;
 
-    void set_view_list(OrderedViews<S, D>& view_list_) override
+    void set_view_list(OrderedViews& view_list_) override
     {
       // if view list is not empty then any coinciding keys will not be
       // overwritten

@@ -28,8 +28,12 @@
 #include "tls/client.h"
 #include "tls/entropy.h"
 
+#ifdef USE_NULL_ENCRYPTOR
+  #include "kv/test/null_encryptor.h"
+#endif
+
 #ifndef VIRTUAL_ENCLAVE
-#  include <ccf_t.h>
+#  include "ccf_t.h"
 #endif
 
 #include <atomic>
@@ -798,7 +802,7 @@ namespace ccf
         *recovery_nodes_map);
 
 #ifdef USE_NULL_ENCRYPTOR
-      recovery_encryptor = std::make_shared<NullTxEncryptor>();
+      recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
       if (network.consensus_type == ConsensusType::PBFT)
       {
@@ -1575,7 +1579,7 @@ namespace ccf
       // the node has joined the service (either via start_network() or
       // join_network())
 #ifdef USE_NULL_ENCRYPTOR
-      encryptor = std::make_shared<NullTxEncryptor>();
+      encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
       if (network.consensus_type == ConsensusType::PBFT)
       {

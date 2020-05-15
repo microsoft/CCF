@@ -177,7 +177,7 @@ void check_store_load(F frontend, K k, V v)
 TEST_CASE("simple lua apps")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   ccf::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
@@ -314,7 +314,7 @@ TEST_CASE("simple lua apps")
 TEST_CASE("simple bank")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   ccf::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
@@ -431,7 +431,7 @@ TEST_CASE("simple bank")
 TEST_CASE("pre-populated environment")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   ccf::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);

@@ -6,6 +6,7 @@
 #include "ds/dl_list.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
+#include "kv_serialiser.h"
 #include "kv_types.h"
 
 #include <functional>
@@ -48,11 +49,8 @@ namespace kv
     }
   }
 
-  template <class S, class D>
-  class Store;
-
-  template <class K, class V, class H, class S, class D>
-  class Map : public AbstractMap<S, D>
+  template <class K, class V, class H>
+  class Map : public AbstractMap
   {
   public:
     static bool deleted(Version version)
@@ -76,7 +74,7 @@ namespace kv
     using CommitHook = std::function<void(Version, const State&, const Write&)>;
 
   private:
-    using This = Map<K, V, H, S, D>;
+    using This = Map<K, V, H>;
 
     struct LocalCommit
     {
@@ -97,7 +95,7 @@ namespace kv
     };
     using LocalCommits = snmalloc::DLList<LocalCommit, std::nullptr_t, true>;
 
-    Store<S, D>* store;
+    AbstractStore* store;
     std::string name;
     size_t rollback_counter;
     std::unique_ptr<LocalCommits> roll;
@@ -110,8 +108,25 @@ namespace kv
 
     LocalCommits empty_commits;
 
+    template <typename... Args>
+    LocalCommit* create_new_local_commit(Args&&... args)
+    {
+      LocalCommit* c = empty_commits.pop();
+      if (c == nullptr)
+      {
+        c = new LocalCommit(std::forward<Args>(args)...);
+      }
+      else
+      {
+        c->~LocalCommit();
+        new (c) LocalCommit(std::forward<Args>(args)...);
+      }
+      return c;
+    }
+
+  public:
     Map(
-      Store<S, D>* store_,
+      AbstractStore* store_,
       std::string name_,
       SecurityDomain security_domain_,
       bool replicated_,
@@ -131,32 +146,12 @@ namespace kv
 
     Map(const Map& that) = delete;
 
-    template <typename... Args>
-    LocalCommit* create_new_local_commit(Args&&... args)
+    virtual AbstractMap* clone(AbstractStore* other) override
     {
-      LocalCommit* c = empty_commits.pop();
-      if (c == nullptr)
-      {
-        c = new LocalCommit(std::forward<Args>(args)...);
-      }
-      else
-      {
-        c->~LocalCommit();
-        new (c) LocalCommit(std::forward<Args>(args)...);
-      }
-      return c;
-    }
-
-  public:
-    virtual AbstractMap<S, D>* clone(AbstractStore* store) override
-    {
-      Store<S, D>* store_ = dynamic_cast<Store<S, D>*>(store);
-
-      if (store_ == nullptr)
-        throw std::logic_error("Failed to cast store in Map clone");
-
+      // TODO: Restore old check, essentially that we're using the same
+      // serialiser?
       return new Map(
-        store_, name, security_domain, replicated, nullptr, nullptr);
+        other, name, security_domain, replicated, nullptr, nullptr);
     }
 
     /** Get the name of the map
@@ -231,7 +226,7 @@ namespace kv
       return replicated;
     }
 
-    bool operator==(const AbstractMap<S, D>& that) const override
+    bool operator==(const AbstractMap& that) const override
     {
       auto p = dynamic_cast<const This*>(&that);
       if (p == nullptr)
@@ -284,12 +279,12 @@ namespace kv
       return ok;
     }
 
-    bool operator!=(const AbstractMap<S, D>& that) const override
+    bool operator!=(const AbstractMap& that) const override
     {
       return !(*this == that);
     }
 
-    class TxView : public AbstractTxView<S, D>
+    class TxView : public AbstractTxView
     {
       friend Map;
 
@@ -772,7 +767,6 @@ namespace kv
 
   private:
     friend TxView;
-    friend Store<S, D>;
 
     void compact(Version v) override
     {
@@ -877,7 +871,7 @@ namespace kv
       sl.unlock();
     }
 
-    void swap(AbstractMap<S, D>* map_) override
+    void swap(AbstractMap* map_) override
     {
       This* map = dynamic_cast<This*>(map_);
       if (map == nullptr)
@@ -889,13 +883,12 @@ namespace kv
     }
   };
 
-  template <class S, class D>
   struct MapView
   {
     // Weak pointer to source map
-    AbstractMap<S, D>* map;
+    AbstractMap* map;
 
     // Owning pointer of TxView over that map
-    std::unique_ptr<AbstractTxView<S, D>> view;
+    std::unique_ptr<AbstractTxView> view;
   };
 }

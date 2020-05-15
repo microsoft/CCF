@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ds/buffer.h"
-#include "kv_types.h"
+#include "type_declare.h"
 
 #include <optional>
 

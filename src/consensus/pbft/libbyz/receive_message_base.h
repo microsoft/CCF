@@ -36,7 +36,7 @@ public:
     rollback_handler_cb cb, pbft::RollbackInfo* ctx) = 0;
   virtual size_t num_correct_replicas() const = 0;
   virtual size_t f() const = 0;
-  virtual void set_f(ccf::NodeId f) = 0;
+  virtual void set_f(size_t f) = 0;
   virtual View view() const = 0;
   virtual bool is_primary() const = 0;
   virtual int primary() const = 0;

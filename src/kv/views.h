@@ -12,15 +12,13 @@ namespace kv
 {
   // When a collection of Maps are locked, the locks must be acquired in a
   // stable order to avoid deadlocks. This ordered map will claim in name-order
-  template <class S, class D>
-  using OrderedViews = std::map<std::string, MapView<S, D>>;
+  using OrderedViews = std::map<std::string, MapView>;
 
-  template <typename SP, typename DP>
   static inline std::
-    map<kv::SecurityDomain, std::vector<AbstractTxView<SP, DP>*>>
-    get_maps_grouped_by_domain(const OrderedViews<SP, DP>& maps)
+    map<kv::SecurityDomain, std::vector<AbstractTxView*>>
+    get_maps_grouped_by_domain(const OrderedViews& maps)
   {
-    std::map<kv::SecurityDomain, std::vector<AbstractTxView<SP, DP>*>>
+    std::map<kv::SecurityDomain, std::vector<AbstractTxView*>>
       grouped_maps;
     for (auto it = maps.cbegin(); it != maps.cend(); ++it)
     {
@@ -30,19 +28,17 @@ namespace kv
     return grouped_maps;
   }
 
-  template <class S, class D>
   struct ViewContainer
   {
     virtual ~ViewContainer() = default;
-    virtual void set_view_list(OrderedViews<S, D>& view_list) = 0;
+    virtual void set_view_list(OrderedViews& view_list) = 0;
   };
 
   // Atomically checks for conflicts then applies the writes in a set of views
   // to their underlying Maps. Calls f() at most once, iff the writes are
   // applied, to retrieve a unique Version for the write set.
-  template <class S, class D>
   static inline std::optional<Version> apply_views(
-    OrderedViews<S, D>& views, std::function<Version()> f)
+    OrderedViews& views, std::function<Version()> f)
   {
     // All maps with pending writes are locked, transactions are prepared
     // and possibly committed, and then all maps with pending writes are

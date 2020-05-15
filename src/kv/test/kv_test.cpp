@@ -4,6 +4,7 @@
 #include "enclave/app_interface.h"
 #include "kv/kv.h"
 #include "kv/kv_serialiser.h"
+#include "kv/test/null_encryptor.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/history.h"
@@ -438,7 +439,7 @@ TEST_CASE("Global commit hooks")
 
 TEST_CASE("Clone schema")
 {
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::Store store;
   store.set_encryptor(encryptor);
 
@@ -512,7 +513,7 @@ TEST_CASE("Deserialise return status")
 
 TEST_CASE("map swap between stores")
 {
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::Store s1;
   s1.set_encryptor(encryptor);
 
@@ -613,7 +614,7 @@ TEST_CASE("invalid map swaps")
 
 TEST_CASE("private recovery map swap")
 {
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ccf::Store s1;
   s1.set_encryptor(encryptor);
   auto& priv1 = s1.create<size_t, size_t>("private");
