@@ -64,8 +64,10 @@ Transaction commit latency in a CCF network is primarily a function of signature
 but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction
 latency and throughput.
 
-Two options are provided to that end, the first ```--sig-max-tx``` is the maximum number of transactions that should be allowed to occur between two
-signatures, and the second, ```--sig-max-ms``` is the maximum number of milliseconds that should be allowed to elapse between two signatures.
+Two options are provided to that end:
+
+- ``--sig-max-tx``: maximum number of transactions between two signatures
+- ``--sig-max-ms``: maximum time in milliseconds between two signatures.
 
 Adding a New Node to the Network
 --------------------------------
