@@ -32,7 +32,8 @@ static void serialise(picobench::state& s)
 
   ccf::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
   auto& map0 = kv_store.create<std::string, std::string>("map0", SD);
@@ -64,7 +65,8 @@ static void deserialise(picobench::state& s)
   ccf::Store kv_store2;
 
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
@@ -98,7 +100,8 @@ static void commit_latency(picobench::state& s)
 
   ccf::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
   auto& map0 = kv_store.create<std::string, std::string>("map0");

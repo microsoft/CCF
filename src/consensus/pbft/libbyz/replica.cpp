@@ -2027,7 +2027,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
     if (encryptor)
     {
-      encryptor->set_view(prev_view);
+      encryptor->set_iv_id(prev_view);
     }
 
     ByzInfo info;
@@ -2095,7 +2095,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   }
   if (encryptor)
   {
-    encryptor->set_view(v);
+    encryptor->set_iv_id(v);
   }
   LOG_INFO << "Done with process new view " << v << std::endl;
 }

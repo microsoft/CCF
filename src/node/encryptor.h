@@ -24,6 +24,8 @@ namespace ccf
       gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
       gcm_hdr.set_iv_seq(seq_no.fetch_add(1));
     }
+
+    using BaseEncryptor::BaseEncryptor;
   };
 
   template <typename BaseEncryptor>
@@ -33,9 +35,22 @@ namespace ccf
     bool is_recovery;
     std::shared_ptr<LedgerSecrets> ledger_secrets;
 
+    using KeyInfo = kv::TxEncryptor::KeyInfo;
+
+    static std::list<KeyInfo> keys_from_secrets(
+      const std::shared_ptr<LedgerSecrets>& ls)
+    {
+      std::list<KeyInfo> keys;
+      for (const auto& s : ls->secrets_list)
+      {
+        keys.push_back(kv::TxEncryptor::KeyInfo{s.version, s.secret.master});
+      }
+      return keys;
+    }
+
   protected:
     void record_compacted_keys(
-      const std::list<kv::TxEncryptor::EncryptionKey::KeyInfo>& keys) override
+      const std::list<kv::TxEncryptor::KeyInfo>& keys) override
     {
       if (!is_recovery)
       {
@@ -49,7 +64,7 @@ namespace ccf
   public:
     LedgerSecretsMixin(
       const std::shared_ptr<LedgerSecrets>& ls, bool is_recovery_ = false) :
-      BaseEncryptor(ls->secrets_list),
+      BaseEncryptor(keys_from_secrets(ls)),
       ledger_secrets(ls),
       is_recovery(is_recovery_)
     {}
