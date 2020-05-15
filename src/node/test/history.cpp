@@ -4,8 +4,8 @@
 
 #include "enclave/app_interface.h"
 #include "kv/kv_types.h"
+#include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
-#include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/nodes.h"
 #include "node/signatures.h"
