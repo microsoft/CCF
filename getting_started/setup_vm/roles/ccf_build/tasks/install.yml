@@ -19,6 +19,19 @@
     update_cache: yes
   become: yes
 
+- name: Add CMake repository key
+  apt_key:
+    url: "https://apt.kitware.com/keys/kitware-archive-latest.asc"
+    state: present
+  become: yes
+
+- name: Add CMake repository
+  apt_repository:
+    repo: "deb https://apt.kitware.com/ubuntu/ {{ ansible_distribution_release }} main"
+    state: present
+    update_cache: yes
+  become: yes
+
 - name: Install debs
   apt:
     name: "{{ debs }}"

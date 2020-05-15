@@ -1,0 +1,4 @@
+workspace: "/tmp/"
+debs:
+  - libuv1
+  - libcurl4
