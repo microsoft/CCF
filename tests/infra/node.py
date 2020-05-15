@@ -245,7 +245,7 @@ class Node:
             **kwargs,
         )
 
-    def node_client(self, timeout=3, **kwargs):
+    def node_client(self, **kwargs):
         return infra.clients.client(
             self.host,
             self.rpc_port,
