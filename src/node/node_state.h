@@ -29,7 +29,7 @@
 #include "tls/entropy.h"
 
 #ifdef USE_NULL_ENCRYPTOR
-  #include "kv/test/null_encryptor.h"
+#  include "kv/test/null_encryptor.h"
 #endif
 
 #ifndef VIRTUAL_ENCLAVE

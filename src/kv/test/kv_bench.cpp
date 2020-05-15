@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 
-#include "kv/test/stub_consensus.h"
 #include "kv/kv.h"
+#include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
 
 #include <picobench/picobench.hpp>

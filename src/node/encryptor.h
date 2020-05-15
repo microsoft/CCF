@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "entities.h"
 #include "kv/encryptor.h"
+
+#include "entities.h"
 #include "node/ledger_secrets.h"
 
 #include <atomic>

@@ -40,8 +40,7 @@ namespace kv
     get_maps_grouped_by_domain(
       const std::map<std::string, std::unique_ptr<AbstractMap>>& maps)
     {
-      std::map<kv::SecurityDomain, std::vector<AbstractMap*>>
-        grouped_maps;
+      std::map<kv::SecurityDomain, std::vector<AbstractMap*>> grouped_maps;
       for (auto it = maps.begin(); it != maps.end(); ++it)
       {
         grouped_maps[it->second->get_security_domain()].push_back(
@@ -50,8 +49,7 @@ namespace kv
       return grouped_maps;
     }
 
-    DeserialiseSuccess commit_deserialised(
-      OrderedViews& views, Version& v)
+    DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
     {
       auto c = apply_views(views, [v]() { return v; });
       if (!c.has_value())
@@ -650,8 +648,7 @@ namespace kv
       std::lock_guard<SpinLock> this_maps_guard(maps_lock);
       std::lock_guard<SpinLock> other_maps_guard(store.maps_lock);
 
-      using MapEntry =
-        std::tuple<std::string, AbstractMap*, AbstractMap*>;
+      using MapEntry = std::tuple<std::string, AbstractMap*, AbstractMap*>;
       std::vector<MapEntry> entries;
 
       for (auto& [name, map] : maps)
