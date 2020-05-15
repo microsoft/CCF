@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
-#include "enclave/app_interface.h"
 #include "kv/kv.h"
 #include "kv/kv_serialiser.h"
 
@@ -20,9 +19,9 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   // Multiple threads write random entries into random tables, and attempt to
   // commit them. A single thread continually compacts the kv to the latest
   // entry. The goal is for these commits and compactions to avoid deadlock
-  ccf::Store kv_store;
+  kv::Store kv_store;
 
-  using MapType = ccf::Store::Map<size_t, size_t>;
+  using MapType = kv::Store::Map<size_t, size_t>;
   constexpr size_t max_k = 32;
 
   constexpr size_t thread_count = 16;
@@ -37,7 +36,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   struct ThreadArgs
   {
     std::vector<MapType*> maps;
-    ccf::Store* kv_store;
+    kv::Store* kv_store;
     std::atomic<size_t>* counter;
   };
   ThreadArgs args[thread_count] = {};
@@ -78,7 +77,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
       while (true)
       {
         // Start a transaction over selected maps
-        ccf::Tx tx;
+        kv::Tx tx;
 
         std::vector<MapType::TxView*> views;
         for (const auto map : args->maps)
@@ -124,7 +123,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
   struct CompactArgs
   {
-    ccf::Store* kv_store;
+    kv::Store* kv_store;
     std::atomic<size_t>* tx_counter;
     decltype(compact_state)* compact_state;
   } ca{&kv_store, &active_tx_threads, &compact_state};
