@@ -3,6 +3,8 @@ Accepting Recovery and Submitting Shares
 
 .. note:: Before members can initiate the end of the recovery procedure, operators should have started a new network and recovered all public transactions. See :ref:`details for public recovery operator procedure <operators/recovery:Establishing a Recovered Public Network>`.
 
+.. note:: See :ref:`users/deploy_app:Recovering a Service` for an automated way to recover a defunct CCF service.
+
 Accepting Recovery
 ------------------
 

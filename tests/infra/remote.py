@@ -171,17 +171,15 @@ class SSHRemote(CmdMixin):
         # files (ledger, secrets) are copied to the remote
         session = self.client.open_sftp()
         for path in self.exe_files:
-            src_path = path
             tgt_path = os.path.join(self.root, os.path.basename(path))
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
             session.put(path, tgt_path)
             stat = os.stat(path)
             session.chmod(tgt_path, stat.st_mode)
         for path in self.data_files:
-            src_path = os.path.join(self.common_dir, path)
-            tgt_path = os.path.join(self.root, os.path.basename(src_path))
-            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, src_path))
-            session.put(src_path, tgt_path)
+            tgt_path = os.path.join(self.root, os.path.basename(path))
+            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
+            session.put(path, tgt_path)
         session.close()
 
     def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
@@ -405,8 +403,7 @@ class LocalRemote(CmdMixin):
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = self.root
-            src_path = os.path.join(self.common_dir, path)
-            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+            assert self._rc("cp {} {}".format(path, dst_path)) == 0
 
     def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         path = os.path.join(self.root, file_name)
@@ -626,9 +623,9 @@ class CCFRemote(object):
                 )
             for mc, mk in members_info:
                 cmd += [f"--member-info={mc},{mk}"]
-                data_files.append(mc)
-                data_files.append(mk)
-            data_files += [os.path.basename(gov_script)]
+                data_files.append(os.path.join(self.common_dir, mc))
+                data_files.append(os.path.join(self.common_dir, mk))
+            data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
         elif start_type == StartType.join:
             cmd += [
                 "join",
@@ -636,7 +633,7 @@ class CCFRemote(object):
                 f"--target-rpc-address={target_rpc_address}",
                 f"--join-timer={join_timer}",
             ]
-            data_files += ["networkcert.pem"]
+            data_files += [os.path.join(self.common_dir, "networkcert.pem")]
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
         else:
@@ -713,7 +710,10 @@ class CCFRemote(object):
 
     def get_ledger(self):
         self.remote.get(self.ledger_file_name, self.common_dir)
-        return self.ledger_file_name
+        LOG.success(
+            f"Retrieve ledger file {self.ledger_file_name} to {self.common_dir}"
+        )
+        return os.path.join(self.common_dir, self.ledger_file_name)
 
     def ledger_path(self):
         return os.path.join(self.remote.root, self.ledger_file_name)
