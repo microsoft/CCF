@@ -34,7 +34,7 @@ namespace kv
       return true;
     }
 
-    void set_view(Consensus::View view_) override {}
+    void set_iv_id(size_t id) override {}
 
     size_t get_header_length() override
     {

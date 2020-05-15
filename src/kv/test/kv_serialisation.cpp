@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
+#include "kv/encryptor.h"
 #include "kv/kv.h"
 #include "kv/kv_serialiser.h"
 #include "kv/test/null_encryptor.h"
@@ -315,48 +316,53 @@ bool corrupt_serialised_tx(
   return false;
 }
 
-// TODO: Uses some ccf:: types
-// TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
-// {
-//   SUBCASE("Public and Private")
-//   {
-//     auto consensus = std::make_shared<kv::StubConsensus>();
+TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
+{
+  SUBCASE("Public and Private")
+  {
+    auto consensus = std::make_shared<kv::StubConsensus>();
 
-//     // Here, a real encryptor is needed to protect the integrity of the
-//     // transactions
-//     auto secrets = std::make_shared<ccf::LedgerSecrets>();
-//     secrets->init();
-//     auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+    // Here, a real encryptor is needed to protect the integrity of the
+    // transactions
+    std::list<kv::TxEncryptor::KeyInfo> keys;
+    std::vector<uint8_t> raw_key(crypto::GCM_SIZE_KEY);
+    for (size_t i = 0; i < raw_key.size(); ++i)
+    {
+      raw_key[i] = i;
+    }
+    keys.push_back({kv::Version(0), raw_key});
+    auto encryptor = std::make_shared<kv::TxEncryptor>(keys);
+    encryptor->set_iv_id(1);
 
-//     kv::Store kv_store(consensus);
-//     kv::Store kv_store_target;
-//     kv_store.set_encryptor(encryptor);
-//     kv_store_target.set_encryptor(encryptor);
+    kv::Store kv_store(consensus);
+    kv::Store kv_store_target;
+    kv_store.set_encryptor(encryptor);
+    kv_store_target.set_encryptor(encryptor);
 
-//     auto& public_map = kv_store.create<std::string, std::string>(
-//       "public_map", kv::SecurityDomain::PUBLIC);
-//     auto& private_map =
-//       kv_store.create<std::string, std::string>("private_map");
+    auto& public_map = kv_store.create<std::string, std::string>(
+      "public_map", kv::SecurityDomain::PUBLIC);
+    auto& private_map =
+      kv_store.create<std::string, std::string>("private_map");
 
-//     kv_store_target.clone_schema(kv_store);
+    kv_store_target.clone_schema(kv_store);
 
-//     kv::Tx tx;
-//     auto [public_view, private_view] = tx.get_view(public_map, private_map);
-//     std::string pub_value = "pubv1";
-//     public_view->put("pubk1", pub_value);
-//     private_view->put("privk1", "privv1");
-//     auto rc = tx.commit();
+    kv::Tx tx;
+    auto [public_view, private_view] = tx.get_view(public_map, private_map);
+    std::string pub_value = "pubv1";
+    public_view->put("pubk1", pub_value);
+    private_view->put("privk1", "privv1");
+    auto rc = tx.commit();
 
-//     // Tamper with serialised public data
-//     auto serialised_tx = consensus->get_latest_data().first;
-//     std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
-//     REQUIRE(corrupt_serialised_tx(serialised_tx, value_to_corrupt));
+    // Tamper with serialised public data
+    auto serialised_tx = consensus->get_latest_data().first;
+    std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
+    REQUIRE(corrupt_serialised_tx(serialised_tx, value_to_corrupt));
 
-//     REQUIRE(
-//       kv_store_target.deserialise(serialised_tx) ==
-//       kv::DeserialiseSuccess::FAILED);
-//   }
-// }
+    REQUIRE(
+      kv_store_target.deserialise(serialised_tx) ==
+      kv::DeserialiseSuccess::FAILED);
+  }
+}
 
 TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 {

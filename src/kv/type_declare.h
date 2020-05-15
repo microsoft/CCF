@@ -273,7 +273,7 @@ namespace kv
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
       kv::Version version) = 0;
-    virtual void set_view(Consensus::View view) = 0;
+    virtual void set_iv_id(size_t id) = 0;
     virtual size_t get_header_length() = 0;
     virtual void update_encryption_key(
       Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;

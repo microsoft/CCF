@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "crypto/symmetric_key.h"
 #include "entities.h"
-#include "kv/kv_types.h"
+#include "kv/encryptor.h"
 #include "node/ledger_secrets.h"
 
 #include <atomic>
@@ -12,261 +11,50 @@
 
 namespace ccf
 {
-  using SeqNo = uint64_t;
-  using View = kv::Consensus::View;
+  template <typename BaseEncryptor>
+  class SeqTrackingMixin : public BaseEncryptor
+  {
+  private:
+    std::atomic<size_t> seq_no{0};
 
-  class TxEncryptor : public kv::AbstractTxEncryptor
+    void set_iv(
+      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
+      kv::Version version) override
+    {
+      gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
+      gcm_hdr.set_iv_seq(seq_no.fetch_add(1));
+    }
+  };
+
+  template <typename BaseEncryptor>
+  class LedgerSecretsMixin : public BaseEncryptor
   {
   private:
     bool is_recovery;
-    SpinLock lock;
     std::shared_ptr<LedgerSecrets> ledger_secrets;
 
-    // Encryption keys are set when TxEncryptor object is created and are used
-    // to determine which key to use for encryption/decryption when
-    // committing/deserialising depending on the version
-
-    struct KeyInfo
+  protected:
+    void record_compacted_keys(
+      const std::list<kv::TxEncryptor::EncryptionKey::KeyInfo>& keys) override
     {
-      kv::Version version;
-
-      // This is unfortunate. Because the encryptor updates the ledger secrets
-      // on global hook, we need easy access to the raw secrets.
-      std::vector<uint8_t> raw_key;
-    };
-
-    struct EncryptionKey : KeyInfo
-    {
-      crypto::KeyAesGcm key;
-    };
-
-    std::list<EncryptionKey> encryption_keys;
-
-    virtual void set_iv(
-      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr, kv::Version version) = 0;
-
-    const crypto::KeyAesGcm& get_encryption_key(kv::Version version)
-    {
-      std::lock_guard<SpinLock> guard(lock);
-
-      // Encryption key for a given version is the one with the highest version
-      // that is lower than the given version (e.g. if encryption_keys contains
-      // two keys for version 0 and 10 then the key associated with version 0
-      // is used for version [0..9] and version 10 for versions 10+)
-      auto search = std::upper_bound(
-        encryption_keys.rbegin(),
-        encryption_keys.rend(),
-        version,
-        [](kv::Version a, EncryptionKey const& b) { return b.version <= a; });
-
-      if (search == encryption_keys.rend())
-      {
-        throw std::logic_error(fmt::format(
-          "TxEncryptor: encrypt version is not valid: {}", version));
-      }
-
-      return search->key;
-    }
-
-  public:
-    TxEncryptor(std::shared_ptr<LedgerSecrets> ls, bool is_recovery_ = false) :
-      ledger_secrets(ls),
-      is_recovery(is_recovery_)
-    {
-      // Create map of existing encryption keys from the recorded ledger secrets
-      for (auto const& s : ls->secrets_list)
-      {
-        encryption_keys.emplace_back(EncryptionKey{
-          s.version,
-          s.secret.master,
-          crypto::KeyAesGcm(s.secret.master),
-        });
-      }
-    }
-
-    /**
-     * Encrypt data and return serialised GCM header and cipher.
-     *
-     * @param[in]   plain             Plaintext to encrypt
-     * @param[in]   additional_data   Additional data to tag
-     * @param[out]  serialised_header Serialised header (iv + tag)
-     * @param[out]  cipher            Encrypted ciphertext
-     * @param[in]   version           Version used to retrieve the corresponding
-     * encryption key
-     */
-    void encrypt(
-      const std::vector<uint8_t>& plain,
-      const std::vector<uint8_t>& additional_data,
-      std::vector<uint8_t>& serialised_header,
-      std::vector<uint8_t>& cipher,
-      kv::Version version) override
-    {
-      crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
-      cipher.resize(plain.size());
-
-      // Set IV
-      set_iv(gcm_hdr, version);
-
-      get_encryption_key(version).encrypt(
-        gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
-
-      serialised_header = std::move(gcm_hdr.serialise());
-    }
-
-    /**
-     * Decrypt cipher and return plaintext.
-     *
-     * @param[in]   cipher            Cipher to decrypt
-     * @param[in]   additional_data   Additional data to verify tag
-     * @param[in]   serialised_header Serialised header (iv + tag)
-     * @param[out]  plain             Decrypted plaintext
-     * @param[in]   version           Version used to retrieve the corresponding
-     * encryption key
-     *
-     * @return Boolean status indicating success of decryption.
-     */
-    bool decrypt(
-      const std::vector<uint8_t>& cipher,
-      const std::vector<uint8_t>& additional_data,
-      const std::vector<uint8_t>& serialised_header,
-      std::vector<uint8_t>& plain,
-      kv::Version version) override
-    {
-      crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr;
-      gcm_hdr.deserialise(serialised_header);
-      plain.resize(cipher.size());
-
-      auto ret = get_encryption_key(version).decrypt(
-        gcm_hdr.get_iv(), gcm_hdr.tag, cipher, additional_data, plain.data());
-
-      if (!ret)
-      {
-        plain.resize(0);
-      }
-
-      return ret;
-    }
-
-    void set_view(View view_) override {}
-
-    /**
-     * Return length of serialised header.
-     *
-     * @return size_t length of serialised header
-     */
-    size_t get_header_length() override
-    {
-      return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
-    }
-
-    void update_encryption_key(
-      kv::Version version, const std::vector<uint8_t>& raw_ledger_key) override
-    {
-      std::lock_guard<SpinLock> guard(lock);
-
-      encryption_keys.emplace_back(EncryptionKey{
-        version, raw_ledger_key, crypto::KeyAesGcm(raw_ledger_key)});
-    }
-
-    void rollback(kv::Version version) override
-    {
-      std::lock_guard<SpinLock> guard(lock);
-
-      while (encryption_keys.size() > 1)
-      {
-        auto k = encryption_keys.end();
-        std::advance(k, -1);
-
-        if (k->version <= version)
-        {
-          break;
-        }
-
-        encryption_keys.pop_back();
-      }
-    }
-
-    void compact(kv::Version version) override
-    {
-      std::lock_guard<SpinLock> guard(lock);
-      std::list<KeyInfo> keys_to_set_as_ls;
-
-      // Remove keys that have been superseded by a newer key.
-      while (encryption_keys.size() > 1)
-      {
-        auto k = encryption_keys.begin();
-
-        if (std::next(k)->version > version)
-        {
-          break;
-        }
-
-        keys_to_set_as_ls.emplace_back(
-          KeyInfo{std::next(k)->version, std::next(k)->raw_key});
-
-        if (k->version < version)
-        {
-          encryption_keys.pop_front();
-        }
-      }
-
       if (!is_recovery)
       {
-        for (auto const& k : keys_to_set_as_ls)
+        for (auto const& k : keys)
         {
           ledger_secrets->add_new_secret(k.version, k.raw_key);
         }
       }
     }
-  };
-
-  class RaftTxEncryptor : public TxEncryptor
-  {
-  private:
-    NodeId id;
-    std::atomic<SeqNo> seqNo{0};
 
   public:
-    RaftTxEncryptor(
-      NodeId id_,
-      std::shared_ptr<LedgerSecrets> ls,
-      bool is_recovery_ = false) :
-      id(id_),
-      TxEncryptor(ls, is_recovery_)
+    LedgerSecretsMixin(
+      const std::shared_ptr<LedgerSecrets>& ls, bool is_recovery_ = false) :
+      BaseEncryptor(ls->secrets_list),
+      ledger_secrets(ls),
+      is_recovery(is_recovery_)
     {}
-
-    void set_iv(
-      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
-      kv::Version version) override
-    {
-      gcm_hdr.set_iv_id(id);
-      gcm_hdr.set_iv_seq(seqNo.fetch_add(1));
-    }
   };
 
-  class PbftTxEncryptor : public TxEncryptor
-  {
-  private:
-    View view;
-
-  public:
-    PbftTxEncryptor(
-      std::shared_ptr<LedgerSecrets> ls, bool is_recovery_ = false) :
-      view(0),
-      TxEncryptor(ls, is_recovery_)
-    {}
-
-    void set_view(View view_) override
-    {
-      view = view_;
-    }
-
-    void set_iv(
-      crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
-      kv::Version version) override
-    {
-      gcm_hdr.set_iv_id(view);
-      gcm_hdr.set_iv_seq(version);
-    }
-  };
+  using RaftTxEncryptor = LedgerSecretsMixin<SeqTrackingMixin<kv::TxEncryptor>>;
+  using PbftTxEncryptor = LedgerSecretsMixin<kv::TxEncryptor>;
 }

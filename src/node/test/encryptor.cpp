@@ -81,7 +81,7 @@ TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
 
   encryptor->encrypt(
     plain, additional_data, serialised_header, cipher, version);
-  encryptor->set_view(1);
+  encryptor->set_iv_id(1);
   encryptor->encrypt(
     plain, additional_data, serialised_header2, cipher2, version);
 
