@@ -1,0 +1,39 @@
+- name: Include distribution vars
+  include_vars:
+    file: common.yml
+
+- name: Install apt-transport-https APT package
+  apt:
+    name: apt-transport-https
+    state: latest
+  become: true
+
+- name: Add APT repository key
+  apt_key:
+    url: "https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key"
+    state: present
+  become: true
+
+- name: Add APT repository
+  apt_repository:
+    repo: "deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu {{ ansible_distribution_release }} main"
+    state: present
+    update_cache: yes
+  become: true
+
+- name: Install the Intel libsgx packages
+  apt:
+    name: "{{ intel_sgx_packages }}"
+    state: latest
+    update_cache: yes
+    install_recommends: no
+  become: true
+
+- name: Install the Intel DCAP packages
+  apt:
+    name: "{{ intel_dcap_packages }}"
+    state: latest
+    update_cache: yes
+    install_recommends: no
+  when: flc_enabled|bool
+  become: true

@@ -93,7 +93,7 @@ To quickly set up the dependencies necessary to build CCF, simply run:
 .. code-block:: bash
 
     $ cd CCF/getting_started/setup_vm
-    $ ./setup.sh
+    $ ./run.sh driver.yml ccf-dev.yml
 
 Once this is complete, you can proceed to :ref:`quickstart/build:Building CCF from Source`.
 
@@ -102,7 +102,7 @@ On a machine without SGX, you can instead run:
 .. code-block:: bash
 
     $ cd CCF/getting_started/setup_vm
-    $ ./setup_nodriver.sh
+    $ ./run.sh driver.yml ccf-dev.yml
 
 .. _OpenEnclave: https://github.com/openenclave/openenclave
 .. _mbedtls: https://tls.mbed.org/
