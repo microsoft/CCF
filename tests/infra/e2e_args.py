@@ -52,10 +52,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=os.getenv("JSON_LOG_PATH", None),
     )
     parser.add_argument(
-        "-g",
-        "--gov-script",
-        help="Path to governance script",
-        default="../src/runtime_config/gov.lua",
+        "-g", "--gov-script", help="Path to governance script",
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")

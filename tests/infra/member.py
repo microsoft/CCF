@@ -23,22 +23,35 @@ class MemberStatus(Enum):
 
 
 class Member:
-    def __init__(self, member_id, curve, key_generator, common_dir):
+    def __init__(self, member_id, curve, common_dir, key_generator=None):
         self.key_generator = key_generator
         self.common_dir = common_dir
         self.member_id = member_id
         self.status = MemberStatus.ACCEPTED
 
-        # For now, all members are given an encryption key (for recovery)
-        member = f"member{member_id}"
-        infra.proc.ccall(
-            self.key_generator,
-            f"--name={member}",
-            f"--curve={curve.name}",
-            "--gen-enc-key",
-            path=self.common_dir,
-            log_output=False,
-        ).check_returncode()
+        if key_generator is not None:
+            # For now, all members are given an encryption key (for recovery)
+            member = f"member{member_id}"
+            infra.proc.ccall(
+                self.key_generator,
+                f"--name={member}",
+                f"--curve={curve.name}",
+                "--gen-enc-key",
+                path=self.common_dir,
+                log_output=False,
+            ).check_returncode()
+        else:
+            # If no key generator is passed in, the identity of the member
+            # should have been created in advance (e.g. by a previous network)
+            assert os.path.isfile(
+                os.path.join(self.common_dir, f"member{self.member_id}_privk.pem")
+            )
+            assert os.path.isfile(
+                os.path.join(self.common_dir, f"member{self.member_id}_cert.pem")
+            )
+            assert os.path.isfile(
+                os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem")
+            )
 
     def is_active(self):
         return self.status == MemberStatus.ACTIVE
@@ -122,18 +135,17 @@ class Member:
             assert r.error is None, f"Error ACK: {r.error}"
             self.status = MemberStatus.ACTIVE
 
-    def get_and_decrypt_recovery_share(self, remote_node):
+    def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
         with remote_node.member_client(member_id=self.member_id) as mc:
             r = mc.get("getEncryptedRecoveryShare")
-
             if r.status != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
-            # For now, members rely on a copy of the original network encryption
-            # public key to decrypt their shares
+            # Members rely on a copy of the original network encryption public
+            # key to decrypt their recovery shares
             ctx = infra.crypto.CryptoBoxCtx(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem"),
-                os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
+                defunct_network_enc_pubk,
             )
 
             nonce_bytes = bytes(r.result["nonce"])

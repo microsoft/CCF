@@ -12,39 +12,12 @@ from loguru import logger as LOG
 @reqs.recover(number_txs=2)
 def test(network, args):
     primary, _ = network.find_primary()
-
     ledger = primary.get_ledger()
-
-    network.consortium.store_current_network_encryption_key()
 
     recovered_network = infra.ccf.Network(
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger)
-
-    for node in recovered_network.nodes:
-        recovered_network.wait_for_state(node, "partOfPublicNetwork")
-        recovered_network.wait_for_node_commit_sync(args.consensus)
-    LOG.info("Public CFTR started")
-
-    primary, _ = recovered_network.find_primary()
-
-    LOG.info("Members verify that the new nodes have joined the network")
-    recovered_network.wait_for_all_nodes_to_be_trusted()
-
-    recovered_network.consortium.accept_recovery(remote_node=primary)
-    recovered_network.consortium.recover_with_shares(remote_node=primary)
-
-    for node in recovered_network.nodes:
-        recovered_network.wait_for_state(node, "partOfNetwork")
-
-    recovered_network.wait_for_all_nodes_to_catch_up(primary)
-
-    recovered_network.consortium.check_for_service(
-        primary, infra.ccf.ServiceStatus.OPEN
-    )
-    LOG.success("Network successfully recovered")
-
     return recovered_network
 
 
