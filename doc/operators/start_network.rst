@@ -15,8 +15,8 @@ To create a new CCF network, the first node of the network should be invoked wit
 
     $ cchost
     --enclave-file /path/to/enclave_library
-    --node-address <ccf-node-address>
-    --rpc-address <ccf-node-rpc-address>
+    --rpc-address <ccf-node-address>
+    --node-address <ccf-node-to-node-address>
     --public-rpc-address <ccf-node-public-address>
     [--domain domain]
     --ledger-file /path/to/ledger
@@ -78,8 +78,8 @@ To add a new node to an existing opening network, other nodes should be started 
 
     $ cchost
     --enclave-file /path/to/enclave_library
-    --node-address node_ip:node_port
     --rpc-address <ccf-node-address>
+    --node-address <ccf-node-to-node-address>
     --public-rpc-address <ccf-node-public-address>
     --ledger-file /path/to/ledger
     --node-cert-file /path/to/node_certificate
@@ -106,9 +106,9 @@ Using a Configuration File
     enclave-file = <enclave-file>
     enclave-type = debug
     consensus = raft
-    node-address = <node-address>
-    rpc-address = <rpc-address>
-    public-rpc-address = <public-rpc-address>
+    rpc-address = <node-address>
+    public-rpc-address = <node-public-address>
+    node-address = <ccf-node-to-node-address>
 
     [<subcommand, one of [start, join, recover]>]
     network-cert-file = <network-cert-file-name>
@@ -121,9 +121,9 @@ Using a Configuration File
     enclave-file = <enclave-file>
     enclave-type = debug
     consensus = raft
-    node-address = <node-address>
-    rpc-address = <rpc-address>
-    public-rpc-address = <public-rpc-address>
+    rpc-address = <node-address>
+    public-rpc-address = <node-public-address>
+    node-address = <node-to-node-address>
 
     [<subcommand, one of [start, join, recover]>]
     network-cert-file = <network-cert-file-name>
