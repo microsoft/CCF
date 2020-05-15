@@ -813,7 +813,7 @@ namespace ccf
       {
         recovery_encryptor =
           std::make_shared<RaftTxEncryptor>(network.ledger_secrets, true);
-          recovery_encryptor->set_iv_id(self); // RaftEncryptor uses node ID as iv
+        recovery_encryptor->set_iv_id(self); // RaftEncryptor uses node ID as iv
       }
       else
       {
@@ -1588,9 +1588,8 @@ namespace ccf
       }
       else if (network.consensus_type == ConsensusType::RAFT)
       {
-        encryptor =
-          std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets);
-          encryptor->set_iv_id(self); // RaftEncryptor uses node ID as iv
+        encryptor = std::make_shared<RaftTxEncryptor>(network.ledger_secrets);
+        encryptor->set_iv_id(self); // RaftEncryptor uses node ID as iv
       }
       else
       {
