@@ -9,7 +9,6 @@ import infra.e2e_args
 from threading import Timer
 import random
 import contextlib
-import requests
 
 from loguru import logger as LOG
 
@@ -83,7 +82,7 @@ def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
                     c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
                 )
                 return
-            except (TimeoutError, infra.clients.CCFConnectionException) as e:
+            except (TimeoutError, infra.clients.CCFConnectionException):
                 LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
                 time.sleep(0.1)
             except AssertionError as e:
@@ -113,7 +112,7 @@ def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
                             result=True,
                         )
                         break
-                    except (TimeoutError, infra.clients.CCFConnectionException) as e:
+                    except (TimeoutError, infra.clients.CCFConnectionException):
                         LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
                         time.sleep(0.1)
         # assert all nodes are caught up
@@ -140,7 +139,7 @@ def run_requests(
                         c.rpc("LOG_record", {"id": req_id, "msg": long_msg}),
                         result=True,
                     )
-                except (TimeoutError, infra.clients.CCFConnectionException) as e:
+                except (TimeoutError, infra.clients.CCFConnectionException):
                     LOG.info("Trying to access a suspended network")
                     if not ignore_failures:
                         raise
