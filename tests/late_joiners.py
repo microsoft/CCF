@@ -113,7 +113,7 @@ def wait_for_nodes(nodes, final_msg, final_msg_id, timeout=30):
                             result=True,
                         )
                         break
-                    except TimeoutError:
+                    except (TimeoutError, infra.clients.CCFConnectionException) as e:
                         LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
                         time.sleep(0.1)
         # assert all nodes are caught up
@@ -140,7 +140,7 @@ def run_requests(
                         c.rpc("LOG_record", {"id": req_id, "msg": long_msg}),
                         result=True,
                     )
-                except (TimeoutError, requests.exceptions.ReadTimeout, RuntimeError):
+                except (TimeoutError, infra.clients.CCFConnectionException) as e:
                     LOG.info("Trying to access a suspended network")
                     if not ignore_failures:
                         raise
