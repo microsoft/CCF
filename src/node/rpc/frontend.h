@@ -370,14 +370,11 @@ namespace ccf
                 cv = tx.get_read_version();
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
-              ctx->set_response_header(http::headers::CCF_COMMIT, cv);
+              ctx->set_commit(cv);
               if (consensus != nullptr)
               {
-                ctx->set_response_header(
-                  http::headers::CCF_TERM, consensus->get_view(cv));
-                ctx->set_response_header(
-                  http::headers::CCF_GLOBAL_COMMIT,
-                  consensus->get_commit_seqno());
+                ctx->set_term(consensus->get_view(cv));
+                ctx->set_global_commit(consensus->get_commit_seqno());
 
                 if (
                   history && consensus->is_primary() &&
@@ -518,7 +515,8 @@ namespace ccf
                 reqid,
                 caller_id,
                 get_cert_to_forward(ctx),
-                ctx->get_serialised_request()))
+                ctx->get_serialised_request(),
+                ctx->frame_format()))
           {
             LOG_FAIL_FMT(
               "Adding request failed: {}, {}, {}",

@@ -7,6 +7,8 @@
 #include "enclave/rpc_map.h"
 #include "http_parser.h"
 #include "http_rpc_context.h"
+#include "ws_parser.h"
+#include "ws_rpc_context.h"
 #include "ws_upgrade.h"
 
 namespace http
@@ -15,15 +17,19 @@ namespace http
   {
   protected:
     http::Parser& p;
+    ws::Parser& wp;
     bool is_websocket = false;
+    size_t ws_next_read = 2; // TODO: wp::Parser::INITIAL_READ or something
 
     HTTPEndpoint(
       http::Parser& p_,
+      ws::Parser& wp_,
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
       TLSEndpoint(session_id, writer_factory, std::move(ctx)),
-      p(p_)
+      p(p_),
+      wp(wp_)
     {}
 
   public:
@@ -49,7 +55,27 @@ namespace http
 
       LOG_TRACE_FMT("recv called with {} bytes", size);
 
-      if (!is_websocket)
+      if (is_websocket)
+      {
+        while (true)
+        {
+          auto r = read(ws_next_read, true);
+          if (r.empty())
+          {
+            return;
+          }
+          else
+          {
+            ws_next_read = wp.consume(r);
+            if (!ws_next_read)
+            {
+              close();
+              return;
+            }
+          }
+        }
+      }
+      else
       {
         auto buf = read(4096, false);
         auto data = buf.data();
@@ -105,13 +131,6 @@ namespace http
           }
         }
       }
-      else
-      {
-        LOG_FAIL_FMT(
-          "Receiving data after endpoint has been upgraded to websocket.");
-        LOG_FAIL_FMT("Closing connection.");
-        close();
-      }
     }
   };
 
@@ -119,6 +138,7 @@ namespace http
   {
   private:
     http::RequestParser request_parser;
+    ws::RequestParser ws_request_parser;
 
     std::shared_ptr<enclave::RPCMap> rpc_map;
     std::shared_ptr<enclave::RpcHandler> handler;
@@ -132,48 +152,20 @@ namespace http
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(request_parser, session_id, writer_factory, std::move(ctx)),
+      HTTPEndpoint(
+        request_parser,
+        ws_request_parser,
+        session_id,
+        writer_factory,
+        std::move(ctx)),
       request_parser(*this),
+      ws_request_parser(*this),
       rpc_map(rpc_map),
       session_id(session_id)
     {}
 
     void send(const std::vector<uint8_t>& data) override
     {
-      send_raw(data);
-    }
-
-    void send_response(
-      const std::string& data,
-      http_status status = HTTP_STATUS_OK,
-      const std::string& content_type = http::headervalues::contenttype::TEXT)
-    {
-      send_response(
-        std::vector<uint8_t>(data.begin(), data.end()), status, content_type);
-    }
-
-    void send_response(
-      const std::vector<uint8_t>& data,
-      http_status status = HTTP_STATUS_OK,
-      const std::string& content_type = http::headervalues::contenttype::JSON)
-    {
-      if (data.empty() && status == HTTP_STATUS_OK)
-      {
-        status = HTTP_STATUS_NO_CONTENT;
-      }
-
-      auto response = http::Response(status);
-
-      if (status == HTTP_STATUS_NO_CONTENT)
-      {
-        send_raw(response.build_response(true));
-        return;
-      }
-
-      response.set_header(http::headers::CONTENT_TYPE, content_type);
-      response.set_body(&data);
-
-      send_raw(response.build_response(true));
       send_raw(data);
     }
 
@@ -211,30 +203,47 @@ namespace http
             std::make_shared<enclave::SessionContext>(session_id, peer_cert());
         }
 
-        std::shared_ptr<HttpRpcContext> rpc_ctx = nullptr;
+        std::shared_ptr<enclave::RpcContext> rpc_ctx = nullptr;
         try
         {
-          rpc_ctx = std::make_shared<HttpRpcContext>(
-            request_index++,
-            session_ctx,
-            verb,
-            path,
-            query,
-            std::move(headers),
-            std::move(body));
+          if (is_websocket)
+          {
+            rpc_ctx = std::make_shared<ws::WsRpcContext>(
+              request_index++, session_ctx, path, std::move(body));
+          }
+          else
+          {
+            rpc_ctx = std::make_shared<HttpRpcContext>(
+              request_index++,
+              session_ctx,
+              verb,
+              path,
+              query,
+              std::move(headers),
+              std::move(body));
+          }
         }
         catch (std::exception& e)
         {
-          send_response(e.what(), HTTP_STATUS_BAD_REQUEST);
+          if (is_websocket)
+          {
+            send_raw(ws::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+          }
+          else
+          {
+            send_raw(http::error(HTTP_STATUS_BAD_REQUEST, e.what()));
+          }
         }
 
         const auto actor_opt = http::extract_actor(*rpc_ctx);
         if (!actor_opt.has_value())
         {
-          send_response(fmt::format(
-            "Request path must contain '/[actor]/[method]'. Unable to parse "
-            "'{}'.\n",
-            rpc_ctx->get_method()));
+          send_raw(rpc_ctx->serialise_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format(
+              "Request path must contain '/[actor]/[method]'. Unable to parse "
+              "'{}'.\n",
+              rpc_ctx->get_method())));
           return;
         }
 
@@ -243,17 +252,17 @@ namespace http
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
-          send_response(
-            fmt::format("Unknown session '{}'.\n", actor_s),
-            HTTP_STATUS_NOT_FOUND);
+          send_raw(rpc_ctx->serialise_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Unknown session '{}'.\n", actor_s)));
           return;
         }
 
         if (!search.value()->is_open())
         {
-          send_response(
-            fmt::format("Session '{}' is not open.\n", actor_s),
-            HTTP_STATUS_NOT_FOUND);
+          send_raw(rpc_ctx->serialise_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Session '{}' is not open.\n", actor_s)));
           return;
         }
 
@@ -273,9 +282,18 @@ namespace http
       }
       catch (const std::exception& e)
       {
-        send_response(
-          fmt::format("Exception:\n{}\n", e.what()),
-          HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        if (is_websocket)
+        {
+          send_raw(ws::error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("Exception:\n{}\n", e.what())));
+        }
+        else
+        {
+          send_raw(http::error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("Exception:\n{}\n", e.what())));
+        }
 
         // On any exception, close the connection.
         LOG_TRACE_FMT("Closing connection due to exception: {}", e.what());
@@ -291,15 +309,22 @@ namespace http
   {
   private:
     http::ResponseParser response_parser;
+    ws::ResponseParser ws_response_parser;
 
   public:
     HTTPClientEndpoint(
       size_t session_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<tls::Context> ctx) :
-      HTTPEndpoint(response_parser, session_id, writer_factory, std::move(ctx)),
+      HTTPEndpoint(
+        response_parser,
+        ws_response_parser,
+        session_id,
+        writer_factory,
+        std::move(ctx)),
       ClientEndpoint(session_id, writer_factory),
-      response_parser(*this)
+      response_parser(*this),
+      ws_response_parser(*this)
     {}
 
     void send_request(const std::vector<uint8_t>& data) override

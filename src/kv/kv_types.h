@@ -99,6 +99,7 @@ namespace kv
       std::vector<uint8_t> request;
       uint64_t caller_id;
       std::vector<uint8_t> caller_cert;
+      uint8_t frame_format;
     };
 
     struct ResultCallbackArgs
@@ -126,7 +127,8 @@ namespace kv
       kv::TxHistory::RequestID id,
       uint64_t caller_id,
       const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request) = 0;
+      const std::vector<uint8_t>& request,
+      uint8_t frame_format) = 0;
     virtual void add_result(
       RequestID id,
       kv::Version version,

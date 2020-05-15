@@ -14,18 +14,6 @@ namespace http
   class WebSocketUpgrader
   {
   private:
-    // All HTTP headers are expected to be lowercase
-    static constexpr auto HTTP_HEADER_UPGRADE = "upgrade";
-    static constexpr auto HTTP_HEADER_CONNECTION = "connection";
-    static constexpr auto HTTP_HEADER_WEBSOCKET_KEY = "sec-websocket-key";
-    static constexpr auto HTTP_HEADER_WEBSOCKET_ACCEPT = "sec-websocket-accept";
-
-    static constexpr auto UPGRADE_HEADER_WEBSOCKET = "websocket";
-    static constexpr auto CONNECTION_HEADER_UPGRADE = "Upgrade";
-
-    static constexpr auto WEBSOCKET_HANDSHAKE_GUID =
-      "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-
     // Constructs base64 acccept string (as per
     // https://tools.ietf.org/html/rfc6455#section-1.3)
     static std::optional<std::string> construct_accept_string(
@@ -45,11 +33,25 @@ namespace http
     }
 
   public:
+    // All HTTP headers are expected to be lowercase
+    static constexpr auto HTTP_HEADER_UPGRADE = "upgrade";
+    static constexpr auto HTTP_HEADER_CONNECTION = "connection";
+    static constexpr auto HTTP_HEADER_WEBSOCKET_KEY = "sec-websocket-key";
+    static constexpr auto HTTP_HEADER_WEBSOCKET_ACCEPT = "sec-websocket-accept";
+
+    static constexpr auto UPGRADE_HEADER_WEBSOCKET = "websocket";
+    static constexpr auto CONNECTION_HEADER_UPGRADE = "Upgrade";
+
+    static constexpr auto WEBSOCKET_HANDSHAKE_GUID =
+      "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
     WebSocketUpgrader() {}
 
     static std::optional<std::vector<uint8_t>> upgrade_if_necessary(
       const http::HeaderMap& headers)
     {
+      // TODO: we ought to check what we're upgrading to!
+      // TODO: we ought to check for the connection header too!
       auto const upgrade_header = headers.find(HTTP_HEADER_UPGRADE);
       if (upgrade_header != headers.end())
       {

@@ -70,3 +70,12 @@ namespace ccf
   using StoreDeserialiser = kv::KvStoreDeserialiser;
   using Store = kv::Store<StoreSerialiser, StoreDeserialiser>;
 }
+
+namespace enclave
+{
+  enum FrameFormat : uint8_t
+  {
+    http = 0,
+    ws
+  };
+}

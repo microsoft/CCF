@@ -75,7 +75,8 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-      ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
+      ForwardedHeader msg = {
+        ForwardedMsg::forwarded_cmd, self, rpc_ctx->frame_format()};
 
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, to, plain, msg);
@@ -113,9 +114,13 @@ namespace ccf
       auto session = std::make_shared<enclave::SessionContext>(
         client_session_id, caller_id, caller_cert);
 
+      LOG_TRACE_FMT(
+        "GOT [{}]", std::string(raw_request.begin(), raw_request.end()));
+
       try
       {
-        auto context = enclave::make_rpc_context(session, raw_request);
+        auto context = enclave::make_fwd_rpc_context(
+          session, raw_request, r.first.frame_format);
         return std::make_tuple(context, r.first.from_node);
       }
       catch (const std::exception& err)
@@ -136,7 +141,10 @@ namespace ccf
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
-      ForwardedHeader msg = {ForwardedMsg::forwarded_response, self};
+      ForwardedHeader msg = {
+        ForwardedMsg::forwarded_response,
+        self,
+        enclave::FrameFormat::http}; // TODO: figure out what this is!
 
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, from_node, plain, msg);

@@ -13,11 +13,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.ssl_ import create_urllib3_context
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+import struct
 
 import requests
 from loguru import logger as LOG
 from requests_http_signature import HTTPSignatureAuth
-from websocket import create_connection
+import websocket
 
 
 def truncate(string, max_len=256):
@@ -448,13 +449,35 @@ class WSClient:
         self.key = key
         self.ca = ca
         self.request_timeout = request_timeout
+        self.ws = None
 
     def request(self, request):
-        # pylint: disable=unused-variable
-        ws = create_connection(
-            f"wss://{self.host}:{self.port}",
-            sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
+        if not self.ws:
+            LOG.info("Creating WSS connection")
+            self.ws = websocket.create_connection(
+                f"wss://{self.host}:{self.port}",
+                sslopt={
+                    "certfile": self.cert,
+                    "keyfile": self.key,
+                    "ca_certs": self.ca,
+                },
+            )
+        payload = json.dumps(request.params).encode()
+        path = ("/" + request.method).encode()
+        header = (
+            struct.pack("<h", len(path)) + path + struct.pack("<h", 0)
+        )  # No signature
+        # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
+        frame = websocket.ABNF(
+            1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, header + payload
         )
+        self.ws.send_frame(frame)
+        out = self.ws.recv_frame().data
+        status = struct.unpack("<h", out[:2])
+        commit = struct.unpack("<Q", out[2:10])
+        term = struct.unpack("<Q", out[10:18])
+        global_commit = struct.unpack("<Q", out[18:26])
+        return Response(status, json.loads(out[26:]), {}, commit, term, global_commit)
 
     def signed_request(self, request):
         raise NotImplementedError("Signed requests not yet implemented over WebSockets")
@@ -469,7 +492,7 @@ class CCFClient:
 
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(*args, **kwargs)
-        elif os.getenv("WEBSOCKETS_CLIENT"):
+        elif os.getenv("WEBSOCKETS_CLIENT") or kwargs.get("ws"):
             self.client_impl = WSClient(*args, **kwargs)
         else:
             self.client_impl = RequestClient(*args, **kwargs)
@@ -523,6 +546,7 @@ def client(
     binary_dir=".",
     connection_timeout=3,
     request_timeout=3,
+    ws=False,
 ):
     c = CCFClient(
         host=host,
@@ -535,6 +559,7 @@ def client(
         binary_dir=binary_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,
+        ws=ws,
     )
 
     if log_file is not None:
