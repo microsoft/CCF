@@ -58,7 +58,7 @@ namespace ccf
     bool request_storing_disabled = false;
 
     using PreExec = std::function<void(
-      StoreTx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend)>;
+      ccf::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend)>;
 
     void update_consensus()
     {
@@ -127,7 +127,7 @@ namespace ccf
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
-          StoreTx tx;
+          ccf::Tx tx;
           auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
 
@@ -144,7 +144,7 @@ namespace ccf
     }
 
     void record_client_signature(
-      StoreTx& tx, CallerId caller_id, const SignedReq& signed_request)
+      ccf::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
     {
       auto client_sig_view = tx.get_view(*client_signatures);
       if (request_storing_disabled)
@@ -200,7 +200,7 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
-      std::shared_ptr<enclave::RpcContext> ctx, StoreTx& tx, CallerId caller_id)
+      std::shared_ptr<enclave::RpcContext> ctx, ccf::Tx& tx, CallerId caller_id)
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -214,7 +214,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
-      StoreTx& tx,
+      ccf::Tx& tx,
       CallerId caller_id,
       PreExec pre_exec = {})
     {
@@ -494,7 +494,7 @@ namespace ccf
     {
       update_consensus();
 
-      StoreTx tx;
+      ccf::Tx tx;
 
       auto caller_id = handlers.get_caller_id(tx, ctx->session->caller_cert);
 
@@ -550,13 +550,13 @@ namespace ccf
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      StoreTx tx;
+      ccf::Tx tx;
       return process_pbft(ctx, tx, false);
     }
 
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx,
-      StoreTx& tx,
+      ccf::Tx& tx,
       bool playback) override
     {
       kv::Version version = kv::NoVersion;
@@ -567,7 +567,7 @@ namespace ccf
 
       if (!playback)
       {
-        fn = [](StoreTx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
+        fn = [](ccf::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
           auto req_view = tx.get_view(*frontend.pbft_requests_map);
           req_view->put(
             0,
@@ -616,7 +616,7 @@ namespace ccf
 
       update_consensus();
 
-      StoreTx tx;
+      ccf::Tx tx;
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id);
@@ -674,7 +674,7 @@ namespace ccf
     // certs, but couldn't find caller. Default behaviour is that there are no
     // caller certs, so nothing is changed but we return true
     virtual bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, StoreTx& tx)
+      std::shared_ptr<enclave::RpcContext> ctx, ccf::Tx& tx)
     {
       return true;
     }

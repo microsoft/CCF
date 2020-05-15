@@ -18,17 +18,17 @@ namespace ccf
       network(network_)
     {}
 
-    bool accept_recovery(StoreTx& tx) override
+    bool accept_recovery(ccf::Tx& tx) override
     {
       return true;
     }
 
-    bool open_network(StoreTx& tx) override
+    bool open_network(ccf::Tx& tx) override
     {
       return true;
     }
 
-    bool rekey_ledger(StoreTx& tx) override
+    bool rekey_ledger(ccf::Tx& tx) override
     {
       return true;
     }
@@ -59,12 +59,12 @@ namespace ccf
     }
 
     void node_quotes(
-      StoreTx& tx,
+      ccf::Tx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {}
 
-    bool split_ledger_secrets(StoreTx& tx) override
+    bool split_ledger_secrets(ccf::Tx& tx) override
     {
       auto [members_view, shares_view] =
         tx.get_view(network->members, network->shares);
@@ -92,7 +92,7 @@ namespace ccf
     }
 
     bool restore_ledger_secrets(
-      StoreTx& tx, const std::vector<SecretSharing::Share>& shares) override
+      ccf::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
       SecretSharing::combine(shares, shares.size());
       return true;

@@ -69,6 +69,5 @@ namespace ccf
   using StoreSerialiser = kv::KvStoreSerialiser;
   using StoreDeserialiser = kv::KvStoreDeserialiser;
   using Store = kv::Store<StoreSerialiser, StoreDeserialiser>;
-  using StoreTx = kv::Tx<StoreSerialiser, StoreDeserialiser>;
   using Tx = kv::Tx<StoreSerialiser, StoreDeserialiser>;
 }

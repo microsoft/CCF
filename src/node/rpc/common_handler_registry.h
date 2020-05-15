@@ -48,19 +48,18 @@ namespace ccf
           "Failed to get commit info from Consensus");
       };
 
-      auto get_local_commit =
-        [this](ccf::Tx& tx, nlohmann::json&& params) {
-          if (consensus != nullptr)
-          {
-            kv::Version commit = tables->commit_version();
-            auto term = consensus->get_view(commit);
-            return make_success(GetCommit::Out{term, commit});
-          }
+      auto get_local_commit = [this](ccf::Tx& tx, nlohmann::json&& params) {
+        if (consensus != nullptr)
+        {
+          kv::Version commit = tables->commit_version();
+          auto term = consensus->get_view(commit);
+          return make_success(GetCommit::Out{term, commit});
+        }
 
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Failed to get local commit info from Consensus");
-        };
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          "Failed to get local commit info from Consensus");
+      };
 
       auto get_tx_status = [this](ccf::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetTxStatus::In>();
@@ -143,50 +142,48 @@ namespace ccf
         return make_success(WhoIs::Out{caller_id.value()});
       };
 
-      auto get_primary_info =
-        [this](ccf::Tx& tx, nlohmann::json&& params) {
-          if ((nodes != nullptr) && (consensus != nullptr))
-          {
-            NodeId primary_id = consensus->primary();
-            auto current_term = consensus->get_view();
-
-            auto nodes_view = tx.get_view(*nodes);
-            auto info = nodes_view->get(primary_id);
-
-            if (info)
-            {
-              GetPrimaryInfo::Out out;
-              out.primary_id = primary_id;
-              out.primary_host = info->pubhost;
-              out.primary_port = info->rpcport;
-              out.current_term = current_term;
-              return make_success(out);
-            }
-          }
-
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
-        };
-
-      auto get_network_info =
-        [this](ccf::Tx& tx, nlohmann::json&& params) {
-          GetNetworkInfo::Out out;
-          if (consensus != nullptr)
-          {
-            out.primary_id = consensus->primary();
-          }
+      auto get_primary_info = [this](ccf::Tx& tx, nlohmann::json&& params) {
+        if ((nodes != nullptr) && (consensus != nullptr))
+        {
+          NodeId primary_id = consensus->primary();
+          auto current_term = consensus->get_view();
 
           auto nodes_view = tx.get_view(*nodes);
-          nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
-            if (ni.status == ccf::NodeStatus::TRUSTED)
-            {
-              out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
-            }
-            return true;
-          });
+          auto info = nodes_view->get(primary_id);
 
-          return make_success(out);
-        };
+          if (info)
+          {
+            GetPrimaryInfo::Out out;
+            out.primary_id = primary_id;
+            out.primary_host = info->pubhost;
+            out.primary_port = info->rpcport;
+            out.current_term = current_term;
+            return make_success(out);
+          }
+        }
+
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
+      };
+
+      auto get_network_info = [this](ccf::Tx& tx, nlohmann::json&& params) {
+        GetNetworkInfo::Out out;
+        if (consensus != nullptr)
+        {
+          out.primary_id = consensus->primary();
+        }
+
+        auto nodes_view = tx.get_view(*nodes);
+        nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.status == ccf::NodeStatus::TRUSTED)
+          {
+            out.nodes.push_back({nid, ni.pubhost, ni.rpcport});
+          }
+          return true;
+        });
+
+        return make_success(out);
+      };
 
       auto list_methods_fn = [this](ccf::Tx& tx, nlohmann::json&& params) {
         ListMethods::Out out;
