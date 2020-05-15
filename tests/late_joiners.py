@@ -83,7 +83,7 @@ def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
                     c.get("LOG_get", {"id": final_msg_id}), result={"msg": final_msg},
                 )
                 return
-            except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
+            except (TimeoutError, infra.clients.CCFConnectionException) as e:
                 LOG.error(f"Timeout error for LOG_get on node {node.node_id}")
                 time.sleep(0.1)
             except AssertionError as e:

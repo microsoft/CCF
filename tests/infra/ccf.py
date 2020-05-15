@@ -500,7 +500,7 @@ class Network:
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
-                    except TimeoutError:
+                    except infra.clients.CCFConnectionException:
                         pass
             if primary_id is not None:
                 break

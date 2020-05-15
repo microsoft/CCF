@@ -312,8 +312,8 @@ class CurlClient:
                 self._request = self._just_request
                 return rid
             except (CCFConnectionException, TimeoutError) as e:
-                # If the handshake fails to due to node certificate not yet
-                # being endorsed by the network, sleep briefly and try again
+                # If the initial connection fails (e.g. due to node certificate
+                # not yet being endorsed by the network) sleep briefly and try again
                 if time.time() > end_time:
                     raise CCFConnectionException(
                         f"Connection still failing after {self.connection_timeout}s: {e}"
@@ -411,8 +411,8 @@ class RequestClient:
                 self._request = self._just_request
                 return response
             except (requests.exceptions.SSLError, requests.exceptions.ReadTimeout) as e:
-                # If the handshake fails to due to node certificate not yet
-                # being endorsed by the network, sleep briefly and try again
+                # If the initial connection fails (e.g. due to node certificate
+                # not yet being endorsed by the network) sleep briefly and try again
                 if time.time() > end_time:
                     raise CCFConnectionException(
                         f"Connection still failing after {self.connection_timeout}s: {e}"
