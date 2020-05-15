@@ -3,7 +3,7 @@
 #pragma once
 #include "ds/json.h"
 
-namespace logging
+namespace loggingapp
 {
   // Private record/get
   // Explicit target structs, macro-generated parsers + schema

@@ -16,7 +16,7 @@
 using namespace std;
 using namespace nlohmann;
 
-namespace logging
+namespace loggingapp
 {
   struct Procs
   {
@@ -316,7 +316,7 @@ namespace ccfapp
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
     ccf::NetworkTables& nwt, ccf::AbstractNotifier& notifier)
   {
-    return make_shared<logging::Logger>(nwt, notifier);
+    return make_shared<loggingapp::Logger>(nwt, notifier);
   }
   // SNIPPET_END: rpc_handler
 }
