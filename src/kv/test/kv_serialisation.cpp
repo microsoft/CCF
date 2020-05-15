@@ -12,8 +12,6 @@
 #include <string>
 #include <vector>
 
-using namespace ccf;
-
 struct CustomClass
 {
   int m_i;
@@ -72,8 +70,8 @@ TEST_CASE(
   // and deserialisation should succeed.
   auto consensus = std::make_shared<kv::StubConsensus>();
 
-  Store kv_store(consensus);
-  Store kv_store_target;
+  ccf::Store kv_store(consensus);
+  ccf::Store kv_store_target;
 
   auto& pub_map = kv_store.create<std::string, std::string>(
     "pub_map", kv::SecurityDomain::PUBLIC);
@@ -81,7 +79,7 @@ TEST_CASE(
 
   INFO("Commit to public map in source store");
   {
-    StoreTx tx;
+    ccf::Tx tx;
     auto view0 = tx.get_view(pub_map);
     view0->put("pubk1", "pubv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -93,7 +91,7 @@ TEST_CASE(
       kv_store_target.deserialise(consensus->get_latest_data().first) ==
       kv::DeserialiseSuccess::PASS);
 
-    StoreTx tx_target;
+    ccf::Tx tx_target;
     auto view_target = tx_target.get_view(
       *kv_store_target.get<std::string, std::string>("pub_map"));
     REQUIRE(view_target->get("pubk1") == "pubv1");
@@ -107,8 +105,8 @@ TEST_CASE(
   auto consensus = std::make_shared<kv::StubConsensus>();
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
-  Store kv_store(consensus);
-  Store kv_store_target;
+  ccf::Store kv_store(consensus);
+  ccf::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
   auto& priv_map = kv_store.create<std::string, std::string>("priv_map");
@@ -116,7 +114,7 @@ TEST_CASE(
 
   INFO("Commit a private transaction without an encryptor throws an exception");
   {
-    StoreTx tx;
+    ccf::Tx tx;
     auto view0 = tx.get_view(priv_map);
     view0->put("privk1", "privv1");
     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
@@ -130,7 +128,7 @@ TEST_CASE(
 
   INFO("Commit to private map in source store");
   {
-    StoreTx tx;
+    ccf::Tx tx;
     auto view0 = tx.get_view(priv_map);
     view0->put("privk1", "privv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -142,7 +140,7 @@ TEST_CASE(
       kv_store_target.deserialise(consensus->get_latest_data().first) ==
       kv::DeserialiseSuccess::PASS);
 
-    StoreTx tx_target;
+    ccf::Tx tx_target;
     auto view_target = tx_target.get_view(
       *kv_store_target.get<std::string, std::string>("priv_map"));
     REQUIRE(view_target->get("privk1") == "privv1");
@@ -156,8 +154,8 @@ TEST_CASE(
   auto consensus = std::make_shared<kv::StubConsensus>();
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
-  Store kv_store(consensus);
-  Store kv_store_target;
+  ccf::Store kv_store(consensus);
+  ccf::Store kv_store_target;
   kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
 
@@ -168,7 +166,7 @@ TEST_CASE(
 
   INFO("Commit to public and private map in source store");
   {
-    StoreTx tx;
+    ccf::Tx tx;
     auto [view_priv, view_pub] = tx.get_view(priv_map, pub_map);
 
     view_priv->put("privk1", "privv1");
@@ -183,7 +181,7 @@ TEST_CASE(
       kv_store_target.deserialise(consensus->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
 
-    StoreTx tx;
+    ccf::Tx tx;
     auto [view_priv, view_pub] = tx.get_view(
       *kv_store_target.get<std::string, std::string>("priv_map"),
       *kv_store_target.get<std::string, std::string>("pub_map"));
@@ -199,8 +197,8 @@ TEST_CASE(
   auto consensus = std::make_shared<kv::StubConsensus>();
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
 
-  Store kv_store(consensus);
-  Store kv_store_target;
+  ccf::Store kv_store(consensus);
+  ccf::Store kv_store_target;
   kv_store.set_encryptor(encryptor);
   kv_store_target.set_encryptor(encryptor);
 
@@ -209,7 +207,7 @@ TEST_CASE(
 
   INFO("Commit a new key in source store and deserialise in target store");
   {
-    StoreTx tx;
+    ccf::Tx tx;
     auto view_priv = tx.get_view(priv_map);
     view_priv->put("privk1", "privv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -218,7 +216,7 @@ TEST_CASE(
       kv_store_target.deserialise(consensus->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
 
-    StoreTx tx_target;
+    ccf::Tx tx_target;
     auto view_priv_target = tx_target.get_view(
       *kv_store_target.get<std::string, std::string>("priv_map"));
     REQUIRE(view_priv_target->get("privk1") == "privv1");
@@ -226,13 +224,13 @@ TEST_CASE(
 
   INFO("Commit key removal in source store and deserialise in target store");
   {
-    StoreTx tx;
+    ccf::Tx tx;
     auto view_priv = tx.get_view(priv_map);
     view_priv->remove("privk1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     // Make sure it has been marked as deleted in source store
-    StoreTx tx2;
+    ccf::Tx tx2;
     auto view_priv2 = tx2.get_view(priv_map);
     REQUIRE(view_priv2->get("privk1").has_value() == false);
 
@@ -240,7 +238,7 @@ TEST_CASE(
       kv_store_target.deserialise(consensus->get_latest_data().first) !=
       kv::DeserialiseSuccess::FAILED);
 
-    StoreTx tx_target;
+    ccf::Tx tx_target;
     auto view_priv_target = tx_target.get_view(
       *kv_store_target.get<std::string, std::string>("priv_map"));
     REQUIRE(view_priv_target->get("privk1").has_value() == false);
@@ -250,7 +248,7 @@ TEST_CASE(
 TEST_CASE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"))
 {
-  Store kv_store;
+  ccf::Store kv_store;
 
   auto& map = kv_store.create<CustomClass, CustomClass>(
     "map", kv::SecurityDomain::PUBLIC);
@@ -263,11 +261,11 @@ TEST_CASE(
 
   INFO("Serialise/Deserialise 2 kv stores");
   {
-    Store kv_store2;
+    ccf::Store kv_store2;
     auto& map2 = kv_store2.create<CustomClass, CustomClass>(
       "map", kv::SecurityDomain::PUBLIC);
 
-    StoreTx tx(kv_store.next_version());
+    ccf::Tx tx(kv_store.next_version());
     auto view = tx.get_view(map);
     view->put(k, v1);
     view->put(k2, v2);
@@ -277,7 +275,7 @@ TEST_CASE(
     kv_store.compact(view->end_order());
 
     REQUIRE(kv_store2.deserialise(data) == kv::DeserialiseSuccess::PASS);
-    StoreTx tx2;
+    ccf::Tx tx2;
     auto view2 = tx2.get_view(map2);
     auto va = view2->get(k);
 
@@ -330,8 +328,8 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     secrets->init();
     auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
 
-    Store kv_store(consensus);
-    Store kv_store_target;
+    ccf::Store kv_store(consensus);
+    ccf::Store kv_store_target;
     kv_store.set_encryptor(encryptor);
     kv_store_target.set_encryptor(encryptor);
 
@@ -342,7 +340,7 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
 
     kv_store_target.clone_schema(kv_store);
 
-    StoreTx tx;
+    ccf::Tx tx;
     auto [public_view, private_view] = tx.get_view(public_map, private_map);
     std::string pub_value = "pubv1";
     public_view->put("pubk1", pub_value);
@@ -371,12 +369,12 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   SUBCASE("baseline")
   {
     auto consensus = std::make_shared<kv::StubConsensus>();
-    using Table = Store::Map<std::vector<int>, std::string>;
-    Store s0(consensus), s1;
+    using Table = ccf::Store::Map<std::vector<int>, std::string>;
+    ccf::Store s0(consensus), s1;
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
-    StoreTx tx;
+    ccf::Tx tx;
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
@@ -388,12 +386,12 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   SUBCASE("nlohmann")
   {
     auto consensus = std::make_shared<kv::StubConsensus>();
-    using Table = Store::Map<nlohmann::json, nlohmann::json>;
-    Store s0(consensus), s1;
+    using Table = ccf::Store::Map<nlohmann::json, nlohmann::json>;
+    ccf::Store s0(consensus), s1;
     auto& t = s0.create<Table>("t", kv::SecurityDomain::PUBLIC);
     s1.create<Table>("t");
 
-    StoreTx tx;
+    ccf::Tx tx;
     tx.get_view(t)->put(k0, v0);
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -409,10 +407,10 @@ TEST_CASE("replicated and derived table serialisation")
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   std::unordered_set<std::string> replicated_tables = {
     "data_replicated", "data_replicated_private"};
-  Store store(kv::ReplicateType::SOME, replicated_tables);
+  ccf::Store store(kv::ReplicateType::SOME, replicated_tables);
   store.set_encryptor(encryptor);
 
-  Store second_store(kv::ReplicateType::SOME, replicated_tables);
+  ccf::Store second_store(kv::ReplicateType::SOME, replicated_tables);
   second_store.set_encryptor(encryptor);
 
   auto& data_replicated =
@@ -433,7 +431,7 @@ TEST_CASE("replicated and derived table serialisation")
     second_store.create<size_t, size_t>("data_derived_private");
 
   {
-    StoreTx tx(store.next_version());
+    ccf::Tx tx(store.next_version());
 
     auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] = tx.get_view(
       data_replicated,
@@ -452,7 +450,7 @@ TEST_CASE("replicated and derived table serialisation")
     INFO("check that second store derived data is not populated");
     {
       REQUIRE(second_store.deserialise(data) == kv::DeserialiseSuccess::PASS);
-      StoreTx tx;
+      ccf::Tx tx;
       auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
         tx.get_view(
           second_data_replicated,
@@ -514,14 +512,14 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
   auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
   auto consensus = std::make_shared<kv::StubConsensus>();
 
-  Store store(consensus);
+  ccf::Store store(consensus);
   store.set_encryptor(encryptor);
 
   auto& good_map = store.create<size_t, size_t>("good_map");
   auto& bad_map = store.create<size_t, NonSerialisable>("bad_map");
 
   {
-    StoreTx tx;
+    ccf::Tx tx;
 
     auto good_view = tx.get_view(good_map);
     good_view->put(1, 2);

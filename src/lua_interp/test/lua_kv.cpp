@@ -10,7 +10,6 @@
 
 #include <doctest/doctest.h>
 
-using namespace ccf;
 using namespace ccf::lua;
 using namespace ccfapp;
 using namespace std;
@@ -18,24 +17,24 @@ using namespace nlohmann;
 
 namespace ccf
 {
-  using TableII = Store::Map<int, int>;
+  using TableII = ccf::Store::Map<int, int>;
   using TxII = TableII::TxView;
 
-  using TableIS = Store::Map<int, std::string>;
+  using TableIS = ccf::Store::Map<int, std::string>;
   using TxIS = TableIS::TxView;
 
-  using TableSB = Store::Map<std::string, bool>;
+  using TableSB = ccf::Store::Map<std::string, bool>;
   using TxSB = TableSB::TxView;
 
-  using TableVI = Store::Map<vector<uint8_t>, int>;
+  using TableVI = ccf::Store::Map<vector<uint8_t>, int>;
   using TxVI = TableVI::TxView;
 
   TEST_CASE("lua tx")
   {
-    Store tables;
+    ccf::Store tables;
     auto& table = tables.create<TableIS>("test", kv::SecurityDomain::PUBLIC);
 
-    StoreTx txs;
+    ccf::Tx txs;
 
     const auto a = "Alice";
     const auto b = "Bob";
@@ -144,7 +143,7 @@ namespace ccf
       {
         tables.compact(tx->end_order());
 
-        StoreTx next_txs;
+        ccf::Tx next_txs;
         auto next_tx = next_txs.get_view(table);
 
         REQUIRE(next_tx->put(k, s1));
@@ -171,12 +170,12 @@ namespace ccf
 
   TEST_CASE("multiple tables")
   {
-    Store tables;
+    ccf::Store tables;
     auto& ii = tables.create<TableII>("test_ii", kv::SecurityDomain::PUBLIC);
     auto& is = tables.create<TableIS>("test_is", kv::SecurityDomain::PUBLIC);
     auto& sb = tables.create<TableSB>("test_sb", kv::SecurityDomain::PUBLIC);
 
-    StoreTx txs;
+    ccf::Tx txs;
     auto tx = txs.get_view(ii, is, sb);
     auto tx_ii = get<0>(tx);
     auto tx_is = get<1>(tx);
@@ -241,9 +240,9 @@ namespace ccf
     Interpreter li;
     li.register_metatable<TxVI>(kv_methods<TxVI>);
 
-    Store tables;
+    ccf::Store tables;
     auto& table = tables.create<TableVI>("v");
-    StoreTx txs;
+    ccf::Tx txs;
     auto tx = txs.get_view(table);
     tx->put(vector<uint8_t>(100, 1), 123);
 
@@ -345,9 +344,9 @@ namespace ccf
   return handlers[method]()
   )xxx";
 
-    Store tables;
+    ccf::Store tables;
     auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
-    StoreTx txs;
+    ccf::Tx txs;
     auto tx = txs.get_view(table);
 
     auto create = [tx](int dst, int amt) {
@@ -405,9 +404,9 @@ namespace ccf
       "local tx, k = ...;"
       "return tx:get(k)");
 
-    Store tables;
+    ccf::Store tables;
     auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
-    StoreTx txs;
+    ccf::Tx txs;
     auto tx = txs.get_view(table);
 
     Interpreter li;

@@ -66,7 +66,7 @@ static std::vector<uint8_t> kv_serialized_data(std::vector<uint8_t>& data)
 
   auto& map0 = kv_store.create<pbft::RequestsMap>("map0");
 
-  ccf::StoreTx tx(kv_store.next_version());
+  ccf::Tx tx(kv_store.next_version());
   auto tx0 = tx.get_view(map0);
 
   tx0->put(0, {0, {}, data, {}});
