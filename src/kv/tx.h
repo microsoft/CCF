@@ -16,7 +16,6 @@ namespace kv
     bool success;
     Version read_version;
     Version version;
-    bool read_globally_committed = false;
 
     kv::TxHistory::RequestID req_id;
 
@@ -41,10 +40,7 @@ namespace kv
       if (read_version == NoVersion)
       {
         // Grab opacity version that all Maps should be queried at.
-        if (read_globally_committed)
-          read_version = m.get_store()->commit_version();
-        else
-          read_version = m.get_store()->current_version();
+        read_version = m.get_store()->current_version();
       }
 
       typename M::TxView* view = m.create_view(read_version);
@@ -298,21 +294,6 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       return {CommitSuccess::OK, {0, 0, 0}, std::move(serialise())};
-    }
-
-    // Set all reads on transaction to read at the global commit version,
-    // rather than the local commit.
-    void set_read_committed()
-    {
-      if (read_version == NoVersion)
-      {
-        read_globally_committed = true;
-      }
-      else
-      {
-        throw std::logic_error(
-          "Cannot set_read_committed, read_version is already set");
-      }
     }
   };
 }

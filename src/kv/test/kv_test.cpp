@@ -660,20 +660,21 @@ TEST_CASE("private recovery map swap")
 
   INFO("Populate s2 with private entries");
   // We compact only once, at a lower index than we did for the public
-  // KV, which is what we expect during recovery of the private KV.
+  // KV, which is what we expect during recovery of the private KV. We do expect
+  // that the _entire_ private state is compacted
   {
     StoreTx tx;
     auto v = tx.get_view(priv2);
     v->put(12, 12);
     tx.commit();
   }
-  s2.compact(s2.current_version());
   {
     StoreTx tx;
     auto v = tx.get_view(priv2);
     v->put(13, 13);
     tx.commit();
   }
+  s2.compact(s2.current_version());
 
   INFO("Swap in private maps");
   s1.swap_private_maps(s2);
@@ -711,26 +712,25 @@ TEST_CASE("private recovery map swap")
   INFO("Check committed state looks as expected in s1");
   {
     StoreTx tx;
-    tx.set_read_committed();
     auto [priv, pub] = tx.get_view(priv1, pub1);
     {
-      auto val = pub->get(42);
+      auto val = pub->get_globally_committed(42);
       REQUIRE(val.has_value());
       REQUIRE(val.value() == "43");
 
-      val = pub->get(44);
+      val = pub->get_globally_committed(44);
       REQUIRE(val.has_value());
       REQUIRE(val.value() == "44");
 
-      val = pub->get(45);
+      val = pub->get_globally_committed(45);
       REQUIRE_FALSE(val.has_value());
     }
     {
-      auto val = priv->get(12);
+      auto val = priv->get_globally_committed(12);
       REQUIRE(val.has_value());
       REQUIRE(val.value() == 12);
 
-      val = priv->get(13);
+      val = priv->get_globally_committed(13);
       REQUIRE(val.has_value());
       REQUIRE(val.value() == 13);
 
