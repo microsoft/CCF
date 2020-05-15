@@ -172,7 +172,7 @@ class Node:
             self.remote.start()
         self.remote.get_startup_files(self.common_dir)
         self._read_ports()
-        LOG.info("Remote {} started".format(self.node_id))
+        LOG.info("Node {} started".format(self.node_id))
 
     def _read_ports(self):
         node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)

@@ -2,6 +2,8 @@ CCF documentation
 =================
 
 .. image:: img/ccf.svg
+  :width: 250
+  :align: center
 
 .. include:: quickstart/index.rst
 
