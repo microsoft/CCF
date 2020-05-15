@@ -275,7 +275,7 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void list_methods(ccf::Store::Tx& tx, ListMethods::Out& out) override
+    void list_methods(ccf::Tx& tx, ListMethods::Out& out) override
     {
       UserHandlerRegistry::list_methods(tx, out);
 

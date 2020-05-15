@@ -35,7 +35,7 @@ namespace ccf
     {
       HandlerRegistry::init_handlers(t);
 
-      auto get_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_commit = [this](ccf::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
           const auto commit = tables->commit_version();
@@ -48,7 +48,7 @@ namespace ccf
           "Failed to get commit info from Consensus");
       };
 
-      auto get_local_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_local_commit = [this](ccf::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
           kv::Version commit = tables->commit_version();
@@ -61,7 +61,7 @@ namespace ccf
           "Failed to get local commit info from Consensus");
       };
 
-      auto get_tx_status = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_tx_status = [this](ccf::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetTxStatus::In>();
 
         if (consensus != nullptr)
@@ -80,12 +80,12 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Consensus is not yet configured");
       };
 
-      auto get_metrics = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_metrics = [this](ccf::Tx& tx, nlohmann::json&& params) {
         auto result = metrics.get_metrics();
         return make_success(result);
       };
 
-      auto make_signature = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto make_signature = [this](ccf::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
           if (consensus->type() == ConsensusType::RAFT)
@@ -108,7 +108,7 @@ namespace ccf
       };
 
       auto who_am_i =
-        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+        [this](ccf::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           if (certs == nullptr)
           {
             return make_error(
@@ -120,7 +120,7 @@ namespace ccf
           return make_success(WhoAmI::Out{caller_id});
         };
 
-      auto who_is = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto who_is = [this](ccf::Tx& tx, nlohmann::json&& params) {
         const WhoIs::In in = params;
 
         if (certs == nullptr)
@@ -142,7 +142,7 @@ namespace ccf
         return make_success(WhoIs::Out{caller_id.value()});
       };
 
-      auto get_primary_info = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_primary_info = [this](ccf::Tx& tx, nlohmann::json&& params) {
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
@@ -166,7 +166,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
       };
 
-      auto get_network_info = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_network_info = [this](ccf::Tx& tx, nlohmann::json&& params) {
         GetNetworkInfo::Out out;
         if (consensus != nullptr)
         {
@@ -185,7 +185,7 @@ namespace ccf
         return make_success(out);
       };
 
-      auto list_methods_fn = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto list_methods_fn = [this](ccf::Tx& tx, nlohmann::json&& params) {
         ListMethods::Out out;
 
         list_methods(tx, out);
@@ -195,7 +195,7 @@ namespace ccf
         return make_success(out);
       };
 
-      auto get_schema = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_schema = [this](ccf::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
         const auto it = handlers.find(in.method);
@@ -212,7 +212,7 @@ namespace ccf
         return make_success(out);
       };
 
-      auto get_receipt = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_receipt = [this](ccf::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
         if (history != nullptr)
@@ -239,7 +239,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to produce receipt");
       };
 
-      auto verify_receipt = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto verify_receipt = [this](ccf::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<VerifyReceipt::In>();
 
         if (history != nullptr)

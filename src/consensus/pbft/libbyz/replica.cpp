@@ -449,7 +449,7 @@ bool Replica::compare_execution_results(
   return true;
 }
 
-void Replica::playback_request(ccf::Store::Tx& tx)
+void Replica::playback_request(ccf::Tx& tx)
 {
   auto view = tx.get_view(pbft_requests_map);
   auto req_v = view->get(0);
@@ -560,7 +560,7 @@ void Replica::populate_certificates(Pre_prepare* pp)
   }
 }
 
-void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
+void Replica::playback_pre_prepare(ccf::Tx& tx)
 {
   auto view = tx.get_view(pbft_pre_prepares_map);
   auto pp = view->get(0);
@@ -2244,7 +2244,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   Request& request,
   int64_t& max_local_commit_value,
   bool include_markle_roots,
-  ccf::Store::Tx* tx,
+  ccf::Tx* tx,
   Seqno seqno)
 {
   auto stash_replier = request.replier();
