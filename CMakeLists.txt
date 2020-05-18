@@ -542,6 +542,7 @@ if(BUILD_TESTS)
     NAME late_joiners_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
     CONSENSUS pbft
+    ADDITIONAL_ARGS --pbft-view-change-timeout 7000
   )
 
   if(BUILD_SMALLBANK)
