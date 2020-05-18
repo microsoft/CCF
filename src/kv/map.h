@@ -77,6 +77,7 @@ namespace kv
   class StateAccessor
   {
   protected:
+    using VersionV = VersionV<V>;
     using State = State<K, V, H>;
     using Read = Read<K, V, H>;
     using Write = Write<K, V, H>;
@@ -160,11 +161,6 @@ namespace kv
      */
     std::optional<V> get_globally_committed(const K& key)
     {
-      if (commit_version != NoVersion)
-      {
-        return std::nullopt;
-      }
-
       // If there is no committed value, return empty.
       auto search = committed.get(key);
       if (!search.has_value())
@@ -295,18 +291,18 @@ namespace kv
 
   public:
     CommittableStateAccessor(
-      State& current_state,
-      State& committed_state,
+      typename Base::State& current_state,
+      typename Base::State& committed_state,
       Version v,
       MyMap& m,
       size_t rollbacks) :
       Base(current_state, committed_state, v),
       map(m),
-      rollbank_counter(rollbacks)
+      rollback_counter(rollbacks)
     {}
   };
 
-  template <class K, class V, class H = std::hash<K>>
+  template <class K, class V, class H>
   class Map : public AbstractMap
   {
   public:
@@ -788,6 +784,11 @@ namespace kv
           throw std::logic_error("Uncommitted transaction has no end order");
 
         return commit_version;
+      }
+
+      bool is_replicated()
+      {
+        return map.is_replicated();
       }
 
     private:

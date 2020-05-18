@@ -255,11 +255,11 @@ namespace kv
 
       for (auto domain_it : grouped_maps)
       {
-        for (auto curr_map : domain_it.second)
+        for (auto curr_view : domain_it.second)
         {
-          if (curr_map->is_replicated())
+          if (curr_view->is_replicated())
           {
-            curr_map->serialise(replicated_serialiser, include_reads);
+            curr_view->serialise(replicated_serialiser, include_reads);
           }
         }
       }
