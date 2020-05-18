@@ -256,7 +256,9 @@ TEST_CASE("Local commit hooks")
 
   kv::Store kv_store;
   auto& map = kv_store.create<std::string, std::string>(
-    "map", kv::SecurityDomain::PUBLIC, local_hook, global_hook);
+    "map", kv::SecurityDomain::PUBLIC);
+  map.set_local_hook(local_hook);
+  map.set_global_hook(global_hook);
 
   INFO("Write with hooks");
   {
@@ -322,7 +324,8 @@ TEST_CASE("Global commit hooks")
 
   kv::Store kv_store;
   auto& map_with_hook = kv_store.create<std::string, std::string>(
-    "map_with_hook", kv::SecurityDomain::PUBLIC, nullptr, global_hook);
+    "map_with_hook", kv::SecurityDomain::PUBLIC);
+  map_with_hook.set_global_hook(global_hook);
   auto& map_no_hook = kv_store.create<std::string, std::string>(
     "map_no_hook", kv::SecurityDomain::PUBLIC);
 

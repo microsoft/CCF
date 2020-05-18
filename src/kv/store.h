@@ -163,12 +163,9 @@ namespace kv
     template <class K, class V, class H = std::hash<K>>
     Map<K, V, H>& create(
       std::string name,
-      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
-      typename Map<K, V, H>::CommitHook local_hook = nullptr,
-      typename Map<K, V, H>::CommitHook global_hook = nullptr)
+      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
     {
-      return create<Map<K, V, H>>(
-        name, security_domain, local_hook, global_hook);
+      return create<Map<K, V, H>>(name, security_domain);
     }
 
     /** Create a Map
@@ -184,9 +181,7 @@ namespace kv
     template <class M>
     M& create(
       std::string name,
-      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
-      typename M::CommitHook local_hook = nullptr,
-      typename M::CommitHook global_hook = nullptr)
+      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -206,8 +201,7 @@ namespace kv
         }
       }
 
-      auto result =
-        new M(this, name, security_domain, replicated, local_hook, global_hook);
+      auto result = new M(this, name, security_domain, replicated);
       maps[name] = std::unique_ptr<AbstractMap>(result);
       return *result;
     }

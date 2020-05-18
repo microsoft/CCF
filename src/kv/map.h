@@ -343,8 +343,8 @@ namespace kv
     std::string name;
     size_t rollback_counter;
     std::unique_ptr<LocalCommits> roll;
-    CommitHook local_hook;
-    CommitHook global_hook;
+    CommitHook local_hook = nullptr;
+    CommitHook global_hook = nullptr;
     LocalCommits commit_deltas;
     SpinLock sl;
     const SecurityDomain security_domain;
@@ -402,17 +402,13 @@ namespace kv
       AbstractStore* store_,
       std::string name_,
       SecurityDomain security_domain_,
-      bool replicated_,
-      CommitHook local_hook_,
-      CommitHook global_hook_) :
+      bool replicated_) :
       store(store_),
       name(name_),
       roll(std::make_unique<LocalCommits>()),
       rollback_counter(0),
       security_domain(security_domain_),
-      replicated(replicated_),
-      local_hook(local_hook_),
-      global_hook(global_hook_)
+      replicated(replicated_)
     {
       roll->insert_back(create_new_local_commit(0, State(), Write()));
     }
@@ -421,8 +417,7 @@ namespace kv
 
     virtual AbstractMap* clone(AbstractStore* other) override
     {
-      return new Map(
-        other, name, security_domain, replicated, nullptr, nullptr);
+      return new Map(other, name, security_domain, replicated);
     }
 
     /** Get the name of the map

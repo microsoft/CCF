@@ -14,7 +14,7 @@ TEST_CASE("Foo")
   // auto& map = kv_store.create<TMap>("map");
 
   // TODO: Views should be managed by Tx, this is a leak
-  //auto view = map.create_view(0);
+  // auto view = map.create_view(0);
 
   // {
   //   const auto it = view->get(5);
