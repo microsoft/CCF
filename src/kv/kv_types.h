@@ -363,7 +363,6 @@ namespace kv
     virtual bool deserialise(KvStoreDeserialiser& d, Version version) = 0;
     virtual Version start_order() = 0;
     virtual Version end_order() = 0;
-    virtual bool is_replicated() = 0;
   };
 
   class AbstractMap

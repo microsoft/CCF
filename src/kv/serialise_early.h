@@ -67,10 +67,6 @@ namespace kv
         {
           throw std::logic_error("Unimplemented");
         }
-        bool is_replicated() override
-        {
-          throw std::logic_error("Unimplemented");
-        }
         // ^^^ TODO ^^^
       };
 
