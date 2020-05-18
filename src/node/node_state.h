@@ -837,7 +837,7 @@ namespace ccf
       return g.service_wait_for_shares();
     }
 
-    bool finish_recovery(
+    void finish_recovery(
       Store::Tx& tx, const std::vector<kv::Version>& restored_versions)
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -863,7 +863,6 @@ namespace ccf
       read_ledger_idx(++ledger_idx);
 
       sm.advance(State::readingPrivateLedger);
-      return true;
     }
 
     //
@@ -1024,25 +1023,22 @@ namespace ccf
       return true;
     }
 
-    bool restore_ledger_secrets(
-      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+    void restore_ledger_secrets(Store::Tx& tx) override
     {
       try
       {
         finish_recovery(
           tx,
           share_manager.restore_recovery_shares_info(
-            tx, shares, recovery_ledger_secrets));
+            tx, recovery_ledger_secrets));
 
         recovery_ledger_secrets.clear();
       }
       catch (const std::logic_error& e)
       {
-        LOG_FAIL_FMT("Failed to restore recovery shares info: {}", e.what());
-        return false;
+        throw std::logic_error(
+          fmt::format("Failed to restore recovery shares info: {}", e.what()));
       }
-
-      return true;
     }
 
     NodeId get_node_id() const override

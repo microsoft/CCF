@@ -22,6 +22,7 @@
 #include "service.h"
 #include "shares.h"
 #include "signatures.h"
+#include "submitted_shares.h"
 #include "users.h"
 #include "values.h"
 #include "whitelists.h"
@@ -50,6 +51,10 @@ namespace ccf
     GovernanceHistory& governance_history;
     ClientSignatures& member_client_signatures;
     Shares& shares;
+    // The shares are submitted to the public-only network on recovery. As such,
+    // the table is public but the shares are encrypted manually with the latest
+    // ledger secret.
+    SubmittedShares& submitted_shares;
     Configuration& config;
 
     //
@@ -115,6 +120,10 @@ namespace ccf
         tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
       shares(
         tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
+      submitted_shares(tables->create<SubmittedShares>(
+        Tables::SUBMITTED_SHARES,
+        kv::SecurityDomain::PUBLIC)), // TODO: Submitted shares should not be
+                                      // public!!!
       users(tables->create<Users>(Tables::USERS)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),

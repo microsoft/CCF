@@ -91,11 +91,23 @@ namespace ccf
       return true;
     }
 
-    bool restore_ledger_secrets(
-      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+    void restore_ledger_secrets(Store::Tx& tx) override
     {
+      auto submitted_shares = tx.get_view(network->submitted_shares)->get(0);
+      if (!submitted_shares.has_value())
+      {
+        throw std::logic_error("Could not find submitted shares");
+      }
+
+      std::vector<SecretSharing::Share> shares;
+      // for (auto const& s : submitted_shares.value())
+      // {
+      //   SecretSharing::Share share;
+      //   std::copy_n(
+      //     s.second.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+      //   shares.emplace_back(share);
+      // }
       SecretSharing::combine(shares, shares.size());
-      return true;
     }
 
     NodeId get_node_id() const override

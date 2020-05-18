@@ -205,16 +205,26 @@ namespace ccf
         tx, new_ledger_secret, network.ledger_secrets->get_latest());
     }
 
-    // For now, the shares are passed directly to this function. Shares should
-    // be retrieved from the KV instead.
     std::vector<kv::Version> restore_recovery_shares_info(
       Store::Tx& tx,
-      const std::vector<SecretSharing::Share>& shares,
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
     {
-      // First, re-assemble the ledger secret wrapping key from the given
+      // First, re-assemble the ledger secret wrapping key from the submitted
       // shares. Then, unwrap the latest ledger secret and use it to decrypt the
       // previous ledger secret and so on.
+      std::vector<SecretSharing::Share> shares;
+      auto submitted_shares = tx.get_view(network.submitted_shares)->get(0);
+
+      // TODO: Check that optional is valid
+
+      for (auto const& s : submitted_shares.value())
+      {
+        SecretSharing::Share share;
+        std::copy_n(
+          s.second.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+        shares.emplace_back(share);
+      }
+
       auto ls_wrapping_key =
         LedgerSecretWrappingKey(SecretSharing::combine(shares, shares.size()));
 

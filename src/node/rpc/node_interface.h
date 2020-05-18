@@ -27,7 +27,6 @@ namespace ccf
     virtual NodeId get_node_id() const = 0;
 
     virtual bool split_ledger_secrets(Store::Tx& tx) = 0;
-    virtual bool restore_ledger_secrets(
-      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) = 0;
+    virtual void restore_ledger_secrets(Store::Tx& tx) = 0;
   };
 }

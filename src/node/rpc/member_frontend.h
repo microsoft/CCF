@@ -534,10 +534,6 @@ namespace ccf
     NetworkTables& network;
     AbstractNodeState& node;
     const lua::TxScriptRunner tsr;
-    // For now, shares are not stored in the KV
-    std::vector<SecretSharing::Share> pending_shares;
-
-    static constexpr auto SIZE_NONCE = 16;
 
   public:
     MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
@@ -910,33 +906,35 @@ namespace ccf
 
         const auto in = params.get<SubmitRecoveryShare>();
 
-        SecretSharing::Share share;
-        std::copy_n(
-          in.recovery_share.begin(),
-          SecretSharing::SHARE_LENGTH,
-          share.begin());
-
-        pending_shares.emplace_back(share);
-        if (pending_shares.size() < g.get_recovery_threshold())
+        if (
+          g.submit_recovery_share(args.caller_id, in.recovery_share).value() <
+          g.get_recovery_threshold())
         {
-          // The number of shares required to re-assemble the secret has not
-          // yet been reached
+          // TODO: Return the number of recovery shares submitted so far
+          // TODO: Recovery threshold should not be able to be changed if the
+          // service is waiting for recovery shares
+
+          // The number of shares required to re-assemble the secret has not yet
+          // been reached
           return make_success(false);
         }
 
         LOG_DEBUG_FMT(
-          "Reached secret sharing threshold {}", pending_shares.size());
+          "Reached secret sharing threshold {}", g.get_recovery_threshold());
 
-        if (!node.restore_ledger_secrets(args.tx, pending_shares))
-        {
-          pending_shares.clear();
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Failed to combine recovery shares and initiate end of recovery "
-            "protocol");
-        }
+        node.restore_ledger_secrets(args.tx);
+        // if (!node.restore_ledger_secrets(args.tx))
+        // {
+        //   // TODO: Instead of clearing, keep the shares and try k-of-n
+        //   instead g.clear_submitted_recovery_shares();
 
-        pending_shares.clear();
+        //   return make_error(
+        //     HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        //     "Failed to combine recovery shares and initiate end of recovery "
+        //     "protocol");
+        // }
+
+        g.clear_submitted_recovery_shares();
         return make_success(true);
       };
       install(

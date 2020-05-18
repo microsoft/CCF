@@ -60,7 +60,17 @@ const auto operator_gov_script_file =
 template <typename T>
 T parse_response_body(const TResponse& r)
 {
-  const auto body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+  nlohmann::json body_j;
+  try
+  {
+    body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+  }
+  catch (const nlohmann::json::parse_error& e)
+  {
+    std::cerr << e.what() << std::endl;
+    std::cerr << std::string(r.body.begin(), r.body.end()) << std::endl;
+  }
+
   return body_j.get<T>();
 }
 
