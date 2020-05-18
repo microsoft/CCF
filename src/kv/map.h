@@ -1111,13 +1111,4 @@ namespace kv
       std::swap(roll, map->roll);
     }
   };
-
-  struct MapView
-  {
-    // Weak pointer to source map
-    AbstractMap* map;
-
-    // Owning pointer of TxView over that map
-    std::unique_ptr<AbstractTxView> view;
-  };
 }
