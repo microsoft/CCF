@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
-#include "kv/kv.h"
 #include "kv/kv_serialiser.h"
+#include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "node/entities.h"
 #include "node/history.h"

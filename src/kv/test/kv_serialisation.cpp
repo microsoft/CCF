@@ -2,10 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "kv/encryptor.h"
-#include "kv/kv.h"
 #include "kv/kv_serialiser.h"
+#include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
+#include "kv/tx.h"
 
 #include <doctest/doctest.h>
 #include <msgpack/msgpack.hpp>
