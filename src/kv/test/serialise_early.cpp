@@ -10,8 +10,8 @@
 TEST_CASE("Foo")
 {
   kv::Store kv_store;
-  using TMap = kv::typed::Map<std::string, std::string>;
-  auto& map = kv_store.create<TMap>("map");
+  // using TMap = kv::typed::Map<std::string, std::string>;
+  // auto& map = kv_store.create<TMap>("map");
 
   // TODO: Views should be managed by Tx, this is a leak
   //auto view = map.create_view(0);

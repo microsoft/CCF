@@ -49,6 +49,30 @@ namespace kv
     }
   }
 
+  template <typename V>
+  struct VersionV
+  {
+    Version version;
+    V value;
+
+    VersionV() = default;
+    VersionV(Version ver, V val) : version(ver), value(val) {}
+  };
+
+  template <typename K, typename V, typename H>
+  using State = champ::Map<K, VersionV<V>, H>;
+
+  template <typename K, typename V, typename H>
+  using Read = std::unordered_map<K, Version, H>;
+
+  template <typename K, typename V, typename H>
+  using Write = std::unordered_map<K, VersionV<V>, H>;
+
+  /// Signature for transaction commit handlers
+  template <typename K, typename V, typename H>
+  using CommitHook =
+    std::function<void(Version, const State<K, V, H>&, const Write<K, V, H>&)>;
+
   template <class K, class V, class H = std::hash<K>>
   class Map : public AbstractMap
   {
@@ -58,20 +82,11 @@ namespace kv
       return version < 0;
     }
 
-    struct VersionV
-    {
-      Version version;
-      V value;
-
-      VersionV() = default;
-      VersionV(Version ver, V val) : version(ver), value(val) {}
-    };
-
-    using State = champ::Map<K, VersionV, H>;
-    using Read = std::unordered_map<K, Version, H>;
-    using Write = std::unordered_map<K, VersionV, H>;
-    /// Signature for transaction commit handlers
-    using CommitHook = std::function<void(Version, const State&, const Write&)>;
+    using VersionV = VersionV<V>;
+    using State = State<K, V, H>;
+    using Read = Read<K, V, H>;
+    using Write = Write<K, V, H>;
+    using CommitHook = CommitHook<K, V, H>;
 
   private:
     using This = Map<K, V, H>;
