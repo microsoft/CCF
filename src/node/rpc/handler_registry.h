@@ -18,7 +18,7 @@ namespace ccf
   struct RequestArgs
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
-    Store::Tx& tx;
+    ccf::Tx& tx;
     CallerId caller_id;
   };
 
@@ -311,7 +311,7 @@ namespace ccf
      * internally, so derived implementations must be able to populate the list
      * with the supported methods however it constructs them.
      */
-    virtual void list_methods(Store::Tx& tx, ListMethods::Out& out)
+    virtual void list_methods(ccf::Tx& tx, ListMethods::Out& out)
     {
       for (const auto& handler : handlers)
       {
@@ -346,7 +346,7 @@ namespace ccf
     }
 
     virtual CallerId get_caller_id(
-      Store::Tx& tx, const std::vector<uint8_t>& caller)
+      ccf::Tx& tx, const std::vector<uint8_t>& caller)
     {
       if (certs == nullptr || caller.empty())
       {

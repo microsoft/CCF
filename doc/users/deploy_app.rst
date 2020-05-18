@@ -58,3 +58,5 @@ The ``start_test_network.sh`` script can also be used to automatically recover a
     [2020-05-14 14:50:24.388] Press Ctrl+C to shutdown the network.
 
 The effects of transactions committed by the defunct network should then be recovered. Users can also :ref:`issue new business requests <users/issue_commands:Issuing Commands>`.
+
+.. note:: The ``--ledger-recovery-timeout`` argument should be used to specify the maximum timeout (in seconds) that the script will wait for CCF to recover the ledger. Depending on the size of the ledger to recover, this timeout may have to be set to a large value.

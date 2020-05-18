@@ -84,20 +84,20 @@ public:
   {
     open();
 
-    auto echo_function = [this](Store::Tx& tx, nlohmann::json&& params) {
+    auto echo_function = [this](ccf::Tx& tx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
     install("echo", json_adapter(echo_function), HandlerRegistry::Read);
 
     auto get_caller_function =
-      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+      [this](ccf::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         return make_success(caller_id);
       };
     install(
       "get_caller", json_adapter(get_caller_function), HandlerRegistry::Read);
 
     auto failable_function =
-      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+      [this](ccf::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         const auto it = params.find("error");
         if (it != params.end())
         {
@@ -354,7 +354,7 @@ nlohmann::json parse_response_body(
 
 std::optional<SignedReq> get_signed_req(CallerId caller_id)
 {
-  Store::Tx tx;
+  ccf::Tx tx;
   auto client_sig_view = tx.get_view(network.user_client_signatures);
   return client_sig_view->get(caller_id);
 }
@@ -410,7 +410,7 @@ void prepare_callers()
   auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
-  Store::Tx tx;
+  ccf::Tx tx;
   network.tables->set_encryptor(encryptor);
   network2.tables->set_encryptor(encryptor);
 
@@ -426,7 +426,7 @@ void prepare_callers()
 
 void add_callers_primary_store()
 {
-  Store::Tx gen_tx;
+  ccf::Tx gen_tx;
   network2.tables->clear();
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
@@ -438,7 +438,7 @@ void add_callers_primary_store()
 
 void add_callers_pbft_store()
 {
-  Store::Tx gen_tx;
+  ccf::Tx gen_tx;
   pbft_network.tables->set_encryptor(encryptor);
   pbft_network.tables->clear();
   pbft_network.tables->set_history(history);
@@ -471,7 +471,7 @@ TEST_CASE("process_pbft")
   auto ctx = enclave::make_rpc_context(session, request.raw);
   frontend.process_pbft(ctx);
 
-  Store::Tx tx;
+  ccf::Tx tx;
   auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);
   auto request_value = pbft_requests_map->get(0);
   REQUIRE(request_value.has_value());
@@ -939,7 +939,7 @@ TEST_CASE("Explicit commitability")
   size_t next_value = 0;
 
   auto get_value = [&]() {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto view = tx.get_view(frontend.values);
     auto actual_v = view->get(0).value();
     return actual_v;
@@ -947,7 +947,7 @@ TEST_CASE("Explicit commitability")
 
   // Set initial value
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     tx.get_view(frontend.values)->put(0, next_value);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1237,7 +1237,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     user_frontend_primary.process_forwarded(fwd_ctx);
 
-    Store::Tx tx;
+    ccf::Tx tx;
     auto client_sig_view = tx.get_view(network2.user_client_signatures);
     auto client_sig = client_sig_view->get(user_id);
     REQUIRE(client_sig.has_value());

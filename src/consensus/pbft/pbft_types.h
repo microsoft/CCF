@@ -45,7 +45,7 @@ namespace pbft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr,
-      ccf::Store::Tx* tx = nullptr) = 0;
+      ccf::Tx* tx = nullptr) = 0;
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v) = 0;
     virtual kv::Version current_version() = 0;
@@ -55,7 +55,7 @@ namespace pbft
       CBuffer root,
       ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(
-      ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
+      ccf::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
     virtual void commit_new_view(
       const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
@@ -74,7 +74,7 @@ namespace pbft
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term = nullptr,
-      ccf::Store::Tx* tx = nullptr)
+      ccf::Tx* tx = nullptr)
     {
       auto p = x.lock();
       if (p)
@@ -99,7 +99,7 @@ namespace pbft
           auto success = p->commit(
             version,
             [&]() {
-              ccf::Store::Tx tx(version);
+              ccf::Tx tx(version);
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
               auto sig_view = tx.get_view(signatures);
@@ -117,7 +117,7 @@ namespace pbft
     }
 
     kv::Version commit_tx(
-      ccf::Store::Tx& tx, CBuffer root, ccf::Signatures& signatures)
+      ccf::Tx& tx, CBuffer root, ccf::Signatures& signatures)
     {
       while (true)
       {
@@ -152,7 +152,7 @@ namespace pbft
           auto success = p->commit(
             version,
             [&]() {
-              ccf::Store::Tx tx(version);
+              ccf::Tx tx(version);
               auto vc_view = tx.get_view(pbft_new_views_map);
               vc_view->put(0, new_view);
               return tx.commit_reserved();

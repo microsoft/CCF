@@ -5,7 +5,7 @@
 
 #include "consensus/test/stub_consensus.h"
 #include "enclave/app_interface.h"
-#include "kv/kv.h"
+#include "kv/kv_types.h"
 #include "node/encryptor.h"
 #include "node/entities.h"
 #include "node/nodes.h"
@@ -101,7 +101,7 @@ TEST_CASE("Check signature verification")
 
   INFO("Write certificate");
   {
-    Store::Tx txs;
+    ccf::Tx txs;
     auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
@@ -117,7 +117,7 @@ TEST_CASE("Check signature verification")
 
   INFO("Issue a bogus signature, rejected by verification on the backup");
   {
-    Store::Tx txs;
+    ccf::Tx txs;
     auto tx = txs.get_view(primary_signatures);
     ccf::Signature bogus(0, 0);
     bogus.sig = std::vector<uint8_t>(MBEDTLS_ECDSA_MAX_LEN, 1);
@@ -164,7 +164,7 @@ TEST_CASE("Check signing works across rollback")
 
   INFO("Write certificate");
   {
-    Store::Tx txs;
+    ccf::Tx txs;
     auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     ni.cert = kp->self_sign("CN=name");
@@ -174,7 +174,7 @@ TEST_CASE("Check signing works across rollback")
 
   INFO("Transaction that we will roll back");
   {
-    Store::Tx txs;
+    ccf::Tx txs;
     auto tx = txs.get_view(primary_nodes);
     ccf::NodeInfo ni;
     tx->put(1, ni);
@@ -272,7 +272,7 @@ TEST_CASE(
 
   INFO("Write first tx");
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -283,7 +283,7 @@ TEST_CASE(
   {
     auto rv = store.next_version();
 
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -292,7 +292,7 @@ TEST_CASE(
     store.commit(
       rv,
       [rv, &other_table]() {
-        Store::Tx txr(rv);
+        ccf::Tx txr(rv);
         auto txrv = txr.get_view(other_table);
         txrv->put(0, 1);
         return txr.commit_reserved();
@@ -303,7 +303,7 @@ TEST_CASE(
 
   INFO("Single tx");
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -376,7 +376,7 @@ TEST_CASE(
 
   INFO("Write first tx");
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -385,7 +385,7 @@ TEST_CASE(
 
   INFO("Write second tx, causing a rollback");
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -394,7 +394,7 @@ TEST_CASE(
 
   INFO("Single tx");
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -415,7 +415,7 @@ TEST_CASE(
 
   INFO("Write first tx");
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -424,7 +424,7 @@ TEST_CASE(
 
   INFO("Write second tx, causing a rollback");
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 2);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
@@ -433,7 +433,7 @@ TEST_CASE(
 
   INFO("Single tx");
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto txv = tx.get_view(table);
     txv->put(0, 3);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
