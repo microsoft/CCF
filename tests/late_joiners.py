@@ -189,9 +189,6 @@ def run(args):
             run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
             term_info.update(find_primary(network))
 
-            assert_network_up_to_date(check, late_joiner, first_msg, 1000)
-            assert_network_up_to_date(check, late_joiner, second_msg, 2000)
-
             # wait for late joiner to cathcup before killing one of the other nodes
             wait_for_late_joiner(first_node, late_joiner)
 
