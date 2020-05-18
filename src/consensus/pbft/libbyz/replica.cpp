@@ -2061,6 +2061,10 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
         update_gov_req_info(info, pp);
       }
     }
+    else
+    {
+      global_commit(pp);
+    }
 
     if (i <= last_executed || pc.is_complete())
     {
