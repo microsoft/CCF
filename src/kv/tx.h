@@ -44,9 +44,10 @@ namespace kv
         read_version = m.get_store()->current_version();
       }
 
-      typename M::TxView* view = m.create_view(read_version);
+      AbstractTxView* view = m.create_view(read_version);
+      auto typed_view = dynamic_cast<typename M::TxView*>(view);
       view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView>(view)};
-      return std::make_tuple(view);
+      return std::make_tuple(typed_view);
     }
 
     template <class M, class... Ms>

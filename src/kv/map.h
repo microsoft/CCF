@@ -124,6 +124,35 @@ namespace kv
       return c;
     }
 
+  protected:
+    template <typename TView>
+    TView* create_view_internal(
+      Version version, std::function<TView*(State& state, Version v)> create_fn)
+    {
+      lock();
+
+      // Find the last entry committed at or before this version.
+      TView* view = nullptr;
+
+      for (auto current = roll->get_tail(); current != nullptr;
+           current = current->prev)
+      {
+        if (current->version <= version)
+        {
+          view = create_fn(current->state, current->version);
+          break;
+        }
+      }
+
+      if (view == nullptr)
+      {
+        view = create_fn(roll->get_head()->state, roll->get_head()->version);
+      }
+
+      unlock();
+      return view;
+    }
+
   public:
     Map(
       AbstractStore* store_,
@@ -732,35 +761,11 @@ namespace kv
       }
     };
 
-    TxView* create_view(Version version) override
+    AbstractTxView* create_view(Version version) override
     {
-      lock();
-
-      // Find the last entry committed at or before this version.
-      TxView* view = nullptr;
-
-      for (auto current = roll->get_tail(); current != nullptr;
-           current = current->prev)
-      {
-        if (current->version <= version)
-        {
-          view = new TxView(
-            *this, current->state, current->version, rollback_counter);
-          break;
-        }
-      }
-
-      if (view == nullptr)
-      {
-        view = new TxView(
-          *this,
-          roll->get_head()->state,
-          roll->get_head()->version,
-          rollback_counter);
-      }
-
-      unlock();
-      return view;
+      return create_view_internal<TxView>(version, [this](State& s, Version v) {
+        return new TxView(*this, s, v, rollback_counter);
+      });
     }
 
   private:

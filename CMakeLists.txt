@@ -247,6 +247,7 @@ if(BUILD_TESTS)
       kv_test ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/serialise_early.cpp
     )
     use_client_mbedtls(kv_test)
     target_link_libraries(

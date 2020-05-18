@@ -11,7 +11,7 @@ namespace kv
 {
   class Store : public AbstractStore
   {
-  private:
+  protected:
     // All collections of Map must be ordered so that we lock their contained
     // maps in a stable order. The order here is by map name
     using Maps = std::map<std::string, std::unique_ptr<AbstractMap>>;
