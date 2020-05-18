@@ -59,14 +59,6 @@ namespace kv
         {
           throw std::logic_error("Unimplemented");
         }
-        Version start_order() override
-        {
-          throw std::logic_error("Unimplemented");
-        }
-        Version end_order() override
-        {
-          throw std::logic_error("Unimplemented");
-        }
         // ^^^ TODO ^^^
       };
 

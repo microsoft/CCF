@@ -178,7 +178,7 @@ TEST_CASE("Rollback and compact")
     auto view = tx.get_view(map);
     view->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    kv_store.compact(view->end_order());
+    kv_store.compact(kv_store.current_version());
 
     auto view2 = tx2.get_view(map);
     auto va = view2->get_globally_committed(k);
@@ -193,7 +193,7 @@ TEST_CASE("Rollback and compact")
     auto view = tx.get_view(map);
     REQUIRE(view->remove(k));
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    kv_store.compact(view->end_order());
+    kv_store.compact(kv_store.current_version());
 
     auto view2 = tx2.get_view(map);
     auto va = view2->get_globally_committed(k);

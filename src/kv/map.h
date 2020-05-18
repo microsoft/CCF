@@ -773,19 +773,6 @@ namespace kv
         return true;
       }
 
-      Version start_order()
-      {
-        return start_version;
-      }
-
-      Version end_order()
-      {
-        if (commit_version == NoVersion)
-          throw std::logic_error("Uncommitted transaction has no end order");
-
-        return commit_version;
-      }
-
       bool is_replicated()
       {
         return map.is_replicated();

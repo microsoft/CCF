@@ -361,8 +361,6 @@ namespace kv
     virtual void post_commit() = 0;
     virtual void serialise(KvStoreSerialiser& s, bool include_reads) = 0;
     virtual bool deserialise(KvStoreDeserialiser& d, Version version) = 0;
-    virtual Version start_order() = 0;
-    virtual Version end_order() = 0;
     virtual bool is_replicated() = 0;
   };
 
