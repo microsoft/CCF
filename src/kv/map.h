@@ -49,6 +49,11 @@ namespace kv
     }
   }
 
+  static bool is_deleted(Version version)
+  {
+    return version < 0;
+  }
+
   template <typename V>
   struct VersionV
   {
@@ -115,7 +120,7 @@ namespace kv
       if (write != writes.end())
       {
         // Return empty for a key that has been removed.
-        if (deleted(write->second.version))
+        if (is_deleted(write->second.version))
         {
           return std::nullopt;
         }
@@ -137,7 +142,7 @@ namespace kv
       reads.insert(std::make_pair(key, found.version));
 
       // If the key has been deleted, return empty.
-      if (deleted(found.version))
+      if (is_deleted(found.version))
       {
         return std::nullopt;
       }
@@ -170,7 +175,7 @@ namespace kv
 
       // If the key has been deleted, return empty.
       auto& found = search.value();
-      if (deleted(found.version))
+      if (is_deleted(found.version))
       {
         return std::nullopt;
       }
@@ -256,14 +261,14 @@ namespace kv
       state.foreach([&w, &f](const K& k, const VersionV& v) {
         auto write = w.find(k);
 
-        if ((write == w.end()) && !deleted(v.version))
+        if ((write == w.end()) && !is_deleted(v.version))
           return f(k, v.value);
         return true;
       });
 
       for (auto write = writes.begin(); write != writes.end(); ++write)
       {
-        if (!deleted(write->second.version))
+        if (!is_deleted(write->second.version))
           if (!f(write->first, write->second.value))
             return false;
       }
@@ -275,7 +280,8 @@ namespace kv
   class Map;
 
   template <class K, class V, class H>
-  class CommittableStateAccessor : public StateAccessor<K, V, H>
+  class CommittableStateAccessor : public StateAccessor<K, V, H>,
+                                   public CommittableTxView
   {
   protected:
     using Base = StateAccessor<K, V, H>;
@@ -299,17 +305,130 @@ namespace kv
       map(m),
       rollback_counter(rollbacks)
     {}
+
+    bool has_writes() override
+    {
+      return committed_writes || !writes.empty();
+    }
+
+    bool has_changes() override
+    {
+      return changes;
+    }
+
+    bool prepare() override
+    {
+      if (writes.empty())
+        return true;
+
+      // If the parent map has rolled back since this transaction began, this
+      // transaction must fail.
+      if (rollback_counter != map.rollback_counter)
+        return false;
+
+      // If we have iterated over the map, check for a global version match.
+      auto current = map.roll->get_tail();
+
+      if ((read_version != NoVersion) && (read_version != current->version))
+      {
+        LOG_DEBUG_FMT("Read version {} is invalid", read_version);
+        return false;
+      }
+
+      // Check each key in our read set.
+      for (auto it = reads.begin(); it != reads.end(); ++it)
+      {
+        // Get the value from the current state.
+        auto search = current->state.get(it->first);
+
+        if (it->second == NoVersion)
+        {
+          // If we depend on the key not existing, it must be absent.
+          if (search.has_value())
+          {
+            LOG_DEBUG_FMT("Read depends on non-existing entry");
+            return false;
+          }
+        }
+        else
+        {
+          // If we depend on the key existing, it must be present and have the
+          // version that we expect.
+          if (!search.has_value() || (it->second != search.value().version))
+          {
+            LOG_DEBUG_FMT("Read depends on invalid version of entry");
+            return false;
+          }
+        }
+      }
+
+      return true;
+    }
+
+    void commit(Version v) override
+    {
+      if (writes.empty())
+      {
+        commit_version = start_version;
+        return;
+      }
+
+      // Record our commit time.
+      commit_version = v;
+      committed_writes = true;
+
+      if (!writes.empty())
+      {
+        auto state = map.roll->get_tail()->state;
+
+        for (auto it = writes.begin(); it != writes.end(); ++it)
+        {
+          if (it->second.version >= 0)
+          {
+            // Write the new value with the global version.
+            changes = true;
+            state = state.put(it->first, VersionV{v, it->second.value});
+          }
+          else
+          {
+            // Write an empty value with the deleted global version only if
+            // the key exists.
+            auto search = state.get(it->first);
+            if (search.has_value())
+            {
+              changes = true;
+              state = state.put(it->first, VersionV{-v, V()});
+            }
+          }
+        }
+
+        if (changes)
+        {
+          map.roll->insert_back(map.create_new_local_commit(v, state, writes));
+        }
+      }
+    }
+
+    void post_commit() override
+    {
+      // This is run separately from commit so that all commits in the Tx
+      // have been applied before local hooks are run. The maps in the Tx
+      // are still locked when post_commit is run.
+      if (writes.empty())
+        return;
+
+      if (map.local_hook)
+      {
+        auto roll = map.roll->get_tail();
+        map.local_hook(roll->version, roll->state, roll->writes);
+      }
+    }
   };
 
   template <class K, class V, class H>
   class Map : public AbstractMap
   {
   public:
-    static bool deleted(Version version)
-    {
-      return version < 0;
-    }
-
     using VersionV = VersionV<V>;
     using State = State<K, V, H>;
     using Read = Read<K, V, H>;
@@ -549,33 +668,15 @@ namespace kv
       return !(*this == that);
     }
 
-    class TxView : public AbstractTxView
+    class TxView : public CommittableStateAccessor<K, V, H>,
+                   public AbstractTxView
     {
       friend Map;
 
     private:
-      This& map;
-      State state;
-      State committed;
-      Read reads;
-      Write writes;
-      Version start_version;
-      size_t rollback_counter;
-      Version read_version;
-      Version commit_version;
-      bool changes;
-      bool committed_writes;
-
       TxView(This& parent, State& s, Version v, size_t r) :
-        map(parent),
-        state(s),
-        committed(parent.roll->get_head()->state),
-        start_version(v),
-        rollback_counter(r),
-        read_version(NoVersion),
-        commit_version(NoVersion),
-        changes(false),
-        committed_writes(false)
+        CommittableStateAccessor<K, V, H>(
+          s, parent.roll->get_head()->state, v, parent, r)
       {}
 
     public:
@@ -587,310 +688,7 @@ namespace kv
 
       TxView(const TxView& that) = delete;
 
-      /** Get value for key
-       *
-       * This returns the value for the key inside the transaction. If the key
-       * has been updated in the current transaction, that update will be
-       * reflected in the return of this call.
-       *
-       * @param key Key
-       *
-       * @return optional containing value, empty if the key doesn't exist
-       */
-      std::optional<V> get(const K& key)
-      {
-        if (commit_version != NoVersion)
-          return {};
-
-        // A write followed by a read doesn't introduce a read dependency.
-        // If we have written, return the value without updating the read set.
-        auto write = writes.find(key);
-        if (write != writes.end())
-        {
-          // Return empty for a key that has been removed.
-          if (deleted(write->second.version))
-            return {};
-
-          return write->second.value;
-        }
-
-        // If the key doesn't exist, return empty and record that we depend on
-        // the key not existing.
-        auto search = state.get(key);
-        if (!search.has_value())
-        {
-          reads.insert(std::make_pair(key, NoVersion));
-          return {};
-        }
-
-        // Record the version that we depend on.
-        auto& found = search.value();
-        reads.insert(std::make_pair(key, found.version));
-
-        // If the key has been deleted, return empty.
-        if (deleted(found.version))
-          return {};
-
-        // Return the value.
-        return found.value;
-      }
-
-      /** Get globally committed value for key
-       *
-       * This reads a globally replicated value for the specified key.
-       * The value will have been the replicated value when the transaction
-       * began, but the map may be compacted while the transaction is in
-       * flight. If that happens, there may be a more recent committed
-       * version. This is undetectable to the transaction.
-       *
-       * @param key Key
-       *
-       * @return optional containing value, empty if the key doesn't exist in
-       * globally committed state
-       */
-      std::optional<V> get_globally_committed(const K& key)
-      {
-        if (commit_version != NoVersion)
-          return {};
-
-        // If there is no committed value, return empty.
-        auto search = committed.get(key);
-        if (!search.has_value())
-          return {};
-
-        // If the key has been deleted, return empty.
-        auto& found = search.value();
-        if (deleted(found.version))
-          return {};
-
-        // Return the value.
-        return found.value;
-      }
-
-      /** Write value at key
-       *
-       * If the key already exists, the value will be replaced.
-       * This will fail if the transaction is already committed.
-       *
-       * @param key Key
-       * @param value Value
-       *
-       * @return true if successful, false otherwise
-       */
-      bool put(const K& key, const V& value)
-      {
-        if (commit_version != NoVersion)
-          return false;
-
-        // Record in the write set.
-        writes[key] = {0, value};
-        return true;
-      }
-
-      /** Remove key
-       *
-       * This will fail if the key does not exist, or if the transaction
-       * is already committed.
-       *
-       * @param key Key
-       *
-       * @return true if successful, false otherwise
-       */
-      bool remove(const K& key)
-      {
-        if (commit_version != NoVersion)
-          return false;
-
-        auto write = writes.find(key);
-        auto search = state.get(key).has_value();
-
-        if (write != writes.end())
-        {
-          if (!search)
-          {
-            // this key only exists locally, there is no reason to maintain and
-            // serialise it
-            writes.erase(key);
-          }
-          else
-          {
-            // If we have written, change the write set to indicate a remove.
-            write->second = {NoVersion, V()};
-          }
-
-          return true;
-        }
-
-        // If the key doesn't exist, return false.
-        if (!search)
-          return false;
-
-        // Record in the write set.
-        writes.emplace(
-          std::piecewise_construct,
-          std::forward_as_tuple(key),
-          std::forward_as_tuple(NoVersion, V()));
-        return true;
-      }
-
-      /** Iterate over all entries in the map
-       *
-       * @param F functor, taking a key and a value, return value determines
-       * whether the iteration should continue (true) or stop (false)
-       */
-      template <class F>
-      bool foreach(F&& f)
-      {
-        if (commit_version != NoVersion)
-          return false;
-
-        // Record a global read dependency.
-        read_version = start_version;
-        auto& w = writes;
-
-        state.foreach([&w, &f](const K& k, const VersionV& v) {
-          auto write = w.find(k);
-
-          if ((write == w.end()) && !deleted(v.version))
-            return f(k, v.value);
-          return true;
-        });
-
-        for (auto write = writes.begin(); write != writes.end(); ++write)
-        {
-          if (!deleted(write->second.version))
-            if (!f(write->first, write->second.value))
-              return false;
-        }
-        return true;
-      }
-
-      bool is_replicated()
-      {
-        return map.is_replicated();
-      }
-
-    private:
-      virtual bool has_writes()
-      {
-        return committed_writes || !writes.empty();
-      }
-
-      virtual bool has_changes()
-      {
-        return changes;
-      }
-
-      virtual bool prepare()
-      {
-        if (writes.empty())
-          return true;
-
-        // If the parent map has rolled back since this transaction began, this
-        // transaction must fail.
-        if (rollback_counter != map.rollback_counter)
-          return false;
-
-        // If we have iterated over the map, check for a global version match.
-        auto current = map.roll->get_tail();
-
-        if ((read_version != NoVersion) && (read_version != current->version))
-        {
-          LOG_DEBUG_FMT("Read version {} is invalid", read_version);
-          return false;
-        }
-
-        // Check each key in our read set.
-        for (auto it = reads.begin(); it != reads.end(); ++it)
-        {
-          // Get the value from the current state.
-          auto search = current->state.get(it->first);
-
-          if (it->second == NoVersion)
-          {
-            // If we depend on the key not existing, it must be absent.
-            if (search.has_value())
-            {
-              LOG_DEBUG_FMT("Read depends on non-existing entry");
-              return false;
-            }
-          }
-          else
-          {
-            // If we depend on the key existing, it must be present and have the
-            // version that we expect.
-            if (!search.has_value() || (it->second != search.value().version))
-            {
-              LOG_DEBUG_FMT("Read depends on invalid version of entry");
-              return false;
-            }
-          }
-        }
-
-        return true;
-      }
-
-      virtual void commit(Version v)
-      {
-        if (writes.empty())
-        {
-          commit_version = start_version;
-          return;
-        }
-
-        // Record our commit time.
-        commit_version = v;
-        committed_writes = true;
-
-        if (!writes.empty())
-        {
-          auto state = map.roll->get_tail()->state;
-
-          for (auto it = writes.begin(); it != writes.end(); ++it)
-          {
-            if (it->second.version >= 0)
-            {
-              // Write the new value with the global version.
-              changes = true;
-              state = state.put(it->first, VersionV{v, it->second.value});
-            }
-            else
-            {
-              // Write an empty value with the deleted global version only if
-              // the key exists.
-              auto search = state.get(it->first);
-              if (search.has_value())
-              {
-                changes = true;
-                state = state.put(it->first, VersionV{-v, V()});
-              }
-            }
-          }
-
-          if (changes)
-          {
-            map.roll->insert_back(
-              map.create_new_local_commit(v, state, writes));
-          }
-        }
-      }
-
-      virtual void post_commit()
-      {
-        // This is run separately from commit so that all commits in the Tx
-        // have been applied before local hooks are run. The maps in the Tx
-        // are still locked when post_commit is run.
-        if (writes.empty())
-          return;
-
-        if (map.local_hook)
-        {
-          auto roll = map.roll->get_tail();
-          map.local_hook(roll->version, roll->state, roll->writes);
-        }
-      }
-
-      virtual void serialise(KvStoreSerialiser& s, bool include_reads)
+      void serialise(KvStoreSerialiser& s, bool include_reads) override
       {
         if (!changes)
           return;
@@ -915,7 +713,7 @@ namespace kv
         uint64_t remove_ctr = 0;
         for (auto it = writes.begin(); it != writes.end(); ++it)
         {
-          if (!is_remove(it->second.version))
+          if (!is_deleted(it->second.version))
           {
             ++write_ctr;
           }
@@ -929,7 +727,7 @@ namespace kv
         s.serialise_count_header(write_ctr);
         for (auto it = writes.begin(); it != writes.end(); ++it)
         {
-          if (!is_remove(it->second.version))
+          if (!is_deleted(it->second.version))
           {
             s.serialise_write(it->first, it->second.value);
           }
@@ -938,7 +736,7 @@ namespace kv
         s.serialise_count_header(remove_ctr);
         for (auto it = writes.begin(); it != writes.end(); ++it)
         {
-          if (is_remove(it->second.version))
+          if (is_deleted(it->second.version))
           {
             s.serialise_remove(it->first);
           }
@@ -978,9 +776,9 @@ namespace kv
         return true;
       }
 
-      static bool is_remove(const Version& v)
+      bool is_replicated() override
       {
-        return v == NoVersion;
+        return map.is_replicated();
       }
     };
 

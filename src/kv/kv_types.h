@@ -16,16 +16,17 @@
 
 namespace kv
 {
-  // Version indexes modifications to the local kv store. Special value -1
-  // indicates deletion
+  // Version indexes modifications to the local kv store. Negative values
+  // indicate deletion
   using Version = int64_t;
+  static const Version NoVersion = std::numeric_limits<Version>::min();
+
   // Term describes an epoch of Versions. It is incremented when global kv's
   // writer(s) changes. Term and Version combined give a unique identifier for
   // all accepted kv modifications. Terms are handled by Raft via the
   // TermHistory
   using Term = uint64_t;
   using NodeId = uint64_t;
-  static const Version NoVersion = std::numeric_limits<Version>::min();
 
   using BatchVector = std::vector<
     std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
@@ -350,18 +351,30 @@ namespace kv
     virtual size_t commit_gap() = 0;
   };
 
-  class AbstractTxView
+  class CommittableTxView
   {
   public:
-    virtual ~AbstractTxView() {}
+    virtual ~CommittableTxView() = default;
     virtual bool has_writes() = 0;
     virtual bool has_changes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
+  };
+
+  class SerialisableTxView
+  {
+  public:
+    virtual ~SerialisableTxView() = default;
     virtual void serialise(KvStoreSerialiser& s, bool include_reads) = 0;
     virtual bool deserialise(KvStoreDeserialiser& d, Version version) = 0;
     virtual bool is_replicated() = 0;
+  };
+
+  class AbstractTxView : public CommittableTxView, public SerialisableTxView
+  {
+  public:
+    virtual ~AbstractTxView() {}
   };
 
   class AbstractMap
