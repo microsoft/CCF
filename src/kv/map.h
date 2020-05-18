@@ -286,7 +286,6 @@ namespace kv
 
     Version commit_version = NoVersion;
     bool changes = false;
-    bool deserialised = false;
     bool committed_writes = false;
 
   public:
@@ -565,7 +564,6 @@ namespace kv
       Version read_version;
       Version commit_version;
       bool changes;
-      bool deserialised;
       bool committed_writes;
 
       TxView(This& parent, State& s, Version v, size_t r) :
@@ -577,7 +575,6 @@ namespace kv
         read_version(NoVersion),
         commit_version(NoVersion),
         changes(false),
-        deserialised(false),
         committed_writes(false)
       {}
 
