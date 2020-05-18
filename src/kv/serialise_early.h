@@ -29,6 +29,49 @@ namespace kv
       {
       public:
         TxView(typename TypedBase::State& s, Version v) {}
+
+        // vvv TODO vvv
+        bool has_writes() override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        bool has_changes() override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        bool prepare() override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        void commit(Version v) override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        void post_commit() override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        void serialise(KvStoreSerialiser& s, bool include_reads) override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        bool deserialise(KvStoreDeserialiser& d, Version version) override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        Version start_order() override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        Version end_order() override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        bool is_replicated() override
+        {
+          throw std::logic_error("Unimplemented");
+        }
+        // ^^^ TODO ^^^
       };
 
       bool operator==(const AbstractMap& that) const override
@@ -47,9 +90,9 @@ namespace kv
 
       kv::AbstractTxView* create_view(Version version) override
       {
-        return Base::template create_view_internal<TxView>(
+        return Base::create_view_internal(
           version, [this](typename TypedBase::State& s, Version v) {
-            return TxView(s, v);
+            return new TxView(s, v);
           });
       }
     };

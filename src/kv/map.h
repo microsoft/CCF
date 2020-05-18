@@ -125,14 +125,14 @@ namespace kv
     }
 
   protected:
-    template <typename TView>
-    TView* create_view_internal(
-      Version version, std::function<TView*(State& state, Version v)> create_fn)
+    AbstractTxView* create_view_internal(
+      Version version,
+      std::function<AbstractTxView*(State& state, Version v)>&& create_fn)
     {
       lock();
 
       // Find the last entry committed at or before this version.
-      TView* view = nullptr;
+      AbstractTxView* view = nullptr;
 
       for (auto current = roll->get_tail(); current != nullptr;
            current = current->prev)
@@ -763,7 +763,7 @@ namespace kv
 
     AbstractTxView* create_view(Version version) override
     {
-      return create_view_internal<TxView>(version, [this](State& s, Version v) {
+      return create_view_internal(version, [this](State& s, Version v) {
         return new TxView(*this, s, v, rollback_counter);
       });
     }
