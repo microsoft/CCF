@@ -456,22 +456,23 @@ namespace pbft
       message_receiver_base->register_mark_stable(
         mark_stable_cb, &register_mark_stable_ctx);
 
-      auto global_commit_cb = [](
-                                kv::Version version,
-                                ::View view,
-                                GlobalCommitInfo* gb_info) {
-        if (version == kv::NoVersion || version < *gb_info->global_commit_seqno)
-        {
-          return;
-        }
-        *gb_info->global_commit_seqno = version;
+      auto global_commit_cb =
+        [](kv::Version version, ::View view, GlobalCommitInfo* gb_info) {
+          if (
+            version == kv::NoVersion ||
+            (version < *gb_info->global_commit_seqno &&
+             *gb_info->last_commit_view >= view))
+          {
+            return;
+          }
+          *gb_info->global_commit_seqno = version;
 
-        if (*gb_info->last_commit_view < view)
-        {
-          gb_info->view_change_list->emplace_back(view, version);
-        }
-        gb_info->store->compact(version);
-      };
+          if (*gb_info->last_commit_view < view)
+          {
+            gb_info->view_change_list->emplace_back(view, version);
+          }
+          gb_info->store->compact(version);
+        };
 
       register_global_commit_ctx.store = store.get();
       register_global_commit_ctx.global_commit_seqno = &global_commit_seqno;
