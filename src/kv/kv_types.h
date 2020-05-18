@@ -15,7 +15,8 @@
 #include <vector>
 
 namespace kv
-{ // Version indexes modifications to the local kv store. Special value -1
+{
+  // Version indexes modifications to the local kv store. Special value -1
   // indicates deletion
   using Version = int64_t;
   // Term describes an epoch of Versions. It is incremented when global kv's

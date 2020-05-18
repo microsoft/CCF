@@ -18,8 +18,6 @@ namespace kv
       std::vector<uint8_t>& cipher,
       kv::Version version) override
     {
-      crypto::GcmHeader<crypto::GCM_SIZE_IV> gcm_hdr = {};
-      serialised_header = std::move(gcm_hdr.serialise());
       cipher = plain;
     }
 
@@ -38,7 +36,7 @@ namespace kv
 
     size_t get_header_length() override
     {
-      return crypto::GcmHeader<crypto::GCM_SIZE_IV>::RAW_DATA_SIZE;
+      return 0;
     }
 
     void update_encryption_key(

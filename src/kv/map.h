@@ -148,8 +148,6 @@ namespace kv
 
     virtual AbstractMap* clone(AbstractStore* other) override
     {
-      // TODO: Restore old check, essentially that we're using the same
-      // serialiser?
       return new Map(
         other, name, security_domain, replicated, nullptr, nullptr);
     }
