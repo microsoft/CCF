@@ -3,7 +3,8 @@
 #pragma once
 
 #include "crypto/hash.h"
-#include "kv_serialiser.h"
+#include "serialiser_declare.h"
+#include "type_declare.h"
 
 #include <array>
 #include <chrono>
@@ -89,9 +90,6 @@ namespace kv
     virtual size_t commit_gap() = 0;
   };
 
-  using S = KvStoreSerialiser;
-  using D = KvStoreDeserialiser;
-
   class AbstractTxView
   {
   public:
@@ -101,8 +99,8 @@ namespace kv
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
-    virtual void serialise(S& s, bool include_reads) = 0;
-    virtual bool deserialise(D& d, Version version) = 0;
+    virtual void serialise(KvStoreSerialiser& s, bool include_reads) = 0;
+    virtual bool deserialise(KvStoreDeserialiser& d, Version version) = 0;
     virtual Version start_order() = 0;
     virtual Version end_order() = 0;
     virtual bool is_replicated() = 0;

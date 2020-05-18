@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/msgpack_adaptor_nlohmann.h"
-#include "../ds/serialized.h"
+#include "ds/msgpack_adaptor_nlohmann.h"
+#include "ds/serialized.h"
 #include "generic_serialise_wrapper.h"
 
 #include <iterator>
@@ -17,16 +17,6 @@ MSGPACK_ADD_ENUM(kv::SecurityDomain);
 
 namespace kv
 {
-  class MsgPackWriter;
-  template <typename W>
-  class GenericSerialiseWrapper;
-  using KvStoreSerialiser = GenericSerialiseWrapper<MsgPackWriter>;
-
-  class MsgPackReader;
-  template <typename W>
-  class GenericDeserialiseWrapper;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<MsgPackReader>;
-
   class MsgPackWriter
   {
   private:
@@ -101,4 +91,7 @@ namespace kv
       return data_offset >= data_size;
     }
   };
+
+  using KvStoreSerialiser = GenericSerialiseWrapper<MsgPackWriter>;
+  using KvStoreDeserialiser = GenericDeserialiseWrapper<MsgPackReader>;
 }

@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
 #include "views.h"
@@ -304,7 +305,7 @@ namespace kv
       auto e = get_encryptor();
 
       // create the first deserialiser
-      auto d = std::make_unique<D>(
+      auto d = std::make_unique<KvStoreDeserialiser>(
         e,
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());

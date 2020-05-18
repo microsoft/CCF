@@ -640,7 +640,7 @@ namespace kv
         }
       }
 
-      virtual void serialise(S& s, bool include_reads)
+      virtual void serialise(KvStoreSerialiser& s, bool include_reads)
       {
         if (!changes)
           return;
@@ -695,7 +695,7 @@ namespace kv
         }
       }
 
-      virtual bool deserialise(D& d, Version version)
+      virtual bool deserialise(KvStoreDeserialiser& d, Version version)
       {
         commit_version = version;
         uint64_t ctr;

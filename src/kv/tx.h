@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
 #include "views.h"
@@ -246,7 +247,7 @@ namespace kv
       auto map = view_list.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      S replicated_serialiser(e, version);
+      KvStoreSerialiser replicated_serialiser(e, version);
       // flags that indicate if we have actually written any data in the
       // serializers
       auto grouped_maps = get_maps_grouped_by_domain(view_list);
