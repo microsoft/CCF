@@ -3157,6 +3157,7 @@ void Replica::vtimer_handler(void* owner)
   {
     if (pbft::GlobalState::get_replica().rqueue.size() > 0)
     {
+      // Request* first = pbft::GlobalState::get_replica().rqueue.first();
       LOG_INFO
         << "View change timer expired first rid: "
         << pbft::GlobalState::get_replica().rqueue.first()->request_id()
