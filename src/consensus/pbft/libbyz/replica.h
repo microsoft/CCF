@@ -152,6 +152,7 @@ public:
   // commit so that when there is a view change we know how far to roll back to
   kv::Version last_gb_version = 0;
   Seqno last_gb_seqno = 0;
+  View last_gb_view = 0;
 
   Seqno signature_offset = 0;
   std::atomic<kv::Version> signed_version = 0;
@@ -503,7 +504,7 @@ private:
   // Latest byz info when we are in playback mode. Used to compare the latest
   // execution mt roots and version with the ones in the pre prepare we will get
   // while we are at playback mode
-  Seqno playback_pp_seqno = 0;
+  Seqno playback_pp_seqno = -1;
   // seqno of latest pre prepare executed in playback mode
   bool waiting_for_playback_pp = false;
   // indicates if we are in append entries playback mode and have executed a

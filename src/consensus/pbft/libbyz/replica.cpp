@@ -1058,13 +1058,6 @@ void Replica::handle(Pre_prepare* m)
     // for the same view and sequence number and the message is valid.
     if (pc.add(m))
     {
-      if (ms == playback_pp_seqno + 1)
-      {
-        // previous pre prepare was executed during playback, we need to add the
-        // prepares for it, as the prepare proofs for the previous pre-prepare
-        // are in the next pre prepare message
-        populate_certificates(pc.pre_prepare());
-      }
       send_prepare(ms);
     }
     return;
@@ -1120,6 +1113,14 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
             self->try_send_prepare();
             return;
           }
+        }
+
+        if (pp->seqno() == self->playback_pp_seqno + 1)
+        {
+          // previous pre prepare was executed during playback, we need to add
+          // the prepares for it, as the prepare proofs for the previous
+          // pre-prepare are in the next pre prepare message
+          self->populate_certificates(pp);
         }
 
         Prepare* p = new Prepare(
@@ -2159,22 +2160,30 @@ void Replica::rollback_to_globally_comitted()
 
 void Replica::global_commit(Pre_prepare* pp)
 {
-  if (pp->is_signed())
+  if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
   {
-    if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
+    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+    state.checkpoint(pp->seqno());
+    last_gb_version = pp->get_ctx();
+    last_gb_seqno = pp->seqno();
+    last_gb_view = pp->view();
+    if (global_commit_cb != nullptr)
     {
-      LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
-      LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
-      state.checkpoint(pp->seqno());
-      last_gb_version = pp->get_ctx();
-      last_gb_seqno = pp->seqno();
-      if (global_commit_cb != nullptr)
-      {
-        global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
-      }
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
     }
-    signed_version = 0;
   }
+  else if (pp->view() > last_gb_view)
+  {
+    if (global_commit_cb != nullptr)
+    {
+      // if this is called for a null op pre-prepare then the ctx will not be
+      // set
+      auto version_ = (pp->get_ctx() > 0) ? pp->get_ctx() : last_gb_version;
+      global_commit_cb(version_, pp->view(), global_commit_info);
+    }
+  }
+  signed_version = 0;
 }
 
 void Replica::execute_prepared(bool committed)
@@ -3114,10 +3123,15 @@ bool Replica::delay_vc()
   // delay the view change if checking or fetching state, if there are no longer
   // any requests in the request queue, or the request we were waiting for is no
   // longer in the queue
+  LOG_INFO_FMT(
+    "playback pp seqno {} and lte {}",
+    playback_pp_seqno,
+    last_tentative_execute);
   return state.in_check_state() || state.in_fetch_state() ||
     (has_complete_new_view() &&
      (rqueue.size() == 0 || rqueue.first()->client_id() != cid_vtimer ||
-      rqueue.first()->request_id() != rid_vtimer));
+      rqueue.first()->request_id() != rid_vtimer ||
+      playback_pp_seqno == last_tentative_execute));
 }
 
 void Replica::start_vtimer_if_request_waiting()

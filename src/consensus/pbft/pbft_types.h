@@ -98,12 +98,16 @@ namespace pbft
           LOG_TRACE_FMT("Storing pre prepare at seqno {}", pp.seqno);
           auto success = p->commit(
             version,
-            [&]() {
+            [version,
+             &pbft_pre_prepares_map,
+             &signatures,
+             pp,
+             root = std::vector<uint8_t>(root.p, root.p + root.n)]() {
               ccf::Tx tx(version);
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
               auto sig_view = tx.get_view(signatures);
-              ccf::Signature sig_value(root);
+              ccf::Signature sig_value(CBuffer{root.data(), root.size()});
               sig_view->put(0, sig_value);
               return tx.commit_reserved();
             },
@@ -149,9 +153,10 @@ namespace pbft
             "Storing new view message at view {} for node {}",
             new_view.view,
             new_view.node_id);
+
           auto success = p->commit(
             version,
-            [&]() {
+            [version, &pbft_new_views_map, new_view]() {
               ccf::Tx tx(version);
               auto vc_view = tx.get_view(pbft_new_views_map);
               vc_view->put(0, new_view);
