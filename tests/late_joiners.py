@@ -52,19 +52,32 @@ def get_node_local_commit(node):
         return r.commit, r.global_commit
 
 
-def wait_for_late_joiner(old_node, late_joiner):
+def wait_for_late_joiner(old_node, late_joiner, timeout=30):
     old_node_lc, old_node_gc = get_node_local_commit(old_node)
     LOG.success(
         f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
     )
-    while True:
-        lc, gc = get_node_local_commit(late_joiner)
-        LOG.success(
-            f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
-        )
-        if lc >= old_node_lc:
-            break
-        time.sleep(1)
+    end = time.time() + timeout
+    LOG.error(f"end {end}")
+    while time.time() <= end:
+        try:
+            lc, gc = get_node_local_commit(late_joiner)
+            LOG.success(
+                f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
+            )
+            if lc >= old_node_lc:
+                return
+            time.sleep(1)
+            LOG.error(f"time time {time.time()}")
+        except (TimeoutError, infra.clients.CCFConnectionException):
+            LOG.error(f"Timeout error for LOG_get on node {late_joiner.node_id}")
+            time.sleep(0.1)
+        except AssertionError as e:
+            LOG.error(
+                f"Assertion error for LOG_get on node {late_joiner.node_id}, error:{e}"
+            )
+            time.sleep(0.1)
+    raise AssertionError(f"{late_joiner.node_id} is not up to date")
 
 
 def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
