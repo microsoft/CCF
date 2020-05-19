@@ -45,11 +45,7 @@ namespace kv
     V value;
     Version version;
 
-    KeyValVersion(K k, V v, Version ver) :
-      key(k),
-      value(v),
-      version(ver)
-    {}
+    KeyValVersion(K k, V v, Version ver) : key(k), value(v), version(ver) {}
   };
 
   template <typename W>

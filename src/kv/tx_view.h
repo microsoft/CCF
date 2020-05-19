@@ -51,6 +51,12 @@ namespace kv
     Version read_version = NoVersion;
 
   public:
+    // Expose these types so that other code can use them as MyTx::KeyType or
+    // MyMap::TxView::KeyType, templated on the TxView or Map type rather than
+    // explicitly on K and V
+    using KeyType = K;
+    using ValueType = V;
+
     TxView(State& current_state, State& committed_state, Version v) :
       state(current_state),
       committed(committed_state),
