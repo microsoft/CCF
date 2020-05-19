@@ -90,12 +90,6 @@ namespace ccf
       constexpr auto remove(
         "local tx, n = ...;"
         "return tx:remove(n)");
-      constexpr auto start_order(
-        "local tx = ...;"
-        "return tx:start_order()");
-      constexpr auto end_order(
-        "local tx = ...;"
-        "return tx:end_order()");
       constexpr auto k = 0;
       constexpr auto s0 = "Something";
       constexpr auto s1 = "Something else";
@@ -123,25 +117,15 @@ namespace ccf
         REQUIRE(li.invoke<int>(count_keys, tx) == 1);
       }
 
-      INFO("Pre-commit orders can be read from lua");
+      INFO("Transaction is committed");
       {
         REQUIRE(tx->put(k, s0));
-
-        REQUIRE(li.invoke<int>(start_order, tx) == tx->start_order());
-        REQUIRE(li.invoke<nullptr_t>(end_order, tx) == nullptr);
-      }
-
-      INFO("Post-commit orders can be read from lua");
-      {
         REQUIRE(txs.commit() == kv::CommitSuccess::OK);
-
-        REQUIRE(li.invoke<int>(start_order, tx) == tx->start_order());
-        REQUIRE(li.invoke<int>(end_order, tx) == tx->end_order());
       }
 
       INFO("get_commit from lua");
       {
-        tables.compact(tx->end_order());
+        tables.compact(tables.current_version());
 
         kv::Tx next_txs;
         auto next_tx = next_txs.get_view(table);
