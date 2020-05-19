@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/json.h"
+#include "kv/map.h"
 #include "node/entities.h"
 
 #include <msgpack/msgpack.hpp>
@@ -68,5 +70,5 @@ namespace pbft
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get
   // them into the ledger
-  using RequestsMap = ccf::Store::Map<size_t, Request>;
+  using RequestsMap = kv::Map<size_t, Request>;
 }

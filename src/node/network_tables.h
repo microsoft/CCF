@@ -14,6 +14,8 @@
 #include "consensus/raft/raft_tables.h"
 #include "entities.h"
 #include "governance_history.h"
+#include "kv/map.h"
+#include "kv/store.h"
 #include "members.h"
 #include "nodes.h"
 #include "proposals.h"
@@ -33,7 +35,7 @@ namespace ccf
 {
   struct NetworkTables
   {
-    std::shared_ptr<Store> tables;
+    std::shared_ptr<kv::Store> tables;
 
     //
     // Governance tables
@@ -91,9 +93,9 @@ namespace ccf
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::RAFT) :
       tables(
         (consensus_type == ConsensusType::RAFT) ?
-          std::make_shared<Store>(
+          std::make_shared<kv::Store>(
             raft::replicate_type_raft, raft::replicated_tables_raft) :
-          std::make_shared<Store>(
+          std::make_shared<kv::Store>(
             pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
       members(
         tables->create<Members>(Tables::MEMBERS, kv::SecurityDomain::PUBLIC)),

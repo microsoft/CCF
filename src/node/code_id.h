@@ -4,6 +4,7 @@
 
 #include "ds/json.h"
 #include "entities.h"
+#include "kv/map.h"
 
 #include <msgpack/msgpack.hpp>
 
@@ -23,5 +24,5 @@ MSGPACK_ADD_ENUM(ccf::CodeStatus);
 
 namespace ccf
 {
-  using CodeIDs = Store::Map<CodeDigest, CodeStatus>;
+  using CodeIDs = kv::Map<CodeDigest, CodeStatus>;
 }

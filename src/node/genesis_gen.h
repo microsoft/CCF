@@ -3,6 +3,7 @@
 #pragma once
 #include "code_id.h"
 #include "entities.h"
+#include "kv/tx.h"
 #include "lua_interp/lua_interp.h"
 #include "lua_interp/lua_util.h"
 #include "members.h"
@@ -24,7 +25,7 @@ namespace ccf
   {
     NetworkTables& tables;
 
-    ccf::Tx& tx;
+    kv::Tx& tx;
 
     template <typename T>
     void set_scripts(
@@ -43,7 +44,7 @@ namespace ccf
     }
 
   public:
-    GenesisGenerator(NetworkTables& tables_, ccf::Tx& tx_) :
+    GenesisGenerator(NetworkTables& tables_, kv::Tx& tx_) :
       tables(tables_),
       tx(tx_)
     {}

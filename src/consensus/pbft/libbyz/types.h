@@ -80,7 +80,7 @@ struct ExecCommandMsg
     void (*cb_)(ExecCommandMsg& msg, ByzInfo& info),
     // if tx is nullptr we are in normal execution, otherwise we
     // are in playback mode
-    ccf::Tx* tx_ = nullptr) :
+    kv::Tx* tx_ = nullptr) :
     client(client_),
     rid(rid_),
     req_start(req_start_),
@@ -104,7 +104,7 @@ struct ExecCommandMsg
   bool include_merkle_roots;
   Seqno total_requests_executed;
   int reply_thread;
-  ccf::Tx* tx;
+  kv::Tx* tx;
 
   // Required for the callback
   Seqno last_tentative_execute;

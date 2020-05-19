@@ -8,6 +8,7 @@
 #include "ds/logger.h"
 #include "entities.h"
 #include "kv/kv_types.h"
+#include "kv/store.h"
 #include "nodes.h"
 #include "signatures.h"
 #include "tls/tls.h"
@@ -89,13 +90,13 @@ namespace ccf
 
   class NullTxHistory : public kv::TxHistory
   {
-    Store& store;
+    kv::Store& store;
     NodeId id;
     Signatures& signatures;
 
   public:
     NullTxHistory(
-      Store& store_,
+      kv::Store& store_,
       NodeId id_,
       tls::KeyPair&,
       Signatures& signatures_,
@@ -125,7 +126,7 @@ namespace ccf
       store.commit(
         version,
         [version, this]() {
-          ccf::Tx sig(version);
+          kv::Tx sig(version);
           auto sig_view = sig.get_view(signatures);
           Signature sig_value(id, version);
           sig_view->put(0, sig_value);
@@ -365,7 +366,7 @@ namespace ccf
   template <class T>
   class HashedTxHistory : public kv::TxHistory
   {
-    Store& store;
+    kv::Store& store;
     NodeId id;
     T replicated_state_tree;
 
@@ -399,7 +400,7 @@ namespace ccf
 
   public:
     HashedTxHistory(
-      Store& store_,
+      kv::Store& store_,
       NodeId id_,
       tls::KeyPair& kp_,
       Signatures& sig_,
@@ -463,7 +464,7 @@ namespace ccf
 
     bool verify(kv::Term* term = nullptr) override
     {
-      ccf::Tx tx;
+      kv::Tx tx;
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
@@ -531,7 +532,7 @@ namespace ccf
         store.commit(
           version,
           [version, view, commit, this]() {
-            ccf::Tx sig(version);
+            kv::Tx sig(version);
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
             Signature sig_value(

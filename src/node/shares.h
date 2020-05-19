@@ -3,6 +3,7 @@
 #pragma once
 
 #include "entities.h"
+#include "kv/map.h"
 
 #include <map>
 #include <msgpack/msgpack.hpp>
@@ -64,5 +65,5 @@ namespace ccf
 
   // The key for this table will always be 0 since a live service never needs to
   // access historical recovery shares info.
-  using Shares = Store::Map<size_t, RecoverySharesInfo>;
+  using Shares = kv::Map<size_t, RecoverySharesInfo>;
 }

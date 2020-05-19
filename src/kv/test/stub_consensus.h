@@ -97,7 +97,7 @@ namespace kv
       const NodeConf& node_conf) override
     {}
 
-    void set_f(ccf::NodeId) override
+    void set_f(size_t) override
     {
       return;
     }
