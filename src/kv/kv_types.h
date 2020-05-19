@@ -351,29 +351,23 @@ namespace kv
     virtual size_t commit_gap() = 0;
   };
 
-  class CommittableTxView
+  class AbstractTxView
   {
   public:
-    virtual ~CommittableTxView() = default;
+    virtual ~AbstractTxView() = default;
+
+    // Commit-related methods
     virtual bool has_writes() = 0;
     virtual bool has_changes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
-  };
 
-  class SerialisableTxView : public virtual CommittableTxView
-  {
-  public:
-    virtual ~SerialisableTxView() = default;
+    // Serialisation-related methods
     virtual void serialise(KvStoreSerialiser& s, bool include_reads) = 0;
     virtual bool deserialise(KvStoreDeserialiser& d, Version version) = 0;
     virtual bool is_replicated() = 0;
   };
-
-  // TODO: Work out if Serialisable and Committable can be completely separated
-  // - very few things need to see either. Maybe Serialisable uses composition?
-  using AbstractTxView = SerialisableTxView;
 
   class AbstractMap
   {

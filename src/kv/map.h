@@ -2,16 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/champ_map.h"
 #include "ds/dl_list.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
+#include "tx_view.h"
 
 #include <functional>
 #include <optional>
-#include <unordered_map>
 #include <unordered_set>
 
 namespace kv
@@ -49,248 +48,22 @@ namespace kv
     }
   }
 
-  static bool is_deleted(Version version)
-  {
-    return version < 0;
-  }
-
-  template <typename V>
-  struct VersionV
-  {
-    Version version;
-    V value;
-
-    VersionV() = default;
-    VersionV(Version ver, V val) : version(ver), value(val) {}
-  };
-
-  template <typename K, typename V, typename H>
-  using State = champ::Map<K, VersionV<V>, H>;
-
-  template <typename K, typename V, typename H>
-  using Read = std::unordered_map<K, Version, H>;
-
-  template <typename K, typename V, typename H>
-  using Write = std::unordered_map<K, VersionV<V>, H>;
-
-  /// Signature for transaction commit handlers
-  template <typename K, typename V, typename H>
-  using CommitHook =
-    std::function<void(Version, const State<K, V, H>&, const Write<K, V, H>&)>;
-
-  template <typename K, typename V, typename H>
-  class StateAccessor
-  {
-  protected:
-    using VersionV = VersionV<V>;
-    using State = State<K, V, H>;
-    using Read = Read<K, V, H>;
-    using Write = Write<K, V, H>;
-
-    State state;
-    State committed;
-    Version start_version;
-
-    Read reads = {};
-    Write writes = {};
-    Version read_version = NoVersion;
-
-  public:
-    StateAccessor(State& current_state, State& committed_state, Version v) :
-      state(current_state),
-      committed(committed_state),
-      start_version(v)
-    {}
-
-    /** Get value for key
-     *
-     * This returns the value for the key inside the transaction. If the key
-     * has been updated in the current transaction, that update will be
-     * reflected in the return of this call.
-     *
-     * @param key Key
-     *
-     * @return optional containing value, empty if the key doesn't exist
-     */
-    std::optional<V> get(const K& key)
-    {
-      // A write followed by a read doesn't introduce a read dependency.
-      // If we have written, return the value without updating the read set.
-      auto write = writes.find(key);
-      if (write != writes.end())
-      {
-        // Return empty for a key that has been removed.
-        if (is_deleted(write->second.version))
-        {
-          return std::nullopt;
-        }
-
-        return write->second.value;
-      }
-
-      // If the key doesn't exist, return empty and record that we depend on
-      // the key not existing.
-      auto search = state.get(key);
-      if (!search.has_value())
-      {
-        reads.insert(std::make_pair(key, NoVersion));
-        return std::nullopt;
-      }
-
-      // Record the version that we depend on.
-      auto& found = search.value();
-      reads.insert(std::make_pair(key, found.version));
-
-      // If the key has been deleted, return empty.
-      if (is_deleted(found.version))
-      {
-        return std::nullopt;
-      }
-
-      // Return the value.
-      return found.value;
-    }
-
-    /** Get globally committed value for key
-     *
-     * This reads a globally replicated value for the specified key.
-     * The value will have been the replicated value when the transaction
-     * began, but the map may be compacted while the transaction is in
-     * flight. If that happens, there may be a more recent committed
-     * version. This is undetectable to the transaction.
-     *
-     * @param key Key
-     *
-     * @return optional containing value, empty if the key doesn't exist in
-     * globally committed state
-     */
-    std::optional<V> get_globally_committed(const K& key)
-    {
-      // If there is no committed value, return empty.
-      auto search = committed.get(key);
-      if (!search.has_value())
-      {
-        return std::nullopt;
-      }
-
-      // If the key has been deleted, return empty.
-      auto& found = search.value();
-      if (is_deleted(found.version))
-      {
-        return std::nullopt;
-      }
-
-      // Return the value.
-      return found.value;
-    }
-
-    /** Write value at key
-     *
-     * If the key already exists, the value will be replaced.
-     * This will fail if the transaction is already committed.
-     *
-     * @param key Key
-     * @param value Value
-     *
-     * @return true if successful, false otherwise
-     */
-    bool put(const K& key, const V& value)
-    {
-      // Record in the write set.
-      writes[key] = {0, value};
-      return true;
-    }
-
-    /** Remove key
-     *
-     * This will fail if the key does not exist, or if the transaction
-     * is already committed.
-     *
-     * @param key Key
-     *
-     * @return true if successful, false otherwise
-     */
-    bool remove(const K& key)
-    {
-      auto write = writes.find(key);
-      auto search = state.get(key).has_value();
-
-      if (write != writes.end())
-      {
-        if (!search)
-        {
-          // this key only exists locally, there is no reason to maintain and
-          // serialise it
-          writes.erase(key);
-        }
-        else
-        {
-          // If we have written, change the write set to indicate a remove.
-          write->second = {NoVersion, V()};
-        }
-
-        return true;
-      }
-
-      // If the key doesn't exist, return false.
-      if (!search)
-      {
-        return false;
-      }
-
-      // Record in the write set.
-      writes.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(key),
-        std::forward_as_tuple(NoVersion, V()));
-      return true;
-    }
-
-    /** Iterate over all entries in the map
-     *
-     * @param F functor, taking a key and a value, return value determines
-     * whether the iteration should continue (true) or stop (false)
-     */
-    template <class F>
-    bool foreach(F&& f)
-    {
-      // Record a global read dependency.
-      read_version = start_version;
-      auto& w = writes;
-
-      state.foreach([&w, &f](const K& k, const VersionV& v) {
-        auto write = w.find(k);
-
-        if ((write == w.end()) && !is_deleted(v.version))
-          return f(k, v.value);
-        return true;
-      });
-
-      for (auto write = writes.begin(); write != writes.end(); ++write)
-      {
-        if (!is_deleted(write->second.version))
-          if (!f(write->first, write->second.value))
-            return false;
-      }
-      return true;
-    }
-  };
-
   template <class K, class V, class H = std::hash<K>>
   class Map;
 
   template <class K, class V, class H>
-  class CommittableStateAccessor : public StateAccessor<K, V, H>,
-                                   public virtual CommittableTxView
+  class ConcreteTxView : public TxView<K, V, H>, public AbstractTxView
   {
   protected:
-    using SABase = StateAccessor<K, V, H>;
+    using Base = TxView<K, V, H>;
+    using State = typename Base::State;
+
     using MyMap = Map<K, V, H>;
 
-    using SABase::read_version;
-    using SABase::reads;
-    using SABase::start_version;
-    using SABase::writes;
+    using Base::read_version;
+    using Base::reads;
+    using Base::start_version;
+    using Base::writes;
 
     MyMap& map;
     size_t rollback_counter;
@@ -300,17 +73,20 @@ namespace kv
     bool committed_writes = false;
 
   public:
-    CommittableStateAccessor(
-      typename SABase::State& current_state,
-      typename SABase::State& committed_state,
+    ConcreteTxView(
+      State& current_state,
+      State& committed_state,
       Version v,
       MyMap& m,
       size_t rollbacks) :
-      SABase(current_state, committed_state, v),
+      Base(current_state, committed_state, v),
       map(m),
       rollback_counter(rollbacks)
     {}
 
+    ConcreteTxView(ConcreteTxView&) = delete;
+
+    // Commit-related methods
     bool has_writes() override
     {
       return committed_writes || !writes.empty();
@@ -428,44 +204,8 @@ namespace kv
         map.local_hook(roll->version, roll->state, roll->writes);
       }
     }
-  };
 
-  template <class K, class V, class H>
-  class TxView : public CommittableStateAccessor<K, V, H>,
-                 public virtual AbstractTxView
-  {
-  protected:
-    using SABase = StateAccessor<K, V, H>;
-    using State = typename SABase::State;
-    using Read = typename SABase::Read;
-    using Write = typename SABase::Write;
-
-    using CSABase = CommittableStateAccessor<K, V, H>;
-    using MyMap = typename CSABase::MyMap;
-
-    using CSABase::changes;
-    using CSABase::commit_version;
-    using CSABase::map;
-    using CSABase::read_version;
-    using CSABase::reads;
-    using CSABase::writes;
-
-  private:
-    friend MyMap;
-
-    TxView(MyMap& parent, State& s, Version v, size_t r) :
-      CSABase(s, parent.roll->get_head()->state, v, parent, r)
-    {}
-
-  public:
-    // Expose these types so that other code can use them as MyTx::KeyType or
-    // MyMap::TxView::KeyType, templated on the TxView or Map type rather than
-    // explicitly on K and V
-    using KeyType = K;
-    using ValueType = V;
-
-    TxView(const TxView& that) = delete;
-
+    // Serialisation-related methods
     void serialise(KvStoreSerialiser& s, bool include_reads) override
     {
       if (!changes)
@@ -560,6 +300,11 @@ namespace kv
     }
   };
 
+  /// Signature for transaction commit handlers
+  template <typename K, typename V, typename H>
+  using CommitHook =
+    std::function<void(Version, const State<K, V, H>&, const Write<K, V, H>&)>;
+
   template <class K, class V, class H>
   class Map : public AbstractMap
   {
@@ -621,37 +366,9 @@ namespace kv
       return c;
     }
 
-  protected:
-    AbstractTxView* create_view_internal(
-      Version version,
-      std::function<AbstractTxView*(State& state, Version v)>&& create_fn)
-    {
-      lock();
-
-      // Find the last entry committed at or before this version.
-      AbstractTxView* view = nullptr;
-
-      for (auto current = roll->get_tail(); current != nullptr;
-           current = current->prev)
-      {
-        if (current->version <= version)
-        {
-          view = create_fn(current->state, current->version);
-          break;
-        }
-      }
-
-      if (view == nullptr)
-      {
-        view = create_fn(roll->get_head()->state, roll->get_head()->version);
-      }
-
-      unlock();
-      return view;
-    }
-
   public:
-    using TxView = TxView<K, V, H>;
+    // Public typedef for external consumption
+    using TxView = ConcreteTxView<K, V, H>;
 
     Map(
       AbstractStore* store_,
@@ -807,15 +524,43 @@ namespace kv
 
     AbstractTxView* create_view(Version version) override
     {
-      return create_view_internal(version, [this](State& s, Version v) {
-        return new TxView(*this, s, v, rollback_counter);
-      });
+      lock();
+
+      // Find the last entry committed at or before this version.
+      AbstractTxView* view = nullptr;
+
+      for (auto current = roll->get_tail(); current != nullptr;
+           current = current->prev)
+      {
+        if (current->version <= version)
+        {
+          view = new ConcreteTxView<K, V, H>(
+            current->state,
+            roll->get_head()->state,
+            version,
+            *this,
+            rollback_counter);
+          break;
+        }
+      }
+
+      if (view == nullptr)
+      {
+        view = new ConcreteTxView<K, V, H>(
+          roll->get_head()->state,
+          roll->get_head()->state,
+          version,
+          *this,
+          rollback_counter);
+      }
+
+      unlock();
+      return view;
     }
 
   private:
     // Provides access to private rollback_counter and roll
-    friend CommittableStateAccessor<K, V, H>;
-    friend TxView; // < Same?
+    friend ConcreteTxView<K, V, H>;
 
     void compact(Version v) override
     {
