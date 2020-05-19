@@ -182,9 +182,6 @@ namespace ws
           serialised_request.end(), frame_header.begin(), frame_header.end());
         serialised_request.insert(
           serialised_request.end(), request_body.begin(), request_body.end());
-        LOG_TRACE_FMT(
-          "Writing Chunk [{}]",
-          std::string(serialised_request.begin(), serialised_request.end()));
       }
       return serialised_request;
     }

@@ -114,9 +114,6 @@ namespace ccf
       auto session = std::make_shared<enclave::SessionContext>(
         client_session_id, caller_id, caller_cert);
 
-      LOG_TRACE_FMT(
-        "GOT [{}]", std::string(raw_request.begin(), raw_request.end()));
-
       try
       {
         auto context = enclave::make_fwd_rpc_context(
@@ -141,10 +138,12 @@ namespace ccf
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
+      // frame_format is deliberately unset, the forwarder ignores it
+      // and expects the same format they forwarded.
       ForwardedHeader msg = {
         ForwardedMsg::forwarded_response,
-        self,
-        enclave::FrameFormat::http}; // TODO: figure out what this is!
+        self
+      };
 
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, from_node, plain, msg);

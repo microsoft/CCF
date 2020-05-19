@@ -12,6 +12,8 @@
 
 namespace ws
 {
+  static constexpr size_t INITIAL_READ = 2;
+
   enum ParserState
   {
     INIT,
@@ -42,7 +44,7 @@ namespace ws
       {
         case INIT:
         {
-          assert(data.size() == 2);
+          assert(data.size() == INITIAL_READ);
 
           bool fin = data[0] & 0x80;
           if (!fin)
@@ -124,7 +126,7 @@ namespace ws
               fmt::format("{}", global_commit)}},
             std::move(body));
           state = INIT;
-          return 2;
+          return INITIAL_READ;
         }
         default:
         {
@@ -150,7 +152,7 @@ namespace ws
       {
         case INIT:
         {
-          assert(data.size() == 2);
+          assert(data.size() == INITIAL_READ);
 
           bool fin = data[0] & 0x80;
           if (!fin)

@@ -57,7 +57,7 @@ namespace ccf
   {
     ForwardedMsg msg;
     NodeId from_node;
-    enclave::FrameFormat frame_format;
+    enclave::FrameFormat frame_format = enclave::FrameFormat::http;
   };
 #pragma pack(pop)
 

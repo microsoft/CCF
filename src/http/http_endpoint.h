@@ -19,7 +19,7 @@ namespace http
     http::Parser& p;
     ws::Parser& wp;
     bool is_websocket = false;
-    size_t ws_next_read = 2; // TODO: wp::Parser::INITIAL_READ or something
+    size_t ws_next_read = ws::INITIAL_READ;
 
     HTTPEndpoint(
       http::Parser& p_,

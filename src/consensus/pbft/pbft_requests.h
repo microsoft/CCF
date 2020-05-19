@@ -15,7 +15,7 @@ namespace pbft
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
     std::vector<uint8_t> pbft_raw;
-    uint8_t frame_format;
+    uint8_t frame_format = enclave::FrameFormat::http;
 
     MSGPACK_DEFINE(caller_id, caller_cert, raw, pbft_raw, frame_format);
 
