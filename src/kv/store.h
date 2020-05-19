@@ -33,19 +33,6 @@ namespace kv
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
-    inline std::map<kv::SecurityDomain, std::vector<AbstractMap*>>
-    get_maps_grouped_by_domain(
-      const std::map<std::string, std::unique_ptr<AbstractMap>>& maps)
-    {
-      std::map<kv::SecurityDomain, std::vector<AbstractMap*>> grouped_maps;
-      for (auto it = maps.begin(); it != maps.end(); ++it)
-      {
-        grouped_maps[it->second->get_security_domain()].push_back(
-          it->second.get());
-      }
-      return grouped_maps;
-    }
-
     DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
     {
       auto c = apply_views(views, [v]() { return v; });

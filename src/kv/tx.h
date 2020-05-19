@@ -9,6 +9,18 @@
 
 namespace kv
 {
+  static inline std::map<kv::SecurityDomain, std::vector<AbstractTxView*>>
+  get_views_grouped_by_domain(const OrderedViews& maps)
+  {
+    std::map<kv::SecurityDomain, std::vector<AbstractTxView*>> grouped_views;
+    for (auto it = maps.cbegin(); it != maps.cend(); ++it)
+    {
+      grouped_views[it->second.map->get_security_domain()].push_back(
+        it->second.view.get());
+    }
+    return grouped_views;
+  }
+
   class Tx : public ViewContainer
   {
   private:
@@ -251,9 +263,9 @@ namespace kv
       KvStoreSerialiser replicated_serialiser(e, version);
       // flags that indicate if we have actually written any data in the
       // serializers
-      auto grouped_maps = get_maps_grouped_by_domain(view_list);
+      auto grouped_views = get_views_grouped_by_domain(view_list);
 
-      for (auto domain_it : grouped_maps)
+      for (auto domain_it : grouped_views)
       {
         for (auto curr_view : domain_it.second)
         {
