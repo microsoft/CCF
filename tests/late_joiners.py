@@ -65,7 +65,8 @@ def wait_for_late_joiner(old_node, late_joiner, timeout=30):
         )
         if lc >= old_node_lc:
             return
-        time.sleep(1)        
+        time.sleep(1)
+
 
 def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
     with node.user_client() as c:
