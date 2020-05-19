@@ -367,16 +367,7 @@ class RequestClient:
 
 class WSClient:
     def __init__(
-        self,
-        host,
-        port,
-        cert,
-        key,
-        ca,
-        connection_timeout,
-        request_timeout,
-        *args,
-        **kwargs,
+        self, host, port, cert, key, ca, request_timeout, *args, **kwargs,
     ):
         self.host = host
         self.port = port
@@ -386,7 +377,9 @@ class WSClient:
         self.request_timeout = request_timeout
         self.ws = None
 
-    def request(self, request):
+    def request(self, request, is_signed=False):
+        assert not is_signed
+
         if not self.ws:
             LOG.info("Creating WSS connection")
             self.ws = websocket.create_connection(
@@ -413,9 +406,6 @@ class WSClient:
         term = struct.unpack("<Q", out[10:18])
         global_commit = struct.unpack("<Q", out[18:26])
         return Response(status, json.loads(out[26:]), {}, commit, term, global_commit)
-
-    def signed_request(self, request):
-        raise NotImplementedError("Signed requests not yet implemented over WebSockets")
 
 
 class CCFClient:

@@ -140,10 +140,7 @@ namespace ccf
 
       // frame_format is deliberately unset, the forwarder ignores it
       // and expects the same format they forwarded.
-      ForwardedHeader msg = {
-        ForwardedMsg::forwarded_response,
-        self
-      };
+      ForwardedHeader msg = {ForwardedMsg::forwarded_response, self};
 
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, from_node, plain, msg);
