@@ -311,7 +311,6 @@ namespace kv
   public:
     using VersionV = VersionV<V>;
     using State = State<K, V, H>;
-    using Read = Read<K, V, H>;
     using Write = Write<K, V, H>;
     using CommitHook = CommitHook<K, V, H>;
 
