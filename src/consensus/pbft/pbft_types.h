@@ -156,13 +156,8 @@ namespace pbft
 
           auto success = p->commit(
             version,
-<<<<<<< HEAD
             [version, &pbft_new_views_map, new_view]() {
-              ccf::Tx tx(version);
-=======
-            [&]() {
               kv::Tx tx(version);
->>>>>>> origin
               auto vc_view = tx.get_view(pbft_new_views_map);
               vc_view->put(0, new_view);
               return tx.commit_reserved();
