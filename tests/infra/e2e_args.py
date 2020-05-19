@@ -146,6 +146,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         type=int,
         default=3,
     )
+    parser.add_argument(
+        "--ledger-recovery-timeout",
+        help="On recovery, maximum timeout (s) while reading the ledger",
+        type=int,
+        default=10,
+    )
 
     add(parser)
 

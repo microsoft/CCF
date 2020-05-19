@@ -125,7 +125,7 @@ namespace ccf
       store.commit(
         version,
         [version, this]() {
-          Store::Tx sig(version);
+          ccf::Tx sig(version);
           auto sig_view = sig.get_view(signatures);
           Signature sig_value(id, version);
           sig_view->put(0, sig_value);
@@ -464,7 +464,7 @@ namespace ccf
 
     bool verify(kv::Term* term = nullptr) override
     {
-      Store::Tx tx;
+      ccf::Tx tx;
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
@@ -532,7 +532,7 @@ namespace ccf
         store.commit(
           version,
           [version, view, commit, this]() {
-            Store::Tx sig(version);
+            ccf::Tx sig(version);
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
             Signature sig_value(

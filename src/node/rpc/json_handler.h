@@ -48,7 +48,7 @@ namespace ccf
    * };
    *
    * it is possible to write the shorter, clearer, return-based lambda:
-   * auto foo = json_adapter([](Store::Tx& tx, nlohmann::json&& params)
+   * auto foo = json_adapter([](ccf::Tx& tx, nlohmann::json&& params)
    * {
    *    auto result = fn(params);
    *    if (is_error(result))
@@ -255,7 +255,7 @@ namespace ccf
   }
 
   using HandlerTxOnly =
-    std::function<details::JsonAdapterResponse(Store::Tx& tx)>;
+    std::function<details::JsonAdapterResponse(ccf::Tx& tx)>;
 
   static HandleFunction json_adapter(const HandlerTxOnly& f)
   {
@@ -266,7 +266,7 @@ namespace ccf
   }
 
   using HandlerJsonParamsOnly = std::function<details::JsonAdapterResponse(
-    Store::Tx& tx, nlohmann::json&& params)>;
+    ccf::Tx& tx, nlohmann::json&& params)>;
 
   static HandleFunction json_adapter(const HandlerJsonParamsOnly& f)
   {
@@ -279,7 +279,7 @@ namespace ccf
 
   using HandlerJsonParamsAndCallerId =
     std::function<details::JsonAdapterResponse(
-      Store::Tx& tx, CallerId caller_id, nlohmann::json&& params)>;
+      ccf::Tx& tx, CallerId caller_id, nlohmann::json&& params)>;
 
   static HandleFunction json_adapter(const HandlerJsonParamsAndCallerId& f)
   {

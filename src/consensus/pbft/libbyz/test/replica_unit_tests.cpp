@@ -53,7 +53,7 @@ public:
         uint8_t* req_start = msg->req_start;
         size_t req_size = msg->req_size;
         Seqno total_requests_executed = msg->total_requests_executed;
-        ccf::Store::Tx* tx = msg->tx;
+        ccf::Tx* tx = msg->tx;
 
         // increase total number of commands executed to compare with fake_req
         command_counter++;
@@ -155,7 +155,7 @@ Request* create_and_store_request(
   request->request_id() = index;
   request->authenticate(req.size, false);
 
-  ccf::Store::Tx tx;
+  ccf::Tx tx;
   auto req_view = tx.get_view(req_map);
 
   int command_size;
@@ -243,7 +243,7 @@ NodeInfo init_test_state(PbftState& pbft_state, NodeId node_id = 0)
 std::unique_ptr<Pre_prepare> deserialize_pre_prepare(
   std::vector<uint8_t>& pp_data, PbftState& pbft_state)
 {
-  ccf::Store::Tx tx;
+  ccf::Tx tx;
   REQUIRE(
     pbft_state.store->deserialise_views(pp_data, false, nullptr, &tx) ==
     kv::DeserialiseSuccess::PASS_PRE_PREPARE);
@@ -369,7 +369,7 @@ TEST_CASE("Test Ledger Replay")
       pbft_state.store->deserialise(entries.back()) ==
       kv::DeserialiseSuccess::FAILED);
 
-    ccf::Store::Tx tx;
+    ccf::Tx tx;
     auto req_view = tx.get_view(pbft_state.pbft_requests_map);
     auto req = req_view->get(0);
     REQUIRE(!req.has_value());
@@ -396,7 +396,7 @@ TEST_CASE("Test Ledger Replay")
         // odd entries are pre prepares
         // try to deserialise corrupt pre-prepare which should trigger a
         // rollback
-        ccf::Store::Tx tx;
+        ccf::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(
             corrupt_entry, false, nullptr, &tx) ==
@@ -407,7 +407,7 @@ TEST_CASE("Test Ledger Replay")
         count_rollbacks++;
 
         // rolled back latest request so need to re-execute
-        ccf::Store::Tx re_exec_tx;
+        ccf::Tx re_exec_tx;
         REQUIRE(
           pbft_state.store->deserialise_views(
             lastest_executed_request, false, nullptr, &re_exec_tx) ==
@@ -419,13 +419,13 @@ TEST_CASE("Test Ledger Replay")
       if (iterations % 2)
       {
         // odd entries are pre prepares
-        ccf::Store::Tx tx;
+        ccf::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
         pbft::GlobalState::get_replica().playback_pre_prepare(tx);
 
-        ccf::Store::Tx read_tx;
+        ccf::Tx read_tx;
         auto pp_view = read_tx.get_view(pbft_state.pbft_pre_prepares_map);
         auto pp = pp_view->get(0);
         REQUIRE(pp.has_value());
@@ -435,7 +435,7 @@ TEST_CASE("Test Ledger Replay")
       else
       {
         // even entries are requests
-        ccf::Store::Tx tx;
+        ccf::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS);
@@ -443,7 +443,7 @@ TEST_CASE("Test Ledger Replay")
         // pre-prepares are committed in playback_pre_prepare
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-        ccf::Store::Tx read_tx;
+        ccf::Tx read_tx;
         lastest_executed_request = entry;
         // even entries are requests
         auto req_view = read_tx.get_view(pbft_state.pbft_requests_map);
@@ -453,7 +453,7 @@ TEST_CASE("Test Ledger Replay")
       }
 
       // no derived data should have gotten deserialised
-      ccf::Store::Tx read_tx;
+      ccf::Tx read_tx;
       auto der_view = read_tx.get_view(derived_map);
       auto derived_val = der_view->get("key1");
       REQUIRE(!derived_val.has_value());

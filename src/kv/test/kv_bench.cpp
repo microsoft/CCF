@@ -9,8 +9,6 @@
 #include <picobench/picobench.hpp>
 #include <string>
 
-using namespace ccf;
-
 inline void clobber_memory()
 {
   asm volatile("" : : : "memory");
@@ -32,14 +30,14 @@ static void serialise(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  Store kv_store;
+  ccf::Store kv_store;
   auto secrets = create_ledger_secrets();
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
   kv_store.set_encryptor(encryptor);
 
   auto& map0 = kv_store.create<std::string, std::string>("map0", SD);
   auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
-  Store::Tx tx;
+  ccf::Tx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
@@ -62,8 +60,8 @@ static void deserialise(picobench::state& s)
   logger::config::level() = logger::INFO;
 
   auto consensus = std::make_shared<kv::StubConsensus>();
-  Store kv_store(consensus);
-  Store kv_store2;
+  ccf::Store kv_store(consensus);
+  ccf::Store kv_store2;
 
   auto secrets = create_ledger_secrets();
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
@@ -74,7 +72,7 @@ static void deserialise(picobench::state& s)
   auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
   auto& map0_ = kv_store2.create<std::string, std::string>("map0", SD);
   auto& map1_ = kv_store2.create<std::string, std::string>("map1", SD);
-  Store::Tx tx;
+  ccf::Tx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
@@ -98,7 +96,7 @@ static void commit_latency(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  Store kv_store;
+  ccf::Store kv_store;
   auto secrets = create_ledger_secrets();
   auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
   kv_store.set_encryptor(encryptor);
@@ -108,7 +106,7 @@ static void commit_latency(picobench::state& s)
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    Store::Tx tx;
+    ccf::Tx tx;
     auto [tx0, tx1] = tx.get_view(map0, map1);
     for (int iTx = 0; iTx < S; iTx++)
     {
