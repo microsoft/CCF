@@ -2243,7 +2243,7 @@ void Replica::execute_prepared(bool committed)
 std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   Request& request,
   int64_t& max_local_commit_value,
-  bool include_markle_roots,
+  bool include_merkle_roots,
   kv::Tx* tx,
   Seqno seqno)
 {
@@ -2256,7 +2256,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     request.request_id(),
     reinterpret_cast<uint8_t*>(request.contents()),
     request.contents_size(),
-    include_markle_roots,
+    include_merkle_roots,
     replies.total_requests_processed(),
     last_tentative_execute,
     max_local_commit_value,

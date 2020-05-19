@@ -366,7 +366,7 @@ private:
   std::unique_ptr<ExecCommandMsg> execute_tentative_request(
     Request& request,
     int64_t& max_local_commit_value,
-    bool include_markle_roots,
+    bool include_merkle_roots,
     kv::Tx* tx = nullptr,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the
