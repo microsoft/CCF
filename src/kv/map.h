@@ -536,7 +536,7 @@ namespace kv
           view = new ConcreteTxView<K, V, H>(
             current->state,
             roll->get_head()->state,
-            version,
+            current->version,
             *this,
             rollback_counter);
           break;
@@ -548,7 +548,7 @@ namespace kv
         view = new ConcreteTxView<K, V, H>(
           roll->get_head()->state,
           roll->get_head()->state,
-          version,
+          roll->get_head()->version,
           *this,
           rollback_counter);
       }
