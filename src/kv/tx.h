@@ -27,7 +27,7 @@ namespace kv
       auto search = view_list.find(m.get_name());
       if (search != view_list.end())
         return std::make_tuple(
-          static_cast<typename M::TxView*>(search->second.view.get()));
+          dynamic_cast<typename M::TxView*>(search->second.view.get()));
 
       auto it = view_list.begin();
       if (it != view_list.end())

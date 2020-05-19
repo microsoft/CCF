@@ -362,7 +362,7 @@ namespace kv
     virtual void post_commit() = 0;
   };
 
-  class SerialisableTxView
+  class SerialisableTxView : public virtual CommittableTxView
   {
   public:
     virtual ~SerialisableTxView() = default;
@@ -371,11 +371,9 @@ namespace kv
     virtual bool is_replicated() = 0;
   };
 
-  class AbstractTxView : public CommittableTxView, public SerialisableTxView
-  {
-  public:
-    virtual ~AbstractTxView() {}
-  };
+  // TODO: Work out if Serialisable and Committable can be completely separated
+  // - very few things need to see either. Maybe Serialisable uses composition?
+  using AbstractTxView = SerialisableTxView;
 
   class AbstractMap
   {

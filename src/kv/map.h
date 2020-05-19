@@ -281,11 +281,16 @@ namespace kv
 
   template <class K, class V, class H>
   class CommittableStateAccessor : public StateAccessor<K, V, H>,
-                                   public CommittableTxView
+                                   public virtual CommittableTxView
   {
   protected:
-    using Base = StateAccessor<K, V, H>;
+    using SABase = StateAccessor<K, V, H>;
     using MyMap = Map<K, V, H>;
+
+    using SABase::read_version;
+    using SABase::reads;
+    using SABase::start_version;
+    using SABase::writes;
 
     MyMap& map;
     size_t rollback_counter;
@@ -296,12 +301,12 @@ namespace kv
 
   public:
     CommittableStateAccessor(
-      typename Base::State& current_state,
-      typename Base::State& committed_state,
+      typename SABase::State& current_state,
+      typename SABase::State& committed_state,
       Version v,
       MyMap& m,
       size_t rollbacks) :
-      Base(current_state, committed_state, v),
+      SABase(current_state, committed_state, v),
       map(m),
       rollback_counter(rollbacks)
     {}
@@ -437,6 +442,9 @@ namespace kv
 
   private:
     using This = Map<K, V, H>;
+
+    // Provides access to private rollback_counter and roll
+    friend CommittableStateAccessor<K, V, H>;
 
     struct LocalCommit
     {
@@ -669,14 +677,23 @@ namespace kv
     }
 
     class TxView : public CommittableStateAccessor<K, V, H>,
-                   public AbstractTxView
+                   public virtual AbstractTxView
     {
-      friend Map;
+    protected:
+      using CSABase = CommittableStateAccessor<K, V, H>;
+
+      using CSABase::changes;
+      using CSABase::commit_version;
+      using CSABase::map;
+      using CSABase::read_version;
+      using CSABase::reads;
+      using CSABase::writes;
 
     private:
+      friend Map;
+
       TxView(This& parent, State& s, Version v, size_t r) :
-        CommittableStateAccessor<K, V, H>(
-          s, parent.roll->get_head()->state, v, parent, r)
+        CSABase(s, parent.roll->get_head()->state, v, parent, r)
       {}
 
     public:
@@ -743,7 +760,7 @@ namespace kv
         }
       }
 
-      virtual bool deserialise(KvStoreDeserialiser& d, Version version)
+      bool deserialise(KvStoreDeserialiser& d, Version version) override
       {
         commit_version = version;
         uint64_t ctr;
