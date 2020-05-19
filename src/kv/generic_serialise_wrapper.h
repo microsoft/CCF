@@ -44,13 +44,11 @@ namespace kv
     K key;
     V value;
     Version version;
-    bool is_remove;
 
-    KeyValVersion(K k, V v, Version ver, bool is_rem) :
+    KeyValVersion(K k, V v, Version ver) :
       key(k),
       value(v),
-      version(ver),
-      is_remove(is_rem)
+      version(ver)
     {}
   };
 
