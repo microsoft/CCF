@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define PICOBENCH_IMPLEMENT
-#include "consensus/test/stub_consensus.h"
+#include "kv/test/stub_consensus.h"
 #include "node/history.h"
 
 #include <cstdlib>
 #include <ctime>
+#define PICOBENCH_IMPLEMENT
 #include <picobench/picobench.hpp>
 
 extern "C"
@@ -127,7 +127,7 @@ static void append(picobench::state& s)
 {
   ::srand(42);
 
-  Store store;
+  kv::Store store;
   auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
   auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 
@@ -167,7 +167,7 @@ static void append_compact(picobench::state& s)
 {
   ::srand(42);
 
-  Store store;
+  kv::Store store;
   auto& nodes = store.create<ccf::Nodes>(ccf::Tables::NODES);
   auto& signatures = store.create<ccf::Signatures>(ccf::Tables::SIGNATURES);
 

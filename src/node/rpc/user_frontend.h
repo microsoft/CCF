@@ -21,7 +21,7 @@ namespace ccf
     Users* users;
 
   public:
-    UserRpcFrontend(Store& tables, HandlerRegistry& h) :
+    UserRpcFrontend(kv::Store& tables, HandlerRegistry& h) :
       RpcFrontend(
         tables,
         h,
@@ -35,7 +35,7 @@ namespace ccf
     }
 
     bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, ccf::Tx& tx) override
+      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
       // Lookup the calling user's certificate from the forwarded caller id
       auto users_view = tx.get_view(*users);
@@ -61,7 +61,7 @@ namespace ccf
   class UserHandlerRegistry : public CommonHandlerRegistry
   {
   public:
-    UserHandlerRegistry(Store& store) :
+    UserHandlerRegistry(kv::Store& store) :
       CommonHandlerRegistry(store, Tables::USER_CERTS)
     {}
 
@@ -76,7 +76,7 @@ namespace ccf
     UserHandlerRegistry common_handlers;
 
   public:
-    SimpleUserRpcFrontend(Store& tables) :
+    SimpleUserRpcFrontend(kv::Store& tables) :
       UserRpcFrontend(tables, common_handlers),
       common_handlers(tables)
     {}

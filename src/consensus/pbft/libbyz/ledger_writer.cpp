@@ -15,7 +15,7 @@ LedgerWriter::LedgerWriter(
   pbft_new_views_map(pbft_new_views_map_)
 {}
 
-kv::Version LedgerWriter::write_pre_prepare(ccf::Tx& tx, Pre_prepare* pp)
+kv::Version LedgerWriter::write_pre_prepare(kv::Tx& tx, Pre_prepare* pp)
 {
   return store.commit_tx(
     tx,

@@ -2,16 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
+#include "views.h"
 
 namespace kv
 {
-  template <class S, class D>
-  class Tx : public ViewContainer<S, D>
+  class Tx : public ViewContainer
   {
   private:
-    OrderedViews<S, D> view_list;
+    OrderedViews view_list;
     bool committed;
     bool success;
     Version read_version;
@@ -44,8 +45,7 @@ namespace kv
       }
 
       typename M::TxView* view = m.create_view(read_version);
-      view_list[m.get_name()] = {&m,
-                                 std::unique_ptr<AbstractTxView<S, D>>(view)};
+      view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView>(view)};
       return std::make_tuple(view);
     }
 
@@ -76,7 +76,7 @@ namespace kv
 
     Tx(const Tx& that) = delete;
 
-    void set_view_list(OrderedViews<S, D>& view_list_) override
+    void set_view_list(OrderedViews& view_list_) override
     {
       // if view list is not empty then any coinciding keys will not be
       // overwritten
@@ -247,7 +247,7 @@ namespace kv
       auto map = view_list.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      S replicated_serialiser(e, version);
+      KvStoreSerialiser replicated_serialiser(e, version);
       // flags that indicate if we have actually written any data in the
       // serializers
       auto grouped_maps = get_maps_grouped_by_domain(view_list);
