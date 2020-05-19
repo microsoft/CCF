@@ -399,10 +399,10 @@ class WSClient:
         )
         self.ws.send_frame(frame)
         out = self.ws.recv_frame().data
-        status,  = struct.unpack("<h", out[:2])
-        commit, = struct.unpack("<Q", out[2:10])
-        term, = struct.unpack("<Q", out[10:18])
-        global_commit, = struct.unpack("<Q", out[18:26])
+        (status,) = struct.unpack("<h", out[:2])
+        (commit,) = struct.unpack("<Q", out[2:10])
+        (term,) = struct.unpack("<Q", out[10:18])
+        (global_commit,) = struct.unpack("<Q", out[18:26])
         payload = out[26:]
         if status == 200:
             result = json.loads(payload) if payload else None
@@ -411,6 +411,7 @@ class WSClient:
             result = None
             error = payload.decode()
         return Response(status, result, error, commit, term, global_commit)
+
 
 class CCFClient:
     def __init__(self, *args, **kwargs):
