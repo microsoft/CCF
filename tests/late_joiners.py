@@ -58,27 +58,14 @@ def wait_for_late_joiner(old_node, late_joiner, timeout=30):
         f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
     )
     end = time.time() + timeout
-    LOG.error(f"end {end}")
     while time.time() <= end:
-        try:
-            lc, gc = get_node_local_commit(late_joiner)
-            LOG.success(
-                f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
-            )
-            if lc >= old_node_lc:
-                return
-            time.sleep(1)
-            LOG.error(f"time time {time.time()}")
-        except (TimeoutError, infra.clients.CCFConnectionException):
-            LOG.error(f"Timeout error for LOG_get on node {late_joiner.node_id}")
-            time.sleep(0.1)
-        except AssertionError as e:
-            LOG.error(
-                f"Assertion error for LOG_get on node {late_joiner.node_id}, error:{e}"
-            )
-            time.sleep(0.1)
-    raise AssertionError(f"{late_joiner.node_id} is not up to date")
-
+        lc, gc = get_node_local_commit(late_joiner)
+        LOG.success(
+            f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
+        )
+        if lc >= old_node_lc:
+            return
+        time.sleep(1)        
 
 def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
     with node.user_client() as c:
@@ -201,6 +188,9 @@ def run(args):
             # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
             run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
             term_info.update(find_primary(network))
+
+            assert_network_up_to_date(check, late_joiner, first_msg, 1000)
+            assert_network_up_to_date(check, late_joiner, second_msg, 2000)
 
             # wait for late joiner to cathcup before killing one of the other nodes
             wait_for_late_joiner(first_node, late_joiner)
