@@ -465,7 +465,9 @@ namespace pbft
           {
             if (view > *gb_info->last_commit_view)
             {
-              // no op pre prepare, view should advance
+              // no op pre prepare (version == kv::NoVersion)
+              // or global commit called for seqno already committed in the
+              // previous view view should advance, but the version should not
               *gb_info->last_commit_view = view;
               gb_info->view_change_list->emplace_back(view, kv::NoVersion);
             }
