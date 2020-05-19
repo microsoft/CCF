@@ -13,6 +13,7 @@
 namespace ws
 {
   static constexpr size_t INITIAL_READ = 2;
+  static constexpr size_t OUT_CCF_HEADER_SIZE = sizeof(uint16_t) + sizeof(size_t) * 3; 
 
   enum ParserState
   {
