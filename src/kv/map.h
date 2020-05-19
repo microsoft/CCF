@@ -431,6 +431,136 @@ namespace kv
   };
 
   template <class K, class V, class H>
+  class TxView : public CommittableStateAccessor<K, V, H>,
+                 public virtual AbstractTxView
+  {
+  protected:
+    using SABase = StateAccessor<K, V, H>;
+    using State = typename SABase::State;
+    using Read = typename SABase::Read;
+    using Write = typename SABase::Write;
+
+    using CSABase = CommittableStateAccessor<K, V, H>;
+    using MyMap = typename CSABase::MyMap;
+
+    using CSABase::changes;
+    using CSABase::commit_version;
+    using CSABase::map;
+    using CSABase::read_version;
+    using CSABase::reads;
+    using CSABase::writes;
+
+  private:
+    friend MyMap;
+
+    TxView(MyMap& parent, State& s, Version v, size_t r) :
+      CSABase(s, parent.roll->get_head()->state, v, parent, r)
+    {}
+
+  public:
+    // Expose these types so that other code can use them as MyTx::KeyType or
+    // MyMap::TxView::KeyType, templated on the TxView or Map type rather than
+    // explicitly on K and V
+    using KeyType = K;
+    using ValueType = V;
+
+    TxView(const TxView& that) = delete;
+
+    void serialise(KvStoreSerialiser& s, bool include_reads) override
+    {
+      if (!changes)
+        return;
+
+      s.start_map(map.name, map.get_security_domain());
+
+      if (include_reads)
+      {
+        s.serialise_read_version(read_version);
+
+        s.serialise_count_header(reads.size());
+        for (auto it = reads.begin(); it != reads.end(); ++it)
+          s.serialise_read(it->first, it->second);
+      }
+      else
+      {
+        s.serialise_read_version(NoVersion);
+        s.serialise_count_header(0);
+      }
+
+      uint64_t write_ctr = 0;
+      uint64_t remove_ctr = 0;
+      for (auto it = writes.begin(); it != writes.end(); ++it)
+      {
+        if (!is_deleted(it->second.version))
+        {
+          ++write_ctr;
+        }
+        else
+        {
+          auto search = map.roll->get_tail()->state.get(it->first);
+          if (search.has_value())
+            ++remove_ctr;
+        }
+      }
+      s.serialise_count_header(write_ctr);
+      for (auto it = writes.begin(); it != writes.end(); ++it)
+      {
+        if (!is_deleted(it->second.version))
+        {
+          s.serialise_write(it->first, it->second.value);
+        }
+      }
+
+      s.serialise_count_header(remove_ctr);
+      for (auto it = writes.begin(); it != writes.end(); ++it)
+      {
+        if (is_deleted(it->second.version))
+        {
+          s.serialise_remove(it->first);
+        }
+      }
+    }
+
+    bool deserialise(KvStoreDeserialiser& d, Version version) override
+    {
+      commit_version = version;
+      uint64_t ctr;
+
+      auto rv = d.template deserialise_read_version<Version>();
+      if (rv != NoVersion)
+        read_version = rv;
+
+      ctr = d.deserialise_read_header();
+      for (size_t i = 0; i < ctr; ++i)
+      {
+        auto r = d.template deserialise_read<K>();
+        reads[std::get<0>(r)] = std::get<1>(r);
+      }
+
+      ctr = d.deserialise_write_header();
+      for (size_t i = 0; i < ctr; ++i)
+      {
+        auto w = d.template deserialise_write<K, V>();
+        writes[std::get<0>(w)] = {0, std::get<1>(w)};
+      }
+
+      ctr = d.deserialise_remove_header();
+      for (size_t i = 0; i < ctr; ++i)
+      {
+        auto r = d.template deserialise_remove<K>();
+        writes[r] = {NoVersion, V()};
+      }
+
+      return true;
+    }
+
+    bool is_replicated() override
+    {
+      return map.is_replicated();
+    }
+  };
+
+  template <class K, class V, class H>
   class Map : public AbstractMap
   {
   public:
@@ -442,9 +572,6 @@ namespace kv
 
   private:
     using This = Map<K, V, H>;
-
-    // Provides access to private rollback_counter and roll
-    friend CommittableStateAccessor<K, V, H>;
 
     struct LocalCommit
     {
@@ -524,6 +651,8 @@ namespace kv
     }
 
   public:
+    using TxView = TxView<K, V, H>;
+
     Map(
       AbstractStore* store_,
       std::string name_,
@@ -676,129 +805,6 @@ namespace kv
       return !(*this == that);
     }
 
-    class TxView : public CommittableStateAccessor<K, V, H>,
-                   public virtual AbstractTxView
-    {
-    protected:
-      using CSABase = CommittableStateAccessor<K, V, H>;
-
-      using CSABase::changes;
-      using CSABase::commit_version;
-      using CSABase::map;
-      using CSABase::read_version;
-      using CSABase::reads;
-      using CSABase::writes;
-
-    private:
-      friend Map;
-
-      TxView(This& parent, State& s, Version v, size_t r) :
-        CSABase(s, parent.roll->get_head()->state, v, parent, r)
-      {}
-
-    public:
-      // Expose these types so that other code can use them as MyTx::KeyType or
-      // MyMap::TxView::KeyType, templated on the TxView or Map type rather than
-      // explicitly on K and V
-      using KeyType = K;
-      using ValueType = V;
-
-      TxView(const TxView& that) = delete;
-
-      void serialise(KvStoreSerialiser& s, bool include_reads) override
-      {
-        if (!changes)
-          return;
-
-        s.start_map(map.name, map.get_security_domain());
-
-        if (include_reads)
-        {
-          s.serialise_read_version(read_version);
-
-          s.serialise_count_header(reads.size());
-          for (auto it = reads.begin(); it != reads.end(); ++it)
-            s.serialise_read(it->first, it->second);
-        }
-        else
-        {
-          s.serialise_read_version(NoVersion);
-          s.serialise_count_header(0);
-        }
-
-        uint64_t write_ctr = 0;
-        uint64_t remove_ctr = 0;
-        for (auto it = writes.begin(); it != writes.end(); ++it)
-        {
-          if (!is_deleted(it->second.version))
-          {
-            ++write_ctr;
-          }
-          else
-          {
-            auto search = map.roll->get_tail()->state.get(it->first);
-            if (search.has_value())
-              ++remove_ctr;
-          }
-        }
-        s.serialise_count_header(write_ctr);
-        for (auto it = writes.begin(); it != writes.end(); ++it)
-        {
-          if (!is_deleted(it->second.version))
-          {
-            s.serialise_write(it->first, it->second.value);
-          }
-        }
-
-        s.serialise_count_header(remove_ctr);
-        for (auto it = writes.begin(); it != writes.end(); ++it)
-        {
-          if (is_deleted(it->second.version))
-          {
-            s.serialise_remove(it->first);
-          }
-        }
-      }
-
-      bool deserialise(KvStoreDeserialiser& d, Version version) override
-      {
-        commit_version = version;
-        uint64_t ctr;
-
-        auto rv = d.template deserialise_read_version<Version>();
-        if (rv != NoVersion)
-          read_version = rv;
-
-        ctr = d.deserialise_read_header();
-        for (size_t i = 0; i < ctr; ++i)
-        {
-          auto r = d.template deserialise_read<K>();
-          reads[std::get<0>(r)] = std::get<1>(r);
-        }
-
-        ctr = d.deserialise_write_header();
-        for (size_t i = 0; i < ctr; ++i)
-        {
-          auto w = d.template deserialise_write<K, V>();
-          writes[std::get<0>(w)] = {0, std::get<1>(w)};
-        }
-
-        ctr = d.deserialise_remove_header();
-        for (size_t i = 0; i < ctr; ++i)
-        {
-          auto r = d.template deserialise_remove<K>();
-          writes[r] = {NoVersion, V()};
-        }
-
-        return true;
-      }
-
-      bool is_replicated() override
-      {
-        return map.is_replicated();
-      }
-    };
-
     AbstractTxView* create_view(Version version) override
     {
       return create_view_internal(version, [this](State& s, Version v) {
@@ -807,7 +813,9 @@ namespace kv
     }
 
   private:
-    friend TxView;
+    // Provides access to private rollback_counter and roll
+    friend CommittableStateAccessor<K, V, H>;
+    friend TxView; // < Same?
 
     void compact(Version v) override
     {
