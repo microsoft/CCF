@@ -16,7 +16,7 @@ namespace ws
     kv::Consensus::View term = 0,
     kv::Version global_commit = 0)
   {
-    std::vector<uint8_t> header(26); // TODO: ws::Frame::size or something
+    std::vector<uint8_t> header(ws::OUT_CCF_HEADER_SIZE);
     uint8_t* hd = header.data();
     size_t s = header.size();
 
