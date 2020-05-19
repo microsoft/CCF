@@ -3121,15 +3121,10 @@ bool Replica::delay_vc()
   // delay the view change if checking or fetching state, if there are no longer
   // any requests in the request queue, or the request we were waiting for is no
   // longer in the queue
-  LOG_INFO_FMT(
-    "playback pp seqno {} and lte {}",
-    playback_pp_seqno,
-    last_tentative_execute);
   return state.in_check_state() || state.in_fetch_state() ||
     (has_complete_new_view() &&
      (rqueue.size() == 0 || rqueue.first()->client_id() != cid_vtimer ||
-      rqueue.first()->request_id() != rid_vtimer ||
-      playback_pp_seqno == last_tentative_execute));
+      rqueue.first()->request_id() != rid_vtimer));
 }
 
 void Replica::start_vtimer_if_request_waiting()
@@ -3155,7 +3150,6 @@ void Replica::vtimer_handler(void* owner)
   {
     if (pbft::GlobalState::get_replica().rqueue.size() > 0)
     {
-      // Request* first = pbft::GlobalState::get_replica().rqueue.first();
       LOG_INFO
         << "View change timer expired first rid: "
         << pbft::GlobalState::get_replica().rqueue.first()->request_id()
