@@ -50,8 +50,6 @@ namespace http
     static std::optional<std::vector<uint8_t>> upgrade_if_necessary(
       const http::HeaderMap& headers)
     {
-      // TODO: we ought to check what we're upgrading to!
-      // TODO: we ought to check for the connection header too!
       auto const upgrade_header = headers.find(HTTP_HEADER_UPGRADE);
       if (upgrade_header != headers.end())
       {
