@@ -2178,10 +2178,7 @@ void Replica::global_commit(Pre_prepare* pp)
   {
     if (global_commit_cb != nullptr)
     {
-      // if this is called for a null op pre-prepare then the ctx will not be
-      // set
-      auto version_ = (pp->get_ctx() > 0) ? pp->get_ctx() : last_gb_version;
-      global_commit_cb(version_, pp->view(), global_commit_info);
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
     }
   }
   signed_version = 0;
