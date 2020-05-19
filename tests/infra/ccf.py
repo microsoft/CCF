@@ -229,6 +229,13 @@ class Network:
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
+
+        self.election_duration = (
+            args.pbft_view_change_timeout * 2 / 1000
+            if args.consensus == "pbft"
+            else args.raft_election_timeout * 2 / 1000
+        )
+
         LOG.info("All nodes started")
 
         primary, _ = self.find_primary()
@@ -302,20 +309,17 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
-        self, args, ledger_file, common_dir=None, defunct_network_enc_pub=None,
+        self, args, ledger_file, common_dir=None,
     ):
         """
-        Recovers a CCF network.
+        Starts a CCF network in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         :param ledger_file: ledger file to recover from.
         :param common_dir: common directory containing member and user keys and certs.
-        :param defunct_network_enc_pub: defunct network encryption public key.
         """
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
-        if defunct_network_enc_pub is None:
-            defunct_network_enc_pub = self.store_current_network_encryption_key()
 
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
 
@@ -325,26 +329,35 @@ class Network:
                 common_dir, self.key_generator, remote_node=primary
             )
 
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-
-        for node in self.nodes:
+        for node in self.get_joined_nodes():
             self.wait_for_state(
                 node, "partOfPublicNetwork", timeout=args.ledger_recovery_timeout
             )
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined public network")
 
+    def recover(self, args, defunct_network_enc_pub):
+        """
+        Recovers a CCF network previously started in recovery mode.
+        :param args: command line arguments to configure the CCF nodes.
+        :param defunct_network_enc_pub: defunct network encryption public key.
+        """
+        # if defunct_network_enc_pub is None:
+            # defunct_network_enc_pub = self.store_current_network_encryption_key()
+
+        primary, _ = self.find_primary()
+        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
         self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
         self.consortium.accept_recovery(primary)
         self.consortium.recover_with_shares(primary, defunct_network_enc_pub)
 
-        for node in self.nodes:
+        for node in self.get_joined_nodes():
             self.wait_for_state(
                 node, "partOfNetwork", timeout=args.ledger_recovery_timeout
             )
 
         self.consortium.check_for_service(
-            primary, infra.ccf.ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
+            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
         )
         LOG.success("***** Recovered network is now open *****")
 

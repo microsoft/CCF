@@ -58,13 +58,6 @@ def run(args):
         network.start_and_join(args)
         current_term = None
 
-        # Time before an election completes
-        max_election_duration = (
-            args.pbft_view_change_timeout * 2 / 1000
-            if args.consensus == "pbft"
-            else args.raft_election_timeout * 2 / 1000
-        )
-
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(hosts) / 2)
         if args.consensus == "pbft":
@@ -104,9 +97,9 @@ def run(args):
             primary.stop()
 
             LOG.debug(
-                f"Waiting {max_election_duration} for a new primary to be elected..."
+                f"Waiting {network.election_duration}s for a new primary to be elected..."
             )
-            time.sleep(max_election_duration)
+            time.sleep(network.election_duration)
 
         # More than F nodes have been stopped, trying to commit any message
         LOG.debug(
@@ -120,9 +113,10 @@ def run(args):
         except infra.ccf.PrimaryNotFound:
             pass
 
-        LOG.info(
-            "As expected, primary could not be found after election timeout. Test ended successfully."
+        LOG.success(
+            f"As expected, primary could not be found after election duration ({network.election_duration}s)."
         )
+        LOG.success("Test ended successfully.")
 
 
 if __name__ == "__main__":

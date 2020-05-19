@@ -116,7 +116,8 @@ namespace ccf
           }
         }
         ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        ctx->set_response_body("RPC could not be forwarded to primary.");
+        ctx->set_response_body(
+          "RPC could not be forwarded to unknown primary.");
         return ctx->serialise_response();
       }
       else

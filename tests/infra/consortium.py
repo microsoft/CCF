@@ -315,22 +315,22 @@ class Consortium:
 
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
-        for m in self.get_active_members():
-            decrypted_share = m.get_and_decrypt_recovery_share(
-                remote_node, defunct_network_enc_pubk
-            )
-            r = m.submit_recovery_share(remote_node, decrypted_share)
+        with remote_node.node_client() as nc:
+            check_commit = infra.checker.Checker(nc)
 
-            submitted_shares_count += 1
-            if submitted_shares_count >= self.recovery_threshold:
-                assert (
-                    r.result == True
-                ), "Shares should be combined when all members have submitted their shares"
-                break
-            else:
-                assert (
-                    r.result == False
-                ), "Shares should not be combined until all members have submitted their shares"
+            for m in self.get_active_members():
+                decrypted_share = m.get_and_decrypt_recovery_share(
+                    remote_node, defunct_network_enc_pubk
+                )
+                r = m.submit_recovery_share(remote_node, decrypted_share)
+                check_commit(
+                    r,
+                    result=True
+                    if submitted_shares_count >= self.recovery_threshold
+                    else False,
+                )
+
+                submitted_shares_count += 1
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """
