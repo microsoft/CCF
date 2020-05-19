@@ -390,10 +390,6 @@ namespace enclave
   {
     http::SimpleRequestProcessor processor;
 
-    LOG_DEBUG_FMT("PARSING FORWARDED REQUEST");
-    LOG_DEBUG_FMT("{:02x}", fmt::join(packed, " "));
-    LOG_DEBUG_FMT("{}", std::string(packed.begin(), packed.end()));
-
     switch (frame_format)
     {
       case enclave::FrameFormat::http:
