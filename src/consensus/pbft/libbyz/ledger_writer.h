@@ -30,6 +30,6 @@ public:
   virtual ~LedgerWriter() = default;
   kv::Version write_pre_prepare(Pre_prepare* pp);
   kv::Version write_pre_prepare(Pre_prepare* pp, View view);
-  kv::Version write_pre_prepare(ccf::Tx& tx, Pre_prepare* pp);
+  kv::Version write_pre_prepare(kv::Tx& tx, Pre_prepare* pp);
   void write_new_view(New_view* nv);
 };

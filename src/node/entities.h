@@ -1,9 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "consensus/consensus_types.h"
-#include "kv/kv.h"
-#include "kv/kv_serialiser.h"
 
 #include <limits>
 #include <map>
@@ -12,7 +9,13 @@
 
 namespace ccf
 {
+  using ObjectId = uint64_t;
+
   constexpr ObjectId INVALID_ID = (std::numeric_limits<ObjectId>::max)();
+
+  using NodeId = uint64_t;
+  using Index = int64_t;
+  using Node2NodeMsg = uint64_t;
 
   using MemberId = ObjectId;
   using UserId = ObjectId;
@@ -65,11 +68,6 @@ namespace ccf
     static constexpr auto USER_CODE_IDS = "ccf.users.code_ids";
     static constexpr auto CONFIGURATION = "ccf.config";
   };
-
-  using StoreSerialiser = kv::KvStoreSerialiser;
-  using StoreDeserialiser = kv::KvStoreDeserialiser;
-  using Store = kv::Store<StoreSerialiser, StoreDeserialiser>;
-  using Tx = kv::Tx<StoreSerialiser, StoreDeserialiser>;
 }
 
 namespace enclave

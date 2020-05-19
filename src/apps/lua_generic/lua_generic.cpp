@@ -16,7 +16,7 @@ namespace ccfapp
   using namespace ccf;
   using namespace lua;
 
-  using GenericTable = ccf::Store::Map<nlohmann::json, nlohmann::json>;
+  using GenericTable = kv::Map<nlohmann::json, nlohmann::json>;
 
   class AppTsr : public TxScriptRunner
   {
@@ -69,9 +69,7 @@ namespace ccfapp
 
     const std::vector<GenericTable*> app_tables;
     void add_custom_tables(
-      lua::Interpreter& li,
-      ccf::Tx& tx,
-      int& n_registered_tables) const override
+      lua::Interpreter& li, kv::Tx& tx, int& n_registered_tables) const override
     {
       n_registered_tables++;
       TableCreator<false>::create(li, tx, app_tables);
@@ -182,7 +180,7 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void list_methods(ccf::Tx& tx, ListMethods::Out& out) override
+    void list_methods(kv::Tx& tx, ListMethods::Out& out) override
     {
       UserHandlerRegistry::list_methods(tx, out);
 

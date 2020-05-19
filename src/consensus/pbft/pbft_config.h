@@ -145,7 +145,7 @@ namespace pbft
       uint8_t* req_start = msg->req_start;
       size_t req_size = msg->req_size;
       Seqno total_requests_executed = msg->total_requests_executed;
-      ccf::Tx* tx = msg->tx;
+      kv::Tx* tx = msg->tx;
       int replier = msg->replier;
       uint16_t reply_thread = msg->reply_thread;
 
