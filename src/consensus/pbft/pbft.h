@@ -59,7 +59,6 @@ namespace pbft
   {
     pbft::PbftStore* store;
     consensus::LedgerEnclave* ledger;
-    SeqNo* global_commit_seqno;
   } register_rollback_ctx;
 
   // maps node to last sent index to that node
@@ -467,7 +466,7 @@ namespace pbft
             {
               // no op pre prepare (version == kv::NoVersion)
               // or global commit called for seqno already committed in the
-              // previous view view should advance, but the version should not
+              // previous view. View should advance, but the version should not
               *gb_info->last_commit_view = view;
               gb_info->view_change_list->emplace_back(view, kv::NoVersion);
             }
@@ -497,12 +496,10 @@ namespace pbft
           "Rolling back to version {} and truncating ledger", version);
         rollback_info->store->rollback(version);
         rollback_info->ledger->truncate(version);
-        *rollback_info->global_commit_seqno = version;
       };
 
       register_rollback_ctx.store = store.get();
       register_rollback_ctx.ledger = ledger.get();
-      register_rollback_ctx.global_commit_seqno = &global_commit_seqno;
 
       message_receiver_base->register_rollback_cb(
         rollback_cb, &register_rollback_ctx);
