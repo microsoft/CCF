@@ -13,7 +13,8 @@
 namespace ws
 {
   static constexpr size_t INITIAL_READ = 2;
-  static constexpr size_t OUT_CCF_HEADER_SIZE = sizeof(uint16_t) + sizeof(size_t) * 3; 
+  static constexpr size_t OUT_CCF_HEADER_SIZE =
+    sizeof(uint16_t) + sizeof(size_t) * 3;
 
   enum ParserState
   {
@@ -220,15 +221,12 @@ namespace ws
           const uint8_t* buf = data.data();
           size_t s = data.size();
           auto path = serialized::read_lpsv(buf, s);
-          LOG_TRACE_FMT("Path: [{}]", path);
-          auto signature = serialized::read_lpsv(buf, s);
-          LOG_TRACE_FMT("Signature: [{}]", signature);
           std::vector<uint8_t> body(buf, buf + s);
 
           proc.handle_request(
             http_method::HTTP_POST,
             path,
-            {}, // TODO: pass signature string here
+            {},
             {{"Content-type", "application/json"}},
             std::move(body));
           state = INIT;

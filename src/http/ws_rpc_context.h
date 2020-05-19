@@ -31,6 +31,7 @@ namespace ws
     {
       sz_size = frame_size > std::numeric_limits<uint16_t>::max() ? 8 : 2;
     }
+
     std::vector<uint8_t> h(2 + sz_size);
     h[0] = 0x82;
     switch (sz_size)
@@ -56,7 +57,6 @@ namespace ws
         throw std::logic_error("Unreachable");
     }
 
-    // TODO: shouldn't need to do that, can preallocate
     h.insert(h.end(), header.begin(), header.end());
     h.insert(h.end(), body.begin(), body.end());
     return h;
@@ -138,12 +138,11 @@ namespace ws
     {
       if (serialised_request.empty())
       {
-        std::vector<uint8_t> frame_header(path.size() + sizeof(uint16_t) * 2);
+        std::vector<uint8_t> frame_header(path.size() + sizeof(uint16_t));
         uint8_t* f = frame_header.data();
         size_t fs = frame_header.size();
 
         serialized::write_lps(f, fs, path);
-        serialized::write_lps(f, fs, ""); // Signature
 
         size_t frame_size = frame_header.size() + request_body.size();
 

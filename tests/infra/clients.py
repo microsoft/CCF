@@ -392,9 +392,7 @@ class WSClient:
             )
         payload = json.dumps(request.params).encode()
         path = ("/" + request.method).encode()
-        header = (
-            struct.pack("<h", len(path)) + path + struct.pack("<h", 0)
-        )  # No signature
+        header = struct.pack("<h", len(path)) + path
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
         frame = websocket.ABNF(
             1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, header + payload
