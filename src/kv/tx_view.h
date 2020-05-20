@@ -33,7 +33,7 @@ namespace kv
   template <typename K, typename V, typename H>
   using Write = std::unordered_map<K, VersionV<V>, H>;
 
-  template <typename K, typename V, typename H>
+  template <typename K, typename V, typename H = std::hash<K>>
   class TxView
   {
   protected:

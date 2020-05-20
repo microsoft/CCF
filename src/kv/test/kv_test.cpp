@@ -18,6 +18,7 @@
 struct RawMapTypes
 {
   using StringString = kv::Map<std::string, std::string>;
+  using StringStringView = kv::TxView<std::string, std::string>;
 
   using IntInt = kv::Map<int, int>;
   using IntString = kv::Map<int, std::string>;
@@ -26,11 +27,12 @@ struct RawMapTypes
 
 struct ExperimentalMapTypes
 {
-  using StringString = kv::Map<std::string, std::string>;
+  using StringString = kv::experimental::Map<std::string, std::string>;
+  //using StringStringView = kv::experimental::TxView<std::string, std::string>;
 
-  using IntInt = kv::Map<int, int>;
-  using IntString = kv::Map<int, std::string>;
-  using StringInt = kv::Map<std::string, int>;
+  using IntInt = kv::experimental::Map<int, int>;
+  using IntString = kv::experimental::Map<int, std::string>;
+  using StringInt = kv::experimental::Map<std::string, int>;
 };
 
 TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
@@ -80,10 +82,11 @@ TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
   }
 }
 
-TEST_CASE("Reads/writes and deletions")
+TEST_CASE_TEMPLATE(
+  "Reads/writes and deletions", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<std::string, std::string>(
+  auto& map = kv_store.create<typename MapImpl::StringString>(
     "map", kv::SecurityDomain::PUBLIC);
 
   constexpr auto k = "key";
