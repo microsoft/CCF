@@ -5,10 +5,22 @@
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
-#include "views.h"
+#include "view_containers.h"
 
 namespace kv
 {
+  static inline std::map<kv::SecurityDomain, std::vector<AbstractTxView*>>
+  get_views_grouped_by_domain(const OrderedViews& maps)
+  {
+    std::map<kv::SecurityDomain, std::vector<AbstractTxView*>> grouped_views;
+    for (auto it = maps.cbegin(); it != maps.cend(); ++it)
+    {
+      grouped_views[it->second.map->get_security_domain()].push_back(
+        it->second.view.get());
+    }
+    return grouped_views;
+  }
+
   class Tx : public ViewContainer
   {
   private:
@@ -27,7 +39,7 @@ namespace kv
       auto search = view_list.find(m.get_name());
       if (search != view_list.end())
         return std::make_tuple(
-          static_cast<typename M::TxView*>(search->second.view.get()));
+          dynamic_cast<typename M::TxView*>(search->second.view.get()));
 
       auto it = view_list.begin();
       if (it != view_list.end())
@@ -44,9 +56,10 @@ namespace kv
         read_version = m.get_store()->current_version();
       }
 
-      typename M::TxView* view = m.create_view(read_version);
+      AbstractTxView* view = m.create_view(read_version);
+      auto typed_view = dynamic_cast<typename M::TxView*>(view);
       view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView>(view)};
-      return std::make_tuple(view);
+      return std::make_tuple(typed_view);
     }
 
     template <class M, class... Ms>
@@ -250,15 +263,15 @@ namespace kv
       KvStoreSerialiser replicated_serialiser(e, version);
       // flags that indicate if we have actually written any data in the
       // serializers
-      auto grouped_maps = get_maps_grouped_by_domain(view_list);
+      auto grouped_views = get_views_grouped_by_domain(view_list);
 
-      for (auto domain_it : grouped_maps)
+      for (auto domain_it : grouped_views)
       {
-        for (auto curr_map : domain_it.second)
+        for (auto curr_view : domain_it.second)
         {
-          if (curr_map->is_replicated())
+          if (curr_view->is_replicated())
           {
-            curr_map->serialise(replicated_serialiser, include_reads);
+            curr_view->serialise(replicated_serialiser, include_reads);
           }
         }
       }
