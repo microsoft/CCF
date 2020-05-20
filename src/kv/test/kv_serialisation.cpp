@@ -88,6 +88,8 @@ TEST_CASE(
 
   INFO("Deserialise transaction in target store");
   {
+    REQUIRE(consensus->get_latest_data().second);
+    REQUIRE(!consensus->get_latest_data().first.empty());
     REQUIRE(
       kv_store_target.deserialise(consensus->get_latest_data().first) ==
       kv::DeserialiseSuccess::PASS);

@@ -148,7 +148,7 @@ namespace kv
       if (change_set->writes.empty())
       {
         // TODO: This is a huge semantic change, reads get no commit version?
-        // commit_version = change_set->start_version;
+        commit_version = change_set->start_version;
         return;
       }
 
@@ -318,13 +318,17 @@ namespace kv
     }
 
     void serialise(
-      AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) override
+      const AbstractTxView* view,
+      KvStoreSerialiser& s,
+      bool include_reads) override
     {
-      auto change_set = dynamic_cast<ChangeSet<K, V, H>*>(view);
-      if (change_set == nullptr)
+      const auto view_ = dynamic_cast<const TxViewCommitter<K, V, H>*>(view);
+      if (view_ == nullptr)
       {
         return;
       }
+
+      const auto& change_set = view_->change_set;
 
       s.start_map(name, security_domain);
 

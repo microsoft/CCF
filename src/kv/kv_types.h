@@ -373,7 +373,7 @@ namespace kv
     virtual AbstractStore* get_store() = 0;
     virtual AbstractTxView* create_view(Version version) = 0;
     virtual void serialise(
-      AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
+      const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
     virtual AbstractTxView* deserialise(
       KvStoreDeserialiser& d, Version version) = 0;
     virtual const std::string& get_name() const = 0;
