@@ -2168,20 +2168,11 @@ void Replica::global_commit(Pre_prepare* pp)
     state.checkpoint(pp->seqno());
     last_gb_version = pp->get_ctx();
     last_gb_seqno = pp->seqno();
-    last_gb_view = pp->view();
     if (global_commit_cb != nullptr)
     {
       global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
     }
   }
-  else if (pp->view() > last_gb_view)
-  {
-    if (global_commit_cb != nullptr)
-    {
-      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
-    }
-  }
-  signed_version = 0;
 }
 
 void Replica::execute_prepared(bool committed)

@@ -152,7 +152,6 @@ public:
   // commit so that when there is a view change we know how far to roll back to
   kv::Version last_gb_version = 0;
   Seqno last_gb_seqno = 0;
-  View last_gb_view = 0;
 
   Seqno signature_offset = 0;
   std::atomic<kv::Version> signed_version = 0;
