@@ -46,7 +46,7 @@ namespace ws
         break;
       }
       default:
-        throw std::logic_error("Unreachable");
+        throw std::logic_error(fmt::format("Invalid sz_size: {}", sz_size));
     }
     uint8_t* p = msg.data() + ws_h_size;
     size_t s = msg.size() - ws_h_size;
@@ -164,7 +164,7 @@ namespace ws
             break;
           }
           default:
-            throw std::logic_error("Unreachable");
+            throw std::logic_error(fmt::format("Invalid sz_size: {}", sz_size));
         }
         uint8_t* p = serialised_request.data() + ws_h_size;
         size_t s = serialised_request.size() - ws_h_size;

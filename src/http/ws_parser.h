@@ -14,7 +14,8 @@ namespace ws
 {
   static constexpr size_t INITIAL_READ = 2;
   static constexpr size_t OUT_CCF_HEADER_SIZE =
-    sizeof(uint16_t) + sizeof(size_t) * 3;
+    sizeof(uint16_t) /* return code */ + sizeof(size_t) /* commit */ +
+    sizeof(size_t) /* term */ + sizeof(size_t) /* global_commit */;
 
   static size_t in_header_size(const std::string& path)
   {

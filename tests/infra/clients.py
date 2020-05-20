@@ -389,6 +389,7 @@ class WSClient:
                     "keyfile": self.key,
                     "ca_certs": self.ca,
                 },
+                timeout=self.request_timeout,
             )
         payload = json.dumps(request.params).encode()
         path = ("/" + request.method).encode()

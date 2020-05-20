@@ -60,6 +60,7 @@ namespace serialized
     return v;
   }
 
+  // Read a length-prefixed (uint16_t) buffer into a string view
   inline std::string_view read_lpsv(const uint8_t*& data, size_t& size)
   {
     auto len = read<uint16_t>(data, size);
