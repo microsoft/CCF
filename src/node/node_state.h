@@ -962,9 +962,19 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
-      // TODO: Check that the service is not waiting for recovery shares
-      // This is important because the submitted shares are encrypted with the
-      // latest ledger secrets
+      // Because submitted recovery shares are encrypted with the latest ledger
+      // secret, it is not possible to rekey the ledger if the service is in
+      // that state.
+      GenesisGenerator g(network, tx);
+      if (
+        g.get_service_status().value() ==
+        ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      {
+        LOG_FAIL_FMT(
+          "Ledger could not be rekeyed while the service is waiting for "
+          "recovery shares");
+        return false;
+      }
 
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered.

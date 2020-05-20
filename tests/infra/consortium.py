@@ -331,6 +331,11 @@ class Consortium:
                     else False,
                 )
 
+                # TODO: There is a bug here: when removing the following lines,
+                # when a member is added and then the network crashes,
+                # the new member cannot decrypt its share
+                # if submitted_shares_count >= self.recovery_threshold:
+                    # break
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """

@@ -353,17 +353,10 @@ namespace ccf
              return true;
            }
 
-           auto active_members_count = g.get_active_members_count();
-           if (new_recovery_threshold > active_members_count)
+           if (!g.set_recovery_threshold(new_recovery_threshold))
            {
-             LOG_FAIL_FMT(
-               "Recovery threshold cannot be set to {} as it is greater than "
-               "the number of active members ({})",
-               new_recovery_threshold,
-               active_members_count);
              return false;
            }
-           g.set_recovery_threshold(new_recovery_threshold);
 
            // Update recovery shares (same number of shares)
            return node.split_ledger_secrets(tx);
@@ -909,7 +902,6 @@ namespace ccf
         }
 
         const auto in = params.get<SubmitRecoveryShare>();
-
         size_t submitted_shares_count = 0;
         try
         {

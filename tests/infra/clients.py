@@ -422,7 +422,7 @@ class CCFClient:
 
         description = ""
         if self.description:
-            description = f" ({self.description})" + ("[signed]" if is_signed else "")
+            description = f" ({self.description})" + (" [signed]" if is_signed else "")
         for logger in self.rpc_loggers:
             logger.log_request(r, self.name, description)
 

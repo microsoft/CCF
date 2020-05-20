@@ -412,10 +412,35 @@ namespace ccf
       shares_view->put(0, key_share_info);
     }
 
-    void set_recovery_threshold(size_t threshold)
+    bool set_recovery_threshold(size_t threshold)
     {
       auto config_view = tx.get_view(tables.config);
+
+      // While waiting for recovery shares, the recovery threshold cannot be
+      // modified. Otherwise, the threshold could be passed without triggering
+      // the end of recovery procedure
+      if (
+        get_service_status().value() ==
+        ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      {
+        LOG_FAIL_FMT(
+          "Failed to set recovery threshold: service is currently waiting for "
+          "recovery shares");
+        return false;
+      }
+
+      auto active_members_count = get_active_members_count();
+      if (threshold > active_members_count)
+      {
+        LOG_FAIL_FMT(
+          "Recovery threshold cannot be set to {} as it is greater than "
+          "the number of active members ({})",
+          threshold,
+          active_members_count);
+        return false;
+      }
       config_view->put(0, {threshold});
+      return true;
     }
 
     size_t get_recovery_threshold()
