@@ -521,40 +521,9 @@ namespace kv
       return !(*this == that);
     }
 
-    AbstractTxView* create_view(Version version) override
+    AbstractTxView* create_view(Version v) override
     {
-      lock();
-
-      // Find the last entry committed at or before this version.
-      AbstractTxView* view = nullptr;
-
-      for (auto current = roll->get_tail(); current != nullptr;
-           current = current->prev)
-      {
-        if (current->version <= version)
-        {
-          view = new ConcreteTxView<K, V, H>(
-            current->state,
-            roll->get_head()->state,
-            current->version,
-            *this,
-            rollback_counter);
-          break;
-        }
-      }
-
-      if (view == nullptr)
-      {
-        view = new ConcreteTxView<K, V, H>(
-          roll->get_head()->state,
-          roll->get_head()->state,
-          roll->get_head()->version,
-          *this,
-          rollback_counter);
-      }
-
-      unlock();
-      return view;
+      return create_view_internal(v);
     }
 
   private:
@@ -673,6 +642,43 @@ namespace kv
 
       std::swap(rollback_counter, map->rollback_counter);
       std::swap(roll, map->roll);
+    }
+
+  protected:
+    TxView* create_view_internal(Version version)
+    {
+      lock();
+
+      // Find the last entry committed at or before this version.
+      TxView* view = nullptr;
+
+      for (auto current = roll->get_tail(); current != nullptr;
+           current = current->prev)
+      {
+        if (current->version <= version)
+        {
+          view = new ConcreteTxView<K, V, H>(
+            current->state,
+            roll->get_head()->state,
+            current->version,
+            *this,
+            rollback_counter);
+          break;
+        }
+      }
+
+      if (view == nullptr)
+      {
+        view = new ConcreteTxView<K, V, H>(
+          roll->get_head()->state,
+          roll->get_head()->state,
+          roll->get_head()->version,
+          *this,
+          rollback_counter);
+      }
+
+      unlock();
+      return view;
     }
   };
 }
