@@ -273,7 +273,7 @@ TEST_CASE(
 
     auto [success, reqid, data] = tx.commit_reserved();
     REQUIRE(success == kv::CommitSuccess::OK);
-    kv_store.compact(view->end_order());
+    kv_store.compact(kv_store.current_version());
 
     REQUIRE(kv_store2.deserialise(data) == kv::DeserialiseSuccess::PASS);
     kv::Tx tx2;

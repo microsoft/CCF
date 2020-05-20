@@ -144,33 +144,6 @@ namespace ccf
 
         return 0;
       }
-
-      static int start_order(lua_State* l)
-      {
-        constexpr int n_args = 1;
-        sanitize_stack_idx(l, n_args);
-        const auto v = UD::unbox(l, -1)->start_order();
-        lua_pushinteger(l, v);
-        return 1;
-      }
-
-      static int end_order(lua_State* l)
-      {
-        constexpr int n_args = 1;
-        sanitize_stack_idx(l, n_args);
-        auto tx = UD::unbox(l);
-        try
-        {
-          const auto v = tx->end_order();
-          lua_pushinteger(l, v);
-          return 1;
-        }
-        catch (const std::logic_error& e)
-        {
-          lua_pushnil(l);
-          return 1;
-        }
-      }
     };
 
     template <typename T, typename X = T>
@@ -179,8 +152,6 @@ namespace ccf
       {"get_globally_committed", KvTable<T, X>::get_globally_committed},
       {"remove", KvTable<T, X>::remove},
       {"foreach", KvTable<T, X>::foreach},
-      {"start_order", KvTable<T, X>::start_order},
-      {"end_order", KvTable<T, X>::end_order},
       {"put", KvTable<T, X>::put},
       {nullptr, nullptr}};
 
@@ -189,8 +160,6 @@ namespace ccf
       {"get", KvTable<T, X>::get},
       {"get_globally_committed", KvTable<T, X>::get_globally_committed},
       {"foreach", KvTable<T, X>::foreach},
-      {"start_order", KvTable<T, X>::start_order},
-      {"end_order", KvTable<T, X>::end_order},
       {nullptr, nullptr}};
 
   } // namespace lua
