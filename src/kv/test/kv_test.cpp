@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
+#include "kv/experimental.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -14,44 +15,68 @@
 #include <string>
 #include <vector>
 
-TEST_CASE("Map creation")
+struct RawMapTypes
+{
+  using StringString = kv::Map<std::string, std::string>;
+
+  using IntInt = kv::Map<int, int>;
+  using IntString = kv::Map<int, std::string>;
+  using StringInt = kv::Map<std::string, int>;
+};
+
+struct ExperimentalMapTypes
+{
+  using StringString = kv::Map<std::string, std::string>;
+
+  using IntInt = kv::Map<int, int>;
+  using IntString = kv::Map<int, std::string>;
+  using StringInt = kv::Map<std::string, int>;
+};
+
+TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<std::string, std::string>("map");
+  const auto map_name = "map";
+  auto& map = kv_store.create<typename MapImpl::StringString>(map_name);
 
   INFO("Get a map that does not exist");
   {
-    // Macros can't handle commas, so we need a single named template argument
-    using StringString = kv::Map<std::string, std::string>;
-    REQUIRE(kv_store.get<StringString>("invalid_map") == nullptr);
+    REQUIRE(
+      kv_store.get<typename MapImpl::StringString>("invalid_map") == nullptr);
+  }
+
+  // TODO: Add more complete tests here, ensure they're also used to test
+  // kv::experimental::
+  INFO("Get a map that does exist");
+  {
+    auto* p_map = kv_store.get<typename MapImpl::StringString>(map_name);
+    REQUIRE(*p_map == map);
+    REQUIRE(p_map == &map); // They're the _same instance_, not just equal
   }
 
   INFO("Compare different maps");
   {
-    auto& map2 = kv_store.create<std::string, std::string>("map2");
+    auto& map2 = kv_store.create<typename MapImpl::StringString>("map2");
     REQUIRE(map != map2);
   }
 
   INFO("Can't create map that already exists");
   {
-    using StringString = kv::Map<std::string, std::string>;
-    REQUIRE_THROWS_AS(kv_store.create<StringString>("map"), std::logic_error);
+    REQUIRE_THROWS_AS(
+      kv_store.create<typename MapImpl::StringString>(map_name),
+      std::logic_error);
   }
 
   INFO("Can't get a map with the wrong type");
   {
-    using IntInt = kv::Map<int, int>;
-    REQUIRE(kv_store.get<IntInt>("map") == nullptr);
-    using IntString = kv::Map<int, std::string>;
-    REQUIRE(kv_store.get<IntString>("map") == nullptr);
-    using StringInt = kv::Map<std::string, int>;
-    REQUIRE(kv_store.get<StringInt>("map") == nullptr);
+    REQUIRE(kv_store.get<typename MapImpl::IntInt>(map_name) == nullptr);
+    REQUIRE(kv_store.get<typename MapImpl::IntString>(map_name) == nullptr);
+    REQUIRE(kv_store.get<typename MapImpl::StringInt>(map_name) == nullptr);
   }
 
   INFO("Can create a map with a previously invalid name");
   {
-    using StringString = kv::Map<std::string, std::string>;
-    CHECK_NOTHROW(kv_store.create<StringString>("version"));
+    CHECK_NOTHROW(kv_store.create<typename MapImpl::StringString>("version"));
   }
 }
 
