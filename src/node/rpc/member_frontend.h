@@ -331,13 +331,19 @@ namespace ccf
         {"update_recovery_shares",
          [this](
            ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
-           const auto shares_updated = node.split_ledger_secrets(tx);
-           if (!shares_updated)
+           try
+           {
+             share_manager.issue_shares(tx);
+           }
+           catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: Updating recovery shares failed", proposal_id);
+               "Proposal {}: Updating recovery shares failed: {}",
+               proposal_id,
+               e.what());
+             return false;
            }
-           return shares_updated;
+           return true;
          }},
         {"set_recovery_threshold",
          [this](
@@ -359,7 +365,17 @@ namespace ccf
            }
 
            // Update recovery shares (same number of shares)
-           return node.split_ledger_secrets(tx);
+           try
+           {
+             share_manager.issue_shares(tx);
+           }
+           catch (const std::logic_error& e)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: Setting recovery threshold failed: {}", e.what());
+             return false;
+           }
+           return true;
          }},
       };
 
@@ -789,11 +805,15 @@ namespace ccf
           members->put(args.caller_id, *member);
 
           // New active members are allocated a new recovery share
-          if (!node.split_ledger_secrets(args.tx))
+          try
+          {
+            share_manager.issue_shares(args.tx);
+          }
+          catch (const std::logic_error& e)
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Error splitting ledger secrets");
+              fmt::format("Error issuing new recovery shares {}", e.what()));
           }
         }
         return make_success(true);
@@ -978,12 +998,7 @@ namespace ccf
 
         g.add_consensus(in.consensus_type);
 
-        if (!node.split_ledger_secrets(tx))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Error splitting ledger secrets");
-        }
+        share_manager.issue_shares(tx);
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,

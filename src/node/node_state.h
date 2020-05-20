@@ -738,7 +738,7 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_shares_on_recovery(
-          tx, last_recovered_commit_idx + 1); // TODO: Shouldn't be this!!!
+          tx, last_recovered_commit_idx + 1);
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1028,22 +1028,6 @@ namespace ccf
     ShareManager& get_share_manager() override
     {
       return share_manager;
-    }
-
-    // TODO: Use share_manager class directly?
-    // This will break the unit test but it's probably a good thing!
-    bool split_ledger_secrets(Store::Tx& tx) override
-    {
-      try
-      {
-        share_manager.issue_shares(tx);
-      }
-      catch (const std::logic_error& e)
-      {
-        LOG_FAIL_FMT("Failed to update recovery shares info: {}", e.what());
-        return false;
-      }
-      return true;
     }
 
     void restore_ledger_secrets(Store::Tx& tx) override
