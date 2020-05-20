@@ -112,13 +112,13 @@ inline Request* Req_queue::first() const
 
   for (uint32_t i = 0; i < tcount; ++i)
   {
-    count++;
     auto rn = rnodes[count % tcount].get_head();
     if (rn != nullptr)
     {
       PBFT_ASSERT(rn->r != 0, "Invalid state");
       return rn->r.get();
     }
+    count++;
   }
   return 0;
 }
