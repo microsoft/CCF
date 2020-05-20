@@ -3,7 +3,8 @@
 #pragma once
 
 #include "node/entities.h"
-#include "node/secret_share.h"
+// #include "node/secret_share.h"
+#include "node/share_manager.h"
 #include "node_call_types.h"
 
 namespace ccf
@@ -26,7 +27,11 @@ namespace ccf
       const std::optional<std::set<NodeId>>& filter = std::nullopt) = 0;
     virtual NodeId get_node_id() const = 0;
 
+    // TODO: Can call share_manager directly
     virtual bool split_ledger_secrets(Store::Tx& tx) = 0;
+
+    virtual ShareManager& get_share_manager() = 0;
+
     virtual void restore_ledger_secrets(Store::Tx& tx) = 0;
   };
 }

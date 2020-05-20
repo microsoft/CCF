@@ -705,9 +705,6 @@ class CCFRemote(object):
 
     def get_ledger(self):
         self.remote.get(self.ledger_file_name, self.common_dir)
-        LOG.success(
-            f"Retrieve ledger file {self.ledger_file_name} to {self.common_dir}"
-        )
         return os.path.join(self.common_dir, self.ledger_file_name)
 
     def ledger_path(self):

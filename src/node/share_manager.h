@@ -97,6 +97,13 @@ namespace ccf
     std::vector<uint8_t> encrypted_ledger_secret;
   };
 
+  // The ShareManager class provides the interface between the ledger secrets,
+  // the ccf.shares and ccf.submitted_shares KV tables and the rest of the
+  // service. In particular, it is used to:
+  //  - Issue new recovery shares whenever required (e.g. on startup, rekey and
+  //  membership updates)
+  //  - Re-assemble the ledger secrets on recovery, once a threshold of members
+  //  have successfully submitted their shares
   class ShareManager
   {
   private:
@@ -179,6 +186,67 @@ namespace ccf
                             compute_encrypted_shares(tx, ls_wrapping_key)});
     }
 
+    // TODO: Move this to a different class?
+    std::vector<uint8_t> encrypt_submitted_share(
+      const std::vector<uint8_t>& submitted_share)
+    {
+      // Submitted recovery shares are encrypted with the latest ledger secret.
+      crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
+
+      auto iv = tls::create_entropy()->random(crypto::GCM_SIZE_IV);
+      encrypted_submitted_share.hdr.set_iv(iv.data(), iv.size());
+
+      crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
+        .encrypt(
+          encrypted_submitted_share.hdr.get_iv(),
+          submitted_share,
+          nullb,
+          encrypted_submitted_share.cipher.data(),
+          encrypted_submitted_share.hdr.tag);
+
+      return encrypted_submitted_share.serialise();
+    }
+
+    std::vector<uint8_t> decrypt_submitted_share(
+      const std::vector<uint8_t>& encrypted_submitted_share)
+    {
+      crypto::GcmCipher encrypted_share;
+      encrypted_share.deserialise(encrypted_submitted_share);
+      std::vector<uint8_t> decrypted_share(encrypted_share.cipher.size());
+
+      crypto::KeyAesGcm(network.ledger_secrets->get_latest().master)
+        .decrypt(
+          encrypted_share.hdr.get_iv(),
+          encrypted_share.hdr.tag,
+          encrypted_share.cipher,
+          nullb,
+          decrypted_share.data());
+
+      return decrypted_share;
+    }
+
+    LedgerSecretWrappingKey combine_from_submitted_shares(Store::Tx& tx)
+    {
+      auto submitted_shares = tx.get_view(network.submitted_shares)->get(0);
+      if (!submitted_shares.has_value())
+      {
+        throw std::logic_error("Failed to retrieve current submitted shares");
+      }
+
+      std::vector<SecretSharing::Share> shares;
+      for (auto const& s : submitted_shares.value())
+      {
+        SecretSharing::Share share;
+        auto decrypted_share = decrypt_submitted_share(s.second);
+        std::copy_n(
+          decrypted_share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+        shares.emplace_back(share);
+      }
+
+      return LedgerSecretWrappingKey(
+        SecretSharing::combine(shares, shares.size()));
+    }
+
   public:
     ShareManager(NetworkState& network_) : network(network_) {}
 
@@ -210,23 +278,10 @@ namespace ccf
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
     {
       // First, re-assemble the ledger secret wrapping key from the submitted
-      // shares. Then, unwrap the latest ledger secret and use it to decrypt the
-      // previous ledger secret and so on.
-      std::vector<SecretSharing::Share> shares;
-      auto submitted_shares = tx.get_view(network.submitted_shares)->get(0);
+      // encrypted shares. Then, unwrap the latest ledger secret and use it to
+      // decrypt the previous ledger secret and so on.
 
-      // TODO: Check that optional is valid
-
-      for (auto const& s : submitted_shares.value())
-      {
-        SecretSharing::Share share;
-        std::copy_n(
-          s.second.begin(), SecretSharing::SHARE_LENGTH, share.begin());
-        shares.emplace_back(share);
-      }
-
-      auto ls_wrapping_key =
-        LedgerSecretWrappingKey(SecretSharing::combine(shares, shares.size()));
+      auto ls_wrapping_key = combine_from_submitted_shares(tx);
 
       auto recovery_shares_info = tx.get_view(network.shares)->get(0);
       if (!recovery_shares_info.has_value())
@@ -262,7 +317,7 @@ namespace ccf
 
         crypto::GcmCipher encrypted_ls;
         encrypted_ls.deserialise(i->encrypted_ledger_secret);
-        auto decrypted_ls = std::vector<uint8_t>(encrypted_ls.cipher.size());
+        std::vector<uint8_t> decrypted_ls(encrypted_ls.cipher.size());
 
         if (!crypto::KeyAesGcm(decryption_key)
                .decrypt(
@@ -288,6 +343,38 @@ namespace ccf
       network.ledger_secrets->restore(std::move(restored_ledger_secrets));
 
       return restored_versions;
+    }
+
+    size_t submit_recovery_share(
+      Store::Tx& tx,
+      MemberId member_id,
+      const std::vector<uint8_t>& submitted_recovery_share)
+    {
+      auto [service_view, submitted_shares_view] =
+        tx.get_view(network.service, network.submitted_shares);
+      auto active_service = service_view->get(0);
+      if (!active_service.has_value())
+      {
+        throw std::logic_error("Failed to get active service");
+      }
+
+      auto submitted_shares = submitted_shares_view->get(0);
+      if (!submitted_shares.has_value())
+      {
+        throw std::logic_error(
+          "Failed to get current submitted recovery shares");
+      }
+
+      auto submitted_shares_map = submitted_shares.value();
+      submitted_shares_map[member_id] =
+        encrypt_submitted_share(submitted_recovery_share);
+
+      submitted_shares_view->put(0, submitted_shares_map);
+
+      LOG_FAIL_FMT(
+        "submitted_shares_map.size() {}", submitted_shares_map.size());
+
+      return submitted_shares_map.size();
     }
   };
 }

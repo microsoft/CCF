@@ -533,6 +533,7 @@ namespace ccf
 
     NetworkTables& network;
     AbstractNodeState& node;
+    ShareManager& share_manager;
     const lua::TxScriptRunner tsr;
 
   public:
@@ -540,6 +541,7 @@ namespace ccf
       CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
+      share_manager(node.get_share_manager()),
       tsr(network)
     {}
 
@@ -889,6 +891,8 @@ namespace ccf
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
+        LOG_FAIL_FMT("Submitting recovered share, member {}", args.caller_id);
+
         GenesisGenerator g(this->network, args.tx);
         if (
           g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
@@ -906,13 +910,26 @@ namespace ccf
 
         const auto in = params.get<SubmitRecoveryShare>();
 
-        if (
-          g.submit_recovery_share(args.caller_id, in.recovery_share).value() <
-          g.get_recovery_threshold())
+        size_t submitted_shares_count = 0;
+        try
+        {
+          submitted_shares_count = share_manager.submit_recovery_share(
+            args.tx, args.caller_id, in.recovery_share);
+        }
+        catch (const std::logic_error& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("Could not submit recovery share: {}", e.what()));
+        }
+
+        if (submitted_shares_count < g.get_recovery_threshold())
         {
           // TODO: Return the number of recovery shares submitted so far
           // TODO: Recovery threshold should not be able to be changed if the
           // service is waiting for recovery shares
+          // TODO: It should not be possible to rekey while the server is
+          // waiting for recovery shares
 
           // The number of shares required to re-assemble the secret has not yet
           // been reached
@@ -934,7 +951,7 @@ namespace ccf
         //     "protocol");
         // }
 
-        g.clear_submitted_recovery_shares();
+        g.clear_submitted_recovery_shares(); // TODO: We shouldn't need this
         return make_success(true);
       };
       install(

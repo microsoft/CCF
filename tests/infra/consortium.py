@@ -323,6 +323,7 @@ class Consortium:
                     remote_node, defunct_network_enc_pubk
                 )
                 r = m.submit_recovery_share(remote_node, decrypted_share)
+                submitted_shares_count += 1
                 check_commit(
                     r,
                     result=True
@@ -330,7 +331,6 @@ class Consortium:
                     else False,
                 )
 
-                submitted_shares_count += 1
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """

@@ -316,48 +316,6 @@ namespace ccf
       return true;
     }
 
-    // TODO: Better error handling so that exception is sent back to client?
-    std::optional<size_t> submit_recovery_share(
-      MemberId member_id, const std::vector<uint8_t>& submitted_recovery_share)
-    {
-      auto [service_view, submitted_shares_view, config_view] =
-        tx.get_view(tables.service, tables.submitted_shares, tables.shares);
-      auto active_service = service_view->get(0);
-      if (!active_service.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get active service");
-        return std::nullopt;
-      }
-
-      if (active_service->status != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
-      {
-        LOG_FAIL_FMT(
-          "Could not submit recovery share on current service: status is not "
-          "WAITING_FOR_RECOVERY_SHARES");
-        return std::nullopt;
-      }
-
-      auto submitted_shares = submitted_shares_view->get(0);
-      if (!submitted_shares.has_value())
-      {
-        LOG_FAIL_FMT("Failed to get current submitted recovery shares");
-        return std::nullopt;
-      }
-
-      auto submitted_shares_map = submitted_shares.value();
-      if (submitted_shares_map.find(member_id) != submitted_shares_map.end())
-      {
-        LOG_FAIL_FMT(
-          "Member {} cannot submit their recovery shares twice", member_id);
-        return std::nullopt;
-      }
-
-      submitted_shares_map[member_id] = submitted_recovery_share;
-      submitted_shares_view->put(0, submitted_shares_map);
-
-      return submitted_shares_map.size();
-    }
-
     void clear_submitted_recovery_shares()
     {
       auto submitted_shares_view = tx.get_view(tables.submitted_shares);

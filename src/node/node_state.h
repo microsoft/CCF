@@ -960,6 +960,10 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
+      // TODO: Check that the service is not waiting for recovery shares
+      // This is important because the submitted shares are encrypted with the
+      // latest ledger secrets
+
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered.
 
@@ -1009,6 +1013,13 @@ namespace ccf
       });
     };
 
+    ShareManager& get_share_manager() override
+    {
+      return share_manager;
+    }
+
+    // TODO: Use share_manager class directly?
+    // This will break the unit test but it's probably a good thing!
     bool split_ledger_secrets(Store::Tx& tx) override
     {
       try
