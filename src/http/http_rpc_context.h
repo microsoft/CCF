@@ -43,7 +43,7 @@ namespace http
     auto response = http::Response(status);
 
     response.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
     response.set_body(&data);
 
     return response.build_response();
