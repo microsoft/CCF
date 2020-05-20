@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/json.h"
-#include "../ds/serialized.h"
+#include "ds/json.h"
+#include "ds/serialized.h"
 #include "generic_serialise_wrapper.h"
-#include "kv_types.h"
 
 #include <iterator>
 #include <nlohmann/json.hpp>
@@ -14,16 +13,6 @@
 
 namespace kv
 {
-  class JsonWriter;
-  template <typename W>
-  class GenericSerialiseWrapper;
-  using KvStoreSerialiser = GenericSerialiseWrapper<JsonWriter>;
-
-  class JsonReader;
-  template <typename W>
-  class GenericDeserialiseWrapper;
-  using KvStoreDeserialiser = GenericDeserialiseWrapper<JsonReader>;
-
   class JsonWriter
   {
   private:
@@ -98,4 +87,7 @@ namespace kv
       return data_offset >= arr.size();
     }
   };
+
+  using KvStoreSerialiser = GenericSerialiseWrapper<JsonWriter>;
+  using KvStoreDeserialiser = GenericDeserialiseWrapper<JsonReader>;
 }

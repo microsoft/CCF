@@ -52,18 +52,19 @@ def get_node_local_commit(node):
         return r.commit, r.global_commit
 
 
-def wait_for_late_joiner(old_node, late_joiner):
+def wait_for_late_joiner(old_node, late_joiner, timeout=30):
     old_node_lc, old_node_gc = get_node_local_commit(old_node)
     LOG.success(
         f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
     )
-    while True:
+    end = time.time() + timeout
+    while time.time() <= end:
         lc, gc = get_node_local_commit(late_joiner)
         LOG.success(
             f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
         )
         if lc >= old_node_lc:
-            break
+            return
         time.sleep(1)
 
 

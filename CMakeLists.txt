@@ -588,6 +588,12 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
+      NAME ws_scaffold_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
+      CONSENSUS ${CONSENSUS}
+    )
+
+    add_e2e_test(
       NAME lua_end_to_end_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS ${CONSENSUS}

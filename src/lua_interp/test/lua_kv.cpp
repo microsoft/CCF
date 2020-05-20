@@ -17,24 +17,24 @@ using namespace nlohmann;
 
 namespace ccf
 {
-  using TableII = ccf::Store::Map<int, int>;
+  using TableII = kv::Map<int, int>;
   using TxII = TableII::TxView;
 
-  using TableIS = ccf::Store::Map<int, std::string>;
+  using TableIS = kv::Map<int, std::string>;
   using TxIS = TableIS::TxView;
 
-  using TableSB = ccf::Store::Map<std::string, bool>;
+  using TableSB = kv::Map<std::string, bool>;
   using TxSB = TableSB::TxView;
 
-  using TableVI = ccf::Store::Map<vector<uint8_t>, int>;
+  using TableVI = kv::Map<vector<uint8_t>, int>;
   using TxVI = TableVI::TxView;
 
   TEST_CASE("lua tx")
   {
-    ccf::Store tables;
+    kv::Store tables;
     auto& table = tables.create<TableIS>("test", kv::SecurityDomain::PUBLIC);
 
-    ccf::Tx txs;
+    kv::Tx txs;
 
     const auto a = "Alice";
     const auto b = "Bob";
@@ -90,12 +90,6 @@ namespace ccf
       constexpr auto remove(
         "local tx, n = ...;"
         "return tx:remove(n)");
-      constexpr auto start_order(
-        "local tx = ...;"
-        "return tx:start_order()");
-      constexpr auto end_order(
-        "local tx = ...;"
-        "return tx:end_order()");
       constexpr auto k = 0;
       constexpr auto s0 = "Something";
       constexpr auto s1 = "Something else";
@@ -123,27 +117,17 @@ namespace ccf
         REQUIRE(li.invoke<int>(count_keys, tx) == 1);
       }
 
-      INFO("Pre-commit orders can be read from lua");
+      INFO("Transaction is committed");
       {
         REQUIRE(tx->put(k, s0));
-
-        REQUIRE(li.invoke<int>(start_order, tx) == tx->start_order());
-        REQUIRE(li.invoke<nullptr_t>(end_order, tx) == nullptr);
-      }
-
-      INFO("Post-commit orders can be read from lua");
-      {
         REQUIRE(txs.commit() == kv::CommitSuccess::OK);
-
-        REQUIRE(li.invoke<int>(start_order, tx) == tx->start_order());
-        REQUIRE(li.invoke<int>(end_order, tx) == tx->end_order());
       }
 
       INFO("get_commit from lua");
       {
-        tables.compact(tx->end_order());
+        tables.compact(tables.current_version());
 
-        ccf::Tx next_txs;
+        kv::Tx next_txs;
         auto next_tx = next_txs.get_view(table);
 
         REQUIRE(next_tx->put(k, s1));
@@ -170,12 +154,12 @@ namespace ccf
 
   TEST_CASE("multiple tables")
   {
-    ccf::Store tables;
+    kv::Store tables;
     auto& ii = tables.create<TableII>("test_ii", kv::SecurityDomain::PUBLIC);
     auto& is = tables.create<TableIS>("test_is", kv::SecurityDomain::PUBLIC);
     auto& sb = tables.create<TableSB>("test_sb", kv::SecurityDomain::PUBLIC);
 
-    ccf::Tx txs;
+    kv::Tx txs;
     auto tx = txs.get_view(ii, is, sb);
     auto tx_ii = get<0>(tx);
     auto tx_is = get<1>(tx);
@@ -240,9 +224,9 @@ namespace ccf
     Interpreter li;
     li.register_metatable<TxVI>(kv_methods<TxVI>);
 
-    ccf::Store tables;
+    kv::Store tables;
     auto& table = tables.create<TableVI>("v");
-    ccf::Tx txs;
+    kv::Tx txs;
     auto tx = txs.get_view(table);
     tx->put(vector<uint8_t>(100, 1), 123);
 
@@ -344,9 +328,9 @@ namespace ccf
   return handlers[method]()
   )xxx";
 
-    ccf::Store tables;
+    kv::Store tables;
     auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
-    ccf::Tx txs;
+    kv::Tx txs;
     auto tx = txs.get_view(table);
 
     auto create = [tx](int dst, int amt) {
@@ -404,9 +388,9 @@ namespace ccf
       "local tx, k = ...;"
       "return tx:get(k)");
 
-    ccf::Store tables;
+    kv::Store tables;
     auto& table = tables.create<TableII>("t", kv::SecurityDomain::PUBLIC);
-    ccf::Tx txs;
+    kv::Tx txs;
     auto tx = txs.get_view(table);
 
     Interpreter li;

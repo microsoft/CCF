@@ -127,7 +127,7 @@ public:
 
   size_t num_correct_replicas() const;
   size_t f() const;
-  void set_f(ccf::NodeId f);
+  void set_f(size_t f);
   void emit_signature_on_next_pp(int64_t version);
   View view() const;
   bool is_primary() const;
@@ -211,7 +211,7 @@ public:
   // passed to us.
 
   // Playback methods
-  void playback_request(ccf::Tx& tx);
+  void playback_request(kv::Tx& tx);
   // Effects: Requests are executed
 
   void populate_certificates(Pre_prepare* pp);
@@ -230,7 +230,7 @@ public:
   // "prev_prepared_cert". Also creates and adds the "Prepare" message for the
   // caller
 
-  void playback_pre_prepare(ccf::Tx& tx);
+  void playback_pre_prepare(kv::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
 
@@ -366,8 +366,8 @@ private:
   std::unique_ptr<ExecCommandMsg> execute_tentative_request(
     Request& request,
     int64_t& max_local_commit_value,
-    bool include_markle_roots,
-    ccf::Tx* tx = nullptr,
+    bool include_merkle_roots,
+    kv::Tx* tx = nullptr,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the
   // request. seqno == -1 means we are running it from playback
@@ -503,7 +503,7 @@ private:
   // Latest byz info when we are in playback mode. Used to compare the latest
   // execution mt roots and version with the ones in the pre prepare we will get
   // while we are at playback mode
-  Seqno playback_pp_seqno = 0;
+  Seqno playback_pp_seqno = -1;
   // seqno of latest pre prepare executed in playback mode
   bool waiting_for_playback_pp = false;
   // indicates if we are in append entries playback mode and have executed a

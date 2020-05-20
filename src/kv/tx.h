@@ -2,16 +2,29 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
+#include "view_containers.h"
 
 namespace kv
 {
-  template <class S, class D>
-  class Tx : public ViewContainer<S, D>
+  static inline std::map<kv::SecurityDomain, std::vector<AbstractTxView*>>
+  get_views_grouped_by_domain(const OrderedViews& maps)
+  {
+    std::map<kv::SecurityDomain, std::vector<AbstractTxView*>> grouped_views;
+    for (auto it = maps.cbegin(); it != maps.cend(); ++it)
+    {
+      grouped_views[it->second.map->get_security_domain()].push_back(
+        it->second.view.get());
+    }
+    return grouped_views;
+  }
+
+  class Tx : public ViewContainer
   {
   private:
-    OrderedViews<S, D> view_list;
+    OrderedViews view_list;
     bool committed;
     bool success;
     Version read_version;
@@ -26,7 +39,7 @@ namespace kv
       auto search = view_list.find(m.get_name());
       if (search != view_list.end())
         return std::make_tuple(
-          static_cast<typename M::TxView*>(search->second.view.get()));
+          dynamic_cast<typename M::TxView*>(search->second.view.get()));
 
       auto it = view_list.begin();
       if (it != view_list.end())
@@ -43,10 +56,10 @@ namespace kv
         read_version = m.get_store()->current_version();
       }
 
-      typename M::TxView* view = m.create_view(read_version);
-      view_list[m.get_name()] = {&m,
-                                 std::unique_ptr<AbstractTxView<S, D>>(view)};
-      return std::make_tuple(view);
+      AbstractTxView* view = m.create_view(read_version);
+      auto typed_view = dynamic_cast<typename M::TxView*>(view);
+      view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView>(view)};
+      return std::make_tuple(typed_view);
     }
 
     template <class M, class... Ms>
@@ -76,7 +89,7 @@ namespace kv
 
     Tx(const Tx& that) = delete;
 
-    void set_view_list(OrderedViews<S, D>& view_list_) override
+    void set_view_list(OrderedViews& view_list_) override
     {
       // if view list is not empty then any coinciding keys will not be
       // overwritten
@@ -247,18 +260,18 @@ namespace kv
       auto map = view_list.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
-      S replicated_serialiser(e, version);
+      KvStoreSerialiser replicated_serialiser(e, version);
       // flags that indicate if we have actually written any data in the
       // serializers
-      auto grouped_maps = get_maps_grouped_by_domain(view_list);
+      auto grouped_views = get_views_grouped_by_domain(view_list);
 
-      for (auto domain_it : grouped_maps)
+      for (auto domain_it : grouped_views)
       {
-        for (auto curr_map : domain_it.second)
+        for (auto curr_view : domain_it.second)
         {
-          if (curr_map->is_replicated())
+          if (curr_view->is_replicated())
           {
-            curr_map->serialise(replicated_serialiser, include_reads);
+            curr_view->serialise(replicated_serialiser, include_reads);
           }
         }
       }
