@@ -500,7 +500,7 @@ namespace pbft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       pbft::Request request = {
-        args.caller_id, args.caller_cert, args.request, {}};
+        args.caller_id, args.caller_cert, args.request, {}, args.frame_format};
       auto serialized_req = request.serialise();
 
       auto rep_cb = [&](

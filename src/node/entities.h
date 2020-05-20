@@ -69,3 +69,12 @@ namespace ccf
     static constexpr auto CONFIGURATION = "ccf.config";
   };
 }
+
+namespace enclave
+{
+  enum FrameFormat : uint8_t
+  {
+    http = 0,
+    ws
+  };
+}
