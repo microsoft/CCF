@@ -5,7 +5,7 @@
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
-#include "views.h"
+#include "view_containers.h"
 
 namespace kv
 {
@@ -32,19 +32,6 @@ namespace kv
     Version rollback_count = 0;
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
-
-    inline std::map<kv::SecurityDomain, std::vector<AbstractMap*>>
-    get_maps_grouped_by_domain(
-      const std::map<std::string, std::unique_ptr<AbstractMap>>& maps)
-    {
-      std::map<kv::SecurityDomain, std::vector<AbstractMap*>> grouped_maps;
-      for (auto it = maps.begin(); it != maps.end(); ++it)
-      {
-        grouped_maps[it->second->get_security_domain()].push_back(
-          it->second.get());
-      }
-      return grouped_maps;
-    }
 
     DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
     {
@@ -163,12 +150,9 @@ namespace kv
     template <class K, class V, class H = std::hash<K>>
     Map<K, V, H>& create(
       std::string name,
-      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
-      typename Map<K, V, H>::CommitHook local_hook = nullptr,
-      typename Map<K, V, H>::CommitHook global_hook = nullptr)
+      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
     {
-      return create<Map<K, V, H>>(
-        name, security_domain, local_hook, global_hook);
+      return create<Map<K, V, H>>(name, security_domain);
     }
 
     /** Create a Map
@@ -184,9 +168,7 @@ namespace kv
     template <class M>
     M& create(
       std::string name,
-      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE,
-      typename M::CommitHook local_hook = nullptr,
-      typename M::CommitHook global_hook = nullptr)
+      SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -206,8 +188,7 @@ namespace kv
         }
       }
 
-      auto result =
-        new M(this, name, security_domain, replicated, local_hook, global_hook);
+      auto result = new M(this, name, security_domain, replicated);
       maps[name] = std::unique_ptr<AbstractMap>(result);
       return *result;
     }

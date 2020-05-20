@@ -178,7 +178,7 @@ TEST_CASE("Rollback and compact")
     auto view = tx.get_view(map);
     view->put(k, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    kv_store.compact(view->end_order());
+    kv_store.compact(kv_store.current_version());
 
     auto view2 = tx2.get_view(map);
     auto va = view2->get_globally_committed(k);
@@ -193,7 +193,7 @@ TEST_CASE("Rollback and compact")
     auto view = tx.get_view(map);
     REQUIRE(view->remove(k));
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-    kv_store.compact(view->end_order());
+    kv_store.compact(kv_store.current_version());
 
     auto view2 = tx2.get_view(map);
     auto va = view2->get_globally_committed(k);
@@ -256,7 +256,9 @@ TEST_CASE("Local commit hooks")
 
   kv::Store kv_store;
   auto& map = kv_store.create<std::string, std::string>(
-    "map", kv::SecurityDomain::PUBLIC, local_hook, global_hook);
+    "map", kv::SecurityDomain::PUBLIC);
+  map.set_local_hook(local_hook);
+  map.set_global_hook(global_hook);
 
   INFO("Write with hooks");
   {
@@ -322,7 +324,8 @@ TEST_CASE("Global commit hooks")
 
   kv::Store kv_store;
   auto& map_with_hook = kv_store.create<std::string, std::string>(
-    "map_with_hook", kv::SecurityDomain::PUBLIC, nullptr, global_hook);
+    "map_with_hook", kv::SecurityDomain::PUBLIC);
+  map_with_hook.set_global_hook(global_hook);
   auto& map_no_hook = kv_store.create<std::string, std::string>(
     "map_no_hook", kv::SecurityDomain::PUBLIC);
 

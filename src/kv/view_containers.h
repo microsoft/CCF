@@ -3,28 +3,24 @@
 #pragma once
 
 #include "kv_types.h"
-#include "map.h"
 
 #include <functional>
 #include <map>
 
 namespace kv
 {
+  struct MapView
+  {
+    // Weak pointer to source map
+    AbstractMap* map;
+
+    // Owning pointer of TxView over that map
+    std::unique_ptr<AbstractTxView> view;
+  };
+
   // When a collection of Maps are locked, the locks must be acquired in a
   // stable order to avoid deadlocks. This ordered map will claim in name-order
   using OrderedViews = std::map<std::string, MapView>;
-
-  static inline std::map<kv::SecurityDomain, std::vector<AbstractTxView*>>
-  get_maps_grouped_by_domain(const OrderedViews& maps)
-  {
-    std::map<kv::SecurityDomain, std::vector<AbstractTxView*>> grouped_maps;
-    for (auto it = maps.cbegin(); it != maps.cend(); ++it)
-    {
-      grouped_maps[it->second.map->get_security_domain()].push_back(
-        it->second.view.get());
-    }
-    return grouped_maps;
-  }
 
   struct ViewContainer
   {
