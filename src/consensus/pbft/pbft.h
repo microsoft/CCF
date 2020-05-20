@@ -529,6 +529,10 @@ namespace pbft
 
     View get_view(SeqNo seqno) override
     {
+      // replicas reply to requests on prepare but globally commit (update
+      // view_change_list) on commit. Should get the view from the consensus
+      // if we are inquiring for a recent seqno since the view might have
+      // changed but view_change_list might not know about it yet.
       auto last_vc_info = view_change_list.back();
       if (last_vc_info.min_global_commit < seqno)
       {
