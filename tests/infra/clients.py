@@ -355,12 +355,12 @@ class RequestClient:
             response = self.session.request(
                 timeout=self.request_timeout, **request_args
             )
-        except requests.exceptions.ReadTimeout:
-            raise TimeoutError
-        except requests.exceptions.SSLError:
-            raise CCFConnectionException
-        except:
-            raise RuntimeError("Request client failed with unexpected error")
+        except requests.exceptions.ReadTimeout as exc:
+            raise TimeoutError from exc
+        except requests.exceptions.SSLError as exc:
+            raise CCFConnectionException from exc
+        except Exception as exc:
+            raise RuntimeError("Request client failed with unexpected error") from exc
 
         return Response.from_requests_response(response)
 
@@ -382,15 +382,18 @@ class WSClient:
 
         if not self.ws:
             LOG.info("Creating WSS connection")
-            self.ws = websocket.create_connection(
-                f"wss://{self.host}:{self.port}",
-                sslopt={
-                    "certfile": self.cert,
-                    "keyfile": self.key,
-                    "ca_certs": self.ca,
-                },
-                timeout=self.request_timeout,
-            )
+            try:
+                self.ws = websocket.create_connection(
+                    f"wss://{self.host}:{self.port}",
+                    sslopt={
+                        "certfile": self.cert,
+                        "keyfile": self.key,
+                        "ca_certs": self.ca,
+                    },
+                    timeout=self.request_timeout,
+                )
+            except Exception as exc:
+                raise CCFConnectionException from exc
         payload = json.dumps(request.params).encode()
         path = ("/" + request.method).encode()
         header = struct.pack("<h", len(path)) + path
@@ -461,8 +464,8 @@ class CCFClient:
                 # not yet being endorsed by the network) sleep briefly and try again
                 if time.time() > end_time:
                     raise CCFConnectionException(
-                        f"Connection still failing after {self.connection_timeout}s: {e}"
-                    )
+                        f"Connection still failing after {self.connection_timeout}s"
+                    ) from e
                 LOG.debug(f"Got exception: {e}")
                 time.sleep(0.1)
 
