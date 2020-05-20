@@ -453,6 +453,8 @@ namespace ccf
 
             if (resp.public_only)
             {
+              last_recovered_commit_idx = resp.last_recovered_commit_idx;
+              setup_recovery_hook();
               sm.advance(State::partOfPublicNetwork);
             }
             else
@@ -736,7 +738,7 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_shares_on_recovery(
-          tx, last_recovered_commit_idx + 1);
+          tx, last_recovered_commit_idx + 1); // TODO: Shouldn't be this!!!
         GenesisGenerator g(network, tx);
         if (!g.open_service())
         {
@@ -1430,48 +1432,56 @@ namespace ccf
       });
     }
 
+    kv::Version get_last_recovered_commit_idx() override
+    {
+      // On recovery, only one node recovers the public ledger and is thus aware
+      // of the version at which the new ledger secret is applicable from. If
+      // the primary changes while the network is public-only, the new primary
+      // should also know at which version the new ledger secret is applicable
+      // from.
+      std::lock_guard<SpinLock> guard(lock);
+      return last_recovered_commit_idx;
+    }
+
     void setup_recovery_hook()
     {
+      LOG_FAIL_FMT("Setting recovery hook!");
       network.shares.set_local_hook(
         [this](
           kv::Version version, const Shares::State& s, const Shares::Write& w) {
-          if (is_reading_public_ledger())
+          for (auto& [k, v] : w)
           {
-            for (auto& [k, v] : w)
+            kv::Version ledger_secret_version;
+            if (version == 1)
             {
-              kv::Version ledger_secret_version;
-              if (version == 1)
-              {
-                // Special case for the genesis transaction, which is applicable
-                // from the very first transaction
-                ledger_secret_version = 1;
-              }
-              else
-              {
-                // If the version is not set (rekeying), use the version
-                // from the hook plus one. Otherwise (recovery), use the
-                // version specified.
-                ledger_secret_version =
-                  v.value.wrapped_latest_ledger_secret.version ==
-                    kv::NoVersion ?
-                  (version + 1) :
-                  v.value.wrapped_latest_ledger_secret.version;
-              }
+              // Special case for the genesis transaction, which is applicable
+              // from the very first transaction
+              ledger_secret_version = 1;
+            }
+            else
+            {
+              // If the version is not set (rekeying), use the version
+              // from the hook plus one. Otherwise (recovery), use the
+              // version specified.
+              ledger_secret_version =
+                v.value.wrapped_latest_ledger_secret.version == kv::NoVersion ?
+                (version + 1) :
+                v.value.wrapped_latest_ledger_secret.version;
+            }
 
-              // No encrypted ledger secret are stored in the case of a pure
-              // re-share (i.e. no ledger rekey).
-              if (
-                !v.value.encrypted_previous_ledger_secret.empty() ||
-                ledger_secret_version == 1)
-              {
-                LOG_TRACE_FMT(
-                  "Adding one encrypted recovery ledger secret at {}",
-                  ledger_secret_version);
+            // No encrypted ledger secret are stored in the case of a pure
+            // re-share (i.e. no ledger rekey).
+            if (
+              !v.value.encrypted_previous_ledger_secret.empty() ||
+              ledger_secret_version == 1)
+            {
+              LOG_TRACE_FMT(
+                "Adding one encrypted recovery ledger secret at {}",
+                ledger_secret_version);
 
-                recovery_ledger_secrets.push_back(
-                  {ledger_secret_version,
-                   v.value.encrypted_previous_ledger_secret});
-              }
+              recovery_ledger_secrets.push_back(
+                {ledger_secret_version,
+                 v.value.encrypted_previous_ledger_secret});
             }
           }
         });

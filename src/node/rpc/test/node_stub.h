@@ -13,9 +13,14 @@ namespace ccf
     bool is_public = false;
     std::shared_ptr<NetworkTables> network;
 
+    NetworkState network_state;
+    ShareManager share_manager;
+
   public:
     StubNodeState(std::shared_ptr<NetworkTables> network_ = nullptr) :
-      network(network_)
+      network(network_),
+      network_state(ConsensusType::RAFT), // TODO: Remove
+      share_manager(network_state) // TODO: Remove
     {}
 
     bool accept_recovery(Store::Tx& tx) override
@@ -100,14 +105,25 @@ namespace ccf
       }
 
       std::vector<SecretSharing::Share> shares;
-      // for (auto const& s : submitted_shares.value())
-      // {
-      //   SecretSharing::Share share;
-      //   std::copy_n(
-      //     s.second.begin(), SecretSharing::SHARE_LENGTH, share.begin());
-      //   shares.emplace_back(share);
-      // }
+      for (auto const& s : submitted_shares.value())
+      {
+        SecretSharing::Share share;
+        std::copy_n(
+          s.second.begin(), SecretSharing::SHARE_LENGTH, share.begin());
+        shares.emplace_back(share);
+      }
       SecretSharing::combine(shares, shares.size());
+    }
+
+    kv::Version get_last_recovered_commit_idx() override
+    {
+      return kv::NoVersion;
+    }
+
+    // TODO: Super bad hack for now. Please fix this!!
+    ShareManager& get_share_manager() override
+    {
+      return share_manager;
     }
 
     NodeId get_node_id() const override
