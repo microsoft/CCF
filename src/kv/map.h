@@ -147,7 +147,6 @@ namespace kv
     {
       if (change_set->writes.empty())
       {
-        // TODO: This is a huge semantic change, reads get no commit version?
         commit_version = change_set->start_version;
         return;
       }
@@ -325,6 +324,7 @@ namespace kv
       const auto view_ = dynamic_cast<const TxViewCommitter<K, V, H>*>(view);
       if (view_ == nullptr)
       {
+        // TODO: This should be a louder error...
         return;
       }
 
