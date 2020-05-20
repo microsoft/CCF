@@ -52,44 +52,38 @@ namespace kv
   class Map;
 
   template <class K, class V, class H>
-  class ConcreteTxView : public TxView<K, V, H>, public AbstractTxView
+  class TxViewCommitter : public AbstractTxView
   {
-  protected:
-    using Base = TxView<K, V, H>;
-    using State = typename Base::State;
+    // TODO: All state is public since Map::deserialise wants to build it
+    // manually. Is this right?
+    // And we also need to friend it, so it can access our protected state...
+
+  public:
+    using ChangeSetPtr = std::unique_ptr<ChangeSet<K, V, H>>;
 
     using MyMap = Map<K, V, H>;
+    friend MyMap;
 
-    using Base::read_version;
-    using Base::reads;
-    using Base::start_version;
-    using Base::writes;
+    ChangeSetPtr change_set;
 
     MyMap& map;
     size_t rollback_counter;
 
-    Version commit_version = NoVersion;
+    Version commit_version;
+
     bool changes = false;
     bool committed_writes = false;
 
-  public:
-    ConcreteTxView(
-      State& current_state,
-      State& committed_state,
-      Version v,
-      MyMap& m,
-      size_t rollbacks) :
-      Base(current_state, committed_state, v),
+    TxViewCommitter(ChangeSetPtr&& cs, MyMap& m, size_t rollbacks) :
+      change_set(std::move(cs)),
       map(m),
       rollback_counter(rollbacks)
     {}
 
-    ConcreteTxView(ConcreteTxView&) = delete;
-
     // Commit-related methods
     bool has_writes() override
     {
-      return committed_writes || !writes.empty();
+      return committed_writes || !change_set->writes.empty();
     }
 
     bool has_changes() override
@@ -99,7 +93,7 @@ namespace kv
 
     bool prepare() override
     {
-      if (writes.empty())
+      if (change_set->writes.empty())
         return true;
 
       // If the parent map has rolled back since this transaction began, this
@@ -110,14 +104,17 @@ namespace kv
       // If we have iterated over the map, check for a global version match.
       auto current = map.roll->get_tail();
 
-      if ((read_version != NoVersion) && (read_version != current->version))
+      if (
+        (change_set->read_version != NoVersion) &&
+        (change_set->read_version != current->version))
       {
-        LOG_DEBUG_FMT("Read version {} is invalid", read_version);
+        LOG_DEBUG_FMT("Read version {} is invalid", change_set->read_version);
         return false;
       }
 
       // Check each key in our read set.
-      for (auto it = reads.begin(); it != reads.end(); ++it)
+      for (auto it = change_set->reads.begin(); it != change_set->reads.end();
+           ++it)
       {
         // Get the value from the current state.
         auto search = current->state.get(it->first);
@@ -148,9 +145,10 @@ namespace kv
 
     void commit(Version v) override
     {
-      if (writes.empty())
+      if (change_set->writes.empty())
       {
-        commit_version = start_version;
+        // TODO: This is a huge semantic change, reads get no commit version?
+        // commit_version = change_set->start_version;
         return;
       }
 
@@ -158,11 +156,13 @@ namespace kv
       commit_version = v;
       committed_writes = true;
 
-      if (!writes.empty())
+      if (!change_set->writes.empty())
       {
         auto state = map.roll->get_tail()->state;
 
-        for (auto it = writes.begin(); it != writes.end(); ++it)
+        for (auto it = change_set->writes.begin();
+             it != change_set->writes.end();
+             ++it)
         {
           if (it->second.version >= 0)
           {
@@ -185,7 +185,8 @@ namespace kv
 
         if (changes)
         {
-          map.roll->insert_back(map.create_new_local_commit(v, state, writes));
+          map.roll->insert_back(
+            map.create_new_local_commit(v, state, change_set->writes));
         }
       }
     }
@@ -195,7 +196,7 @@ namespace kv
       // This is run separately from commit so that all commits in the Tx
       // have been applied before local hooks are run. The maps in the Tx
       // are still locked when post_commit is run.
-      if (writes.empty())
+      if (change_set->writes.empty())
         return;
 
       if (map.local_hook)
@@ -204,100 +205,26 @@ namespace kv
         map.local_hook(roll->version, roll->state, roll->writes);
       }
     }
+  };
 
-    // Serialisation-related methods
-    void serialise(KvStoreSerialiser& s, bool include_reads) override
-    {
-      if (!changes)
-        return;
+  template <typename K, typename V, typename H>
+  struct ConcreteTxView : public TxViewCommitter<K, V, H>,
+                          public TxView<K, V, H>
 
-      s.start_map(map.name, map.get_security_domain());
-
-      if (include_reads)
-      {
-        s.serialise_read_version(read_version);
-
-        s.serialise_count_header(reads.size());
-        for (auto it = reads.begin(); it != reads.end(); ++it)
-          s.serialise_read(it->first, it->second);
-      }
-      else
-      {
-        s.serialise_read_version(NoVersion);
-        s.serialise_count_header(0);
-      }
-
-      uint64_t write_ctr = 0;
-      uint64_t remove_ctr = 0;
-      for (auto it = writes.begin(); it != writes.end(); ++it)
-      {
-        if (!is_deleted(it->second.version))
-        {
-          ++write_ctr;
-        }
-        else
-        {
-          auto search = map.roll->get_tail()->state.get(it->first);
-          if (search.has_value())
-            ++remove_ctr;
-        }
-      }
-      s.serialise_count_header(write_ctr);
-      for (auto it = writes.begin(); it != writes.end(); ++it)
-      {
-        if (!is_deleted(it->second.version))
-        {
-          s.serialise_write(it->first, it->second.value);
-        }
-      }
-
-      s.serialise_count_header(remove_ctr);
-      for (auto it = writes.begin(); it != writes.end(); ++it)
-      {
-        if (is_deleted(it->second.version))
-        {
-          s.serialise_remove(it->first);
-        }
-      }
-    }
-
-    bool deserialise(KvStoreDeserialiser& d, Version version) override
-    {
-      commit_version = version;
-      uint64_t ctr;
-
-      auto rv = d.template deserialise_read_version<Version>();
-      if (rv != NoVersion)
-        read_version = rv;
-
-      ctr = d.deserialise_read_header();
-      for (size_t i = 0; i < ctr; ++i)
-      {
-        auto r = d.template deserialise_read<K>();
-        reads[std::get<0>(r)] = std::get<1>(r);
-      }
-
-      ctr = d.deserialise_write_header();
-      for (size_t i = 0; i < ctr; ++i)
-      {
-        auto w = d.template deserialise_write<K, V>();
-        writes[std::get<0>(w)] = {0, std::get<1>(w)};
-      }
-
-      ctr = d.deserialise_remove_header();
-      for (size_t i = 0; i < ctr; ++i)
-      {
-        auto r = d.template deserialise_remove<K>();
-        writes[r] = {NoVersion, V()};
-      }
-
-      return true;
-    }
-
-    bool is_replicated() override
-    {
-      return map.is_replicated();
-    }
+  {
+  public:
+    ConcreteTxView(
+      State<K, V, H>& current_state,
+      State<K, V, H>& committed_state,
+      Version v,
+      Map<K, V, H>& m,
+      size_t rollbacks) :
+      TxViewCommitter<K, V, H>(
+        std::make_unique<ChangeSet<K, V, H>>(current_state, committed_state, v),
+        m,
+        rollbacks),
+      TxView<K, V, H>(*TxViewCommitter<K, V, H>::change_set) //< BAD! TODO
+    {}
   };
 
   /// Signature for transaction commit handlers
@@ -366,7 +293,6 @@ namespace kv
     }
 
   public:
-    // Public typedef for external consumption
     using TxView = ConcreteTxView<K, V, H>;
 
     Map(
@@ -389,6 +315,115 @@ namespace kv
     virtual AbstractMap* clone(AbstractStore* other) override
     {
       return new Map(other, name, security_domain, replicated);
+    }
+
+    void serialise(
+      AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) override
+    {
+      auto change_set = dynamic_cast<ChangeSet<K, V, H>*>(view);
+      if (change_set == nullptr)
+      {
+        return;
+      }
+
+      s.start_map(name, security_domain);
+
+      if (include_reads)
+      {
+        s.serialise_read_version(change_set->read_version);
+
+        s.serialise_count_header(change_set->reads.size());
+        for (auto it = change_set->reads.begin(); it != change_set->reads.end();
+             ++it)
+        {
+          s.serialise_read(it->first, it->second);
+        }
+      }
+      else
+      {
+        s.serialise_read_version(NoVersion);
+        s.serialise_count_header(0);
+      }
+
+      uint64_t write_ctr = 0;
+      uint64_t remove_ctr = 0;
+      for (auto it = change_set->writes.begin(); it != change_set->writes.end();
+           ++it)
+      {
+        if (!is_deleted(it->second.version))
+        {
+          ++write_ctr;
+        }
+        else
+        {
+          auto search = roll->get_tail()->state.get(it->first);
+          if (search.has_value())
+          {
+            ++remove_ctr;
+          }
+        }
+      }
+
+      s.serialise_count_header(write_ctr);
+      for (auto it = change_set->writes.begin(); it != change_set->writes.end();
+           ++it)
+      {
+        if (!is_deleted(it->second.version))
+        {
+          s.serialise_write(it->first, it->second.value);
+        }
+      }
+
+      s.serialise_count_header(remove_ctr);
+      for (auto it = change_set->writes.begin(); it != change_set->writes.end();
+           ++it)
+      {
+        if (is_deleted(it->second.version))
+        {
+          s.serialise_remove(it->first);
+        }
+      }
+    }
+
+    AbstractTxView* deserialise(
+      KvStoreDeserialiser& d, Version version) override
+    {
+      // Create a new change set, and deserialise d's contents into it
+      auto view = create_view_internal<>(version);
+      view->commit_version = version;
+
+      auto& change_set = view->change_set;
+
+      uint64_t ctr;
+
+      auto rv = d.template deserialise_read_version<Version>();
+      if (rv != NoVersion)
+      {
+        change_set->read_version = rv;
+      }
+
+      ctr = d.deserialise_read_header();
+      for (size_t i = 0; i < ctr; ++i)
+      {
+        auto r = d.template deserialise_read<K>();
+        change_set->reads[std::get<0>(r)] = std::get<1>(r);
+      }
+
+      ctr = d.deserialise_write_header();
+      for (size_t i = 0; i < ctr; ++i)
+      {
+        auto w = d.template deserialise_write<K, V>();
+        change_set->writes[std::get<0>(w)] = {0, std::get<1>(w)};
+      }
+
+      ctr = d.deserialise_remove_header();
+      for (size_t i = 0; i < ctr; ++i)
+      {
+        auto r = d.template deserialise_remove<K>();
+        change_set->writes[r] = {NoVersion, V()};
+      }
+
+      return view;
     }
 
     /** Get the name of the map
@@ -521,14 +556,14 @@ namespace kv
       return !(*this == that);
     }
 
-    AbstractTxView* create_view(Version v) override
+    AbstractTxView* create_view(Version version) override
     {
-      return create_view_internal(v);
+      return create_view_internal<>(version);
     }
 
   private:
     // Provides access to private rollback_counter and roll
-    friend ConcreteTxView<K, V, H>;
+    friend TxViewCommitter<K, V, H>;
 
     void compact(Version v) override
     {
@@ -645,19 +680,20 @@ namespace kv
     }
 
   protected:
-    TxView* create_view_internal(Version version)
+    template <typename TView = TxView>
+    TView* create_view_internal(Version version)
     {
       lock();
 
       // Find the last entry committed at or before this version.
-      TxView* view = nullptr;
+      TView* view = nullptr;
 
       for (auto current = roll->get_tail(); current != nullptr;
            current = current->prev)
       {
         if (current->version <= version)
         {
-          view = new ConcreteTxView<K, V, H>(
+          view = new TView(
             current->state,
             roll->get_head()->state,
             current->version,
@@ -669,7 +705,7 @@ namespace kv
 
       if (view == nullptr)
       {
-        view = new ConcreteTxView<K, V, H>(
+        view = new TView(
           roll->get_head()->state,
           roll->get_head()->state,
           roll->get_head()->version,

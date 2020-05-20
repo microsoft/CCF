@@ -336,12 +336,12 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        auto view = search->second->create_view(v);
         // if we are not committing now then use NoVersion to deserialise
         // otherwise the view will be considered as having a committed
         // version
         auto deserialise_version = (commit ? v : NoVersion);
-        if (!view->deserialise(*d, deserialise_version))
+        auto deserialised_write_set = search->second->deserialise(*d, deserialise_version);
+        if (deserialised_write_set == nullptr)
         {
           LOG_FAIL_FMT(
             "Could not deserialise Tx for map {} at version {}",
@@ -350,8 +350,9 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
+        // Take ownership of the produced write set, store it to be committed later
         views[map_name] = {search->second.get(),
-                           std::unique_ptr<AbstractTxView>(view)};
+                           std::unique_ptr<AbstractTxView>(deserialised_write_set)};
       }
 
       if (!d->end())

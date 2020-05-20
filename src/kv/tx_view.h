@@ -39,6 +39,7 @@ namespace kv
   struct ChangeSet
   {
   public:
+    using State = State<K, V, H>;
     using Read = Read<K, V, H>;
     using Write = Write<K, V, H>;
 
@@ -67,7 +68,7 @@ namespace kv
     using State = State<K, V, H>;
 
     using ChangeSet = ChangeSet<K, V, H>;
-    ChangeSet& change_set;
+    ChangeSet& tx_changes;
 
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
@@ -76,7 +77,7 @@ namespace kv
     using KeyType = K;
     using ValueType = V;
 
-    TxView(ChangeSet& cs) : change_set(cs) {}
+    TxView(ChangeSet& cs) : tx_changes(cs) {}
 
     /** Get value for key
      *
@@ -92,8 +93,8 @@ namespace kv
     {
       // A write followed by a read doesn't introduce a read dependency.
       // If we have written, return the value without updating the read set.
-      auto write = change_set.writes.find(key);
-      if (write != change_set.writes.end())
+      auto write = tx_changes.writes.find(key);
+      if (write != tx_changes.writes.end())
       {
         // Return empty for a key that has been removed.
         if (is_deleted(write->second.version))
@@ -106,16 +107,16 @@ namespace kv
 
       // If the key doesn't exist, return empty and record that we depend on
       // the key not existing.
-      auto search = change_set.state.get(key);
+      auto search = tx_changes.state.get(key);
       if (!search.has_value())
       {
-        change_set.reads.insert(std::make_pair(key, NoVersion));
+        tx_changes.reads.insert(std::make_pair(key, NoVersion));
         return std::nullopt;
       }
 
       // Record the version that we depend on.
       auto& found = search.value();
-      change_set.reads.insert(std::make_pair(key, found.version));
+      tx_changes.reads.insert(std::make_pair(key, found.version));
 
       // If the key has been deleted, return empty.
       if (is_deleted(found.version))
@@ -143,7 +144,7 @@ namespace kv
     std::optional<V> get_globally_committed(const K& key)
     {
       // If there is no committed value, return empty.
-      auto search = change_set.committed.get(key);
+      auto search = tx_changes.committed.get(key);
       if (!search.has_value())
       {
         return std::nullopt;
@@ -173,7 +174,7 @@ namespace kv
     bool put(const K& key, const V& value)
     {
       // Record in the write set.
-      change_set.writes[key] = {0, value};
+      tx_changes.writes[key] = {0, value};
       return true;
     }
 
@@ -188,16 +189,16 @@ namespace kv
      */
     bool remove(const K& key)
     {
-      auto write = change_set.writes.find(key);
-      auto search = change_set.state.get(key).has_value();
+      auto write = tx_changes.writes.find(key);
+      auto search = tx_changes.state.get(key).has_value();
 
-      if (write != change_set.writes.end())
+      if (write != tx_changes.writes.end())
       {
         if (!search)
         {
           // this key only exists locally, there is no reason to maintain and
           // serialise it
-          change_set.writes.erase(key);
+          tx_changes.writes.erase(key);
         }
         else
         {
@@ -215,7 +216,7 @@ namespace kv
       }
 
       // Record in the write set.
-      change_set.writes.emplace(
+      tx_changes.writes.emplace(
         std::piecewise_construct,
         std::forward_as_tuple(key),
         std::forward_as_tuple(NoVersion, V()));
@@ -231,10 +232,10 @@ namespace kv
     bool foreach(F&& f)
     {
       // Record a global read dependency.
-      change_set.read_version = change_set.start_version;
-      auto& w = change_set.writes;
+      tx_changes.read_version = tx_changes.start_version;
+      auto& w = tx_changes.writes;
 
-      change_set.state.foreach([&w, &f](const K& k, const VersionV<V>& v) {
+      tx_changes.state.foreach([&w, &f](const K& k, const VersionV<V>& v) {
         auto write = w.find(k);
 
         if ((write == w.end()) && !is_deleted(v.version))
@@ -242,8 +243,8 @@ namespace kv
         return true;
       });
 
-      for (auto write = change_set.writes.begin();
-           write != change_set.writes.end();
+      for (auto write = tx_changes.writes.begin();
+           write != tx_changes.writes.end();
            ++write)
       {
         if (!is_deleted(write->second.version))

@@ -9,18 +9,6 @@
 
 namespace kv
 {
-  static inline std::map<kv::SecurityDomain, std::vector<AbstractTxView*>>
-  get_views_grouped_by_domain(const OrderedViews& maps)
-  {
-    std::map<kv::SecurityDomain, std::vector<AbstractTxView*>> grouped_views;
-    for (auto it = maps.cbegin(); it != maps.cend(); ++it)
-    {
-      grouped_views[it->second.map->get_security_domain()].push_back(
-        it->second.view.get());
-    }
-    return grouped_views;
-  }
-
   class Tx : public ViewContainer
   {
   private:
@@ -240,38 +228,30 @@ namespace kv
       if (!success)
         throw std::logic_error("Transaction aborted");
 
-      // If no transactions made changes, return a zero length vector.
-      bool changes = false;
+      // TODO: Note removed early-out! It was an unnecessary optimisation? We
+      // can restore by building a list of changed-and-replicated maps on a
+      // single pass here, early-out if empty.
+      // We pull is_replicated and has_changes checks into the loop below, since
+      // this is where we have access to the most information.
 
-      for (auto it = view_list.begin(); it != view_list.end(); ++it)
-      {
-        if (it->second.view->has_changes())
-        {
-          changes = true;
-          break;
-        }
-      }
-
-      if (!changes)
-      {
-        return {};
-      }
       // Retrieve encryptor.
       auto map = view_list.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
       KvStoreSerialiser replicated_serialiser(e, version);
-      // flags that indicate if we have actually written any data in the
-      // serializers
-      auto grouped_views = get_views_grouped_by_domain(view_list);
 
-      for (auto domain_it : grouped_views)
+      // Process in security domain order
+      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
       {
-        for (auto curr_view : domain_it.second)
+        for (const auto& it : view_list)
         {
-          if (curr_view->is_replicated())
+          const auto map = it.second.map;
+          if (
+            map->get_security_domain() == domain && map->is_replicated() &&
+            it.second.view->has_changes())
           {
-            curr_view->serialise(replicated_serialiser, include_reads);
+            map->serialise(
+              it.second.view.get(), replicated_serialiser, include_reads);
           }
         }
       }

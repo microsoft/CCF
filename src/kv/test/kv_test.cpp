@@ -25,15 +25,18 @@ struct RawMapTypes
   using StringInt = kv::Map<std::string, int>;
 };
 
-struct ExperimentalMapTypes
-{
-  using StringString = kv::experimental::Map<std::string, std::string>;
-  //using StringStringView = kv::experimental::TxView<std::string, std::string>;
+using ExperimentalMapTypes = RawMapTypes;
 
-  using IntInt = kv::experimental::Map<int, int>;
-  using IntString = kv::experimental::Map<int, std::string>;
-  using StringInt = kv::experimental::Map<std::string, int>;
-};
+// struct ExperimentalMapTypes
+// {
+//   using StringString = kv::experimental::Map<std::string, std::string>;
+//   //using StringStringView = kv::experimental::TxView<std::string,
+//   std::string>;
+
+//   using IntInt = kv::experimental::Map<int, int>;
+//   using IntString = kv::experimental::Map<int, std::string>;
+//   using StringInt = kv::experimental::Map<std::string, int>;
+// };
 
 TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
