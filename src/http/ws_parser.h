@@ -16,6 +16,11 @@ namespace ws
   static constexpr size_t OUT_CCF_HEADER_SIZE =
     sizeof(uint16_t) + sizeof(size_t) * 3;
 
+  static size_t in_header_size(const std::string& path)
+  {
+    return sizeof(uint16_t) + path.size();
+  };
+
   enum ParserState
   {
     INIT,

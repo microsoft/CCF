@@ -16,55 +16,53 @@ namespace ws
     kv::Consensus::View term = 0,
     kv::Version global_commit = 0)
   {
-    std::vector<uint8_t> header(ws::OUT_CCF_HEADER_SIZE);
-    uint8_t* hd = header.data();
-    size_t s = header.size();
-
-    serialized::write<uint16_t>(hd, s, code);
-    serialized::write<size_t>(hd, s, commit);
-    serialized::write<size_t>(hd, s, term);
-    serialized::write<size_t>(hd, s, global_commit);
-    size_t frame_size = body.size() + header.size();
-
+    size_t frame_size = ws::OUT_CCF_HEADER_SIZE + body.size();
     size_t sz_size = 0;
     if (frame_size > 125)
     {
       sz_size = frame_size > std::numeric_limits<uint16_t>::max() ? 8 : 2;
     }
 
-    std::vector<uint8_t> h(2 + sz_size);
-    h[0] = 0x82;
+    size_t ws_h_size = ws::INITIAL_READ + sz_size;
+    std::vector<uint8_t> msg(ws_h_size + frame_size);
+    msg[0] = 0x82;
     switch (sz_size)
     {
       case 0:
       {
-        h[1] = frame_size;
+        msg[1] = frame_size;
         break;
       }
       case 2:
       {
-        h[1] = 0x7e;
-        *((uint16_t*)&h[2]) = htons(frame_size);
+        msg[1] = 0x7e;
+        *((uint16_t*)&msg[2]) = htons(frame_size);
         break;
       }
       case 8:
       {
-        h[1] = 0x7f;
-        *((uint64_t*)&h[2]) = htobe64(frame_size);
+        msg[1] = 0x7f;
+        *((uint64_t*)&msg[2]) = htobe64(frame_size);
         break;
       }
       default:
         throw std::logic_error("Unreachable");
     }
-
-    h.insert(h.end(), header.begin(), header.end());
-    h.insert(h.end(), body.begin(), body.end());
-    return h;
+    uint8_t* p = msg.data() + ws_h_size;
+    size_t s = msg.size() - ws_h_size;
+    serialized::write<uint16_t>(p, s, code);
+    serialized::write<size_t>(p, s, commit);
+    serialized::write<size_t>(p, s, term);
+    serialized::write<size_t>(p, s, global_commit);
+    assert(s == body.size());
+    ::memcpy(p, body.data(), s);
+    return msg;
   };
 
   static std::vector<uint8_t> error(size_t code, const std::string& msg)
   {
-    return serialise(code, std::vector<uint8_t>(msg.begin(), msg.end()));
+    std::vector<uint8_t> ev(msg.begin(), msg.end());
+    return serialise(code, ev);
   };
 
   class WsRpcContext : public enclave::RpcContext
@@ -104,9 +102,7 @@ namespace ws
       method(path_),
       request_body(body_),
       serialised_request(raw_request_)
-    {
-      LOG_TRACE_FMT("PATH is: [{}]", path);
-    }
+    {}
 
     virtual enclave::FrameFormat frame_format() const override
     {
@@ -138,49 +134,43 @@ namespace ws
     {
       if (serialised_request.empty())
       {
-        std::vector<uint8_t> frame_header(path.size() + sizeof(uint16_t));
-        uint8_t* f = frame_header.data();
-        size_t fs = frame_header.size();
-
-        serialized::write_lps(f, fs, path);
-
-        size_t frame_size = frame_header.size() + request_body.size();
-
+        size_t frame_size = ws::in_header_size(path) + request_body.size();
         size_t sz_size = 0;
         if (frame_size > 125)
         {
           sz_size = frame_size > std::numeric_limits<uint16_t>::max() ? 8 : 2;
         }
-        std::vector<uint8_t> h(2 + sz_size);
-        h[0] = 0x82;
+
+        size_t ws_h_size = ws::INITIAL_READ + sz_size;
+        serialised_request.resize(ws_h_size + frame_size);
+        serialised_request[0] = 0x82;
         switch (sz_size)
         {
           case 0:
           {
-            h[1] = frame_size;
+            serialised_request[1] = frame_size;
             break;
           }
           case 2:
           {
-            h[1] = 0x7e;
-            *((uint16_t*)&h[2]) = htons(frame_size);
+            serialised_request[1] = 0x7e;
+            *((uint16_t*)&serialised_request[2]) = htons(frame_size);
             break;
           }
           case 8:
           {
-            h[1] = 0x7f;
-            *((uint64_t*)&h[2]) = htobe64(frame_size);
+            serialised_request[1] = 0x7f;
+            *((uint64_t*)&serialised_request[2]) = htobe64(frame_size);
             break;
           }
           default:
             throw std::logic_error("Unreachable");
         }
-
-        serialised_request.insert(serialised_request.end(), h.begin(), h.end());
-        serialised_request.insert(
-          serialised_request.end(), frame_header.begin(), frame_header.end());
-        serialised_request.insert(
-          serialised_request.end(), request_body.begin(), request_body.end());
+        uint8_t* p = serialised_request.data() + ws_h_size;
+        size_t s = serialised_request.size() - ws_h_size;
+        serialized::write_lps(p, s, path);
+        assert(s == request_body.size());
+        ::memcpy(p, request_body.data(), s);
       }
       return serialised_request;
     }

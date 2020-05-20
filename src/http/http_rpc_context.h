@@ -441,8 +441,6 @@ namespace enclave
         {
           auto chunk = std::vector(
             packed.begin() + index, packed.begin() + index + next_read);
-          LOG_TRACE_FMT(
-            "Reading Chunk [{}]", std::string(chunk.begin(), chunk.end()));
           index += next_read;
           next_read = parser.consume(chunk);
         }
