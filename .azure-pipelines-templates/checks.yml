@@ -5,7 +5,7 @@ jobs:
   ${{ insert }}: ${{ parameters.env }}
 
   variables:
-    python_files: sphinx/ tests/ notice-check.py
+    python_files: tests/ notice-check.py
 
   steps:
     - checkout: self
@@ -40,10 +40,7 @@ jobs:
       displayName: 'Check Python code format'
       condition: succeededOrFailed()
 
-    - script: |
-        source env/bin/activate
-        pip install cmake_format
-        cmake-format --check CMakeLists.txt $(find ./cmake ./samples ./src ./tests -name "*.cmake" | tr "\n" " ")
+    - script: ./check-cmake-format.sh cmake samples src tests CMakeLists
       displayName: 'Check CMake code format'
       condition: succeededOrFailed()
 

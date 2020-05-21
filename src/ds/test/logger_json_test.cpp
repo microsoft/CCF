@@ -13,7 +13,7 @@ TEST_CASE("Test custom log format")
   remove(test_log_file.c_str());
   logger::config::loggers().emplace_back(
     std::make_unique<logger::JsonLogger>(test_log_file));
-  logger::config::level() = logger::DBG;
+  logger::config::level() = logger::DEBUG;
   std::string log_msg_dbg = "log_msg_dbg";
   std::string log_msg_fail = "log_msg_fail";
 

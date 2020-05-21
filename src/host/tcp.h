@@ -18,11 +18,30 @@ namespace asynchost
 
     virtual void on_resolve_failed() {}
     virtual void on_listen_failed() {}
+    virtual void on_listening(
+      const std::string& host, const std::string& service)
+    {
+      LOG_INFO_FMT("Listening on {}:{}", host, service);
+    }
     virtual void on_accept(TCP& peer) {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
     virtual void on_read(size_t len, uint8_t*& data) {}
     virtual void on_disconnect() {}
+  };
+
+  class TCPServerBehaviour : public TCPBehaviour
+  {
+  public:
+    virtual void on_resolve_failed() override
+    {
+      throw std::runtime_error("TCP server resolve failed");
+    }
+
+    virtual void on_listen_failed() override
+    {
+      throw std::runtime_error("TCP server listen failed");
+    }
   };
 
   class TCPImpl : public with_uv_handle<uv_tcp_t>
@@ -75,6 +94,26 @@ namespace asynchost
     addrinfo* addr_base = nullptr;
     addrinfo* addr_current = nullptr;
 
+    bool service_assigned() const
+    {
+      return service != "0";
+    }
+
+    std::string get_address_name() const
+    {
+      const std::string port_suffix =
+        service_assigned() ? fmt::format(":{}", service) : "";
+
+      if (addr_current != nullptr && addr_current->ai_family == AF_INET6)
+      {
+        return fmt::format("[{}]{}", host, port_suffix);
+      }
+      else
+      {
+        return fmt::format("{}{}", host, port_suffix);
+      }
+    }
+
     TCPImpl() : status(FRESH)
     {
       if (!init())
@@ -93,6 +132,16 @@ namespace asynchost
     void set_behaviour(std::unique_ptr<TCPBehaviour> b)
     {
       behaviour = std::move(b);
+    }
+
+    std::string get_host() const
+    {
+      return host;
+    }
+
+    std::string get_service() const
+    {
+      return service;
     }
 
     bool connect(const std::string& host, const std::string& service)
@@ -227,30 +276,83 @@ namespace asynchost
       return true;
     }
 
+    void update_resolved_address(int address_family, sockaddr* sa)
+    {
+      constexpr auto buf_len = UV_IF_NAMESIZE;
+      char buf[buf_len] = {};
+      int rc;
+
+      if (address_family == AF_INET6)
+      {
+        const auto in6 = (const sockaddr_in6*)sa;
+        if ((rc = uv_ip6_name(in6, buf, buf_len)) != 0)
+        {
+          LOG_FAIL_FMT("uv_ip6_name failed: {}", uv_strerror(rc));
+        }
+
+        host = buf;
+        service = fmt::format("{}", ntohs(in6->sin6_port));
+      }
+      else
+      {
+        const auto in4 = (const sockaddr_in*)sa;
+        if ((rc = uv_ip4_name(in4, buf, buf_len)) != 0)
+        {
+          LOG_FAIL_FMT("uv_ip4_name failed: {}", uv_strerror(rc));
+        }
+
+        host = buf;
+        service = fmt::format("{}", ntohs(in4->sin_port));
+      }
+    }
+
     void listen_resolved()
     {
       int rc;
 
       while (addr_current != nullptr)
       {
+        update_resolved_address(addr_current->ai_family, addr_current->ai_addr);
+
         if ((rc = uv_tcp_bind(&uv_handle, addr_current->ai_addr, 0)) < 0)
         {
           addr_current = addr_current->ai_next;
+          LOG_FAIL_FMT(
+            "uv_tcp_bind failed on {}: {}",
+            get_address_name(),
+            uv_strerror(rc));
           continue;
         }
 
         if ((rc = uv_listen((uv_stream_t*)&uv_handle, backlog, on_accept)) < 0)
         {
+          LOG_FAIL_FMT(
+            "uv_listen failed on {}: {}", get_address_name(), uv_strerror(rc));
           addr_current = addr_current->ai_next;
           continue;
         }
 
+        // If bound on port 0 (ie - asking the OS to assign a port), then we
+        // need to call uv_tcp_getsockname to retrieve the bound port
+        // (addr_current will not contain it)
+        if (!service_assigned())
+        {
+          sockaddr_storage sa_storage;
+          const auto sa = (sockaddr*)&sa_storage;
+          int sa_len = sizeof(sa_storage);
+          if ((rc = uv_tcp_getsockname(&uv_handle, sa, &sa_len)) != 0)
+          {
+            LOG_FAIL_FMT("uv_tcp_getsockname failed: {}", uv_strerror(rc));
+          }
+          update_resolved_address(addr_current->ai_family, sa);
+        }
+
         assert_status(LISTENING_RESOLVING, LISTENING);
+        behaviour->on_listening(host, service);
         return;
       }
 
       assert_status(LISTENING_RESOLVING, LISTENING_FAILED);
-      LOG_FAIL_FMT("uv_tcp_bind or uv_listen failed: {}", uv_strerror(rc));
       behaviour->on_listen_failed();
     }
 

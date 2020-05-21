@@ -71,11 +71,13 @@ namespace ccf
     consensus_type,
     recovery_threshold)
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetCommit::In)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::In)
-  DECLARE_JSON_OPTIONAL_FIELDS(GetCommit::In, commit)
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, term, commit)
+
+  DECLARE_JSON_TYPE(GetTxStatus::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::In, view, seqno)
+  DECLARE_JSON_TYPE(GetTxStatus::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, status)
 
   DECLARE_JSON_TYPE(GetMetrics::HistogramResults)
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -85,7 +87,7 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetPrimaryInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetPrimaryInfo::Out, primary_id, primary_host, primary_port)
+    GetPrimaryInfo::Out, primary_id, primary_host, primary_port, current_term)
 
   DECLARE_JSON_TYPE(GetNetworkInfo::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::NodeInfo, node_id, host, port)

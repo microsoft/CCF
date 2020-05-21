@@ -1,20 +1,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../kv.h"
-#include "../kv_serialiser.h"
 #include "ds/logger.h"
-#include "enclave/app_interface.h"
-
-#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
+#include "kv/kv_serialiser.h"
+#include "kv/store.h"
+#include "kv/tx.h"
 
 #include <atomic>
 #include <chrono>
+#define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include <doctest/doctest.h>
 #include <string>
 #include <thread>
 #include <vector>
-
-using namespace ccf;
 
 DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 {
@@ -23,9 +20,9 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   // Multiple threads write random entries into random tables, and attempt to
   // commit them. A single thread continually compacts the kv to the latest
   // entry. The goal is for these commits and compactions to avoid deadlock
-  Store kv_store;
+  kv::Store kv_store;
 
-  using MapType = Store::Map<size_t, size_t>;
+  using MapType = kv::Map<size_t, size_t>;
   constexpr size_t max_k = 32;
 
   constexpr size_t thread_count = 16;
@@ -40,7 +37,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   struct ThreadArgs
   {
     std::vector<MapType*> maps;
-    Store* kv_store;
+    kv::Store* kv_store;
     std::atomic<size_t>* counter;
   };
   ThreadArgs args[thread_count] = {};
@@ -81,7 +78,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
       while (true)
       {
         // Start a transaction over selected maps
-        Store::Tx tx;
+        kv::Tx tx;
 
         std::vector<MapType::TxView*> views;
         for (const auto map : args->maps)
@@ -127,7 +124,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
   struct CompactArgs
   {
-    Store* kv_store;
+    kv::Store* kv_store;
     std::atomic<size_t>* tx_counter;
     decltype(compact_state)* compact_state;
   } ca{&kv_store, &active_tx_threads, &compact_state};

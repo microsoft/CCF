@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.9.3 # CCF_VERSION < This is a search marker for CI version check
+  VERSION 0.10 # CCF_VERSION < This is a search marker for CI version check
   LANGUAGES C CXX
 )
 
@@ -73,6 +73,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     PUBLIC openenclave::oeenclave
            openenclave::oelibcxx
            openenclave::oelibc
+           -static-libgcc
+           -lgcc
            ccfcrypto.enclave
            evercrypt.enclave
            http_parser.enclave
@@ -125,6 +127,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            -lc++
            -lc++abi
            -lc++fs
+           -static-libgcc
+           -lgcc
            ccfcrypto.host
            evercrypt.host
            http_parser.host
@@ -265,6 +269,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       raft_test ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/raft/test/term_history.cpp
     )
     target_link_libraries(raft_test PRIVATE ${CRYPTO_LIBRARY})
 
@@ -339,6 +344,11 @@ if(BUILD_TESTS)
     target_link_libraries(
       frontend_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} evercrypt.host lua.host
                             secp256k1.host http_parser.host sss.host
+    )
+
+    add_unit_test(
+      tx_status_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/tx_status_test.cpp
     )
 
     add_unit_test(
@@ -448,19 +458,55 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME recovery_tests
+    NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
     ADDITIONAL_ARGS --recovery 2
   )
 
   add_e2e_test(
-    NAME test_suite
+    NAME rekey_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rekey.py
+    CONSENSUS raft
+  )
+
+  add_e2e_test(
+    NAME recovery_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
     LABEL suite
-    ADDITIONAL_ARGS --test-duration 150 --enforce-reqs
+    ADDITIONAL_ARGS
+      --test-duration
+      150
+      --enforce-reqs
+      --test-suite
+      rekey_recovery
+      --test-suite
+      membership_recovery
   )
+
+  # cmake-format: off
+  # Disabled for now, as some shuffles are still unstable
+  #  add_e2e_test(
+  #    NAME full_test_suite
+  #    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+  #    CONSENSUS raft
+  #    LABEL suite
+  #    ADDITIONAL_ARGS
+  #      --test-duration
+  #      1200
+  #      --enforce-reqs
+  #      # Repeat the full suite multiple times
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #      --test-suite
+  #      all
+  #  )
+  # cmake-format: on
 
   add_e2e_test(
     NAME lua_end_to_end_batched
@@ -485,7 +531,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME governance_tests
+      NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
@@ -542,6 +588,12 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
+      NAME ws_scaffold_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/ws_scaffold.py
+      CONSENSUS ${CONSENSUS}
+    )
+
+    add_e2e_test(
       NAME lua_end_to_end_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS ${CONSENSUS}
@@ -579,11 +631,11 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
-      NAME schema_tests_${CONSENSUS}
+      NAME schema_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS -p liblogging --schema-dir
-                      ${CMAKE_SOURCE_DIR}/sphinx/source/schemas
+                      ${CMAKE_SOURCE_DIR}/doc/schemas
     )
 
     add_e2e_test(
@@ -600,7 +652,7 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
-      NAME election_tests_${CONSENSUS}
+      NAME election_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}

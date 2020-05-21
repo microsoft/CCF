@@ -11,6 +11,10 @@ import infra.e2e_args
 from loguru import logger as LOG
 
 
+def build_schema_file_path(root, method, schema_type):
+    return os.path.join(root, "{}_{}.json".format(method, schema_type))
+
+
 def run(args):
     hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
     os.makedirs(args.schema_dir, exist_ok=True)
@@ -38,12 +42,12 @@ def run(args):
                 for schema_type in ["params", "result"]:
                     element_name = "{}_schema".format(schema_type)
                     element = schema_response.result[element_name]
+                    target_file = build_schema_file_path(
+                        args.schema_dir, method, schema_type
+                    )
                     if element is not None and len(element) != 0:
                         schema_found = True
                         formatted_schema = json.dumps(element, indent=2)
-                        target_file = os.path.join(
-                            args.schema_dir, "{}_{}.json".format(method, schema_type)
-                        )
                         with open(target_file, "a+") as f:
                             f.seek(0)
                             previous = f.read()
@@ -55,6 +59,11 @@ def run(args):
                                 changed_files.append(target_file)
                             else:
                                 LOG.debug("Schema matches in {}".format(target_file))
+                    else:
+                        # Ensure there are no out-of-date files for schema which have been removed
+                        if os.path.isfile(target_file):
+                            os.remove(target_file)
+                            changed_files.append(target_file)
 
             if schema_found:
                 methods_with_schema.add(method)

@@ -3,15 +3,7 @@ trigger:
   branches:
     include:
       - master
-
-pr:
-  autoCancel: true
-  branches:
-    include:
-      - master
-  paths:
-    include:
-      - '*'
+      - 'refs/tags/v*'
 
 jobs:
 - job: build_and_publish_docs
@@ -24,26 +16,30 @@ jobs:
       clean: true
       submodules: true
 
-    - script: doxygen
-      displayName: Doxgen
+    - script: |
+        git checkout -b master $BUILD_SOURCEVERSION
+      displayName: Prepare repo
 
     - script: |
         python3.7 -m venv env
         source env/bin/activate
         pip install wheel
-        pip install -U -r requirements.txt
-        make html
+        pip install -U -r doc/requirements.txt
+        sphinx-multiversion doc build/html
       displayName: Sphinx
-      workingDirectory: sphinx
 
     - script: |
         git init
         git config --local user.name "Azure Pipelines"
         git config --local user.email "azuredevops@microsoft.com"
         git add .
+        touch .nojekyll
+        git add .nojekyll
+        cp ../../doc/index.html .
+        git add index.html
         git commit -m "[ci skip] commit generated documentation"
       displayName: 'Commit pages'
-      workingDirectory: sphinx/build/html
+      workingDirectory: build/html
 
     - task: DownloadSecureFile@1
       inputs:
@@ -62,9 +58,9 @@ jobs:
       condition: |
         and(not(eq(variables['Build.Reason'], 'PullRequest')),
             eq(variables['Build.SourceBranch'], 'refs/heads/master'))
-      workingDirectory: sphinx/build/html
+      workingDirectory: build/html
 
     - script: rm deploy_key || true
       displayName: 'Make sure key is removed'
-      workingDirectory: sphinx/build/html
+      workingDirectory: build/html
       condition: always()

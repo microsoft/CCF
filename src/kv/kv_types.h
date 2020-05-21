@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensus_types.h"
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
+#include "serialiser_declare.h"
 
 #include <array>
 #include <chrono>
@@ -16,16 +16,17 @@
 
 namespace kv
 {
-  // Version indexes modifications to the local kv store. Special value -1
-  // indicates deletion
+  // Version indexes modifications to the local kv store. Negative values
+  // indicate deletion
   using Version = int64_t;
+  static const Version NoVersion = std::numeric_limits<Version>::min();
+
   // Term describes an epoch of Versions. It is incremented when global kv's
   // writer(s) changes. Term and Version combined give a unique identifier for
   // all accepted kv modifications. Terms are handled by Raft via the
   // TermHistory
   using Term = uint64_t;
   using NodeId = uint64_t;
-  static const Version NoVersion = std::numeric_limits<Version>::min();
 
   using BatchVector = std::vector<
     std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
@@ -53,7 +54,8 @@ namespace kv
     FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_PRE_PREPARE = 3
+    PASS_PRE_PREPARE = 3,
+    PASS_NEW_VIEW = 4
   };
 
   enum ReplicateType
@@ -98,6 +100,7 @@ namespace kv
       std::vector<uint8_t> request;
       uint64_t caller_id;
       std::vector<uint8_t> caller_cert;
+      uint8_t frame_format;
     };
 
     struct ResultCallbackArgs
@@ -125,7 +128,8 @@ namespace kv
       kv::TxHistory::RequestID id,
       uint64_t caller_id,
       const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request) = 0;
+      const std::vector<uint8_t>& request,
+      uint8_t frame_format) = 0;
     virtual void add_result(
       RequestID id,
       kv::Version version,
@@ -248,7 +252,7 @@ namespace kv
     virtual void resume_replication() {}
     virtual void suspend_replication(kv::Version) {}
 
-    virtual void set_f(ccf::NodeId f) = 0;
+    virtual void set_f(size_t f) = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
@@ -322,7 +326,7 @@ namespace kv
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
       kv::Version version) = 0;
-    virtual void set_view(Consensus::View view) = 0;
+    virtual void set_iv_id(size_t id) = 0;
     virtual size_t get_header_length() = 0;
     virtual void update_encryption_key(
       Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
@@ -349,33 +353,34 @@ namespace kv
     virtual size_t commit_gap() = 0;
   };
 
-  template <class S, class D>
   class AbstractTxView
   {
   public:
-    virtual ~AbstractTxView() {}
+    virtual ~AbstractTxView() = default;
+
+    // Commit-related methods
     virtual bool has_writes() = 0;
     virtual bool has_changes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
-    virtual void serialise(S& s, bool include_reads) = 0;
-    virtual bool deserialise(D& d, Version version) = 0;
-    virtual Version start_order() = 0;
-    virtual Version end_order() = 0;
+
+    // Serialisation-related methods
+    virtual void serialise(KvStoreSerialiser& s, bool include_reads) = 0;
+    virtual bool deserialise(KvStoreDeserialiser& d, Version version) = 0;
     virtual bool is_replicated() = 0;
   };
 
-  template <class S, class D>
   class AbstractMap
   {
   public:
     virtual ~AbstractMap() {}
-    virtual bool operator==(const AbstractMap<S, D>& that) const = 0;
-    virtual bool operator!=(const AbstractMap<S, D>& that) const = 0;
+    virtual bool operator==(const AbstractMap& that) const = 0;
+    virtual bool operator!=(const AbstractMap& that) const = 0;
 
     virtual AbstractStore* get_store() = 0;
-    virtual AbstractTxView<S, D>* create_view(Version version) = 0;
+    virtual AbstractTxView* create_view(Version version) = 0;
+    virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;
@@ -385,7 +390,7 @@ namespace kv
     virtual bool is_replicated() = 0;
     virtual void clear() = 0;
 
-    virtual AbstractMap<S, D>* clone(AbstractStore* store) = 0;
-    virtual void swap(AbstractMap<S, D>* map) = 0;
+    virtual AbstractMap* clone(AbstractStore* store) = 0;
+    virtual void swap(AbstractMap* map) = 0;
   };
 }

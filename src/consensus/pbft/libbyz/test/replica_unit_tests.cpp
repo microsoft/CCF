@@ -7,8 +7,9 @@
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
-#include "consensus/test/stub_consensus.h"
 #include "host/ledger.h"
+#include "kv/store.h"
+#include "kv/test/stub_consensus.h"
 #include "message.h"
 #include "network_mock.h"
 #include "node.h"
@@ -19,8 +20,8 @@
 #include <cstdio>
 #include <doctest/doctest.h>
 
-enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 // power of 2 since ringbuffer circuit size depends on total_requests
 static constexpr size_t total_requests = 32;
@@ -53,7 +54,7 @@ public:
         uint8_t* req_start = msg->req_start;
         size_t req_size = msg->req_size;
         Seqno total_requests_executed = msg->total_requests_executed;
-        ccf::Store::Tx* tx = msg->tx;
+        kv::Tx* tx = msg->tx;
 
         // increase total number of commands executed to compare with fake_req
         command_counter++;
@@ -84,14 +85,14 @@ namespace pbft
   } register_rollback_ctx;
 }
 
-NodeInfo get_node_info()
+NodeInfo get_node_info(NodeId node_id = 0)
 {
   auto kp = tls::make_key_pair();
   std::vector<PrincipalInfo> principal_info;
 
   auto node_cert = kp->self_sign("CN=CCF node");
 
-  PrincipalInfo pi = {0, (short)(3000), "ip", node_cert, "name-1", true};
+  PrincipalInfo pi = {node_id, (short)(3000), "ip", node_cert, "name-1", true};
   principal_info.emplace_back(pi);
 
   GeneralInfo gi = {false,
@@ -111,14 +112,16 @@ NodeInfo get_node_info()
   return node_info;
 }
 
-void create_replica(
+NodeInfo create_replica(
   std::vector<char>& service_mem,
   pbft::PbftStore& store,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
-  ccf::Signatures& signatures)
+  ccf::Signatures& signatures,
+  pbft::NewViewsMap& pbft_new_views_map,
+  NodeId node_id = 0)
 {
-  auto node_info = get_node_info();
+  auto node_info = get_node_info(node_id);
 
   pbft::GlobalState::set_replica(std::make_unique<Replica>(
     node_info,
@@ -128,24 +131,18 @@ void create_replica(
     pbft_requests_map,
     pbft_pre_prepares_map,
     signatures,
+    pbft_new_views_map,
     store));
 
   pbft::GlobalState::get_replica().init_state();
-
-  for (auto& pi : node_info.general_info.principal_info)
-  {
-    if (pi.id != node_info.own_info.id)
-    {
-      pbft::GlobalState::get_replica().add_principal(pi);
-    }
-  }
+  return node_info;
 }
 
 Request* create_and_store_request(
   size_t index,
   pbft::PbftStore& store,
   pbft::RequestsMap& req_map,
-  ccf::Store::Map<std::string, std::string>* derived_map = nullptr)
+  kv::Map<std::string, std::string>* derived_map = nullptr)
 {
   Byz_req req;
   Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
@@ -159,7 +156,7 @@ Request* create_and_store_request(
   request->request_id() = index;
   request->authenticate(req.size, false);
 
-  ccf::Store::Tx tx;
+  kv::Tx tx;
   auto req_view = tx.get_view(req_map);
 
   int command_size;
@@ -201,19 +198,20 @@ void populate_entries(
 
 static constexpr int mem_size = 256;
 
-using PbftStoreType = pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>;
+using PbftStoreType = pbft::Adaptor<kv::Store, kv::DeserialiseSuccess>;
 struct PbftState
 {
-  std::shared_ptr<ccf::Store> store;
+  std::shared_ptr<kv::Store> store;
   std::unique_ptr<PbftStoreType> pbft_store;
   pbft::RequestsMap& pbft_requests_map;
   ccf::Signatures& signatures;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
+  pbft::NewViewsMap& pbft_new_views_map;
   std::vector<char> service_mem;
   ExecutionMock exec_mock;
 
   PbftState() :
-    store(std::make_shared<ccf::Store>(
+    store(std::make_shared<kv::Store>(
       pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
     pbft_store(std::make_unique<PbftStoreType>(store)),
     pbft_requests_map(store->create<pbft::RequestsMap>(
@@ -221,21 +219,41 @@ struct PbftState
     signatures(store->create<ccf::Signatures>(ccf::Tables::SIGNATURES)),
     pbft_pre_prepares_map(store->create<pbft::PrePreparesMap>(
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC)),
+    pbft_new_views_map(store->create<pbft::NewViewsMap>(
+      pbft::Tables::PBFT_NEW_VIEWS, kv::SecurityDomain::PUBLIC)),
     service_mem(mem_size, 0),
     exec_mock(0)
   {}
 };
 
-void init_test_state(PbftState& pbft_state)
+NodeInfo init_test_state(PbftState& pbft_state, NodeId node_id = 0)
 {
-  create_replica(
+  auto node_info = create_replica(
     pbft_state.service_mem,
     *pbft_state.pbft_store,
     pbft_state.pbft_requests_map,
     pbft_state.pbft_pre_prepares_map,
-    pbft_state.signatures);
+    pbft_state.signatures,
+    pbft_state.pbft_new_views_map,
+    node_id);
   pbft::GlobalState::get_replica().register_exec(
     pbft_state.exec_mock.exec_command);
+  return node_info;
+}
+
+std::unique_ptr<Pre_prepare> deserialize_pre_prepare(
+  std::vector<uint8_t>& pp_data, PbftState& pbft_state)
+{
+  kv::Tx tx;
+  REQUIRE(
+    pbft_state.store->deserialise_views(pp_data, false, nullptr, &tx) ==
+    kv::DeserialiseSuccess::PASS_PRE_PREPARE);
+  auto view = tx.get_view(pbft_state.pbft_pre_prepares_map);
+  auto pp = view->get(0);
+  REQUIRE(pp.has_value());
+  auto pre_prepare = pp.value();
+  return pbft::GlobalState::get_replica().create_message<Pre_prepare>(
+    pre_prepare.contents.data(), pre_prepare.contents.size());
 }
 
 TEST_CASE("Test Ledger Replay")
@@ -282,7 +300,8 @@ TEST_CASE("Test Ledger Replay")
     LedgerWriter ledger_writer(
       *pbft_state.pbft_store,
       pbft_state.pbft_pre_prepares_map,
-      pbft_state.signatures);
+      pbft_state.signatures,
+      pbft_state.pbft_new_views_map);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)
@@ -351,7 +370,7 @@ TEST_CASE("Test Ledger Replay")
       pbft_state.store->deserialise(entries.back()) ==
       kv::DeserialiseSuccess::FAILED);
 
-    ccf::Store::Tx tx;
+    kv::Tx tx;
     auto req_view = tx.get_view(pbft_state.pbft_requests_map);
     auto req = req_view->get(0);
     REQUIRE(!req.has_value());
@@ -378,7 +397,7 @@ TEST_CASE("Test Ledger Replay")
         // odd entries are pre prepares
         // try to deserialise corrupt pre-prepare which should trigger a
         // rollback
-        ccf::Store::Tx tx;
+        kv::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(
             corrupt_entry, false, nullptr, &tx) ==
@@ -389,7 +408,7 @@ TEST_CASE("Test Ledger Replay")
         count_rollbacks++;
 
         // rolled back latest request so need to re-execute
-        ccf::Store::Tx re_exec_tx;
+        kv::Tx re_exec_tx;
         REQUIRE(
           pbft_state.store->deserialise_views(
             lastest_executed_request, false, nullptr, &re_exec_tx) ==
@@ -401,13 +420,13 @@ TEST_CASE("Test Ledger Replay")
       if (iterations % 2)
       {
         // odd entries are pre prepares
-        ccf::Store::Tx tx;
+        kv::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
         pbft::GlobalState::get_replica().playback_pre_prepare(tx);
 
-        ccf::Store::Tx read_tx;
+        kv::Tx read_tx;
         auto pp_view = read_tx.get_view(pbft_state.pbft_pre_prepares_map);
         auto pp = pp_view->get(0);
         REQUIRE(pp.has_value());
@@ -417,7 +436,7 @@ TEST_CASE("Test Ledger Replay")
       else
       {
         // even entries are requests
-        ccf::Store::Tx tx;
+        kv::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS);
@@ -425,7 +444,7 @@ TEST_CASE("Test Ledger Replay")
         // pre-prepares are committed in playback_pre_prepare
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-        ccf::Store::Tx read_tx;
+        kv::Tx read_tx;
         lastest_executed_request = entry;
         // even entries are requests
         auto req_view = read_tx.get_view(pbft_state.pbft_requests_map);
@@ -435,7 +454,7 @@ TEST_CASE("Test Ledger Replay")
       }
 
       // no derived data should have gotten deserialised
-      ccf::Store::Tx read_tx;
+      kv::Tx read_tx;
       auto der_view = read_tx.get_view(derived_map);
       auto derived_val = der_view->get("key1");
       REQUIRE(!derived_val.has_value());
@@ -492,4 +511,116 @@ TEST_CASE("Test No Ops")
     first_pp_contents.begin(),
     first_pp_contents.end(),
     second_pp_contents.begin()));
+}
+
+TEST_CASE("Verify prepare proof")
+{
+  std::unique_ptr<Pre_prepare> first_pp;
+  View v = 0;
+  Seqno sn = 1;
+  std::unique_ptr<Prepare> first_prepare;
+  std::unique_ptr<Prepared_cert> prepared_cert;
+  NodeInfo prepare_node_info;
+  auto consensus = std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
+
+  INFO("Create first pre prepare");
+  {
+    PbftState pbft_state;
+    init_test_state(pbft_state);
+
+    Req_queue empty;
+    size_t requests_in_batch;
+    first_pp =
+      std::make_unique<Pre_prepare>(v, sn, empty, requests_in_batch, 0);
+    first_pp->set_digest();
+    first_pp->sign();
+
+    prepared_cert = std::make_unique<Prepared_cert>();
+  }
+  INFO("Create signed prepare that corresponds to the first pre prepare");
+  {
+    PbftState pbft_state;
+    NodeId node_id = 1;
+    prepare_node_info = init_test_state(pbft_state, node_id);
+
+    auto entropy = tls::create_entropy();
+    auto nonce = entropy->random64();
+    first_prepare = std::make_unique<Prepare>(
+      v,
+      first_pp->seqno(),
+      first_pp->digest(),
+      nonce,
+      nullptr,
+      first_pp->is_signed(),
+      node_id);
+    // this gives the first_pp pointer ownership to the prepared_cert
+    // we want to use first_pp later on, so make sure to release from cert
+    // before it goes out of scope to avoid double deletion
+    prepared_cert->add(first_pp.get());
+  }
+  INFO(
+    "Create the next pre prepare that takes the prepared_cert that contains "
+    "the prepare for the previous pre prepare");
+  {
+    PbftState pbft_state;
+    init_test_state(pbft_state);
+
+    pbft_state.store->set_consensus(consensus);
+
+    LedgerWriter ledger_writer(
+      *pbft_state.pbft_store,
+      pbft_state.pbft_pre_prepares_map,
+      pbft_state.signatures,
+      pbft_state.pbft_new_views_map);
+
+    // let this node know about the node that signed the prepare
+    // otherwise we can't add its prepare to the prepared cert
+    pbft::GlobalState::get_node().add_principal(
+      prepare_node_info.general_info.principal_info[0]);
+
+    prepared_cert->add(first_prepare.release());
+    // create a new pre prepare that takes the prepared cert
+    Req_queue empty;
+    size_t requests_in_batch;
+    View v = 0;
+    Seqno sn = 2;
+    auto second_pp = std::make_unique<Pre_prepare>(
+      v, sn, empty, requests_in_batch, 0, prepared_cert.get());
+    second_pp->set_digest();
+    second_pp->sign();
+
+    ledger_writer.write_pre_prepare(second_pp.get());
+  }
+  INFO(
+    "Read the pre prepare from ledger and verify the prepare proofs that it "
+    "contains for the previous seqno");
+  {
+    PbftState pbft_state;
+    init_test_state(pbft_state);
+
+    // let this node know about the node that signed the prepare
+    // so that its cert can be looked up when verifying the prepare signature
+    pbft::GlobalState::get_node().add_principal(
+      prepare_node_info.general_info.principal_info[0]);
+
+    auto ret = consensus->pop_oldest_data();
+    REQUIRE(ret.second); // deserialized OK
+    auto second_pre_prepare = deserialize_pre_prepare(ret.first, pbft_state);
+    // validate the signature in the proof here
+
+    Prepared_cert new_node_prepared_cert;
+    // new_node_prepared_cert claims first_pp pointer ownership, make sure to
+    // release before end of test
+    new_node_prepared_cert.add(prepared_cert->pre_prepare());
+    REQUIRE(new_node_prepared_cert.my_prepare() == nullptr);
+    REQUIRE(!new_node_prepared_cert.is_pp_correct());
+    pbft::GlobalState::get_replica().add_certs_if_valid(
+      second_pre_prepare.get(), first_pp.get(), new_node_prepared_cert);
+    REQUIRE(new_node_prepared_cert.my_prepare() != nullptr);
+    REQUIRE(new_node_prepared_cert.is_pp_correct());
+    // cleanup
+    // release first_pp since from the certs that claimed ownership
+    prepared_cert->rem_pre_prepare();
+    new_node_prepared_cert.rem_pre_prepare();
+  }
 }

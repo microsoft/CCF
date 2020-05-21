@@ -5,6 +5,7 @@
 #include "ds/json.h"
 #include "ds/msgpack_adaptor_nlohmann.h"
 #include "entities.h"
+#include "kv/map.h"
 #include "script.h"
 
 #include <msgpack/msgpack.hpp>
@@ -92,7 +93,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     Proposal, script, parameter, proposer, state, votes)
 
-  using Proposals = Store::Map<ObjectId, Proposal>;
+  using Proposals = kv::Map<ObjectId, Proposal>;
 
   struct ProposalInfo
   {

@@ -169,7 +169,7 @@ namespace enclave
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::stop, [&bp, this](const uint8_t*, size_t) {
             bp.set_finished();
-            enclave::ThreadMessaging::thread_messaging.set_finished();
+            threading::ThreadMessaging::thread_messaging.set_finished();
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -256,6 +256,22 @@ namespace enclave
             idling_start_time = time_now;
           }
 
+          // If we have pending thread messages, handle them now (and don't
+          // sleep)
+          {
+            uint16_t tid = threading::get_current_thread_id();
+            threading::Task& task =
+              threading::ThreadMessaging::thread_messaging.get_task(tid);
+
+            bool task_run =
+              threading::ThreadMessaging::thread_messaging.run_one(task);
+
+            if (task_run)
+            {
+              return;
+            }
+          }
+
           // Handle initial idles by pausing, eventually sleep (in host)
           constexpr std::chrono::milliseconds timeout(5);
 
@@ -286,7 +302,7 @@ namespace enclave
       uint64_t tid;
     };
 
-    static void init_thread_cb(std::unique_ptr<enclave::Tmsg<Msg>> msg)
+    static void init_thread_cb(std::unique_ptr<threading::Tmsg<Msg>> msg)
     {
       LOG_DEBUG_FMT("First thread CB:{}", msg->data.tid);
     }
@@ -298,12 +314,12 @@ namespace enclave
       try
 #endif
       {
-        auto msg = std::make_unique<enclave::Tmsg<Msg>>(&init_thread_cb);
-        msg->data.tid = thread_ids[std::this_thread::get_id()];
-        enclave::ThreadMessaging::thread_messaging.add_task<Msg>(
+        auto msg = std::make_unique<threading::Tmsg<Msg>>(&init_thread_cb);
+        msg->data.tid = threading::get_current_thread_id();
+        threading::ThreadMessaging::thread_messaging.add_task<Msg>(
           msg->data.tid, std::move(msg));
 
-        enclave::ThreadMessaging::thread_messaging.run();
+        threading::ThreadMessaging::thread_messaging.run();
       }
 #ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)

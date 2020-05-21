@@ -242,6 +242,16 @@ size_t Node::gen_signature(
   return sig_size;
 }
 
+void Node::copy_signature(const PbftSignature& signature, PbftSignature& dest)
+{
+  std::copy(signature.begin(), signature.end(), dest.begin());
+  std::fill(
+    dest.end(),
+    dest.end() + ALIGNED_SIZE(pbft_max_signature_size) -
+      pbft_max_signature_size,
+    0);
+}
+
 Request_id Node::new_rid()
 {
   return request_id_generator.next_rid();
@@ -271,7 +281,7 @@ void Node::send_to_replicas(Message* m)
   }
 }
 
-void Node::set_f(ccf::NodeId f)
+void Node::set_f(size_t f)
 {
   LOG_INFO << "***** setting f to " << f << "*****" << std::endl;
   max_faulty = f;

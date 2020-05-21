@@ -62,7 +62,7 @@ namespace ccf
       SeqNo main_thread_seqno;
       SeqNo tid_seqno;
     };
-    std::array<ChannelSeqno, enclave::ThreadMessaging::max_num_threads>
+    std::array<ChannelSeqno, threading::ThreadMessaging::max_num_threads>
       local_recv_nonce = {0};
 
     bool verify_or_decrypt(
@@ -80,14 +80,13 @@ namespace ccf
       auto tid = recv_nonce.tid;
       auto& channel_nonce = local_recv_nonce[tid];
 
-      uint16_t current_tid =
-        enclave::ThreadMessaging::thread_messaging.get_thread_id();
+      uint16_t current_tid = threading::get_current_thread_id();
       assert(
-        current_tid == enclave::ThreadMessaging::main_thread ||
-        current_tid % enclave::ThreadMessaging::thread_count == tid);
+        current_tid == threading::ThreadMessaging::main_thread ||
+        current_tid % threading::ThreadMessaging::thread_count == tid);
 
       SeqNo* local_nonce;
-      if (current_tid == enclave::ThreadMessaging::main_thread)
+      if (current_tid == threading::ThreadMessaging::main_thread)
       {
         local_nonce = &local_recv_nonce[tid].main_thread_seqno;
       }
@@ -102,7 +101,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Invalid nonce, possible replay attack, received:{}, last_seen:{}, "
           "recv_nonce.tid:{}",
-          recv_nonce.nonce,
+          reinterpret_cast<uint64_t>(recv_nonce.nonce),
           *local_nonce,
           recv_nonce.tid);
         return false;
@@ -179,7 +178,7 @@ namespace ccf
         throw std::logic_error("Channel is not established for tagging");
       }
       RecvNonce nonce(
-        send_nonce.fetch_add(1), thread_ids[std::this_thread::get_id()]);
+        send_nonce.fetch_add(1), threading::get_current_thread_id());
 
       header.set_iv_seq(nonce.get_val());
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
@@ -203,7 +202,7 @@ namespace ccf
       }
 
       RecvNonce nonce(
-        send_nonce.fetch_add(1), thread_ids[std::this_thread::get_id()]);
+        send_nonce.fetch_add(1), threading::get_current_thread_id());
 
       header.set_iv_seq(nonce.get_val());
       key->encrypt(header.get_iv(), plain, aad, cipher.p, header.tag);

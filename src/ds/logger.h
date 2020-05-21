@@ -3,12 +3,14 @@
 #pragma once
 
 #include "ring_buffer.h"
+#include "thread_ids.h"
 
 #include <chrono>
 #include <cstring>
 #include <ctime>
-#include <fmt/format_header_only.h>
-#include <fmt/time.h>
+#define FMT_HEADER_ONLY
+#include <fmt/chrono.h>
+#include <fmt/format.h>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -19,14 +21,12 @@
 #include <string>
 #include <thread>
 
-extern std::map<std::thread::id, uint16_t> thread_ids;
-
 namespace logger
 {
   enum Level
   {
     TRACE = 0,
-    DBG, // events useful for debugging
+    DEBUG, // events useful for debugging
     INFO, // important events that should be logged even in release mode
     FAIL, // important failures that should always be logged
     FATAL, // fatal errors that lead to a termination of the program/enclave
@@ -316,7 +316,7 @@ namespace logger
       line_number(line_number),
       log_level(ll),
 #ifdef INSIDE_ENCLAVE
-      thread_id(thread_ids[std::this_thread::get_id()])
+      thread_id(threading::get_current_thread_id())
 #else
       thread_id(100)
 #endif
@@ -486,8 +486,8 @@ namespace logger
 #define LOG_TRACE_FMT(...) LOG_TRACE << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_DEBUG \
-  logger::config::ok(logger::DBG) && \
-    logger::Out() == logger::LogLine(logger::DBG, __FILE__, __LINE__)
+  logger::config::ok(logger::DEBUG) && \
+    logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
 #define LOG_DEBUG_FMT(...) LOG_DEBUG << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_INFO \

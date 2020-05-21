@@ -28,13 +28,18 @@
 #include "tls/client.h"
 #include "tls/entropy.h"
 
+#ifdef USE_NULL_ENCRYPTOR
+#  include "kv/test/null_encryptor.h"
+#endif
+
 #ifndef VIRTUAL_ENCLAVE
-#  include <ccf_t.h>
+#  include "ccf_t.h"
 #endif
 
 #include <atomic>
 #include <chrono>
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <unordered_set>
@@ -191,7 +196,7 @@ namespace ccf
     // recovery
     //
     NodeInfoNetwork node_info_network;
-    std::shared_ptr<Store> recovery_store;
+    std::shared_ptr<kv::Store> recovery_store;
     std::shared_ptr<kv::TxHistory> recovery_history;
     std::shared_ptr<kv::AbstractTxEncryptor> recovery_encryptor;
     kv::Version recovery_v;
@@ -555,16 +560,25 @@ namespace ccf
       if (result == kv::DeserialiseSuccess::PASS_SIGNATURE)
       {
         network.tables->compact(ledger_idx);
-        Store::Tx tx;
+        kv::Tx tx;
         GenesisGenerator g(network, tx);
         auto last_sig = g.get_last_signature();
         if (last_sig.has_value())
         {
           LOG_DEBUG_FMT(
             "Read signature at {} for term {}", ledger_idx, last_sig->term);
-          for (auto i = term_history.size(); i <= last_sig->term; ++i)
+          // Initial transactions, before the first signature, must have
+          // happened in the first signature's term (eg - if the first
+          // signature is at idx 20 in term 4, then transactions 1->19 must
+          // also have been in term 4). The brief justification is that while
+          // the first node may start in an arbitrarily high term (it does not
+          // necessarily start in term 1), it cannot _change_ term before a
+          // valid signature.
+          const auto term_start_idx =
+            term_history.empty() ? 1 : last_recovered_commit_idx + 1;
+          for (auto i = term_history.size(); i < last_sig->term; ++i)
           {
-            term_history.push_back(last_recovered_commit_idx + 1);
+            term_history.push_back(term_start_idx);
           }
           last_recovered_commit_idx = ledger_idx;
         }
@@ -583,7 +597,7 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      Store::Tx tx;
+      kv::Tx tx;
       GenesisGenerator g(network, tx);
 
       network.tables->rollback(last_recovered_commit_idx);
@@ -721,7 +735,7 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
-        Store::Tx tx;
+        kv::Tx tx;
 
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
@@ -774,7 +788,7 @@ namespace ccf
     void setup_private_recovery_store()
     {
       // Setup recovery store by cloning tables of store
-      recovery_store = std::make_shared<Store>();
+      recovery_store = std::make_shared<kv::Store>();
       recovery_store->clone_schema(*network.tables);
       Signatures* recovery_signature_map =
         recovery_store->get<Signatures>(Tables::SIGNATURES);
@@ -788,7 +802,7 @@ namespace ccf
         *recovery_nodes_map);
 
 #ifdef USE_NULL_ENCRYPTOR
-      recovery_encryptor = std::make_shared<NullTxEncryptor>();
+      recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
       if (network.consensus_type == ConsensusType::PBFT)
       {
@@ -798,7 +812,8 @@ namespace ccf
       else if (network.consensus_type == ConsensusType::RAFT)
       {
         recovery_encryptor =
-          std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets, true);
+          std::make_shared<RaftTxEncryptor>(network.ledger_secrets, true);
+        recovery_encryptor->set_iv_id(self); // RaftEncryptor uses node ID as iv
       }
       else
       {
@@ -818,7 +833,7 @@ namespace ccf
       LOG_DEBUG_FMT("Recovery store successfully setup: {}", recovery_v);
     }
 
-    bool accept_recovery(Store::Tx& tx) override
+    bool accept_recovery(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
@@ -828,7 +843,7 @@ namespace ccf
     }
 
     bool finish_recovery(
-      Store::Tx& tx, const std::vector<kv::Version>& restored_versions)
+      kv::Tx& tx, const std::vector<kv::Version>& restored_versions)
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
@@ -940,13 +955,13 @@ namespace ccf
       return sm.check(State::partOfPublicNetwork);
     }
 
-    bool open_network(Store::Tx& tx) override
+    bool open_network(kv::Tx& tx) override
     {
       GenesisGenerator g(network, tx);
       return g.open_service();
     }
 
-    bool rekey_ledger(Store::Tx& tx) override
+    bool rekey_ledger(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
@@ -962,7 +977,7 @@ namespace ccf
     }
 
     void node_quotes(
-      Store::Tx& tx,
+      kv::Tx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {
@@ -1000,7 +1015,7 @@ namespace ccf
       });
     };
 
-    bool split_ledger_secrets(Store::Tx& tx) override
+    bool split_ledger_secrets(kv::Tx& tx) override
     {
       try
       {
@@ -1015,7 +1030,7 @@ namespace ccf
     }
 
     bool restore_ledger_secrets(
-      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+      kv::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
     {
       try
       {
@@ -1108,7 +1123,7 @@ namespace ccf
     }
 
     void broadcast_ledger_secret(
-      Store::Tx& tx,
+      kv::Tx& tx,
       const LedgerSecret& secret,
       kv::Version version = kv::NoVersion,
       bool exclude_self = false)
@@ -1481,7 +1496,7 @@ namespace ccf
       setup_cmd_forwarder();
 
       auto raft = std::make_unique<RaftType>(
-        std::make_unique<raft::Adaptor<Store, kv::DeserialiseSuccess>>(
+        std::make_unique<raft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
         std::make_unique<consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
@@ -1565,7 +1580,7 @@ namespace ccf
       // the node has joined the service (either via start_network() or
       // join_network())
 #ifdef USE_NULL_ENCRYPTOR
-      encryptor = std::make_shared<NullTxEncryptor>();
+      encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
       if (network.consensus_type == ConsensusType::PBFT)
       {
@@ -1573,8 +1588,8 @@ namespace ccf
       }
       else if (network.consensus_type == ConsensusType::RAFT)
       {
-        encryptor =
-          std::make_shared<RaftTxEncryptor>(self, network.ledger_secrets);
+        encryptor = std::make_shared<RaftTxEncryptor>(network.ledger_secrets);
+        encryptor->set_iv_id(self); // RaftEncryptor uses node ID as iv
       }
       else
       {
@@ -1639,7 +1654,7 @@ namespace ccf
       setup_n2n_channels();
 
       consensus = std::make_shared<PbftConsensusType>(
-        std::make_unique<pbft::Adaptor<Store, kv::DeserialiseSuccess>>(
+        std::make_unique<pbft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
         n2n_channels,
         self,
@@ -1650,6 +1665,7 @@ namespace ccf
         network.pbft_requests_map,
         network.pbft_pre_prepares_map,
         network.signatures,
+        network.pbft_new_views_map,
         node_sign_kp->private_key_pem().str(),
         node_cert,
         consensus_config);

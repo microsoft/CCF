@@ -29,8 +29,9 @@ class LoggingTxs:
 
     def issue(self, network, number_txs, consensus, on_backup=False):
         LOG.success(f"Applying {number_txs} logging txs")
-        primary, backup = network.find_primary_and_any_backup()
-        remote_node = backup if on_backup else primary
+        remote_node, _ = network.find_primary()
+        if on_backup:
+            remote_node = network.find_any_backup()
 
         self.issue_on_node(network, remote_node, number_txs, consensus)
 

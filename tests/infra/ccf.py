@@ -10,6 +10,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
+from infra.tx_status import TxStatus
 import random
 from math import ceil
 
@@ -56,6 +57,7 @@ def get_common_folder_name(workspace, label):
 
 class Network:
     KEY_GEN = "keygenerator.sh"
+    DEFUNCT_NETWORK_ENC_PUBK = "network_enc_pubk_orig.pem"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -84,20 +86,21 @@ class Network:
         existing_network=None,
         txs=None,
     ):
-        if existing_network is None:
-            self.consortium = []
+        self.existing_network = existing_network
+        if self.existing_network is None:
+            self.consortium = None
             self.node_offset = 0
             self.txs = txs
         else:
-            self.consortium = existing_network.consortium
+            self.consortium = self.existing_network.consortium
             # When creating a new network from an existing one (e.g. for recovery),
             # the node id of the nodes of the new network should start from the node
             # id of the existing network, so that new nodes id match the ones in the
             # nodes KV table
             self.node_offset = (
-                len(existing_network.nodes) + existing_network.node_offset
+                len(self.existing_network.nodes) + self.existing_network.node_offset
             )
-            self.txs = existing_network.txs
+            self.txs = self.existing_network.txs
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
@@ -121,6 +124,20 @@ class Network:
         if len(self.nodes):
             return self.nodes[-1].node_id + 1
         return self.node_offset
+
+    def _adjust_local_node_ids(self, primary):
+        assert (
+            self.existing_network is None
+        ), "Cannot adjust local node IDs if the network was started from an existing network"
+
+        with primary.node_client() as nc:
+            r = nc.get("getPrimaryInfo")
+            first_node_id = r.result["primary_id"]
+            assert (r.result["primary_host"] == primary.host) and (
+                int(r.result["primary_port"]) == primary.rpc_port
+            ), "Primary is not the node that just started"
+            for n in self.nodes:
+                n.node_id = n.node_id + first_node_id
 
     def create_node(self, host):
         node_id = self._get_next_local_node_id()
@@ -196,16 +213,25 @@ class Network:
                             common_dir=self.common_dir,
                             **forwarded_args,
                         )
+                        # When a recovery network in started without an existing network,
+                        # it is not possible to know the local node IDs before the first
+                        # node is started and has recovered the ledger. The local node IDs
+                        # are adjusted accordingly then.
+                        if self.existing_network is None:
+                            self.wait_for_state(
+                                node,
+                                "partOfPublicNetwork",
+                                timeout=args.ledger_recovery_timeout,
+                            )
+                            self._adjust_local_node_ids(node)
                 else:
                     self._add_node(node, args.package, args)
             except Exception:
-                LOG.exception("Failed to start node {}".format(i))
+                LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
-        LOG.info("All remotes started")
+        LOG.info("All nodes started")
 
         primary, _ = self.find_primary()
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-
         return primary
 
     def _setup_common_folder(self, gov_script):
@@ -239,15 +265,16 @@ class Network:
 
         initial_member_ids = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
+            self.common_dir,
+            self.key_generator,
             initial_member_ids,
             args.participants_curve,
-            self.key_generator,
-            self.common_dir,
         )
         initial_users = list(range(max(0, args.initial_user_count)))
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
+        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
 
         if args.consensus != "pbft":
             self.wait_for_all_nodes_to_catch_up(primary)
@@ -274,11 +301,61 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
-    def start_in_recovery(self, args, ledger_file):
-        self.common_dir = get_common_folder_name(args.workspace, args.label)
+    def start_in_recovery(
+        self, args, ledger_file, common_dir=None, defunct_network_enc_pub=None,
+    ):
+        """
+        Recovers a CCF network.
+        :param args: command line arguments to configure the CCF nodes.
+        :param ledger_file: ledger file to recover from.
+        :param common_dir: common directory containing member and user keys and certs.
+        :param defunct_network_enc_pub: defunct network encryption public key.
+        """
+        self.common_dir = common_dir or get_common_folder_name(
+            args.workspace, args.label
+        )
+        if defunct_network_enc_pub is None:
+            defunct_network_enc_pub = self.store_current_network_encryption_key()
+
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
+
+        # If a common directory was passed in, initialise the consortium from it
+        if common_dir is not None:
+            self.consortium = infra.consortium.Consortium(
+                common_dir, self.key_generator, remote_node=primary
+            )
+
+        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
+
+        for node in self.nodes:
+            self.wait_for_state(
+                node, "partOfPublicNetwork", timeout=args.ledger_recovery_timeout
+            )
         self.wait_for_all_nodes_to_catch_up(primary)
-        LOG.success("All nodes joined recovered public network")
+        LOG.success("All nodes joined public network")
+
+        self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
+        self.consortium.accept_recovery(primary)
+        self.consortium.recover_with_shares(primary, defunct_network_enc_pub)
+
+        for node in self.nodes:
+            self.wait_for_state(
+                node, "partOfNetwork", timeout=args.ledger_recovery_timeout
+            )
+
+        self.consortium.check_for_service(
+            primary, infra.ccf.ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
+        )
+        LOG.success("***** Recovered network is now open *****")
+
+    def store_current_network_encryption_key(self):
+        cmd = [
+            "cp",
+            os.path.join(self.common_dir, "network_enc_pubk.pem"),
+            os.path.join(self.common_dir, self.DEFUNCT_NETWORK_ENC_PUBK),
+        ]
+        infra.proc.ccall(*cmd).check_returncode()
+        return os.path.join(self.common_dir, self.DEFUNCT_NETWORK_ENC_PUBK)
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
@@ -290,7 +367,7 @@ class Network:
             if fatal_errors:
                 fatal_error_found = True
 
-        LOG.info("All remotes stopped...")
+        LOG.info("All nodes stopped...")
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -361,7 +438,7 @@ class Network:
 
         return new_node
 
-    def create_user(self, user_id, curve):
+    def create_user(self, user_id, curve, record=True):
         infra.proc.ccall(
             self.key_generator,
             f"--name=user{user_id}",
@@ -369,7 +446,8 @@ class Network:
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
-        self.user_ids.append(user_id)
+        if record:
+            self.user_ids.append(user_id)
 
     def create_users(self, user_ids, curve):
         for user_id in user_ids:
@@ -385,7 +463,7 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                with node.node_client() as c:
+                with node.node_client(connection_timeout=timeout) as c:
                     r = c.get("getSignedIndex")
                     if r.result["state"] == state:
                         break
@@ -398,13 +476,6 @@ class Network:
             )
         if state == "partOfNetwork":
             self.status = ServiceStatus.OPEN
-
-    def wait_for_all_nodes_to_be_trusted(self, timeout=3):
-        primary, _ = self.find_primary()
-        for n in self.nodes:
-            self.consortium.wait_for_node_to_exist_in_store(
-                primary, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
-            )
 
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
@@ -425,11 +496,11 @@ class Network:
                         res = c.get("getPrimaryInfo")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            term = res.term
+                            term = res.result["current_term"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
-                    except TimeoutError:
+                    except infra.clients.CCFConnectionException:
                         pass
             if primary_id is not None:
                 break
@@ -460,28 +531,40 @@ class Network:
     def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
         Wait for all nodes to have joined the network and globally replicated
-        all transactions executed on the primary (including the transactions
+        all transactions globally executed on the primary (including transactions
         which added the nodes).
         """
-        with primary.node_client() as c:
-            res = c.get("getCommit")
-            local_commit_leader = res.commit
-            term_leader = res.term
-
         end_time = time.time() + timeout
+        while time.time() < end_time:
+            with primary.node_client() as c:
+                resp = c.get("getCommit")
+                commit_leader = resp.result["commit"]
+                term_leader = resp.result["term"]
+                if commit_leader != 0:
+                    break
+            time.sleep(0.1)
+        assert (
+            commit_leader != 0
+        ), f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {commit_leader})"
+
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.get("getCommit")
+                    resp = c.get("tx", {"view": term_leader, "seqno": commit_leader},)
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
-                    if (
-                        resp.global_commit >= local_commit_leader
-                        and resp.result["term"] == term_leader
-                    ):
+                    status = TxStatus(resp.result["status"])
+                    if status == TxStatus.Committed:
                         caught_up_nodes.append(node)
+                    elif status == TxStatus.Invalid:
+                        raise RuntimeError(
+                            f"Node {node.node_id} reports transaction ID {term_leader}.{commit_leader} is invalid and will never be committed"
+                        )
+                    else:
+                        pass
+
             if len(caught_up_nodes) == len(self.get_joined_nodes()):
                 break
             time.sleep(0.1)

@@ -56,6 +56,7 @@ Replica::Replica(
   pbft::RequestsMap& pbft_requests_map_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
   ccf::Signatures& signatures,
+  pbft::NewViewsMap& pbft_new_views_map_,
   pbft::PbftStore& store) :
   Node(node_info),
   rqueue(),
@@ -66,6 +67,7 @@ Replica::Replica(
   brt(node_info.general_info.num_replicas),
   pbft_requests_map(pbft_requests_map_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_),
+  pbft_new_views_map(pbft_new_views_map_),
   replies(mem, nbytes),
   rep_cb(nullptr),
   global_commit_cb(nullptr),
@@ -163,8 +165,8 @@ Replica::Replica(
 
   exec_command = nullptr;
 
-  ledger_writer =
-    std::make_unique<LedgerWriter>(store, pbft_pre_prepares_map, signatures);
+  ledger_writer = std::make_unique<LedgerWriter>(
+    store, pbft_pre_prepares_map, signatures, pbft_new_views_map);
   encryptor = store.get_encryptor();
 }
 
@@ -189,7 +191,7 @@ struct PreVerifyResultCbMsg
 };
 
 static void pre_verify_reply_cb(
-  std::unique_ptr<enclave::Tmsg<PreVerifyResultCbMsg>> req)
+  std::unique_ptr<threading::Tmsg<PreVerifyResultCbMsg>> req)
 {
   Message* m = req->data.m;
   Replica* self = req->data.self;
@@ -206,20 +208,20 @@ static void pre_verify_reply_cb(
   }
 }
 
-static void pre_verify_cb(std::unique_ptr<enclave::Tmsg<PreVerifyCbMsg>> req)
+static void pre_verify_cb(std::unique_ptr<threading::Tmsg<PreVerifyCbMsg>> req)
 {
   Message* m = req->data.m;
   Replica* self = req->data.self;
 
-  auto resp =
-    std::make_unique<enclave::Tmsg<PreVerifyResultCbMsg>>(&pre_verify_reply_cb);
+  auto resp = std::make_unique<threading::Tmsg<PreVerifyResultCbMsg>>(
+    &pre_verify_reply_cb);
 
   resp->data.m = m;
   resp->data.self = self;
   resp->data.result = self->pre_verify(m);
 
-  enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
-    enclave::ThreadMessaging::main_thread, std::move(resp));
+  threading::ThreadMessaging::thread_messaging.add_task<PreVerifyResultCbMsg>(
+    threading::ThreadMessaging::main_thread, std::move(resp));
 }
 
 static uint64_t verification_thread = 0;
@@ -333,20 +335,21 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 
   uint32_t target_thread = 0;
 
-  if (enclave::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
+  if (threading::ThreadMessaging::thread_count > 1 && m->tag() == Request_tag)
   {
-    uint32_t num_worker_thread = enclave::ThreadMessaging::thread_count - 1;
+    uint32_t num_worker_thread = threading::ThreadMessaging::thread_count - 1;
     target_thread = (((Request*)m)->user_id() % num_worker_thread) + 1;
   }
 
   if (f() != 0 && target_thread != 0)
   {
-    auto msg = std::make_unique<enclave::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
+    auto msg =
+      std::make_unique<threading::Tmsg<PreVerifyCbMsg>>(&pre_verify_cb);
 
     msg->data.m = m;
     msg->data.self = this;
 
-    enclave::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
+    threading::ThreadMessaging::thread_messaging.add_task<PreVerifyCbMsg>(
       target_thread, std::move(msg));
   }
   else
@@ -363,12 +366,21 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
   }
 }
 
+void Replica::update_gov_req_info(ByzInfo& info, Pre_prepare* pre_prepare)
+{
+  info.last_exec_gov_req = gov_req_track.last_seqno();
+  if (info.did_exec_gov_req)
+  {
+    gov_req_track.update(pre_prepare->seqno());
+  }
+}
+
 bool Replica::compare_execution_results(
   const ByzInfo& info, Pre_prepare* pre_prepare)
 {
   // We are currently not ordering the execution on the backups correctly.
   // This will be resolved in the immediate future.
-  if (enclave::ThreadMessaging::thread_count > 2)
+  if (threading::ThreadMessaging::thread_count > 2)
   {
     return true;
   }
@@ -437,7 +449,7 @@ bool Replica::compare_execution_results(
   return true;
 }
 
-void Replica::playback_request(ccf::Store::Tx& tx)
+void Replica::playback_request(kv::Tx& tx)
 {
   auto view = tx.get_view(pbft_requests_map);
   auto req_v = view->get(0);
@@ -484,6 +496,46 @@ void Replica::playback_request(ccf::Store::Tx& tx)
   }
 }
 
+void Replica::add_certs_if_valid(
+  Pre_prepare* pp, Pre_prepare* prev_pp, Prepared_cert& prev_prepared_cert)
+{
+  Pre_prepare::ValidProofs_iter vp_iter(pp);
+  int p_id;
+  bool valid;
+  while (vp_iter.get(p_id, valid, prev_pp->digest()))
+  {
+    if (valid)
+    {
+      LOG_DEBUG_FMT(
+        "Adding prepare for principal with id {} for seqno {}",
+        p_id,
+        prev_pp->seqno());
+      Prepare* p = new Prepare(
+        prev_pp->view(),
+        prev_pp->seqno(),
+        prev_pp->digest(),
+        prev_pp->get_nonce(),
+        nullptr,
+        prev_pp->is_signed(),
+        p_id);
+      prev_prepared_cert.add(p);
+    }
+  }
+
+  if (prev_prepared_cert.is_pp_correct())
+  {
+    LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_pp->seqno());
+    Prepare* p = new Prepare(
+      prev_pp->view(),
+      prev_pp->seqno(),
+      prev_pp->digest(),
+      prev_pp->get_nonce(),
+      nullptr,
+      prev_pp->is_signed());
+    prev_prepared_cert.add_mine(p);
+  }
+}
+
 void Replica::populate_certificates(Pre_prepare* pp)
 {
   if (pp->seqno() <= 0)
@@ -504,39 +556,11 @@ void Replica::populate_certificates(Pre_prepare* pp)
   auto prev_pp = prev_prepared_cert.pre_prepare();
   if (prev_pp != nullptr)
   {
-    Pre_prepare::ValidProofs_iter vp_iter(prev_pp);
-    int p_id;
-    bool valid;
-    while (vp_iter.get(p_id, valid) && valid)
-    {
-      LOG_DEBUG_FMT(
-        "Adding prepare for principal with id {} for seqno {}",
-        p_id,
-        prev_seqno);
-      Prepare* p = new Prepare(
-        prev_pp->view(),
-        prev_pp->seqno(),
-        prev_pp->digest(),
-        prev_pp->get_nonce(),
-        nullptr,
-        prev_pp->is_signed(),
-        p_id);
-      prev_prepared_cert.add(p);
-    }
-
-    LOG_DEBUG_FMT("Adding my prepare for seqno {}", prev_seqno);
-    Prepare* p = new Prepare(
-      prev_pp->view(),
-      prev_pp->seqno(),
-      prev_pp->digest(),
-      prev_pp->get_nonce(),
-      nullptr,
-      prev_pp->is_signed());
-    prev_prepared_cert.add_mine(p);
+    add_certs_if_valid(pp, prev_pp, prev_prepared_cert);
   }
 }
 
-void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
+void Replica::playback_pre_prepare(kv::Tx& tx)
 {
   auto view = tx.get_view(pbft_pre_prepares_map);
   auto pp = view->get(0);
@@ -553,12 +577,9 @@ void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
   waiting_for_playback_pp = false;
   playback_max_local_commit_value = INT64_MIN;
 
-  playback_byz_info.last_exec_gov_req = gov_req_track.last_seqno();
-  if (did_exec_gov_req)
-  {
-    gov_req_track.update(executable_pp->seqno());
-    did_exec_gov_req = false;
-  }
+  playback_byz_info.did_exec_gov_req = did_exec_gov_req;
+  update_gov_req_info(playback_byz_info, executable_pp.get());
+  did_exec_gov_req = false;
 
   if (compare_execution_results(playback_byz_info, executable_pp.get()))
   {
@@ -910,11 +931,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       pp->sign();
       self->plog.fetch(self->next_pp_seqno).add_mine(pp);
 
-      info.last_exec_gov_req = self->gov_req_track.last_seqno();
-      if (info.did_exec_gov_req)
-      {
-        self->gov_req_track.update(pp->seqno());
-      }
+      self->update_gov_req_info(info, pp);
 
       self->requests_per_batch.insert(
         {self->next_pp_seqno, ctx->requests_in_batch});
@@ -1041,13 +1058,6 @@ void Replica::handle(Pre_prepare* m)
     // for the same view and sequence number and the message is valid.
     if (pc.add(m))
     {
-      if (ms == playback_pp_seqno + 1)
-      {
-        // previous pre prepare was executed during playback, we need to add the
-        // prepares for it, as the prepare proofs for the previous pre-prepare
-        // are in the next pre prepare message
-        populate_certificates(m);
-      }
       send_prepare(ms);
     }
     return;
@@ -1093,7 +1103,7 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
                   std::unique_ptr<ExecTentativeCbCtx> msg) {
         if (self->ledger_writer && !self->is_primary())
         {
-          msg->info.last_exec_gov_req = self->gov_req_track.last_seqno();
+          self->update_gov_req_info(msg->info, pp);
           if (!self->compare_execution_results(msg->info, pp))
           {
             PBFT_ASSERT_FMT_FAIL(
@@ -1103,11 +1113,14 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
             self->try_send_prepare();
             return;
           }
+        }
 
-          if (msg->info.did_exec_gov_req)
-          {
-            self->gov_req_track.update(pp->seqno());
-          }
+        if (pp->seqno() == self->playback_pp_seqno + 1)
+        {
+          // previous pre prepare was executed during playback, we need to add
+          // the prepares for it, as the prepare proofs for the previous
+          // pre-prepare are in the next pre prepare message
+          self->populate_certificates(pp);
         }
 
         Prepare* p = new Prepare(
@@ -1388,14 +1401,6 @@ void Replica::register_rollback_cb(
   rollback_info = rb_info;
 }
 
-template <class T>
-std::unique_ptr<T> Replica::create_message(
-  const uint8_t* message_data, size_t data_size)
-{
-  auto msg_type = reinterpret_cast<T*>(create_message(message_data, data_size));
-  return std::unique_ptr<T>(msg_type);
-}
-
 void Replica::handle(Reply* m)
 {
   if (rep_cb != nullptr)
@@ -1416,7 +1421,7 @@ size_t Replica::f() const
   return Node::f();
 }
 
-void Replica::set_f(ccf::NodeId f)
+void Replica::set_f(size_t f)
 {
   if (max_faulty == 0 && f > 0)
   {
@@ -1895,41 +1900,20 @@ void Replica::send_view_change()
 
   // Create and send view-change message.
   vi.view_change(v, last_executed, &state);
-
-  // Write the view change proof to the ledger
-#ifdef SIGN_BATCH
-  write_view_change_to_ledger();
-#endif
 }
 
-void Replica::write_view_change_to_ledger()
+void Replica::write_new_view_to_ledger()
 {
   if (!ledger_writer)
   {
     return;
   }
 
-  auto principals = get_principals();
-  for (const auto& it : *principals)
-  {
-    const std::shared_ptr<Principal>& p = it.second;
-    if (p == nullptr || !p->is_replica())
-    {
-      continue;
-    }
-    View_change* vc = vi.view_change(p->pid());
-    if (vc == nullptr)
-    {
-      continue;
-    }
-
-    LOG_TRACE_FMT(
-      "Writing view for {} with digest {} to ledger",
-      vc->view(),
-      vc->digest().hash());
-
-    ledger_writer->write_view_change(vc);
-  }
+  auto nv = vi.new_view();
+  PBFT_ASSERT(nv != nullptr, "Invalid state");
+  LOG_TRACE_FMT(
+    "Writing new view: {} from node: {} to ledger", nv->view(), nv->id());
+  ledger_writer->write_new_view(nv);
 }
 
 void Replica::handle(New_principal* m)
@@ -2044,41 +2028,43 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
     if (encryptor)
     {
-      encryptor->set_view(prev_view);
+      encryptor->set_iv_id(prev_view);
     }
+
+    ByzInfo info;
+    bool did_execute = false;
     if (primary() == id())
     {
-      ByzInfo info;
       pc.add_mine(pp);
-      if (execute_tentative(pp, info, pp->get_nonce()))
-      {
-        if (ledger_writer)
-        {
-          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
-        }
-      }
+      did_execute = execute_tentative(pp, info, pp->get_nonce());
     }
     else
     {
-      ByzInfo info;
       pc.add_old(pp);
       uint64_t nonce = entropy->random64();
-
-      if (execute_tentative(pp, info, nonce))
-      {
-        if (ledger_writer)
-        {
-          last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
-        }
-      }
-
+      did_execute = execute_tentative(pp, info, nonce);
       Prepare* p = new Prepare(v, i, d, nonce, nullptr, pp->is_signed());
       pc.add_mine(p);
       send(p, All_replicas);
     }
 
+    if (did_execute)
+    {
+      if (ledger_writer)
+      {
+        last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
+      }
+
+      if (req_in_pp > 0)
+      {
+        // not a null op
+        update_gov_req_info(info, pp);
+      }
+    }
+
     if (i <= last_executed || pc.is_complete())
     {
+      global_commit(pp);
       send_commit(i);
     }
   }
@@ -2090,6 +2076,8 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     send_pre_prepare();
     ntimer->start();
   }
+
+  write_new_view_to_ledger();
 
   if (!has_nv_state)
   {
@@ -2109,7 +2097,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   }
   if (encryptor)
   {
-    encryptor->set_view(v);
+    encryptor->set_iv_id(v);
   }
   LOG_INFO << "Done with process new view " << v << std::endl;
 }
@@ -2140,7 +2128,6 @@ void Replica::rollback_to_globally_comitted()
   {
     // Rollback to last checkpoint
     PBFT_ASSERT(!state.in_fetch_state(), "Invalid state");
-
     auto rv = last_gb_version + 1;
 
     if (rollback_cb != nullptr)
@@ -2174,21 +2161,17 @@ void Replica::rollback_to_globally_comitted()
 
 void Replica::global_commit(Pre_prepare* pp)
 {
-  if (pp->is_signed())
+  if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
   {
-    if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
+    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+    state.checkpoint(pp->seqno());
+    last_gb_version = pp->get_ctx();
+    last_gb_seqno = pp->seqno();
+    if (global_commit_cb != nullptr)
     {
-      LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
-      LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
-      state.checkpoint(pp->seqno());
-      last_gb_version = pp->get_ctx();
-      last_gb_seqno = pp->seqno();
-      if (global_commit_cb != nullptr)
-      {
-        global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
-      }
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
     }
-    signed_version = 0;
   }
 }
 
@@ -2258,8 +2241,8 @@ void Replica::execute_prepared(bool committed)
 std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   Request& request,
   int64_t& max_local_commit_value,
-  bool include_markle_roots,
-  ccf::Store::Tx* tx,
+  bool include_merkle_roots,
+  kv::Tx* tx,
   Seqno seqno)
 {
   auto stash_replier = request.replier();
@@ -2271,7 +2254,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     request.request_id(),
     reinterpret_cast<uint8_t*>(request.contents()),
     request.contents_size(),
-    include_markle_roots,
+    include_merkle_roots,
     replies.total_requests_processed(),
     last_tentative_execute,
     max_local_commit_value,
@@ -2488,6 +2471,7 @@ void Replica::execute_committed(bool was_f_0)
               pp->seqno());
             return;
           }
+
           last_te_version = ledger_writer->write_pre_prepare(pp);
           PBFT_ASSERT(
             last_executed + 1 == last_tentative_execute,
