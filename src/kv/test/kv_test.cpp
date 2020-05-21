@@ -18,7 +18,6 @@
 struct RawMapTypes
 {
   using StringString = kv::Map<std::string, std::string>;
-
   using IntInt = kv::Map<int, int>;
   using IntString = kv::Map<int, std::string>;
   using StringInt = kv::Map<std::string, int>;
@@ -27,11 +26,14 @@ struct RawMapTypes
 struct ExperimentalMapTypes
 {
   using StringString = kv::experimental::Map<std::string, std::string>;
-
   using IntInt = kv::experimental::Map<int, int>;
   using IntString = kv::experimental::Map<int, std::string>;
   using StringInt = kv::experimental::Map<std::string, int>;
 };
+
+// TODO: Compare the actual serialised form of each implementation?
+
+// TODO: Add test of custom serialisers for experimental impl
 
 TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
@@ -395,6 +397,8 @@ TEST_CASE_TEMPLATE(
   }
 }
 
+// TODO: Test the state provided in hooks, or remove it
+
 TEST_CASE_TEMPLATE(
   "Local commit hooks", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
@@ -420,12 +424,12 @@ TEST_CASE_TEMPLATE(
   {
     kv::Tx tx;
     auto view = tx.get_view(map);
-    view->put("key", "value1");
+    view->put("key1", "value1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(global_writes.size() == 0);
     REQUIRE(local_writes.size() == 1);
-    REQUIRE(local_writes.front().at("key").value == "value1");
+    REQUIRE(local_writes.front().at("key1").value == "value1");
 
     local_writes.clear();
   }
@@ -437,7 +441,7 @@ TEST_CASE_TEMPLATE(
 
     kv::Tx tx;
     auto view = tx.get_view(map);
-    view->put("key", "value2");
+    view->put("key2", "value2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(local_writes.size() == 0);
@@ -451,21 +455,27 @@ TEST_CASE_TEMPLATE(
 
     kv::Tx tx;
     auto view = tx.get_view(map);
-    view->put("key", "value3");
+    view->put("key3", "value3");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(global_writes.size() == 0);
     REQUIRE(local_writes.size() == 1);
-    REQUIRE(local_writes.front().at("key").value == "value3");
+    const auto& latest_writes = local_writes.front();
+    INFO("Old writes are not included");
+    REQUIRE(latest_writes.find("key1") == latest_writes.end());
+    REQUIRE(latest_writes.find("key2") == latest_writes.end());
+    REQUIRE(latest_writes.at("key3").value == "value3");
 
     local_writes.clear();
   }
 }
 
-TEST_CASE("Global commit hooks")
+TEST_CASE_TEMPLATE(
+  "Global commit hooks", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
-  using State = kv::Map<std::string, std::string>::State;
-  using Write = kv::Map<std::string, std::string>::Write;
+  using State = typename MapImpl::StringString::State;
+  using Write = typename MapImpl::StringString::Write;
+
   struct GlobalHookInput
   {
     kv::Version version;
@@ -520,13 +530,15 @@ TEST_CASE("Global commit hooks")
     view_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
+    const auto compact_version = kv_store.current_version();
+
     // This does not affect map_with_hook but still increments the current
     // version of the store
     auto view_no_hook = tx3.get_view(map_no_hook);
     view_no_hook->put("key3", "value3");
     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
 
-    kv_store.compact(3);
+    kv_store.compact(compact_version);
 
     // Only the changes made to map_with_hook should be passed to the global
     // hook
@@ -553,11 +565,13 @@ TEST_CASE("Global commit hooks")
     view_no_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
+    const auto compact_version = kv_store.current_version();
+
     view_hook = tx3.get_view(map_with_hook);
     view_hook->put("key3", "value3");
     REQUIRE(tx3.commit() == kv::CommitSuccess::OK);
 
-    kv_store.compact(2);
+    kv_store.compact(compact_version);
 
     // Only the changes made to map_with_hook should be passed to the global
     // hook
@@ -576,14 +590,14 @@ TEST_CASE("Global commit hooks")
     view_hook->put("key1", "value1");
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-    kv_store.compact(1);
+    kv_store.compact(kv_store.current_version());
     global_writes.clear();
 
     view_hook = tx2.get_view(map_with_hook);
     view_hook->put("key2", "value2");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
 
-    kv_store.compact(2);
+    kv_store.compact(kv_store.current_version());
 
     // Only writes since the last compact are passed to the global hook
     REQUIRE(global_writes.size() == 1);
@@ -595,15 +609,15 @@ TEST_CASE("Global commit hooks")
   }
 }
 
-TEST_CASE("Clone schema")
+TEST_CASE_TEMPLATE("Clone schema", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store store;
   store.set_encryptor(encryptor);
 
-  auto& public_map =
-    store.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
-  auto& private_map = store.create<size_t, std::string>("private");
+  auto& public_map = store.create<typename MapImpl::IntString>(
+    "public", kv::SecurityDomain::PUBLIC);
+  auto& private_map = store.create<typename MapImpl::IntString>("private");
   kv::Tx tx1(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
@@ -618,7 +632,8 @@ TEST_CASE("Clone schema")
   REQUIRE(clone.deserialise(data) == kv::DeserialiseSuccess::PASS);
 }
 
-TEST_CASE("Deserialise return status")
+TEST_CASE_TEMPLATE(
+  "Deserialise return status", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   kv::Store store;
 
@@ -626,10 +641,12 @@ TEST_CASE("Deserialise return status")
     ccf::Tables::SIGNATURES, kv::SecurityDomain::PUBLIC);
   auto& nodes =
     store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
-  auto& data = store.create<size_t, size_t>("data", kv::SecurityDomain::PUBLIC);
+  auto& data =
+    store.create<typename MapImpl::IntInt>("data", kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
+  // TODO: Wha's this doing?
   auto history =
     std::make_shared<ccf::NullTxHistory>(store, 0, *kp, signatures, nodes);
   store.set_history(history);
@@ -669,21 +686,21 @@ TEST_CASE("Deserialise return status")
   }
 }
 
-TEST_CASE("map swap between stores")
+TEST_CASE_TEMPLATE("Map swap between stores", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store s1;
   s1.set_encryptor(encryptor);
 
-  auto& d1 = s1.create<size_t, size_t>("data");
-  auto& pd1 =
-    s1.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
+  auto& d1 = s1.create<typename MapImpl::IntInt>("data");
+  auto& pd1 = s1.create<typename MapImpl::IntInt>(
+    "public_data", kv::SecurityDomain::PUBLIC);
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
-  auto& d2 = s2.create<size_t, size_t>("data");
-  auto& pd2 =
-    s2.create<size_t, size_t>("public_data", kv::SecurityDomain::PUBLIC);
+  auto& d2 = s2.create<typename MapImpl::IntInt>("data");
+  auto& pd2 = s2.create<typename MapImpl::IntInt>(
+    "public_data", kv::SecurityDomain::PUBLIC);
 
   {
     kv::Tx tx;
@@ -741,15 +758,15 @@ TEST_CASE("map swap between stores")
   }
 }
 
-TEST_CASE("invalid map swaps")
+TEST_CASE_TEMPLATE("Invalid map swaps", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   {
     kv::Store s1;
-    s1.create<size_t, size_t>("one");
+    s1.create<typename MapImpl::IntInt>("one");
 
     kv::Store s2;
-    s2.create<size_t, size_t>("one");
-    s2.create<size_t, size_t>("two");
+    s2.create<typename MapImpl::IntInt>("one");
+    s2.create<typename MapImpl::IntInt>("two");
 
     REQUIRE_THROWS_WITH(
       s2.swap_private_maps(s1),
@@ -758,11 +775,11 @@ TEST_CASE("invalid map swaps")
 
   {
     kv::Store s1;
-    s1.create<size_t, size_t>("one");
-    s1.create<size_t, size_t>("two");
+    s1.create<typename MapImpl::IntInt>("one");
+    s1.create<typename MapImpl::IntInt>("two");
 
     kv::Store s2;
-    s2.create<size_t, size_t>("one");
+    s2.create<typename MapImpl::IntInt>("one");
 
     REQUIRE_THROWS_WITH(
       s2.swap_private_maps(s1),
@@ -770,20 +787,20 @@ TEST_CASE("invalid map swaps")
   }
 }
 
-TEST_CASE("private recovery map swap")
+TEST_CASE_TEMPLATE("Private recovery map swap", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store s1;
   s1.set_encryptor(encryptor);
-  auto& priv1 = s1.create<size_t, size_t>("private");
+  auto& priv1 = s1.create<typename MapImpl::IntInt>("private");
   auto& pub1 =
-    s1.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
+    s1.create<typename MapImpl::IntString>("public", kv::SecurityDomain::PUBLIC);
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
   auto& priv2 = s2.create<size_t, size_t>("private");
   auto& pub2 =
-    s2.create<size_t, std::string>("public", kv::SecurityDomain::PUBLIC);
+    s2.create<typename MapImpl::IntString>("public", kv::SecurityDomain::PUBLIC);
 
   INFO("Populate s1 with public entries");
   // We compact twice, deliberately. A public KV during recovery
@@ -900,10 +917,10 @@ TEST_CASE("private recovery map swap")
   }
 }
 
-TEST_CASE("Conflict resolution")
+TEST_CASE_TEMPLATE("Conflict resolution", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<std::string, std::string>(
+  auto& map = kv_store.create<typename MapImpl::StringString>(
     "map", kv::SecurityDomain::PUBLIC);
 
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
