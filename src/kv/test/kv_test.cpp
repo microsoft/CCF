@@ -24,51 +24,9 @@ struct RawMapTypes
   using StringInt = kv::Map<std::string, int>;
 };
 
-struct StringStringSerialiser
-{
-  using Bytes = kv::experimental::SerialisedRep;
-
-  static Bytes from_string(const std::string& s)
-  {
-    Bytes rep(sizeof(size_t) + s.size());
-    auto data = rep.data();
-    auto size = rep.size();
-    serialized::write(data, size, s);
-    return rep;
-  }
-
-  static std::string to_string(const Bytes& rep)
-  {
-    auto data = rep.data();
-    auto size = rep.size();
-    return serialized::read<std::string>(data, size);
-  }
-
-  static Bytes from_k(const std::string& key)
-  {
-    return from_string(key);
-  }
-
-  static std::string to_k(const Bytes& rep)
-  {
-    return to_string(rep);
-  }
-
-  static Bytes from_v(const std::string& value)
-  {
-    return from_string(value);
-  }
-
-  static std::string to_v(const Bytes& rep)
-  {
-    return to_string(rep);
-  }
-};
-
 struct ExperimentalMapTypes
 {
-  using StringString =
-    kv::experimental::Map<std::string, std::string, StringStringSerialiser>;
+  using StringString = kv::experimental::Map<std::string, std::string>;
 
   using IntInt = kv::experimental::Map<int, int>;
   using IntString = kv::experimental::Map<int, std::string>;
@@ -342,10 +300,11 @@ TEST_CASE_TEMPLATE("foreach", MapImpl, RawMapTypes, ExperimentalMapTypes)
   }
 }
 
-TEST_CASE("Rollback and compact")
+TEST_CASE_TEMPLATE(
+  "Rollback and compact", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<std::string, std::string>(
+  auto& map = kv_store.create<typename MapImpl::StringString>(
     "map", kv::SecurityDomain::PUBLIC);
 
   constexpr auto k = "key";
@@ -396,12 +355,13 @@ TEST_CASE("Rollback and compact")
   }
 }
 
-TEST_CASE("Clear entire store")
+TEST_CASE_TEMPLATE(
+  "Clear entire store", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   kv::Store kv_store;
-  auto& map1 = kv_store.create<std::string, std::string>(
+  auto& map1 = kv_store.create<typename MapImpl::StringString>(
     "map1", kv::SecurityDomain::PUBLIC);
-  auto& map2 = kv_store.create<std::string, std::string>(
+  auto& map2 = kv_store.create<typename MapImpl::StringString>(
     "map2", kv::SecurityDomain::PUBLIC);
 
   INFO("Commit a transaction over two maps");
@@ -435,10 +395,11 @@ TEST_CASE("Clear entire store")
   }
 }
 
-TEST_CASE("Local commit hooks")
+TEST_CASE_TEMPLATE(
+  "Local commit hooks", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
-  using State = kv::Map<std::string, std::string>::State;
-  using Write = kv::Map<std::string, std::string>::Write;
+  using State = typename MapImpl::StringString::State;
+  using Write = typename MapImpl::StringString::Write;
   std::vector<Write> local_writes;
   std::vector<Write> global_writes;
 
@@ -450,7 +411,7 @@ TEST_CASE("Local commit hooks")
   };
 
   kv::Store kv_store;
-  auto& map = kv_store.create<std::string, std::string>(
+  auto& map = kv_store.create<typename MapImpl::StringString>(
     "map", kv::SecurityDomain::PUBLIC);
   map.set_local_hook(local_hook);
   map.set_global_hook(global_hook);
