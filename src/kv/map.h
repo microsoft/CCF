@@ -59,12 +59,10 @@ namespace kv
     // And we also need to friend it, so it can access our protected state...
 
   public:
-    using ChangeSetPtr = std::unique_ptr<ChangeSet<K, V, H>>;
-
     using MyMap = Map<K, V, H>;
     friend MyMap;
 
-    ChangeSetPtr change_set;
+    ChangeSet<K, V, H> change_set;
 
     MyMap& map;
     size_t rollback_counter;
@@ -74,16 +72,17 @@ namespace kv
     bool changes = false;
     bool committed_writes = false;
 
-    TxViewCommitter(ChangeSetPtr&& cs, MyMap& m, size_t rollbacks) :
-      change_set(std::move(cs)),
+    template <typename... Ts>
+    TxViewCommitter(MyMap& m, size_t rollbacks, Ts&&... ts) :
       map(m),
-      rollback_counter(rollbacks)
+      rollback_counter(rollbacks),
+      change_set(std::forward<Ts>(ts)...)
     {}
 
     // Commit-related methods
     bool has_writes() override
     {
-      return committed_writes || !change_set->writes.empty();
+      return committed_writes || !change_set.writes.empty();
     }
 
     bool has_changes() override
@@ -93,7 +92,7 @@ namespace kv
 
     bool prepare() override
     {
-      if (change_set->writes.empty())
+      if (change_set.writes.empty())
         return true;
 
       // If the parent map has rolled back since this transaction began, this
@@ -105,15 +104,15 @@ namespace kv
       auto current = map.roll->get_tail();
 
       if (
-        (change_set->read_version != NoVersion) &&
-        (change_set->read_version != current->version))
+        (change_set.read_version != NoVersion) &&
+        (change_set.read_version != current->version))
       {
-        LOG_DEBUG_FMT("Read version {} is invalid", change_set->read_version);
+        LOG_DEBUG_FMT("Read version {} is invalid", change_set.read_version);
         return false;
       }
 
       // Check each key in our read set.
-      for (auto it = change_set->reads.begin(); it != change_set->reads.end();
+      for (auto it = change_set.reads.begin(); it != change_set.reads.end();
            ++it)
       {
         // Get the value from the current state.
@@ -145,9 +144,9 @@ namespace kv
 
     void commit(Version v) override
     {
-      if (change_set->writes.empty())
+      if (change_set.writes.empty())
       {
-        commit_version = change_set->start_version;
+        commit_version = change_set.start_version;
         return;
       }
 
@@ -155,12 +154,11 @@ namespace kv
       commit_version = v;
       committed_writes = true;
 
-      if (!change_set->writes.empty())
+      if (!change_set.writes.empty())
       {
         auto state = map.roll->get_tail()->state;
 
-        for (auto it = change_set->writes.begin();
-             it != change_set->writes.end();
+        for (auto it = change_set.writes.begin(); it != change_set.writes.end();
              ++it)
         {
           if (it->second.version >= 0)
@@ -185,7 +183,7 @@ namespace kv
         if (changes)
         {
           map.roll->insert_back(
-            map.create_new_local_commit(v, state, change_set->writes));
+            map.create_new_local_commit(v, state, change_set.writes));
         }
       }
     }
@@ -195,7 +193,7 @@ namespace kv
       // This is run separately from commit so that all commits in the Tx
       // have been applied before local hooks are run. The maps in the Tx
       // are still locked when post_commit is run.
-      if (change_set->writes.empty())
+      if (change_set.writes.empty())
         return;
 
       if (map.local_hook)
@@ -213,16 +211,13 @@ namespace kv
   {
   public:
     ConcreteTxView(
+      Map<K, V, H>& m,
+      size_t rollbacks,
       State<K, V, H>& current_state,
       State<K, V, H>& committed_state,
-      Version v,
-      Map<K, V, H>& m,
-      size_t rollbacks) :
-      TxViewCommitter<K, V, H>(
-        std::make_unique<ChangeSet<K, V, H>>(current_state, committed_state, v),
-        m,
-        rollbacks),
-      TxView<K, V, H>(*TxViewCommitter<K, V, H>::change_set) //< BAD! TODO
+      Version v) :
+      TxViewCommitter<K, V, H>(m, rollbacks, current_state, committed_state, v),
+      TxView<K, V, H>(TxViewCommitter<K, V, H>::change_set)
     {}
   };
 
@@ -334,10 +329,10 @@ namespace kv
 
       if (include_reads)
       {
-        s.serialise_read_version(change_set->read_version);
+        s.serialise_read_version(change_set.read_version);
 
-        s.serialise_count_header(change_set->reads.size());
-        for (auto it = change_set->reads.begin(); it != change_set->reads.end();
+        s.serialise_count_header(change_set.reads.size());
+        for (auto it = change_set.reads.begin(); it != change_set.reads.end();
              ++it)
         {
           s.serialise_read(it->first, it->second);
@@ -351,7 +346,7 @@ namespace kv
 
       uint64_t write_ctr = 0;
       uint64_t remove_ctr = 0;
-      for (auto it = change_set->writes.begin(); it != change_set->writes.end();
+      for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {
         if (!is_deleted(it->second.version))
@@ -369,7 +364,7 @@ namespace kv
       }
 
       s.serialise_count_header(write_ctr);
-      for (auto it = change_set->writes.begin(); it != change_set->writes.end();
+      for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {
         if (!is_deleted(it->second.version))
@@ -379,7 +374,7 @@ namespace kv
       }
 
       s.serialise_count_header(remove_ctr);
-      for (auto it = change_set->writes.begin(); it != change_set->writes.end();
+      for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {
         if (is_deleted(it->second.version))
@@ -393,7 +388,7 @@ namespace kv
       KvStoreDeserialiser& d, Version version) override
     {
       // Create a new change set, and deserialise d's contents into it
-      auto view = create_view_internal<>(version);
+      auto view = create_view_internal(version);
       view->commit_version = version;
 
       auto& change_set = view->change_set;
@@ -403,28 +398,28 @@ namespace kv
       auto rv = d.template deserialise_read_version<Version>();
       if (rv != NoVersion)
       {
-        change_set->read_version = rv;
+        change_set.read_version = rv;
       }
 
       ctr = d.deserialise_read_header();
       for (size_t i = 0; i < ctr; ++i)
       {
         auto r = d.template deserialise_read<K>();
-        change_set->reads[std::get<0>(r)] = std::get<1>(r);
+        change_set.reads[std::get<0>(r)] = std::get<1>(r);
       }
 
       ctr = d.deserialise_write_header();
       for (size_t i = 0; i < ctr; ++i)
       {
         auto w = d.template deserialise_write<K, V>();
-        change_set->writes[std::get<0>(w)] = {0, std::get<1>(w)};
+        change_set.writes[std::get<0>(w)] = {0, std::get<1>(w)};
       }
 
       ctr = d.deserialise_remove_header();
       for (size_t i = 0; i < ctr; ++i)
       {
         auto r = d.template deserialise_remove<K>();
-        change_set->writes[r] = {NoVersion, V()};
+        change_set.writes[r] = {NoVersion, V()};
       }
 
       return view;
@@ -562,7 +557,7 @@ namespace kv
 
     AbstractTxView* create_view(Version version) override
     {
-      return create_view_internal<>(version);
+      return create_view_internal(version);
     }
 
   private:
@@ -684,8 +679,9 @@ namespace kv
     }
 
   protected:
-    template <typename TView = TxView>
-    TView* create_view_internal(Version version)
+    // Should this be a template? WHAT DO?
+    using TView = TxView;
+    TxView* create_view_internal(Version version)
     {
       lock();
 
@@ -697,24 +693,24 @@ namespace kv
       {
         if (current->version <= version)
         {
-          view = new TView(
+          view = new TxView(
+            *this,
+            rollback_counter,
             current->state,
             roll->get_head()->state,
-            current->version,
-            *this,
-            rollback_counter);
+            current->version);
           break;
         }
       }
 
       if (view == nullptr)
       {
-        view = new TView(
-          roll->get_head()->state,
-          roll->get_head()->state,
-          roll->get_head()->version,
+        view = new TxView(
           *this,
-          rollback_counter);
+          rollback_counter,
+          roll->get_head()->state,
+          roll->get_head()->state,
+          roll->get_head()->version);
       }
 
       unlock();
