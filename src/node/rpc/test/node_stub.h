@@ -3,7 +3,7 @@
 #pragma once
 
 #include "node/rpc/node_interface.h"
-#include "node/secret_share.h"
+#include "node/share_manager.h"
 
 namespace ccf
 {
@@ -11,17 +11,10 @@ namespace ccf
   {
   private:
     bool is_public = false;
-    std::shared_ptr<NetworkTables> network;
-
-    NetworkState network_state;
-    ShareManager share_manager;
+    ShareManager& share_manager;
 
   public:
-    StubNodeState(std::shared_ptr<NetworkTables> network_ = nullptr) :
-      network(network_),
-      network_state(ConsensusType::RAFT), // TODO: Remove
-      share_manager(network_state) // TODO: Remove
-    {}
+    StubNodeState(ShareManager& share_manager) : share_manager(share_manager) {}
 
     bool accept_recovery(Store::Tx& tx) override
     {
@@ -69,61 +62,14 @@ namespace ccf
       const std::optional<std::set<NodeId>>& filter) override
     {}
 
-    bool split_ledger_secrets(Store::Tx& tx) override
-    {
-      auto [members_view, shares_view] =
-        tx.get_view(network->members, network->shares);
-      SecretSharing::SplitSecret secret_to_split = {};
-
-      GenesisGenerator g(*network.get(), tx);
-      auto active_member_count = g.get_active_members_count();
-      size_t threshold = g.get_recovery_threshold();
-
-      auto shares =
-        SecretSharing::split(secret_to_split, active_member_count, threshold);
-
-      // Here, shares are not encrypted but recorded in plain text
-      EncryptedSharesMap recorded_shares;
-      MemberId member_id = 0;
-      for (auto const& s : shares)
-      {
-        auto share_raw = std::vector<uint8_t>(s.begin(), s.end());
-        recorded_shares[member_id] = {{}, share_raw};
-        member_id++;
-      }
-      g.add_key_share_info({{}, {}, recorded_shares});
-
-      return true;
-    }
-
     void restore_ledger_secrets(Store::Tx& tx) override
     {
-      auto submitted_shares = tx.get_view(network->submitted_shares)->get(0);
-      if (!submitted_shares.has_value())
-      {
-        throw std::logic_error("Could not find submitted shares");
-      }
-
-      std::vector<SecretSharing::Share> shares;
-      for (auto const& s : submitted_shares.value())
-      {
-        SecretSharing::Share share;
-        std::copy_n(
-          s.second.begin(), SecretSharing::SHARE_LENGTH, share.begin());
-        shares.emplace_back(share);
-      }
-      SecretSharing::combine(shares, shares.size());
+      share_manager.restore_recovery_shares_info(tx, {});
     }
 
     kv::Version get_last_recovered_commit_idx() override
     {
       return kv::NoVersion;
-    }
-
-    // TODO: Super bad hack for now. Please fix this!!
-    ShareManager& get_share_manager() override
-    {
-      return share_manager;
     }
 
     NodeId get_node_id() const override

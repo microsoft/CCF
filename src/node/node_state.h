@@ -209,7 +209,8 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ccf::Notifier& notifier,
-      Timers& timers) :
+      Timers& timers,
+      ShareManager& share_manager) :
       sm(State::uninitialized),
       self(INVALID_ID),
       node_sign_kp(tls::make_key_pair()),
@@ -220,7 +221,7 @@ namespace ccf
       rpcsessions(rpcsessions),
       notifier(notifier),
       timers(timers),
-      share_manager(network)
+      share_manager(share_manager)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -1025,11 +1026,6 @@ namespace ccf
         return true;
       });
     };
-
-    ShareManager& get_share_manager() override
-    {
-      return share_manager;
-    }
 
     void restore_ledger_secrets(Store::Tx& tx) override
     {

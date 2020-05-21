@@ -27,10 +27,6 @@ namespace ccf
     virtual NodeId get_node_id() const = 0;
 
     virtual kv::Version get_last_recovered_commit_idx() = 0;
-    // TODO: Can call share_manager directly
-    // virtual bool split_ledger_secrets(Store::Tx& tx) = 0;
-
-    virtual ShareManager& get_share_manager() = 0;
 
     virtual void restore_ledger_secrets(Store::Tx& tx) = 0;
   };

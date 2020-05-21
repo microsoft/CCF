@@ -546,11 +546,14 @@ namespace ccf
     const lua::TxScriptRunner tsr;
 
   public:
-    MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
+    MemberHandlers(
+      NetworkTables& network,
+      AbstractNodeState& node,
+      ShareManager& share_manager) :
       CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
-      share_manager(node.get_share_manager()),
+      share_manager(share_manager),
       tsr(network)
     {}
 
@@ -1021,10 +1024,13 @@ namespace ccf
     Members* members;
 
   public:
-    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
+    MemberRpcFrontend(
+      NetworkTables& network,
+      AbstractNodeState& node,
+      ShareManager& share_manager) :
       RpcFrontend(
         *network.tables, member_handlers, &network.member_client_signatures),
-      member_handlers(network, node),
+      member_handlers(network, node, share_manager),
       members(&network.members)
     {}
 
