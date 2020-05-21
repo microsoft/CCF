@@ -51,9 +51,6 @@ namespace ccf
     GovernanceHistory& governance_history;
     ClientSignatures& member_client_signatures;
     Shares& shares;
-    // The shares are submitted to the public-only network on recovery. As such,
-    // the table is public but the shares are encrypted manually with the latest
-    // ledger secret.
     SubmittedShares& submitted_shares;
     Configuration& config;
 

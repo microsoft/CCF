@@ -292,8 +292,7 @@ namespace ccf
 
     bool service_wait_for_shares()
     {
-      auto [service_view, submitted_shares_view] =
-        tx.get_view(tables.service, tables.submitted_shares);
+      auto service_view = tx.get_view(tables.service);
       auto active_service = service_view->get(0);
       if (!active_service.has_value())
       {
@@ -311,7 +310,6 @@ namespace ccf
 
       active_service->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
       service_view->put(0, active_service.value());
-      submitted_shares_view->put(0, {});
 
       return true;
     }

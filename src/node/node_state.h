@@ -836,6 +836,7 @@ namespace ccf
       sm.expect(State::partOfPublicNetwork);
 
       GenesisGenerator g(network, tx);
+      share_manager.clear_submitted_recovery_shares(tx);
       return g.service_wait_for_shares();
     }
 
@@ -1439,7 +1440,6 @@ namespace ccf
 
     void setup_recovery_hook()
     {
-      LOG_FAIL_FMT("Setting recovery hook!");
       network.shares.set_local_hook(
         [this](
           kv::Version version, const Shares::State& s, const Shares::Write& w) {

@@ -227,20 +227,32 @@ namespace ccf
 
     LedgerSecretWrappingKey combine_from_submitted_shares(Store::Tx& tx)
     {
-      auto submitted_shares = tx.get_view(network.submitted_shares)->get(0);
-      if (!submitted_shares.has_value())
-      {
-        throw std::logic_error("Failed to retrieve current submitted shares");
-      }
+      auto [submitted_shares_view, config_view] =
+        tx.get_view(network.submitted_shares, network.config);
 
       std::vector<SecretSharing::Share> shares;
-      for (auto const& s : submitted_shares.value())
+      submitted_shares_view->foreach(
+        [&shares, this](
+          const MemberId member_id,
+          const std::vector<uint8_t>& encrypted_share) {
+          SecretSharing::Share share;
+          auto decrypted_share = decrypt_submitted_share(encrypted_share);
+          std::copy_n(
+            decrypted_share.begin(),
+            SecretSharing::SHARE_LENGTH,
+            share.begin());
+          shares.emplace_back(share);
+          return true;
+        });
+
+      auto recovery_threshold = config_view->get(0)->recovery_threshold;
+      if (recovery_threshold > shares.size())
       {
-        SecretSharing::Share share;
-        auto decrypted_share = decrypt_submitted_share(s.second);
-        std::copy_n(
-          decrypted_share.begin(), SecretSharing::SHARE_LENGTH, share.begin());
-        shares.emplace_back(share);
+        throw std::logic_error(fmt::format(
+          "Error combining recovery shares: only {} recovery shares were "
+          "submitted but recovery threshold is {}",
+          shares.size(),
+          recovery_threshold));
       }
 
       return LedgerSecretWrappingKey(
@@ -379,36 +391,34 @@ namespace ccf
         throw std::logic_error("Failed to get active service");
       }
 
-      auto submitted_shares = submitted_shares_view->get(0);
-      if (!submitted_shares.has_value())
-      {
-        throw std::logic_error(
-          "Failed to get current submitted recovery shares");
-      }
+      auto submitted_shares = submitted_shares_view->put(
+        member_id, encrypt_submitted_share(submitted_recovery_share));
 
-      auto submitted_shares_map = submitted_shares.value();
-      submitted_shares_map[member_id] =
-        encrypt_submitted_share(submitted_recovery_share);
+      size_t submitted_shares_count = 0;
+      submitted_shares_view->foreach(
+        [&submitted_shares_count](
+          const MemberId member_id,
+          const std::vector<uint8_t>& encrypted_share) {
+          LOG_FAIL_FMT("Submitted share for member {}", member_id);
+          submitted_shares_count++;
+          return true;
+        });
 
-      submitted_shares_view->put(0, submitted_shares_map);
-
-      LOG_FAIL_FMT(
-        "submitted_shares_map.size() {}", submitted_shares_map.size());
-
-      return submitted_shares_map.size();
+      LOG_FAIL_FMT("submitted_shares_count: {}", submitted_shares_count);
+      return submitted_shares_count;
     }
 
     void clear_submitted_recovery_shares(Store::Tx& tx)
     {
       auto submitted_shares_view = tx.get_view(network.submitted_shares);
-      auto submitted_shares = submitted_shares_view->get(0);
-      if (!submitted_shares.has_value())
-      {
-        throw std::logic_error(
-          "Failed to get current submitted recovery shares");
-      }
 
-      submitted_shares_view->put(0, {});
+      submitted_shares_view->foreach(
+        [&submitted_shares_view](
+          const MemberId member_id,
+          const std::vector<uint8_t>& encrypted_share) {
+          submitted_shares_view->remove(member_id);
+          return true;
+        });
     }
   };
 }

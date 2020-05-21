@@ -8,10 +8,11 @@
 
 namespace ccf
 {
-  // The key for this table will always be 0 as there can only be one recovery
-  // happening at any given time
-  // TODO: Use the member ID for key instead? Probably more efficient?
+  // This table keeps track of the submitted encrypted recovery share so that
+  // the public-only service is resilient to elections while members submit
+  // their recovery shares.
+  // Because shares are submitted to the public-only network on recovery, this
+  // table is public but the shares are encrypted with the latest ledger secret.
 
-  using SubmittedShares =
-    Store::Map<size_t, std::map<MemberId, std::vector<uint8_t>>>;
+  using SubmittedShares = Store::Map<MemberId, std::vector<uint8_t>>;
 }
