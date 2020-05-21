@@ -122,6 +122,55 @@ TEST_CASE_TEMPLATE(
   }
 }
 
+TEST_CASE("Comparison")
+{
+  std::vector<uint8_t> raw_data;
+  {
+    auto consensus = std::make_shared<kv::StubConsensus>();
+    kv::Store kv_store(consensus);
+
+    auto& map0 = kv_store.create<RawMapTypes::StringString>(
+      "map0", kv::SecurityDomain::PUBLIC);
+    auto& map1 =
+      kv_store.create<RawMapTypes::NumNum>("map1", kv::SecurityDomain::PUBLIC);
+
+    kv::Tx tx;
+    auto view0 = tx.get_view(map0);
+    view0->put("pubk1", "pubv1");
+    auto view1 = tx.get_view(map1);
+    view1->put(0xab, 0xef);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    raw_data = consensus->get_latest_data().first;
+  }
+
+  std::vector<uint8_t> exp_data;
+  {
+    auto consensus = std::make_shared<kv::StubConsensus>();
+
+    kv::Store kv_store(consensus);
+
+    auto& map0 = kv_store.create<ExperimentalMapTypes::StringString>(
+      "map0", kv::SecurityDomain::PUBLIC);
+    auto& map1 = kv_store.create<ExperimentalMapTypes::NumNum>(
+      "map1", kv::SecurityDomain::PUBLIC);
+
+    kv::Tx tx;
+    auto view0 = tx.get_view(map0);
+    view0->put("pubk1", "pubv1");
+    auto view1 = tx.get_view(map1);
+    view1->put(0xab, 0xef);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    exp_data = consensus->get_latest_data().first;
+  }
+
+  CHECK(raw_data == exp_data);
+
+  std::cout << fmt::format("Old: {:02x}", fmt::join(raw_data, " "))
+            << std::endl;
+  std::cout << fmt::format("New: {:02x}", fmt::join(exp_data, " "))
+            << std::endl;
+}
+
 TEST_CASE(
   "Serialise/deserialise private map only" *
   doctest::test_suite("serialisation"))
