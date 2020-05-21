@@ -24,13 +24,81 @@ struct RawMapTypes
   using StringInt = kv::Map<std::string, int>;
 };
 
+struct StringStringSerialiser
+{
+  using Bytes = kv::experimental::SerialisedRep;
+
+  static Bytes from_string(const std::string& s)
+  {
+    Bytes rep(sizeof(size_t) + s.size());
+    auto data = rep.data();
+    auto size = rep.size();
+    serialized::write(data, size, s);
+    return rep;
+  }
+
+  static std::string to_string(const Bytes& rep)
+  {
+    auto data = rep.data();
+    auto size = rep.size();
+    return serialized::read<std::string>(data, size);
+  }
+
+  static Bytes from_k(const std::string& key)
+  {
+    return from_string(key);
+  }
+
+  static std::string to_k(const Bytes& rep)
+  {
+    return to_string(rep);
+  }
+
+  static Bytes from_v(const std::string& value)
+  {
+    return from_string(value);
+  }
+
+  static std::string to_v(const Bytes& rep)
+  {
+    return to_string(rep);
+  }
+};
+
+template <typename K, typename V>
+struct InvalidSerialiser
+{
+  static kv::experimental::SerialisedRep from_k(const K& key)
+  {
+    throw std::logic_error("Unimplemented");
+  }
+
+  static K to_k(const kv::experimental::SerialisedRep& rep)
+  {
+    throw std::logic_error("Unimplemented");
+  }
+
+  static kv::experimental::SerialisedRep from_v(const V& value)
+  {
+    throw std::logic_error("Unimplemented");
+  }
+
+  static V to_v(const kv::experimental::SerialisedRep& rep)
+  {
+    throw std::logic_error("Unimplemented");
+  }
+};
+
 struct ExperimentalMapTypes
 {
-  using StringString = kv::experimental::Map<std::string, std::string>;
+  using StringString =
+    kv::experimental::Map<std::string, std::string, StringStringSerialiser>;
 
-  using IntInt = kv::experimental::Map<int, int>;
-  using IntString = kv::experimental::Map<int, std::string>;
-  using StringInt = kv::experimental::Map<std::string, int>;
+  using IntInt = kv::experimental::Map<int, int, InvalidSerialiser<int, int>>;
+  using IntString = kv::experimental::
+    Map<int, std::string, InvalidSerialiser<int, std::string>>;
+  using StringInt = kv::experimental::
+    Map<std::string, int, InvalidSerialiser<std::string, int>>;
 };
 
 TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
