@@ -271,7 +271,12 @@ namespace kv
 
       void swap(AbstractMap* map) override
       {
-        untyped_map.swap(map);
+        auto p = dynamic_cast<This*>(map);
+        if (p == nullptr)
+          throw std::logic_error(
+            "Attempted to swap maps with incompatible types");
+
+        untyped_map.swap(&p->untyped_map);
       }
 
       static UntypedMap::CommitHook wrap_commit_hook(const CommitHook& hook)
@@ -281,9 +286,10 @@ namespace kv
             Version v, const UntypedMap::State& s, const UntypedMap::Write& w) {
             // TODO: We're abandoning s for now. This is wrong!
             Write typed_w;
-            for (const auto& [uk, version_uv]: w)
+            for (const auto& [uk, version_uv] : w)
             {
-              typed_w[S::to_key(uk)] = VersionV{version_uv.version, S::to_value(version_uv.value)};
+              typed_w[S::to_key(uk)] =
+                VersionV{version_uv.version, S::to_value(version_uv.value)};
             }
             hook(v, {}, typed_w);
           };
@@ -291,8 +297,7 @@ namespace kv
 
       void set_local_hook(const CommitHook& hook)
       {
-        untyped_map.set_local_hook(
-          wrap_commit_hook(hook));
+        untyped_map.set_local_hook(wrap_commit_hook(hook));
       }
 
       void unset_local_hook()
@@ -300,9 +305,9 @@ namespace kv
         untyped_map.unset_local_hook();
       }
 
-      void set_global_hook(const CommitHook& hook) {
-        untyped_map.set_global_hook(
-          wrap_commit_hook(hook));
+      void set_global_hook(const CommitHook& hook)
+      {
+        untyped_map.set_global_hook(wrap_commit_hook(hook));
       }
 
       void unset_global_hook()

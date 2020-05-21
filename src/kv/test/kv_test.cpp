@@ -798,7 +798,7 @@ TEST_CASE_TEMPLATE("Private recovery map swap", MapImpl, RawMapTypes, Experiment
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
-  auto& priv2 = s2.create<size_t, size_t>("private");
+  auto& priv2 = s2.create<typename MapImpl::IntInt>("private");
   auto& pub2 =
     s2.create<typename MapImpl::IntString>("public", kv::SecurityDomain::PUBLIC);
 
@@ -851,7 +851,7 @@ TEST_CASE_TEMPLATE("Private recovery map swap", MapImpl, RawMapTypes, Experiment
   s2.compact(s2.current_version());
 
   INFO("Swap in private maps");
-  s1.swap_private_maps(s2);
+  REQUIRE_NOTHROW(s1.swap_private_maps(s2));
 
   INFO("Check state looks as expected in s1");
   {
