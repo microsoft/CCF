@@ -20,7 +20,7 @@ def test(network, args):
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger)
-    recovered_network.recover(args)
+    recovered_network.recover(args, defunct_network_enc_pubk)
     return recovered_network
 
 
@@ -106,10 +106,10 @@ def run(args):
 
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship
-            if i % 2 == 0:
-                recovered_network = test_share_resilience(network, args)
-            else:
-                recovered_network = test(network, args)
+            # if i % 2 == 0:
+            recovered_network = test_share_resilience(network, args)
+            # else:
+            # recovered_network = test(network, args)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")

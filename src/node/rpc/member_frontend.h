@@ -861,24 +861,10 @@ namespace ccf
               "Only active members are given recovery shares");
           }
 
-          std::optional<EncryptedShare> enc_s;
-          auto recovery_shares_info =
-            args.tx.get_view(this->network.shares)->get(0);
-          if (!recovery_shares_info.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Failed to retrieve current recovery shares info");
-          }
-          for (auto const& s : recovery_shares_info->encrypted_shares)
-          {
-            if (s.first == args.caller_id)
-            {
-              enc_s = s.second;
-            }
-          }
+          auto encrypted_share =
+            share_manager.get_encrypted_share(args.tx, args.caller_id);
 
-          if (!enc_s.has_value())
+          if (!encrypted_share.has_value())
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -886,7 +872,7 @@ namespace ccf
                 "Recovery share not found for member {}", args.caller_id));
           }
 
-          return make_success(enc_s.value());
+          return make_success(encrypted_share.value());
         };
       install(
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
@@ -903,8 +889,6 @@ namespace ccf
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
-
-        LOG_FAIL_FMT("Submitting recovered share, member {}", args.caller_id);
 
         GenesisGenerator g(this->network, args.tx);
         if (
@@ -937,12 +921,6 @@ namespace ccf
 
         if (submitted_shares_count < g.get_recovery_threshold())
         {
-          // TODO: Return the number of recovery shares submitted so far
-          // TODO: Recovery threshold should not be able to be changed if the
-          // service is waiting for recovery shares
-          // TODO: It should not be possible to rekey while the server is
-          // waiting for recovery shares
-
           // The number of shares required to re-assemble the secret has not yet
           // been reached
           return make_success(false);
@@ -952,18 +930,8 @@ namespace ccf
           "Reached secret sharing threshold {}", g.get_recovery_threshold());
 
         node.restore_ledger_secrets(args.tx);
-        // if (!node.restore_ledger_secrets(args.tx))
-        // {
-        //   // TODO: Instead of clearing, keep the shares and try k-of-n
-        //   instead g.clear_submitted_recovery_shares();
 
-        //   return make_error(
-        //     HTTP_STATUS_INTERNAL_SERVER_ERROR,
-        //     "Failed to combine recovery shares and initiate end of recovery "
-        //     "protocol");
-        // }
-
-        g.clear_submitted_recovery_shares(); // TODO: We shouldn't need this
+        share_manager.clear_submitted_recovery_shares(args.tx);
         return make_success(true);
       };
       install(

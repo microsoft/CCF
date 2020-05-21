@@ -273,6 +273,27 @@ namespace ccf
         tx, new_ledger_secret, network.ledger_secrets->get_latest());
     }
 
+    std::optional<EncryptedShare> get_encrypted_share(
+      Store::Tx& tx, MemberId member_id)
+    {
+      std::optional<EncryptedShare> encrypted_share = std::nullopt;
+      auto recovery_shares_info = tx.get_view(network.shares)->get(0);
+      if (!recovery_shares_info.has_value())
+      {
+        throw std::logic_error(
+          "Failed to retrieve current recovery shares info");
+      }
+
+      for (auto const& s : recovery_shares_info->encrypted_shares)
+      {
+        if (s.first == member_id)
+        {
+          encrypted_share = s.second;
+        }
+      }
+      return encrypted_share;
+    }
+
     std::vector<kv::Version> restore_recovery_shares_info(
       Store::Tx& tx,
       const std::list<RecoveredLedgerSecret>& encrypted_recovery_secrets)
@@ -375,6 +396,19 @@ namespace ccf
         "submitted_shares_map.size() {}", submitted_shares_map.size());
 
       return submitted_shares_map.size();
+    }
+
+    void clear_submitted_recovery_shares(Store::Tx& tx)
+    {
+      auto submitted_shares_view = tx.get_view(network.submitted_shares);
+      auto submitted_shares = submitted_shares_view->get(0);
+      if (!submitted_shares.has_value())
+      {
+        throw std::logic_error(
+          "Failed to get current submitted recovery shares");
+      }
+
+      submitted_shares_view->put(0, {});
     }
   };
 }

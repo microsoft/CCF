@@ -152,7 +152,6 @@ class Member:
 
             nonce_bytes = bytes(r.result["nonce"])
             encrypted_share_bytes = bytes(r.result["encrypted_share"])
-            LOG.error(ctx.decrypt(encrypted_share_bytes, nonce_bytes))
             return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
 
     def submit_recovery_share(self, remote_node, decrypted_recovery_share):

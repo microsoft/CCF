@@ -316,19 +316,6 @@ namespace ccf
       return true;
     }
 
-    void clear_submitted_recovery_shares()
-    {
-      auto submitted_shares_view = tx.get_view(tables.submitted_shares);
-      auto submitted_shares = submitted_shares_view->get(0);
-      if (!submitted_shares.has_value())
-      {
-        throw std::logic_error(
-          "Failed to get current submitted recovery shares");
-      }
-
-      submitted_shares_view->put(0, {});
-    }
-
     void trust_node(NodeId node_id)
     {
       auto nodes_view = tx.get_view(tables.nodes);
