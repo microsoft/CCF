@@ -3,7 +3,6 @@
 
 import infra.checker
 import time
-import requests
 
 from loguru import logger as LOG
 
@@ -67,7 +66,7 @@ class LoggingTxs:
                         except (
                             TimeoutError,
                             infra.clients.CCFConnectionException,
-                        ) as e:
+                        ):
                             LOG.warning("Network is unavailable")
                             if not self.ignore_failures:
                                 raise
@@ -81,7 +80,7 @@ class LoggingTxs:
             try:
                 network.wait_for_node_commit_sync(consensus)
                 break
-            except (TimeoutError, infra.clients.CCFConnectionException) as e:
+            except (TimeoutError, infra.clients.CCFConnectionException):
                 LOG.error("Timeout error while waiting for nodes to sync")
                 if not self.ignore_failures:
                     raise
