@@ -225,19 +225,146 @@ TEST_CASE_TEMPLATE(
     auto vc = view3->get(k);
     REQUIRE(!vc.has_value());
   }
+}
 
-  INFO("Test early temination of KV foreach");
+TEST_CASE_TEMPLATE("foreach", MapImpl, RawMapTypes, ExperimentalMapTypes)
+{
+  kv::Store kv_store;
+  auto& map = kv_store.create<typename MapImpl::StringString>(
+    "map", kv::SecurityDomain::PUBLIC);
+
+  std::map<std::string, std::string> iterated_entries;
+
+  auto store_iterated =
+    [&iterated_entries](const auto& key, const auto& value) {
+      auto it = iterated_entries.find(key);
+      REQUIRE(it == iterated_entries.end());
+      iterated_entries[key] = value;
+      return true;
+    };
+
+  SUBCASE("Empty map")
+  {
+    kv::Tx tx;
+    auto view = tx.get_view(map);
+    view->foreach(store_iterated);
+    REQUIRE(iterated_entries.empty());
+  }
+
+  SUBCASE("Reading own writes")
   {
     kv::Tx tx;
     auto view = tx.get_view(map);
     view->put("key1", "value1");
     view->put("key2", "value2");
+    view->foreach(store_iterated);
+    REQUIRE(iterated_entries.size() == 2);
+    REQUIRE(iterated_entries["key1"] == "value1");
+    REQUIRE(iterated_entries["key2"] == "value2");
+
+    iterated_entries.clear();
+
+    INFO("Uncommitted writes from other txs are not visible");
+    kv::Tx tx2;
+    auto view2 = tx2.get_view(map);
+    view2->foreach(store_iterated);
+    REQUIRE(iterated_entries.empty());
+  }
+
+  SUBCASE("Reading committed writes")
+  {
+    kv::Tx tx;
+    auto view = tx.get_view(map);
+    view->put("key1", "value1");
+    view->put("key2", "value2");
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+    kv::Tx tx2;
+    auto view2 = tx2.get_view(map);
+    view2->foreach(store_iterated);
+    REQUIRE(iterated_entries.size() == 2);
+    REQUIRE(iterated_entries["key1"] == "value1");
+    REQUIRE(iterated_entries["key2"] == "value2");
+  }
+
+  SUBCASE("Mix of committed and own writes")
+  {
+    kv::Tx tx;
+    auto view = tx.get_view(map);
+    view->put("key1", "value1");
+    view->put("key2", "value2");
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+    kv::Tx tx2;
+    auto view2 = tx2.get_view(map);
+    view2->put("key2", "replaced2");
+    view2->put("key3", "value3");
+    view2->foreach(store_iterated);
+    REQUIRE(iterated_entries.size() == 3);
+    REQUIRE(iterated_entries["key1"] == "value1");
+    REQUIRE(iterated_entries["key2"] == "replaced2");
+    REQUIRE(iterated_entries["key3"] == "value3");
+  }
+
+  SUBCASE("Deletions")
+  {
+    {
+      kv::Tx tx;
+      auto view = tx.get_view(map);
+      view->put("key1", "value1");
+      view->put("key2", "value2");
+      view->put("key3", "value3");
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
+
+    {
+      kv::Tx tx;
+      auto view = tx.get_view(map);
+      view->remove("key1");
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
+
+    {
+      kv::Tx tx;
+      auto view = tx.get_view(map);
+      view->foreach(store_iterated);
+      REQUIRE(iterated_entries.size() == 2);
+      REQUIRE(iterated_entries["key2"] == "value2");
+      REQUIRE(iterated_entries["key3"] == "value3");
+
+      iterated_entries.clear();
+
+      view->remove("key2");
+      view->foreach(store_iterated);
+      REQUIRE(iterated_entries.size() == 1);
+      REQUIRE(iterated_entries["key3"] == "value3");
+
+      iterated_entries.clear();
+
+      view->put("key1", "value1");
+      view->put("key2", "value2");
+      view->foreach(store_iterated);
+      REQUIRE(iterated_entries.size() == 3);
+      REQUIRE(iterated_entries["key1"] == "value1");
+      REQUIRE(iterated_entries["key2"] == "value2");
+      REQUIRE(iterated_entries["key3"] == "value3");
+    }
+  }
+
+  SUBCASE("Early termination")
+  {
+    kv::Tx tx;
+    auto view = tx.get_view(map);
+    view->put("key1", "value1");
+    view->put("key2", "value2");
+    view->put("key3", "value3");
     size_t ctr = 0;
     view->foreach([&ctr](const auto& key, const auto& value) {
       ++ctr;
-      return false;
+      return ctr <= 1; // Continue after the first, but not the second (so never
+                       // see the third)
     });
-    REQUIRE(ctr == 1);
+    REQUIRE(ctr == 2);
   }
 }
 
