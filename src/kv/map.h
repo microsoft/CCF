@@ -448,7 +448,7 @@ namespace kv
      *
      * @param hook function to be called on local transaction commit
      */
-    void set_local_hook(CommitHook hook)
+    void set_local_hook(const CommitHook& hook)
     {
       std::lock_guard<SpinLock> guard(sl);
       local_hook = hook;
@@ -466,7 +466,7 @@ namespace kv
      *
      * @param hook function to be called on global transaction commit
      */
-    void set_global_hook(CommitHook hook)
+    void set_global_hook(const CommitHook& hook)
     {
       std::lock_guard<SpinLock> guard(sl);
       global_hook = hook;
@@ -560,10 +560,6 @@ namespace kv
     {
       return create_view_internal<TxView>(version);
     }
-
-  private:
-    // Provides access to private rollback_counter and roll
-    friend TxViewCommitter<K, V, H>;
 
     void compact(Version v) override
     {
@@ -679,7 +675,9 @@ namespace kv
       std::swap(roll, map->roll);
     }
 
-  protected:
+    // Provides access to private rollback_counter and roll
+    friend TxViewCommitter<K, V, H>;
+
     template <typename TView>
     TView* create_view_internal(Version version)
     {

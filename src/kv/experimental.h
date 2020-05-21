@@ -145,20 +145,169 @@ namespace kv
       }
     };
 
+    // TODO: Inheritance doesn't work! Because the base typedefs aren't right!
+    // Need to _have_ an untyped member, and _be_ an AbstractMap ourselves
     template <typename K, typename V, typename S = MsgPackSerialiser<K, V>>
-    class Map : public UntypedMap
+    class Map : public AbstractMap
     {
     protected:
-      using Base = UntypedMap;
+      using This = Map<K, V, S>;
+
+      UntypedMap untyped_map;
+
+      using __K_HASH = std::hash<K>;
 
     public:
-      using Base::Base;
+      // Expose correct public aliases of types
+      using VersionV = VersionV<V>;
+
+      // TODO: We don't really have these! We really don't want to expose them
+      // to you, they should be an implementation detail. Can we remove them
+      // from commit hooks? This introduces a requirement that the type is
+      // hashable! Unhappy!
+      using State = State<K, V, __K_HASH>;
+
+      using Write = Write<K, V, __K_HASH>;
+
+      // TODO: Is this the correct choice? Or should we just gives hooks the
+      // serialised forms and let them convert themselves?
+      using CommitHook = CommitHook<K, V, __K_HASH>;
 
       using TxView = kv::experimental::TxView<K, V, S>;
 
+      template <typename... Ts>
+      Map(Ts&&... ts) : untyped_map(std::forward<Ts>(ts)...)
+      {}
+
+      bool operator==(const AbstractMap& that) const override
+      {
+        auto p = dynamic_cast<const This*>(&that);
+        if (p == nullptr)
+        {
+          return false;
+        }
+
+        return untyped_map == p->untyped_map;
+      }
+
+      bool operator!=(const AbstractMap& that) const override
+      {
+        return !(*this == that);
+      }
+
+      AbstractStore* get_store() override
+      {
+        return untyped_map.get_store();
+      }
+
       AbstractTxView* create_view(Version version) override
       {
-        return Base::template create_view_internal<TxView>(version);
+        return untyped_map.create_view_internal<TxView>(version);
+      }
+
+      void serialise(
+        const AbstractTxView* view,
+        KvStoreSerialiser& s,
+        bool include_reads) override
+      {
+        untyped_map.serialise(view, s, include_reads);
+      }
+
+      AbstractTxView* deserialise(
+        KvStoreDeserialiser& d, Version version) override
+      {
+        return untyped_map.deserialise(d, version);
+      }
+
+      const std::string& get_name() const override
+      {
+        return untyped_map.get_name();
+      }
+
+      void compact(Version v) override
+      {
+        return untyped_map.compact(v);
+      }
+
+      void post_compact() override
+      {
+        return untyped_map.post_compact();
+      }
+
+      void rollback(Version v) override
+      {
+        untyped_map.rollback(v);
+      }
+
+      void lock() override
+      {
+        untyped_map.lock();
+      }
+
+      void unlock() override
+      {
+        untyped_map.unlock();
+      }
+
+      SecurityDomain get_security_domain() override
+      {
+        return untyped_map.get_security_domain();
+      }
+
+      bool is_replicated() override
+      {
+        return untyped_map.is_replicated();
+      }
+
+      void clear() override
+      {
+        untyped_map.clear();
+      }
+
+      AbstractMap* clone(AbstractStore* store) override
+      {
+        return untyped_map.clone(store);
+      }
+
+      void swap(AbstractMap* map) override
+      {
+        untyped_map.swap(map);
+      }
+
+      static UntypedMap::CommitHook wrap_commit_hook(const CommitHook& hook)
+      {
+        return
+          [hook](
+            Version v, const UntypedMap::State& s, const UntypedMap::Write& w) {
+            // TODO: We're abandoning s for now. This is wrong!
+            Write typed_w;
+            for (const auto& [uk, version_uv]: w)
+            {
+              typed_w[S::to_key(uk)] = VersionV{version_uv.version, S::to_value(version_uv.value)};
+            }
+            hook(v, {}, typed_w);
+          };
+      }
+
+      void set_local_hook(const CommitHook& hook)
+      {
+        untyped_map.set_local_hook(
+          wrap_commit_hook(hook));
+      }
+
+      void unset_local_hook()
+      {
+        untyped_map.unset_local_hook();
+      }
+
+      void set_global_hook(const CommitHook& hook) {
+        untyped_map.set_global_hook(
+          wrap_commit_hook(hook));
+      }
+
+      void unset_global_hook()
+      {
+        untyped_map.unset_global_hook();
       }
     };
   }
