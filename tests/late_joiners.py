@@ -173,6 +173,7 @@ def run(args):
             args=args,
             num_txs=int(TOTAL_REQUESTS / 2),
             nodes=original_nodes,  # doesn't contain late joiner
+            verify=False
         )
 
         wait_for_late_joiner(nodes_to_keep[0], nodes_to_keep[-1])
