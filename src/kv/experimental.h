@@ -54,22 +54,22 @@ namespace kv
       }
 
     public:
-      static SerialisedRep from_k(const K& k)
+      static SerialisedRep from_key(const K& k)
       {
         return from_t<K>(k);
       }
 
-      static K to_k(const SerialisedRep& rep)
+      static K to_key(const SerialisedRep& rep)
       {
         return to_t<K>(rep);
       }
 
-      static SerialisedRep from_v(const V& v)
+      static SerialisedRep from_value(const V& v)
       {
         return from_t<V>(v);
       }
 
-      static V to_v(const SerialisedRep& rep)
+      static V to_value(const SerialisedRep& rep)
       {
         return to_t<V>(rep);
       }
@@ -96,12 +96,12 @@ namespace kv
 
       std::optional<V> get(const K& key)
       {
-        const auto k_rep = S::from_k(key);
+        const auto k_rep = S::from_key(key);
         const auto opt_v_rep = untyped_view.get(k_rep);
 
         if (opt_v_rep.has_value())
         {
-          return S::to_v(*opt_v_rep);
+          return S::to_value(*opt_v_rep);
         }
 
         return std::nullopt;
@@ -109,12 +109,12 @@ namespace kv
 
       std::optional<V> get_globally_committed(const K& key)
       {
-        const auto k_rep = S::from_k(key);
+        const auto k_rep = S::from_key(key);
         const auto opt_v_rep = untyped_view.get_globally_committed(k_rep);
 
         if (opt_v_rep.has_value())
         {
-          return S::to_v(*opt_v_rep);
+          return S::to_value(*opt_v_rep);
         }
 
         return std::nullopt;
@@ -122,15 +122,15 @@ namespace kv
 
       bool put(const K& key, const V& value)
       {
-        const auto k_rep = S::from_k(key);
-        const auto v_rep = S::from_v(value);
+        const auto k_rep = S::from_key(key);
+        const auto v_rep = S::from_value(value);
 
         return untyped_view.put(k_rep, v_rep);
       }
 
       bool remove(const K& key)
       {
-        const auto k_rep = S::from_k(key);
+        const auto k_rep = S::from_key(key);
 
         return untyped_view.remove(k_rep);
       }
@@ -139,7 +139,7 @@ namespace kv
       bool foreach(F&& f)
       {
         auto g = [&](const SerialisedRep& k_rep, const SerialisedRep& v_rep) {
-          return f(S::to_k(k_rep), S::to_v(v_rep));
+          return f(S::to_key(k_rep), S::to_value(v_rep));
         };
         return untyped_view.foreach(g);
       }
