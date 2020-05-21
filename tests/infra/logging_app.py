@@ -12,20 +12,18 @@ class LoggingTxs:
     def __init__(
         self,
         notifications_queue=None,
-        tx_index_start=0,
-        can_fail=False,
+        ignore_failures=False,
         wait_for_sync=True,
         timeout=3,
     ):
         self.pub = {}
         self.priv = {}
-        self.next_pub_index = tx_index_start
-        self.next_priv_index = tx_index_start
+        self.next_pub_index = 0
+        self.next_priv_index = 0
         self.notifications_queue = notifications_queue
-        self.can_fail = can_fail
+        self.ignore_failures = ignore_failures
         self.timeout = timeout
         self.wait_for_sync = wait_for_sync
-        self.tx_index_start = tx_index_start
 
     def issue(self, network, number_txs, consensus, on_backup=False):
         LOG.success(f"Applying {number_txs} logging txs")
@@ -42,7 +40,7 @@ class LoggingTxs:
             check_commit_n = infra.checker.Checker(mc, self.notifications_queue)
 
             with remote_node.user_client() as uc:
-                for _ in range(self.tx_index_start, self.tx_index_start + number_txs):
+                for _ in range(number_txs):
                     end_time = time.time() + self.timeout
                     while time.time() < end_time:
                         try:
@@ -66,10 +64,13 @@ class LoggingTxs:
                             self.next_priv_index += 1
                             self.next_pub_index += 1
                             break
-                        except (TimeoutError, requests.exceptions.ReadTimeout,) as e:
-                            LOG.info("Network is unavailable")
-                            if not self.can_fail:
-                                raise RuntimeError(e)
+                        except (
+                            TimeoutError,
+                            infra.clients.CCFConnectionException,
+                        ) as e:
+                            LOG.warning("Network is unavailable")
+                            if not self.ignore_failures:
+                                raise
 
         if self.wait_for_sync:
             self.node_commit_sync(network, consensus)
@@ -82,8 +83,8 @@ class LoggingTxs:
                 break
             except (TimeoutError, infra.clients.CCFConnectionException) as e:
                 LOG.error("Timeout error while waiting for nodes to sync")
-                if not self.can_fail:
-                    raise RuntimeError(e)
+                if not self.ignore_failures:
+                    raise
                 time.sleep(0.1)
 
     def verify(self, network):

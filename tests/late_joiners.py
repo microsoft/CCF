@@ -6,6 +6,7 @@ import infra.notification
 import infra.net
 import infra.e2e_args
 from threading import Timer
+import time
 import random
 import suite.test_requirements as reqs
 import infra.logging_app as app
@@ -40,7 +41,31 @@ def update_term_info(network, term_info):
         cur_primary, cur_term = network.find_primary()
         term_info[cur_term] = cur_primary.node_id
     except TimeoutError:
-        LOG.info("Trying to access a suspended network")
+        LOG.warning("Trying to access a suspended network")
+
+
+def get_node_local_commit(node):
+    with node.node_client() as c:
+        r = c.get("debug/getLocalCommit")
+        return r.commit, r.global_commit
+
+
+def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=10):
+    old_node_lc, old_node_gc = get_node_local_commit(old_node)
+    LOG.success(
+        f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
+    )
+    end = time.time() + timeout
+    while time.time() <= end:
+        lc, gc = get_node_local_commit(late_joiner)
+        LOG.success(
+            f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
+        )
+        if lc >= old_node_lc:
+            return
+        time.sleep(1)
+    if strict:
+        raise AssertionError(f"late joiner {late_joiner.node_id} has not caught up")
 
 
 @reqs.description("Running transactions against logging app")
@@ -51,17 +76,15 @@ def test_run_txs(
     args,
     nodes=None,
     num_txs=1,
-    start_idx=0,
     timeout=3,
-    can_fail=False,
+    ignore_failures=False,
     notifications_queue=None,
     verify=True,
     wait_for_sync=False,
 ):
     txs = app.LoggingTxs(
         notifications_queue=notifications_queue,
-        tx_index_start=start_idx,
-        can_fail=can_fail,
+        ignore_failures=ignore_failures,
         timeout=timeout,
         wait_for_sync=wait_for_sync,
     )
@@ -130,7 +153,7 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        all_nodes = network.get_joined_nodes()
+        original_nodes = network.get_joined_nodes()
         term_info = {}
         update_term_info(network, term_info)
 
@@ -138,7 +161,7 @@ def run(args):
         update_term_info(network, term_info)
 
         nodes_to_kill = [network.find_any_backup()]
-        nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
+        nodes_to_keep = [n for n in original_nodes if n not in nodes_to_kill]
 
         # check that a new node can catch up after all the requests
         test_add_late_joiner(network, args, nodes_to_keep)
@@ -149,13 +172,13 @@ def run(args):
             network=network,
             args=args,
             num_txs=int(TOTAL_REQUESTS / 2),
-            start_idx=1000,
-            timeout=30,
-            can_fail=True,
+            nodes=original_nodes,  # doesn't contain late joiner
             wait_for_sync=True,
         )
 
-        # kill the old node(s) and ensure we are still making progress with the new one(s)
+        wait_for_late_joiner(nodes_to_keep[0], nodes_to_keep[-1])
+
+        # kill the old node(s) and ensure we are still making progress
         for backup_to_retire in nodes_to_kill:
             LOG.success(f"Stopping node {backup_to_retire.node_id}")
             backup_to_retire.stop()
@@ -166,7 +189,11 @@ def run(args):
             args=args,
             nodes=nodes_to_keep,
             num_txs=len(nodes_to_keep),
-            start_idx=3000,
+            timeout=30,
+            ignore_failures=True,
+            # verify=False
+            # in the event of an early view change due to the late joiner this might
+            # take longer than usual to complete and we don't want the test to break here
         )
 
         test_suspend_nodes(network, args, nodes_to_keep)
@@ -175,21 +202,15 @@ def run(args):
         test_run_txs(
             network=network,
             args=args,
-            nodes=nodes_to_keep,
             num_txs=4 * TOTAL_REQUESTS,
-            start_idx=4000,
-            can_fail=True,
+            ignore_failures=True,
         )
 
         update_term_info(network, term_info)
 
         # check nodes have resumed normal execution before shutting down
         test_run_txs(
-            network=network,
-            args=args,
-            nodes=nodes_to_keep,
-            num_txs=len(nodes_to_keep),
-            start_idx=5000,
+            network=network, args=args, num_txs=len(nodes_to_keep),
         )
 
         # we have asserted that all nodes are caught up
