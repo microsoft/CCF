@@ -74,45 +74,6 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
         raise AssertionError(f"late joiner {late_joiner.node_id} has not caught up")
 
 
-@reqs.description("Running transactions against logging app")
-@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
-def test_run_txs(
-    network,
-    args,
-    nodes=None,
-    num_txs=1,
-    timeout=3,
-    ignore_failures=False,
-    notifications_queue=None,
-    verify=True,
-    wait_for_sync=False,
-):
-    txs = app.LoggingTxs(
-        notifications_queue=notifications_queue,
-        ignore_failures=ignore_failures,
-        timeout=timeout,
-        wait_for_sync=wait_for_sync,
-    )
-    if nodes is None:
-        nodes = network.get_joined_nodes()
-    num_nodes = len(nodes)
-
-    for tx in range(num_txs):
-        txs.issue_on_node(
-            network=network,
-            remote_node=nodes[tx % num_nodes],
-            number_txs=1,
-            consensus=args.consensus,
-        )
-
-    if verify:
-        txs.verify_last_tx(network)
-    else:
-        LOG.warning("Skipping log messages verification")
-
-    return network
-
-
 @reqs.description("Adding a very late joiner")
 def test_add_late_joiner(network, args, nodes_to_keep):
     new_node = network.create_and_trust_node(args.package, "localhost", args)
@@ -161,7 +122,7 @@ def run(args):
         term_info = {}
         update_term_info(network, term_info)
 
-        test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
+        app.test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
         update_term_info(network, term_info)
 
         nodes_to_kill = [network.find_any_backup()]
@@ -172,12 +133,12 @@ def run(args):
 
         # some requests to be processed while the late joiner catches up
         # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
-        test_run_txs(
+        app.test_run_txs(
             network=network,
             args=args,
             num_txs=int(TOTAL_REQUESTS / 2),
             nodes=original_nodes,  # doesn't contain late joiner
-            verify=False, # will try to verify for late joiner and it might not be ready yet
+            verify=False,  # will try to verify for late joiner and it might not be ready yet
         )
 
         wait_for_late_joiner(nodes_to_keep[0], nodes_to_keep[-1])
@@ -188,7 +149,7 @@ def run(args):
             backup_to_retire.stop()
 
         # check nodes are ok after we killed one off
-        test_run_txs(
+        app.test_run_txs(
             network=network,
             args=args,
             nodes=nodes_to_keep,
@@ -202,7 +163,7 @@ def run(args):
         test_suspend_nodes(network, args, nodes_to_keep)
 
         # run txs while nodes get suspended
-        test_run_txs(
+        app.test_run_txs(
             network=network,
             args=args,
             num_txs=4 * TOTAL_REQUESTS,
@@ -212,7 +173,7 @@ def run(args):
         update_term_info(network, term_info)
 
         # check nodes have resumed normal execution before shutting down
-        test_run_txs(
+        app.test_run_txs(
             network=network, args=args, num_txs=len(nodes_to_keep),
         )
 

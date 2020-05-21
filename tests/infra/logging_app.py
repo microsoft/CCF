@@ -2,9 +2,49 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.checker
+import suite.test_requirements as reqs
 import time
 
 from loguru import logger as LOG
+
+
+@reqs.description("Running transactions against logging app")
+@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
+def test_run_txs(
+    network,
+    args,
+    nodes=None,
+    num_txs=1,
+    timeout=3,
+    ignore_failures=False,
+    notifications_queue=None,
+    verify=True,
+    wait_for_sync=False,
+):
+    txs = LoggingTxs(
+        notifications_queue=notifications_queue,
+        ignore_failures=ignore_failures,
+        timeout=timeout,
+        wait_for_sync=wait_for_sync,
+    )
+    if nodes is None:
+        nodes = network.get_joined_nodes()
+    num_nodes = len(nodes)
+
+    for tx in range(num_txs):
+        txs.issue_on_node(
+            network=network,
+            remote_node=nodes[tx % num_nodes],
+            number_txs=1,
+            consensus=args.consensus,
+        )
+
+    if verify:
+        txs.verify_last_tx(network)
+    else:
+        LOG.warning("Skipping log messages verification")
+
+    return network
 
 
 class LoggingTxs:
@@ -25,7 +65,6 @@ class LoggingTxs:
         self.wait_for_sync = wait_for_sync
 
     def issue(self, network, number_txs, consensus, on_backup=False):
-        LOG.success(f"Applying {number_txs} logging txs")
         remote_node, _ = network.find_primary()
         if on_backup:
             remote_node = network.find_any_backup()
