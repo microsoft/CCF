@@ -66,6 +66,7 @@ def wait_for_late_joiner(old_node, late_joiner, timeout=30):
         if lc >= old_node_lc:
             return
         time.sleep(1)
+    raise AssertionError("late joiner not caught up")
 
 
 def assert_network_up_to_date(check, node, final_msg, final_msg_id, timeout=30):
@@ -178,39 +179,14 @@ def run(args):
             nodes_to_kill = [network.find_any_backup()]
             nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
 
-            # check that a new node can catch up after all the requests
-            LOG.info("Adding a very late joiner")
-            late_joiner = network.create_and_trust_node(
-                lib_name=args.package, host="localhost", args=args,
-            )
-            nodes_to_keep.append(late_joiner)
-
-            # some requests to be processed while the late joiner catches up
-            # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
-            run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
-            term_info.update(find_primary(network))
-
-            assert_network_up_to_date(check, late_joiner, first_msg, 1000)
-            assert_network_up_to_date(check, late_joiner, second_msg, 2000)
-
-            # wait for late joiner to cathcup before killing one of the other nodes
-            wait_for_late_joiner(first_node, late_joiner)
-
             if not args.skip_suspension:
-                # kill the old node(s) and ensure we are still making progress with the new one(s)
-                for node in nodes_to_kill:
-                    LOG.info(f"Stopping node {node.node_id}")
-                    node.stop()
-
-                wait_for_nodes(nodes_to_keep, catchup_msg, 3000)
-
                 cur_primary, _ = network.find_primary()
                 cur_primary_id = cur_primary.node_id
 
                 # first timer determines after how many seconds each node will be suspended
                 timeouts = []
                 suspended_nodes = []
-                for i, node in enumerate(nodes_to_keep):
+                for i, node in enumerate(all_nodes):
                     # if pbft suspend half of them including the primary
                     if i % 2 != 0 and args.consensus == "pbft":
                         continue
@@ -230,7 +206,7 @@ def run(args):
                     tm.start()
 
                 run_requests(
-                    nodes_to_keep,
+                    all_nodes,
                     2 * TOTAL_REQUESTS,
                     2001,
                     final_msg,
@@ -240,7 +216,25 @@ def run(args):
 
                 term_info.update(find_primary(network))
 
-                wait_for_nodes(nodes_to_keep, final_msg, 5000)
+                # check that a new node can catch up after all the requests
+                LOG.info("Adding a very late joiner")
+                late_joiner = network.create_and_trust_node(
+                    lib_name=args.package, host="localhost", args=args,
+                )
+
+                # some requests to be processed while the late joiner catches up
+                # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
+                run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
+
+                term_info.update(find_primary(network))
+
+                assert_network_up_to_date(check, late_joiner, first_msg, 1000)
+                assert_network_up_to_date(check, late_joiner, second_msg, 2000)
+
+                # wait for late joiner to cathcup before killing one of the other nodes
+                wait_for_late_joiner(first_node, late_joiner)
+                all_nodes.append(late_joiner)
+                wait_for_nodes(all_nodes, final_msg, 5000)
 
                 # we have asserted that all nodes are caught up
                 # assert that view changes actually did occur

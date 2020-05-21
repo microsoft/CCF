@@ -333,6 +333,7 @@ Certificate<T>::~Certificate()
 template <class T>
 void Certificate<T>::reset_f()
 {
+  LOG_INFO_FMT("Reset f");
   f = pbft::GlobalState::get_node().f();
   max_size = f + 1;
   delete[] vals;
@@ -382,6 +383,8 @@ bool Certificate<T>::add(T* msg)
     c->count++;
     return true;
   }
+
+  LOG_INFO_FMT("bmap set for {}? {}", id, bmap.test(id));
 
   if (pbft::GlobalState::get_node().is_replica(id) && !bmap.test(id))
   {

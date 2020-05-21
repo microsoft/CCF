@@ -163,6 +163,7 @@ inline bool Prepared_cert::add(Prepare* m)
   proof.sig_size = m->digest_sig_size();
 #endif
 
+  LOG_INFO_FMT("Trying to add here too");
   bool result = prepare_cert.add(m);
 
 #ifdef SIGN_BATCH

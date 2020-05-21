@@ -260,6 +260,12 @@ void View_info::discard_old_and_resize_if_needed()
   }
 }
 
+void View_info::set_new_view(View vi)
+{
+  v = vi;
+  last_nvs[pbft::GlobalState::get_node().primary(v)].make_complete(v);
+}
+
 void View_info::view_change(View vi, Seqno last_executed, State* state)
 {
   v = vi;
