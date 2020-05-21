@@ -76,7 +76,6 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
 
 @reqs.description("Running transactions against logging app")
 @reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
-@reqs.at_least_n_nodes(3)
 def test_run_txs(
     network,
     args,
@@ -122,7 +121,6 @@ def test_add_late_joiner(network, args, nodes_to_keep):
 
 
 @reqs.description("Suspend nodes")
-@reqs.at_least_n_nodes(3)
 def test_suspend_nodes(network, args, nodes_to_keep):
     cur_primary, _ = network.find_primary()
 
@@ -179,7 +177,7 @@ def run(args):
             args=args,
             num_txs=int(TOTAL_REQUESTS / 2),
             nodes=original_nodes,  # doesn't contain late joiner
-            verify=False,
+            verify=False, # will try to verify for late joiner and it might not be ready yet
         )
 
         wait_for_late_joiner(nodes_to_keep[0], nodes_to_keep[-1])
@@ -197,7 +195,6 @@ def run(args):
             num_txs=len(nodes_to_keep),
             timeout=30,
             ignore_failures=True,
-            # verify=False
             # in the event of an early view change due to the late joiner this might
             # take longer than usual to complete and we don't want the test to break here
         )
