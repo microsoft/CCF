@@ -50,20 +50,26 @@ def get_node_local_commit(node):
         return r.commit, r.global_commit
 
 
-def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=10):
+def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
     old_node_lc, old_node_gc = get_node_local_commit(old_node)
     LOG.success(
         f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
     )
     end = time.time() + timeout
     while time.time() <= end:
-        lc, gc = get_node_local_commit(late_joiner)
-        LOG.success(
-            f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
-        )
-        if lc >= old_node_lc:
-            return
-        time.sleep(1)
+        try:
+            lc, gc = get_node_local_commit(late_joiner)
+            LOG.success(
+                f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
+            )
+            if lc >= old_node_lc:
+                return
+            time.sleep(1)
+        except (
+            TimeoutError,
+            infra.clients.CCFConnectionException,
+        ):
+            LOG.warning(f"late joiner {late_joiner.node_id} isn't quite ready yet")
     if strict:
         raise AssertionError(f"late joiner {late_joiner.node_id} has not caught up")
 
@@ -173,7 +179,7 @@ def run(args):
             args=args,
             num_txs=int(TOTAL_REQUESTS / 2),
             nodes=original_nodes,  # doesn't contain late joiner
-            verify=False
+            verify=False,
         )
 
         wait_for_late_joiner(nodes_to_keep[0], nodes_to_keep[-1])
