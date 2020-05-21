@@ -19,15 +19,22 @@ namespace kv
     using UntypedMap = kv::Map<SerialisedRep, SerialisedRep, H>;
 
     template <typename H>
-    using UntypedView = kv::TxView<SerialisedRep, SerialisedRep, H>;
+    using UntypedView = typename UntypedMap<H>::TxView;
+
+    template <typename H>
+    using UntypedCommitter =
+      kv::TxViewCommitter<SerialisedRep, SerialisedRep, H>;
+
+    template <typename H>
+    using UntypedState = kv::State<SerialisedRep, SerialisedRep, H>;
 
     template <typename K, typename V, typename H>
-    class TxView
+    class TxView : public UntypedCommitter<H>
     {
     protected:
-      using UV = UntypedView<H>;
-
-      std::unique_ptr<UV> untyped_view;
+      // This _has_ a (non-visible, untyped) view, whereas the standard impl
+      // _is_ a typed view
+      kv::TxView<SerialisedRep, SerialisedRep, H> untyped_view;
 
       SerialisedRep from_k(const K& key)
       {
@@ -50,7 +57,15 @@ namespace kv
       }
 
     public:
-      TxView(UV* uv) : untyped_view(uv) {}
+      TxView(
+        UntypedMap<H>& m,
+        size_t rollbacks,
+        UntypedState<H>& current_state,
+        UntypedState<H>& committed_state,
+        Version v) :
+        UntypedCommitter<H>(m, rollbacks, current_state, committed_state, v),
+        untyped_view(UntypedCommitter<H>::change_set)
+      {}
 
       std::optional<V> get(const K& key)
       {
@@ -68,7 +83,7 @@ namespace kv
       std::optional<V> get_globally_committed(const K& key)
       {
         const auto k_rep = from_k(key);
-        const auto opt_v_rep = untyped_view->get_globally_committed(k_rep);
+        const auto opt_v_rep = untyped_view.get_globally_committed(k_rep);
 
         if (opt_v_rep.has_value())
         {
@@ -83,14 +98,14 @@ namespace kv
         const auto k_rep = from_k(key);
         const auto v_rep = from_v(value);
 
-        return untyped_view->put(k_rep, v_rep);
+        return untyped_view.put(k_rep, v_rep);
       }
 
       bool remove(const K& key)
       {
         const auto k_rep = from_k(key);
 
-        return untyped_view->put(k_rep);
+        return untyped_view.remove(k_rep);
       }
 
       template <class F>
@@ -99,18 +114,8 @@ namespace kv
         auto g = [&](const SerialisedRep& k_rep, const SerialisedRep& v_rep) {
           return f(to_k(k_rep), to_v(v_rep));
         };
-        return untyped_view->foreach(g);
+        return untyped_view.foreach(g);
       }
-    };
-
-    template <class K, class V, class H>
-    class ConcreteTxView : public TxView<K, V, H>, public AbstractTxView
-    {
-    protected:
-      using Base = TxView<K, V, H>;
-
-    public:
-      using Base::Base;
     };
 
     template <typename K, typename V, typename H = std::hash<SerialisedRep>>
@@ -122,10 +127,11 @@ namespace kv
     public:
       using Base::Base;
 
+      using TxView = TxView<K, V, H>;
+
       AbstractTxView* create_view(Version version) override
       {
-        return new kv::experimental::ConcreteTxView<K, V, H>(
-          Base::create_view_internal(version));
+        return Base::template create_view_internal<TxView>(version);
       }
     };
   }

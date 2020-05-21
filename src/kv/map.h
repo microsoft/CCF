@@ -388,7 +388,8 @@ namespace kv
       KvStoreDeserialiser& d, Version version) override
     {
       // Create a new change set, and deserialise d's contents into it
-      auto view = create_view_internal(version);
+      // TODO: Is this the correct type to create for derived impls?
+      auto view = create_view_internal<TxView>(version);
       view->commit_version = version;
 
       auto& change_set = view->change_set;
@@ -557,7 +558,7 @@ namespace kv
 
     AbstractTxView* create_view(Version version) override
     {
-      return create_view_internal(version);
+      return create_view_internal<TxView>(version);
     }
 
   private:
@@ -679,9 +680,8 @@ namespace kv
     }
 
   protected:
-    // Should this be a template? WHAT DO?
-    using TView = TxView;
-    TxView* create_view_internal(Version version)
+    template <typename TView>
+    TView* create_view_internal(Version version)
     {
       lock();
 
@@ -693,7 +693,7 @@ namespace kv
       {
         if (current->version <= version)
         {
-          view = new TxView(
+          view = new TView(
             *this,
             rollback_counter,
             current->state,
@@ -705,7 +705,7 @@ namespace kv
 
       if (view == nullptr)
       {
-        view = new TxView(
+        view = new TView(
           *this,
           rollback_counter,
           roll->get_head()->state,
