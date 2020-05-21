@@ -31,16 +31,48 @@ namespace kv
 
     using UntypedState = kv::State<SerialisedRep, SerialisedRep, RepHasher>;
 
-    // TODO: This type is unused, it just shows the expected signatures of the
-    // Serialiser type to TxView. NB: It doesn't need to be templated
     template <typename K, typename V>
-    struct SampleSerialiser
+    struct MsgPackSerialiser
     {
-      static SerialisedRep from_k(const K& key);
-      static K to_k(const SerialisedRep& rep);
+    private:
+      template <typename T>
+      static SerialisedRep from_t(const T& t)
+      {
+        msgpack::sbuffer sb;
+        msgpack::pack(sb, t);
+        auto sb_data = reinterpret_cast<const uint8_t*>(sb.data());
+        return SerialisedRep(sb_data, sb_data + sb.size());
+      }
 
-      static SerialisedRep from_v(const V& value);
-      static V to_v(const SerialisedRep& rep);
+      template <typename T>
+      static T to_t(const SerialisedRep& rep)
+      {
+        msgpack::object_handle oh = msgpack::unpack(
+          reinterpret_cast<const char*>(rep.data()), rep.size());
+        auto object = oh.get();
+        return object.as<T>();
+      }
+
+    public:
+      static SerialisedRep from_k(const K& k)
+      {
+        return from_t<K>(k);
+      }
+
+      static K to_k(const SerialisedRep& rep)
+      {
+        return to_t<K>(rep);
+      }
+
+      static SerialisedRep from_v(const V& v)
+      {
+        return from_t<V>(v);
+      }
+
+      static V to_v(const SerialisedRep& rep)
+      {
+        return to_t<V>(rep);
+      }
     };
 
     template <typename K, typename V, typename S>
@@ -113,7 +145,7 @@ namespace kv
       }
     };
 
-    template <typename K, typename V, typename S>
+    template <typename K, typename V, typename S = MsgPackSerialiser<K, V>>
     class Map : public UntypedMap
     {
     protected:

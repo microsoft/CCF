@@ -65,40 +65,14 @@ struct StringStringSerialiser
   }
 };
 
-template <typename K, typename V>
-struct InvalidSerialiser
-{
-  static kv::experimental::SerialisedRep from_k(const K& key)
-  {
-    throw std::logic_error("Unimplemented");
-  }
-
-  static K to_k(const kv::experimental::SerialisedRep& rep)
-  {
-    throw std::logic_error("Unimplemented");
-  }
-
-  static kv::experimental::SerialisedRep from_v(const V& value)
-  {
-    throw std::logic_error("Unimplemented");
-  }
-
-  static V to_v(const kv::experimental::SerialisedRep& rep)
-  {
-    throw std::logic_error("Unimplemented");
-  }
-};
-
 struct ExperimentalMapTypes
 {
   using StringString =
     kv::experimental::Map<std::string, std::string, StringStringSerialiser>;
 
-  using IntInt = kv::experimental::Map<int, int, InvalidSerialiser<int, int>>;
-  using IntString = kv::experimental::
-    Map<int, std::string, InvalidSerialiser<int, std::string>>;
-  using StringInt = kv::experimental::
-    Map<std::string, int, InvalidSerialiser<std::string, int>>;
+  using IntInt = kv::experimental::Map<int, int>;
+  using IntString = kv::experimental::Map<int, std::string>;
+  using StringInt = kv::experimental::Map<std::string, int>;
 };
 
 TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
