@@ -74,13 +74,6 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
         raise AssertionError(f"late joiner {late_joiner.node_id} has not caught up")
 
 
-@reqs.description("Adding a very late joiner")
-def test_add_late_joiner(network, args, nodes_to_keep):
-    new_node = network.create_and_trust_node(args.package, "localhost", args)
-    nodes_to_keep.append(new_node)
-    return network
-
-
 @reqs.description("Suspend nodes")
 def test_suspend_nodes(network, args, nodes_to_keep):
     cur_primary, _ = network.find_primary()
@@ -129,7 +122,8 @@ def run(args):
         nodes_to_keep = [n for n in original_nodes if n not in nodes_to_kill]
 
         # check that a new node can catch up after all the requests
-        test_add_late_joiner(network, args, nodes_to_keep)
+        late_joiner = network.create_and_trust_node(args.package, "localhost", args)
+        nodes_to_keep.append(late_joiner)
 
         # some requests to be processed while the late joiner catches up
         # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
@@ -141,7 +135,7 @@ def run(args):
             verify=False,  # will try to verify for late joiner and it might not be ready yet
         )
 
-        wait_for_late_joiner(nodes_to_keep[0], nodes_to_keep[-1])
+        wait_for_late_joiner(original_nodes[0], late_joiner)
 
         # kill the old node(s) and ensure we are still making progress
         for backup_to_retire in nodes_to_kill:
