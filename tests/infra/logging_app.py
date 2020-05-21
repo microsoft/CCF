@@ -13,34 +13,31 @@ from loguru import logger as LOG
 def test_run_txs(
     network,
     args,
+    logging_app,
     nodes=None,
     num_txs=1,
+    verify=True,
     timeout=3,
     ignore_failures=False,
-    notifications_queue=None,
-    verify=True,
     wait_for_sync=False,
 ):
-    txs = LoggingTxs(
-        notifications_queue=notifications_queue,
-        ignore_failures=ignore_failures,
-        timeout=timeout,
-        wait_for_sync=wait_for_sync,
-    )
     if nodes is None:
         nodes = network.get_joined_nodes()
     num_nodes = len(nodes)
 
     for tx in range(num_txs):
-        txs.issue_on_node(
+        logging_app.issue_on_node(
             network=network,
             remote_node=nodes[tx % num_nodes],
             number_txs=1,
             consensus=args.consensus,
+            timeout=timeout,
+            ignore_failures=ignore_failures,
+            wait_for_sync=wait_for_sync,
         )
 
     if verify:
-        txs.verify_last_tx(network)
+        logging_app.verify_last_tx(network)
     else:
         LOG.warning("Skipping log messages verification")
 
@@ -49,29 +46,48 @@ def test_run_txs(
 
 class LoggingTxs:
     def __init__(
-        self,
-        notifications_queue=None,
-        ignore_failures=False,
-        wait_for_sync=True,
-        timeout=3,
+        self, notifications_queue=None,
     ):
         self.pub = {}
         self.priv = {}
         self.next_pub_index = 0
         self.next_priv_index = 0
         self.notifications_queue = notifications_queue
-        self.ignore_failures = ignore_failures
-        self.timeout = timeout
-        self.wait_for_sync = wait_for_sync
 
-    def issue(self, network, number_txs, consensus, on_backup=False):
+    def issue(
+        self,
+        network,
+        number_txs,
+        consensus,
+        on_backup=False,
+        ignore_failures=False,
+        wait_for_sync=True,
+        timeout=3,
+    ):
         remote_node, _ = network.find_primary()
         if on_backup:
             remote_node = network.find_any_backup()
 
-        self.issue_on_node(network, remote_node, number_txs, consensus)
+        self.issue_on_node(
+            network,
+            remote_node,
+            number_txs,
+            consensus,
+            ignore_failures,
+            wait_for_sync,
+            timeout,
+        )
 
-    def issue_on_node(self, network, remote_node, number_txs, consensus):
+    def issue_on_node(
+        self,
+        network,
+        remote_node,
+        number_txs,
+        consensus,
+        ignore_failures=False,
+        wait_for_sync=True,
+        timeout=3,
+    ):
         LOG.success(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
         with remote_node.node_client() as mc:
             check_commit = infra.checker.Checker(mc)
@@ -79,7 +95,7 @@ class LoggingTxs:
 
             with remote_node.user_client() as uc:
                 for _ in range(number_txs):
-                    end_time = time.time() + self.timeout
+                    end_time = time.time() + timeout
                     while time.time() < end_time:
                         try:
                             priv_msg = (
@@ -107,21 +123,21 @@ class LoggingTxs:
                             infra.clients.CCFConnectionException,
                         ):
                             LOG.warning("Network is unavailable")
-                            if not self.ignore_failures:
+                            if not ignore_failures:
                                 raise
 
-        if self.wait_for_sync:
-            self.node_commit_sync(network, consensus)
+        if wait_for_sync:
+            self.node_commit_sync(network, consensus, timeout, ignore_failures)
 
-    def node_commit_sync(self, network, consensus):
-        end_time = time.time() + self.timeout
+    def node_commit_sync(self, network, consensus, timeout=3, ignore_failures=False):
+        end_time = time.time() + timeout
         while time.time() < end_time:
             try:
                 network.wait_for_node_commit_sync(consensus)
                 break
             except (TimeoutError, infra.clients.CCFConnectionException):
                 LOG.error("Timeout error while waiting for nodes to sync")
-                if not self.ignore_failures:
+                if not ignore_failures:
                     raise
                 time.sleep(0.1)
 
