@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "kv/encryptor.h"
+#include "kv/experimental.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -63,20 +64,41 @@ namespace std
 DECLARE_JSON_TYPE(CustomClass)
 DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
 
-TEST_CASE(
+struct RawMapTypes
+{
+  using StringString = kv::Map<std::string, std::string>;
+  using NumNum = kv::Map<size_t, size_t>;
+  using NumString = kv::Map<size_t, std::string>;
+  using StringNum = kv::Map<std::string, size_t>;
+};
+
+struct ExperimentalMapTypes
+{
+  using StringString = kv::experimental::Map<std::string, std::string>;
+  using NumNum = kv::experimental::Map<size_t, size_t>;
+  using NumString = kv::experimental::Map<size_t, std::string>;
+  using StringNum = kv::experimental::Map<std::string, size_t>;
+};
+
+TEST_CASE_TEMPLATE(
   "Serialise/deserialise public map only" *
-  doctest::test_suite("serialisation"))
+    doctest::test_suite("serialisation"),
+  MapImpl,
+  RawMapTypes,
+  ExperimentalMapTypes)
 {
   // No need for an encryptor here as all maps are public. Both serialisation
   // and deserialisation should succeed.
   auto consensus = std::make_shared<kv::StubConsensus>();
 
   kv::Store kv_store(consensus);
-  kv::Store kv_store_target;
 
-  auto& pub_map = kv_store.create<std::string, std::string>(
+  auto& pub_map = kv_store.create<typename MapImpl::StringString>(
     "pub_map", kv::SecurityDomain::PUBLIC);
+
+  kv::Store kv_store_target;
   kv_store_target.clone_schema(kv_store);
+  auto* target_map = kv_store.get<typename MapImpl::StringString>("pub_map");
 
   INFO("Commit to public map in source store");
   {
@@ -95,8 +117,7 @@ TEST_CASE(
       kv::DeserialiseSuccess::PASS);
 
     kv::Tx tx_target;
-    auto view_target = tx_target.get_view(
-      *kv_store_target.get<std::string, std::string>("pub_map"));
+    auto view_target = tx_target.get_view(*target_map);
     REQUIRE(view_target->get("pubk1") == "pubv1");
   }
 }

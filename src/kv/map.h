@@ -389,7 +389,7 @@ namespace kv
     {
       // Create a new change set, and deserialise d's contents into it
       // TODO: Is this the correct type to create for derived impls?
-      auto view = create_view_internal<TxView>(version);
+      auto view = create_view_internal<TxViewCommitter<K, V, H>>(version);
       view->commit_version = version;
 
       auto& change_set = view->change_set;
