@@ -37,19 +37,19 @@ def timeout_handler(node, suspend, election_timeout):
 
 def find_primary(network):
     # track if there is a new primary
-    term_info = {}
+    view_info = {}
     try:
         cur_primary, cur_term = network.find_primary()
-        term_info[cur_term] = cur_primary.node_id
+        view_info[cur_term] = cur_primary.node_id
     except TimeoutError:
         LOG.info("Trying to access a suspended network")
-    return term_info
+    return view_info
 
 
 def get_node_local_commit(node):
     with node.node_client() as c:
         r = c.get("debug/getLocalCommit")
-        return r.commit, r.global_commit
+        return r.seqno, r.global_commit
 
 
 def wait_for_late_joiner(old_node, late_joiner, timeout=30):
@@ -158,7 +158,7 @@ def run(args):
         network.start_and_join(args)
         first_node, _ = network.find_nodes()
         all_nodes = network.get_joined_nodes()
-        term_info = find_primary(network)
+        view_info = find_primary(network)
         first_msg = "Hello, world!"
         second_msg = "Hello, world hello!"
         catchup_msg = "Hey world!"
@@ -173,7 +173,7 @@ def run(args):
             check = infra.checker.Checker(mc)
 
             run_requests(all_nodes, TOTAL_REQUESTS, 0, first_msg, 1000)
-            term_info.update(find_primary(network))
+            view_info.update(find_primary(network))
 
             nodes_to_kill = [network.find_any_backup()]
             nodes_to_keep = [n for n in all_nodes if n not in nodes_to_kill]
@@ -188,7 +188,7 @@ def run(args):
             # some requests to be processed while the late joiner catches up
             # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
             run_requests(all_nodes, int(TOTAL_REQUESTS / 2), 1001, second_msg, 2000)
-            term_info.update(find_primary(network))
+            view_info.update(find_primary(network))
 
             assert_network_up_to_date(check, late_joiner, first_msg, 1000)
             assert_network_up_to_date(check, late_joiner, second_msg, 2000)
@@ -238,17 +238,17 @@ def run(args):
                     ignore_failures=True,
                 )
 
-                term_info.update(find_primary(network))
+                view_info.update(find_primary(network))
 
                 wait_for_nodes(nodes_to_keep, final_msg, 5000)
 
                 # we have asserted that all nodes are caught up
                 # assert that view changes actually did occur
-                assert len(term_info) > 1
+                assert len(view_info) > 1
 
-                LOG.success("----------- terms and primaries recorded -----------")
-                for term, primary in term_info.items():
-                    LOG.success(f"term {term} - primary {primary}")
+                LOG.success("----------- views and primaries recorded -----------")
+                for view, primary in view_info.items():
+                    LOG.success(f"view {view} - primary {primary}")
 
 
 if __name__ == "__main__":

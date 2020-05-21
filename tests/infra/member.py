@@ -111,7 +111,7 @@ class Member:
             and wait_for_global_commit
         ):
             with remote_node.node_client() as mc:
-                infra.checker.wait_for_global_commit(mc, r.commit, r.term, True)
+                infra.checker.wait_for_global_commit(mc, r.seqno, r.view, True)
 
         return r
 
