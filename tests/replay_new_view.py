@@ -61,13 +61,29 @@ def run(args):
         )
 
         caught_up = suspend.wait_for_late_joiner(original_nodes[0], late_joiner)
-        if not caught_up:
+        if caught_up == suspend.LateJoinerStatus.Stuck:
             # kill one node to force a view change after late joiner has been added
             # should be removed when node configuration has been implemented to allow
             # a late joiner to force a view change
             LOG.success(f"Stopping node {node_to_kill.node_id}")
             node_to_kill.stop()
+            # check nodes are ok after we killed one off
+            app.test_run_txs(
+                network=network,
+                args=args,
+                nodes=nodes_to_keep,
+                num_txs=len(nodes_to_keep),
+                timeout=30,
+                ignore_failures=True,
+                # in the event of an early view change due to the late joiner this might
+                # take longer than usual to complete and we don't want the test to break here
+            )
             suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True)
+        elif caught_up == suspend.LateJoinerStatus.NotReady:
+            LOG.warning("late joiner hasn't registered itself as TRUSTED yet")
+            suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True, 60)
+        elif caught_up == suspend.LateJoinerStatus.Ready:
+            LOG.success("late joiner caught up successfully")
 
         # check nodes have resumed normal execution before shutting down
         app.test_run_txs(

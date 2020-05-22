@@ -5,8 +5,18 @@ import time
 import suite.test_requirements as reqs
 import infra.ccf
 import random
+from enum import Enum
 
 from loguru import logger as LOG
+
+
+class LateJoinerStatus(Enum):
+    # late joiner is stuck and needs all other replicas to view change
+    Stuck = "STUCK"
+    # late joiner is not accepting the getLocalCommit RPC's
+    NotReady = "NOT_READY"
+    # late joiner has caught up with the other replicas
+    Ready = "READY"
 
 
 def timeout_handler(node, suspend, election_timeout):
@@ -40,24 +50,36 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
     LOG.success(
         f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
     )
+
+    local_commit = 0
     end = time.time() + timeout
     while time.time() <= end:
         try:
-            lc, gc = get_node_local_commit(late_joiner)
+            local_commit, gc = get_node_local_commit(late_joiner)
             LOG.success(
-                f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
+                f"late joiner {late_joiner.node_id} is at state local_commit:{local_commit}, global_commit:{gc}"
             )
-            if lc >= old_node_lc:
-                return True
+            if local_commit >= old_node_lc:
+                return LateJoinerStatus.Ready
             time.sleep(1)
         except (
             TimeoutError,
             infra.clients.CCFConnectionException,
         ):
-            LOG.warning(f"late joiner {late_joiner.node_id} isn't quite ready yet")
+            LOG.warning(
+                f"late joiner with node id {late_joiner.node_id} isn't quite ready yet"
+            )
+    return_state = None
+    if local_commit == 0:
+        return_state = LateJoinerStatus.NotReady
+    else:
+        return_state = LateJoinerStatus.Stuck
     if strict:
-        raise AssertionError(f"late joiner {late_joiner.node_id} has not caught up")
-    return False
+        raise AssertionError(
+            f"late joiner with node id {late_joiner.node_id} failed to catch up, it's final state is {return_state}"
+        )
+    else:
+        return return_state
 
 
 @reqs.description("Suspend nodes")
