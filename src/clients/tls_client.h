@@ -140,6 +140,26 @@ public:
     }
   }
 
+  std::vector<uint8_t> read(size_t read_size)
+  {
+    std::vector<uint8_t> buf(read_size);
+    auto ret = mbedtls_ssl_read(&ssl, buf.data(), buf.size());
+    if (ret > 0)
+    {
+      buf.resize(ret);
+    }
+    else if (ret == 0)
+    {
+      throw std::logic_error("Underlying transport closed");
+    }
+    else
+    {
+      throw std::logic_error(tls::error_string(ret));
+    }
+
+    return buf;
+  }
+
   void read(Buffer b)
   {
     for (size_t read = 0; read < b.n;)
