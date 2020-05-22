@@ -4,6 +4,7 @@
 
 #include "enclave/tls_endpoint.h"
 #include "http_builder.h"
+#include "http_proc.h"
 
 #include <algorithm>
 #include <cctype>
@@ -14,24 +15,6 @@
 
 namespace http
 {
-  class RequestProcessor
-  {
-  public:
-    virtual void handle_request(
-      http_method method,
-      const std::string_view& path,
-      const std::string& query,
-      HeaderMap&& headers,
-      std::vector<uint8_t>&& body) = 0;
-  };
-
-  class ResponseProcessor
-  {
-  public:
-    virtual void handle_response(
-      http_status status, HeaderMap&& headers, std::vector<uint8_t>&& body) = 0;
-  };
-
   static uint8_t hex_char_to_int(char c)
   {
     if (c <= '9')

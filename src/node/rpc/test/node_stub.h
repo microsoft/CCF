@@ -16,17 +16,17 @@ namespace ccf
   public:
     StubNodeState(ShareManager& share_manager) : share_manager(share_manager) {}
 
-    bool accept_recovery(Store::Tx& tx) override
+    bool accept_recovery(kv::Tx& tx) override
     {
       return true;
     }
 
-    bool open_network(Store::Tx& tx) override
+    bool open_network(kv::Tx& tx) override
     {
       return true;
     }
 
-    bool rekey_ledger(Store::Tx& tx) override
+    bool rekey_ledger(kv::Tx& tx) override
     {
       return true;
     }
@@ -57,7 +57,7 @@ namespace ccf
     }
 
     void node_quotes(
-      Store::Tx& tx,
+      kv::Tx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {}

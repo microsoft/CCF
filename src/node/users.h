@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "entities.h"
+#include "kv/map.h"
 
 #include <nlohmann/json.hpp>
 
@@ -19,5 +19,5 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(UserInfo, cert);
   DECLARE_JSON_OPTIONAL_FIELDS(UserInfo, user_data);
 
-  using Users = Store::Map<UserId, UserInfo>;
+  using Users = kv::Map<UserId, UserInfo>;
 }

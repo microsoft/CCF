@@ -180,16 +180,6 @@ todo_include_todos = True
 breathe_projects = {"CCF": "../doxygen/xml"}
 breathe_default_project = "CCF"
 
-"""
-html_context = {
-    "source_url_prefix": "https://github.com/Microsoft/CCF",
-    "display_github": True,
-    "github_user": "Microsoft",
-    "github_repo": "CCF",
-    "github_version": "master/doc/",
-}
-"""
-
 # Set up multiversion extension
 
 smv_tag_whitelist = r"^v.*$"
@@ -217,6 +207,9 @@ html_context = {
 
 def setup(self):
     import subprocess
+    import pathlib
 
-    subprocess.run(["rm", "doxygen"], check=False)
-    subprocess.run(["doxygen"], check=True)
+    srcdir = pathlib.Path(self.srcdir)
+
+    breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
+    subprocess.run(["doxygen"], cwd=srcdir / '..', check=True)

@@ -8,11 +8,15 @@ import time
 from infra.tx_status import TxStatus
 
 
+<<<<<<< HEAD
 def wait_for_global_commit(client, commit_index, term, mksign=False, timeout=3):
+=======
+def wait_for_global_commit(node_client, seqno, view, mksign=False, timeout=3):
+>>>>>>> upstream/master
     """
-    Given a client to a CCF network and a commit_index/term pair, this function
+    Given a client to a CCF network and a seqno/view pair, this function
     waits for this specific commit index to be globally committed by the
-    network in this term.
+    network in this view.
     A TimeoutError exception is raised if the commit index is not globally
     committed within the given timeout.
     """
@@ -27,7 +31,11 @@ def wait_for_global_commit(client, commit_index, term, mksign=False, timeout=3):
 
     end_time = time.time() + timeout
     while time.time() < end_time:
+<<<<<<< HEAD
         r = client.get("tx", {"view": term, "seqno": commit_index})
+=======
+        r = node_client.get("tx", {"view": view, "seqno": seqno})
+>>>>>>> upstream/master
         assert (
             r.status == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status}"
@@ -36,7 +44,7 @@ def wait_for_global_commit(client, commit_index, term, mksign=False, timeout=3):
             return
         elif status == TxStatus.Invalid:
             raise RuntimeError(
-                f"Transaction ID {term}.{commit_index} is marked invalid and will never be committed"
+                f"Transaction ID {view}.{seqno} is marked invalid and will never be committed"
             )
         else:
             time.sleep(0.1)
@@ -70,7 +78,9 @@ class Checker:
                 )
 
             if self.client:
-                wait_for_global_commit(self.client, rpc_result.commit, rpc_result.term)
+                wait_for_global_commit(
+                    self.client, rpc_result.seqno, rpc_result.view
+                )
 
             if self.notification_queue:
                 end_time = time.time() + timeout
@@ -82,7 +92,7 @@ class Checker:
                             n > self.notified_commit
                         ), f"Received notification of commit {n} after commit {self.notified_commit}"
                         self.notified_commit = n
-                        if n >= rpc_result.commit:
+                        if n >= rpc_result.seqno:
                             return
                     time.sleep(0.5)
                 raise TimeoutError("Timed out waiting for notification")

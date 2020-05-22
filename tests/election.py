@@ -16,15 +16,15 @@ from loguru import logger as LOG
 # as F > N/2).
 
 
-def wait_for_index_globally_committed(index, term, nodes):
+def wait_for_seqno_to_commit(seqno, view, nodes):
     """
-    Wait for a specific version at a specific term to be committed on all nodes.
+    Wait for a specific seqno at a specific view to be committed on all nodes.
     """
     for _ in range(infra.ccf.Network.replication_delay * 10):
         up_to_date_f = []
         for f in nodes:
             with f.node_client() as c:
-                r = c.get("tx", {"view": term, "seqno": index})
+                r = c.get("tx", {"view": view, "seqno": seqno})
                 assert (
                     r.status == http.HTTPStatus.OK
                 ), f"tx request returned HTTP status {r.status}"
@@ -33,7 +33,7 @@ def wait_for_index_globally_committed(index, term, nodes):
                     up_to_date_f.append(f.node_id)
                 elif status == TxStatus.Invalid:
                     raise RuntimeError(
-                        f"Node {f.node_id} reports transaction ID {term}.{index} is invalid and will never be committed"
+                        f"Node {f.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
                     )
                 else:
                     pass
@@ -56,7 +56,7 @@ def run(args):
         check = infra.checker.Checker()
 
         network.start_and_join(args)
-        current_term = None
+        current_view = None
 
         # Number of nodes F to stop until network cannot make progress
         nodes_to_stop = math.ceil(len(hosts) / 2)
@@ -67,31 +67,29 @@ def run(args):
             # Note that for the first iteration, the primary is known in advance anyway
             LOG.debug("Find freshly elected primary")
             # After a view change in pbft, finding the new primary takes longer
-            primary, current_term = network.find_primary(
+            primary, current_view = network.find_primary(
                 request_timeout=(30 if args.consensus == "pbft" else 3)
             )
 
             LOG.debug(
-                "Commit new transactions, primary:{}, current_term:{}".format(
-                    primary.node_id, current_term
+                "Commit new transactions, primary:{}, current_view:{}".format(
+                    primary.node_id, current_view
                 )
             )
             with primary.user_client() as c:
                 res = c.rpc(
                     "LOG_record",
                     {
-                        "id": current_term,
-                        "msg": "This log is committed in term {}".format(current_term),
+                        "id": current_view,
+                        "msg": "This log is committed in view {}".format(current_view),
                     },
                     readonly_hint=None,
                 )
                 check(res, result=True)
-                commit_index = res.commit
+                seqno = res.seqno
 
             LOG.debug("Waiting for transaction to be committed by all nodes")
-            wait_for_index_globally_committed(
-                commit_index, current_term, network.get_joined_nodes()
-            )
+            wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
             LOG.debug("Stopping primary")
             primary.stop()

@@ -15,9 +15,8 @@
 
 using namespace std;
 using namespace nlohmann;
-using namespace ccf;
 
-namespace ccfapp
+namespace loggingapp
 {
   struct Procs
   {
@@ -33,15 +32,15 @@ namespace ccfapp
   };
 
   // SNIPPET: table_definition
-  using Table = Store::Map<size_t, string>;
+  using Table = kv::Map<size_t, string>;
 
   // SNIPPET: inherit_frontend
-  class LoggerHandlers : public UserHandlerRegistry
+  class LoggerHandlers : public ccf::UserHandlerRegistry
   {
   private:
     Table& records;
     Table& public_records;
-    CodeIDs& user_code_ids;
+    ccf::CodeIDs& user_code_ids;
 
     const nlohmann::json record_public_params_schema;
     const nlohmann::json record_public_result_schema;
@@ -71,14 +70,14 @@ namespace ccfapp
 
   public:
     // SNIPPET_START: constructor
-    LoggerHandlers(NetworkTables& nwt, AbstractNotifier& notifier) :
+    LoggerHandlers(ccf::NetworkTables& nwt, ccf::AbstractNotifier& notifier) :
       UserHandlerRegistry(nwt),
       records(
         nwt.tables->create<Table>("records", kv::SecurityDomain::PRIVATE)),
       public_records(nwt.tables->create<Table>(
         "public_records", kv::SecurityDomain::PUBLIC)),
       // SNIPPET_END: constructor
-      user_code_ids(*nwt.tables->get<CodeIDs>(Tables::USER_CODE_IDS)),
+      user_code_ids(*nwt.tables->get<ccf::CodeIDs>(ccf::Tables::USER_CODE_IDS)),
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
       get_public_params_schema(nlohmann::json::parse(j_get_public_in)),
@@ -86,69 +85,69 @@ namespace ccfapp
     {
       // SNIPPET_START: record
       // SNIPPET_START: macro_validation_record
-      auto record = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto record = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
 
         if (in.msg.empty())
         {
-          return make_error(
+          return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(records);
         view->put(in.id, in.msg);
-        return make_success(true);
+        return ccf::make_success(true);
       };
       // SNIPPET_END: record
 
       // SNIPPET_START: get
-      auto get = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingGet::In>();
         auto view = tx.get_view(records);
         auto r = view->get(in.id);
 
         if (r.has_value())
-          return make_success(LoggingGet::Out{r.value()});
+          return ccf::make_success(LoggingGet::Out{r.value()});
 
-        return make_error(
+        return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
       };
       // SNIPPET_END: get
 
       // SNIPPET_START: record_public
       // SNIPPET_START: valijson_record_public
-      auto record_public = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto record_public = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto validation_error =
           validate(params, record_public_params_schema);
 
         if (validation_error.has_value())
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
+          return ccf::make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
         // SNIPPET_END: valijson_record_public
 
         const auto msg = params["msg"].get<std::string>();
         if (msg.empty())
         {
-          return make_error(
+          return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
         }
 
         auto view = tx.get_view(public_records);
         view->put(params["id"], msg);
-        return make_success(true);
+        return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
 
       // SNIPPET_START: get_public
-      auto get_public = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_public = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto validation_error =
           validate(params, get_public_params_schema);
 
         if (validation_error.has_value())
         {
-          return make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
+          return ccf::make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
 
         auto view = tx.get_view(public_records);
@@ -159,17 +158,17 @@ namespace ccfapp
         {
           auto result = nlohmann::json::object();
           result["msg"] = r.value();
-          return make_success(result);
+          return ccf::make_success(result);
         }
 
-        return make_error(
+        return ccf::make_error(
           HTTP_STATUS_BAD_REQUEST,
           fmt::format("No such record: {}", id.dump()));
       };
       // SNIPPET_END: get_public
 
       // SNIPPET_START: log_record_prefix_cert
-      auto log_record_prefix_cert = [this](RequestArgs& args) {
+      auto log_record_prefix_cert = [this](ccf::RequestArgs& args) {
         const auto body_j =
           nlohmann::json::parse(args.rpc_ctx->get_request_body());
 
@@ -204,22 +203,22 @@ namespace ccfapp
       // SNIPPET_END: log_record_prefix_cert
 
       auto log_record_anonymous =
-        [this](RequestArgs& args, nlohmann::json&& params) {
+        [this](ccf::RequestArgs& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingRecord::In>();
           if (in.msg.empty())
           {
-            return make_error(
+            return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
           }
 
           const auto log_line = fmt::format("Anonymous: {}", in.msg);
           auto view = args.tx.get_view(records);
           view->put(in.id, log_line);
-          return make_success(true);
+          return ccf::make_success(true);
         };
 
       // SNIPPET_START: log_record_text
-      auto log_record_text = [this](RequestArgs& args) {
+      auto log_record_text = [this](ccf::RequestArgs& args) {
         const auto expected = http::headervalues::contenttype::TEXT;
         const auto actual =
           args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
@@ -258,19 +257,19 @@ namespace ccfapp
       };
       // SNIPPET_END: log_record_text
 
-      install(Procs::LOG_RECORD, json_adapter(record), Write)
+      install(Procs::LOG_RECORD, ccf::json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
-      install(Procs::LOG_GET, json_adapter(get), Read)
+      install(Procs::LOG_GET, ccf::json_adapter(get), Read)
         .set_auto_schema<LoggingGet>()
         .set_http_get_only();
       // SNIPPET_END: install_get
 
-      install(Procs::LOG_RECORD_PUBLIC, json_adapter(record_public), Write)
+      install(Procs::LOG_RECORD_PUBLIC, ccf::json_adapter(record_public), Write)
         .set_params_schema(record_public_params_schema)
         .set_result_schema(record_public_result_schema);
 
-      install(Procs::LOG_GET_PUBLIC, json_adapter(get_public), Read)
+      install(Procs::LOG_GET_PUBLIC, ccf::json_adapter(get_public), Read)
         .set_params_schema(get_public_params_schema)
         .set_result_schema(get_public_result_schema)
         .set_http_get_only();
@@ -278,7 +277,7 @@ namespace ccfapp
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
       install(
         Procs::LOG_RECORD_ANONYMOUS_CALLER,
-        json_adapter(log_record_anonymous),
+        ccf::json_adapter(log_record_anonymous),
         Write)
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false);
@@ -286,8 +285,8 @@ namespace ccfapp
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,
-                                       const Signatures::State& s,
-                                       const Signatures::Write& w) {
+                                       const ccf::Signatures::State& s,
+                                       const ccf::Signatures::Write& w) {
         if (w.size() > 0)
         {
           nlohmann::json notify_j;
@@ -304,17 +303,20 @@ namespace ccfapp
     LoggerHandlers logger_handlers;
 
   public:
-    Logger(NetworkTables& network, AbstractNotifier& notifier) :
+    Logger(ccf::NetworkTables& network, ccf::AbstractNotifier& notifier) :
       ccf::UserRpcFrontend(*network.tables, logger_handlers),
       logger_handlers(network, notifier)
     {}
   };
+}
 
+namespace ccfapp
+{
   // SNIPPET_START: rpc_handler
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& nwt, AbstractNotifier& notifier)
+    ccf::NetworkTables& nwt, ccf::AbstractNotifier& notifier)
   {
-    return make_shared<Logger>(nwt, notifier);
+    return make_shared<loggingapp::Logger>(nwt, notifier);
   }
   // SNIPPET_END: rpc_handler
 }

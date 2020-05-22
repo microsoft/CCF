@@ -166,7 +166,7 @@ namespace timing
   static CommitIDs parse_commit_ids(const RpcTlsClient::Response& response)
   {
     const auto& h = response.headers;
-    const auto local_commit_it = h.find(http::headers::CCF_COMMIT);
+    const auto local_commit_it = h.find(http::headers::CCF_TX_SEQNO);
     if (local_commit_it == h.end())
     {
       throw std::logic_error("Missing commit response header");
@@ -178,7 +178,7 @@ namespace timing
       throw std::logic_error("Missing global commit response header");
     }
 
-    const auto term_it = h.find(http::headers::CCF_TERM);
+    const auto term_it = h.find(http::headers::CCF_TX_VIEW);
     if (term_it == h.end())
     {
       throw std::logic_error("Missing term response header");

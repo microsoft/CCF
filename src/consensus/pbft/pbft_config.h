@@ -145,7 +145,7 @@ namespace pbft
       uint8_t* req_start = msg->req_start;
       size_t req_size = msg->req_size;
       Seqno total_requests_executed = msg->total_requests_executed;
-      ccf::Store::Tx* tx = msg->tx;
+      kv::Tx* tx = msg->tx;
       int replier = msg->replier;
       uint16_t reply_thread = msg->reply_thread;
 
@@ -155,8 +155,11 @@ namespace pbft
       auto session = std::make_shared<enclave::SessionContext>(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
 
-      auto ctx = enclave::make_rpc_context(
-        session, request.raw, {req_start, req_start + req_size});
+      auto ctx = enclave::make_fwd_rpc_context(
+        session,
+        request.raw,
+        (enclave::FrameFormat)request.frame_format,
+        {req_start, req_start + req_size});
       ctx->is_create_request = c->data.is_first_request;
       ctx->set_apply_writes(true);
 

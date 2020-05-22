@@ -464,10 +464,12 @@ namespace pbft
         {
           return;
         }
+
         *gb_info->global_commit_seqno = version;
 
         if (*gb_info->last_commit_view < view)
         {
+          *gb_info->last_commit_view = view;
           gb_info->view_change_list->emplace_back(view, version);
         }
         gb_info->store->compact(version);
@@ -498,7 +500,7 @@ namespace pbft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       pbft::Request request = {
-        args.caller_id, args.caller_cert, args.request, {}};
+        args.caller_id, args.caller_cert, args.request, {}, args.frame_format};
       auto serialized_req = request.serialise();
 
       auto rep_cb = [&](
@@ -527,6 +529,16 @@ namespace pbft
 
     View get_view(SeqNo seqno) override
     {
+      // replicas reply to requests on prepare but globally commit (update
+      // view_change_list) on commit. Should get the view from the consensus
+      // if we are inquiring for a recent seqno since the view might have
+      // changed but view_change_list might not know about it yet.
+      auto last_vc_info = view_change_list.back();
+      if (last_vc_info.min_global_commit < seqno)
+      {
+        return get_view();
+      }
+
       for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
            ++rit)
       {
@@ -821,7 +833,7 @@ namespace pbft
               return;
             }
 
-            ccf::Store::Tx tx;
+            kv::Tx tx;
             auto deserialise_success =
               store->deserialise_views(ret.first, public_only, nullptr, &tx);
 
@@ -851,7 +863,7 @@ namespace pbft
       }
     }
 
-    void set_f(ccf::NodeId f) override
+    void set_f(size_t f) override
     {
       message_receiver_base->set_f(f);
     }

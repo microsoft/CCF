@@ -5,8 +5,8 @@
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
+#include "kv/test/null_encryptor.h"
 #include "node/client_signatures.h"
-#include "node/encryptor.h"
 #include "node/genesis_gen.h"
 #include "node/rpc/json_rpc.h"
 #include "node/rpc/member_frontend.h"
@@ -39,7 +39,7 @@ auto member_caller = verifier_mem -> der_cert_data();
 auto user_cert = kp -> self_sign("CN=name_user");
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
-auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 constexpr auto default_pack = jsonrpc::Pack::Text;
 
@@ -215,7 +215,7 @@ DOCTEST_TEST_CASE("Member query/read")
 {
   // initialize the network state
   NetworkState network;
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -232,7 +232,7 @@ DOCTEST_TEST_CASE("Member query/read")
   // put value to read
   constexpr auto key = 123;
   constexpr auto value = 456;
-  Store::Tx tx;
+  kv::Tx tx;
   tx.get_view(network.values)->put(key, value);
   DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
@@ -244,7 +244,7 @@ DOCTEST_TEST_CASE("Member query/read")
   DOCTEST_SUBCASE("Query: bytecode/script allowed access")
   {
     // set member ACL so that the VALUES table is accessible
-    Store::Tx tx;
+    kv::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
@@ -263,7 +263,7 @@ DOCTEST_TEST_CASE("Member query/read")
   DOCTEST_SUBCASE("Query: table not in ACL")
   {
     // set member ACL so that no table is accessible
-    Store::Tx tx;
+    kv::Tx tx;
     tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
@@ -275,7 +275,7 @@ DOCTEST_TEST_CASE("Member query/read")
 
   DOCTEST_SUBCASE("Read: allowed access, key exists")
   {
-    Store::Tx tx;
+    kv::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
@@ -290,7 +290,7 @@ DOCTEST_TEST_CASE("Member query/read")
   DOCTEST_SUBCASE("Read: allowed access, key doesn't exist")
   {
     constexpr auto wrong_key = 321;
-    Store::Tx tx;
+    kv::Tx tx;
     tx.get_view(network.whitelists)
       ->put(WlIds::MEMBER_CAN_READ, {Tables::VALUES});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
@@ -304,7 +304,7 @@ DOCTEST_TEST_CASE("Member query/read")
 
   DOCTEST_SUBCASE("Read: access not allowed")
   {
-    Store::Tx tx;
+    kv::Tx tx;
     tx.get_view(network.whitelists)->put(WlIds::MEMBER_CAN_READ, {});
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
 
@@ -320,7 +320,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -427,7 +427,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   network.encryption_key = std::make_unique<NetworkEncryptionKey>(
     tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -576,7 +576,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       {
         // make sure that there is a signature in the signatures table since
         // ack's depend on that
-        Store::Tx tx;
+        kv::Tx tx;
         auto sig_view = tx.get_view(network.signatures);
         Signature sig_value;
         sig_view->put(0, sig_value);
@@ -628,7 +628,7 @@ DOCTEST_TEST_CASE("Accept node")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -786,7 +786,7 @@ ProposalInfo test_raw_writes(
 
   // check values before
   {
-    Store::Tx tx;
+    kv::Tx tx;
     auto next_member_id_r =
       tx.get_view(network.values)->get(ValueIds::NEXT_MEMBER_ID);
     DOCTEST_CHECK(next_member_id_r);
@@ -855,7 +855,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
       const bool should_succeed = pro_votes > n_members / 2;
       NetworkState network;
       network.tables->set_encryptor(encryptor);
-      Store::Tx gen_tx;
+      kv::Tx gen_tx;
       GenesisGenerator gen(network, gen_tx);
       gen.init_values();
       gen.create_service({});
@@ -863,7 +863,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
       StubNodeState node(share_manager);
       nlohmann::json recovery_threshold = 4;
 
-      Store::Tx tx_before;
+      kv::Tx tx_before;
       auto configuration = tx_before.get_view(network.config)->get(0);
       DOCTEST_REQUIRE_FALSE(configuration.has_value());
 
@@ -888,7 +888,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
         continue;
 
       // check results
-      Store::Tx tx_after;
+      kv::Tx tx_after;
       configuration = tx_after.get_view(network.config)->get(0);
       DOCTEST_CHECK(configuration.has_value());
       DOCTEST_CHECK(configuration->recovery_threshold == recovery_threshold);
@@ -910,7 +910,7 @@ DOCTEST_TEST_CASE("Propose raw writes")
         {
           NetworkState network;
           network.tables->set_encryptor(encryptor);
-          Store::Tx gen_tx;
+          kv::Tx gen_tx;
           GenesisGenerator gen(network, gen_tx);
           gen.init_values();
           gen.create_service({});
@@ -948,7 +948,7 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -971,7 +971,7 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   // check that the proposal doesn't exist
   {
-    Store::Tx tx;
+    kv::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
     DOCTEST_CHECK(!proposal);
   }
@@ -988,7 +988,7 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   // check that the proposal is there
   {
-    Store::Tx tx;
+    kv::Tx tx;
     auto proposal = tx.get_view(network.proposals)->get(proposal_id);
     DOCTEST_CHECK(proposal);
     DOCTEST_CHECK(proposal->state == ProposalState::OPEN);
@@ -1029,7 +1029,7 @@ DOCTEST_TEST_CASE("Remove proposal")
 
     // check that the proposal is now withdrawn
     {
-      Store::Tx tx;
+      kv::Tx tx;
       auto proposal = tx.get_view(network.proposals)->get(proposal_id);
       DOCTEST_CHECK(proposal.has_value());
       DOCTEST_CHECK(proposal->state == ProposalState::WITHDRAWN);
@@ -1041,7 +1041,7 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -1059,7 +1059,7 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
     const auto propose =
       create_signed_request(Propose::In{proposal}, "propose", kp);
 
-    Store::Tx tx;
+    kv::Tx tx;
     const auto r = parse_response_body<Propose::Out>(
       frontend_process(frontend, propose, member_certs[0]));
     DOCTEST_CHECK(r.state == ProposalState::OPEN);
@@ -1091,7 +1091,7 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
 
   {
     DOCTEST_INFO("Put value that makes vote agree");
-    Store::Tx tx;
+    kv::Tx tx;
     tx.get_view(network.values)->put(123, 123);
     DOCTEST_CHECK(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1111,7 +1111,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -1164,7 +1164,7 @@ DOCTEST_TEST_CASE("Add user via proposed call")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -1192,7 +1192,7 @@ DOCTEST_TEST_CASE("Add user via proposed call")
   DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
   DOCTEST_CHECK(r.proposal_id == 0);
 
-  Store::Tx tx1;
+  kv::Tx tx1;
   const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
   DOCTEST_CHECK(uid);
   DOCTEST_CHECK(*uid == 1);
@@ -1208,7 +1208,7 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   // Operator votes, but is _not_ taken into consideration
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -1318,7 +1318,7 @@ DOCTEST_TEST_CASE("Passing operator vote")
   // and gets it through without member votes
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -1405,7 +1405,7 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   // A majority of members pass the vote
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -1520,7 +1520,7 @@ DOCTEST_TEST_CASE("User data")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -1620,7 +1620,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
   DOCTEST_INFO("Setup state");
   {
-    Store::Tx gen_tx;
+    kv::Tx gen_tx;
     GenesisGenerator gen(network, gen_tx);
     gen.init_values();
     gen.create_service({});
@@ -1675,7 +1675,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
   DOCTEST_INFO("Change service state to waiting for recovery shares");
   {
-    Store::Tx tx;
+    kv::Tx tx;
     GenesisGenerator g(network, tx);
     DOCTEST_REQUIRE(g.service_wait_for_shares());
     g.finalize();
@@ -1684,7 +1684,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   DOCTEST_INFO(
     "Threshold cannot be changed while service is waiting for shares");
   {
-    Store::Tx tx;
+    kv::Tx tx;
     GenesisGenerator g(network, tx);
     DOCTEST_REQUIRE_FALSE(g.set_recovery_threshold(recovery_threshold));
   }
@@ -1761,7 +1761,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
 
   DOCTEST_INFO("Service is opening");
   {
-    Store::Tx gen_tx;
+    kv::Tx gen_tx;
     GenesisGenerator gen(network, gen_tx);
     gen.init_values();
     gen.create_service({});
@@ -1790,7 +1790,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   {
     std::map<size_t, ccf::Cert> members;
 
-    Store::Tx gen_tx;
+    kv::Tx gen_tx;
     GenesisGenerator gen(network, gen_tx);
     gen.init_values();
     gen.create_service({});

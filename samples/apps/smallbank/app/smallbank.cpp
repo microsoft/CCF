@@ -29,11 +29,11 @@ namespace ccfapp
 
   struct SmallBankTables
   {
-    Store::Map<std::string, uint64_t>& accounts;
-    Store::Map<uint64_t, int64_t>& savings;
-    Store::Map<uint64_t, int64_t>& checkings;
+    kv::Map<std::string, uint64_t>& accounts;
+    kv::Map<uint64_t, int64_t>& savings;
+    kv::Map<uint64_t, int64_t>& checkings;
 
-    SmallBankTables(Store& store) :
+    SmallBankTables(kv::Store& store) :
       accounts(store.create<std::string, uint64_t>("a")),
       savings(store.create<uint64_t, int64_t>("b")),
       checkings(store.create<uint64_t, int64_t>("c"))
@@ -91,10 +91,12 @@ namespace ccfapp
     }
 
   public:
-    SmallBankHandlers(Store& store) : UserHandlerRegistry(store), tables(store)
+    SmallBankHandlers(kv::Store& store) :
+      UserHandlerRegistry(store),
+      tables(store)
     {}
 
-    void init_handlers(Store& store) override
+    void init_handlers(kv::Store& store) override
     {
       UserHandlerRegistry::init_handlers(store);
 
@@ -475,7 +477,7 @@ namespace ccfapp
     SmallBankHandlers sb_handlers;
 
   public:
-    SmallBank(Store& store) :
+    SmallBank(kv::Store& store) :
       UserRpcFrontend(store, sb_handlers),
       sb_handlers(store)
     {

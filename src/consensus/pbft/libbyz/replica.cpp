@@ -449,7 +449,7 @@ bool Replica::compare_execution_results(
   return true;
 }
 
-void Replica::playback_request(ccf::Store::Tx& tx)
+void Replica::playback_request(kv::Tx& tx)
 {
   auto view = tx.get_view(pbft_requests_map);
   auto req_v = view->get(0);
@@ -560,7 +560,7 @@ void Replica::populate_certificates(Pre_prepare* pp)
   }
 }
 
-void Replica::playback_pre_prepare(ccf::Store::Tx& tx)
+void Replica::playback_pre_prepare(kv::Tx& tx)
 {
   auto view = tx.get_view(pbft_pre_prepares_map);
   auto pp = view->get(0);
@@ -1058,13 +1058,6 @@ void Replica::handle(Pre_prepare* m)
     // for the same view and sequence number and the message is valid.
     if (pc.add(m))
     {
-      if (ms == playback_pp_seqno + 1)
-      {
-        // previous pre prepare was executed during playback, we need to add the
-        // prepares for it, as the prepare proofs for the previous pre-prepare
-        // are in the next pre prepare message
-        populate_certificates(pc.pre_prepare());
-      }
       send_prepare(ms);
     }
     return;
@@ -1120,6 +1113,14 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
             self->try_send_prepare();
             return;
           }
+        }
+
+        if (pp->seqno() == self->playback_pp_seqno + 1)
+        {
+          // previous pre prepare was executed during playback, we need to add
+          // the prepares for it, as the prepare proofs for the previous
+          // pre-prepare are in the next pre prepare message
+          self->populate_certificates(pp);
         }
 
         Prepare* p = new Prepare(
@@ -1420,7 +1421,7 @@ size_t Replica::f() const
   return Node::f();
 }
 
-void Replica::set_f(ccf::NodeId f)
+void Replica::set_f(size_t f)
 {
   if (max_faulty == 0 && f > 0)
   {
@@ -2027,7 +2028,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
     if (encryptor)
     {
-      encryptor->set_view(prev_view);
+      encryptor->set_iv_id(prev_view);
     }
 
     ByzInfo info;
@@ -2063,6 +2064,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 
     if (i <= last_executed || pc.is_complete())
     {
+      global_commit(pp);
       send_commit(i);
     }
   }
@@ -2095,7 +2097,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   }
   if (encryptor)
   {
-    encryptor->set_view(v);
+    encryptor->set_iv_id(v);
   }
   LOG_INFO << "Done with process new view " << v << std::endl;
 }
@@ -2159,21 +2161,17 @@ void Replica::rollback_to_globally_comitted()
 
 void Replica::global_commit(Pre_prepare* pp)
 {
-  if (pp->is_signed())
+  if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
   {
-    if (pp->seqno() >= last_gb_seqno && pp->get_ctx() >= last_gb_version)
+    LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
+    LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
+    state.checkpoint(pp->seqno());
+    last_gb_version = pp->get_ctx();
+    last_gb_seqno = pp->seqno();
+    if (global_commit_cb != nullptr)
     {
-      LOG_TRACE_FMT("Global_commit: {} {}", pp->get_ctx(), pp->seqno());
-      LOG_TRACE_FMT("Checkpointing for seqno {}", pp->seqno());
-      state.checkpoint(pp->seqno());
-      last_gb_version = pp->get_ctx();
-      last_gb_seqno = pp->seqno();
-      if (global_commit_cb != nullptr)
-      {
-        global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
-      }
+      global_commit_cb(pp->get_ctx(), pp->view(), global_commit_info);
     }
-    signed_version = 0;
   }
 }
 
@@ -2243,8 +2241,8 @@ void Replica::execute_prepared(bool committed)
 std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   Request& request,
   int64_t& max_local_commit_value,
-  bool include_markle_roots,
-  ccf::Store::Tx* tx,
+  bool include_merkle_roots,
+  kv::Tx* tx,
   Seqno seqno)
 {
   auto stash_replier = request.replier();
@@ -2256,7 +2254,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     request.request_id(),
     reinterpret_cast<uint8_t*>(request.contents()),
     request.contents_size(),
-    include_markle_roots,
+    include_merkle_roots,
     replies.total_requests_processed(),
     last_tentative_execute,
     max_local_commit_value,
