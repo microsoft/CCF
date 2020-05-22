@@ -151,14 +151,16 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_node(self, node, lib_name, args, target_node=None):
+    def _add_node(self, node, lib_name, args, target_node=None, recovery=False):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
 
         # Contact primary if no target node is set
         if target_node is None:
-            target_node, _ = self.find_primary()
+            target_node, _ = self.find_primary(
+                timeout=args.ledger_recovery_timeout if recovery else 3
+            )
 
         node.join(
             lib_name=lib_name,
@@ -225,7 +227,7 @@ class Network:
                             )
                             self._adjust_local_node_ids(node)
                 else:
-                    self._add_node(node, args.package, args)
+                    self._add_node(node, args.package, args, recovery=recovery)
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
