@@ -678,12 +678,12 @@ void Replica::playback_new_view(kv::Tx& tx)
   // enter the new view
   v = new_view->view();
   cur_primary = v % num_replicas;
+  vi.add(new_view.release());
+  vi.set_new_view(v);
   if (encryptor)
   {
     encryptor->set_iv_id(v);
   }
-  vi.add(new_view.release());
-  vi.set_new_view(v);
   LOG_INFO_FMT("Done with process new view {}", v);
 }
 
@@ -1646,7 +1646,6 @@ void Replica::handle(Status* m)
           Commit* c = clog.fetch(n).mine(t_sent);
           if (c != 0)
           {
-            LOG_INFO_FMT("Retransmitting commit {} to {}", n, m->id());
             retransmit(c, current, t_sent, p.get());
           }
 
@@ -1671,7 +1670,6 @@ void Replica::handle(Status* m)
             Prepare* pr = plog.fetch(n).my_prepare(t_sent);
             if (pr != 0)
             {
-              LOG_INFO_FMT("Retransmitting prepare {} to {}", n, m->id());
               retransmit(pr, current, t_sent, p.get());
             }
           }
