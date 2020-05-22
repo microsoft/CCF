@@ -816,7 +816,7 @@ namespace pbft
               ledger->skip_entry(data, size);
               continue;
             }
-            LOG_TRACE_FMT("Applying append entry for index {}", i);
+            LOG_INFO_FMT("Applying append entry for index {}", i);
 
             auto ret = ledger->get_entry(data, size);
 
