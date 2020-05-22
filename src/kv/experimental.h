@@ -145,8 +145,6 @@ namespace kv
       }
     };
 
-    // TODO: Inheritance doesn't work! Because the base typedefs aren't right!
-    // Need to _have_ an untyped member, and _be_ an AbstractMap ourselves
     template <typename K, typename V, typename S = MsgPackSerialiser<K, V>>
     class Map : public AbstractMap
     {

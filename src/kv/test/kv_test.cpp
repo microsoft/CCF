@@ -31,8 +31,6 @@ struct ExperimentalMapTypes
   using StringNum = kv::experimental::Map<std::string, size_t>;
 };
 
-// TODO: Compare the actual serialised form of each implementation?
-
 // TODO: Add test of custom serialisers for experimental impl
 
 TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)

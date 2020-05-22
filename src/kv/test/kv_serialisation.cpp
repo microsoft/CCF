@@ -122,6 +122,8 @@ TEST_CASE_TEMPLATE(
   }
 }
 
+// The new form is slightly longer but this is inevitable, and acceptable?
+// TODO: Remove this test
 TEST_CASE("Comparison")
 {
   std::vector<uint8_t> raw_data;

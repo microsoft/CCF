@@ -54,13 +54,8 @@ namespace kv
   template <class K, class V, class H>
   class TxViewCommitter : public AbstractTxView
   {
-    // TODO: All state is public since Map::deserialise wants to build it
-    // manually. Is this right?
-    // And we also need to friend it, so it can access our protected state...
-
-  public:
+  protected:
     using MyMap = Map<K, V, H>;
-    friend MyMap;
 
     ChangeSet<K, V, H> change_set;
 
@@ -72,6 +67,7 @@ namespace kv
     bool changes = false;
     bool committed_writes = false;
 
+  public:
     template <typename... Ts>
     TxViewCommitter(MyMap& m, size_t rollbacks, Ts&&... ts) :
       map(m),
@@ -202,6 +198,22 @@ namespace kv
         map.local_hook(roll->version, roll->state, roll->writes);
       }
     }
+
+    // Used by owning map during serialise and deserialise
+    ChangeSet<K, V, H>& get_change_set()
+    {
+      return change_set;
+    }
+
+    const ChangeSet<K, V, H>& get_change_set() const
+    {
+      return change_set;
+    }
+
+    void set_commit_version(Version v)
+    {
+      commit_version = v;
+    }
   };
 
   template <typename K, typename V, typename H>
@@ -289,6 +301,9 @@ namespace kv
   public:
     using TxView = ConcreteTxView<K, V, H>;
 
+    // Provide access to hidden rollback_counter, roll, create_new_local_commit
+    friend TxViewCommitter<K, V, H>;
+
     Map(
       AbstractStore* store_,
       std::string name_,
@@ -316,14 +331,15 @@ namespace kv
       KvStoreSerialiser& s,
       bool include_reads) override
     {
-      const auto view_ = dynamic_cast<const TxViewCommitter<K, V, H>*>(view);
-      if (view_ == nullptr)
+      const auto committer =
+        dynamic_cast<const TxViewCommitter<K, V, H>*>(view);
+      if (committer == nullptr)
       {
         // TODO: This should be a louder error...
         return;
       }
 
-      const auto& change_set = view_->change_set;
+      const auto& change_set = committer->get_change_set();
 
       s.start_map(name, security_domain);
 
@@ -387,12 +403,12 @@ namespace kv
     AbstractTxView* deserialise(
       KvStoreDeserialiser& d, Version version) override
     {
-      // Create a new change set, and deserialise d's contents into it
-      // TODO: Is this the correct type to create for derived impls?
+      // Create a new change set, and deserialise d's contents into it.
+      // Note that this is _only_ a committer - it cannot be sidecast to TxView.
       auto view = create_view_internal<TxViewCommitter<K, V, H>>(version);
-      view->commit_version = version;
+      view->set_commit_version(version);
 
-      auto& change_set = view->change_set;
+      auto& change_set = view->get_change_set();
 
       uint64_t ctr;
 
@@ -674,9 +690,6 @@ namespace kv
       std::swap(rollback_counter, map->rollback_counter);
       std::swap(roll, map->roll);
     }
-
-    // Provides access to private rollback_counter and roll
-    friend TxViewCommitter<K, V, H>;
 
     template <typename TView>
     TView* create_view_internal(Version version)
