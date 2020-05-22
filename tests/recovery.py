@@ -95,7 +95,7 @@ def test_share_resilience(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost", "localhost"]
+    hosts = ["localhost", "localhost"]
 
     txs = app.LoggingTxs()
 
@@ -106,10 +106,10 @@ def run(args):
 
         for i in range(args.recovery):
             # Alternate between recovery with primary change and stable primary-ship
-            # if i % 2 == 0:
-            recovered_network = test_share_resilience(network, args)
-            # else:
-            # recovered_network = test(network, args)
+            if i % 2 == 0:
+                recovered_network = test_share_resilience(network, args)
+            else:
+                recovered_network = test(network, args)
             network.stop_all_nodes()
             network = recovered_network
             LOG.success("Recovery complete on all nodes")

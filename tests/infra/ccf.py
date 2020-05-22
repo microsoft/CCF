@@ -342,9 +342,6 @@ class Network:
         :param args: command line arguments to configure the CCF nodes.
         :param defunct_network_enc_pub: defunct network encryption public key.
         """
-        # if defunct_network_enc_pub is None:
-            # defunct_network_enc_pub = self.store_current_network_encryption_key()
-
         primary, _ = self.find_primary()
         self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
         self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)

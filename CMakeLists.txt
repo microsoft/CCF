@@ -461,7 +461,7 @@ if(BUILD_TESTS)
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
-    ADDITIONAL_ARGS --recovery 2
+    ADDITIONAL_ARGS --recovery 2 --raft-election-timeout 4000
   )
 
   add_e2e_test(
