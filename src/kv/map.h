@@ -335,7 +335,7 @@ namespace kv
         dynamic_cast<const TxViewCommitter<K, V, H>*>(view);
       if (committer == nullptr)
       {
-        // TODO: This should be a louder error...
+        LOG_FAIL_FMT("Unable to serialise map due to type mismatch");
         return;
       }
 

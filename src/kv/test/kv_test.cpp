@@ -31,8 +31,6 @@ struct ExperimentalMapTypes
   using StringNum = kv::experimental::Map<std::string, size_t>;
 };
 
-// TODO: Add test of custom serialisers for experimental impl
-
 TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
   kv::Store kv_store;
@@ -45,8 +43,6 @@ TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
       kv_store.get<typename MapImpl::StringString>("invalid_map") == nullptr);
   }
 
-  // TODO: Add more complete tests here, ensure they're also used to test
-  // kv::experimental::
   INFO("Get a map that does exist");
   {
     auto* p_map = kv_store.get<typename MapImpl::StringString>(map_name);
