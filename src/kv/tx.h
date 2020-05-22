@@ -228,19 +228,22 @@ namespace kv
       if (!success)
         throw std::logic_error("Transaction aborted");
 
-      // TODO: Note removed early-out! It was an unnecessary optimisation? We
-      // can restore by building a list of changed-and-replicated maps on a
-      // single pass here, early-out if empty.
-      // We pull is_replicated and has_changes checks into the loop below, since
-      // this is where we have access to the most information.
+      // If no transactions made changes, return a zero length vector.
+      const bool any_changes =
+        std::any_of(view_list.begin(), view_list.end(), [](const auto& it) {
+          return it->second.view->has_changes();
+        });
+
+      if (!any_changes)
+      {
+        return {};
+      }
 
       // Retrieve encryptor.
       auto map = view_list.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
       KvStoreSerialiser replicated_serialiser(e, version);
-
-      bool any_writes = false;
 
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
@@ -254,15 +257,8 @@ namespace kv
           {
             map->serialise(
               it.second.view.get(), replicated_serialiser, include_reads);
-            any_writes = true;
           }
         }
-      }
-
-      // If no transactions made changes, return a zero length vector.
-      if (!any_writes)
-      {
-        return {};
       }
 
       // Return serialised Tx.
