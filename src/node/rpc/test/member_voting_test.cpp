@@ -1729,32 +1729,32 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  // DOCTEST_INFO("Service is opening");
-  // {
-  //   Store::Tx gen_tx;
-  //   GenesisGenerator gen(network, gen_tx);
-  //   gen.init_values();
-  //   gen.create_service({});
-  //   gen.set_recovery_threshold(1);
+  DOCTEST_INFO("Service is opening");
+  {
+    Store::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
+    gen.init_values();
+    gen.create_service({});
+    gen.set_recovery_threshold(1);
 
-  //   for (size_t i = 0; i < max_active_members_count + 1; i++)
-  //   {
-  //     auto cert = get_cert_data(i, kp);
-  //     if (i == max_active_members_count)
-  //     {
-  //       DOCTEST_REQUIRE_THROWS_AS_MESSAGE(
-  //         gen.add_member(cert, gen_public_encryption_key()),
-  //         std::logic_error,
-  //         fmt::format(
-  //           "No more than {} active members are allowed",
-  //           max_active_members_count));
-  //     }
-  //     else
-  //     {
-  //       gen.add_member(cert, gen_public_encryption_key());
-  //     }
-  //   }
-  // }
+    for (size_t i = 0; i < max_active_members_count + 1; i++)
+    {
+      auto cert = get_cert_data(i, kp);
+      if (i == max_active_members_count)
+      {
+        DOCTEST_REQUIRE_THROWS_AS_MESSAGE(
+          gen.add_member(cert, gen_public_encryption_key()),
+          std::logic_error,
+          fmt::format(
+            "No more than {} active members are allowed",
+            max_active_members_count));
+      }
+      else
+      {
+        gen.add_member(cert, gen_public_encryption_key());
+      }
+    }
+  }
 
   DOCTEST_INFO("Service is open");
   {
