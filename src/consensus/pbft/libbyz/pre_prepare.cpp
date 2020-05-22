@@ -234,6 +234,7 @@ bool Pre_prepare::set_digest(int64_t signed_version)
   }
 
   rep().digest = d;
+  LOG_INFO_FMT("Digest for pp {} is {}", rep().seqno, d.hash());
   return true;
 }
 
@@ -460,7 +461,7 @@ Pre_prepare::ValidProofs_iter::ValidProofs_iter(Pre_prepare* m)
 }
 
 bool Pre_prepare::ValidProofs_iter::get(
-  int& id, bool& is_valid_proof, Digest& prepare_digest)
+  int& id, bool& is_valid_proof, Digest& prepare_digest, bool is_null_op)
 {
   if (proofs_left <= 0)
   {
@@ -480,7 +481,7 @@ bool Pre_prepare::ValidProofs_iter::get(
     LOG_INFO_FMT("Sender principal has not been configured yet {}", id);
     is_valid_proof = false;
   }
-  else
+  else if (!is_null_op)
   {
     PrepareSignature s(prepare_digest, id, ic->nonce);
 

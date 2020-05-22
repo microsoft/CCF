@@ -489,7 +489,7 @@ void Replica::playback_request(kv::Tx& tx)
   waiting_for_playback_pp = true;
 
   vec_exec_cmds[0] = std::move(execute_tentative_request(
-    *req, playback_max_local_commit_value, true, &tx, true));
+    *req, playback_max_local_commit_value, true, &tx, -1));
 
   exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
@@ -507,7 +507,8 @@ void Replica::add_certs_if_valid(
   Pre_prepare::ValidProofs_iter vp_iter(pp);
   int p_id;
   bool valid;
-  while (vp_iter.get(p_id, valid, prev_pp->digest()))
+  while (
+    vp_iter.get(p_id, valid, prev_pp->digest(), prev_pp->num_big_reqs() == 0))
   {
     if (valid)
     {
@@ -561,6 +562,8 @@ void Replica::populate_certificates(Pre_prepare* pp)
   auto prev_pp = prev_prepared_cert.pre_prepare();
   if (prev_pp != nullptr)
   {
+    LOG_INFO_FMT(
+      "pp seqno {} digest {}", prev_pp->seqno(), prev_pp->digest().hash());
     add_certs_if_valid(pp, prev_pp, prev_prepared_cert);
   }
 }
