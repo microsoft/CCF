@@ -231,7 +231,7 @@ namespace kv
       // If no transactions made changes, return a zero length vector.
       const bool any_changes =
         std::any_of(view_list.begin(), view_list.end(), [](const auto& it) {
-          return it->second.view->has_changes();
+          return it.second.view->has_changes();
         });
 
       if (!any_changes)

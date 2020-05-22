@@ -1332,7 +1332,7 @@ namespace ccf
       // inform the host of any nodes that no longer need to be tracked.
       network.nodes.set_global_hook(
         [this](
-          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
+          kv::Version version, const Nodes::State&, const Nodes::Write& w) {
           for (auto& [node_id, ni] : w)
           {
             if (ni.value.status == NodeStatus::RETIRED)
@@ -1342,7 +1342,7 @@ namespace ccf
 
       network.service.set_global_hook([this](
                                         kv::Version version,
-                                        const Service::State& s,
+                                        const Service::State&,
                                         const Service::Write& w) {
         if (w.at(0).value.status == ServiceStatus::OPEN)
         {
@@ -1354,7 +1354,7 @@ namespace ccf
 
       network.secrets.set_local_hook([this](
                                        kv::Version version,
-                                       const Secrets::State& s,
+                                       const Secrets::State&,
                                        const Secrets::Write& w) {
         bool has_secrets = false;
         std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
@@ -1432,7 +1432,7 @@ namespace ccf
     {
       network.shares.set_local_hook(
         [this](
-          kv::Version version, const Shares::State& s, const Shares::Write& w) {
+          kv::Version version, const Shares::State&, const Shares::Write& w) {
           if (is_reading_public_ledger())
           {
             for (auto& [k, v] : w)
@@ -1678,7 +1678,7 @@ namespace ccf
       // map the node id to a hostname and service and inform pbft
       network.nodes.set_local_hook(
         [this](
-          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
+          kv::Version version, const Nodes::State&, const Nodes::Write& w) {
           std::unordered_set<NodeId> configuration;
           for (auto& [node_id, ni] : w)
           {

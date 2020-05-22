@@ -285,7 +285,7 @@ namespace loggingapp
 
       nwt.signatures.set_global_hook([this, &notifier](
                                        kv::Version version,
-                                       const ccf::Signatures::State& s,
+                                       const ccf::Signatures::State&,
                                        const ccf::Signatures::Write& w) {
         if (w.size() > 0)
         {
