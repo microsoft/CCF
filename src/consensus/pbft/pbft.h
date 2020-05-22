@@ -816,7 +816,7 @@ namespace pbft
               ledger->skip_entry(data, size);
               continue;
             }
-            LOG_INFO_FMT("Applying append entry for index {}", i);
+            LOG_TRACE_FMT("Applying append entry for index {}", i);
 
             auto ret = ledger->get_entry(data, size);
 
@@ -852,11 +852,6 @@ namespace pbft
               case kv::DeserialiseSuccess::PASS_PRE_PREPARE:
               {
                 message_receiver_base->playback_pre_prepare(tx);
-                break;
-              }
-              case kv::DeserialiseSuccess::PASS_NEW_VIEW:
-              {
-                message_receiver_base->playback_new_view(tx);
                 break;
               }
               default:

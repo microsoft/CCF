@@ -65,6 +65,7 @@ def run(args):
             # kill one node to force a view change after late joiner has been added
             # should be removed when node configuration has been implemented to allow
             # a late joiner to force a view change
+            LOG.warning("late joiner is stuck, need to force a view change")
             LOG.success(f"Stopping node {node_to_kill.node_id}")
             node_to_kill.stop()
             # check nodes are ok after we killed one off
@@ -80,7 +81,7 @@ def run(args):
             )
             suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True)
         elif caught_up == suspend.LateJoinerStatus.NotReady:
-            LOG.warning("late joiner hasn't registered itself as TRUSTED yet")
+            LOG.warning("late joiner is not ready to accept RPC's yet")
             suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True, 60)
         elif caught_up == suspend.LateJoinerStatus.Ready:
             LOG.success("late joiner caught up successfully")
