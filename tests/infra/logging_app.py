@@ -13,7 +13,6 @@ from loguru import logger as LOG
 def test_run_txs(
     network,
     args,
-    logging_app,
     nodes=None,
     num_txs=1,
     verify=True,
@@ -26,7 +25,7 @@ def test_run_txs(
     num_nodes = len(nodes)
 
     for tx in range(num_txs):
-        logging_app.issue_on_node(
+        network.txs.issue_on_node(
             network=network,
             remote_node=nodes[tx % num_nodes],
             number_txs=1,
@@ -37,7 +36,7 @@ def test_run_txs(
         )
 
     if verify:
-        logging_app.verify_last_tx(network)
+        network.txs.verify_last_tx(network)
     else:
         LOG.warning("Skipping log messages verification")
 

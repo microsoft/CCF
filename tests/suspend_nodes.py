@@ -19,10 +19,6 @@ from loguru import logger as LOG
 # we are sure that we will have to go via the ledger to help late joiners catch up (total 36 reqs > 34)
 TOTAL_REQUESTS = 9  # x2 is 18 since LoggingTxs app sends a private and a public request for each tx index
 
-s = random.randint(1, 10)
-LOG.info(f"setting seed to {s}")
-random.seed(s)
-
 
 def timeout_handler(node, suspend, election_timeout):
     if suspend:
@@ -105,18 +101,19 @@ def test_suspend_nodes(network, args, nodes_to_keep):
 def run(args):
     hosts = ["localhost", "localhost", "localhost"]
 
+    LOG.info(f"setting seed to {args.seed}")
+    random.seed(args.seed)
+    txs = app.LoggingTxs()
+
     with infra.ccf.network(
-        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)
         original_nodes = network.get_joined_nodes()
         term_info = {}
         update_term_info(network, term_info)
-        txs = app.LoggingTxs()
 
-        app.test_run_txs(
-            network=network, args=args, num_txs=TOTAL_REQUESTS, logging_app=txs
-        )
+        app.test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
         update_term_info(network, term_info)
 
         nodes_to_kill = [network.find_any_backup()]
@@ -134,7 +131,6 @@ def run(args):
             num_txs=int(TOTAL_REQUESTS / 2),
             nodes=original_nodes,  # doesn't contain late joiner
             verify=False,  # will try to verify for late joiner and it might not be ready yet
-            logging_app=txs,
         )
 
         wait_for_late_joiner(original_nodes[0], late_joiner)
@@ -154,7 +150,6 @@ def run(args):
             ignore_failures=True,
             # in the event of an early view change due to the late joiner this might
             # take longer than usual to complete and we don't want the test to break here
-            logging_app=txs,
         )
 
         test_suspend_nodes(network, args, nodes_to_keep)
@@ -165,15 +160,12 @@ def run(args):
             args=args,
             num_txs=4 * TOTAL_REQUESTS,
             ignore_failures=True,
-            logging_app=txs,
         )
 
         update_term_info(network, term_info)
 
         # check nodes have resumed normal execution before shutting down
-        app.test_run_txs(
-            network=network, args=args, num_txs=len(nodes_to_keep), logging_app=txs
-        )
+        app.test_run_txs(network=network, args=args, num_txs=len(nodes_to_keep))
 
         # we have asserted that all nodes are caught up
         # assert that view changes actually did occur
@@ -185,7 +177,15 @@ def run(args):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
+
+    def add(parser):
+        parser.add_argument(
+            "--seed",
+            help="seed used to randomise the node suspension timeouts",
+            default=random.randint(1, 10),
+        )
+
+    args = infra.e2e_args.cli_args(add)
     if args.js_app_script:
         args.package = "libjs_generic"
     elif args.app_script:
