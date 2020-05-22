@@ -3,6 +3,7 @@
 #pragma once
 
 #include "http/http_builder.h"
+#include "http/ws_builder.h"
 #include "http/http_consts.h"
 #include "http/http_parser.h"
 #include "node/rpc/json_rpc.h"
@@ -63,6 +64,21 @@ protected:
     }
 
     return r.build_request();
+  }
+
+  std::vector<uint8_t> gen_ws_request_internal(
+    const std::string& method,
+    const CBuffer params,
+    const std::string& content_type,
+    http_method verb)
+  {
+    auto path = method;
+    if (prefix.has_value())
+    {
+      path = fmt::format("/{}/{}", prefix.value(), path);
+    }
+    std::vector<uint8_t> body(params.p, params.p + params.n);
+    return ws::make_in_frame(path, body);
   }
 
   std::vector<uint8_t> gen_request_internal(
