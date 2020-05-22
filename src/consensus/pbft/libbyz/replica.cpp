@@ -562,8 +562,6 @@ void Replica::populate_certificates(Pre_prepare* pp)
   auto prev_pp = prev_prepared_cert.pre_prepare();
   if (prev_pp != nullptr)
   {
-    LOG_INFO_FMT(
-      "pp seqno {} digest {}", prev_pp->seqno(), prev_pp->digest().hash());
     add_certs_if_valid(pp, prev_pp, prev_prepared_cert);
   }
 }

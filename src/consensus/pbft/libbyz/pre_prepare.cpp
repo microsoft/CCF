@@ -234,7 +234,6 @@ bool Pre_prepare::set_digest(int64_t signed_version)
   }
 
   rep().digest = d;
-  LOG_INFO_FMT("Digest for pp {} is {}", rep().seqno, d.hash());
   return true;
 }
 
