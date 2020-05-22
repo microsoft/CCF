@@ -185,9 +185,7 @@ namespace client
         ->capture_default_str();
       app
         .add_flag(
-          "--use-websockets",
-          websockets,
-          "Use websockets to send transactions")
+          "--use-websockets", websockets, "Use websockets to send transactions")
         ->capture_default_str();
     }
   };
@@ -305,7 +303,8 @@ namespace client
     std::chrono::high_resolution_clock::time_point last_write_time;
     std::chrono::nanoseconds write_delay_ns = std::chrono::nanoseconds::zero();
 
-    std::shared_ptr<RpcTlsClient> create_connection(bool force_unsigned = false)
+    std::shared_ptr<RpcTlsClient> create_connection(
+      bool force_unsigned = false, bool upgrade = false)
     {
       // Create a cert if this is our first rpc_connection
       const bool is_first = get_cert();
@@ -329,6 +328,9 @@ namespace client
         LOG_DEBUG_FMT(
           "Connected to server via TLS ({})", conn->get_ciphersuite_name());
       }
+
+      if (upgrade)
+        conn->upgrade_to_ws();
 
       return conn;
     }
@@ -423,8 +425,8 @@ namespace client
         }
       }
 
-      const auto global_commit_response =
-        wait_for_global_commit(trigger_signature(connection));
+      const auto global_commit_response = wait_for_global_commit(
+        trigger_signature(create_connection(true, false)));
       size_t last_commit = 0;
       if (!options.no_wait)
       {
@@ -621,7 +623,7 @@ namespace client
       rand_generator(),
       // timing gets its own new connection for any requests it wants to send -
       // these are never signed
-      response_times(create_connection(true))
+      response_times(create_connection(true, false))
     {}
 
     void init_connection()
@@ -629,7 +631,7 @@ namespace client
       // Make sure the connection we're about to use has been initialised
       if (!rpc_connection)
       {
-        rpc_connection = create_connection();
+        rpc_connection = create_connection(true, options.websockets);
       }
     }
 
@@ -651,7 +653,7 @@ namespace client
           {
             // Ensure creation transactions are globally committed before
             // proceeding
-            wait_for_global_commit(trigger_signature(get_connection()));
+            wait_for_global_commit(trigger_signature(create_connection(true)));
           }
         }
         catch (std::exception& e)

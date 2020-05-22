@@ -3,9 +3,10 @@
 #pragma once
 
 #include "http/http_builder.h"
-#include "http/ws_builder.h"
 #include "http/http_consts.h"
 #include "http/http_parser.h"
+#include "http/ws_builder.h"
+#include "http/ws_parser.h"
 #include "node/rpc/json_rpc.h"
 #include "tls_client.h"
 
@@ -36,11 +37,24 @@ public:
 
 protected:
   http::ResponseParser parser;
+  ws::ResponseParser ws_parser;
   std::optional<std::string> prefix;
   tls::KeyPairPtr key_pair = nullptr;
+  bool is_ws = false;
 
   size_t next_send_id = 0;
   size_t next_recv_id = 0;
+
+  std::vector<uint8_t> gen_ws_upgrade_request()
+  {
+    auto r = http::Request("/", HTTP_GET);
+    r.set_header("Upgrade", "websocket");
+    r.set_header("Connection", "Upgrade");
+    r.set_header("Sec-WebSocket-Key", "iT9AbE3Q96TfyWZ+3gQdfg==");
+    r.set_header("Sec-WebSocket-Version", "13");
+
+    return r.build_request();
+  }
 
   std::vector<uint8_t> gen_http_request_internal(
     const std::string& method,
@@ -67,10 +81,7 @@ protected:
   }
 
   std::vector<uint8_t> gen_ws_request_internal(
-    const std::string& method,
-    const CBuffer params,
-    const std::string& content_type,
-    http_method verb)
+    const std::string& method, const CBuffer params)
   {
     auto path = method;
     if (prefix.has_value())
@@ -87,7 +98,10 @@ protected:
     const std::string& content_type,
     http_method verb)
   {
-    return gen_http_request_internal(method, params, content_type, verb);
+    if (is_ws)
+      return gen_ws_request_internal(method, params);
+    else
+      return gen_http_request_internal(method, params, content_type, verb);
   }
 
   Response call_raw(const std::vector<uint8_t>& raw)
@@ -113,8 +127,18 @@ public:
     std::shared_ptr<tls::CA> node_ca = nullptr,
     std::shared_ptr<tls::Cert> cert = nullptr) :
     TlsClient(host, port, node_ca, cert),
-    parser(*this)
+    parser(*this),
+    ws_parser(*this)
   {}
+
+  void upgrade_to_ws()
+  {
+    auto upgrade = gen_ws_upgrade_request();
+    auto response = call_raw(upgrade);
+    if (response.headers.find("sec-websocket-accept") == response.headers.end())
+      throw std::logic_error("Failed to upgrade to websockets");
+    is_ws = true;
+  }
 
   void create_key_pair(const tls::Pem priv_key)
   {
@@ -213,8 +237,19 @@ public:
 
     while (!last_response.has_value())
     {
-      const auto next = read_all();
-      parser.execute(next.data(), next.size());
+      if (is_ws)
+      {
+        auto buf = read(ws::INITIAL_READ);
+        size_t n = ws_parser.consume(buf);
+        buf = read(n);
+        n = ws_parser.consume(buf);
+        assert(n == ws::INITIAL_READ);
+      }
+      else
+      {
+        const auto next = read_all();
+        parser.execute(next.data(), next.size());
+      }
     }
 
     return std::move(last_response.value());

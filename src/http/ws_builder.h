@@ -3,9 +3,10 @@
 #pragma once
 
 #include "../ds/serialized.h"
-#include "ws_parser.h"
-#include <arpa/inet.h>
 #include "../kv/kv_types.h"
+#include "ws_parser.h"
+
+#include <arpa/inet.h>
 
 namespace ws
 {
@@ -46,7 +47,8 @@ namespace ws
     return msg;
   };
 
-  static std::vector<uint8_t> make_in_frame(const std::string& path, const std::vector<uint8_t>& body)
+  static std::vector<uint8_t> make_in_frame(
+    const std::string& path, const std::vector<uint8_t>& body)
   {
     size_t in_frame_size = ws::in_header_size(path) + body.size();
     auto frame = make_frame(in_frame_size);
