@@ -41,7 +41,7 @@ protected:
   size_t next_send_id = 0;
   size_t next_recv_id = 0;
 
-  std::vector<uint8_t> gen_request_internal(
+  std::vector<uint8_t> gen_http_request_internal(
     const std::string& method,
     const CBuffer params,
     const std::string& content_type,
@@ -63,6 +63,15 @@ protected:
     }
 
     return r.build_request();
+  }
+
+  std::vector<uint8_t> gen_request_internal(
+    const std::string& method,
+    const CBuffer params,
+    const std::string& content_type,
+    http_method verb)
+  {
+    return gen_http_request_internal(method, params, content_type, verb);
   }
 
   Response call_raw(const std::vector<uint8_t>& raw)

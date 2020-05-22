@@ -72,6 +72,7 @@ namespace client
     bool randomise = false;
     bool check_responses = false;
     bool relax_commit_target = false;
+    bool websockets = false;
     ///@}
 
     PerfOptions(
@@ -181,6 +182,12 @@ namespace client
           "--check-responses",
           check_responses,
           "Check every JSON response for errors. Potentially slow")
+        ->capture_default_str();
+      app
+        .add_flag(
+          "--use-websockets",
+          websockets,
+          "Use websockets to send transactions")
         ->capture_default_str();
     }
   };
