@@ -45,6 +45,8 @@ def run(args):
         )
         suspend.update_view_info(network, view_info)
 
+        node_to_kill = network.find_any_backup()
+
         # check that a new node can catch up after a view change
         late_joiner = network.create_and_trust_node(args.package, "localhost", args)
 
@@ -58,7 +60,14 @@ def run(args):
             verify=False,  # will try to verify for late joiner and it might not be ready yet
         )
 
-        suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True)
+        caught_up = suspend.wait_for_late_joiner(original_nodes[0], late_joiner)
+        if not caught_up:
+            # kill one node to force a view change after late joiner has been added
+            # should be removed when node configuration has been implemented to allow
+            # a late joiner to force a view change
+            LOG.success(f"Stopping node {node_to_kill.node_id}")
+            node_to_kill.stop()
+            suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True)
 
         # check nodes have resumed normal execution before shutting down
         app.test_run_txs(

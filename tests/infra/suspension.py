@@ -48,7 +48,7 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
                 f"late joiner {late_joiner.node_id} is at state local_commit:{lc}, global_commit:{gc}"
             )
             if lc >= old_node_lc:
-                return
+                return True
             time.sleep(1)
         except (
             TimeoutError,
@@ -57,6 +57,7 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
             LOG.warning(f"late joiner {late_joiner.node_id} isn't quite ready yet")
     if strict:
         raise AssertionError(f"late joiner {late_joiner.node_id} has not caught up")
+    return False
 
 
 @reqs.description("Suspend nodes")
