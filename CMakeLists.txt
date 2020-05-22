@@ -544,6 +544,12 @@ if(BUILD_TESTS)
     CONSENSUS pbft
   )
 
+  add_e2e_test(
+    NAME replay_new_view_pbft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
+    CONSENSUS pbft
+  )
+
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()

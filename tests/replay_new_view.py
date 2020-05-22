@@ -31,17 +31,22 @@ def run(args):
         network.start_and_join(args)
         original_nodes = network.get_joined_nodes()
         view_info = {}
-        suspend.update_view_info(network, view_info)
 
+        suspend.update_view_info(network, view_info)
         app.test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
+        suspend.test_suspend_nodes(network, args)
+
+        # run txs while nodes get suspended
+        app.test_run_txs(
+            network=network,
+            args=args,
+            num_txs=4 * TOTAL_REQUESTS,
+            ignore_failures=True,
+        )
         suspend.update_view_info(network, view_info)
 
-        nodes_to_kill = [network.find_any_backup()]
-        nodes_to_keep = [n for n in original_nodes if n not in nodes_to_kill]
-
-        # check that a new node can catch up after all the requests
+        # check that a new node can catch up after a view change
         late_joiner = network.create_and_trust_node(args.package, "localhost", args)
-        nodes_to_keep.append(late_joiner)
 
         # some requests to be processed while the late joiner catches up
         # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
@@ -53,45 +58,17 @@ def run(args):
             verify=False,  # will try to verify for late joiner and it might not be ready yet
         )
 
-        suspend.wait_for_late_joiner(original_nodes[0], late_joiner)
-
-        # kill the old node(s) and ensure we are still making progress
-        for backup_to_retire in nodes_to_kill:
-            LOG.success(f"Stopping node {backup_to_retire.node_id}")
-            backup_to_retire.stop()
-
-        # check nodes are ok after we killed one off
-        app.test_run_txs(
-            network=network,
-            args=args,
-            nodes=nodes_to_keep,
-            num_txs=len(nodes_to_keep),
-            timeout=30,
-            ignore_failures=True,
-            # in the event of an early view change due to the late joiner this might
-            # take longer than usual to complete and we don't want the test to break here
-        )
-
-        suspend.test_suspend_nodes(network, args, nodes_to_keep)
-
-        # run txs while nodes get suspended
-        app.test_run_txs(
-            network=network,
-            args=args,
-            num_txs=4 * TOTAL_REQUESTS,
-            ignore_failures=True,
-        )
-
-        suspend.update_view_info(network, view_info)
+        suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True)
 
         # check nodes have resumed normal execution before shutting down
-        app.test_run_txs(network=network, args=args, num_txs=len(nodes_to_keep))
+        app.test_run_txs(
+            network=network, args=args, num_txs=len(network.get_joined_nodes())
+        )
 
-        # we have asserted that all nodes are caught up
         # assert that view changes actually did occur
         assert len(view_info) > 1
 
-        LOG.success("----------- terms and primaries recorded -----------")
+        LOG.success("----------- views and primaries recorded -----------")
         for view, primary in view_info.items():
             LOG.success(f"view {view} - primary {primary}")
 
