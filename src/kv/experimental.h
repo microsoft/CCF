@@ -31,12 +31,10 @@ namespace kv
 
     using UntypedState = kv::State<SerialisedRep, SerialisedRep, RepHasher>;
 
-    template <typename K, typename V>
+    template <typename T>
     struct MsgPackSerialiser
     {
-    private:
-      template <typename T>
-      static SerialisedRep from_t(const T& t)
+      static SerialisedRep to_serialised(const T& t)
       {
         msgpack::sbuffer sb;
         msgpack::pack(sb, t);
@@ -44,38 +42,20 @@ namespace kv
         return SerialisedRep(sb_data, sb_data + sb.size());
       }
 
-      template <typename T>
-      static T to_t(const SerialisedRep& rep)
+      static T from_serialised(const SerialisedRep& rep)
       {
         msgpack::object_handle oh = msgpack::unpack(
           reinterpret_cast<const char*>(rep.data()), rep.size());
         auto object = oh.get();
         return object.as<T>();
       }
-
-    public:
-      static SerialisedRep from_key(const K& k)
-      {
-        return from_t<K>(k);
-      }
-
-      static K to_key(const SerialisedRep& rep)
-      {
-        return to_t<K>(rep);
-      }
-
-      static SerialisedRep from_value(const V& v)
-      {
-        return from_t<V>(v);
-      }
-
-      static V to_value(const SerialisedRep& rep)
-      {
-        return to_t<V>(rep);
-      }
     };
 
-    template <typename K, typename V, typename S>
+    template <
+      typename K,
+      typename V,
+      typename KSerialiser = MsgPackSerialiser<K>,
+      typename VSerialiser = MsgPackSerialiser<V>>
     class TxView : public UntypedCommitter
     {
     protected:
@@ -96,12 +76,12 @@ namespace kv
 
       std::optional<V> get(const K& key)
       {
-        const auto k_rep = S::from_key(key);
+        const auto k_rep = KSerialiser::to_serialised(key);
         const auto opt_v_rep = untyped_view.get(k_rep);
 
         if (opt_v_rep.has_value())
         {
-          return S::to_value(*opt_v_rep);
+          return VSerialiser::from_serialised(*opt_v_rep);
         }
 
         return std::nullopt;
@@ -109,12 +89,12 @@ namespace kv
 
       std::optional<V> get_globally_committed(const K& key)
       {
-        const auto k_rep = S::from_key(key);
+        const auto k_rep = KSerialiser::to_serialised(key);
         const auto opt_v_rep = untyped_view.get_globally_committed(k_rep);
 
         if (opt_v_rep.has_value())
         {
-          return S::to_value(*opt_v_rep);
+          return VSerialiser::from_serialised(*opt_v_rep);
         }
 
         return std::nullopt;
@@ -122,15 +102,15 @@ namespace kv
 
       bool put(const K& key, const V& value)
       {
-        const auto k_rep = S::from_key(key);
-        const auto v_rep = S::from_value(value);
+        const auto k_rep = KSerialiser::to_serialised(key);
+        const auto v_rep = VSerialiser::to_serialised(value);
 
         return untyped_view.put(k_rep, v_rep);
       }
 
       bool remove(const K& key)
       {
-        const auto k_rep = S::from_key(key);
+        const auto k_rep = KSerialiser::to_serialised(key);
 
         return untyped_view.remove(k_rep);
       }
@@ -139,17 +119,23 @@ namespace kv
       bool foreach(F&& f)
       {
         auto g = [&](const SerialisedRep& k_rep, const SerialisedRep& v_rep) {
-          return f(S::to_key(k_rep), S::to_value(v_rep));
+          return f(
+            KSerialiser::from_serialised(k_rep),
+            VSerialiser::from_serialised(v_rep));
         };
         return untyped_view.foreach(g);
       }
     };
 
-    template <typename K, typename V, typename S = MsgPackSerialiser<K, V>>
+    template <
+      typename K,
+      typename V,
+      typename KSerialiser = MsgPackSerialiser<K>,
+      typename VSerialiser = MsgPackSerialiser<V>>
     class Map : public AbstractMap
     {
     protected:
-      using This = Map<K, V, S>;
+      using This = Map<K, V, KSerialiser, VSerialiser>;
 
       UntypedMap untyped_map;
 
@@ -171,7 +157,7 @@ namespace kv
       // serialised forms and let them convert themselves?
       using CommitHook = CommitHook<K, V, __K_HASH>;
 
-      using TxView = kv::experimental::TxView<K, V, S>;
+      using TxView = kv::experimental::TxView<K, V, KSerialiser, VSerialiser>;
 
       template <typename... Ts>
       Map(Ts&&... ts) : untyped_map(std::forward<Ts>(ts)...)
@@ -286,8 +272,21 @@ namespace kv
             Write typed_w;
             for (const auto& [uk, version_uv] : w)
             {
-              typed_w[S::to_key(uk)] =
-                VersionV{version_uv.version, S::to_value(version_uv.value)};
+              if (version_uv.version == NoVersion)
+              {
+                // Deletions are indicated by {NoVersion, {}}. The second
+                // element in the serialised representation is an empty vector,
+                // which may not be safely serialisable! So we duplicate the old
+                // behaviour and use default-constructed V
+                typed_w[KSerialiser::from_serialised(uk)] =
+                  VersionV{NoVersion, V{}};
+              }
+              else
+              {
+                typed_w[KSerialiser::from_serialised(uk)] =
+                  VersionV{version_uv.version,
+                           VSerialiser::from_serialised(version_uv.value)};
+              }
             }
             hook(v, {}, typed_w);
           };
