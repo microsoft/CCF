@@ -631,7 +631,7 @@ namespace client
       // Make sure the connection we're about to use has been initialised
       if (!rpc_connection)
       {
-        rpc_connection = create_connection(true, options.websockets);
+        rpc_connection = create_connection(false, options.websockets);
       }
     }
 
