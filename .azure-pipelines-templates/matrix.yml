@@ -32,9 +32,9 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|suite|tlstest"'
+      ctest_args: '-R replay_new_view_pbft --repeat-until-fail 5'
     SGX:
-      ctest_args: '-LE "benchmark|perf|suite|tlstest"'
+      ctest_args: '-R replay_new_view_pbft --repeat-until-fail 5'
     Release:
       ctest_args: '-LE "tlstest"'
     perf:
