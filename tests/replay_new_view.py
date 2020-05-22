@@ -71,8 +71,8 @@ def run(args):
             app.test_run_txs(
                 network=network,
                 args=args,
-                nodes=nodes_to_keep,
-                num_txs=len(nodes_to_keep),
+                nodes=original_nodes,
+                num_txs=len(original_nodes),
                 timeout=30,
                 ignore_failures=True,
                 # in the event of an early view change due to the late joiner this might

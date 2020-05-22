@@ -483,10 +483,10 @@ class Network:
     def find_primary(self, timeout=3, request_timeout=3):
         """
         Find the identity of the primary in the network and return its identity
-        and the current term.
+        and the current view.
         """
         primary_id = None
-        term = None
+        view = None
 
         end_time = time.time() + timeout
         while time.time() < end_time:
@@ -496,7 +496,7 @@ class Network:
                         res = c.get("getPrimaryInfo")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            term = res.result["current_term"]
+                            view = res.result["current_term"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
@@ -508,7 +508,7 @@ class Network:
 
         if primary_id is None:
             raise PrimaryNotFound
-        return (self._get_node_by_id(primary_id), term)
+        return (self._get_node_by_id(primary_id), view)
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
@@ -538,20 +538,20 @@ class Network:
         while time.time() < end_time:
             with primary.node_client() as c:
                 resp = c.get("getCommit")
-                commit_leader = resp.result["commit"]
-                term_leader = resp.result["term"]
-                if commit_leader != 0:
+                seqno = resp.result["commit"]
+                view = resp.result["term"]
+                if seqno != 0:
                     break
             time.sleep(0.1)
         assert (
-            commit_leader != 0
-        ), f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {commit_leader})"
+            seqno != 0
+        ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
 
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.get("tx", {"view": term_leader, "seqno": commit_leader},)
+                    resp = c.get("tx", {"view": view, "seqno": seqno})
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -560,7 +560,7 @@ class Network:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {term_leader}.{commit_leader} is invalid and will never be committed"
+                            f"Node {node.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
                         )
                     else:
                         pass
@@ -583,7 +583,7 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     r = c.get("getCommit")
-                    commits.append(r.commit)
+                    commits.append(r.seqno)
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)

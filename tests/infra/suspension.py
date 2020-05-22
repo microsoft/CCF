@@ -33,8 +33,8 @@ def timeout_handler(node, suspend, election_timeout):
 
 def update_view_info(network, view_info):
     try:
-        cur_primary, cur_term = network.find_primary()
-        view_info[cur_term] = cur_primary.node_id
+        cur_primary, cur_view = network.find_primary()
+        view_info[cur_view] = cur_primary.node_id
     except TimeoutError:
         LOG.warning("Trying to access a suspended network")
 
@@ -42,7 +42,7 @@ def update_view_info(network, view_info):
 def get_node_local_commit(node):
     with node.node_client() as c:
         r = c.get("debug/getLocalCommit")
-        return r.commit, r.global_commit
+        return r.seqno, r.global_commit
 
 
 def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):

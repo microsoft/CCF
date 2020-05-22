@@ -288,7 +288,7 @@ def test_view_history(network, args):
             r = c.get("getCommit")
             check(c)
 
-            commit_view = r.term
+            commit_view = r.view
             commit_seqno = r.global_commit
 
             # Temporarily disable logging of RPCs for readability
@@ -390,8 +390,8 @@ def test_tx_statuses(network, args):
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
-        target_view = r.term
-        target_seqno = r.commit
+        target_view = r.view
+        target_seqno = r.seqno
         SentTxs.update_status(target_view, target_seqno)
         SentTxs.update_status(target_view, target_seqno + 1)
         SentTxs.update_status(target_view - 1, target_seqno, TxStatus.Invalid)

@@ -91,7 +91,7 @@ def run(args):
         # assert that view changes actually did occur
         assert len(view_info) > 1
 
-        LOG.success("----------- terms and primaries recorded -----------")
+        LOG.success("----------- views and primaries recorded -----------")
         for view, primary in view_info.items():
             LOG.success(f"view {view} - primary {primary}")
 
