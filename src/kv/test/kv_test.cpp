@@ -423,11 +423,17 @@ TEST_CASE_TEMPLATE(
     kv::Tx tx;
     auto view = tx.get_view(map);
     view->put("key1", "value1");
+    view->put("key2", "value2");
+    view->remove("key2");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
     REQUIRE(global_writes.size() == 0);
     REQUIRE(local_writes.size() == 1);
-    REQUIRE(local_writes.front().at("key1").value == "value1");
+    const auto& latest_writes = local_writes.front();
+    REQUIRE(latest_writes.at("key1").value == "value1");
+    INFO("Local removals are not seen");
+    REQUIRE(latest_writes.find("key2") == latest_writes.end());
+    REQUIRE(latest_writes.size() == 1);
 
     local_writes.clear();
   }
@@ -453,6 +459,7 @@ TEST_CASE_TEMPLATE(
 
     kv::Tx tx;
     auto view = tx.get_view(map);
+    view->remove("key2");
     view->put("key3", "value3");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
@@ -461,8 +468,10 @@ TEST_CASE_TEMPLATE(
     const auto& latest_writes = local_writes.front();
     INFO("Old writes are not included");
     REQUIRE(latest_writes.find("key1") == latest_writes.end());
-    REQUIRE(latest_writes.find("key2") == latest_writes.end());
+    INFO("Visible removals are included");
+    REQUIRE(latest_writes.at("key2").version == kv::NoVersion);
     REQUIRE(latest_writes.at("key3").value == "value3");
+    REQUIRE(latest_writes.size() == 2);
 
     local_writes.clear();
   }
@@ -644,7 +653,6 @@ TEST_CASE_TEMPLATE(
 
   auto kp = tls::make_key_pair();
 
-  // TODO: Wha's this doing?
   auto history =
     std::make_shared<ccf::NullTxHistory>(store, 0, *kp, signatures, nodes);
   store.set_history(history);
