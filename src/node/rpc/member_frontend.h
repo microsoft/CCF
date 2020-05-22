@@ -816,7 +816,7 @@ namespace ccf
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              fmt::format("Error issuing new recovery shares {}", e.what()));
+              fmt::format("Error issuing new recovery shares {}: ", e.what()));
           }
         }
         return make_success(true);

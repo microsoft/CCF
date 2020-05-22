@@ -414,6 +414,12 @@ namespace ccf
         return false;
       }
 
+      if (threshold == 0)
+      {
+        LOG_FAIL_FMT("Recovery threshold cannot be set to 0");
+        return false;
+      }
+
       auto active_members_count = get_active_members_count();
       if (threshold > active_members_count)
       {
