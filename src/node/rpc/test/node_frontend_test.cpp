@@ -80,7 +80,8 @@ TEST_CASE("Add a node to an opening service")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
-  StubNodeState node;
+  ShareManager share_manager(network);
+  StubNodeState node(share_manager);
   NodeRpcFrontend frontend(network, node);
   frontend.open();
 
@@ -200,7 +201,8 @@ TEST_CASE("Add a node to an open service")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
-  StubNodeState node;
+  ShareManager share_manager(network);
+  StubNodeState node(share_manager);
   node.set_is_public(true);
   NodeRpcFrontend frontend(network, node);
   frontend.open();

@@ -64,13 +64,11 @@ T parse_response_body(const TResponse& r)
   try
   {
     body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
-    LOG_FAIL_FMT("RPC resp: {}", body_j.dump());
   }
   catch (const nlohmann::json::parse_error& e)
   {
-    std::cerr << e.what() << std::endl;
-    std::cerr << "RPC error: " << std::string(r.body.begin(), r.body.end())
-              << std::endl;
+    LOG_FAIL_FMT(e.what());
+    LOG_FAIL_FMT("RPC error: {}", std::string(r.body.begin(), r.body.end()));
   }
 
   return body_j.get<T>();
@@ -317,6 +315,7 @@ DOCTEST_TEST_CASE("Member query/read")
     check_error(response, HTTP_STATUS_INTERNAL_SERVER_ERROR);
   }
 }
+
 
 DOCTEST_TEST_CASE("Proposer ballot")
 {
@@ -1803,6 +1802,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
     }
   }
 }
+
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)

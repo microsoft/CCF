@@ -174,8 +174,11 @@ public:
 class TestMemberFrontend : public MemberRpcFrontend
 {
 public:
-  TestMemberFrontend(ccf::NetworkState& network, ccf::StubNodeState& node) :
-    MemberRpcFrontend(network, node)
+  TestMemberFrontend(
+    ccf::NetworkState& network,
+    ccf::StubNodeState& node,
+    ccf::ShareManager& share_manager) :
+    MemberRpcFrontend(network, node, share_manager)
   {
     open();
 
@@ -273,8 +276,11 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 {
 public:
   TestForwardingMemberFrontEnd(
-    Store& tables, ccf::NetworkState& network, ccf::StubNodeState& node) :
-    MemberRpcFrontend(network, node)
+    Store& tables,
+    ccf::NetworkState& network,
+    ccf::StubNodeState& node,
+    ccf::ShareManager& share_manager) :
+    MemberRpcFrontend(network, node, share_manager)
   {
     open();
 
@@ -292,6 +298,7 @@ public:
 auto kp = tls::make_key_pair();
 NetworkState network;
 NetworkState network2;
+
 auto encryptor = std::make_shared<NullTxEncryptor>();
 
 NetworkState pbft_network(ConsensusType::PBFT);
@@ -304,7 +311,8 @@ auto history = std::make_shared<NullTxHistory>(
   pbft_network.signatures,
   pbft_network.nodes);
 
-StubNodeState stub_node;
+ShareManager share_manager(network);
+StubNodeState stub_node(share_manager);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -729,7 +737,7 @@ TEST_CASE("Member caller")
   prepare_callers();
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, stub_node);
+  TestMemberFrontend frontend(network, stub_node, share_manager);
 
   SUBCASE("valid caller")
   {
@@ -1346,9 +1354,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   add_callers_primary_store();
 
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network.tables, network, stub_node);
+    *network.tables, network, stub_node, share_manager);
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network2.tables, network2, stub_node);
+    *network2.tables, network2, stub_node, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
