@@ -11,10 +11,6 @@ import infra.logging_app as app
 
 from loguru import logger as LOG
 
-# pbft will store up to 34 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
-# If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
-# By sending 18 RPC requests and a getCommit for each of them (what raft consideres as a read pbft will process as a write),
-# we are sure that we will have to go via the ledger to help late joiners catch up (total 36 reqs > 34)
 TOTAL_REQUESTS = 9  # x2 is 18 since LoggingTxs app sends a private and a public request for each tx index
 
 
@@ -44,10 +40,6 @@ def run(args):
             ignore_failures=True,
         )
         suspend.update_view_info(network, view_info)
-
-        node_to_kill = network.find_any_backup()
-
-        # check that a new node can catch up after a view change
         late_joiner = network.create_and_trust_node(args.package, "localhost", args)
 
         # some requests to be processed while the late joiner catches up
@@ -62,23 +54,9 @@ def run(args):
 
         caught_up = suspend.wait_for_late_joiner(original_nodes[0], late_joiner)
         if caught_up == suspend.LateJoinerStatus.Stuck:
-            # kill one node to force a view change after late joiner has been added
             # should be removed when node configuration has been implemented to allow
             # a late joiner to force a view change
-            LOG.warning("late joiner is stuck, need to force a view change")
-            LOG.success(f"Stopping node {node_to_kill.node_id}")
-            node_to_kill.stop()
-            # check nodes are ok after we killed one off
-            app.test_run_txs(
-                network=network,
-                args=args,
-                nodes=original_nodes,
-                num_txs=len(original_nodes),
-                timeout=30,
-                ignore_failures=True,
-                # in the event of an early view change due to the late joiner this might
-                # take longer than usual to complete and we don't want the test to break here
-            )
+            LOG.warning("late joiner is stuck, stop trying if catchup fails again")
             suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True)
         elif caught_up == suspend.LateJoinerStatus.NotReady:
             while caught_up == suspend.LateJoinerStatus.NotReady:
