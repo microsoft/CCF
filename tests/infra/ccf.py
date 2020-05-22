@@ -551,7 +551,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.get("tx", {"view": term_leader, "seqno": commit_leader},)
+                    resp = c.get("tx", {"view": view, "seqno": seqno})
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -560,7 +560,7 @@ class Network:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {term_leader}.{commit_leader} is invalid and will never be committed"
+                            f"Node {node.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
                         )
                     else:
                         pass
