@@ -14,27 +14,20 @@ from loguru import logger as LOG
 @reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
-    primary, _ = network.find_primary_and_any_backup()
+    primary, other = network.find_primary_and_any_backup()
 
-    with primary.node_client() as mc:
-        check_commit = infra.checker.Checker(mc, notifications_queue)
-        check = infra.checker.Checker()
+    msg = "Hello world"
+    LOG.info("Write on primary")
+    with primary.user_client(ws=True) as c:
+        for i in range(1, 501):
+            r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})
+            assert r.result == True, r.result
 
-        msg = "Hello world"
-
-        LOG.info("Write/Read on primary")
-        with primary.user_client() as c:
-            check_commit(c.rpc("LOG_record", {"id": 42, "msg": msg}), result=True)
-            r = c.get("LOG_get", {"id": 42})
-            check(r, result={"msg": msg})
-            r = c.get("getReceipt", {"commit": r.seqno})
-            check(
-                c.rpc("verifyReceipt", {"receipt": r.result["receipt"]}),
-                result={"valid": True},
-            )
-            invalid = r.result["receipt"]
-            invalid[-3] += 1
-            check(c.rpc("verifyReceipt", {"receipt": invalid}), result={"valid": False})
+    LOG.info("Write on secondary through forwarding")
+    with other.user_client(ws=True) as c:
+        for i in range(1, 501):
+            r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})
+            assert r.result == True, r.result
 
     return network
 

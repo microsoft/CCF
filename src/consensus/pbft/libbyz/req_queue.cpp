@@ -82,6 +82,7 @@ Request* Req_queue::remove()
   auto it = reqs[user_id].find({(size_t)ret->client_id(), ret->request_id()});
   reqs[user_id].erase(it);
 
+  count++;
   return ret;
 }
 

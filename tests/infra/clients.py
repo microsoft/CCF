@@ -13,11 +13,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.ssl_ import create_urllib3_context
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+import struct
 
 import requests
 from loguru import logger as LOG
 from requests_http_signature import HTTPSignatureAuth
-from websocket import create_connection
+import websocket
 
 
 def truncate(string, max_len=256):
@@ -27,10 +28,11 @@ def truncate(string, max_len=256):
         return string
 
 
-CCF_COMMIT_HEADER = "x-ccf-commit"
-CCF_TERM_HEADER = "x-ccf-term"
-CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
+CCF_TX_SEQNO_HEADER = "x-ccf-tx-seqno"
+CCF_TX_VIEW_HEADER = "x-ccf-tx-view"
 CCF_READ_ONLY_HEADER = "x-ccf-read-only"
+# Deprecated, will be removed
+CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 
 class Request:
@@ -60,19 +62,19 @@ class FakeSocket:
 
 
 class Response:
-    def __init__(self, status, result, error, commit, term, global_commit):
+    def __init__(self, status, result, error, seqno, view, global_commit):
         self.status = status
         self.result = result
         self.error = error
-        self.commit = commit
-        self.term = term
+        self.seqno = seqno
+        self.view = view
         self.global_commit = global_commit
 
     def to_dict(self):
         d = {
-            "commit": self.commit,
+            "seqno": self.seqno,
             "global_commit": self.global_commit,
-            "term": self.term,
+            "view": self.view,
         }
         if self.result is not None:
             d["result"] = self.result
@@ -96,8 +98,8 @@ class Response:
             status=rr.status_code,
             result=parsed_body if rr.ok else None,
             error=None if rr.ok else parsed_body,
-            commit=int_or_none(rr.headers.get(CCF_COMMIT_HEADER)),
-            term=int_or_none(rr.headers.get(CCF_TERM_HEADER)),
+            seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
+            view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
         )
 
@@ -123,8 +125,8 @@ class Response:
             status=response.status,
             result=parsed_body if ok else None,
             error=None if ok else parsed_body,
-            commit=int_or_none(response.getheader(CCF_COMMIT_HEADER)),
-            term=int_or_none(response.getheader(CCF_TERM_HEADER)),
+            seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
+            view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
         )
 
@@ -354,28 +356,19 @@ class RequestClient:
             response = self.session.request(
                 timeout=self.request_timeout, **request_args
             )
-        except requests.exceptions.ReadTimeout:
-            raise TimeoutError
-        except requests.exceptions.SSLError:
-            raise CCFConnectionException
-        except:
-            raise RuntimeError("Request client failed with unexpected error")
+        except requests.exceptions.ReadTimeout as exc:
+            raise TimeoutError from exc
+        except requests.exceptions.SSLError as exc:
+            raise CCFConnectionException from exc
+        except Exception as exc:
+            raise RuntimeError("Request client failed with unexpected error") from exc
 
         return Response.from_requests_response(response)
 
 
 class WSClient:
     def __init__(
-        self,
-        host,
-        port,
-        cert,
-        key,
-        ca,
-        connection_timeout,
-        request_timeout,
-        *args,
-        **kwargs,
+        self, host, port, cert, key, ca, request_timeout, *args, **kwargs,
     ):
         self.host = host
         self.port = port
@@ -383,16 +376,46 @@ class WSClient:
         self.key = key
         self.ca = ca
         self.request_timeout = request_timeout
+        self.ws = None
 
-    def request(self, request):
-        # pylint: disable=unused-variable
-        ws = create_connection(
-            f"wss://{self.host}:{self.port}",
-            sslopt={"certfile": self.cert, "keyfile": self.key, "ca_certs": self.ca},
+    def request(self, request, is_signed=False):
+        assert not is_signed
+
+        if not self.ws:
+            LOG.info("Creating WSS connection")
+            try:
+                self.ws = websocket.create_connection(
+                    f"wss://{self.host}:{self.port}",
+                    sslopt={
+                        "certfile": self.cert,
+                        "keyfile": self.key,
+                        "ca_certs": self.ca,
+                    },
+                    timeout=self.request_timeout,
+                )
+            except Exception as exc:
+                raise CCFConnectionException from exc
+        payload = json.dumps(request.params).encode()
+        path = ("/" + request.method).encode()
+        header = struct.pack("<h", len(path)) + path
+        # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
+        frame = websocket.ABNF(
+            1, 0, 0, 0, websocket.ABNF.OPCODE_BINARY, 0, header + payload
         )
-
-    def signed_request(self, request):
-        raise NotImplementedError("Signed requests not yet implemented over WebSockets")
+        self.ws.send_frame(frame)
+        out = self.ws.recv_frame().data
+        (status,) = struct.unpack("<h", out[:2])
+        (seqno,) = struct.unpack("<Q", out[2:10])
+        (view,) = struct.unpack("<Q", out[10:18])
+        (global_commit,) = struct.unpack("<Q", out[18:26])
+        payload = out[26:]
+        if status == 200:
+            result = json.loads(payload) if payload else None
+            error = None
+        else:
+            result = None
+            error = payload.decode()
+        return Response(status, result, error, seqno, view, global_commit)
 
 
 class CCFClient:
@@ -405,7 +428,7 @@ class CCFClient:
 
         if os.getenv("CURL_CLIENT"):
             self.client_impl = CurlClient(*args, **kwargs)
-        elif os.getenv("WEBSOCKETS_CLIENT"):
+        elif os.getenv("WEBSOCKETS_CLIENT") or kwargs.get("ws"):
             self.client_impl = WSClient(*args, **kwargs)
         else:
             self.client_impl = RequestClient(*args, **kwargs)
@@ -442,9 +465,9 @@ class CCFClient:
                 # not yet being endorsed by the network) sleep briefly and try again
                 if time.time() > end_time:
                     raise CCFConnectionException(
-                        f"Connection still failing after {self.connection_timeout}s: {e}"
-                    )
-                LOG.warning(f"Got exception: {e}")
+                        f"Connection still failing after {self.connection_timeout}s"
+                    ) from e
+                LOG.debug(f"Got exception: {e}")
                 time.sleep(0.1)
 
     def get(self, *args, **kwargs):
@@ -464,6 +487,7 @@ def client(
     binary_dir=".",
     connection_timeout=3,
     request_timeout=3,
+    ws=False,
 ):
     c = CCFClient(
         host=host,
@@ -476,6 +500,7 @@ def client(
         binary_dir=binary_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,
+        ws=ws,
     )
 
     if log_file is not None:
