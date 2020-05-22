@@ -32,10 +32,10 @@ def timeout_handler(node, suspend, election_timeout):
         node.resume()
 
 
-def update_term_info(network, term_info):
+def update_view_info(network, view_info):
     try:
-        cur_primary, cur_term = network.find_primary()
-        term_info[cur_term] = cur_primary.node_id
+        cur_primary, cur_view = network.find_primary()
+        view_info[cur_view] = cur_primary.node_id
     except TimeoutError:
         LOG.warning("Trying to access a suspended network")
 
@@ -43,7 +43,7 @@ def update_term_info(network, term_info):
 def get_node_local_commit(node):
     with node.node_client() as c:
         r = c.get("debug/getLocalCommit")
-        return r.commit, r.global_commit
+        return r.seqno, r.global_commit
 
 
 def wait_for_late_joiner(old_node, late_joiner, timeout=30):
@@ -110,11 +110,11 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         original_nodes = network.get_joined_nodes()
-        term_info = {}
-        update_term_info(network, term_info)
+        view_info = {}
+        update_view_info(network, view_info)
 
         app.test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
-        update_term_info(network, term_info)
+        update_view_info(network, view_info)
 
         nodes_to_kill = [network.find_any_backup()]
         nodes_to_keep = [n for n in original_nodes if n not in nodes_to_kill]
@@ -162,18 +162,18 @@ def run(args):
             ignore_failures=True,
         )
 
-        update_term_info(network, term_info)
+        update_view_info(network, view_info)
 
         # check nodes have resumed normal execution before shutting down
         app.test_run_txs(network=network, args=args, num_txs=len(nodes_to_keep))
 
         # we have asserted that all nodes are caught up
         # assert that view changes actually did occur
-        assert len(term_info) > 1
+        assert len(view_info) > 1
 
-        LOG.success("----------- terms and primaries recorded -----------")
-        for term, primary in term_info.items():
-            LOG.success(f"term {term} - primary {primary}")
+        LOG.success("----------- views and primaries recorded -----------")
+        for view, primary in view_info.items():
+            LOG.success(f"view {view} - primary {primary}")
 
 
 if __name__ == "__main__":

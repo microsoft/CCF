@@ -21,14 +21,12 @@ def test(network, args, notifications_queue=None):
     with primary.user_client(ws=True) as c:
         for i in range(1, 501):
             r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})
-            print(f"c: {r.commit}, v: {r.term}, gc: {r.global_commit}")
             assert r.result == True, r.result
 
     LOG.info("Write on secondary through forwarding")
     with other.user_client(ws=True) as c:
         for i in range(1, 501):
             r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})
-            print(f"c: {r.commit}, v: {r.term}, gc: {r.global_commit}")
             assert r.result == True, r.result
 
     return network
