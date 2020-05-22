@@ -96,9 +96,7 @@ def run(args):
                 seqno = res.seqno
 
             LOG.debug("Waiting for transaction to be committed by all nodes")
-            wait_for_seqno_to_commit(
-                seqno, current_view, network.get_joined_nodes()
-            )
+            wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
             LOG.debug("Stopping primary")
             primary.stop()
