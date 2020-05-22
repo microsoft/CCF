@@ -68,6 +68,9 @@ def test_share_resilience(network, args):
     # Here, we kill the current primary instead of just suspending it.
     # However, because of https://github.com/microsoft/CCF/issues/99#issuecomment-630875387,
     # the new primary will most likely be the previous primary, which defies the point of this test.
+    LOG.info(
+        f"Shutting down node {primary.node_id} before submitting last recovery share"
+    )
     primary.stop()
     LOG.debug(
         f"Waiting {recovered_network.election_duration}s for a new primary to be elected..."
@@ -95,7 +98,7 @@ def test_share_resilience(network, args):
 
 
 def run(args):
-    hosts = ["localhost", "localhost"]
+    hosts = ["localhost", "localhost", "localhost"]
 
     txs = app.LoggingTxs()
 
