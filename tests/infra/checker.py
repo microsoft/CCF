@@ -8,11 +8,7 @@ import time
 from infra.tx_status import TxStatus
 
 
-<<<<<<< HEAD
-def wait_for_global_commit(client, commit_index, term, mksign=False, timeout=3):
-=======
-def wait_for_global_commit(node_client, seqno, view, mksign=False, timeout=3):
->>>>>>> upstream/master
+def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
     """
     Given a client to a CCF network and a seqno/view pair, this function
     waits for this specific commit index to be globally committed by the
@@ -31,11 +27,7 @@ def wait_for_global_commit(node_client, seqno, view, mksign=False, timeout=3):
 
     end_time = time.time() + timeout
     while time.time() < end_time:
-<<<<<<< HEAD
-        r = client.get("tx", {"view": term, "seqno": commit_index})
-=======
-        r = node_client.get("tx", {"view": view, "seqno": seqno})
->>>>>>> upstream/master
+        r = client.get("tx", {"view": view, "seqno": seqno})
         assert (
             r.status == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status}"
