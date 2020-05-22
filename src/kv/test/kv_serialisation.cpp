@@ -539,7 +539,11 @@ bool corrupt_serialised_tx(
   return false;
 }
 
-TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
+TEST_CASE_TEMPLATE(
+  "Integrity" * doctest::test_suite("serialisation"),
+  MapImpl,
+  RawMapTypes,
+  ExperimentalMapTypes)
 {
   SUBCASE("Public and Private")
   {
@@ -562,10 +566,10 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     kv_store.set_encryptor(encryptor);
     kv_store_target.set_encryptor(encryptor);
 
-    auto& public_map = kv_store.create<std::string, std::string>(
+    auto& public_map = kv_store.create<typename MapImpl::StringString>(
       "public_map", kv::SecurityDomain::PUBLIC);
     auto& private_map =
-      kv_store.create<std::string, std::string>("private_map");
+      kv_store.create<typename MapImpl::StringString>("private_map");
 
     kv_store_target.clone_schema(kv_store);
 
@@ -631,33 +635,42 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   }
 }
 
-TEST_CASE("replicated and derived table serialisation")
+TEST_CASE_TEMPLATE(
+  "Replicated and derived table serialisation" *
+    doctest::test_suite("serialisation"),
+  MapImpl,
+  RawMapTypes,
+  ExperimentalMapTypes)
 {
+  using T = typename MapImpl::NumNum;
+
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   std::unordered_set<std::string> replicated_tables = {
     "data_replicated", "data_replicated_private"};
+
   kv::Store store(kv::ReplicateType::SOME, replicated_tables);
   store.set_encryptor(encryptor);
-
-  kv::Store second_store(kv::ReplicateType::SOME, replicated_tables);
-  second_store.set_encryptor(encryptor);
-
   auto& data_replicated =
-    store.create<size_t, size_t>("data_replicated", kv::SecurityDomain::PUBLIC);
-  auto& second_data_replicated = second_store.create<size_t, size_t>(
-    "data_replicated", kv::SecurityDomain::PUBLIC);
+    store.create<T>("data_replicated", kv::SecurityDomain::PUBLIC);
   auto& data_derived =
-    store.create<size_t, size_t>("data_derived", kv::SecurityDomain::PUBLIC);
-  auto& second_data_derived = second_store.create<size_t, size_t>(
-    "data_derived", kv::SecurityDomain::PUBLIC);
-  auto& data_replicated_private =
-    store.create<size_t, size_t>("data_replicated_private");
-  auto& second_data_replicated_private =
-    second_store.create<size_t, size_t>("data_replicated_private");
-  auto& data_derived_private =
-    store.create<size_t, size_t>("data_derived_private");
-  auto& second_data_derived_private =
-    second_store.create<size_t, size_t>("data_derived_private");
+    store.create<T>("data_derived", kv::SecurityDomain::PUBLIC);
+  auto& data_replicated_private = store.create<T>("data_replicated_private");
+  auto& data_derived_private = store.create<T>("data_derived_private");
+
+  kv::Store kv_store_target(kv::ReplicateType::SOME, replicated_tables);
+  kv_store_target.set_encryptor(encryptor);
+  kv_store_target.clone_schema(store);
+  auto* second_data_replicated =
+    kv_store_target.get<T>(data_replicated.get_name());
+  auto* second_data_derived = kv_store_target.get<T>(data_derived.get_name());
+  auto* second_data_replicated_private =
+    kv_store_target.get<T>(data_replicated_private.get_name());
+  auto* second_data_derived_private =
+    kv_store_target.get<T>(data_derived_private.get_name());
+  REQUIRE(second_data_replicated != nullptr);
+  REQUIRE(second_data_derived != nullptr);
+  REQUIRE(second_data_replicated_private != nullptr);
+  REQUIRE(second_data_derived_private != nullptr);
 
   {
     kv::Tx tx(store.next_version());
@@ -678,14 +691,15 @@ TEST_CASE("replicated and derived table serialisation")
 
     INFO("check that second store derived data is not populated");
     {
-      REQUIRE(second_store.deserialise(data) == kv::DeserialiseSuccess::PASS);
+      REQUIRE(
+        kv_store_target.deserialise(data) == kv::DeserialiseSuccess::PASS);
       kv::Tx tx;
       auto [data_view_r, data_view_r_p, data_view_d, data_view_d_p] =
         tx.get_view(
-          second_data_replicated,
-          second_data_replicated_private,
-          second_data_derived,
-          second_data_derived_private);
+          *second_data_replicated,
+          *second_data_replicated_private,
+          *second_data_derived,
+          *second_data_derived_private);
       auto dvr = data_view_r->get(44);
       REQUIRE(dvr.has_value());
       REQUIRE(dvr.value() == 44);

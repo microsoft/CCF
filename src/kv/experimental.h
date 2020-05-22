@@ -250,7 +250,11 @@ namespace kv
 
       AbstractMap* clone(AbstractStore* store) override
       {
-        return untyped_map.clone(store);
+        return new Map(
+          store,
+          untyped_map.get_name(),
+          untyped_map.get_security_domain(),
+          untyped_map.is_replicated());
       }
 
       void swap(AbstractMap* map) override
