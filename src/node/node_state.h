@@ -734,6 +734,7 @@ namespace ccf
       // Open the service
       if (consensus->is_primary())
       {
+        LOG_FAIL_FMT("Is primary!");
         Store::Tx tx;
 
         // Shares for the new ledger secret can only be issued now, once the
@@ -886,7 +887,8 @@ namespace ccf
     {
       if (
         !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork))
+        !sm.check(State::partOfPublicNetwork) &&
+        !sm.check(State::readingPrivateLedger))
         return;
 
       consensus->periodic_end();
@@ -929,7 +931,8 @@ namespace ccf
     {
       return (
         (sm.check(State::partOfNetwork) ||
-         sm.check(State::partOfPublicNetwork)) &&
+         sm.check(State::partOfPublicNetwork) ||
+         sm.check(State::readingPrivateLedger)) &&
         consensus->is_primary());
     }
 
@@ -1029,20 +1032,12 @@ namespace ccf
 
     void restore_ledger_secrets(Store::Tx& tx) override
     {
-      try
-      {
-        finish_recovery(
-          tx,
-          share_manager.restore_recovery_shares_info(
-            tx, recovery_ledger_secrets));
+      finish_recovery(
+        tx,
+        share_manager.restore_recovery_shares_info(
+          tx, recovery_ledger_secrets));
 
-        recovery_ledger_secrets.clear();
-      }
-      catch (const std::logic_error& e)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to restore recovery shares info: {}", e.what()));
-      }
+      recovery_ledger_secrets.clear();
     }
 
     NodeId get_node_id() const override
@@ -1135,6 +1130,7 @@ namespace ccf
 
       for (auto [nid, ni] : trusted_nodes)
       {
+        LOG_FAIL_FMT("Broadcast secret to node {}", nid);
         ccf::EncryptedLedgerSecret secret_for_node;
         secret_for_node.node_id = nid;
 
@@ -1354,10 +1350,13 @@ namespace ccf
         bool has_secrets = false;
         std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
 
+        LOG_FAIL_FMT("Secrets hook!");
+
         for (auto& [v, secret_set] : w)
         {
           for (auto& encrypted_secret_for_node : secret_set.value.secrets)
           {
+            LOG_FAIL_FMT("For node {}", encrypted_secret_for_node.node_id);
             if (encrypted_secret_for_node.node_id == self)
             {
               crypto::GcmCipher gcmcipher;

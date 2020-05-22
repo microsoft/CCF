@@ -399,12 +399,10 @@ namespace ccf
         [&submitted_shares_count](
           const MemberId member_id,
           const std::vector<uint8_t>& encrypted_share) {
-          LOG_FAIL_FMT("Submitted share for member {}", member_id);
           submitted_shares_count++;
           return true;
         });
 
-      LOG_FAIL_FMT("submitted_shares_count: {}", submitted_shares_count);
       return submitted_shares_count;
     }
 
@@ -412,13 +410,20 @@ namespace ccf
     {
       auto submitted_shares_view = tx.get_view(network.submitted_shares);
 
+      std::vector<uint8_t> submitted_share_ids = {};
+
       submitted_shares_view->foreach(
-        [&submitted_shares_view](
+        [&submitted_share_ids](
           const MemberId member_id,
           const std::vector<uint8_t>& encrypted_share) {
-          submitted_shares_view->remove(member_id);
+          submitted_share_ids.push_back(member_id);
           return true;
         });
+
+      for (auto const& id : submitted_share_ids)
+      {
+        submitted_shares_view->remove(id);
+      }
     }
   };
 }

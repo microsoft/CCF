@@ -316,7 +316,6 @@ DOCTEST_TEST_CASE("Member query/read")
   }
 }
 
-
 DOCTEST_TEST_CASE("Proposer ballot")
 {
   NetworkState network;
@@ -1690,6 +1689,38 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     DOCTEST_REQUIRE_FALSE(g.set_recovery_threshold(recovery_threshold));
   }
 
+  DOCTEST_INFO("Submit bogus recovery shares");
+  {
+    size_t submitted_shares_count = 0;
+    for (auto const& m : members)
+    {
+      auto bogus_recovery_share = retrieved_shares[m.first];
+      bogus_recovery_share[0] = bogus_recovery_share[0] + 1;
+      const auto submit_recovery_share = create_request(
+        SubmitRecoveryShare({bogus_recovery_share}), "submitRecoveryShare");
+
+      auto rep =
+        frontend_process(frontend, submit_recovery_share, m.second.first);
+
+      submitted_shares_count++;
+
+      // Share submission should only complete when the recovery threshold
+      // has been reached
+      if (submitted_shares_count < recovery_threshold)
+      {
+        DOCTEST_REQUIRE(parse_response_body<bool>(rep) == false);
+      }
+      else
+      {
+        check_error(rep, HTTP_STATUS_INTERNAL_SERVER_ERROR);
+        break;
+      }
+    }
+  }
+
+  // It is still possible to re-submit recovery shares if a threshold of at
+  // least one bogus share has been submitted.
+
   DOCTEST_INFO("Submit recovery shares");
   {
     size_t submitted_shares_count = 0;
@@ -1802,7 +1833,6 @@ DOCTEST_TEST_CASE("Maximum number of active members")
     }
   }
 }
-
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)

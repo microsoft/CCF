@@ -932,7 +932,19 @@ namespace ccf
         LOG_DEBUG_FMT(
           "Reached secret sharing threshold {}", g.get_recovery_threshold());
 
-        node.restore_ledger_secrets(args.tx);
+        try
+        {
+          node.restore_ledger_secrets(args.tx);
+        }
+        catch (const std::logic_error& e)
+        {
+          // For now, clear the submitted shares if combination fails.
+          share_manager.clear_submitted_recovery_shares(args.tx);
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format(
+              "Failed to restore recovery shares info: {}", e.what()));
+        }
 
         share_manager.clear_submitted_recovery_shares(args.tx);
         return make_success(true);
