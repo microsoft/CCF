@@ -9,8 +9,6 @@ import infra.crypto
 import http
 import os
 
-from loguru import logger as LOG
-
 
 class NoRecoveryShareFound(Exception):
     def __init__(self, response):

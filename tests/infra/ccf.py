@@ -109,6 +109,7 @@ class Network:
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.common_dir = None
+        self.election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
         if not os.path.isfile(self.key_generator):
             raise FileNotFoundError(

@@ -120,9 +120,7 @@ namespace ccf
       shares(
         tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
       submitted_shares(tables->create<SubmittedShares>(
-        Tables::SUBMITTED_SHARES,
-        kv::SecurityDomain::PUBLIC)), // TODO: Submitted shares should not be
-                                      // public!!!
+        Tables::SUBMITTED_SHARES, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),

@@ -70,9 +70,7 @@ class Checker:
                 )
 
             if self.client:
-                wait_for_global_commit(
-                    self.client, rpc_result.seqno, rpc_result.view
-                )
+                wait_for_global_commit(self.client, rpc_result.seqno, rpc_result.view)
 
             if self.notification_queue:
                 end_time = time.time() + timeout
