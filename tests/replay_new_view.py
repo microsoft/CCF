@@ -81,8 +81,9 @@ def run(args):
             )
             suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True)
         elif caught_up == suspend.LateJoinerStatus.NotReady:
-            LOG.warning("late joiner is not ready to accept RPC's yet")
-            suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True, 60)
+            while caught_up == suspend.LateJoinerStatus.NotReady:
+                LOG.warning("late joiner is not ready to accept RPC's yet")
+                caught_up = suspend.wait_for_late_joiner(original_nodes[0], late_joiner)
         elif caught_up == suspend.LateJoinerStatus.Ready:
             LOG.success("late joiner caught up successfully")
 
