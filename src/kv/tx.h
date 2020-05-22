@@ -240,6 +240,8 @@ namespace kv
 
       KvStoreSerialiser replicated_serialiser(e, version);
 
+      bool any_writes = false;
+
       // Process in security domain order
       for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
       {
@@ -252,8 +254,15 @@ namespace kv
           {
             map->serialise(
               it.second.view.get(), replicated_serialiser, include_reads);
+            any_writes = true;
           }
         }
+      }
+
+      // If no transactions made changes, return a zero length vector.
+      if (!any_writes)
+      {
+        return {};
       }
 
       // Return serialised Tx.
