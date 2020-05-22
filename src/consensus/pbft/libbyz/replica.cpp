@@ -594,7 +594,6 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
   update_gov_req_info(playback_byz_info, executable_pp.get());
   did_exec_gov_req = false;
 
-  LOG_INFO_FMT("NUM BIG REQS {}", executable_pp->num_big_reqs());
   if (executable_pp->num_big_reqs() == 0)
   {
     // null op pre prepare, we need to advance last tentative exec but nothing
@@ -603,7 +602,9 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
     execute_tentative(executable_pp.get(), info, executable_pp->get_nonce());
   }
 
-  if (executable_pp->num_big_reqs() == 0  /*null op*/ || compare_execution_results(playback_byz_info, executable_pp.get()))
+  if (
+    executable_pp->num_big_reqs() == 0 /*null op*/ ||
+    compare_execution_results(playback_byz_info, executable_pp.get()))
   {
     next_pp_seqno = seqno;
 
@@ -672,18 +673,6 @@ void Replica::playback_new_view(kv::Tx& tx)
       new_view->id());
     return;
   }
-  // vtimer->stop(); // stop timer if it is still running
-  // ntimer->restop();
-  // replies.clear();
-
-  // for (Seqno i = last_stable + 1; i <= last_stable + max_out; i++)
-  // {
-  //   Prepared_cert& pc = plog.fetch(i);
-  //   pc.update();
-  //   Certificate<Commit>& cc = clog.fetch(i);
-  //   pc.clear();
-  //   cc.clear();
-  // }
 
   ledger_writer->write_new_view(tx);
   // enter the new view
@@ -1155,10 +1144,8 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 {
   if (plog.within_range(seqno))
   {
-    LOG_INFO_FMT("within range");
     is_exec_pending = true;
     Prepared_cert& pc = plog.fetch(seqno);
-    LOG_INFO_FMT("pc mu prepare == 0 {}, pc is pp complete {}", (pc.my_prepare() == 0), pc.is_pp_complete());
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
       bool send_only_to_self = (f() == 0);
@@ -1290,7 +1277,7 @@ void Replica::handle(Prepare* m)
   }
 
   const Seqno ms = m->seqno();
-  LOG_DEBUG_FMT("handle prepare {} from {} complete nv {} w digest {}", ms, m->id(), has_complete_new_view(), m->digest().hash());
+  LOG_DEBUG_FMT("handle prepare {} from {}", ms, m->id());
   // Only accept prepare messages that are not sent by the primary for
   // current view.
   if (
@@ -1298,7 +1285,6 @@ void Replica::handle(Prepare* m)
     has_complete_new_view())
   {
     Prepared_cert& ps = plog.fetch(ms);
-    LOG_INFO_FMT("Trying to add");
     if (ps.add(m) && ps.is_complete())
     {
       send_commit(ms, f() == 0);
@@ -1616,10 +1602,9 @@ void Replica::handle(Status* m)
       last_executed,
       m->last_executed(),
       max_out);
-    
+
     if (
-      last_stable > m->last_stable() &&
-      last_executed > m->last_executed() + 1)
+      last_stable > m->last_stable() && last_executed > m->last_executed() + 1)
     {
       LOG_TRACE_FMT(
         "Sending append entries to {} since we are way off", m->id());
@@ -2377,7 +2362,6 @@ bool Replica::create_execute_commands(
   std::array<std::unique_ptr<ExecCommandMsg>, Max_requests_in_batch>& cmds,
   uint32_t& num_requests)
 {
-  LOG_INFO_FMT("pp seqno {} lte + 1 {}", pp->seqno(), (last_tentative_execute + 1));
   if (
     pp->seqno() == last_tentative_execute + 1 && !state.in_fetch_state() &&
     !state.in_check_state() && has_complete_new_view())
@@ -2403,7 +2387,6 @@ bool Replica::create_execute_commands(
     }
     return true;
   }
-  LOG_INFO_FMT("Can't execute");
   return false;
 }
 
@@ -2464,8 +2447,6 @@ bool Replica::execute_tentative(
       }
     }
 
-    LOG_INFO_FMT("exec command starting");
-
     exec_command(
       vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
     if (!node_info.general_info.support_threading)
@@ -2507,17 +2488,14 @@ void Replica::execute_committed(bool was_f_0)
     {
       if (last_executed >= last_stable + max_out || last_executed < last_stable)
       {
-        LOG_INFO_FMT("here");
         return;
       }
 
       Pre_prepare* pp = committed(last_executed + 1, was_f_0);
-      LOG_INFO_FMT("pp is zero? {}", (pp == 0));
       if (pp && pp->view() == view())
       {
         // Can execute the requests in the message with sequence number
         // last_executed+1.
-        LOG_INFO_FMT("last executed + 1 {} > last_tentative_execute? {}", (last_executed + 1), last_tentative_execute);
         if (last_executed + 1 > last_tentative_execute)
         {
           ByzInfo info;
@@ -2619,10 +2597,6 @@ void Replica::execute_committed(bool was_f_0)
         start_vtimer_if_request_waiting();
       }
     }
-  }
-  else
-  {
-    LOG_INFO_FMT("here");
   }
 }
 
@@ -2966,8 +2940,6 @@ void Replica::send_status(bool send_now)
       return;
     }
 
-    LOG_INFO_FMT("sending status message");
-
     Status s(
       v,
       last_stable,
@@ -2985,11 +2957,9 @@ void Replica::send_status(bool send_now)
         Prepared_cert& pc = plog.fetch(n);
         if (pc.is_complete() || state.in_check_state())
         {
-          LOG_INFO_FMT("mark prepared {}", n);
           s.mark_prepared(n);
           if (clog.fetch(n).is_complete() || state.in_check_state())
           {
-            LOG_INFO_FMT("mark committed {}", n);
             s.mark_committed(n);
           }
         }
@@ -2999,13 +2969,7 @@ void Replica::send_status(bool send_now)
           if (
             !pc.is_pp_complete() && pc.pre_prepare() && pc.num_correct() >= f())
           {
-            LOG_INFO_FMT("Asking for big req for {}", n);
             s.add_breqs(n, pc.missing_reqs());
-          }
-          else if (n <= min + 10)
-          {
-            LOG_INFO_FMT("Not asking for request for n {}", n);
-            LOG_INFO_FMT("pc is pp complete false? {}, pc pre prepare != 0 {}, pc num correct {} ", pc.is_pp_complete(), (pc.pre_prepare() != 0), pc.num_correct());
           }
         }
       }
