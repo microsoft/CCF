@@ -660,7 +660,6 @@ if(BUILD_TESTS)
 
   endforeach()
 
-  # Logging scenario perf test
   add_perf_test(
     NAME logging_scenario_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
@@ -676,5 +675,23 @@ if(BUILD_TESTS)
       1000
       --repetitions
       1000
+  )
+
+  add_perf_test(
+    NAME logging_scenario_ws_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS raft
+    CLIENT_BIN ./scenario_perf_client
+    LABEL log_scenario_ws
+    ADDITIONAL_ARGS
+      --package
+      liblogging
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      10000
+      --use-websockets
   )
 endif()
