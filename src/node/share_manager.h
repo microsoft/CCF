@@ -186,7 +186,6 @@ namespace ccf
                             compute_encrypted_shares(tx, ls_wrapping_key)});
     }
 
-    // TODO: Move this to a different class?
     std::vector<uint8_t> encrypt_submitted_share(
       const std::vector<uint8_t>& submitted_share)
     {
