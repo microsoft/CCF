@@ -57,7 +57,7 @@ namespace ccf
   class MemberHandlers : public CommonHandlerRegistry
   {
   private:
-    Script get_script(Store::Tx& tx, std::string name)
+    Script get_script(kv::Tx& tx, std::string name)
     {
       const auto s = tx.get_view(network.gov_scripts)->get(name);
       if (!s)
@@ -68,8 +68,7 @@ namespace ccf
       return *s;
     }
 
-    void set_app_scripts(
-      Store::Tx& tx, std::map<std::string, std::string> scripts)
+    void set_app_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
     {
       auto tx_scripts = tx.get_view(network.app_scripts);
 
@@ -86,8 +85,7 @@ namespace ccf
       }
     }
 
-    void set_js_scripts(
-      Store::Tx& tx, std::map<std::string, std::string> scripts)
+    void set_js_scripts(kv::Tx& tx, std::map<std::string, std::string> scripts)
     {
       auto tx_scripts = tx.get_view(network.app_scripts);
 
@@ -105,7 +103,7 @@ namespace ccf
     }
 
     bool add_new_code_id(
-      Store::Tx& tx,
+      kv::Tx& tx,
       const CodeDigest& new_code_id,
       CodeIDs& code_id_table,
       ObjectId proposal_id)
@@ -127,12 +125,11 @@ namespace ccf
     //! Table of functions that proposal scripts can propose to invoke
     const std::unordered_map<
       std::string,
-      std::function<bool(ObjectId, Store::Tx&, const nlohmann::json&)>>
+      std::function<bool(ObjectId, kv::Tx&, const nlohmann::json&)>>
       hardcoded_funcs = {
         // set the lua application script
         {"set_lua_app",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
 
@@ -140,16 +137,14 @@ namespace ccf
          }},
         // set the js application script
         {"set_js_app",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
         // add a new member
         {"new_member",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
            auto new_member_id = g.add_member(parsed.cert, parsed.keyshare);
@@ -158,8 +153,7 @@ namespace ccf
          }},
         // retire an existing member
         {"retire_member",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
            GenesisGenerator g(this->network, tx);
@@ -205,8 +199,7 @@ namespace ccf
          }},
         // add a new user
         {"new_user",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const Cert pem_cert = args;
 
            GenesisGenerator g(this->network, tx);
@@ -215,8 +208,7 @@ namespace ccf
            return true;
          }},
         {"set_user_data",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetUserData>();
            auto users_view = tx.get_view(this->network.users);
            auto user_info = users_view->get(parsed.user_id);
@@ -235,8 +227,7 @@ namespace ccf
          }},
         // accept a node
         {"trust_node",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
@@ -259,8 +250,7 @@ namespace ccf
          }},
         // retire a node
         {"retire_node",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<NodeId>();
            auto nodes = tx.get_view(this->network.nodes);
            auto node_info = nodes->get(id);
@@ -283,8 +273,7 @@ namespace ccf
          }},
         // accept new node code ID
         {"new_node_code",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
            return this->add_new_code_id(
              tx,
@@ -294,8 +283,7 @@ namespace ccf
          }},
         // accept new user code ID
         {"new_user_code",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto id = args.get<CodeDigest>();
            return this->add_new_code_id(
              tx,
@@ -307,8 +295,7 @@ namespace ccf
         // that case, members will have to submit their shares after this
         // proposal is accepted.
         {"accept_recovery",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            if (node.is_part_of_public_network())
            {
              const auto accept_recovery = node.accept_recovery(tx);
@@ -326,8 +313,7 @@ namespace ccf
            }
          }},
         {"open_network",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto network_opened = node.open_network(tx);
            if (!network_opened)
            {
@@ -336,8 +322,7 @@ namespace ccf
            return network_opened;
          }},
         {"rekey_ledger",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto ledger_rekeyed = node.rekey_ledger(tx);
            if (!ledger_rekeyed)
            {
@@ -346,9 +331,7 @@ namespace ccf
            return ledger_rekeyed;
          }},
         {"update_recovery_shares",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
-           //  const auto shares_updated = node.split_ledger_secrets(tx);
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            try
            {
              share_manager.issue_shares(tx);
@@ -356,7 +339,7 @@ namespace ccf
            catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: Updating recovery shares failed ({})",
+               "Proposal {}: Updating recovery shares failed: {}",
                proposal_id,
                e.what());
              return false;
@@ -364,8 +347,7 @@ namespace ccf
            return true;
          }},
         {"set_recovery_threshold",
-         [this](
-           ObjectId proposal_id, Store::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto new_recovery_threshold = args.get<size_t>();
 
            GenesisGenerator g(this->network, tx);
@@ -377,27 +359,28 @@ namespace ccf
              return true;
            }
 
-           auto active_members_count = g.get_active_members_count();
-           if (new_recovery_threshold > active_members_count)
+           if (!g.set_recovery_threshold(new_recovery_threshold))
            {
-             LOG_FAIL_FMT(
-               "Recovery threshold cannot be set to {} as it is greater than "
-               "the number of active members ({})",
-               new_recovery_threshold,
-               active_members_count);
              return false;
            }
-           g.set_recovery_threshold(new_recovery_threshold);
 
            // Update recovery shares (same number of shares)
-           share_manager.issue_shares(tx);
+           try
+           {
+             share_manager.issue_shares(tx);
+           }
+           catch (const std::logic_error& e)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: Setting recovery threshold failed: {}", e.what());
+             return false;
+           }
            return true;
-           //  return node.split_ledger_secrets(tx);
          }},
       };
 
     ProposalInfo complete_proposal(
-      Store::Tx& tx, const ObjectId proposal_id, Proposal& proposal)
+      kv::Tx& tx, const ObjectId proposal_id, Proposal& proposal)
     {
       if (proposal.state != ProposalState::OPEN)
       {
@@ -515,19 +498,19 @@ namespace ccf
       return get_proposal_info(proposal_id, proposal);
     }
 
-    bool check_member_active(Store::Tx& tx, MemberId id)
+    bool check_member_active(kv::Tx& tx, MemberId id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
     }
 
-    bool check_member_accepted(Store::Tx& tx, MemberId id)
+    bool check_member_accepted(kv::Tx& tx, MemberId id)
     {
       return check_member_status(
         tx, id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED});
     }
 
     bool check_member_status(
-      Store::Tx& tx, MemberId id, std::initializer_list<MemberStatus> allowed)
+      kv::Tx& tx, MemberId id, std::initializer_list<MemberStatus> allowed)
     {
       auto member = tx.get_view(this->network.members)->get(id);
       if (!member)
@@ -545,7 +528,7 @@ namespace ccf
     }
 
     void record_voting_history(
-      Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
+      kv::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
     {
       auto governance_history = tx.get_view(network.governance_history);
       governance_history->put(caller_id, {signed_request});
@@ -560,28 +543,26 @@ namespace ccf
     NetworkTables& network;
     AbstractNodeState& node;
     ShareManager& share_manager;
-    // For now, shares are not stored in the KV
-    std::map<MemberId, SecretSharing::Share> pending_shares;
-
     const lua::TxScriptRunner tsr;
 
   public:
-    MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
+    MemberHandlers(
+      NetworkTables& network,
+      AbstractNodeState& node,
+      ShareManager& share_manager) :
       CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
-      share_manager(node.get_share_manager()),
+      share_manager(share_manager),
       tsr(network)
     {}
 
-    void init_handlers(Store& tables_) override
+    void init_handlers(kv::Store& tables_) override
     {
       CommonHandlerRegistry::init_handlers(tables_);
 
       auto read = [this](
-                    Store::Tx& tx,
-                    CallerId caller_id,
-                    nlohmann::json&& params) {
+                    kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         if (!check_member_status(
               tx, caller_id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED}))
         {
@@ -612,7 +593,7 @@ namespace ccf
         .set_auto_schema<KVRead>();
 
       auto query =
-        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           if (!check_member_accepted(tx, caller_id))
           {
             return make_error(HTTP_STATUS_FORBIDDEN, "Member is not accepted");
@@ -749,7 +730,7 @@ namespace ccf
         .set_require_client_signature(true);
 
       auto complete =
-        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           if (!check_member_active(tx, caller_id))
           {
             return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -825,13 +806,16 @@ namespace ccf
           members->put(args.caller_id, *member);
 
           // New active members are allocated a new recovery share
-          // if (!share_manager.split_ledger_secrets(args.tx))
-          share_manager.issue_shares(args.tx);
-          // {
-          //   return make_error(
-          //     HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          //     "Error splitting ledger secrets");
-          // }
+          try
+          {
+            share_manager.issue_shares(args.tx);
+          }
+          catch (const std::logic_error& e)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              fmt::format("Error issuing new recovery shares {}: ", e.what()));
+          }
         }
         return make_success(true);
       };
@@ -841,7 +825,7 @@ namespace ccf
 
       //! A member asks for a fresher state digest
       auto update_state_digest =
-        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           auto [ma_view, sig_view] =
             tx.get_view(this->network.member_acks, this->network.signatures);
           auto ma = ma_view->get(caller_id);
@@ -869,42 +853,29 @@ namespace ccf
         Write)
         .set_auto_schema<void, StateDigest>();
 
-      auto get_encrypted_recovery_share =
-        [this](RequestArgs& args, nlohmann::json&& params) {
-          if (!check_member_active(args.tx, args.caller_id))
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              "Only active members are given recovery shares");
-          }
+      auto get_encrypted_recovery_share = [this](
+                                            RequestArgs& args,
+                                            nlohmann::json&& params) {
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            "Only active members are given recovery shares");
+        }
 
-          std::optional<EncryptedShare> enc_s;
-          auto recovery_shares_info =
-            args.tx.get_view(this->network.shares)->get(0);
-          if (!recovery_shares_info.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Failed to retrieve current recovery shares info");
-          }
-          for (auto const& s : recovery_shares_info->encrypted_shares)
-          {
-            if (s.first == args.caller_id)
-            {
-              enc_s = s.second;
-            }
-          }
+        auto encrypted_share =
+          share_manager.get_encrypted_share(args.tx, args.caller_id);
 
-          if (!enc_s.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              fmt::format(
-                "Recovery share not found for member {}", args.caller_id));
-          }
+        if (!encrypted_share.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            fmt::format(
+              "Recovery share not found for member {}", args.caller_id));
+        }
 
-          return make_success(GetEncryptedRecoveryShare(enc_s.value()));
-        };
+        return make_success(GetEncryptedRecoveryShare(encrypted_share.value()));
+      };
       install(
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
         json_adapter(get_encrypted_recovery_share),
@@ -936,49 +907,53 @@ namespace ccf
             HTTP_STATUS_FORBIDDEN, "Node is already recovering private ledger");
         }
 
-        if (pending_shares.find(args.caller_id) != pending_shares.end())
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
-            fmt::format(
-              "Member {} cannot submit their recovery share twice",
-              args.caller_id));
-        }
-
         const auto in = params.get<SubmitRecoveryShare>();
 
         // TODO: This seems to crash the server when this fails!!
         auto raw_recovery_share = tls::raw_from_b64(in.recovery_share);
 
-        SecretSharing::Share share;
-        std::copy_n(
-          raw_recovery_share.begin(),
-          SecretSharing::SHARE_LENGTH,
-          share.begin());
-
-        pending_shares.emplace(args.caller_id, share);
-        if (pending_shares.size() < g.get_recovery_threshold())
+        size_t submitted_shares_count = 0;
+        try
         {
+          submitted_shares_count = share_manager.submit_recovery_share(
+            args.tx, args.caller_id, raw_recovery_share);
+        }
+        catch (const std::logic_error& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("Could not submit recovery share: {}", e.what()));
+        }
+
+        if (submitted_shares_count < g.get_recovery_threshold())
+        {
+          // The number of shares required to re-assemble the secret has not yet
+          // been reached
           return make_success(fmt::format(
             "Recovery share successfully submitted. {}/{} recovery shares "
             "submitted.",
-            pending_shares.size(),
+            submitted_shares_count,
             g.get_recovery_threshold()));
         }
 
         LOG_DEBUG_FMT(
-          "Reached secret sharing threshold {}", pending_shares.size());
+          "Reached secret sharing threshold {}", g.get_recovery_threshold());
 
-        if (!node.restore_ledger_secrets(args.tx, pending_shares))
+        try
         {
-          pending_shares.clear();
+          node.restore_ledger_secrets(args.tx);
+        }
+        catch (const std::logic_error& e)
+        {
+          // For now, clear the submitted shares if combination fails.
+          share_manager.clear_submitted_recovery_shares(args.tx);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Failed to combine recovery shares and initiate end of recovery "
-            "protocol");
+            fmt::format(
+              "Failed to restore recovery shares info: {}", e.what()));
         }
 
-        pending_shares.clear();
+        share_manager.clear_submitted_recovery_shares(args.tx);
         return make_success("End of recovery protocol successfully initiated.");
       };
       install(
@@ -987,7 +962,7 @@ namespace ccf
         Write)
         .set_auto_schema<SubmitRecoveryShare, std::string>();
 
-      auto create = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
         const auto in = params.get<CreateNetworkNodeToNode::In>();
 
@@ -1068,15 +1043,18 @@ namespace ccf
     Members* members;
 
   public:
-    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
+    MemberRpcFrontend(
+      NetworkTables& network,
+      AbstractNodeState& node,
+      ShareManager& share_manager) :
       RpcFrontend(
         *network.tables, member_handlers, &network.member_client_signatures),
-      member_handlers(network, node),
+      member_handlers(network, node, share_manager),
       members(&network.members)
     {}
 
     bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, Store::Tx& tx) override
+      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx) override
     {
       // Lookup the caller member's certificate from the forwarded caller id
       auto members_view = tx.get_view(*members);

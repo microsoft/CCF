@@ -18,9 +18,11 @@ class Prepared_cert;
 
 #pragma pack(push)
 #pragma pack(1)
-struct Included_sig
+struct IncludedSig
 {
+  Digest nonce;
   uint8_t pid;
+  size_t sig_size;
   PbftSignature sig;
 };
 #pragma pack(pop)
@@ -199,8 +201,8 @@ public:
     // Requires: Pre_prepare is known to be valid
     // Effects: Return an iterator for the valid principal prepare proofs in "m
 
-    bool get(int& id, bool& is_valid_proof);
-    // Effects: Updates "proofs" to "point" to the next proof's "Included_sig"
+    bool get(int& id, bool& is_valid_proof, Digest& prepare_digest);
+    // Effects: Updates "proofs" to "point" to the next proof's "IncludedSig"
     // pid in the Pre_prepare message and returns true. If there are no more
     // proofs left to process, it returns false. "is_valid_proof" indicates
     // whether the proof is valid or not

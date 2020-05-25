@@ -5,10 +5,13 @@
 #include "http/http_builder.h"
 #include "http/http_consts.h"
 #include "http/http_parser.h"
+#include "http/ws_builder.h"
+#include "http/ws_parser.h"
 #include "node/rpc/json_rpc.h"
 #include "tls_client.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <http/http_sig.h>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -34,16 +37,30 @@ public:
 
 protected:
   http::ResponseParser parser;
+  ws::ResponseParser ws_parser;
   std::optional<std::string> prefix;
+  tls::KeyPairPtr key_pair = nullptr;
+  bool is_ws = false;
 
   size_t next_send_id = 0;
   size_t next_recv_id = 0;
 
-  std::vector<uint8_t> gen_request_internal(
+  std::vector<uint8_t> gen_ws_upgrade_request()
+  {
+    auto r = http::Request("/", HTTP_GET);
+    r.set_header("Upgrade", "websocket");
+    r.set_header("Connection", "Upgrade");
+    r.set_header("Sec-WebSocket-Key", "iT9AbE3Q96TfyWZ+3gQdfg==");
+    r.set_header("Sec-WebSocket-Version", "13");
+
+    return r.build_request();
+  }
+
+  std::vector<uint8_t> gen_http_request_internal(
     const std::string& method,
     const CBuffer params,
-    tls::KeyPairPtr kp = nullptr,
-    const std::string& content_type = http::headervalues::contenttype::MSGPACK)
+    const std::string& content_type,
+    http_method verb)
   {
     auto path = method;
     if (prefix.has_value())
@@ -51,16 +68,40 @@ protected:
       path = fmt::format("/{}/{}", prefix.value(), path);
     }
 
-    auto r = http::Request(path);
+    auto r = http::Request(path, verb);
     r.set_body(params.p, params.n);
     r.set_header(http::headers::CONTENT_TYPE, content_type);
 
-    if (kp != nullptr)
+    if (key_pair != nullptr)
     {
-      http::sign_request(r, kp);
+      http::sign_request(r, key_pair);
     }
 
     return r.build_request();
+  }
+
+  std::vector<uint8_t> gen_ws_request_internal(
+    const std::string& method, const CBuffer params)
+  {
+    auto path = method;
+    if (prefix.has_value())
+    {
+      path = fmt::format("/{}/{}", prefix.value(), path);
+    }
+    std::vector<uint8_t> body(params.p, params.p + params.n);
+    return ws::make_in_frame(path, body);
+  }
+
+  std::vector<uint8_t> gen_request_internal(
+    const std::string& method,
+    const CBuffer params,
+    const std::string& content_type,
+    http_method verb)
+  {
+    if (is_ws)
+      return gen_ws_request_internal(method, params);
+    else
+      return gen_http_request_internal(method, params, content_type, verb);
   }
 
   Response call_raw(const std::vector<uint8_t>& raw)
@@ -68,6 +109,11 @@ protected:
     CBuffer b(raw);
     write(b);
     return read_response();
+  }
+
+  Response call_raw(const PreparedRpc& prep)
+  {
+    return call_raw(prep.encoded);
   }
 
   std::optional<Response> last_response;
@@ -81,36 +127,86 @@ public:
     std::shared_ptr<tls::CA> node_ca = nullptr,
     std::shared_ptr<tls::Cert> cert = nullptr) :
     TlsClient(host, port, node_ca, cert),
-    parser(*this)
+    parser(*this),
+    ws_parser(*this)
   {}
 
-  virtual PreparedRpc gen_request(
+  void upgrade_to_ws()
+  {
+    auto upgrade = gen_ws_upgrade_request();
+    auto response = call_raw(upgrade);
+    if (response.headers.find("sec-websocket-accept") == response.headers.end())
+      throw std::logic_error("Failed to upgrade to websockets");
+    is_ws = true;
+  }
+
+  void create_key_pair(const tls::Pem priv_key)
+  {
+    key_pair = tls::make_key_pair(priv_key);
+  }
+
+  PreparedRpc gen_request(
     const std::string& method,
     const CBuffer params,
-    const std::string& content_type = http::headervalues::contenttype::MSGPACK)
+    const std::string& content_type,
+    http_method verb = HTTP_POST)
   {
-    return {gen_request_internal(method, params, nullptr, content_type),
+    return {gen_request_internal(method, params, content_type, verb),
             next_send_id++};
   }
 
-  virtual PreparedRpc gen_request(
-    const std::string& method, const nlohmann::json& params = nullptr)
+  PreparedRpc gen_request(
+    const std::string& method,
+    const nlohmann::json& params = nullptr,
+    http_method verb = HTTP_POST)
   {
-    auto p = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
-    return gen_request(method, {p.data(), p.size()});
+    std::vector<uint8_t> body;
+    if (!params.is_null())
+    {
+      body = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
+    }
+    return gen_request(
+      method,
+      {body.data(), body.size()},
+      http::headervalues::contenttype::MSGPACK,
+      verb);
   }
 
   Response call(
-    const std::string& method, const nlohmann::json& params = nullptr)
+    const std::string& method,
+    const nlohmann::json& params = nullptr,
+    http_method verb = HTTP_POST)
   {
-    return call_raw(gen_request(method, params).encoded);
+    return call_raw(gen_request(method, params, verb));
   }
 
-  Response call(const std::string& method, const CBuffer params)
+  Response call(
+    const std::string& method,
+    const CBuffer& params,
+    http_method verb = HTTP_POST)
   {
-    return call_raw(
-      gen_request(method, params, http::headervalues::contenttype::OCTET_STREAM)
-        .encoded);
+    return call_raw(gen_request(
+      method, params, http::headervalues::contenttype::OCTET_STREAM, verb));
+  }
+
+  Response post(const std::string& method, const nlohmann::json& params)
+  {
+    return call(method, params, HTTP_POST);
+  }
+
+  Response get(const std::string& method, const nlohmann::json& params)
+  {
+    // GET body is ignored, so params must be placed in query
+    auto full_path = method;
+    for (auto it = params.begin(); it != params.end(); ++it)
+    {
+      full_path += fmt::format(
+        "{}{}={}",
+        it == params.begin() ? "?" : "&",
+        it.key(),
+        it.value().dump());
+    }
+    return call(full_path, nullptr, HTTP_GET);
   }
 
   nlohmann::json unpack_body(const Response& resp)
@@ -141,8 +237,19 @@ public:
 
     while (!last_response.has_value())
     {
-      const auto next = read_all();
-      parser.execute(next.data(), next.size());
+      if (is_ws)
+      {
+        auto buf = read(ws::INITIAL_READ);
+        size_t n = ws_parser.consume(buf);
+        buf = read(n);
+        n = ws_parser.consume(buf);
+        assert(n == ws::INITIAL_READ);
+      }
+      else
+      {
+        const auto next = read_all();
+        parser.execute(next.data(), next.size());
+      }
     }
 
     return std::move(last_response.value());

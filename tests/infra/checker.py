@@ -2,14 +2,17 @@
 # Licensed under the Apache 2.0 License.
 
 import json
+import http
 import time
 
+from infra.tx_status import TxStatus
 
-def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=3):
+
+def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
     """
-    Given a client to a CCF network and a commit_index/term pair, this function
+    Given a client to a CCF network and a seqno/view pair, this function
     waits for this specific commit index to be globally committed by the
-    network in this term.
+    network in this view.
     A TimeoutError exception is raised if the commit index is not globally
     committed within the given timeout.
     """
@@ -18,22 +21,31 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
     # Forcing a signature accelerates this process for common operations
     # (e.g. governance proposals)
     if mksign:
-        r = node_client.rpc("mkSign")
+        r = client.rpc("mkSign")
         if r.error is not None:
             raise RuntimeError(f"mkSign returned an error: {r.error}")
 
     end_time = time.time() + timeout
     while time.time() < end_time:
-        r = node_client.get("getCommit", {"commit": commit_index})
-        if r.global_commit >= commit_index and r.result["term"] == term:
+        r = client.get("tx", {"view": view, "seqno": seqno})
+        assert (
+            r.status == http.HTTPStatus.OK
+        ), f"tx request returned HTTP status {r.status}"
+        status = TxStatus(r.result["status"])
+        if status == TxStatus.Committed:
             return
-        time.sleep(0.1)
+        elif status == TxStatus.Invalid:
+            raise RuntimeError(
+                f"Transaction ID {view}.{seqno} is marked invalid and will never be committed"
+            )
+        else:
+            time.sleep(0.1)
     raise TimeoutError("Timed out waiting for commit")
 
 
 class Checker:
-    def __init__(self, node_client=None, notification_queue=None):
-        self.node_client = node_client
+    def __init__(self, client=None, notification_queue=None):
+        self.client = client
         self.notification_queue = notification_queue
         self.notified_commit = 0
 
@@ -57,10 +69,8 @@ class Checker:
                     result, rpc_result.result
                 )
 
-            if self.node_client:
-                wait_for_global_commit(
-                    self.node_client, rpc_result.commit, rpc_result.term
-                )
+            if self.client:
+                wait_for_global_commit(self.client, rpc_result.seqno, rpc_result.view)
 
             if self.notification_queue:
                 end_time = time.time() + timeout
@@ -72,7 +82,7 @@ class Checker:
                             n > self.notified_commit
                         ), f"Received notification of commit {n} after commit {self.notified_commit}"
                         self.notified_commit = n
-                        if n >= rpc_result.commit:
+                        if n >= rpc_result.seqno:
                             return
                     time.sleep(0.5)
                 raise TimeoutError("Timed out waiting for notification")

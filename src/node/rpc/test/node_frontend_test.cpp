@@ -76,11 +76,12 @@ T parse_response_body(const TResponse& r)
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
-  StubNodeState node;
+  ShareManager share_manager(network);
+  StubNodeState node(share_manager);
   NodeRpcFrontend frontend(network, node);
   frontend.open();
 
@@ -143,7 +144,7 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.node_status == NodeStatus::TRUSTED);
     CHECK(response.public_only == false);
 
-    Store::Tx tx;
+    kv::Tx tx;
     const NodeId node_id = response.node_id;
     auto nodes_view = tx.get_view(network.nodes);
     auto node_info = nodes_view->get(node_id);
@@ -196,11 +197,12 @@ TEST_CASE("Add a node to an opening service")
 TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
 
-  StubNodeState node;
+  ShareManager share_manager(network);
+  StubNodeState node(share_manager);
   node.set_is_public(true);
   NodeRpcFrontend frontend(network, node);
   frontend.open();
@@ -221,7 +223,7 @@ TEST_CASE("Add a node to an open service")
   Cert caller = v->der_cert_data();
 
   std::optional<NodeInfo> node_info;
-  Store::Tx tx;
+  kv::Tx tx;
 
   JoinNetworkNodeToNode::In join_input;
 

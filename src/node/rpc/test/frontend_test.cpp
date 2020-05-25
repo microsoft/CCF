@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "consensus/pbft/pbft_requests.h"
-#include "consensus/test/stub_consensus.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
-#include "node/encryptor.h"
+#include "kv/map.h"
+#include "kv/test/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
 #include "node/entities.h"
 #include "node/genesis_gen.h"
 #include "node/history.h"
@@ -37,7 +38,7 @@ static constexpr auto default_pack = jsonrpc::Pack::MsgPack;
 class TestUserFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestUserFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestUserFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
@@ -65,7 +66,7 @@ public:
 class TestReqNotStoredFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestReqNotStoredFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestReqNotStoredFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
@@ -80,24 +81,24 @@ public:
 class TestMinimalHandleFunction : public SimpleUserRpcFrontend
 {
 public:
-  TestMinimalHandleFunction(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestMinimalHandleFunction(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
-    auto echo_function = [this](Store::Tx& tx, nlohmann::json&& params) {
+    auto echo_function = [this](kv::Tx& tx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
     install("echo", json_adapter(echo_function), HandlerRegistry::Read);
 
     auto get_caller_function =
-      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         return make_success(caller_id);
       };
     install(
       "get_caller", json_adapter(get_caller_function), HandlerRegistry::Read);
 
     auto failable_function =
-      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         const auto it = params.find("error");
         if (it != params.end())
         {
@@ -116,7 +117,7 @@ public:
 class TestRestrictedVerbsFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestRestrictedVerbsFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestRestrictedVerbsFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
@@ -141,9 +142,9 @@ public:
 class TestExplicitCommitability : public SimpleUserRpcFrontend
 {
 public:
-  Store::Map<size_t, size_t>& values;
+  kv::Map<size_t, size_t>& values;
 
-  TestExplicitCommitability(Store& tables) :
+  TestExplicitCommitability(kv::Store& tables) :
     SimpleUserRpcFrontend(tables),
     values(tables.create<size_t, size_t>("test_values"))
   {
@@ -174,8 +175,11 @@ public:
 class TestMemberFrontend : public MemberRpcFrontend
 {
 public:
-  TestMemberFrontend(ccf::NetworkState& network, ccf::StubNodeState& node) :
-    MemberRpcFrontend(network, node)
+  TestMemberFrontend(
+    ccf::NetworkState& network,
+    ccf::StubNodeState& node,
+    ccf::ShareManager& share_manager) :
+    MemberRpcFrontend(network, node, share_manager)
   {
     open();
 
@@ -192,7 +196,7 @@ class TestNoCertsFrontend : public RpcFrontend
   HandlerRegistry handlers;
 
 public:
-  TestNoCertsFrontend(Store& tables) :
+  TestNoCertsFrontend(kv::Store& tables) :
     RpcFrontend(tables, handlers),
     handlers(tables)
   {
@@ -226,7 +230,7 @@ class TestForwardingUserFrontEnd : public SimpleUserRpcFrontend,
                                    public RpcContextRecorder
 {
 public:
-  TestForwardingUserFrontEnd(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestForwardingUserFrontEnd(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
@@ -273,8 +277,11 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 {
 public:
   TestForwardingMemberFrontEnd(
-    Store& tables, ccf::NetworkState& network, ccf::StubNodeState& node) :
-    MemberRpcFrontend(network, node)
+    kv::Store& tables,
+    ccf::NetworkState& network,
+    ccf::StubNodeState& node,
+    ccf::ShareManager& share_manager) :
+    MemberRpcFrontend(network, node, share_manager)
   {
     open();
 
@@ -292,7 +299,7 @@ public:
 auto kp = tls::make_key_pair();
 NetworkState network;
 NetworkState network2;
-auto encryptor = std::make_shared<NullTxEncryptor>();
+auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 NetworkState pbft_network(ConsensusType::PBFT);
 auto history_kp = tls::make_key_pair();
@@ -304,7 +311,8 @@ auto history = std::make_shared<NullTxHistory>(
   pbft_network.signatures,
   pbft_network.nodes);
 
-StubNodeState stub_node;
+ShareManager share_manager(network);
+StubNodeState stub_node(share_manager);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -354,7 +362,7 @@ nlohmann::json parse_response_body(
 
 std::optional<SignedReq> get_signed_req(CallerId caller_id)
 {
-  Store::Tx tx;
+  kv::Tx tx;
   auto client_sig_view = tx.get_view(network.user_client_signatures);
   return client_sig_view->get(caller_id);
 }
@@ -410,7 +418,7 @@ void prepare_callers()
   auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
-  Store::Tx tx;
+  kv::Tx tx;
   network.tables->set_encryptor(encryptor);
   network2.tables->set_encryptor(encryptor);
 
@@ -426,7 +434,7 @@ void prepare_callers()
 
 void add_callers_primary_store()
 {
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   network2.tables->clear();
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
@@ -438,7 +446,7 @@ void add_callers_primary_store()
 
 void add_callers_pbft_store()
 {
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   pbft_network.tables->set_encryptor(encryptor);
   pbft_network.tables->clear();
   pbft_network.tables->set_history(history);
@@ -464,14 +472,15 @@ TEST_CASE("process_pbft")
   simple_call.set_body(&serialized_body);
 
   const auto serialized_call = simple_call.build_request();
-  pbft::Request request = {user_id, user_caller_der, serialized_call};
+  pbft::Request request = {
+    user_id, user_caller_der, serialized_call, {}, enclave::FrameFormat::http};
 
   auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   frontend.process_pbft(ctx);
 
-  Store::Tx tx;
+  kv::Tx tx;
   auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);
   auto request_value = pbft_requests_map->get(0);
   REQUIRE(request_value.has_value());
@@ -481,6 +490,8 @@ TEST_CASE("process_pbft")
   REQUIRE(deserialised_req.caller_id == user_id);
   REQUIRE(deserialised_req.caller_cert == user_caller_der);
   REQUIRE(deserialised_req.raw == serialized_call);
+  REQUIRE(deserialised_req.pbft_raw.empty());
+  REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);
 }
 
 TEST_CASE("SignedReq to and from json")
@@ -729,7 +740,7 @@ TEST_CASE("Member caller")
   prepare_callers();
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, stub_node);
+  TestMemberFrontend frontend(network, stub_node, share_manager);
 
   SUBCASE("valid caller")
   {
@@ -939,7 +950,7 @@ TEST_CASE("Explicit commitability")
   size_t next_value = 0;
 
   auto get_value = [&]() {
-    Store::Tx tx;
+    kv::Tx tx;
     auto view = tx.get_view(frontend.values);
     auto actual_v = view->get(0).value();
     return actual_v;
@@ -947,7 +958,7 @@ TEST_CASE("Explicit commitability")
 
   // Set initial value
   {
-    Store::Tx tx;
+    kv::Tx tx;
     tx.get_view(frontend.values)->put(0, next_value);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1237,7 +1248,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     user_frontend_primary.process_forwarded(fwd_ctx);
 
-    Store::Tx tx;
+    kv::Tx tx;
     auto client_sig_view = tx.get_view(network2.user_client_signatures);
     auto client_sig = client_sig_view->get(user_id);
     REQUIRE(client_sig.has_value());
@@ -1346,9 +1357,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   add_callers_primary_store();
 
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network.tables, network, stub_node);
+    *network.tables, network, stub_node, share_manager);
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network2.tables, network2, stub_node);
+    *network2.tables, network2, stub_node, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(

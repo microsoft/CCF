@@ -15,7 +15,8 @@
 #include "rpc_exception.h"
 #include "tls/verifier.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <mutex>
 #include <utility>
 #include <vector>
@@ -25,7 +26,7 @@ namespace ccf
   class RpcFrontend : public enclave::RpcHandler, public ForwardedRpcHandler
   {
   protected:
-    Store& tables;
+    kv::Store& tables;
     HandlerRegistry& handlers;
 
     void disable_request_storing()
@@ -57,7 +58,7 @@ namespace ccf
     bool request_storing_disabled = false;
 
     using PreExec = std::function<void(
-      Store::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend)>;
+      kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend)>;
 
     void update_consensus()
     {
@@ -115,7 +116,8 @@ namespace ccf
           }
         }
         ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
-        ctx->set_response_body("RPC could not be forwarded to primary.");
+        ctx->set_response_body(
+          "RPC could not be forwarded to unknown primary.");
         return ctx->serialise_response();
       }
       else
@@ -126,7 +128,7 @@ namespace ccf
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
-          Store::Tx tx;
+          kv::Tx tx;
           auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
 
@@ -143,7 +145,7 @@ namespace ccf
     }
 
     void record_client_signature(
-      Store::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
+      kv::Tx& tx, CallerId caller_id, const SignedReq& signed_request)
     {
       auto client_sig_view = tx.get_view(*client_signatures);
       if (request_storing_disabled)
@@ -199,9 +201,7 @@ namespace ccf
     }
 
     std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
-      std::shared_ptr<enclave::RpcContext> ctx,
-      Store::Tx& tx,
-      CallerId caller_id)
+      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx, CallerId caller_id)
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -215,7 +215,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> process_command(
       std::shared_ptr<enclave::RpcContext> ctx,
-      Store::Tx& tx,
+      kv::Tx& tx,
       CallerId caller_id,
       PreExec pre_exec = {})
     {
@@ -369,14 +369,11 @@ namespace ccf
                 cv = tx.get_read_version();
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
-              ctx->set_response_header(http::headers::CCF_COMMIT, cv);
+              ctx->set_commit(cv);
               if (consensus != nullptr)
               {
-                ctx->set_response_header(
-                  http::headers::CCF_TERM, consensus->get_view());
-                ctx->set_response_header(
-                  http::headers::CCF_GLOBAL_COMMIT,
-                  consensus->get_commit_seqno());
+                ctx->set_term(consensus->get_view(cv));
+                ctx->set_global_commit(consensus->get_commit_seqno());
 
                 if (
                   history && consensus->is_primary() &&
@@ -441,7 +438,7 @@ namespace ccf
 
   public:
     RpcFrontend(
-      Store& tables_,
+      kv::Store& tables_,
       HandlerRegistry& handlers_,
       ClientSignatures* client_sigs_ = nullptr) :
       tables(tables_),
@@ -495,7 +492,7 @@ namespace ccf
     {
       update_consensus();
 
-      Store::Tx tx;
+      kv::Tx tx;
 
       auto caller_id = handlers.get_caller_id(tx, ctx->session->caller_cert);
 
@@ -517,7 +514,8 @@ namespace ccf
                 reqid,
                 caller_id,
                 get_cert_to_forward(ctx),
-                ctx->get_serialised_request()))
+                ctx->get_serialised_request(),
+                ctx->frame_format()))
           {
             LOG_FAIL_FMT(
               "Adding request failed: {}, {}, {}",
@@ -551,13 +549,13 @@ namespace ccf
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx) override
     {
-      Store::Tx tx;
+      kv::Tx tx;
       return process_pbft(ctx, tx, false);
     }
 
     ProcessPbftResp process_pbft(
       std::shared_ptr<enclave::RpcContext> ctx,
-      Store::Tx& tx,
+      kv::Tx& tx,
       bool playback) override
     {
       kv::Version version = kv::NoVersion;
@@ -568,16 +566,15 @@ namespace ccf
 
       if (!playback)
       {
-        fn =
-          [](Store::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
-            auto req_view = tx.get_view(*frontend.pbft_requests_map);
-            req_view->put(
-              0,
-              {ctx.session->original_caller.value().caller_id,
-               ctx.session->caller_cert,
-               ctx.get_serialised_request(),
-               ctx.pbft_raw});
-          };
+        fn = [](kv::Tx& tx, enclave::RpcContext& ctx, RpcFrontend& frontend) {
+          auto req_view = tx.get_view(*frontend.pbft_requests_map);
+          req_view->put(
+            0,
+            {ctx.session->original_caller.value().caller_id,
+             ctx.session->caller_cert,
+             ctx.get_serialised_request(),
+             ctx.pbft_raw});
+        };
       }
 
       auto rep =
@@ -618,7 +615,7 @@ namespace ccf
 
       update_consensus();
 
-      Store::Tx tx;
+      kv::Tx tx;
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id);
@@ -676,7 +673,7 @@ namespace ccf
     // certs, but couldn't find caller. Default behaviour is that there are no
     // caller certs, so nothing is changed but we return true
     virtual bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, Store::Tx& tx)
+      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx)
     {
       return true;
     }

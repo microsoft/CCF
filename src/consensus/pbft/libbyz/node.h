@@ -41,7 +41,7 @@ public:
 
   size_t num_of_replicas() const;
   size_t f() const;
-  void set_f(ccf::NodeId f);
+  void set_f(size_t f);
   size_t num_correct_replicas() const;
 
   int id() const;
@@ -108,6 +108,12 @@ public:
   // Effects: Generates a signature "sig" (from this principal) for
   // "src_len" bytes starting at "src" and puts the result in "sig" and
   // returns the length of the signature
+  static void copy_signature(
+    const PbftSignature& signature, PbftSignature& dest);
+  // Helper method
+  // Effects: copies the signature array to the destination. If the signature
+  // size is smaller than the pbft_max_signature_size, it zeroes out the end of
+  // dest
 
 protected:
   std::string service_name;

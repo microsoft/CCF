@@ -1,8 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "../ds/hash.h"
+#include "ds/hash.h"
+#include "ds/json.h"
 #include "entities.h"
+#include "kv/map.h"
 
 #include <mbedtls/md.h>
 #include <msgpack/msgpack.hpp>
@@ -44,5 +46,5 @@ namespace ccf
   DECLARE_JSON_TYPE(SignedReq)
   DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md)
   // this maps client-id to latest SignedReq
-  using ClientSignatures = Store::Map<CallerId, SignedReq>;
+  using ClientSignatures = kv::Map<CallerId, SignedReq>;
 }

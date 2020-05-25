@@ -6,7 +6,10 @@
 | Documentation | [![docs](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Pages?branchName=master)](https://microsoft.github.io/CCF/) |
 | Daily Build | [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Daily?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=7&branchName=master) |
 
-# The Confidential Consortium Framework
+
+# The Confidential Consortium Framework 
+
+<img alt="ccf" align="right" src="https://microsoft.github.io/CCF/master/_images/ccf.svg" width="300">
 
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
 and performant applications that focus on multi-party compute and data. While not limited just to blockchain applications,
@@ -39,8 +42,6 @@ can have challenges in multi-party scenarios when it comes to deciding what part
 In contrast, in a consortium or multi-party network backed by TEEs, such as CCF, consortium member identities and node identities are known and controlled.
 A trusted network of enclaves running on physical nodes is established without requiring the actors that control those nodes to trust one another
 —  what code is run is controlled and correctness of its output can be guaranteed, simplifying the consensus methods and reducing duplicative validation of data.
-
-![diagram](https://microsoft.github.io/CCF/_images/ccf.svg)
 
 Microsoft has taken this approach in developing CCF: using TEE technology, the enclave of each node in the network (where cryptographically protected data is processed)
 can decide whether it can trust the enclaves of other nodes based on mutual attestation exchange and mutual authentication, regardless of whether the parties involved
@@ -76,7 +77,7 @@ Then, under `CCF/getting_started/`:
  * `create_vm/` contains scripts to create an ACC VM (`make_vm.sh`).
    This script expects a valid Azure subscription name to be set, eg: `export SUBSCRIPTION=sub_name`.
  * `setup_vm/` contains ansible playbooks that need to be run on the VM once created, for it to be able to build CCF.
-   Running `./setup.sh` will apply those playbooks to the VM.
+   Running `./run.sh driver.yml ccf-dev.yml` will apply those playbooks to the VM.
 
 ## Build and Test
 

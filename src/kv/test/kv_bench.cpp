@@ -2,14 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 
-#include "consensus/test/stub_consensus.h"
-#include "kv/kv.h"
+#include "kv/store.h"
+#include "kv/test/stub_consensus.h"
+#include "kv/tx.h"
 #include "node/encryptor.h"
 
 #include <picobench/picobench.hpp>
 #include <string>
-
-using namespace ccf;
 
 inline void clobber_memory()
 {
@@ -32,14 +31,15 @@ static void serialise(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  Store kv_store;
+  kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
   auto& map0 = kv_store.create<std::string, std::string>("map0", SD);
   auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
-  Store::Tx tx;
+  kv::Tx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
@@ -62,11 +62,12 @@ static void deserialise(picobench::state& s)
   logger::config::level() = logger::INFO;
 
   auto consensus = std::make_shared<kv::StubConsensus>();
-  Store kv_store(consensus);
-  Store kv_store2;
+  kv::Store kv_store(consensus);
+  kv::Store kv_store2;
 
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
@@ -74,7 +75,7 @@ static void deserialise(picobench::state& s)
   auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
   auto& map0_ = kv_store2.create<std::string, std::string>("map0", SD);
   auto& map1_ = kv_store2.create<std::string, std::string>("map1", SD);
-  Store::Tx tx;
+  kv::Tx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
@@ -98,9 +99,10 @@ static void commit_latency(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  Store kv_store;
+  kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
   auto& map0 = kv_store.create<std::string, std::string>("map0");
@@ -108,7 +110,7 @@ static void commit_latency(picobench::state& s)
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    Store::Tx tx;
+    kv::Tx tx;
     auto [tx0, tx1] = tx.get_view(map0, map1);
     for (int iTx = 0; iTx < S; iTx++)
     {

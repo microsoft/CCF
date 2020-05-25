@@ -1,6 +1,4 @@
 #pragma once
-#ifndef __VALIJSON_VALIDATION_VISITOR_HPP
-#define __VALIJSON_VALIDATION_VISITOR_HPP
 
 #include <cmath>
 #include <string>
@@ -241,7 +239,7 @@ public:
 
     /**
      * @brief   Validate a value against a LinearItemsConstraint
-     
+     *
      * A LinearItemsConstraint represents an 'items' constraint that specifies,
      * for each item in array, an individual sub-schema that the item must
      * validate against. The LinearItemsConstraint class also captures the
@@ -875,9 +873,16 @@ public:
         if (!additionalPropertiesSubschema) {
             if (propertiesMatched.size() != target.getObjectSize()) {
                 if (results) {
-                    results->pushError(context, "Object contains properties "
+                    std::string unwanted;
+                    for (const typename AdapterType::ObjectMember m : object) {
+                        if (propertiesMatched.find(m.first) == propertiesMatched.end()) {
+                            unwanted = m.first;
+                            break;
+                        }
+                    }
+                    results->pushError(context, "Object contains a property "
                             "that could not be validated using 'properties' "
-                            "or 'additionalProperties' constraints");
+                            "or 'additionalProperties' constraints: '" + unwanted + "'.");
                 }
 
                 return false;
@@ -1702,5 +1707,3 @@ private:
 };
 
 }  // namespace valijson
-
-#endif

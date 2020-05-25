@@ -21,31 +21,24 @@ namespace ccf
     Nodes* nodes = nullptr;
 
   protected:
-    Store* tables = nullptr;
+    kv::Store* tables = nullptr;
 
   public:
     CommonHandlerRegistry(
-      Store& store, const std::string& certs_table_name = "") :
+      kv::Store& store, const std::string& certs_table_name = "") :
       HandlerRegistry(store, certs_table_name),
       nodes(store.get<Nodes>(Tables::NODES)),
       tables(&store)
     {}
 
-    void init_handlers(Store& t) override
+    void init_handlers(kv::Store& t) override
     {
       HandlerRegistry::init_handlers(t);
 
-      auto get_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
-        GetCommit::In in{};
-        if (!params.is_null())
-        {
-          in = params.get<GetCommit::In>();
-        }
-
-        kv::Version commit = in.commit.value_or(tables->commit_version());
-
+      auto get_commit = [this](kv::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
+          const auto commit = tables->commit_version();
           auto term = consensus->get_view(commit);
           return make_success(GetCommit::Out{term, commit});
         }
@@ -55,7 +48,7 @@ namespace ccf
           "Failed to get commit info from Consensus");
       };
 
-      auto get_local_commit = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_local_commit = [this](kv::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
           kv::Version commit = tables->commit_version();
@@ -68,12 +61,31 @@ namespace ccf
           "Failed to get local commit info from Consensus");
       };
 
-      auto get_metrics = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_tx_status = [this](kv::Tx& tx, nlohmann::json&& params) {
+        const auto in = params.get<GetTxStatus::In>();
+
+        if (consensus != nullptr)
+        {
+          const auto tx_view = consensus->get_view(in.seqno);
+          const auto committed_seqno = consensus->get_commit_seqno();
+          const auto committed_view = consensus->get_view(committed_seqno);
+
+          GetTxStatus::Out out;
+          out.status = ccf::get_tx_status(
+            in.view, in.seqno, tx_view, committed_view, committed_seqno);
+          return make_success(out);
+        }
+
+        return make_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR, "Consensus is not yet configured");
+      };
+
+      auto get_metrics = [this](kv::Tx& tx, nlohmann::json&& params) {
         auto result = metrics.get_metrics();
         return make_success(result);
       };
 
-      auto make_signature = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto make_signature = [this](kv::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
           if (consensus->type() == ConsensusType::RAFT)
@@ -96,7 +108,7 @@ namespace ccf
       };
 
       auto who_am_i =
-        [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           if (certs == nullptr)
           {
             return make_error(
@@ -108,7 +120,7 @@ namespace ccf
           return make_success(WhoAmI::Out{caller_id});
         };
 
-      auto who_is = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto who_is = [this](kv::Tx& tx, nlohmann::json&& params) {
         const WhoIs::In in = params;
 
         if (certs == nullptr)
@@ -130,10 +142,11 @@ namespace ccf
         return make_success(WhoIs::Out{caller_id.value()});
       };
 
-      auto get_primary_info = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_primary_info = [this](kv::Tx& tx, nlohmann::json&& params) {
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
+          auto current_term = consensus->get_view();
 
           auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
@@ -144,6 +157,7 @@ namespace ccf
             out.primary_id = primary_id;
             out.primary_host = info->pubhost;
             out.primary_port = info->rpcport;
+            out.current_term = current_term;
             return make_success(out);
           }
         }
@@ -152,7 +166,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
       };
 
-      auto get_network_info = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_network_info = [this](kv::Tx& tx, nlohmann::json&& params) {
         GetNetworkInfo::Out out;
         if (consensus != nullptr)
         {
@@ -171,7 +185,7 @@ namespace ccf
         return make_success(out);
       };
 
-      auto list_methods_fn = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
         ListMethods::Out out;
 
         list_methods(tx, out);
@@ -181,7 +195,7 @@ namespace ccf
         return make_success(out);
       };
 
-      auto get_schema = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_schema = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
         const auto it = handlers.find(in.method);
@@ -198,7 +212,7 @@ namespace ccf
         return make_success(out);
       };
 
-      auto get_receipt = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto get_receipt = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
         if (history != nullptr)
@@ -225,7 +239,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to produce receipt");
       };
 
-      auto verify_receipt = [this](Store::Tx& tx, nlohmann::json&& params) {
+      auto verify_receipt = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<VerifyReceipt::In>();
 
         if (history != nullptr)
@@ -250,11 +264,14 @@ namespace ccf
       };
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
-        .set_auto_schema<GetCommit>();
+        .set_auto_schema<void, GetCommit::Out>();
       install(
         GeneralProcs::GET_LOCAL_COMMIT, json_adapter(get_local_commit), Read)
         .set_auto_schema<void, GetCommit::Out>()
         .set_execute_locally(true);
+      install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
+        .set_auto_schema<GetTxStatus>()
+        .set_http_get_only();
       install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)

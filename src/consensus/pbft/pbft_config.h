@@ -81,7 +81,7 @@ namespace pbft
       uint64_t nonce;
     };
 
-    static void ExecuteCb(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
+    static void ExecuteCb(std::unique_ptr<threading::Tmsg<ExecutionCtx>> c)
     {
       ExecutionCtx& execution_ctx = c->data;
       ByzInfo& info = execution_ctx.info;
@@ -131,7 +131,7 @@ namespace pbft
       }
     }
 
-    static void Execute(std::unique_ptr<enclave::Tmsg<ExecutionCtx>> c)
+    static void Execute(std::unique_ptr<threading::Tmsg<ExecutionCtx>> c)
     {
       ExecutionCtx& execution_ctx = c->data;
       std::unique_ptr<ExecCommandMsg>& msg = execution_ctx.msg;
@@ -145,7 +145,7 @@ namespace pbft
       uint8_t* req_start = msg->req_start;
       size_t req_size = msg->req_size;
       Seqno total_requests_executed = msg->total_requests_executed;
-      ccf::Store::Tx* tx = msg->tx;
+      kv::Tx* tx = msg->tx;
       int replier = msg->replier;
       uint16_t reply_thread = msg->reply_thread;
 
@@ -155,8 +155,11 @@ namespace pbft
       auto session = std::make_shared<enclave::SessionContext>(
         enclave::InvalidSessionId, request.caller_id, request.caller_cert);
 
-      auto ctx = enclave::make_rpc_context(
-        session, request.raw, {req_start, req_start + req_size});
+      auto ctx = enclave::make_fwd_rpc_context(
+        session,
+        request.raw,
+        (enclave::FrameFormat)request.frame_format,
+        {req_start, req_start + req_size});
       ctx->is_create_request = c->data.is_first_request;
       ctx->set_apply_writes(true);
 
@@ -204,10 +207,10 @@ namespace pbft
 
       if (info.cb != nullptr)
       {
-        enclave::ThreadMessaging::thread_messaging
+        threading::ThreadMessaging::thread_messaging
           .ChangeTmsgCallback<ExecutionCtx>(c, &ExecuteCb);
-        enclave::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
-          enclave::ThreadMessaging::main_thread, std::move(c));
+        threading::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
+          threading::ThreadMessaging::main_thread, std::move(c));
       }
       else
       {
@@ -230,7 +233,7 @@ namespace pbft
         {
           std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
           uint16_t reply_thread = msg->reply_thread;
-          auto execution_ctx = std::make_unique<enclave::Tmsg<ExecutionCtx>>(
+          auto execution_ctx = std::make_unique<threading::Tmsg<ExecutionCtx>>(
             &Execute, std::move(msg), info, this, is_first_request, nonce);
           is_first_request = false;
 
@@ -239,9 +242,9 @@ namespace pbft
             int tid = reply_thread;
             if (executed_single_threaded && tid > 1)
             {
-              tid = (enclave::ThreadMessaging::thread_count - 1);
+              tid = (threading::ThreadMessaging::thread_count - 1);
             }
-            enclave::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
+            threading::ThreadMessaging::thread_messaging.add_task<ExecutionCtx>(
               tid, std::move(execution_ctx));
           }
           else

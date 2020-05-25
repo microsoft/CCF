@@ -3,6 +3,8 @@
 #pragma once
 
 #include "consensus/pbft/libbyz/parameters.h"
+#include "ds/json.h"
+#include "kv/map.h"
 #include "node/entities.h"
 
 #include <array>
@@ -28,5 +30,5 @@ namespace pbft
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the pre prepare in the kv over time, we just want to
   // get them into the ledger
-  using PrePreparesMap = ccf::Store::Map<size_t, PrePrepare>;
+  using PrePreparesMap = kv::Map<size_t, PrePrepare>;
 }

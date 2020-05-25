@@ -5,8 +5,8 @@
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
 #include "http/http_rpc_context.h"
+#include "kv/test/null_encryptor.h"
 #include "lua_interp/lua_interp.h"
-#include "node/encryptor.h"
 #include "node/genesis_gen.h"
 #include "node/rpc/json_handler.h"
 #include "node/rpc/json_rpc.h"
@@ -141,7 +141,7 @@ auto init_frontend(
 
 void set_handler(NetworkTables& network, const string& method, const Script& h)
 {
-  Store::Tx tx;
+  kv::Tx tx;
   tx.get_view(network.app_scripts)->put(method, h);
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
@@ -177,9 +177,9 @@ void check_store_load(F frontend, K k, V v)
 TEST_CASE("simple lua apps")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -266,7 +266,7 @@ TEST_CASE("simple lua apps")
     );
 
     // (3) attempt to read non-existing key (set of integers)
-    const auto packed = make_pc("load", {{"k", set{5, 6, 7}}});
+    const auto packed = make_pc("load", {{"k", set<int>{5, 6, 7}}});
     auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     check_error(frontend->process(rpc_ctx).value(), HTTP_STATUS_BAD_REQUEST);
   }
@@ -314,9 +314,9 @@ TEST_CASE("simple lua apps")
 TEST_CASE("simple bank")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
@@ -431,9 +431,9 @@ TEST_CASE("simple bank")
 TEST_CASE("pre-populated environment")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});

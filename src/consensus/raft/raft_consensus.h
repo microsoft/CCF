@@ -107,7 +107,7 @@ namespace raft
       raft->suspend_replication(version);
     }
 
-    void set_f(ccf::NodeId) override
+    void set_f(size_t) override
     {
       return;
     }

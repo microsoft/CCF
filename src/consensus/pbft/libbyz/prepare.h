@@ -7,6 +7,7 @@
 
 #include "digest.h"
 #include "message.h"
+#include "nodeinfo.h"
 #include "tls/key_pair.h"
 #include "types.h"
 
@@ -22,8 +23,8 @@ struct Prepare_rep : public Message_rep
   View view;
   Seqno seqno;
   Digest digest;
-  int id; // id of the replica that generated the message.
   Digest hashed_nonce;
+  int id; // id of the replica that generated the message.
 #ifdef SIGN_BATCH
   size_t digest_sig_size;
   PbftSignature batch_digest_signature;
@@ -44,6 +45,19 @@ struct Prepare_rep : public Message_rep
 static_assert(
   sizeof(Prepare_rep) + pbft_max_signature_size < Max_message_size,
   "Invalid size");
+
+struct PrepareSignature
+{
+  NodeId id;
+  Digest d;
+  Digest n;
+
+  PrepareSignature(Digest d_, NodeId id_, Digest nonce) :
+    d(d_),
+    id(id_),
+    n(nonce)
+  {}
+};
 
 class Prepare : public Message
 {
@@ -89,6 +103,7 @@ public:
 
 #ifdef SIGN_BATCH
   PbftSignature& digest_sig() const;
+  size_t digest_sig_size() const;
 #endif
 
   bool is_proof() const;
@@ -103,6 +118,8 @@ public:
 
   uint64_t get_nonce() const;
   // Effects: returns the unhashed nonce
+
+  Digest get_hashed_nonce() const;
 
 private:
   uint64_t nonce;
@@ -142,6 +159,11 @@ inline PbftSignature& Prepare::digest_sig() const
 {
   return rep().batch_digest_signature;
 }
+
+inline size_t Prepare::digest_sig_size() const
+{
+  return rep().digest_sig_size;
+}
 #endif
 
 inline bool Prepare::is_proof() const
@@ -158,4 +180,9 @@ inline bool Prepare::match(const Prepare* p) const
 inline uint64_t Prepare::get_nonce() const
 {
   return nonce;
+}
+
+inline Digest Prepare::get_hashed_nonce() const
+{
+  return rep().hashed_nonce;
 }
