@@ -234,8 +234,8 @@ namespace kv
   };
 
   /// Signature for transaction commit handlers
-  template <typename K, typename V, typename H>
-  using CommitHook = std::function<void(Version, const Write<K, V, H>&)>;
+  template <typename W>
+  using CommitHook = std::function<void(Version, const W&)>;
 
   template <class K, class V, class H>
   class Map : public AbstractMap
@@ -244,7 +244,7 @@ namespace kv
     using VersionV = VersionV<V>;
     using State = State<K, V, H>;
     using Write = Write<K, V, H>;
-    using CommitHook = CommitHook<K, V, H>;
+    using CommitHook = CommitHook<Write>;
 
   private:
     using This = Map<K, V, H>;

@@ -15,10 +15,6 @@ namespace kv
   {
     using SerialisedRep = std::vector<uint8_t>;
 
-    // TODO: I don't think this needs to be customisable? If the map is storing
-    // _your_ types as keys, you might need to tell it how to compare them. But
-    // we know how to compare byte-vectors, and this is an internal detail so
-    // why would you change it?
     using RepHasher = std::hash<SerialisedRep>;
 
     using UntypedMap = kv::Map<SerialisedRep, SerialisedRep, RepHasher>;
@@ -159,19 +155,13 @@ namespace kv
 
       UntypedMap untyped_map;
 
-      using __K_HASH = std::hash<K>;
-
     public:
       // Expose correct public aliases of types
       using VersionV = VersionV<V>;
 
-      // TODO: We don't really have these! We really don't want to expose them
-      // to you, they should be an implementation detail. Can we remove them
-      // from commit hooks? This introduces a requirement that the type is
-      // hashable! Unhappy!
-      using Write = Write<K, V, __K_HASH>;
+      using Write = Write<K, V>;
 
-      using CommitHook = CommitHook<K, V, __K_HASH>;
+      using CommitHook = CommitHook<Write>;
 
       using TxView = kv::experimental::TxView<K, V, KSerialiser, VSerialiser>;
 

@@ -30,7 +30,7 @@ namespace kv
   template <typename K, typename V, typename H>
   using Read = std::unordered_map<K, Version, H>;
 
-  template <typename K, typename V, typename H>
+  template <typename K, typename V, typename H = std::hash<K>>
   using Write = std::unordered_map<K, VersionV<V>, H>;
 
   // This is a container for a write-set + dependencies. It can be applied to a
