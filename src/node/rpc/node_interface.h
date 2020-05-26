@@ -3,7 +3,7 @@
 #pragma once
 
 #include "node/entities.h"
-#include "node/secret_share.h"
+#include "node/share_manager.h"
 #include "node_call_types.h"
 
 namespace ccf
@@ -25,9 +25,7 @@ namespace ccf
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter = std::nullopt) = 0;
     virtual NodeId get_node_id() const = 0;
-
-    virtual bool split_ledger_secrets(kv::Tx& tx) = 0;
-    virtual bool restore_ledger_secrets(
-      kv::Tx& tx, const std::vector<SecretSharing::Share>& shares) = 0;
+    virtual kv::Version get_last_recovered_commit_idx() = 0;
+    virtual void initiate_private_recovery(kv::Tx& tx) = 0;
   };
 }

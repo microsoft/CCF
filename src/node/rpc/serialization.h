@@ -55,7 +55,8 @@ namespace ccf
     node_id,
     public_only,
     consensus_type)
-  DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JoinNetworkNodeToNode::Out, last_recovered_commit_idx, network_info)
 
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(

@@ -462,6 +462,9 @@ if(BUILD_TESTS)
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
     ADDITIONAL_ARGS --recovery 2
+    # Shorten Raft election timeout to speed up test when it kills a node on purpose
+    # to check that a recovery network is robust to a view change.
+      --raft-election-timeout 4000
   )
 
   add_e2e_test(
@@ -660,7 +663,6 @@ if(BUILD_TESTS)
 
   endforeach()
 
-  # Logging scenario perf test
   add_perf_test(
     NAME logging_scenario_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
@@ -676,5 +678,23 @@ if(BUILD_TESTS)
       1000
       --repetitions
       1000
+  )
+
+  add_perf_test(
+    NAME logging_scenario_ws_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS raft
+    CLIENT_BIN ./scenario_perf_client
+    LABEL log_scenario_ws
+    ADDITIONAL_ARGS
+      --package
+      liblogging
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      10000
+      --use-websockets
   )
 endif()
