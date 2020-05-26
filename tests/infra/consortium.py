@@ -321,9 +321,7 @@ class Consortium:
             )
             r = m.submit_recovery_share(remote_node, decrypted_share)
             submitted_shares_count += 1
-            assert r.result == (
-                True if submitted_shares_count >= self.recovery_threshold else False
-            )
+            assert r.result == (submitted_shares_count >= self.recovery_threshold)
             if submitted_shares_count >= self.recovery_threshold:
                 break
 
