@@ -277,16 +277,13 @@ class SSHRemote(CmdMixin):
 
     def suspend(self):
         _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid()}")
-        if stdout.channel.recv_exit_status() == 0:
-            LOG.info(f"Node {self.name} suspended...")
-        else:
-            raise RuntimeError(f"Node {self.name} could not be suspended")
+        if stdout.channel.recv_exit_status() != 0:
+            raise RuntimeError(f"Remote {self.name} could not be suspended")
 
     def resume(self):
         _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid()}")
         if stdout.channel.recv_exit_status() != 0:
-            raise RuntimeError(f"Could not resume node {self.name} from suspension!")
-        LOG.info(f"Node {self.name} resuming from suspension...")
+            raise RuntimeError(f"Could not resume remote {self.name} from suspension!")
 
     def stop(self):
         """
@@ -440,11 +437,9 @@ class LocalRemote(CmdMixin):
 
     def suspend(self):
         self.proc.send_signal(signal.SIGSTOP)
-        LOG.info(f"Node {self.name} suspended...")
 
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
-        LOG.info(f"Node {self.name} resuming from suspension...")
 
     def stop(self):
         """
@@ -710,9 +705,6 @@ class CCFRemote(object):
 
     def get_ledger(self):
         self.remote.get(self.ledger_file_name, self.common_dir)
-        LOG.success(
-            f"Retrieve ledger file {self.ledger_file_name} to {self.common_dir}"
-        )
         return os.path.join(self.common_dir, self.ledger_file_name)
 
     def ledger_path(self):

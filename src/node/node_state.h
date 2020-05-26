@@ -213,7 +213,8 @@ namespace ccf
       NetworkState& network,
       std::shared_ptr<enclave::RPCSessions> rpcsessions,
       ccf::Notifier& notifier,
-      Timers& timers) :
+      Timers& timers,
+      ShareManager& share_manager) :
       sm(State::uninitialized),
       self(INVALID_ID),
       node_sign_kp(tls::make_key_pair()),
@@ -224,7 +225,7 @@ namespace ccf
       rpcsessions(rpcsessions),
       notifier(notifier),
       timers(timers),
-      share_manager(network)
+      share_manager(share_manager)
     {
       ::EverCrypt_AutoConfig2_init();
     }
@@ -457,6 +458,8 @@ namespace ccf
 
             if (resp.public_only)
             {
+              last_recovered_commit_idx = resp.last_recovered_commit_idx;
+              setup_recovery_hook();
               sm.advance(State::partOfPublicNetwork);
             }
             else
@@ -839,14 +842,17 @@ namespace ccf
       sm.expect(State::partOfPublicNetwork);
 
       GenesisGenerator g(network, tx);
+      share_manager.clear_submitted_recovery_shares(tx);
       return g.service_wait_for_shares();
     }
 
-    bool finish_recovery(
-      kv::Tx& tx, const std::vector<kv::Version>& restored_versions)
+    void initiate_private_recovery(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
+
+      auto restored_versions =
+        share_manager.restore_recovery_shares_info(tx, recovery_ledger_secrets);
 
       LOG_INFO_FMT("Initiating end of recovery (primary)");
 
@@ -867,8 +873,8 @@ namespace ccf
       ledger_idx = 0;
       read_ledger_idx(++ledger_idx);
 
+      recovery_ledger_secrets.clear();
       sm.advance(State::readingPrivateLedger);
-      return true;
     }
 
     //
@@ -966,6 +972,20 @@ namespace ccf
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfNetwork);
 
+      // Because submitted recovery shares are encrypted with the latest ledger
+      // secret, it is not possible to rekey the ledger if the service is in
+      // that state.
+      GenesisGenerator g(network, tx);
+      if (
+        g.get_service_status().value() ==
+        ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      {
+        LOG_FAIL_FMT(
+          "Cannot rekey ledger while the service is waiting for recovery "
+          "shares");
+        return false;
+      }
+
       // Effects of ledger rekey are only observed from the next transaction,
       // once the local hook on the secrets table has been triggered.
 
@@ -1014,41 +1034,6 @@ namespace ccf
         return true;
       });
     };
-
-    bool split_ledger_secrets(kv::Tx& tx) override
-    {
-      try
-      {
-        share_manager.issue_shares(tx);
-      }
-      catch (const std::logic_error& e)
-      {
-        LOG_FAIL_FMT("Failed to update recovery shares info: {}", e.what());
-        return false;
-      }
-      return true;
-    }
-
-    bool restore_ledger_secrets(
-      kv::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
-    {
-      try
-      {
-        finish_recovery(
-          tx,
-          share_manager.restore_recovery_shares_info(
-            tx, shares, recovery_ledger_secrets));
-
-        recovery_ledger_secrets.clear();
-      }
-      catch (const std::logic_error& e)
-      {
-        LOG_FAIL_FMT("Failed to restore recovery shares info: {}", e.what());
-        return false;
-      }
-
-      return true;
-    }
 
     NodeId get_node_id() const override
     {
@@ -1428,48 +1413,55 @@ namespace ccf
       });
     }
 
+    kv::Version get_last_recovered_commit_idx() override
+    {
+      // On recovery, only one node recovers the public ledger and is thus aware
+      // of the version at which the new ledger secret is applicable from. If
+      // the primary changes while the network is public-only, the new primary
+      // should also know at which version the new ledger secret is applicable
+      // from.
+      std::lock_guard<SpinLock> guard(lock);
+      return last_recovered_commit_idx;
+    }
+
     void setup_recovery_hook()
     {
       network.shares.set_local_hook(
         [this](
           kv::Version version, const Shares::State& s, const Shares::Write& w) {
-          if (is_reading_public_ledger())
+          for (auto& [k, v] : w)
           {
-            for (auto& [k, v] : w)
+            kv::Version ledger_secret_version;
+            if (version == 1)
             {
-              kv::Version ledger_secret_version;
-              if (version == 1)
-              {
-                // Special case for the genesis transaction, which is applicable
-                // from the very first transaction
-                ledger_secret_version = 1;
-              }
-              else
-              {
-                // If the version is not set (rekeying), use the version
-                // from the hook plus one. Otherwise (recovery), use the
-                // version specified.
-                ledger_secret_version =
-                  v.value.wrapped_latest_ledger_secret.version ==
-                    kv::NoVersion ?
-                  (version + 1) :
-                  v.value.wrapped_latest_ledger_secret.version;
-              }
+              // Special case for the genesis transaction, which is applicable
+              // from the very first transaction
+              ledger_secret_version = 1;
+            }
+            else
+            {
+              // If the version is not set (rekeying), use the version
+              // from the hook plus one. Otherwise (recovery), use the
+              // version specified.
+              ledger_secret_version =
+                v.value.wrapped_latest_ledger_secret.version == kv::NoVersion ?
+                (version + 1) :
+                v.value.wrapped_latest_ledger_secret.version;
+            }
 
-              // No encrypted ledger secret are stored in the case of a pure
-              // re-share (i.e. no ledger rekey).
-              if (
-                !v.value.encrypted_previous_ledger_secret.empty() ||
-                ledger_secret_version == 1)
-              {
-                LOG_TRACE_FMT(
-                  "Adding one encrypted recovery ledger secret at {}",
-                  ledger_secret_version);
+            // No encrypted ledger secret are stored in the case of a pure
+            // re-share (i.e. no ledger rekey).
+            if (
+              !v.value.encrypted_previous_ledger_secret.empty() ||
+              ledger_secret_version == 1)
+            {
+              LOG_TRACE_FMT(
+                "Adding one encrypted recovery ledger secret at {}",
+                ledger_secret_version);
 
-                recovery_ledger_secrets.push_back(
-                  {ledger_secret_version,
-                   v.value.encrypted_previous_ledger_secret});
-              }
+              recovery_ledger_secrets.push_back(
+                {ledger_secret_version,
+                 v.value.encrypted_previous_ledger_secret});
             }
           }
         });

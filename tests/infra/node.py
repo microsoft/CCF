@@ -273,9 +273,11 @@ class Node:
 
     def suspend(self):
         self.remote.suspend()
+        LOG.info(f"Node {self.node_id} suspended...")
 
     def resume(self):
         self.remote.resume()
+        LOG.info(f"Node {self.node_id} has resumed from suspension.")
 
 
 @contextmanager
