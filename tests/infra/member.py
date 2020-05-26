@@ -26,17 +26,17 @@ class MemberStatus(Enum):
 
 
 class Member:
-    def __init__(self, member_id, curve, common_dir, key_generator=None):
-        self.key_generator = key_generator
+    def __init__(self, member_id, curve, common_dir, share_script, key_generator=None):
         self.common_dir = common_dir
         self.member_id = member_id
         self.status = MemberStatus.ACCEPTED
+        self.share_script = share_script
 
         if key_generator is not None:
             # For now, all members are given an encryption key (for recovery)
             member = f"member{member_id}"
             infra.proc.ccall(
-                self.key_generator,
+                key_generator,
                 "--name",
                 f"{member}",
                 "--curve",
@@ -141,36 +141,42 @@ class Member:
             self.status = MemberStatus.ACTIVE
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
-        LOG.warning(
-            f"About to retrieve and decrypt recovery share... {remote_node.host}:{remote_node.rpc_port}"
-        )
-        while True:
-            pass
-
         with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.get("getEncryptedRecoveryShare")
-            if r.status != http.HTTPStatus.OK.value:
-                raise NoRecoveryShareFound(r)
+            r = mc.rpc("getEncryptedRecoveryShare", params={})
 
-            # Members rely on a copy of the original network encryption public
-            # key to decrypt their recovery shares
             ctx = infra.crypto.CryptoBoxCtx(
-                os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
+                os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem"),
                 defunct_network_enc_pubk,
             )
 
-            return base64.b64encode(
-                ctx.decrypt(
-                    base64.b64decode(r.result["encrypted_recovery_share"]),
-                    base64.b64decode(r.result["nonce"]),
-                )
-            ).decode()
+            nonce_bytes = bytes(r.result["nonce"])
+            encrypted_share_bytes = bytes(r.result["encrypted_share"])
+            return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
 
-    def submit_recovery_share(self, remote_node, decrypted_recovery_share):
-        with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc(
-                "submitRecoveryShare",
-                params={"recovery_share": decrypted_recovery_share},
-            )
-            assert r.error is None, f"Error submitting recovery share: {r.error}"
-            return r
+    def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):
+        # For now, all members are given an encryption key (for recovery)
+        infra.proc.ccall(
+            self.share_script,
+            "--rpc-address",
+            f"{remote_node.host}:{remote_node.rpc_port}",
+            "--member-enc-privk",
+            os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
+            "--network-enc-pubk",
+            defunct_network_enc_pubk,
+            "--cert",
+            os.path.join(self.common_dir, f"member{self.member_id}_cert.pem"),
+            "--key",
+            os.path.join(self.common_dir, f"member{self.member_id}_privk.pem"),
+            "--cacert",
+            os.path.join(self.common_dir, "networkcert.pem"),
+            "-i",
+        ).check_returncode()
+
+    # def submit_recovery_share(self, remote_node, decrypted_recovery_share):
+    #     with remote_node.member_client(member_id=self.member_id) as mc:
+    #         r = mc.rpc(
+    #             "submitRecoveryShare",
+    #             params={"recovery_share": decrypted_recovery_share},
+    #         )
+    #         assert r.error is None, f"Error submitting recovery share: {r.error}"
+    #         return r

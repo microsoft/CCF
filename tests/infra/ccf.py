@@ -57,6 +57,7 @@ def get_common_folder_name(workspace, label):
 
 class Network:
     KEY_GEN = "keygenerator.sh"
+    SHARE_SCRIPT = "submit_recovery_share.sh"
     DEFUNCT_NETWORK_ENC_PUBK = "network_enc_pubk_orig.pem"
     node_args_to_forward = [
         "enclave_type",
@@ -111,6 +112,7 @@ class Network:
         self.common_dir = None
         self.election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
+        self.share_script = os.path.join(binary_dir, self.SHARE_SCRIPT)
         if not os.path.isfile(self.key_generator):
             raise FileNotFoundError(
                 f"Could not find key generator script at '{self.key_generator}' - is binary directory set correctly?"
@@ -277,6 +279,7 @@ class Network:
         self.consortium = infra.consortium.Consortium(
             self.common_dir,
             self.key_generator,
+            self.share_script,
             initial_member_ids,
             args.participants_curve,
         )
@@ -329,7 +332,7 @@ class Network:
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
             self.consortium = infra.consortium.Consortium(
-                common_dir, self.key_generator, remote_node=primary
+                common_dir, self.key_generator, self.share_script, remote_node=primary
             )
 
         for node in self.get_joined_nodes():

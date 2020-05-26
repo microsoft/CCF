@@ -40,6 +40,7 @@ def test_share_resilience(network, args):
 
     # Submit all required recovery shares minus one. Last recovery share is
     # submitted after a new primary is found.
+    LOG.error(recovered_network.consortium.recovery_threshold)
     submitted_shares_count = 0
     for m in recovered_network.consortium.get_active_members():
         with primary.node_client() as nc:
@@ -50,14 +51,18 @@ def test_share_resilience(network, args):
                 last_member_to_submit = m
                 break
 
+            # TODO: Address issue of knowing when share is globally committed?
             check_commit = infra.checker.Checker(nc)
             decrypted_share = m.get_and_decrypt_recovery_share(
                 primary, defunct_network_enc_pubk
             )
-            check_commit(
-                m.submit_recovery_share(primary, decrypted_share), result=False
-            )
+            # check_commit(
+            #     m.submit_recovery_share(primary, decrypted_share), result=False
+            # )
             submitted_shares_count += 1
+
+    import time
+    time.sleep(2)
 
     # In theory, check_commit should be sufficient to guarantee that the new primary
     # will know about all the recovery shares submitted so far. However, because of
@@ -84,7 +89,7 @@ def test_share_resilience(network, args):
     decrypted_share = last_member_to_submit.get_and_decrypt_recovery_share(
         new_primary, defunct_network_enc_pubk
     )
-    last_member_to_submit.submit_recovery_share(new_primary, decrypted_share)
+    # last_member_to_submit.submit_recovery_share(new_primary, decrypted_share)
 
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(
