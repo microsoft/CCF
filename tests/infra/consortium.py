@@ -315,24 +315,17 @@ class Consortium:
 
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
-        with remote_node.node_client() as nc:
-            check_commit = infra.checker.Checker(nc)
-
-            for m in self.get_active_members():
-                decrypted_share = m.get_and_decrypt_recovery_share(
-                    remote_node, defunct_network_enc_pubk
-                )
-                r = m.submit_recovery_share(remote_node, decrypted_share)
-                submitted_shares_count += 1
-                check_commit(
-                    r,
-                    result=True
-                    if submitted_shares_count >= self.recovery_threshold
-                    else False,
-                )
-
-                if submitted_shares_count >= self.recovery_threshold:
-                    break
+        for m in self.get_active_members():
+            decrypted_share = m.get_and_decrypt_recovery_share(
+                remote_node, defunct_network_enc_pubk
+            )
+            r = m.submit_recovery_share(remote_node, decrypted_share)
+            submitted_shares_count += 1
+            assert r.result == (
+                True if submitted_shares_count >= self.recovery_threshold else False
+            )
+            if submitted_shares_count >= self.recovery_threshold:
+                break
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """
