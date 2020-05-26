@@ -219,7 +219,6 @@ namespace kv
   template <typename K, typename V, typename H>
   struct ConcreteTxView : public TxViewCommitter<K, V, H>,
                           public TxView<K, V, H>
-
   {
   public:
     ConcreteTxView(
