@@ -373,7 +373,6 @@ namespace kv
     virtual bool operator!=(const AbstractMap& that) const = 0;
 
     virtual AbstractStore* get_store() = 0;
-    virtual AbstractTxView* create_view(Version version) = 0;
     virtual void serialise(
       const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
     virtual AbstractTxView* deserialise(

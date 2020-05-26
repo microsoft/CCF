@@ -184,11 +184,6 @@ namespace kv
         return untyped_map.get_store();
       }
 
-      AbstractTxView* create_view(Version version) override
-      {
-        return untyped_map.create_view_internal<TxView>(version);
-      }
-
       void serialise(
         const AbstractTxView* view,
         KvStoreSerialiser& s,
@@ -265,6 +260,12 @@ namespace kv
             "Attempted to swap maps with incompatible types");
 
         untyped_map.swap(&p->untyped_map);
+      }
+
+      template <typename TView>
+      TView* create_view(Version v)
+      {
+        return untyped_map.create_view<TView>(v);
       }
 
       static UntypedMap::CommitHook wrap_commit_hook(const CommitHook& hook)

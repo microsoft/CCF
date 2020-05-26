@@ -23,11 +23,24 @@ namespace kv
     template <class M>
     std::tuple<typename M::TxView*> get_tuple(M& m)
     {
-      // If the M is present, its AbtractTxView must be an M::TxView.
+      using MapView = typename M::TxView;
+
+      // If the M is present, its AbtractTxView should be an M::TxView. This
+      // invariant could be broken by set_view_list, which will produce an error
+      // here
       auto search = view_list.find(m.get_name());
       if (search != view_list.end())
-        return std::make_tuple(
-          dynamic_cast<typename M::TxView*>(search->second.view.get()));
+      {
+        auto view = dynamic_cast<MapView*>(search->second.view.get());
+
+        if (view == nullptr)
+        {
+          throw std::logic_error(fmt::format(
+            "View over map {} is not of expected type", m.get_name()));
+        }
+
+        return std::make_tuple(view);
+      }
 
       auto it = view_list.begin();
       if (it != view_list.end())
@@ -44,9 +57,15 @@ namespace kv
         read_version = m.get_store()->current_version();
       }
 
-      AbstractTxView* view = m.create_view(read_version);
-      auto typed_view = dynamic_cast<typename M::TxView*>(view);
-      view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView>(view)};
+      MapView* typed_view = m.template create_view<MapView>(read_version);
+      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
+      if (abstract_view == nullptr)
+      {
+        throw std::logic_error(fmt::format(
+          "View over map {} is not an AbstractTxView", m.get_name()));
+      }
+      view_list[m.get_name()] = {
+        &m, std::unique_ptr<AbstractTxView>(abstract_view)};
       return std::make_tuple(typed_view);
     }
 

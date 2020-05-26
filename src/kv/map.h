@@ -62,7 +62,7 @@ namespace kv
     MyMap& map;
     size_t rollback_counter;
 
-    Version commit_version;
+    Version commit_version = NoVersion;
 
     bool changes = false;
     bool committed_writes = false;
@@ -299,6 +299,7 @@ namespace kv
     }
 
   public:
+    // Public typedef for external consumption
     using TxView = ConcreteTxView<K, V, H>;
 
     // Provide access to hidden rollback_counter, roll, create_new_local_commit
@@ -404,8 +405,11 @@ namespace kv
       KvStoreDeserialiser& d, Version version) override
     {
       // Create a new change set, and deserialise d's contents into it.
-      // Note that this is _only_ a committer - it cannot be sidecast to TxView.
-      auto view = create_view_internal<TxViewCommitter<K, V, H>>(version);
+      // TODO: Would really like this to be _only_ a TxViewCommitter, since we
+      // construct its changeset directly and then expect to commit it. However,
+      // due to set_view_list, this is sometimes sidecast to a TxView<K, V, H>
+      // so it needs to be full fat.
+      auto view = create_view<TxView>(version);
       view->set_commit_version(version);
 
       auto& change_set = view->get_change_set();
@@ -572,11 +576,6 @@ namespace kv
       return !(*this == that);
     }
 
-    AbstractTxView* create_view(Version version) override
-    {
-      return create_view_internal<TxView>(version);
-    }
-
     void compact(Version v) override
     {
       // This discards available rollback state before version v, and populates
@@ -692,7 +691,7 @@ namespace kv
     }
 
     template <typename TView>
-    TView* create_view_internal(Version version)
+    TView* create_view(Version version)
     {
       lock();
 
