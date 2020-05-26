@@ -62,7 +62,7 @@ namespace ccf
       const std::optional<std::set<NodeId>>& filter) override
     {}
 
-    void restore_ledger_secrets(kv::Tx& tx) override
+    void initiate_private_recovery(kv::Tx& tx) override
     {
       share_manager.restore_recovery_shares_info(tx, {});
     }

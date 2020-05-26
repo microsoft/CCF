@@ -846,11 +846,13 @@ namespace ccf
       return g.service_wait_for_shares();
     }
 
-    void finish_recovery(
-      kv::Tx& tx, const std::vector<kv::Version>& restored_versions)
+    void initiate_private_recovery(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
       sm.expect(State::partOfPublicNetwork);
+
+      auto restored_versions =
+        share_manager.restore_recovery_shares_info(tx, recovery_ledger_secrets);
 
       LOG_INFO_FMT("Initiating end of recovery (primary)");
 
@@ -871,6 +873,7 @@ namespace ccf
       ledger_idx = 0;
       read_ledger_idx(++ledger_idx);
 
+      recovery_ledger_secrets.clear();
       sm.advance(State::readingPrivateLedger);
     }
 
@@ -977,8 +980,8 @@ namespace ccf
         ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         LOG_FAIL_FMT(
-          "Ledger could not be rekeyed while the service is waiting for "
-          "recovery shares");
+          "Cannot rekey ledger while the service is waiting for recovery "
+          "shares");
         return false;
       }
 
@@ -1030,16 +1033,6 @@ namespace ccf
         return true;
       });
     };
-
-    void restore_ledger_secrets(kv::Tx& tx) override
-    {
-      finish_recovery(
-        tx,
-        share_manager.restore_recovery_shares_info(
-          tx, recovery_ledger_secrets));
-
-      recovery_ledger_secrets.clear();
-    }
 
     NodeId get_node_id() const override
     {

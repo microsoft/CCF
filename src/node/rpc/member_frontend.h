@@ -164,26 +164,12 @@ namespace ccf
              return false;
            }
 
-           if (member_info->status == MemberStatus::ACTIVE)
+           if (!g.retire_member(member_id))
            {
-             // If the member was active, it had a recovery share. Check that
-             // the new number of active members is still sufficient for
-             // recovery.
-             auto active_members_count_after = g.get_active_members_count() - 1;
-             auto recovery_threshold = g.get_recovery_threshold();
-             if (active_members_count_after < recovery_threshold)
-             {
-               LOG_FAIL_FMT(
-                 "Failed to retire member {}: number of active members ({}) "
-                 "would be less than recovery threshold ({})",
-                 member_id,
-                 active_members_count_after,
-                 recovery_threshold);
-               return false;
-             }
+             LOG_FAIL_FMT("Failed to retire member {}", member_id);
+             return false;
            }
 
-           g.retire_member(member_id);
            if (member_info->status == MemberStatus::ACTIVE)
            {
              // A retired member should not have access to the private ledger
@@ -908,7 +894,6 @@ namespace ccf
         }
 
         const auto in = params.get<SubmitRecoveryShare>();
-
         // TODO: This seems to crash the server when this fails!!
         auto raw_recovery_share = tls::raw_from_b64(in.recovery_share);
 
@@ -941,7 +926,7 @@ namespace ccf
 
         try
         {
-          node.restore_ledger_secrets(args.tx);
+          node.initiate_private_recovery(args.tx);
         }
         catch (const std::logic_error& e)
         {
@@ -949,12 +934,11 @@ namespace ccf
           share_manager.clear_submitted_recovery_shares(args.tx);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            fmt::format(
-              "Failed to restore recovery shares info: {}", e.what()));
+            fmt::format("Failed to initiate private recovery: {}", e.what()));
         }
 
         share_manager.clear_submitted_recovery_shares(args.tx);
-        return make_success("End of recovery protocol successfully initiated.");
+        return make_success(true);
       };
       install(
         MemberProcs::SUBMIT_RECOVERY_SHARE,

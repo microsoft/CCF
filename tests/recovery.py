@@ -40,7 +40,6 @@ def test_share_resilience(network, args):
 
     # Submit all required recovery shares minus one. Last recovery share is
     # submitted after a new primary is found.
-    LOG.error(recovered_network.consortium.recovery_threshold)
     submitted_shares_count = 0
     for m in recovered_network.consortium.get_active_members():
         with primary.node_client() as nc:
