@@ -933,8 +933,9 @@ namespace ccf
     bool is_primary() const override
     {
       return (
-        sm.check(State::partOfNetwork) &&
-        sm.check(State::partOfPublicNetwork) && consensus->is_primary());
+        (sm.check(State::partOfNetwork) ||
+         sm.check(State::partOfPublicNetwork)) &&
+        consensus->is_primary());
     }
 
     bool is_part_of_network() const override
