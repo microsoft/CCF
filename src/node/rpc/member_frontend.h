@@ -147,7 +147,12 @@ namespace ccf
              return false;
            }
 
-           g.retire_member(member_id);
+           if (!g.retire_member(member_id))
+           {
+             LOG_FAIL_FMT("Failed to retire member {}", member_id);
+             return false;
+           }
+
            if (member_info->status == MemberStatus::ACTIVE)
            {
              // A retired member should not have access to the private ledger
