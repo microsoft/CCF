@@ -281,18 +281,55 @@ TEST_CASE_TEMPLATE("foreach", MapImpl, RawMapTypes, ExperimentalMapTypes)
 
   SUBCASE("Early termination")
   {
-    kv::Tx tx;
-    auto view = tx.get_view(map);
-    view->put("key1", "value1");
-    view->put("key2", "value2");
-    view->put("key3", "value3");
-    size_t ctr = 0;
-    view->foreach([&ctr](const auto& key, const auto& value) {
-      ++ctr;
-      return ctr <= 1; // Continue after the first, but not the second (so never
-                       // see the third)
-    });
-    REQUIRE(ctr == 2);
+    {
+      kv::Tx tx;
+      auto view = tx.get_view(map);
+      view->put("key1", "value1");
+      view->put("key2", "value2");
+      view->put("key3", "value3");
+      size_t ctr = 0;
+      view->foreach([&ctr](const auto& key, const auto& value) {
+        ++ctr;
+        return ctr < 2; // Continue after the first, but not the second (so
+                        // never see the third)
+      });
+      REQUIRE(ctr == 2);
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
+
+    {
+      kv::Tx tx;
+      auto view = tx.get_view(map);
+      view->put("key4", "value4");
+      view->put("key5", "value5");
+
+      {
+        size_t ctr = 0;
+        view->foreach([&ctr](const auto&, const auto&) {
+          ++ctr;
+          return ctr < 2; //< See only committed state
+        });
+        REQUIRE(ctr == 2);
+      }
+
+      {
+        size_t ctr = 0;
+        view->foreach([&ctr](const auto&, const auto&) {
+          ++ctr;
+          return ctr < 4; //< See mix of old and state
+        });
+        REQUIRE(ctr == 4);
+      }
+
+      {
+        size_t ctr = 0;
+        view->foreach([&ctr](const auto&, const auto&) {
+          ++ctr;
+          return ctr < 100; //< See as much as possible
+        });
+        REQUIRE(ctr == 5);
+      }
+    }
   }
 }
 
