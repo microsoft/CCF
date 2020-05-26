@@ -51,6 +51,23 @@ namespace kv
       }
     };
 
+    template <typename T>
+    struct JsonSerialiser
+    {
+      static SerialisedRep to_serialised(const T& t)
+      {
+        const nlohmann::json j = t;
+        const auto dumped = j.dump();
+        return SerialisedRep(dumped.begin(), dumped.end());
+      }
+
+      static T from_serialised(const SerialisedRep& rep)
+      {
+        const auto j = nlohmann::json::parse(rep);
+        return j.get<T>();
+      }
+    };
+
     template <
       typename K,
       typename V,
@@ -64,6 +81,9 @@ namespace kv
       UntypedOperationsView untyped_view;
 
     public:
+      using KeyType = K;
+      using ValueType = V;
+
       TxView(
         UntypedMap& m,
         size_t rollbacks,
