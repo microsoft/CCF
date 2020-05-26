@@ -404,10 +404,6 @@ namespace kv
       KvStoreDeserialiser& d, Version version) override
     {
       // Create a new change set, and deserialise d's contents into it.
-      // TODO: Would really like this to be _only_ a TxViewCommitter, since we
-      // construct its changeset directly and then expect to commit it. However,
-      // due to set_view_list, this is sometimes sidecast to a TxView<K, V, H>
-      // so it needs to be full fat.
       auto view = create_view<TxView>(version);
       view->set_commit_version(version);
 
