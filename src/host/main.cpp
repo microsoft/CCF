@@ -121,6 +121,10 @@ int main(int argc, char** argv)
   app.add_option("--ledger-file", ledger_file, "Ledger file")
     ->capture_default_str();
 
+  std::string ledger_dir("ledger");
+  app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
+    ->capture_default_str();
+
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
   for (int i = logger::TRACE; i < logger::MAX_LOG_LEVEL; i++)
@@ -506,6 +510,7 @@ int main(int argc, char** argv)
 
   // write to a ledger
   asynchost::Ledger ledger(ledger_file, writer_factory);
+  asynchost::MultipleLedger ledgers(ledger_dir, writer_factory);
   ledger.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
