@@ -159,10 +159,27 @@ namespace ccf
         return false;
       }
 
-      auto member_info = member_to_retire.value();
-      member_info.status = MemberStatus::RETIRED;
-      m->put(member_id, member_info);
+      if (member_to_retire->status == MemberStatus::ACTIVE)
+      {
+        // If the member was active, it had a recovery share. Check that
+        // the new number of active members is still sufficient for
+        // recovery.
+        auto active_members_count_after = get_active_members_count() - 1;
+        auto recovery_threshold = get_recovery_threshold();
+        if (active_members_count_after < recovery_threshold)
+        {
+          LOG_FAIL_FMT(
+            "Failed to retire member {}: number of active members ({}) "
+            "would be less than recovery threshold ({})",
+            member_id,
+            active_members_count_after,
+            recovery_threshold);
+          return false;
+        }
+      }
 
+      member_to_retire->status = MemberStatus::RETIRED;
+      m->put(member_id, member_to_retire.value());
       return true;
     }
 
@@ -410,14 +427,14 @@ namespace ccf
         ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         LOG_FAIL_FMT(
-          "Failed to set recovery threshold: service is currently waiting for "
+          "Cannot set recovery threshold: service is currently waiting for "
           "recovery shares");
         return false;
       }
 
       if (threshold == 0)
       {
-        LOG_FAIL_FMT("Recovery threshold cannot be set to 0");
+        LOG_FAIL_FMT("Cannot set recovery threshold to 0");
         return false;
       }
 
@@ -425,8 +442,8 @@ namespace ccf
       if (threshold > active_members_count)
       {
         LOG_FAIL_FMT(
-          "Recovery threshold cannot be set to {} as it is greater than "
-          "the number of active members ({})",
+          "Cannot set recovery threshold to {} as it is greater than the "
+          "number of active members ({})",
           threshold,
           active_members_count);
         return false;
