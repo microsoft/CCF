@@ -391,20 +391,17 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-// TODO: Test the state provided in hooks, or remove it
-
 TEST_CASE_TEMPLATE(
   "Local commit hooks", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
-  using State = typename MapImpl::StringString::State;
   using Write = typename MapImpl::StringString::Write;
   std::vector<Write> local_writes;
   std::vector<Write> global_writes;
 
-  auto local_hook = [&](kv::Version v, const State& s, const Write& w) {
+  auto local_hook = [&](kv::Version v, const Write& w) {
     local_writes.push_back(w);
   };
-  auto global_hook = [&](kv::Version v, const State& s, const Write& w) {
+  auto global_hook = [&](kv::Version v, const Write& w) {
     global_writes.push_back(w);
   };
 
@@ -476,7 +473,6 @@ TEST_CASE_TEMPLATE(
 TEST_CASE_TEMPLATE(
   "Global commit hooks", MapImpl, RawMapTypes, ExperimentalMapTypes)
 {
-  using State = typename MapImpl::StringString::State;
   using Write = typename MapImpl::StringString::Write;
 
   struct GlobalHookInput
@@ -487,7 +483,7 @@ TEST_CASE_TEMPLATE(
 
   std::vector<GlobalHookInput> global_writes;
 
-  auto global_hook = [&](kv::Version v, const State& s, const Write& w) {
+  auto global_hook = [&](kv::Version v, const Write& w) {
     global_writes.emplace_back(GlobalHookInput({v, w}));
   };
 

@@ -227,8 +227,9 @@ namespace kv
     virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
       SeqNo seqno,
-      std::unordered_set<NodeId> conf,
+      const std::unordered_set<NodeId>& conf,
       const NodeConf& node_conf = {}) = 0;
+    virtual std::unordered_set<NodeId> get_latest_configuration() const = 0;
 
     virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {

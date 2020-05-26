@@ -340,7 +340,8 @@ namespace kv
         // otherwise the view will be considered as having a committed
         // version
         auto deserialise_version = (commit ? v : NoVersion);
-        auto deserialised_write_set = search->second->deserialise(*d, deserialise_version);
+        auto deserialised_write_set =
+          search->second->deserialise(*d, deserialise_version);
         if (deserialised_write_set == nullptr)
         {
           LOG_FAIL_FMT(
@@ -350,9 +351,11 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        // Take ownership of the produced write set, store it to be committed later
-        views[map_name] = {search->second.get(),
-                           std::unique_ptr<AbstractTxView>(deserialised_write_set)};
+        // Take ownership of the produced write set, store it to be committed
+        // later
+        views[map_name] = {
+          search->second.get(),
+          std::unique_ptr<AbstractTxView>(deserialised_write_set)};
       }
 
       if (!d->end())

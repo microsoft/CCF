@@ -195,7 +195,7 @@ namespace kv
       if (map.local_hook)
       {
         auto roll = map.roll->get_tail();
-        map.local_hook(roll->version, roll->state, roll->writes);
+        map.local_hook(roll->version, roll->writes);
       }
     }
 
@@ -235,8 +235,7 @@ namespace kv
 
   /// Signature for transaction commit handlers
   template <typename K, typename V, typename H>
-  using CommitHook =
-    std::function<void(Version, const State<K, V, H>&, const Write<K, V, H>&)>;
+  using CommitHook = std::function<void(Version, const Write<K, V, H>&)>;
 
   template <class K, class V, class H>
   class Map : public AbstractMap
@@ -629,7 +628,7 @@ namespace kv
       {
         for (auto r = commit_deltas.get_head(); r != nullptr; r = r->next)
         {
-          global_hook(r->version, r->state, r->writes);
+          global_hook(r->version, r->writes);
         }
       }
 

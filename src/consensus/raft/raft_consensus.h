@@ -81,10 +81,15 @@ namespace raft
 
     void add_configuration(
       SeqNo seqno,
-      std::unordered_set<NodeId> conf,
+      const std::unordered_set<NodeId>& conf,
       const NodeConf& node_conf = {}) override
     {
       raft->add_configuration(seqno, conf);
+    }
+
+    std::unordered_set<NodeId> get_latest_configuration() const override
+    {
+      return raft->get_latest_configuration();
     }
 
     void periodic(std::chrono::milliseconds elapsed) override

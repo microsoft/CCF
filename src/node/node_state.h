@@ -1331,8 +1331,7 @@ namespace ccf
       // When a transaction that changes the configuration commits globally,
       // inform the host of any nodes that no longer need to be tracked.
       network.nodes.set_global_hook(
-        [this](
-          kv::Version version, const Nodes::State&, const Nodes::Write& w) {
+        [this](kv::Version version, const Nodes::Write& w) {
           for (auto& [node_id, ni] : w)
           {
             if (ni.value.status == NodeStatus::RETIRED)
@@ -1340,99 +1339,95 @@ namespace ccf
           }
         });
 
-      network.service.set_global_hook([this](
-                                        kv::Version version,
-                                        const Service::State&,
-                                        const Service::Write& w) {
-        if (w.at(0).value.status == ServiceStatus::OPEN)
-        {
-          this->consensus->set_f(1);
-          open_user_frontend();
-          LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
-        }
-      });
-
-      network.secrets.set_local_hook([this](
-                                       kv::Version version,
-                                       const Secrets::State&,
-                                       const Secrets::Write& w) {
-        bool has_secrets = false;
-        std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
-
-        for (auto& [v, secret_set] : w)
-        {
-          for (auto& encrypted_secret_for_node : secret_set.value.secrets)
+      network.service.set_global_hook(
+        [this](kv::Version version, const Service::Write& w) {
+          if (w.at(0).value.status == ServiceStatus::OPEN)
           {
-            if (encrypted_secret_for_node.node_id == self)
+            this->consensus->set_f(1);
+            open_user_frontend();
+            LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
+          }
+        });
+
+      network.secrets.set_local_hook(
+        [this](kv::Version version, const Secrets::Write& w) {
+          bool has_secrets = false;
+          std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
+
+          for (auto& [v, secret_set] : w)
+          {
+            for (auto& encrypted_secret_for_node : secret_set.value.secrets)
             {
-              crypto::GcmCipher gcmcipher;
-              gcmcipher.deserialise(encrypted_secret_for_node.encrypted_secret);
-              std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
-
-              auto primary_pubk = tls::make_public_key(
-                secret_set.value.primary_public_encryption_key);
-
-              crypto::KeyAesGcm primary_shared_key(
-                tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
-                  .compute_shared_secret());
-
-              if (!primary_shared_key.decrypt(
-                    gcmcipher.hdr.get_iv(),
-                    gcmcipher.hdr.tag,
-                    gcmcipher.cipher,
-                    nullb,
-                    plain_secret.data()))
+              if (encrypted_secret_for_node.node_id == self)
               {
-                throw std::logic_error(
-                  "Decryption of past network secrets failed");
-              }
+                crypto::GcmCipher gcmcipher;
+                gcmcipher.deserialise(
+                  encrypted_secret_for_node.encrypted_secret);
+                std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
 
-              has_secrets = true;
+                auto primary_pubk = tls::make_public_key(
+                  secret_set.value.primary_public_encryption_key);
 
-              // If the version key is NoVersion, we are rekeying. Use the
-              // version passed to the hook instead. For recovery, the version
-              // of the past secrets is passed as the key.
-              kv::Version secret_version = (v == kv::NoVersion) ? version : v;
+                crypto::KeyAesGcm primary_shared_key(
+                  tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
+                    .compute_shared_secret());
 
-              if (is_part_of_public_network())
-              {
-                restored_secrets.push_back(
-                  {secret_version, LedgerSecret(plain_secret)});
-              }
-              else
-              {
-                // When rekeying, set the encryption key for the next version
-                // onward (for the backups to deserialise this transaction
-                // with the old key). The encryptor is in charge of updating
-                // the ledger secrets on global commit.
-                encryptor->update_encryption_key(
-                  secret_version + 1, plain_secret);
+                if (!primary_shared_key.decrypt(
+                      gcmcipher.hdr.get_iv(),
+                      gcmcipher.hdr.tag,
+                      gcmcipher.cipher,
+                      nullb,
+                      plain_secret.data()))
+                {
+                  throw std::logic_error(
+                    "Decryption of past network secrets failed");
+                }
+
+                has_secrets = true;
+
+                // If the version key is NoVersion, we are rekeying. Use the
+                // version passed to the hook instead. For recovery, the version
+                // of the past secrets is passed as the key.
+                kv::Version secret_version = (v == kv::NoVersion) ? version : v;
+
+                if (is_part_of_public_network())
+                {
+                  restored_secrets.push_back(
+                    {secret_version, LedgerSecret(plain_secret)});
+                }
+                else
+                {
+                  // When rekeying, set the encryption key for the next version
+                  // onward (for the backups to deserialise this transaction
+                  // with the old key). The encryptor is in charge of updating
+                  // the ledger secrets on global commit.
+                  encryptor->update_encryption_key(
+                    secret_version + 1, plain_secret);
+                }
               }
             }
           }
-        }
 
-        // When recovering, trigger end of recovery protocol
-        if (has_secrets && is_part_of_public_network())
-        {
-          restored_secrets.sort(
-            [](
-              const LedgerSecrets::VersionedLedgerSecret& a,
-              const LedgerSecrets::VersionedLedgerSecret& b) {
-              return a.version < b.version;
-            });
+          // When recovering, trigger end of recovery protocol
+          if (has_secrets && is_part_of_public_network())
+          {
+            restored_secrets.sort(
+              [](
+                const LedgerSecrets::VersionedLedgerSecret& a,
+                const LedgerSecrets::VersionedLedgerSecret& b) {
+                return a.version < b.version;
+              });
 
-          network.ledger_secrets->restore(std::move(restored_secrets));
-          backup_finish_recovery();
-        }
-      });
+            network.ledger_secrets->restore(std::move(restored_secrets));
+            backup_finish_recovery();
+          }
+        });
     }
 
     void setup_recovery_hook()
     {
       network.shares.set_local_hook(
-        [this](
-          kv::Version version, const Shares::State&, const Shares::Write& w) {
+        [this](kv::Version version, const Shares::Write& w) {
           if (is_reading_public_ledger())
           {
             for (auto& [k, v] : w)
@@ -1515,45 +1510,49 @@ namespace ccf
       // map the node id to a hostname and service and inform raft so that it
       // can add a new active configuration.
       network.nodes.set_local_hook(
-        [this](
-          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
+        [this](kv::Version version, const Nodes::Write& w) {
           auto configure = false;
-          std::unordered_set<NodeId> configuration;
+          std::unordered_set<NodeId> configuration =
+            consensus->get_latest_configuration();
 
           for (auto& [node_id, ni] : w)
           {
-            switch (ni.value.status)
+            if (kv::is_deleted(ni.version))
             {
-              case NodeStatus::PENDING:
+              configuration.erase(node_id);
+            }
+            else
+            {
+              switch (ni.value.status)
               {
-                // Pending nodes are not added to consensus until they are
-                // trusted
-                break;
+                case NodeStatus::PENDING:
+                {
+                  // Pending nodes are not added to consensus until they are
+                  // trusted
+                  break;
+                }
+                case NodeStatus::TRUSTED:
+                {
+                  add_node(node_id, ni.value.nodehost, ni.value.nodeport);
+                  configuration.insert(node_id);
+                  configure = true;
+                  break;
+                }
+                case NodeStatus::RETIRED:
+                {
+                  configuration.erase(node_id);
+                  configure = true;
+                  break;
+                }
+                default:
+                {}
               }
-              case NodeStatus::TRUSTED:
-              {
-                add_node(node_id, ni.value.nodehost, ni.value.nodeport);
-                configure = true;
-                break;
-              }
-              case NodeStatus::RETIRED:
-              {
-                configure = true;
-                break;
-              }
-              default:
-              {}
             }
           }
 
           if (configure)
           {
-            s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
-              if (v.value.status == NodeStatus::TRUSTED)
-                configuration.insert(node_id);
-              return true;
-            });
-            consensus->add_configuration(version, move(configuration));
+            consensus->add_configuration(version, configuration);
           }
         });
 
@@ -1677,16 +1676,14 @@ namespace ccf
       // When a node is added, even locally, inform the host so that it can
       // map the node id to a hostname and service and inform pbft
       network.nodes.set_local_hook(
-        [this](
-          kv::Version version, const Nodes::State&, const Nodes::Write& w) {
-          std::unordered_set<NodeId> configuration;
+        [this](kv::Version version, const Nodes::Write& w) {
           for (auto& [node_id, ni] : w)
           {
             add_node(node_id, ni.value.nodehost, ni.value.nodeport);
 
             consensus->add_configuration(
               version,
-              configuration,
+              {},
               {node_id, ni.value.nodehost, ni.value.nodeport, ni.value.cert});
           }
         });

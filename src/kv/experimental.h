@@ -169,12 +169,8 @@ namespace kv
       // to you, they should be an implementation detail. Can we remove them
       // from commit hooks? This introduces a requirement that the type is
       // hashable! Unhappy!
-      using State = State<K, V, __K_HASH>;
-
       using Write = Write<K, V, __K_HASH>;
 
-      // TODO: Is this the correct choice? Or should we just gives hooks the
-      // serialised forms and let them convert themselves?
       using CommitHook = CommitHook<K, V, __K_HASH>;
 
       using TxView = kv::experimental::TxView<K, V, KSerialiser, VSerialiser>;
@@ -290,31 +286,29 @@ namespace kv
 
       static UntypedMap::CommitHook wrap_commit_hook(const CommitHook& hook)
       {
-        return
-          [hook](
-            Version v, const UntypedMap::State& s, const UntypedMap::Write& w) {
-            // TODO: We're abandoning s for now. This is wrong!
-            Write typed_w;
-            for (const auto& [uk, version_uv] : w)
+        return [hook](Version v, const UntypedMap::Write& w) {
+          Write typed_w;
+          for (const auto& [uk, version_uv] : w)
+          {
+            if (version_uv.version == NoVersion)
             {
-              if (version_uv.version == NoVersion)
-              {
-                // Deletions are indicated by {NoVersion, {}}. The second
-                // element in the serialised representation is an empty vector,
-                // which may not be safely serialisable! So we duplicate the old
-                // behaviour and use default-constructed V
-                typed_w[KSerialiser::from_serialised(uk)] =
-                  VersionV{NoVersion, V{}};
-              }
-              else
-              {
-                typed_w[KSerialiser::from_serialised(uk)] =
-                  VersionV{version_uv.version,
-                           VSerialiser::from_serialised(version_uv.value)};
-              }
+              // Deletions are indicated by {NoVersion, {}}. The second
+              // element in the serialised representation is an empty vector,
+              // which may not be safely serialisable! So we duplicate the old
+              // behaviour and use default-constructed V
+              typed_w[KSerialiser::from_serialised(uk)] =
+                VersionV{NoVersion, V{}};
             }
-            hook(v, {}, typed_w);
-          };
+            else
+            {
+              typed_w[KSerialiser::from_serialised(uk)] =
+                VersionV{version_uv.version,
+                         VSerialiser::from_serialised(version_uv.value)};
+            }
+          }
+
+          hook(v, typed_w);
+        };
       }
 
       void set_local_hook(const CommitHook& hook)
