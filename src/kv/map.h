@@ -157,11 +157,11 @@ namespace kv
         for (auto it = change_set.writes.begin(); it != change_set.writes.end();
              ++it)
         {
-          if (it->second.version >= 0)
+          if (it->second.has_value())
           {
             // Write the new value with the global version.
             changes = true;
-            state = state.put(it->first, VersionV{v, it->second.value});
+            state = state.put(it->first, VersionV{v, it->second.value()});
           }
           else
           {
@@ -364,7 +364,7 @@ namespace kv
       for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {
-        if (!is_deleted(it->second.version))
+        if (it->second.has_value())
         {
           ++write_ctr;
         }
@@ -382,9 +382,9 @@ namespace kv
       for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {
-        if (!is_deleted(it->second.version))
+        if (it->second.has_value())
         {
-          s.serialise_write(it->first, it->second.value);
+          s.serialise_write(it->first, it->second.value());
         }
       }
 
@@ -392,7 +392,7 @@ namespace kv
       for (auto it = change_set.writes.begin(); it != change_set.writes.end();
            ++it)
       {
-        if (is_deleted(it->second.version))
+        if (!it->second.has_value())
         {
           s.serialise_remove(it->first);
         }
@@ -427,14 +427,14 @@ namespace kv
       for (size_t i = 0; i < ctr; ++i)
       {
         auto w = d.template deserialise_write<K, V>();
-        change_set.writes[std::get<0>(w)] = {0, std::get<1>(w)};
+        change_set.writes[std::get<0>(w)] = std::get<1>(w);
       }
 
       ctr = d.deserialise_remove_header();
       for (size_t i = 0; i < ctr; ++i)
       {
         auto r = d.template deserialise_remove<K>();
-        change_set.writes[r] = {NoVersion, V()};
+        change_set.writes[r] = std::nullopt;
       }
 
       return view;

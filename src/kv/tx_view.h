@@ -31,7 +31,8 @@ namespace kv
   using Read = std::unordered_map<K, Version, H>;
 
   template <typename K, typename V, typename H = std::hash<K>>
-  using Write = std::unordered_map<K, VersionV<V>, H>;
+  using Write =
+    std::unordered_map<K, std::optional<V>, H>; //< nullopt indicates a deletion
 
   // This is a container for a write-set + dependencies. It can be applied to a
   // given state, or used to track a set of operations on a state
@@ -96,13 +97,9 @@ namespace kv
       auto write = tx_changes.writes.find(key);
       if (write != tx_changes.writes.end())
       {
-        // Return empty for a key that has been removed.
-        if (is_deleted(write->second.version))
-        {
-          return std::nullopt;
-        }
-
-        return write->second.value;
+        // May be empty, for a key that has been removed. This matches the
+        // return semantics
+        return write->second;
       }
 
       // If the key doesn't exist, return empty and record that we depend on
@@ -174,7 +171,7 @@ namespace kv
     bool put(const K& key, const V& value)
     {
       // Record in the write set.
-      tx_changes.writes[key] = {0, value};
+      tx_changes.writes[key] = value;
       return true;
     }
 
@@ -203,7 +200,7 @@ namespace kv
         else
         {
           // If we have written, change the write set to indicate a remove.
-          write->second = {NoVersion, V()};
+          write->second = std::nullopt;
         }
 
         return true;
@@ -219,7 +216,7 @@ namespace kv
       tx_changes.writes.emplace(
         std::piecewise_construct,
         std::forward_as_tuple(key),
-        std::forward_as_tuple(NoVersion, V()));
+        std::forward_as_tuple(std::nullopt));
       return true;
     }
 
@@ -247,8 +244,8 @@ namespace kv
            write != tx_changes.writes.end();
            ++write)
       {
-        if (!is_deleted(write->second.version))
-          if (!f(write->first, write->second.value))
+        if (write->second.has_value())
+          if (!f(write->first, write->second.value()))
             return false;
       }
       return true;
