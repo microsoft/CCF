@@ -316,7 +316,7 @@ TEST_CASE_TEMPLATE("foreach", MapImpl, RawMapTypes, ExperimentalMapTypes)
         size_t ctr = 0;
         view->foreach([&ctr](const auto&, const auto&) {
           ++ctr;
-          return ctr < 4; //< See mix of old and state
+          return ctr < 4; //< See mix of old state and new writes
         });
         REQUIRE(ctr == 4);
       }

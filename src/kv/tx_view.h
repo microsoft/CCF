@@ -255,8 +255,9 @@ namespace kv
              ++write)
         {
           if (!is_deleted(write->second.version))
-            if (!f(write->first, write->second.value))
-              should_continue = f(write->first, write->second.value);
+          {
+            should_continue = f(write->first, write->second.value);
+          }
 
           if (!should_continue)
           {
