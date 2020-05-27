@@ -1321,7 +1321,8 @@ namespace ccf
           {
             if (!opt_ni.has_value())
             {
-              throw std::logic_error("Unexpected: removal from nodes table");
+              throw std::logic_error(fmt::format(
+                "Unexpected: removal from nodes table ({})", node_id));
             }
 
             const auto& ni = opt_ni.value();
@@ -1359,7 +1360,8 @@ namespace ccf
         {
           if (!opt_secret_set.has_value())
           {
-            throw std::logic_error("Unexpected: removal from secrets table");
+            throw std::logic_error(
+              fmt::format("Unexpected: removal from secrets table ({})", v));
           }
 
           const auto& secret_set = opt_secret_set.value();
@@ -1450,7 +1452,8 @@ namespace ccf
           {
             if (!opt_v.has_value())
             {
-              throw std::logic_error("Unexpected: removal from shares table");
+              throw std::logic_error(
+                fmt::format("Unexpected: removal from shares table ({})", k));
             }
 
             const auto& v = opt_v.value();
@@ -1539,7 +1542,8 @@ namespace ccf
           {
             if (!opt_ni.has_value())
             {
-              throw std::logic_error("Unexpected: removal from nodes table");
+              throw std::logic_error(fmt::format(
+                "Unexpected: removal from nodes table ({})", node_id));
             }
 
             const auto& ni = opt_ni.value();
@@ -1700,7 +1704,8 @@ namespace ccf
           {
             if (!opt_ni.has_value())
             {
-              throw std::logic_error("Unexpected: removal from nodes table");
+              throw std::logic_error(fmt::format(
+                "Unexpected: removal from nodes table ({})", node_id));
             }
 
             const auto& ni = opt_ni.value();
