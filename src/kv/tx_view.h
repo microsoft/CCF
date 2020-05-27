@@ -30,14 +30,15 @@ namespace kv
   template <typename K, typename V, typename H>
   using Read = std::unordered_map<K, Version, H>;
 
-  template <typename K, typename V, typename H>
+  template <typename K, typename V, typename H = std::hash<K>>
   using Write = std::unordered_map<K, VersionV<V>, H>;
 
-  template <typename K, typename V, typename H>
-  class TxView
+  // This is a container for a write-set + dependencies. It can be applied to a
+  // given state, or used to track a set of operations on a state
+  template <typename K, typename V, typename H = std::hash<K>>
+  struct ChangeSet
   {
-  protected:
-    using VersionV = VersionV<V>;
+  public:
     using State = State<K, V, H>;
     using Read = Read<K, V, H>;
     using Write = Write<K, V, H>;
@@ -46,9 +47,28 @@ namespace kv
     State committed;
     Version start_version;
 
+    Version read_version = NoVersion;
     Read reads = {};
     Write writes = {};
-    Version read_version = NoVersion;
+
+    ChangeSet(
+      State& current_state, State& committed_state, Version current_version) :
+      state(current_state),
+      committed(committed_state),
+      start_version(current_version)
+    {}
+
+    ChangeSet(ChangeSet&) = delete;
+  };
+
+  template <typename K, typename V, typename H = std::hash<K>>
+  class TxView
+  {
+  protected:
+    using State = State<K, V, H>;
+
+    using ChangeSet = ChangeSet<K, V, H>;
+    ChangeSet& tx_changes;
 
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
@@ -57,11 +77,7 @@ namespace kv
     using KeyType = K;
     using ValueType = V;
 
-    TxView(State& current_state, State& committed_state, Version v) :
-      state(current_state),
-      committed(committed_state),
-      start_version(v)
-    {}
+    TxView(ChangeSet& cs) : tx_changes(cs) {}
 
     /** Get value for key
      *
@@ -77,8 +93,8 @@ namespace kv
     {
       // A write followed by a read doesn't introduce a read dependency.
       // If we have written, return the value without updating the read set.
-      auto write = writes.find(key);
-      if (write != writes.end())
+      auto write = tx_changes.writes.find(key);
+      if (write != tx_changes.writes.end())
       {
         // Return empty for a key that has been removed.
         if (is_deleted(write->second.version))
@@ -91,16 +107,16 @@ namespace kv
 
       // If the key doesn't exist, return empty and record that we depend on
       // the key not existing.
-      auto search = state.get(key);
+      auto search = tx_changes.state.get(key);
       if (!search.has_value())
       {
-        reads.insert(std::make_pair(key, NoVersion));
+        tx_changes.reads.insert(std::make_pair(key, NoVersion));
         return std::nullopt;
       }
 
       // Record the version that we depend on.
       auto& found = search.value();
-      reads.insert(std::make_pair(key, found.version));
+      tx_changes.reads.insert(std::make_pair(key, found.version));
 
       // If the key has been deleted, return empty.
       if (is_deleted(found.version))
@@ -128,7 +144,7 @@ namespace kv
     std::optional<V> get_globally_committed(const K& key)
     {
       // If there is no committed value, return empty.
-      auto search = committed.get(key);
+      auto search = tx_changes.committed.get(key);
       if (!search.has_value())
       {
         return std::nullopt;
@@ -158,7 +174,7 @@ namespace kv
     bool put(const K& key, const V& value)
     {
       // Record in the write set.
-      writes[key] = {0, value};
+      tx_changes.writes[key] = {0, value};
       return true;
     }
 
@@ -173,16 +189,16 @@ namespace kv
      */
     bool remove(const K& key)
     {
-      auto write = writes.find(key);
-      auto search = state.get(key).has_value();
+      auto write = tx_changes.writes.find(key);
+      auto search = tx_changes.state.get(key).has_value();
 
-      if (write != writes.end())
+      if (write != tx_changes.writes.end())
       {
         if (!search)
         {
           // this key only exists locally, there is no reason to maintain and
           // serialise it
-          writes.erase(key);
+          tx_changes.writes.erase(key);
         }
         else
         {
@@ -200,7 +216,7 @@ namespace kv
       }
 
       // Record in the write set.
-      writes.emplace(
+      tx_changes.writes.emplace(
         std::piecewise_construct,
         std::forward_as_tuple(key),
         std::forward_as_tuple(NoVersion, V()));
@@ -216,10 +232,10 @@ namespace kv
     bool foreach(F&& f)
     {
       // Record a global read dependency.
-      read_version = start_version;
-      auto& w = writes;
+      tx_changes.read_version = tx_changes.start_version;
+      auto& w = tx_changes.writes;
 
-      state.foreach([&w, &f](const K& k, const VersionV& v) {
+      tx_changes.state.foreach([&w, &f](const K& k, const VersionV<V>& v) {
         auto write = w.find(k);
 
         if ((write == w.end()) && !is_deleted(v.version))
@@ -227,7 +243,9 @@ namespace kv
         return true;
       });
 
-      for (auto write = writes.begin(); write != writes.end(); ++write)
+      for (auto write = tx_changes.writes.begin();
+           write != tx_changes.writes.end();
+           ++write)
       {
         if (!is_deleted(write->second.version))
           if (!f(write->first, write->second.value))
