@@ -52,15 +52,17 @@ def test_share_resilience(network, args):
 
             # TODO: Address issue of knowing when share is globally committed?
             check_commit = infra.checker.Checker(nc)
-            decrypted_share = m.get_and_decrypt_recovery_share(
-                primary, defunct_network_enc_pubk
-            )
+            # decrypted_share = m.get_and_decrypt_recovery_share(
+            #     primary, defunct_network_enc_pubk
+            # )
+            m.get_and_submit_recovery_share(primary, defunct_network_enc_pubk)
             # check_commit(
             #     m.submit_recovery_share(primary, decrypted_share), result=False
             # )
             submitted_shares_count += 1
 
     import time
+
     time.sleep(2)
 
     # In theory, check_commit should be sufficient to guarantee that the new primary
@@ -85,10 +87,9 @@ def test_share_resilience(network, args):
         new_primary is not primary
     ), f"Primary {primary.node_id} should have changed after election"
 
-    decrypted_share = last_member_to_submit.get_and_decrypt_recovery_share(
+    last_member_to_submit.get_and_submit_recovery_share(
         new_primary, defunct_network_enc_pubk
     )
-    # last_member_to_submit.submit_recovery_share(new_primary, decrypted_share)
 
     for node in recovered_network.get_joined_nodes():
         recovered_network.wait_for_state(

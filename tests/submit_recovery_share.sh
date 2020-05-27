@@ -64,7 +64,7 @@ fi
 
 # set -x
 # Retrieve encrypted recovery share and nonce
-resp=$(curl -sS https://${node_rpc_address}/members/getEncryptedRecoveryShare ${@})
+resp=$(curl https://${node_rpc_address}/members/getEncryptedRecoveryShare ${@})
 encrypted_share="$(echo ${resp} | jq -r .encrypted_recovery_share)"
 nonce="$(echo ${resp} | jq -r .nonce)"
 
