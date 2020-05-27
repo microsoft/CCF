@@ -53,7 +53,8 @@ namespace asynchost
 
           if (size < msg_size)
           {
-            LOG_DEBUG_FMT("from node {} have {}/{} bytes", node, size, msg_size);
+            LOG_DEBUG_FMT(
+              "from node {} have {}/{} bytes", node, size, msg_size);
             break;
           }
 
