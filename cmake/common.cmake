@@ -194,6 +194,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
   use_client_mbedtls(cchost)
+  target_compile_options(cchost PRIVATE -stdlib=libc++)
   target_include_directories(
     cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CCF_GENERATED_DIR}
   )
@@ -206,7 +207,11 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             ${CRYPTO_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
-            openenclave::oehostapp
+            openenclave::oehost
+            -lc++
+            -lc++abi
+            -lc++fs
+            -stdlib=libc++
             ccfcrypto.host
             evercrypt.host
             CURL::libcurl
