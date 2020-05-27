@@ -123,10 +123,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.virtual
-    PUBLIC -stdlib=libc++
-           -lc++
-           -lc++abi
-           -lc++fs
+    PUBLIC ${LINK_LIBCXX}
            -static-libgcc
            -lgcc
            ccfcrypto.host
@@ -461,10 +458,13 @@ if(BUILD_TESTS)
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
-    ADDITIONAL_ARGS --recovery 2
-    # Shorten Raft election timeout to speed up test when it kills a node on purpose
-    # to check that a recovery network is robust to a view change.
-      --raft-election-timeout 4000
+    ADDITIONAL_ARGS
+      --recovery
+      2
+      # Shorten Raft election timeout to speed up test when it kills a node on
+      # purpose to check that a recovery network is robust to a view change.
+      --raft-election-timeout
+      4000
   )
 
   add_e2e_test(
