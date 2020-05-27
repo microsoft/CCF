@@ -226,42 +226,29 @@ namespace kv
      * whether the iteration should continue (true) or stop (false)
      */
     template <class F>
-    void foreach(F&& f)
+    bool foreach(F&& f)
     {
       // Record a global read dependency.
       tx_changes.read_version = tx_changes.start_version;
       auto& w = tx_changes.writes;
-      bool should_continue = true;
 
-      tx_changes.state.foreach(
-        [&w, &f, &should_continue](const K& k, const VersionV<V>& v) {
-          auto write = w.find(k);
+      tx_changes.state.foreach([&w, &f](const K& k, const VersionV<V>& v) {
+        auto write = w.find(k);
 
-          if ((write == w.end()) && !is_deleted(v.version))
-          {
-            should_continue = f(k, v.value);
-          }
+        if ((write == w.end()) && !is_deleted(v.version))
+          return f(k, v.value);
+        return true;
+      });
 
-          return should_continue;
-        });
-
-      if (should_continue)
+      for (auto write = tx_changes.writes.begin();
+           write != tx_changes.writes.end();
+           ++write)
       {
-        for (auto write = tx_changes.writes.begin();
-             write != tx_changes.writes.end();
-             ++write)
-        {
-          if (write->second.has_value())
-          {
-            should_continue = f(write->first, write->second.value());
-          }
-
-          if (!should_continue)
-          {
-            break;
-          }
-        }
+        if (write->second.has_value())
+          if (!f(write->first, write->second.value()))
+            return false;
       }
+      return true;
     }
   };
 }

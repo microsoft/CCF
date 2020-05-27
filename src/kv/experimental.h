@@ -132,14 +132,14 @@ namespace kv
       }
 
       template <class F>
-      void foreach(F&& f)
+      bool foreach(F&& f)
       {
         auto g = [&](const SerialisedRep& k_rep, const SerialisedRep& v_rep) {
           return f(
             KSerialiser::from_serialised(k_rep),
             VSerialiser::from_serialised(v_rep));
         };
-        untyped_view.foreach(g);
+        return untyped_view.foreach(g);
       }
     };
 
