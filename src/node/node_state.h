@@ -1317,16 +1317,31 @@ namespace ccf
       // inform the host of any nodes that no longer need to be tracked.
       network.nodes.set_global_hook(
         [this](kv::Version version, const Nodes::Write& w) {
-          for (auto& [node_id, ni] : w)
+          for (const auto& [node_id, opt_ni] : w)
           {
-            if (ni.value.status == NodeStatus::RETIRED)
+            if (!opt_ni.has_value())
+            {
+              throw std::logic_error("Unexpected: removal from nodes table");
+            }
+
+            const auto& ni = opt_ni.value();
+            if (ni.status == NodeStatus::RETIRED)
+            {
               remove_node(node_id);
+            }
           }
         });
 
       network.service.set_global_hook(
         [this](kv::Version version, const Service::Write& w) {
-          if (w.at(0).value.status == ServiceStatus::OPEN)
+          const auto it = w.find(0);
+          if (it == w.end() || !it->second.has_value())
+          {
+            throw std::logic_error(
+              "Unexpected: write to service table does not include key 0");
+          }
+
+          if (it->second.value().status == ServiceStatus::OPEN)
           {
             this->consensus->set_f(1);
             open_user_frontend();
@@ -1334,79 +1349,86 @@ namespace ccf
           }
         });
 
-      network.secrets.set_local_hook(
-        [this](kv::Version version, const Secrets::Write& w) {
-          bool has_secrets = false;
-          std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
+      network.secrets.set_local_hook([this](
+                                       kv::Version version,
+                                       const Secrets::Write& w) {
+        bool has_secrets = false;
+        std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
 
-          for (auto& [v, secret_set] : w)
+        for (const auto& [v, opt_secret_set] : w)
+        {
+          if (!opt_secret_set.has_value())
           {
-            for (auto& encrypted_secret_for_node : secret_set.value.secrets)
+            throw std::logic_error("Unexpected: removal from secrets table");
+          }
+
+          const auto& secret_set = opt_secret_set.value();
+
+          for (auto& encrypted_secret_for_node : secret_set.secrets)
+          {
+            if (encrypted_secret_for_node.node_id == self)
             {
-              if (encrypted_secret_for_node.node_id == self)
+              crypto::GcmCipher gcmcipher;
+              gcmcipher.deserialise(encrypted_secret_for_node.encrypted_secret);
+              std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
+
+              auto primary_pubk =
+                tls::make_public_key(secret_set.primary_public_encryption_key);
+
+              crypto::KeyAesGcm primary_shared_key(
+                tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
+                  .compute_shared_secret());
+
+              if (!primary_shared_key.decrypt(
+                    gcmcipher.hdr.get_iv(),
+                    gcmcipher.hdr.tag,
+                    gcmcipher.cipher,
+                    nullb,
+                    plain_secret.data()))
               {
-                crypto::GcmCipher gcmcipher;
-                gcmcipher.deserialise(
-                  encrypted_secret_for_node.encrypted_secret);
-                std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
+                throw std::logic_error(
+                  "Decryption of past network secrets failed");
+              }
 
-                auto primary_pubk = tls::make_public_key(
-                  secret_set.value.primary_public_encryption_key);
+              has_secrets = true;
 
-                crypto::KeyAesGcm primary_shared_key(
-                  tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
-                    .compute_shared_secret());
+              // If the version key is NoVersion, we are rekeying. Use the
+              // version passed to the hook instead. For recovery, the version
+              // of the past secrets is passed as the key.
+              kv::Version secret_version = (v == kv::NoVersion) ? version : v;
 
-                if (!primary_shared_key.decrypt(
-                      gcmcipher.hdr.get_iv(),
-                      gcmcipher.hdr.tag,
-                      gcmcipher.cipher,
-                      nullb,
-                      plain_secret.data()))
-                {
-                  throw std::logic_error(
-                    "Decryption of past network secrets failed");
-                }
-
-                has_secrets = true;
-
-                // If the version key is NoVersion, we are rekeying. Use the
-                // version passed to the hook instead. For recovery, the version
-                // of the past secrets is passed as the key.
-                kv::Version secret_version = (v == kv::NoVersion) ? version : v;
-
-                if (is_part_of_public_network())
-                {
-                  restored_secrets.push_back(
-                    {secret_version, LedgerSecret(plain_secret)});
-                }
-                else
-                {
-                  // When rekeying, set the encryption key for the next version
-                  // onward (for the backups to deserialise this transaction
-                  // with the old key). The encryptor is in charge of updating
-                  // the ledger secrets on global commit.
-                  encryptor->update_encryption_key(
-                    secret_version + 1, plain_secret);
-                }
+              if (is_part_of_public_network())
+              {
+                restored_secrets.push_back(
+                  {secret_version, LedgerSecret(plain_secret)});
+              }
+              else
+              {
+                // When rekeying, set the encryption key for the next version
+                // onward (for the backups to deserialise this transaction
+                // with the old key). The encryptor is in charge of updating
+                // the ledger secrets on global commit.
+                encryptor->update_encryption_key(
+                  secret_version + 1, plain_secret);
               }
             }
           }
+        }
 
-          // When recovering, trigger end of recovery protocol
-          if (has_secrets && is_part_of_public_network())
-          {
-            restored_secrets.sort(
-              [](
-                const LedgerSecrets::VersionedLedgerSecret& a,
-                const LedgerSecrets::VersionedLedgerSecret& b) {
-                return a.version < b.version;
-              });
+        // When recovering, trigger end of recovery protocol
+        if (has_secrets && is_part_of_public_network())
+        {
+          restored_secrets.sort(
+            [](
+              const LedgerSecrets::VersionedLedgerSecret& a,
+              const LedgerSecrets::VersionedLedgerSecret& b) {
+              return a.version < b.version;
+            });
 
-            network.ledger_secrets->restore(std::move(restored_secrets));
-            backup_finish_recovery();
-          }
-        });
+          network.ledger_secrets->restore(std::move(restored_secrets));
+          backup_finish_recovery();
+        }
+      });
     }
 
     kv::Version get_last_recovered_commit_idx() override
@@ -1424,8 +1446,15 @@ namespace ccf
     {
       network.shares.set_local_hook(
         [this](kv::Version version, const Shares::Write& w) {
-          for (auto& [k, v] : w)
+          for (const auto& [k, opt_v] : w)
           {
+            if (!opt_v.has_value())
+            {
+              throw std::logic_error("Unexpected: removal from shares table");
+            }
+
+            const auto& v = opt_v.value();
+
             kv::Version ledger_secret_version;
             if (version == 1)
             {
@@ -1439,15 +1468,15 @@ namespace ccf
               // from the hook plus one. Otherwise (recovery), use the
               // version specified.
               ledger_secret_version =
-                v.value.wrapped_latest_ledger_secret.version == kv::NoVersion ?
+                v.wrapped_latest_ledger_secret.version == kv::NoVersion ?
                 (version + 1) :
-                v.value.wrapped_latest_ledger_secret.version;
+                v.wrapped_latest_ledger_secret.version;
             }
 
             // No encrypted ledger secret are stored in the case of a pure
             // re-share (i.e. no ledger rekey).
             if (
-              !v.value.encrypted_previous_ledger_secret.empty() ||
+              !v.encrypted_previous_ledger_secret.empty() ||
               ledger_secret_version == 1)
             {
               LOG_TRACE_FMT(
@@ -1455,8 +1484,7 @@ namespace ccf
                 ledger_secret_version);
 
               recovery_ledger_secrets.push_back(
-                {ledger_secret_version,
-                 v.value.encrypted_previous_ledger_secret});
+                {ledger_secret_version, v.encrypted_previous_ledger_secret});
             }
           }
         });
@@ -1507,38 +1535,37 @@ namespace ccf
           std::unordered_set<NodeId> configuration =
             consensus->get_latest_configuration();
 
-          for (auto& [node_id, ni] : w)
+          for (const auto& [node_id, opt_ni] : w)
           {
-            if (kv::is_deleted(ni.version))
+            if (!opt_ni.has_value())
             {
-              configuration.erase(node_id);
+              throw std::logic_error("Unexpected: removal from nodes table");
             }
-            else
+
+            const auto& ni = opt_ni.value();
+            switch (ni.status)
             {
-              switch (ni.value.status)
+              case NodeStatus::PENDING:
               {
-                case NodeStatus::PENDING:
-                {
-                  // Pending nodes are not added to consensus until they are
-                  // trusted
-                  break;
-                }
-                case NodeStatus::TRUSTED:
-                {
-                  add_node(node_id, ni.value.nodehost, ni.value.nodeport);
-                  configuration.insert(node_id);
-                  configure = true;
-                  break;
-                }
-                case NodeStatus::RETIRED:
-                {
-                  configuration.erase(node_id);
-                  configure = true;
-                  break;
-                }
-                default:
-                {}
+                // Pending nodes are not added to consensus until they are
+                // trusted
+                break;
               }
+              case NodeStatus::TRUSTED:
+              {
+                add_node(node_id, ni.nodehost, ni.nodeport);
+                configuration.insert(node_id);
+                configure = true;
+                break;
+              }
+              case NodeStatus::RETIRED:
+              {
+                configuration.erase(node_id);
+                configure = true;
+                break;
+              }
+              default:
+              {}
             }
           }
 
@@ -1669,14 +1696,20 @@ namespace ccf
       // map the node id to a hostname and service and inform pbft
       network.nodes.set_local_hook(
         [this](kv::Version version, const Nodes::Write& w) {
-          for (auto& [node_id, ni] : w)
+          for (const auto& [node_id, opt_ni] : w)
           {
-            add_node(node_id, ni.value.nodehost, ni.value.nodeport);
+            if (!opt_ni.has_value())
+            {
+              throw std::logic_error("Unexpected: removal from nodes table");
+            }
+
+            const auto& ni = opt_ni.value();
+            add_node(node_id, ni.nodehost, ni.nodeport);
 
             consensus->add_configuration(
               version,
               {},
-              {node_id, ni.value.nodehost, ni.value.nodeport, ni.value.cert});
+              {node_id, ni.nodehost, ni.nodeport, ni.cert});
           }
         });
 
