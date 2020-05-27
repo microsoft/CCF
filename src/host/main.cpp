@@ -510,8 +510,9 @@ int main(int argc, char** argv)
 
   // write to a ledger
   asynchost::Ledger ledger(ledger_file, writer_factory);
-  asynchost::MultipleLedger ledgers(ledger_dir, writer_factory);
   ledger.register_message_handlers(bp.get_dispatcher());
+  asynchost::MultipleLedger ledgers(ledger_dir, writer_factory);
+  ledgers.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
   // This includes DNS resolution and potentially dynamic port assignment (if

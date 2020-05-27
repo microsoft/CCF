@@ -202,64 +202,73 @@ namespace asynchost
       // TODO: Check that last_idx is greater than the index at which current
       // starts
 
-      LOG_DEBUG_FMT("Ledger truncate: {}/{}", last_idx, positions.size());
+      // LOG_DEBUG_FMT("Ledger truncate: {}/{}", last_idx, positions.size());
 
-      // positions[last_idx - 1] is the position of the specified
-      // final index. Truncate the ledger at position[last_idx].
-      if (last_idx >= positions.size())
-        return;
+      // // positions[last_idx - 1] is the position of the specified
+      // // final index. Truncate the ledger at position[last_idx].
+      // if (last_idx >= positions.size())
+      //   return;
 
-      total_len = positions.at(last_idx);
-      positions.resize(last_idx);
+      // total_len = positions.at(last_idx);
+      // positions.resize(last_idx);
 
-      if (fflush(file) != 0)
-      {
-        std::stringstream ss;
-        ss << "Failed to flush file: " << strerror(errno);
-        throw std::logic_error(ss.str());
-      }
+      // if (fflush(file) != 0)
+      // {
+      //   std::stringstream ss;
+      //   ss << "Failed to flush file: " << strerror(errno);
+      //   throw std::logic_error(ss.str());
+      // }
 
-      if (ftruncate(fileno(file), total_len))
-        throw std::logic_error("Failed to truncate file");
+      // if (ftruncate(fileno(file), total_len))
+      //   throw std::logic_error("Failed to truncate file");
 
-      fseeko(file, total_len, SEEK_SET);
+      // fseeko(file, total_len, SEEK_SET);
     }
 
-    // void register_message_handlers(
-    //   messaging::Dispatcher<ringbuffer::Message>& disp)
-    // {
-    //   DISPATCHER_SET_MESSAGE_HANDLER(
-    //     disp,
-    //     consensus::ledger_append,
-    //     [this](const uint8_t* data, size_t size) { write_entry(data, size);
-    //     });
+    void register_message_handlers(
+      messaging::Dispatcher<ringbuffer::Message>& disp)
+    {
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp,
+        consensus::ledger_append,
+        [this](const uint8_t* data, size_t size) {
+          // write_entry(data, size);
+        });
 
-    //   DISPATCHER_SET_MESSAGE_HANDLER(
-    //     disp,
-    //     consensus::ledger_truncate,
-    //     [this](const uint8_t* data, size_t size) {
-    //       auto idx = serialized::read<consensus::Index>(data, size);
-    //       truncate(idx);
-    //     });
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp,
+        consensus::ledger_truncate,
+        [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
+          // truncate(idx);
+        });
 
-    //   DISPATCHER_SET_MESSAGE_HANDLER(
-    //     disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
-    //       // The enclave has asked for a ledger entry.
-    //       auto [idx] =
-    //         ringbuffer::read_message<consensus::ledger_get>(data, size);
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp,
+        consensus::ledger_compact,
+        [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
+          LOG_FAIL_FMT("Compacting ledger at {}", idx);
+        });
 
-    //       auto& entry = read_entry(idx);
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
+          // The enclave has asked for a ledger entry.
+          auto [idx] =
+            ringbuffer::read_message<consensus::ledger_get>(data, size);
 
-    //       if (entry.size() > 0)
-    //       {
-    //         RINGBUFFER_WRITE_MESSAGE(
-    //           consensus::ledger_entry, to_enclave, entry);
-    //       }
-    //       else
-    //       {
-    //         RINGBUFFER_WRITE_MESSAGE(consensus::ledger_no_entry, to_enclave);
-    //       }
-    //     });
-    // }
+          // auto& entry = read_entry(idx);
+
+          // if (entry.size() > 0)
+          // {
+          //   RINGBUFFER_WRITE_MESSAGE(
+          //     consensus::ledger_entry, to_enclave, entry);
+          // }
+          // else
+          // {
+          //   RINGBUFFER_WRITE_MESSAGE(consensus::ledger_no_entry, to_enclave);
+          // }
+        });
+    }
   };
 }

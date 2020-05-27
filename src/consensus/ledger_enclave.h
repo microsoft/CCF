@@ -103,5 +103,15 @@ namespace consensus
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
+
+    /**
+     * Compact the ledger at a given index.
+     *
+     * @param idx Index to compact at
+     */
+    void compact(Index idx)
+    {
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_compact, to_host, idx);
+    }
   };
 }
