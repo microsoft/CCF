@@ -283,17 +283,16 @@ namespace loggingapp
         .set_require_client_identity(false);
       install(Procs::LOG_RECORD_RAW_TEXT, log_record_text, Write);
 
-      nwt.signatures.set_global_hook([this, &notifier](
-                                       kv::Version version,
-                                       const ccf::Signatures::State& s,
-                                       const ccf::Signatures::Write& w) {
-        if (w.size() > 0)
-        {
-          nlohmann::json notify_j;
-          notify_j["commit"] = version;
-          notifier.notify(jsonrpc::pack(notify_j, jsonrpc::Pack::Text));
-        }
-      });
+      nwt.signatures.set_global_hook(
+        [this,
+         &notifier](kv::Version version, const ccf::Signatures::Write& w) {
+          if (w.size() > 0)
+          {
+            nlohmann::json notify_j;
+            notify_j["commit"] = version;
+            notifier.notify(jsonrpc::pack(notify_j, jsonrpc::Pack::Text));
+          }
+        });
     }
   };
 
