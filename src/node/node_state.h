@@ -1707,9 +1707,7 @@ namespace ccf
             add_node(node_id, ni.nodehost, ni.nodeport);
 
             consensus->add_configuration(
-              version,
-              {},
-              {node_id, ni.nodehost, ni.nodeport, ni.cert});
+              version, {}, {node_id, ni.nodehost, ni.nodeport, ni.cert});
           }
         });
 
