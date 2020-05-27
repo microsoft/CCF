@@ -32,7 +32,7 @@ namespace asynchost
 
       void on_read(size_t len, uint8_t*& incoming)
       {
-        LOG_DEBUG_FMT("from node {} received {}", node, len);
+        LOG_DEBUG_FMT("from node {} received {} bytes", node, len);
 
         pending.insert(pending.end(), incoming, incoming + len);
 
@@ -53,7 +53,8 @@ namespace asynchost
 
           if (size < msg_size)
           {
-            LOG_DEBUG_FMT("from node {} have {}/{}", node, size, msg_size);
+            LOG_DEBUG_FMT(
+              "from node {} have {}/{} bytes", node, size, msg_size);
             break;
           }
 
