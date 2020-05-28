@@ -82,9 +82,7 @@ namespace kv::untyped
 
     virtual Roll& get_roll() = 0;
     virtual void append_to_roll(Version v, const State& s, const Write& w) = 0;
-
-    // TODO: This shouldn't be here :(
-    virtual CommitHook<Write>& get_local_commit_hook() = 0;
+    virtual void trigger_local_hook() = 0;
   };
 
   class TxViewCommitter : public AbstractTxView
@@ -227,13 +225,7 @@ namespace kv::untyped
       if (change_set.writes.empty())
         return;
 
-      auto& local_hook = map.get_local_commit_hook();
-      if (local_hook)
-      {
-        auto& roll = map.get_roll();
-        auto last_commit = roll.commits->get_tail();
-        local_hook(last_commit->version, last_commit->writes);
-      }
+      map.trigger_local_hook();
     }
 
     // Used by owning map during serialise and deserialise
@@ -307,9 +299,6 @@ namespace kv::untyped
   public:
     // Public typedef for external consumption
     using TxView = ConcreteTxView;
-
-    // Provide access to hidden roll, create_new_local_commit
-    friend TxViewCommitter;
 
     Map(
       AbstractStore* store_,
@@ -733,9 +722,13 @@ namespace kv::untyped
       roll.commits->insert_back(create_new_local_commit(v, s, w));
     }
 
-    CommitHook& get_local_commit_hook() override
+    void trigger_local_hook() override
     {
-      return local_hook;
+      if (local_hook)
+      {
+        auto last_commit = roll.commits->get_tail();
+        local_hook(last_commit->version, last_commit->writes);
+      }
     }
   };
 }
