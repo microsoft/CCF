@@ -28,10 +28,11 @@ def truncate(string, max_len=256):
         return string
 
 
-CCF_COMMIT_HEADER = "x-ccf-commit"
-CCF_TERM_HEADER = "x-ccf-term"
-CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
+CCF_TX_SEQNO_HEADER = "x-ccf-tx-seqno"
+CCF_TX_VIEW_HEADER = "x-ccf-tx-view"
 CCF_READ_ONLY_HEADER = "x-ccf-read-only"
+# Deprecated, will be removed
+CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 
 class Request:
@@ -61,19 +62,19 @@ class FakeSocket:
 
 
 class Response:
-    def __init__(self, status, result, error, commit, term, global_commit):
+    def __init__(self, status, result, error, seqno, view, global_commit):
         self.status = status
         self.result = result
         self.error = error
-        self.commit = commit
-        self.term = term
+        self.seqno = seqno
+        self.view = view
         self.global_commit = global_commit
 
     def to_dict(self):
         d = {
-            "commit": self.commit,
+            "seqno": self.seqno,
             "global_commit": self.global_commit,
-            "term": self.term,
+            "view": self.view,
         }
         if self.result is not None:
             d["result"] = self.result
@@ -97,8 +98,8 @@ class Response:
             status=rr.status_code,
             result=parsed_body if rr.ok else None,
             error=None if rr.ok else parsed_body,
-            commit=int_or_none(rr.headers.get(CCF_COMMIT_HEADER)),
-            term=int_or_none(rr.headers.get(CCF_TERM_HEADER)),
+            seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
+            view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
         )
 
@@ -124,8 +125,8 @@ class Response:
             status=response.status,
             result=parsed_body if ok else None,
             error=None if ok else parsed_body,
-            commit=int_or_none(response.getheader(CCF_COMMIT_HEADER)),
-            term=int_or_none(response.getheader(CCF_TERM_HEADER)),
+            seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
+            view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
         )
 
@@ -404,8 +405,8 @@ class WSClient:
         self.ws.send_frame(frame)
         out = self.ws.recv_frame().data
         (status,) = struct.unpack("<h", out[:2])
-        (commit,) = struct.unpack("<Q", out[2:10])
-        (term,) = struct.unpack("<Q", out[10:18])
+        (seqno,) = struct.unpack("<Q", out[2:10])
+        (view,) = struct.unpack("<Q", out[10:18])
         (global_commit,) = struct.unpack("<Q", out[18:26])
         payload = out[26:]
         if status == 200:
@@ -414,7 +415,7 @@ class WSClient:
         else:
             result = None
             error = payload.decode()
-        return Response(status, result, error, commit, term, global_commit)
+        return Response(status, result, error, seqno, view, global_commit)
 
 
 class CCFClient:
@@ -444,7 +445,7 @@ class CCFClient:
 
         description = ""
         if self.description:
-            description = f" ({self.description})" + ("[signed]" if is_signed else "")
+            description = f" ({self.description})" + (" [signed]" if is_signed else "")
         for logger in self.rpc_loggers:
             logger.log_request(r, self.name, description)
 

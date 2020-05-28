@@ -320,17 +320,10 @@ class Consortium:
                 remote_node, defunct_network_enc_pubk
             )
             r = m.submit_recovery_share(remote_node, decrypted_share)
-
             submitted_shares_count += 1
+            assert r.result == (submitted_shares_count >= self.recovery_threshold)
             if submitted_shares_count >= self.recovery_threshold:
-                assert (
-                    r.result == True
-                ), "Shares should be combined when all members have submitted their shares"
                 break
-            else:
-                assert (
-                    r.result == False
-                ), "Shares should not be combined until all members have submitted their shares"
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """

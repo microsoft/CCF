@@ -14,8 +14,8 @@ namespace ws
 {
   static constexpr size_t INITIAL_READ = 2;
   static constexpr size_t OUT_CCF_HEADER_SIZE =
-    sizeof(uint16_t) /* return code */ + sizeof(size_t) /* commit */ +
-    sizeof(size_t) /* term */ + sizeof(size_t) /* global_commit */;
+    sizeof(uint16_t) /* return code */ + sizeof(size_t) /* seqno */ +
+    sizeof(size_t) /* view */ + sizeof(size_t) /* global_commit */;
 
   static size_t in_header_size(const std::string& path)
   {
@@ -128,8 +128,8 @@ namespace ws
 
           proc.handle_response(
             (http_status)status,
-            {{http::headers::CCF_COMMIT, fmt::format("{}", commit)},
-             {http::headers::CCF_TERM, fmt::format("{}", term)},
+            {{http::headers::CCF_TX_SEQNO, fmt::format("{}", commit)},
+             {http::headers::CCF_TX_VIEW, fmt::format("{}", term)},
              {http::headers::CCF_GLOBAL_COMMIT,
               fmt::format("{}", global_commit)}},
             std::move(body));

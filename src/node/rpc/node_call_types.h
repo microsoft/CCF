@@ -82,6 +82,7 @@ namespace ccf
       NodeStatus node_status;
       NodeId node_id;
       bool public_only;
+      kv::Version last_recovered_commit_idx;
       ConsensusType consensus_type = ConsensusType::RAFT;
 
       struct NetworkInfo

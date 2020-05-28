@@ -27,6 +27,7 @@ namespace enclave
     ringbuffer::WriterFactory basic_writer_factory;
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
+    ccf::ShareManager share_manager;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     ccf::Notifier notifier;
     ccf::Timers timers;
@@ -53,7 +54,9 @@ namespace enclave
       notifier(writer_factory),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
-      node(writer_factory, network, rpcsessions, notifier, timers),
+      share_manager(network),
+      node(
+        writer_factory, network, rpcsessions, notifier, timers, share_manager),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
       consensus_type(consensus_type_)
@@ -64,7 +67,7 @@ namespace enclave
       REGISTER_FRONTEND(
         rpc_map,
         members,
-        std::make_unique<ccf::MemberRpcFrontend>(network, node));
+        std::make_unique<ccf::MemberRpcFrontend>(network, node, share_manager));
 
       REGISTER_FRONTEND(
         rpc_map, users, ccfapp::get_rpc_handler(network, notifier));

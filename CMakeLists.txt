@@ -123,10 +123,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.virtual
-    PUBLIC -stdlib=libc++
-           -lc++
-           -lc++abi
-           -lc++fs
+    PUBLIC ${LINK_LIBCXX}
            -static-libgcc
            -lgcc
            ccfcrypto.host
@@ -461,7 +458,13 @@ if(BUILD_TESTS)
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
-    ADDITIONAL_ARGS --recovery 2
+    ADDITIONAL_ARGS
+      --recovery
+      2
+      # Shorten Raft election timeout to speed up test when it kills a node on
+      # purpose to check that a recovery network is robust to a view change.
+      --raft-election-timeout
+      4000
   )
 
   add_e2e_test(
@@ -539,8 +542,8 @@ if(BUILD_TESTS)
   endif()
 
   add_e2e_test(
-    NAME late_joiners_pbft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/late_joiners.py
+    NAME suspend_nodes_pbft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
     CONSENSUS pbft
   )
 
@@ -660,7 +663,6 @@ if(BUILD_TESTS)
 
   endforeach()
 
-  # Logging scenario perf test
   add_perf_test(
     NAME logging_scenario_perf_test
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
@@ -676,5 +678,23 @@ if(BUILD_TESTS)
       1000
       --repetitions
       1000
+  )
+
+  add_perf_test(
+    NAME logging_scenario_ws_perf_test
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
+    CONSENSUS raft
+    CLIENT_BIN ./scenario_perf_client
+    LABEL log_scenario_ws
+    ADDITIONAL_ARGS
+      --package
+      liblogging
+      --scenario-file
+      ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
+      --max-writes-ahead
+      1000
+      --repetitions
+      10000
+      --use-websockets
   )
 endif()

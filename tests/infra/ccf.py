@@ -109,6 +109,7 @@ class Network:
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.common_dir = None
+        self.election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
         if not os.path.isfile(self.key_generator):
             raise FileNotFoundError(
@@ -151,14 +152,16 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_node(self, node, lib_name, args, target_node=None):
+    def _add_node(self, node, lib_name, args, target_node=None, recovery=False):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
 
         # Contact primary if no target node is set
         if target_node is None:
-            target_node, _ = self.find_primary()
+            target_node, _ = self.find_primary(
+                timeout=args.ledger_recovery_timeout if recovery else 3
+            )
 
         node.join(
             lib_name=lib_name,
@@ -225,10 +228,17 @@ class Network:
                             )
                             self._adjust_local_node_ids(node)
                 else:
-                    self._add_node(node, args.package, args)
+                    self._add_node(node, args.package, args, recovery=recovery)
             except Exception:
                 LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
+
+        self.election_duration = (
+            args.pbft_view_change_timeout * 2 / 1000
+            if args.consensus == "pbft"
+            else args.raft_election_timeout * 2 / 1000
+        )
+
         LOG.info("All nodes started")
 
         primary, _ = self.find_primary()
@@ -302,20 +312,17 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
-        self, args, ledger_file, common_dir=None, defunct_network_enc_pub=None,
+        self, args, ledger_file, common_dir=None,
     ):
         """
-        Recovers a CCF network.
+        Starts a CCF network in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
         :param ledger_file: ledger file to recover from.
         :param common_dir: common directory containing member and user keys and certs.
-        :param defunct_network_enc_pub: defunct network encryption public key.
         """
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
-        if defunct_network_enc_pub is None:
-            defunct_network_enc_pub = self.store_current_network_encryption_key()
 
         primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
 
@@ -325,26 +332,32 @@ class Network:
                 common_dir, self.key_generator, remote_node=primary
             )
 
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-
-        for node in self.nodes:
+        for node in self.get_joined_nodes():
             self.wait_for_state(
                 node, "partOfPublicNetwork", timeout=args.ledger_recovery_timeout
             )
         self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined public network")
 
+    def recover(self, args, defunct_network_enc_pub):
+        """
+        Recovers a CCF network previously started in recovery mode.
+        :param args: command line arguments to configure the CCF nodes.
+        :param defunct_network_enc_pub: defunct network encryption public key.
+        """
+        primary, _ = self.find_primary()
+        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
         self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
         self.consortium.accept_recovery(primary)
         self.consortium.recover_with_shares(primary, defunct_network_enc_pub)
 
-        for node in self.nodes:
+        for node in self.get_joined_nodes():
             self.wait_for_state(
                 node, "partOfNetwork", timeout=args.ledger_recovery_timeout
             )
 
         self.consortium.check_for_service(
-            primary, infra.ccf.ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
+            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
         )
         LOG.success("***** Recovered network is now open *****")
 
@@ -483,10 +496,10 @@ class Network:
     def find_primary(self, timeout=3, request_timeout=3):
         """
         Find the identity of the primary in the network and return its identity
-        and the current term.
+        and the current view.
         """
         primary_id = None
-        term = None
+        view = None
 
         end_time = time.time() + timeout
         while time.time() < end_time:
@@ -496,7 +509,7 @@ class Network:
                         res = c.get("getPrimaryInfo")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            term = res.result["current_term"]
+                            view = res.result["current_term"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
@@ -508,7 +521,7 @@ class Network:
 
         if primary_id is None:
             raise PrimaryNotFound
-        return (self._get_node_by_id(primary_id), term)
+        return (self._get_node_by_id(primary_id), view)
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
@@ -538,20 +551,20 @@ class Network:
         while time.time() < end_time:
             with primary.node_client() as c:
                 resp = c.get("getCommit")
-                commit_leader = resp.result["commit"]
-                term_leader = resp.result["term"]
-                if commit_leader != 0:
+                seqno = resp.result["commit"]
+                view = resp.result["term"]
+                if seqno != 0:
                     break
             time.sleep(0.1)
         assert (
-            commit_leader != 0
-        ), f"Primary {primary.node_id} has not made any progress yet (term: {term_leader}, commit: {commit_leader})"
+            seqno != 0
+        ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
 
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.get("tx", {"view": term_leader, "seqno": commit_leader},)
+                    resp = c.get("tx", {"view": view, "seqno": seqno})
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -560,7 +573,7 @@ class Network:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {term_leader}.{commit_leader} is invalid and will never be committed"
+                            f"Node {node.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
                         )
                     else:
                         pass
@@ -583,7 +596,7 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     r = c.get("getCommit")
-                    commits.append(r.commit)
+                    commits.append(r.seqno)
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)

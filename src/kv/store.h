@@ -50,14 +50,14 @@ namespace kv
     }
 
   public:
-    void clone_schema(Store& target)
+    void clone_schema(Store& from)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       if ((maps.size() != 0) || (version != 0))
         throw std::logic_error("Cannot clone schema on a non-empty store");
 
-      for (auto& [name, map] : target.maps)
+      for (auto& [name, map] : from.maps)
       {
         maps[name] = std::unique_ptr<AbstractMap>(map->clone(this));
       }
@@ -336,12 +336,13 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        auto view = search->second->create_view(v);
         // if we are not committing now then use NoVersion to deserialise
         // otherwise the view will be considered as having a committed
         // version
         auto deserialise_version = (commit ? v : NoVersion);
-        if (!view->deserialise(*d, deserialise_version))
+        auto deserialised_write_set =
+          search->second->deserialise(*d, deserialise_version);
+        if (deserialised_write_set == nullptr)
         {
           LOG_FAIL_FMT(
             "Could not deserialise Tx for map {} at version {}",
@@ -350,8 +351,11 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        views[map_name] = {search->second.get(),
-                           std::unique_ptr<AbstractTxView>(view)};
+        // Take ownership of the produced write set, store it to be committed
+        // later
+        views[map_name] = {
+          search->second.get(),
+          std::unique_ptr<AbstractTxView>(deserialised_write_set)};
       }
 
       if (!d->end())

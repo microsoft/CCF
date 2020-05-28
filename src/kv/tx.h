@@ -9,18 +9,6 @@
 
 namespace kv
 {
-  static inline std::map<kv::SecurityDomain, std::vector<AbstractTxView*>>
-  get_views_grouped_by_domain(const OrderedViews& maps)
-  {
-    std::map<kv::SecurityDomain, std::vector<AbstractTxView*>> grouped_views;
-    for (auto it = maps.cbegin(); it != maps.cend(); ++it)
-    {
-      grouped_views[it->second.map->get_security_domain()].push_back(
-        it->second.view.get());
-    }
-    return grouped_views;
-  }
-
   class Tx : public ViewContainer
   {
   private:
@@ -35,11 +23,24 @@ namespace kv
     template <class M>
     std::tuple<typename M::TxView*> get_tuple(M& m)
     {
-      // If the M is present, its AbtractTxView must be an M::TxView.
+      using MapView = typename M::TxView;
+
+      // If the M is present, its AbtractTxView should be an M::TxView. This
+      // invariant could be broken by set_view_list, which will produce an error
+      // here
       auto search = view_list.find(m.get_name());
       if (search != view_list.end())
-        return std::make_tuple(
-          dynamic_cast<typename M::TxView*>(search->second.view.get()));
+      {
+        auto view = dynamic_cast<MapView*>(search->second.view.get());
+
+        if (view == nullptr)
+        {
+          throw std::logic_error(fmt::format(
+            "View over map {} is not of expected type", m.get_name()));
+        }
+
+        return std::make_tuple(view);
+      }
 
       auto it = view_list.begin();
       if (it != view_list.end())
@@ -56,9 +57,15 @@ namespace kv
         read_version = m.get_store()->current_version();
       }
 
-      AbstractTxView* view = m.create_view(read_version);
-      auto typed_view = dynamic_cast<typename M::TxView*>(view);
-      view_list[m.get_name()] = {&m, std::unique_ptr<AbstractTxView>(view)};
+      MapView* typed_view = m.template create_view<MapView>(read_version);
+      auto abstract_view = dynamic_cast<AbstractTxView*>(typed_view);
+      if (abstract_view == nullptr)
+      {
+        throw std::logic_error(fmt::format(
+          "View over map {} is not an AbstractTxView", m.get_name()));
+      }
+      view_list[m.get_name()] = {
+        &m, std::unique_ptr<AbstractTxView>(abstract_view)};
       return std::make_tuple(typed_view);
     }
 
@@ -241,37 +248,34 @@ namespace kv
         throw std::logic_error("Transaction aborted");
 
       // If no transactions made changes, return a zero length vector.
-      bool changes = false;
+      const bool any_changes =
+        std::any_of(view_list.begin(), view_list.end(), [](const auto& it) {
+          return it.second.view->has_changes();
+        });
 
-      for (auto it = view_list.begin(); it != view_list.end(); ++it)
-      {
-        if (it->second.view->has_changes())
-        {
-          changes = true;
-          break;
-        }
-      }
-
-      if (!changes)
+      if (!any_changes)
       {
         return {};
       }
+
       // Retrieve encryptor.
       auto map = view_list.begin()->second.map;
       auto e = map->get_store()->get_encryptor();
 
       KvStoreSerialiser replicated_serialiser(e, version);
-      // flags that indicate if we have actually written any data in the
-      // serializers
-      auto grouped_views = get_views_grouped_by_domain(view_list);
 
-      for (auto domain_it : grouped_views)
+      // Process in security domain order
+      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
       {
-        for (auto curr_view : domain_it.second)
+        for (const auto& it : view_list)
         {
-          if (curr_view->is_replicated())
+          const auto map = it.second.map;
+          if (
+            map->get_security_domain() == domain && map->is_replicated() &&
+            it.second.view->has_changes())
           {
-            curr_view->serialise(replicated_serialiser, include_reads);
+            map->serialise(
+              it.second.view.get(), replicated_serialiser, include_reads);
           }
         }
       }
