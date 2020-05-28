@@ -125,6 +125,15 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
+  // TODO: For now, this is the number of transactions
+  size_t ledger_size_threshold = 1 << 4;
+  app
+    .add_option(
+      "--ledger-chunk-threshold",
+      ledger_size_threshold,
+      "Size of each ledger chunk")
+    ->capture_default_str();
+
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
   for (int i = logger::TRACE; i < logger::MAX_LOG_LEVEL; i++)
@@ -509,10 +518,11 @@ int main(int argc, char** argv)
   asynchost::Sigterm sigterm(writer_factory);
 
   // write to a ledger
-  asynchost::Ledger ledger(ledger_file, writer_factory);
+  // asynchost::Ledger ledger(ledger_file, writer_factory);
+  // ledger.register_message_handlers(bp.get_dispatcher());
+  asynchost::MultipleLedger ledger(
+    ledger_dir, writer_factory, ledger_size_threshold);
   ledger.register_message_handlers(bp.get_dispatcher());
-  asynchost::MultipleLedger ledgers(ledger_dir, writer_factory);
-  ledgers.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
   // This includes DNS resolution and potentially dynamic port assignment (if
