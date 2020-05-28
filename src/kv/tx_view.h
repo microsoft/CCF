@@ -2,26 +2,25 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/untyped/map.h"
 #include "kv/untyped/tx_view.h"
+
+#include "kv/untyped/map.h"
 #include "kv_types.h"
 
 namespace kv
 {
-  using SerialisedRep = kv::untyped::SerialisedRep;
-
   template <typename T>
   struct MsgPackSerialiser
   {
-    static SerialisedRep to_serialised(const T& t)
+    static SerialisedEntry to_serialised(const T& t)
     {
       msgpack::sbuffer sb;
       msgpack::pack(sb, t);
       auto sb_data = reinterpret_cast<const uint8_t*>(sb.data());
-      return SerialisedRep(sb_data, sb_data + sb.size());
+      return SerialisedEntry(sb_data, sb_data + sb.size());
     }
 
-    static T from_serialised(const SerialisedRep& rep)
+    static T from_serialised(const SerialisedEntry& rep)
     {
       msgpack::object_handle oh =
         msgpack::unpack(reinterpret_cast<const char*>(rep.data()), rep.size());
@@ -33,25 +32,21 @@ namespace kv
   template <typename T>
   struct JsonSerialiser
   {
-    static SerialisedRep to_serialised(const T& t)
+    static SerialisedEntry to_serialised(const T& t)
     {
       const nlohmann::json j = t;
       const auto dumped = j.dump();
-      return SerialisedRep(dumped.begin(), dumped.end());
+      return SerialisedEntry(dumped.begin(), dumped.end());
     }
 
-    static T from_serialised(const SerialisedRep& rep)
+    static T from_serialised(const SerialisedEntry& rep)
     {
       const auto j = nlohmann::json::parse(rep);
       return j.get<T>();
     }
   };
 
-  template <
-    typename K,
-    typename V,
-    typename KSerialiser = MsgPackSerialiser<K>,
-    typename VSerialiser = MsgPackSerialiser<V>>
+  template <typename K, typename V, typename KSerialiser, typename VSerialiser>
   class TxView : public kv::untyped::TxViewCommitter
   {
   protected:
@@ -118,7 +113,7 @@ namespace kv
     template <class F>
     void foreach(F&& f)
     {
-      auto g = [&](const SerialisedRep& k_rep, const SerialisedRep& v_rep) {
+      auto g = [&](const SerialisedEntry& k_rep, const SerialisedEntry& v_rep) {
         return f(
           KSerialiser::from_serialised(k_rep),
           VSerialiser::from_serialised(v_rep));

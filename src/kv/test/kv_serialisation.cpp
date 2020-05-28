@@ -222,7 +222,7 @@ struct CustomClass
 
 struct CustomJsonSerialiser
 {
-  using Bytes = kv::SerialisedRep;
+  using Bytes = kv::SerialisedEntry;
 
   static Bytes to_serialised(const CustomClass& c)
   {
@@ -256,7 +256,7 @@ struct VPrefix
 template <typename T>
 struct CustomVerboseDumbSerialiser
 {
-  using Bytes = kv::SerialisedRep;
+  using Bytes = kv::SerialisedEntry;
 
   static Bytes to_serialised(const CustomClass& c)
   {
@@ -546,7 +546,7 @@ struct NonSerialisable
 
 struct NonSerialiser
 {
-  using Bytes = kv::SerialisedRep;
+  using Bytes = kv::SerialisedEntry;
 
   static Bytes to_serialised(const NonSerialisable& ns)
   {

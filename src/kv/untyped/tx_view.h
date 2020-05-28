@@ -7,14 +7,17 @@
 
 namespace kv::untyped
 {
-  using SerialisedRep = std::vector<uint8_t>;
-  using RepHasher = std::hash<SerialisedRep>;
+  using SerialisedEntry = kv::SerialisedEntry;
+  using SerialisedKeyHasher = std::hash<SerialisedEntry>;
 
-  using VersionV = kv::VersionV<SerialisedRep>;
-  using State = kv::State<SerialisedRep, SerialisedRep, RepHasher>;
-  using Read = kv::Read<SerialisedRep, RepHasher>;
-  using Write = kv::Write<SerialisedRep, SerialisedRep, RepHasher>;
-  using ChangeSet = kv::ChangeSet<SerialisedRep, SerialisedRep, RepHasher>;
+  using VersionV = kv::VersionV<SerialisedEntry>;
+  using State =
+    kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+  using Read = kv::Read<SerialisedEntry, SerialisedKeyHasher>;
+  using Write =
+    kv::Write<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+  using ChangeSet =
+    kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
   class TxView
   {
@@ -24,9 +27,9 @@ namespace kv::untyped
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
     // MyMap::TxView::KeyType, templated on the TxView or Map type rather than
-    // explicitly on SerialisedRep and SerialisedRep
-    using KeyType = SerialisedRep;
-    using ValueType = SerialisedRep;
+    // explicitly on SerialisedEntry and SerialisedEntry
+    using KeyType = SerialisedEntry;
+    using ValueType = SerialisedEntry;
 
     TxView(ChangeSet& cs) : tx_changes(cs) {}
 
