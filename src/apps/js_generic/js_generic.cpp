@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
-#include "kv/untyped/map.h"
+#include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
 #include "quickjs.h"
 

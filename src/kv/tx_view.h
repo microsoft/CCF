@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/untyped/tx_view.h"
-
-#include "kv/untyped/map.h"
+#include "kv/untyped_map.h"
+#include "kv/untyped_tx_view.h"
 #include "kv_types.h"
 
 namespace kv

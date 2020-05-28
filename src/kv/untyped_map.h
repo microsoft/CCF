@@ -7,7 +7,7 @@
 #include "ds/spin_lock.h"
 #include "kv/kv_serialiser.h"
 #include "kv/kv_types.h"
-#include "kv/untyped/tx_view.h"
+#include "kv/untyped_tx_view.h"
 
 #include <functional>
 #include <optional>
