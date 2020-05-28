@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "kv/encryptor.h"
-#include "kv/experimental.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -14,7 +13,7 @@
 #include <string>
 #include <vector>
 
-struct RawMapTypes
+struct MapTypes
 {
   using StringString = kv::Map<std::string, std::string>;
   using NumNum = kv::Map<size_t, size_t>;
@@ -22,20 +21,9 @@ struct RawMapTypes
   using StringNum = kv::Map<std::string, size_t>;
 };
 
-struct ExperimentalMapTypes
-{
-  using StringString = kv::experimental::Map<std::string, std::string>;
-  using NumNum = kv::experimental::Map<size_t, size_t>;
-  using NumString = kv::experimental::Map<size_t, std::string>;
-  using StringNum = kv::experimental::Map<std::string, size_t>;
-};
-
-TEST_CASE_TEMPLATE(
+TEST_CASE(
   "Serialise/deserialise public map only" *
-    doctest::test_suite("serialisation"),
-  MapImpl,
-  RawMapTypes,
-  ExperimentalMapTypes)
+  doctest::test_suite("serialisation"))
 {
   // No need for an encryptor here as all maps are public. Both serialisation
   // and deserialisation should succeed.
@@ -43,12 +31,12 @@ TEST_CASE_TEMPLATE(
 
   kv::Store kv_store(consensus);
 
-  auto& pub_map = kv_store.create<typename MapImpl::StringString>(
+  auto& pub_map = kv_store.create<MapTypes::StringString>(
     "pub_map", kv::SecurityDomain::PUBLIC);
 
   kv::Store kv_store_target;
   kv_store_target.clone_schema(kv_store);
-  auto* target_map = kv_store.get<typename MapImpl::StringString>("pub_map");
+  auto* target_map = kv_store.get<MapTypes::StringString>("pub_map");
   REQUIRE(target_map != nullptr);
 
   INFO("Commit to public map in source store");
@@ -73,23 +61,20 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
+TEST_CASE(
   "Serialise/deserialise private map only" *
-    doctest::test_suite("serialisation"),
-  MapImpl,
-  RawMapTypes,
-  ExperimentalMapTypes)
+  doctest::test_suite("serialisation"))
 {
   auto consensus = std::make_shared<kv::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
   kv::Store kv_store(consensus);
-  auto& priv_map = kv_store.create<typename MapImpl::StringString>("priv_map");
+  auto& priv_map = kv_store.create<MapTypes::StringString>("priv_map");
 
   kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
   kv_store_target.clone_schema(kv_store);
-  auto* target_map = kv_store.get<typename MapImpl::StringString>("priv_map");
+  auto* target_map = kv_store.get<MapTypes::StringString>("priv_map");
   REQUIRE(target_map != nullptr);
 
   INFO("Commit a private transaction without an encryptor throws an exception");
@@ -126,29 +111,24 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
+TEST_CASE(
   "Serialise/deserialise private map and public maps" *
-    doctest::test_suite("serialisation"),
-  MapImpl,
-  RawMapTypes,
-  ExperimentalMapTypes)
+  doctest::test_suite("serialisation"))
 {
   auto consensus = std::make_shared<kv::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
   kv::Store kv_store(consensus);
   kv_store.set_encryptor(encryptor);
-  auto& priv_map = kv_store.create<typename MapImpl::StringString>("priv_map");
-  auto& pub_map = kv_store.create<typename MapImpl::StringString>(
+  auto& priv_map = kv_store.create<MapTypes::StringString>("priv_map");
+  auto& pub_map = kv_store.create<MapTypes::StringString>(
     "pub_map", kv::SecurityDomain::PUBLIC);
 
   kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
   kv_store_target.clone_schema(kv_store);
-  auto* target_priv_map =
-    kv_store.get<typename MapImpl::StringString>("priv_map");
-  auto* target_pub_map =
-    kv_store.get<typename MapImpl::StringString>("pub_map");
+  auto* target_priv_map = kv_store.get<MapTypes::StringString>("priv_map");
+  auto* target_pub_map = kv_store.get<MapTypes::StringString>("pub_map");
   REQUIRE(target_priv_map != nullptr);
   REQUIRE(target_pub_map != nullptr);
 
@@ -177,24 +157,20 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Serialise/deserialise removed keys" * doctest::test_suite("serialisation"),
-  MapImpl,
-  RawMapTypes,
-  ExperimentalMapTypes)
+TEST_CASE(
+  "Serialise/deserialise removed keys" * doctest::test_suite("serialisation"))
 {
   auto consensus = std::make_shared<kv::StubConsensus>();
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
   kv::Store kv_store(consensus);
   kv_store.set_encryptor(encryptor);
-  auto& priv_map = kv_store.create<typename MapImpl::StringString>("priv_map");
+  auto& priv_map = kv_store.create<MapTypes::StringString>("priv_map");
 
   kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
   kv_store_target.clone_schema(kv_store);
-  auto* target_priv_map =
-    kv_store.get<typename MapImpl::StringString>("priv_map");
+  auto* target_priv_map = kv_store.get<MapTypes::StringString>("priv_map");
   REQUIRE(target_priv_map != nullptr);
 
   INFO("Commit a new key in source store and deserialise in target store");
@@ -339,7 +315,7 @@ struct CustomClass2
 
 struct CustomJsonSerialiser
 {
-  using Bytes = kv::experimental::SerialisedRep;
+  using Bytes = kv::SerialisedRep;
 
   static Bytes to_serialised(const CustomClass2& c)
   {
@@ -373,7 +349,7 @@ struct VPrefix
 template <typename T>
 struct CustomVerboseDumbSerialiser
 {
-  using Bytes = kv::experimental::SerialisedRep;
+  using Bytes = kv::SerialisedRep;
 
   static Bytes to_serialised(const CustomClass2& c)
   {
@@ -405,9 +381,9 @@ struct CustomVerboseDumbSerialiser
   }
 };
 
-using MapA = kv::experimental::
+using MapA = kv::
   Map<CustomClass2, CustomClass2, CustomJsonSerialiser, CustomJsonSerialiser>;
-using MapB = kv::experimental::Map<
+using MapB = kv::Map<
   CustomClass2,
   CustomClass2,
   CustomVerboseDumbSerialiser<KPrefix>,
@@ -488,11 +464,7 @@ bool corrupt_serialised_tx(
   return false;
 }
 
-TEST_CASE_TEMPLATE(
-  "Integrity" * doctest::test_suite("serialisation"),
-  MapImpl,
-  RawMapTypes,
-  ExperimentalMapTypes)
+TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
 {
   SUBCASE("Public and Private")
   {
@@ -515,10 +487,9 @@ TEST_CASE_TEMPLATE(
     kv_store.set_encryptor(encryptor);
     kv_store_target.set_encryptor(encryptor);
 
-    auto& public_map = kv_store.create<typename MapImpl::StringString>(
+    auto& public_map = kv_store.create<MapTypes::StringString>(
       "public_map", kv::SecurityDomain::PUBLIC);
-    auto& private_map =
-      kv_store.create<typename MapImpl::StringString>("private_map");
+    auto& private_map = kv_store.create<MapTypes::StringString>("private_map");
 
     kv_store_target.clone_schema(kv_store);
 
@@ -584,14 +555,11 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
   }
 }
 
-TEST_CASE_TEMPLATE(
+TEST_CASE(
   "Replicated and derived table serialisation" *
-    doctest::test_suite("serialisation"),
-  MapImpl,
-  RawMapTypes,
-  ExperimentalMapTypes)
+  doctest::test_suite("serialisation"))
 {
-  using T = typename MapImpl::NumNum;
+  using T = MapTypes::NumNum;
 
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   std::unordered_set<std::string> replicated_tables = {
@@ -737,7 +705,7 @@ namespace msgpack
 
 struct NonSerialiser
 {
-  using Bytes = kv::experimental::SerialisedRep;
+  using Bytes = kv::SerialisedRep;
 
   static Bytes to_serialised(const NonSerialisable& ns)
   {
@@ -760,15 +728,15 @@ TEST_CASE(
   kv::Store store(consensus);
   store.set_encryptor(encryptor);
 
-  auto& bad_map_k = store.create<kv::experimental::Map<
+  auto& bad_map_k = store.create<kv::Map<
     NonSerialisable,
     size_t,
     NonSerialiser,
-    kv::experimental::MsgPackSerialiser<size_t>>>("bad_map_k");
-  auto& bad_map_v = store.create<kv::experimental::Map<
+    kv::MsgPackSerialiser<size_t>>>("bad_map_k");
+  auto& bad_map_v = store.create<kv::Map<
     size_t,
     NonSerialisable,
-    kv::experimental::MsgPackSerialiser<size_t>,
+    kv::MsgPackSerialiser<size_t>,
     NonSerialiser>>("bad_map_v");
 
   {
