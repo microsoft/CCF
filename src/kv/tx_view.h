@@ -13,8 +13,6 @@ namespace kv
   class TxView : public kv::untyped::TxViewCommitter
   {
   protected:
-    // This _has_ a (non-visible, untyped) view, whereas the standard impl
-    // _is_ a typed view
     kv::untyped::TxView untyped_view;
 
   public:
