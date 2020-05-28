@@ -34,9 +34,8 @@ def run(args):
                 f" - Defunct network public encryption key: {args.network_enc_pubk}"
             )
             LOG.info(f" - Common directory: {args.common_dir}")
-            network.start_in_recovery(
-                args, args.ledger, args.common_dir, args.network_enc_pubk
-            )
+            network.start_in_recovery(args, args.ledger, args.common_dir)
+            network.recover(args, args.network_enc_pubk)
         else:
             network.start_and_join(args)
 

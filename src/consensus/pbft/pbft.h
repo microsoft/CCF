@@ -573,7 +573,7 @@ namespace pbft
 
     void add_configuration(
       SeqNo seqno,
-      std::unordered_set<kv::NodeId> config,
+      const std::unordered_set<kv::NodeId>& config,
       const NodeConf& node_conf) override
     {
       if (node_conf.node_id == local_id)
@@ -592,6 +592,11 @@ namespace pbft
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
 
       nodes[node_conf.node_id] = 0;
+    }
+
+    std::unordered_set<NodeId> get_latest_configuration() const override
+    {
+      throw std::logic_error("Unimplemented");
     }
 
     void periodic(std::chrono::milliseconds elapsed) override

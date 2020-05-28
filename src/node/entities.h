@@ -67,6 +67,7 @@ namespace ccf
     static constexpr auto SHARES = "ccf.shares";
     static constexpr auto USER_CODE_IDS = "ccf.users.code_ids";
     static constexpr auto CONFIGURATION = "ccf.config";
+    static constexpr auto SUBMITTED_SHARES = "ccf.submitted_shares";
   };
 }
 

@@ -227,8 +227,9 @@ namespace kv
     virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
       SeqNo seqno,
-      std::unordered_set<NodeId> conf,
+      const std::unordered_set<NodeId>& conf,
       const NodeConf& node_conf = {}) = 0;
+    virtual std::unordered_set<NodeId> get_latest_configuration() const = 0;
 
     virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
@@ -358,17 +359,11 @@ namespace kv
   public:
     virtual ~AbstractTxView() = default;
 
-    // Commit-related methods
     virtual bool has_writes() = 0;
     virtual bool has_changes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
-
-    // Serialisation-related methods
-    virtual void serialise(KvStoreSerialiser& s, bool include_reads) = 0;
-    virtual bool deserialise(KvStoreDeserialiser& d, Version version) = 0;
-    virtual bool is_replicated() = 0;
   };
 
   class AbstractMap
@@ -379,7 +374,10 @@ namespace kv
     virtual bool operator!=(const AbstractMap& that) const = 0;
 
     virtual AbstractStore* get_store() = 0;
-    virtual AbstractTxView* create_view(Version version) = 0;
+    virtual void serialise(
+      const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
+    virtual AbstractTxView* deserialise(
+      KvStoreDeserialiser& d, Version version) = 0;
     virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
     virtual void post_compact() = 0;

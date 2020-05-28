@@ -302,11 +302,21 @@ namespace raft
       return get_term_internal(idx);
     }
 
-    void add_configuration(Index idx, std::unordered_set<NodeId> conf)
+    void add_configuration(Index idx, const std::unordered_set<NodeId>& conf)
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, move(conf)});
       create_and_remove_node_state();
+    }
+
+    std::unordered_set<NodeId> get_latest_configuration() const
+    {
+      if (configurations.empty())
+      {
+        return {};
+      }
+
+      return configurations.back().nodes;
     }
 
     template <typename T>

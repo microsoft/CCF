@@ -271,6 +271,7 @@ def run(args):
             LOG.info("Retiring a member should not be possible")
             try:
                 assert_recovery_shares_update(test_retire_member, network, args)
+                assert False, "Retiring a member should not be possible"
             except infra.proposal.ProposalNotAccepted as e:
                 assert e.proposal.state == infra.proposal.ProposalState.Failed
 

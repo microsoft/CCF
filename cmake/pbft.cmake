@@ -139,9 +139,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     add_san(${name})
 
     target_compile_options(${name} PRIVATE -stdlib=libc++)
-    target_link_libraries(
-      ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi -lc++fs secp256k1.host
-    )
+    target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} secp256k1.host)
 
   endfunction()
 

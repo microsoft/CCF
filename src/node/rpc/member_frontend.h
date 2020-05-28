@@ -147,26 +147,12 @@ namespace ccf
              return false;
            }
 
-           if (member_info->status == MemberStatus::ACTIVE)
+           if (!g.retire_member(member_id))
            {
-             // If the member was active, it had a recovery share. Check that
-             // the new number of active members is still sufficient for
-             // recovery.
-             auto active_members_count_after = g.get_active_members_count() - 1;
-             auto recovery_threshold = g.get_recovery_threshold();
-             if (active_members_count_after < recovery_threshold)
-             {
-               LOG_FAIL_FMT(
-                 "Failed to retire member {}: number of active members ({}) "
-                 "would be less than recovery threshold ({})",
-                 member_id,
-                 active_members_count_after,
-                 recovery_threshold);
-               return false;
-             }
+             LOG_FAIL_FMT("Failed to retire member {}", member_id);
+             return false;
            }
 
-           g.retire_member(member_id);
            if (member_info->status == MemberStatus::ACTIVE)
            {
              // A retired member should not have access to the private ledger
@@ -315,13 +301,19 @@ namespace ccf
          }},
         {"update_recovery_shares",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto shares_updated = node.split_ledger_secrets(tx);
-           if (!shares_updated)
+           try
+           {
+             share_manager.issue_shares(tx);
+           }
+           catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: Updating recovery shares failed", proposal_id);
+               "Proposal {}: Updating recovery shares failed: {}",
+               proposal_id,
+               e.what());
+             return false;
            }
-           return shares_updated;
+           return true;
          }},
         {"set_recovery_threshold",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
@@ -336,20 +328,23 @@ namespace ccf
              return true;
            }
 
-           auto active_members_count = g.get_active_members_count();
-           if (new_recovery_threshold > active_members_count)
+           if (!g.set_recovery_threshold(new_recovery_threshold))
            {
-             LOG_FAIL_FMT(
-               "Recovery threshold cannot be set to {} as it is greater than "
-               "the number of active members ({})",
-               new_recovery_threshold,
-               active_members_count);
              return false;
            }
-           g.set_recovery_threshold(new_recovery_threshold);
 
            // Update recovery shares (same number of shares)
-           return node.split_ledger_secrets(tx);
+           try
+           {
+             share_manager.issue_shares(tx);
+           }
+           catch (const std::logic_error& e)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: Setting recovery threshold failed: {}", e.what());
+             return false;
+           }
+           return true;
          }},
       };
 
@@ -516,17 +511,18 @@ namespace ccf
 
     NetworkTables& network;
     AbstractNodeState& node;
+    ShareManager& share_manager;
     const lua::TxScriptRunner tsr;
-    // For now, shares are not stored in the KV
-    std::vector<SecretSharing::Share> pending_shares;
-
-    static constexpr auto SIZE_NONCE = 16;
 
   public:
-    MemberHandlers(NetworkTables& network, AbstractNodeState& node) :
+    MemberHandlers(
+      NetworkTables& network,
+      AbstractNodeState& node,
+      ShareManager& share_manager) :
       CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
+      share_manager(share_manager),
       tsr(network)
     {}
 
@@ -779,11 +775,15 @@ namespace ccf
           members->put(args.caller_id, *member);
 
           // New active members are allocated a new recovery share
-          if (!node.split_ledger_secrets(args.tx))
+          try
+          {
+            share_manager.issue_shares(args.tx);
+          }
+          catch (const std::logic_error& e)
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Error splitting ledger secrets");
+              fmt::format("Error issuing new recovery shares {}: ", e.what()));
           }
         }
         return make_success(true);
@@ -831,24 +831,10 @@ namespace ccf
               "Only active members are given recovery shares");
           }
 
-          std::optional<EncryptedShare> enc_s;
-          auto recovery_shares_info =
-            args.tx.get_view(this->network.shares)->get(0);
-          if (!recovery_shares_info.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "Failed to retrieve current recovery shares info");
-          }
-          for (auto const& s : recovery_shares_info->encrypted_shares)
-          {
-            if (s.first == args.caller_id)
-            {
-              enc_s = s.second;
-            }
-          }
+          auto encrypted_share =
+            share_manager.get_encrypted_share(args.tx, args.caller_id);
 
-          if (!enc_s.has_value())
+          if (!encrypted_share.has_value())
           {
             return make_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -856,7 +842,7 @@ namespace ccf
                 "Recovery share not found for member {}", args.caller_id));
           }
 
-          return make_success(enc_s.value());
+          return make_success(encrypted_share.value());
         };
       install(
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
@@ -890,34 +876,43 @@ namespace ccf
         }
 
         const auto in = params.get<SubmitRecoveryShare>();
-
-        SecretSharing::Share share;
-        std::copy_n(
-          in.recovery_share.begin(),
-          SecretSharing::SHARE_LENGTH,
-          share.begin());
-
-        pending_shares.emplace_back(share);
-        if (pending_shares.size() < g.get_recovery_threshold())
+        size_t submitted_shares_count = 0;
+        try
         {
-          // The number of shares required to re-assemble the secret has not
-          // yet been reached
+          submitted_shares_count = share_manager.submit_recovery_share(
+            args.tx, args.caller_id, in.recovery_share);
+        }
+        catch (const std::logic_error& e)
+        {
+          return make_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            fmt::format("Could not submit recovery share: {}", e.what()));
+        }
+
+        if (submitted_shares_count < g.get_recovery_threshold())
+        {
+          // The number of shares required to re-assemble the secret has not yet
+          // been reached
           return make_success(false);
         }
 
         LOG_DEBUG_FMT(
-          "Reached secret sharing threshold {}", pending_shares.size());
+          "Reached secret sharing threshold {}", g.get_recovery_threshold());
 
-        if (!node.restore_ledger_secrets(args.tx, pending_shares))
+        try
         {
-          pending_shares.clear();
+          node.initiate_private_recovery(args.tx);
+        }
+        catch (const std::logic_error& e)
+        {
+          // For now, clear the submitted shares if combination fails.
+          share_manager.clear_submitted_recovery_shares(args.tx);
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Failed to combine recovery shares and initiate end of recovery "
-            "protocol");
+            fmt::format("Failed to initiate private recovery: {}", e.what()));
         }
 
-        pending_shares.clear();
+        share_manager.clear_submitted_recovery_shares(args.tx);
         return make_success(true);
       };
       install(
@@ -952,12 +947,7 @@ namespace ccf
 
         g.add_consensus(in.consensus_type);
 
-        if (!node.split_ledger_secrets(tx))
-        {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            "Error splitting ledger secrets");
-        }
+        share_manager.issue_shares(tx);
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
@@ -1012,10 +1002,13 @@ namespace ccf
     Members* members;
 
   public:
-    MemberRpcFrontend(NetworkTables& network, AbstractNodeState& node) :
+    MemberRpcFrontend(
+      NetworkTables& network,
+      AbstractNodeState& node,
+      ShareManager& share_manager) :
       RpcFrontend(
         *network.tables, member_handlers, &network.member_client_signatures),
-      member_handlers(network, node),
+      member_handlers(network, node, share_manager),
       members(&network.members)
     {}
 
