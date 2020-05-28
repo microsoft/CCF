@@ -42,7 +42,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfo, cert, quote, encryption_pub_key, status);
 
-  using Nodes = kv::Map<NodeId, NodeInfo>;
+  using Nodes = kv::JsonSerialisedMap<NodeId, NodeInfo>;
 }
 
 FMT_BEGIN_NAMESPACE

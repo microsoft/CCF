@@ -46,5 +46,5 @@ namespace ccf
 
   // As there is only one service active at a given time, the key for the
   // Service table is always 0.
-  using Service = kv::Map<size_t, ServiceInfo>;
+  using Service = kv::JsonSerialisedMap<size_t, ServiceInfo>;
 }

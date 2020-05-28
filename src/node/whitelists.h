@@ -12,7 +12,7 @@ namespace ccf
   using WlId = uint8_t;
   using Whitelist = std::set<std::string>;
   // whitelists are sets of table names
-  using Whitelists = kv::Map<WlId, Whitelist>;
+  using Whitelists = kv::JsonSerialisedMap<WlId, Whitelist>;
 
   enum WlIds : WlId
   {

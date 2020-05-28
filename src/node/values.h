@@ -10,7 +10,7 @@ namespace ccf
 {
   using ValueId = uint8_t;
   using Value = uint64_t;
-  using Values = kv::Map<ValueId, Value>;
+  using Values = kv::JsonSerialisedMap<ValueId, Value>;
 
   enum ValueIds : ValueId
   {

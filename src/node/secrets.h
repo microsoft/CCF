@@ -36,5 +36,5 @@ namespace ccf
 
   // This map is used to communicate encrypted network secrets from the primary
   // to the backups during recovery (past secrets) and re-keying (new secrets)
-  using Secrets = kv::Map<kv::Version, EncryptedLedgerSecrets>;
+  using Secrets = kv::JsonSerialisedMap<kv::Version, EncryptedLedgerSecrets>;
 }

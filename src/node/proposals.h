@@ -93,7 +93,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     Proposal, script, parameter, proposer, state, votes)
 
-  using Proposals = kv::Map<ObjectId, Proposal>;
+  using Proposals = kv::JsonSerialisedMap<ObjectId, Proposal>;
 
   struct ProposalInfo
   {
