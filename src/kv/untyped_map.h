@@ -397,8 +397,14 @@ namespace kv::untyped
     AbstractTxView* deserialise(
       KvStoreDeserialiser& d, Version version) override
     {
+      return deserialise_internal<TxView>(d, version);
+    }
+
+    template <typename TView>
+    TView* deserialise_internal(KvStoreDeserialiser& d, Version version)
+    {
       // Create a new change set, and deserialise d's contents into it.
-      auto view = create_view<TxView>(version);
+      auto view = create_view<TView>(version);
       view->set_commit_version(version);
 
       auto& change_set = view->get_change_set();

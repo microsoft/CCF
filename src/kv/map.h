@@ -65,7 +65,7 @@ namespace kv
     AbstractTxView* deserialise(
       KvStoreDeserialiser& d, Version version) override
     {
-      return untyped_map.deserialise(d, version);
+      return untyped_map.deserialise_internal<TxView>(d, version);
     }
 
     const std::string& get_name() const override
