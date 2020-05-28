@@ -4,8 +4,8 @@
 
 #include "ds/hash.h"
 #include "kv_types.h"
-#include "map.h"
-#include "tx_view.h"
+#include "kv/untyped/map.h"
+#include "kv/untyped/tx_view.h"
 
 #include <vector>
 
@@ -13,19 +13,19 @@ namespace kv
 {
   namespace experimental
   {
-    using SerialisedRep = std::vector<uint8_t>;
+    using SerialisedRep = kv::untyped::SerialisedRep;
 
     using RepHasher = std::hash<SerialisedRep>;
 
-    using UntypedMap = kv::Map<SerialisedRep, SerialisedRep, RepHasher>;
+    using UntypedMap = kv::untyped::Map;
 
     using UntypedOperationsView =
-      kv::TxView<SerialisedRep, SerialisedRep, RepHasher>;
+      kv::untyped::TxView;
 
     using UntypedCommitter =
-      kv::TxViewCommitter<SerialisedRep, SerialisedRep, RepHasher>;
+      kv::untyped::TxViewCommitter;
 
-    using UntypedState = kv::State<SerialisedRep, SerialisedRep, RepHasher>;
+    using UntypedState = kv::untyped::State;
 
     template <typename T>
     struct MsgPackSerialiser
@@ -159,7 +159,8 @@ namespace kv
       // Expose correct public aliases of types
       using VersionV = VersionV<V>;
 
-      using Write = Write<K, V>;
+      // TODO: Don't use this Write, use map rather than unordered_map, so K doesn't need std::hash?
+      using Write = Write<K, V, std::hash<K>>;
 
       using CommitHook = CommitHook<Write>;
 
@@ -276,7 +277,7 @@ namespace kv
 
       static UntypedMap::CommitHook wrap_commit_hook(const CommitHook& hook)
       {
-        return [hook](Version v, const UntypedMap::Write& w) {
+        return [hook](Version v, const kv::untyped::Write& w) {
           Write typed_w;
           for (const auto& [uk, opt_uv] : w)
           {

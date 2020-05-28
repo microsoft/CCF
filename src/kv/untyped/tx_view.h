@@ -3,25 +3,30 @@
 #pragma once
 
 #include "kv/change_set.h"
-#include "kv_types.h"
+#include "kv/kv_types.h"
 
-namespace kv
+namespace kv::untyped
 {
-  template <typename K, typename V, typename H = std::hash<K>>
+  using SerialisedRep = std::vector<uint8_t>;
+  using RepHasher = std::hash<SerialisedRep>;
+
+  using VersionV = kv::VersionV<SerialisedRep>;
+  using State = kv::State<SerialisedRep, SerialisedRep, RepHasher>;
+  using Read = kv::Read<SerialisedRep, RepHasher>;
+  using Write = kv::Write<SerialisedRep, SerialisedRep, RepHasher>;
+  using ChangeSet = kv::ChangeSet<SerialisedRep, SerialisedRep, RepHasher>;
+
   class TxView
   {
   protected:
-    using State = State<K, V, H>;
-
-    using ChangeSet = ChangeSet<K, V, H>;
     ChangeSet& tx_changes;
 
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
     // MyMap::TxView::KeyType, templated on the TxView or Map type rather than
-    // explicitly on K and V
-    using KeyType = K;
-    using ValueType = V;
+    // explicitly on SerialisedRep and SerialisedRep
+    using KeyType = SerialisedRep;
+    using ValueType = SerialisedRep;
 
     TxView(ChangeSet& cs) : tx_changes(cs) {}
 
@@ -35,7 +40,7 @@ namespace kv
      *
      * @return optional containing value, empty if the key doesn't exist
      */
-    std::optional<V> get(const K& key)
+    std::optional<ValueType> get(const KeyType& key)
     {
       // A write followed by a read doesn't introduce a read dependency.
       // If we have written, return the value without updating the read set.
@@ -83,7 +88,7 @@ namespace kv
      * @return optional containing value, empty if the key doesn't exist in
      * globally committed state
      */
-    std::optional<V> get_globally_committed(const K& key)
+    std::optional<ValueType> get_globally_committed(const KeyType& key)
     {
       // If there is no committed value, return empty.
       auto search = tx_changes.committed.get(key);
@@ -113,7 +118,7 @@ namespace kv
      *
      * @return true if successful, false otherwise
      */
-    bool put(const K& key, const V& value)
+    bool put(const KeyType& key, const ValueType& value)
     {
       // Record in the write set.
       tx_changes.writes[key] = value;
@@ -129,7 +134,7 @@ namespace kv
      *
      * @return true if successful, false otherwise
      */
-    bool remove(const K& key)
+    bool remove(const KeyType& key)
     {
       auto write = tx_changes.writes.find(key);
       auto search = tx_changes.state.get(key).has_value();
@@ -179,7 +184,7 @@ namespace kv
       bool should_continue = true;
 
       tx_changes.state.foreach(
-        [&w, &f, &should_continue](const K& k, const VersionV<V>& v) {
+        [&w, &f, &should_continue](const KeyType& k, const VersionV& v) {
           auto write = w.find(k);
 
           if ((write == w.end()) && !is_deleted(v.version))
