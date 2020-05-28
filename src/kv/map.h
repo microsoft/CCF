@@ -3,19 +3,17 @@
 #pragma once
 
 #include "kv_types.h"
+#include "serialise_entry_json.h"
+#include "serialise_entry_msgpack.h"
 #include "tx_view.h"
 
 namespace kv
 {
-  template <
-    typename K,
-    typename V,
-    typename KSerialiser = MsgPackSerialiser<K>,
-    typename VSerialiser = MsgPackSerialiser<V>>
-  class Map : public AbstractMap
+  template <typename K, typename V, typename KSerialiser, typename VSerialiser>
+  class TypedMap : public AbstractMap
   {
   protected:
-    using This = Map<K, V, KSerialiser, VSerialiser>;
+    using This = TypedMap<K, V, KSerialiser, VSerialiser>;
 
     kv::untyped::Map untyped_map;
 
@@ -32,7 +30,7 @@ namespace kv
     using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
 
     template <typename... Ts>
-    Map(Ts&&... ts) : untyped_map(std::forward<Ts>(ts)...)
+    TypedMap(Ts&&... ts) : untyped_map(std::forward<Ts>(ts)...)
     {}
 
     bool operator==(const AbstractMap& that) const override
@@ -117,7 +115,7 @@ namespace kv
 
     AbstractMap* clone(AbstractStore* store) override
     {
-      return new Map(
+      return new TypedMap(
         store,
         untyped_map.get_name(),
         untyped_map.get_security_domain(),
@@ -183,4 +181,23 @@ namespace kv
       untyped_map.unset_global_hook();
     }
   };
+
+  template <typename K, typename V>
+  using JsonSerialisedMap = TypedMap<
+    K,
+    V,
+    kv::serialisers::JsonSerialiser<K>,
+    kv::serialisers::JsonSerialiser<V>>;
+
+  template <typename K, typename V>
+  using MsgPackSerialisedMap = TypedMap<
+    K,
+    V,
+    kv::serialisers::MsgPackSerialiser<K>,
+    kv::serialisers::MsgPackSerialiser<V>>;
+
+  // The default kv::Map will use msgpack serialisers. Custom types are
+  // supported through the MSGPACK_DEFINE macro
+  template <typename K, typename V>
+  using Map = MsgPackSerialisedMap<K, V>;
 }

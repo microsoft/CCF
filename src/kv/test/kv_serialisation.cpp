@@ -289,9 +289,12 @@ struct CustomVerboseDumbSerialiser
 };
 
 using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
-using JsonSerialisedMap =
-  kv::Map<CustomClass, CustomClass, CustomJsonSerialiser, CustomJsonSerialiser>;
-using VerboseSerialisedMap = kv::Map<
+using JsonSerialisedMap = kv::TypedMap<
+  CustomClass,
+  CustomClass,
+  CustomJsonSerialiser,
+  CustomJsonSerialiser>;
+using VerboseSerialisedMap = kv::TypedMap<
   CustomClass,
   CustomClass,
   CustomVerboseDumbSerialiser<KPrefix>,
@@ -567,15 +570,15 @@ TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
   kv::Store store(consensus);
   store.set_encryptor(encryptor);
 
-  auto& bad_map_k = store.create<kv::Map<
+  auto& bad_map_k = store.create<kv::TypedMap<
     NonSerialisable,
     size_t,
     NonSerialiser,
-    kv::MsgPackSerialiser<size_t>>>("bad_map_k");
-  auto& bad_map_v = store.create<kv::Map<
+    kv::serialisers::MsgPackSerialiser<size_t>>>("bad_map_k");
+  auto& bad_map_v = store.create<kv::TypedMap<
     size_t,
     NonSerialisable,
-    kv::MsgPackSerialiser<size_t>,
+    kv::serialisers::MsgPackSerialiser<size_t>,
     NonSerialiser>>("bad_map_v");
 
   {

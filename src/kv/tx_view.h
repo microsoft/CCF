@@ -9,43 +9,6 @@
 
 namespace kv
 {
-  template <typename T>
-  struct MsgPackSerialiser
-  {
-    static SerialisedEntry to_serialised(const T& t)
-    {
-      msgpack::sbuffer sb;
-      msgpack::pack(sb, t);
-      auto sb_data = reinterpret_cast<const uint8_t*>(sb.data());
-      return SerialisedEntry(sb_data, sb_data + sb.size());
-    }
-
-    static T from_serialised(const SerialisedEntry& rep)
-    {
-      msgpack::object_handle oh =
-        msgpack::unpack(reinterpret_cast<const char*>(rep.data()), rep.size());
-      auto object = oh.get();
-      return object.as<T>();
-    }
-  };
-
-  template <typename T>
-  struct JsonSerialiser
-  {
-    static SerialisedEntry to_serialised(const T& t)
-    {
-      const nlohmann::json j = t;
-      const auto dumped = j.dump();
-      return SerialisedEntry(dumped.begin(), dumped.end());
-    }
-
-    static T from_serialised(const SerialisedEntry& rep)
-    {
-      const auto j = nlohmann::json::parse(rep);
-      return j.get<T>();
-    }
-  };
-
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
   class TxView : public kv::untyped::TxViewCommitter
   {

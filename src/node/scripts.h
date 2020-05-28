@@ -6,11 +6,7 @@
 
 namespace ccf
 {
-  using Scripts = kv::Map<
-    std::string,
-    Script,
-    kv::JsonSerialiser<std::string>,
-    kv::JsonSerialiser<Script>>;
+  using Scripts = kv::JsonSerialisedMap<std::string, Script>;
 
   struct GovScriptIds
   {
