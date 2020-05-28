@@ -213,111 +213,18 @@ TEST_CASE(
 
 struct CustomClass
 {
-  int m_i;
-
-  CustomClass() : CustomClass(-1) {}
-  CustomClass(int i) : m_i(i) {}
-
-  int get() const
-  {
-    return m_i;
-  }
-  void set(std::string val)
-  {
-    m_i = std::stoi(val);
-  }
-
-  CustomClass operator()()
-  {
-    CustomClass ret;
-    return ret;
-  }
-
-  bool operator<(const CustomClass& other) const
-  {
-    return m_i < other.m_i;
-  }
-
-  bool operator==(const CustomClass& other) const
-  {
-    return !(other < *this) && !(*this < other);
-  }
-
-  MSGPACK_DEFINE(m_i);
-};
-
-namespace std
-{
-  template <>
-  struct hash<CustomClass>
-  {
-    std::size_t operator()(const CustomClass& inst) const
-    {
-      return inst.get();
-    }
-  };
-}
-
-DECLARE_JSON_TYPE(CustomClass)
-DECLARE_JSON_REQUIRED_FIELDS(CustomClass, m_i)
-
-TEST_CASE(
-  "Custom type serialisation test (original scheme)" *
-  doctest::test_suite("serialisation"))
-{
-  kv::Store kv_store;
-
-  auto& map = kv_store.create<CustomClass, CustomClass>(
-    "map", kv::SecurityDomain::PUBLIC);
-
-  CustomClass k(3);
-  CustomClass v1(33);
-
-  CustomClass k2(2);
-  CustomClass v2(22);
-
-  INFO("Serialise/Deserialise 2 kv stores");
-  {
-    kv::Store kv_store2;
-    auto& map2 = kv_store2.create<CustomClass, CustomClass>(
-      "map", kv::SecurityDomain::PUBLIC);
-
-    kv::Tx tx(kv_store.next_version());
-    auto view = tx.get_view(map);
-    view->put(k, v1);
-    view->put(k2, v2);
-
-    auto [success, reqid, data] = tx.commit_reserved();
-    REQUIRE(success == kv::CommitSuccess::OK);
-    kv_store.compact(kv_store.current_version());
-
-    REQUIRE(kv_store2.deserialise(data) == kv::DeserialiseSuccess::PASS);
-    kv::Tx tx2;
-    auto view2 = tx2.get_view(map2);
-    auto va = view2->get(k);
-
-    REQUIRE(va.has_value());
-    REQUIRE(va.value() == v1);
-    auto vb = view2->get(k2);
-    REQUIRE(vb.has_value());
-    REQUIRE(vb.value() == v2);
-    // we only require operator==() to be implemented, so for consistency -
-    // this is the operator we use for comparison, and not operator!=()
-    REQUIRE(!(vb.value() == v1));
-  }
-}
-
-struct CustomClass2
-{
   std::string s;
   size_t n;
+
+  // This macro allows the default serialiser to be used
+  MSGPACK_DEFINE(s, n);
 };
 
 struct CustomJsonSerialiser
 {
   using Bytes = kv::SerialisedRep;
 
-  static Bytes to_serialised(const CustomClass2& c)
+  static Bytes to_serialised(const CustomClass& c)
   {
     nlohmann::json j = nlohmann::json::object();
     j["s"] = c.s;
@@ -326,10 +233,10 @@ struct CustomJsonSerialiser
     return Bytes(s.begin(), s.end());
   }
 
-  static CustomClass2 from_serialised(const Bytes& b)
+  static CustomClass from_serialised(const Bytes& b)
   {
     const auto j = nlohmann::json::parse(b);
-    CustomClass2 c;
+    CustomClass c;
     c.s = j["s"];
     c.n = j["n"];
     return c;
@@ -351,13 +258,13 @@ struct CustomVerboseDumbSerialiser
 {
   using Bytes = kv::SerialisedRep;
 
-  static Bytes to_serialised(const CustomClass2& c)
+  static Bytes to_serialised(const CustomClass& c)
   {
     const auto verbose = fmt::format("{}\ns={}\nn={}", T::prefix, c.s, c.n);
     return Bytes(verbose.begin(), verbose.end());
   }
 
-  static CustomClass2 from_serialised(const Bytes& b)
+  static CustomClass from_serialised(const Bytes& b)
   {
     std::string s(b.begin(), b.end());
     const auto prefix_start = s.find(T::prefix);
@@ -366,7 +273,7 @@ struct CustomVerboseDumbSerialiser
       throw std::logic_error("Missing expected prefix");
     }
 
-    CustomClass2 c;
+    CustomClass c;
     const auto first_linebreak = s.find('\n');
     const auto last_linebreak = s.rfind('\n');
     const auto seg_a = s.substr(0, first_linebreak);
@@ -381,30 +288,31 @@ struct CustomVerboseDumbSerialiser
   }
 };
 
-using MapA = kv::
-  Map<CustomClass2, CustomClass2, CustomJsonSerialiser, CustomJsonSerialiser>;
-using MapB = kv::Map<
-  CustomClass2,
-  CustomClass2,
+using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
+using JsonSerialisedMap =
+  kv::Map<CustomClass, CustomClass, CustomJsonSerialiser, CustomJsonSerialiser>;
+using VerboseSerialisedMap = kv::Map<
+  CustomClass,
+  CustomClass,
   CustomVerboseDumbSerialiser<KPrefix>,
   CustomVerboseDumbSerialiser<VPrefix>>;
 
 TEST_CASE_TEMPLATE(
-  "Custom type serialisation test (experimental scheme)" *
-    doctest::test_suite("serialisation"),
+  "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
-  MapA,
-  MapB)
+  DefaultSerialisedMap,
+  JsonSerialisedMap,
+  VerboseSerialisedMap)
 {
   kv::Store kv_store;
 
   auto& map = kv_store.create<MapType>("map", kv::SecurityDomain::PUBLIC);
 
-  CustomClass2 k1{"hello", 42};
-  CustomClass2 v1{"world", 43};
+  CustomClass k1{"hello", 42};
+  CustomClass v1{"world", 43};
 
-  CustomClass2 k2{"saluton", 100};
-  CustomClass2 v2{"mondo", 1024};
+  CustomClass k2{"saluton", 100};
+  CustomClass v2{"mondo", 1024};
 
   INFO("Serialise/Deserialise 2 kv stores");
   {
@@ -636,73 +544,6 @@ TEST_CASE(
 struct NonSerialisable
 {};
 
-namespace msgpack
-{
-  MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
-  {
-    namespace adaptor
-    {
-      // msgpack conversion for uint256_t
-      template <>
-      struct convert<NonSerialisable>
-      {
-        msgpack::object const& operator()(
-          msgpack::object const& o, NonSerialisable& ns) const
-        {
-          throw std::runtime_error("Deserialise failure");
-        }
-      };
-
-      template <>
-      struct pack<NonSerialisable>
-      {
-        template <typename Stream>
-        packer<Stream>& operator()(
-          msgpack::packer<Stream>& o, NonSerialisable const& ns) const
-        {
-          throw std::runtime_error("Serialise failure");
-        }
-      };
-    }
-  }
-}
-
-// TEST_CASE(
-//   "Exceptional serdes (old scheme)" * doctest::test_suite("serialisation"))
-// {
-//   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-//   auto consensus = std::make_shared<kv::StubConsensus>();
-
-//   kv::Store store(consensus);
-//   store.set_encryptor(encryptor);
-
-//   auto& good_map = store.create<size_t, size_t>("good_map");
-//   auto& bad_map = store.create<size_t, NonSerialisable>("bad_map");
-
-//   {
-//     kv::Tx tx;
-//     auto good_view = tx.get_view(good_map);
-//     good_view->put(1, 2);
-//     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-//   }
-
-//   {
-//     kv::Tx tx;
-//     auto bad_view = tx.get_view(bad_map);
-//     bad_view->put(0, {});
-//     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
-//   }
-
-//   {
-//     kv::Tx tx;
-//     auto good_view = tx.get_view(good_map);
-//     good_view->put(1, 2);
-//     auto bad_view = tx.get_view(bad_map);
-//     bad_view->put(0, {});
-//     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
-//   }
-// }
-
 struct NonSerialiser
 {
   using Bytes = kv::SerialisedRep;
@@ -718,9 +559,7 @@ struct NonSerialiser
   }
 };
 
-TEST_CASE(
-  "Exceptional serdes (experimental scheme)" *
-  doctest::test_suite("serialisation"))
+TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   auto consensus = std::make_shared<kv::StubConsensus>();
