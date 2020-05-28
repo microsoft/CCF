@@ -278,22 +278,18 @@ namespace kv
       {
         return [hook](Version v, const UntypedMap::Write& w) {
           Write typed_w;
-          for (const auto& [uk, version_uv] : w)
+          for (const auto& [uk, opt_uv] : w)
           {
-            if (version_uv.version == NoVersion)
+            if (!opt_uv.has_value())
             {
-              // Deletions are indicated by {NoVersion, {}}. The second
-              // element in the serialised representation is an empty vector,
-              // which may not be safely serialisable! So we duplicate the old
-              // behaviour and use default-constructed V
-              typed_w[KSerialiser::from_serialised(uk)] =
-                VersionV{NoVersion, V{}};
+              // Deletions are indicated by nullopt. We cannot deserialise them,
+              // they are deletions here as well
+              typed_w[KSerialiser::from_serialised(uk)] = std::nullopt;
             }
             else
             {
               typed_w[KSerialiser::from_serialised(uk)] =
-                VersionV{version_uv.version,
-                         VSerialiser::from_serialised(version_uv.value)};
+                VSerialiser::from_serialised(opt_uv.value());
             }
           }
 
