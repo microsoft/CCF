@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ds/hash.h"
-#include "kv_types.h"
 #include "kv/untyped/map.h"
 #include "kv/untyped/tx_view.h"
+#include "kv_types.h"
 
 #include <vector>
 
@@ -14,18 +14,6 @@ namespace kv
   namespace experimental
   {
     using SerialisedRep = kv::untyped::SerialisedRep;
-
-    using RepHasher = std::hash<SerialisedRep>;
-
-    using UntypedMap = kv::untyped::Map;
-
-    using UntypedOperationsView =
-      kv::untyped::TxView;
-
-    using UntypedCommitter =
-      kv::untyped::TxViewCommitter;
-
-    using UntypedState = kv::untyped::State;
 
     template <typename T>
     struct MsgPackSerialiser
@@ -69,25 +57,26 @@ namespace kv
       typename V,
       typename KSerialiser = MsgPackSerialiser<K>,
       typename VSerialiser = MsgPackSerialiser<V>>
-    class TxView : public UntypedCommitter
+    class TxView : public kv::untyped::TxViewCommitter
     {
     protected:
       // This _has_ a (non-visible, untyped) view, whereas the standard impl
       // _is_ a typed view
-      UntypedOperationsView untyped_view;
+      kv::untyped::TxView untyped_view;
 
     public:
       using KeyType = K;
       using ValueType = V;
 
       TxView(
-        UntypedMap& m,
+        kv::untyped::Map& m,
         size_t rollbacks,
-        UntypedState& current_state,
-        UntypedState& committed_state,
+        kv::untyped::State& current_state,
+        kv::untyped::State& committed_state,
         Version v) :
-        UntypedCommitter(m, rollbacks, current_state, committed_state, v),
-        untyped_view(UntypedCommitter::change_set)
+        kv::untyped::TxViewCommitter(
+          m, rollbacks, current_state, committed_state, v),
+        untyped_view(kv::untyped::TxViewCommitter::change_set)
       {}
 
       std::optional<V> get(const K& key)
@@ -153,13 +142,14 @@ namespace kv
     protected:
       using This = Map<K, V, KSerialiser, VSerialiser>;
 
-      UntypedMap untyped_map;
+      kv::untyped::Map untyped_map;
 
     public:
       // Expose correct public aliases of types
       using VersionV = VersionV<V>;
 
-      // TODO: Don't use this Write, use map rather than unordered_map, so K doesn't need std::hash?
+      // TODO: Don't use this Write, use map rather than unordered_map, so K
+      // doesn't need std::hash?
       using Write = Write<K, V, std::hash<K>>;
 
       using CommitHook = CommitHook<Write>;
@@ -275,7 +265,8 @@ namespace kv
         return untyped_map.create_view<TView>(v);
       }
 
-      static UntypedMap::CommitHook wrap_commit_hook(const CommitHook& hook)
+      static kv::untyped::Map::CommitHook wrap_commit_hook(
+        const CommitHook& hook)
       {
         return [hook](Version v, const kv::untyped::Write& w) {
           Write typed_w;
