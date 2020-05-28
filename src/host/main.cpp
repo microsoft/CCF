@@ -126,7 +126,7 @@ int main(int argc, char** argv)
     ->capture_default_str();
 
   // TODO: For now, this is the number of transactions
-  size_t ledger_size_threshold = 1 << 4;
+  size_t ledger_size_threshold = 1 << 16;
   app
     .add_option(
       "--ledger-chunk-threshold",

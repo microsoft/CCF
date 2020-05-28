@@ -40,7 +40,7 @@ namespace asynchost
     const size_t chunk_threshold;
 
     FILE* file; // active chunk
-    size_t start_idx = 0; // Start index on the active chunk
+    size_t start_idx = 1; // Start index on the active chunk
     size_t total_len; // Length of the active chunk
 
   public:
@@ -147,8 +147,6 @@ namespace asynchost
 
       LOG_DEBUG_FMT("Ledger write {}: {} bytes", positions.size(), size);
 
-      total_len += (size + frame_header_size);
-
       uint32_t frame = (uint32_t)size;
 
       if (fwrite(&frame, frame_header_size, 1, file) != 1)
@@ -156,6 +154,8 @@ namespace asynchost
 
       if (fwrite(data, size, 1, file) != 1)
         throw std::logic_error("Failed to write to file");
+
+      total_len += (size + frame_header_size);
     }
 
     // TODO: Only applies to latest chunk
@@ -165,10 +165,11 @@ namespace asynchost
       // starts
       if (last_idx < start_idx)
       {
-        throw std::logic_error(fmt::format(
+        LOG_FAIL_FMT(
           "Cannot truncate active ledger at {}: active ledger starts at {}",
           last_idx,
-          start_idx));
+          start_idx);
+        return;
       }
 
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", last_idx, positions.size());
@@ -176,16 +177,21 @@ namespace asynchost
       // positions[last_idx - 1] is the position of the specified
       // final index. Truncate the ledger at position[last_idx].
       if (last_idx >= positions.size())
+      {
+        LOG_FAIL_FMT(
+          "Cannot truncate active ledger at {}: active ledger ends at {}",
+          last_idx,
+          start_idx);
         return;
+      }
 
       total_len = positions.at(last_idx);
       positions.resize(last_idx);
 
       if (fflush(file) != 0)
       {
-        std::stringstream ss;
-        ss << "Failed to flush file: " << strerror(errno);
-        throw std::logic_error(ss.str());
+        throw std::logic_error(
+          fmt::format("Failed to flush active ledger: {}", strerror(errno)));
       }
 
       if (ftruncate(fileno(file), total_len))
@@ -199,7 +205,7 @@ namespace asynchost
     {
       LOG_FAIL_FMT("Creating new chunk at {}...", signature_idx);
 
-      start_idx = signature_idx;
+      start_idx = signature_idx + 1;
     }
 
     void register_message_handlers(
@@ -225,10 +231,11 @@ namespace asynchost
           auto idx = serialized::read<consensus::Index>(data, size);
           LOG_FAIL_FMT("Compacting ledger at {}", idx);
 
-          // TODO: Create a chunk based on size of the ledger at idx rather than
-          // the idx itself
+          size_t chunk_size = framed_entries_size(start_idx, idx);
+          LOG_FAIL_FMT(
+            "Size of last chunk: {}/{}", chunk_size, chunk_threshold);
 
-          if ((idx - start_idx) > chunk_threshold)
+          if (chunk_size > chunk_threshold)
           {
             archive_chunk(idx);
           }
