@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
+#include "kv/untyped/map.h"
 #include "node/rpc/user_frontend.h"
 #include "quickjs.h"
 
@@ -13,7 +14,7 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using Table = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
+  using Table = kv::untyped::Map;
 
   static JSValue js_print(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
