@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/champ_map.h"
+#include "ds/hash.h"
 #include "kv/kv_types.h"
 
 #include <unordered_map>
