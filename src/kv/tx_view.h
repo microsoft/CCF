@@ -2,211 +2,128 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/change_set.h"
+#include "kv/untyped/map.h"
+#include "kv/untyped/tx_view.h"
 #include "kv_types.h"
 
 namespace kv
 {
-  template <typename K, typename V, typename H = std::hash<K>>
-  class TxView
+  using SerialisedRep = kv::untyped::SerialisedRep;
+
+  template <typename T>
+  struct MsgPackSerialiser
+  {
+    static SerialisedRep to_serialised(const T& t)
+    {
+      msgpack::sbuffer sb;
+      msgpack::pack(sb, t);
+      auto sb_data = reinterpret_cast<const uint8_t*>(sb.data());
+      return SerialisedRep(sb_data, sb_data + sb.size());
+    }
+
+    static T from_serialised(const SerialisedRep& rep)
+    {
+      msgpack::object_handle oh =
+        msgpack::unpack(reinterpret_cast<const char*>(rep.data()), rep.size());
+      auto object = oh.get();
+      return object.as<T>();
+    }
+  };
+
+  template <typename T>
+  struct JsonSerialiser
+  {
+    static SerialisedRep to_serialised(const T& t)
+    {
+      const nlohmann::json j = t;
+      const auto dumped = j.dump();
+      return SerialisedRep(dumped.begin(), dumped.end());
+    }
+
+    static T from_serialised(const SerialisedRep& rep)
+    {
+      const auto j = nlohmann::json::parse(rep);
+      return j.get<T>();
+    }
+  };
+
+  template <
+    typename K,
+    typename V,
+    typename KSerialiser = MsgPackSerialiser<K>,
+    typename VSerialiser = MsgPackSerialiser<V>>
+  class TxView : public kv::untyped::TxViewCommitter
   {
   protected:
-    using State = State<K, V, H>;
-
-    using ChangeSet = ChangeSet<K, V, H>;
-    ChangeSet& tx_changes;
+    // This _has_ a (non-visible, untyped) view, whereas the standard impl
+    // _is_ a typed view
+    kv::untyped::TxView untyped_view;
 
   public:
-    // Expose these types so that other code can use them as MyTx::KeyType or
-    // MyMap::TxView::KeyType, templated on the TxView or Map type rather than
-    // explicitly on K and V
     using KeyType = K;
     using ValueType = V;
 
-    TxView(ChangeSet& cs) : tx_changes(cs) {}
+    TxView(
+      kv::untyped::Map& m,
+      size_t rollbacks,
+      kv::untyped::State& current_state,
+      kv::untyped::State& committed_state,
+      Version v) :
+      kv::untyped::TxViewCommitter(
+        m, rollbacks, current_state, committed_state, v),
+      untyped_view(kv::untyped::TxViewCommitter::change_set)
+    {}
 
-    /** Get value for key
-     *
-     * This returns the value for the key inside the transaction. If the key
-     * has been updated in the current transaction, that update will be
-     * reflected in the return of this call.
-     *
-     * @param key Key
-     *
-     * @return optional containing value, empty if the key doesn't exist
-     */
     std::optional<V> get(const K& key)
     {
-      // A write followed by a read doesn't introduce a read dependency.
-      // If we have written, return the value without updating the read set.
-      auto write = tx_changes.writes.find(key);
-      if (write != tx_changes.writes.end())
+      const auto k_rep = KSerialiser::to_serialised(key);
+      const auto opt_v_rep = untyped_view.get(k_rep);
+
+      if (opt_v_rep.has_value())
       {
-        // May be empty, for a key that has been removed. This matches the
-        // return semantics
-        return write->second;
+        return VSerialiser::from_serialised(*opt_v_rep);
       }
 
-      // If the key doesn't exist, return empty and record that we depend on
-      // the key not existing.
-      auto search = tx_changes.state.get(key);
-      if (!search.has_value())
-      {
-        tx_changes.reads.insert(std::make_pair(key, NoVersion));
-        return std::nullopt;
-      }
-
-      // Record the version that we depend on.
-      auto& found = search.value();
-      tx_changes.reads.insert(std::make_pair(key, found.version));
-
-      // If the key has been deleted, return empty.
-      if (is_deleted(found.version))
-      {
-        return std::nullopt;
-      }
-
-      // Return the value.
-      return found.value;
+      return std::nullopt;
     }
 
-    /** Get globally committed value for key
-     *
-     * This reads a globally replicated value for the specified key.
-     * The value will have been the replicated value when the transaction
-     * began, but the map may be compacted while the transaction is in
-     * flight. If that happens, there may be a more recent committed
-     * version. This is undetectable to the transaction.
-     *
-     * @param key Key
-     *
-     * @return optional containing value, empty if the key doesn't exist in
-     * globally committed state
-     */
     std::optional<V> get_globally_committed(const K& key)
     {
-      // If there is no committed value, return empty.
-      auto search = tx_changes.committed.get(key);
-      if (!search.has_value())
+      const auto k_rep = KSerialiser::to_serialised(key);
+      const auto opt_v_rep = untyped_view.get_globally_committed(k_rep);
+
+      if (opt_v_rep.has_value())
       {
-        return std::nullopt;
+        return VSerialiser::from_serialised(*opt_v_rep);
       }
 
-      // If the key has been deleted, return empty.
-      auto& found = search.value();
-      if (is_deleted(found.version))
-      {
-        return std::nullopt;
-      }
-
-      // Return the value.
-      return found.value;
+      return std::nullopt;
     }
 
-    /** Write value at key
-     *
-     * If the key already exists, the value will be replaced.
-     * This will fail if the transaction is already committed.
-     *
-     * @param key Key
-     * @param value Value
-     *
-     * @return true if successful, false otherwise
-     */
     bool put(const K& key, const V& value)
     {
-      // Record in the write set.
-      tx_changes.writes[key] = value;
-      return true;
+      const auto k_rep = KSerialiser::to_serialised(key);
+      const auto v_rep = VSerialiser::to_serialised(value);
+
+      return untyped_view.put(k_rep, v_rep);
     }
 
-    /** Remove key
-     *
-     * This will fail if the key does not exist, or if the transaction
-     * is already committed.
-     *
-     * @param key Key
-     *
-     * @return true if successful, false otherwise
-     */
     bool remove(const K& key)
     {
-      auto write = tx_changes.writes.find(key);
-      auto search = tx_changes.state.get(key).has_value();
+      const auto k_rep = KSerialiser::to_serialised(key);
 
-      if (write != tx_changes.writes.end())
-      {
-        if (!search)
-        {
-          // this key only exists locally, there is no reason to maintain and
-          // serialise it
-          tx_changes.writes.erase(key);
-        }
-        else
-        {
-          // If we have written, change the write set to indicate a remove.
-          write->second = std::nullopt;
-        }
-
-        return true;
-      }
-
-      // If the key doesn't exist, return false.
-      if (!search)
-      {
-        return false;
-      }
-
-      // Record in the write set.
-      tx_changes.writes.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(key),
-        std::forward_as_tuple(std::nullopt));
-      return true;
+      return untyped_view.remove(k_rep);
     }
 
-    /** Iterate over all entries in the map
-     *
-     * @param F functor, taking a key and a value, return value determines
-     * whether the iteration should continue (true) or stop (false)
-     */
     template <class F>
     void foreach(F&& f)
     {
-      // Record a global read dependency.
-      tx_changes.read_version = tx_changes.start_version;
-      auto& w = tx_changes.writes;
-      bool should_continue = true;
-
-      tx_changes.state.foreach(
-        [&w, &f, &should_continue](const K& k, const VersionV<V>& v) {
-          auto write = w.find(k);
-
-          if ((write == w.end()) && !is_deleted(v.version))
-          {
-            should_continue = f(k, v.value);
-          }
-
-          return should_continue;
-        });
-
-      if (should_continue)
-      {
-        for (auto write = tx_changes.writes.begin();
-             write != tx_changes.writes.end();
-             ++write)
-        {
-          if (write->second.has_value())
-          {
-            should_continue = f(write->first, write->second.value());
-          }
-
-          if (!should_continue)
-          {
-            break;
-          }
-        }
-      }
+      auto g = [&](const SerialisedRep& k_rep, const SerialisedRep& v_rep) {
+        return f(
+          KSerialiser::from_serialised(k_rep),
+          VSerialiser::from_serialised(v_rep));
+      };
+      untyped_view.foreach(g);
     }
   };
 }

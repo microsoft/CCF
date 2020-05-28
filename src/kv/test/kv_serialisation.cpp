@@ -699,41 +699,41 @@ namespace msgpack
   }
 }
 
-TEST_CASE(
-  "Exceptional serdes (old scheme)" * doctest::test_suite("serialisation"))
-{
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  auto consensus = std::make_shared<kv::StubConsensus>();
+// TEST_CASE(
+//   "Exceptional serdes (old scheme)" * doctest::test_suite("serialisation"))
+// {
+//   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+//   auto consensus = std::make_shared<kv::StubConsensus>();
 
-  kv::Store store(consensus);
-  store.set_encryptor(encryptor);
+//   kv::Store store(consensus);
+//   store.set_encryptor(encryptor);
 
-  auto& good_map = store.create<size_t, size_t>("good_map");
-  auto& bad_map = store.create<size_t, NonSerialisable>("bad_map");
+//   auto& good_map = store.create<size_t, size_t>("good_map");
+//   auto& bad_map = store.create<size_t, NonSerialisable>("bad_map");
 
-  {
-    kv::Tx tx;
-    auto good_view = tx.get_view(good_map);
-    good_view->put(1, 2);
-    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-  }
+//   {
+//     kv::Tx tx;
+//     auto good_view = tx.get_view(good_map);
+//     good_view->put(1, 2);
+//     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+//   }
 
-  {
-    kv::Tx tx;
-    auto bad_view = tx.get_view(bad_map);
-    bad_view->put(0, {});
-    REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
-  }
+//   {
+//     kv::Tx tx;
+//     auto bad_view = tx.get_view(bad_map);
+//     bad_view->put(0, {});
+//     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
+//   }
 
-  {
-    kv::Tx tx;
-    auto good_view = tx.get_view(good_map);
-    good_view->put(1, 2);
-    auto bad_view = tx.get_view(bad_map);
-    bad_view->put(0, {});
-    REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
-  }
-}
+//   {
+//     kv::Tx tx;
+//     auto good_view = tx.get_view(good_map);
+//     good_view->put(1, 2);
+//     auto bad_view = tx.get_view(bad_map);
+//     bad_view->put(0, {});
+//     REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
+//   }
+// }
 
 struct NonSerialiser
 {

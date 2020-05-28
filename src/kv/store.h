@@ -106,10 +106,10 @@ namespace kv
       return encryptor;
     }
 
-    template <class K, class V, class H = std::hash<K>>
-    Map<K, V, H>* get(std::string name)
+    template <class K, class V>
+    Map<K, V>* get(std::string name)
     {
-      return get<Map<K, V, H>>(name);
+      return get<Map<K, V>>(name);
     }
 
     /** Get Map by name
@@ -147,12 +147,12 @@ namespace kv
      *
      * @return Newly created Map
      */
-    template <class K, class V, class H = std::hash<K>>
-    Map<K, V, H>& create(
+    template <class K, class V>
+    Map<K, V>& create(
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
     {
-      return create<Map<K, V, H>>(name, security_domain);
+      return create<Map<K, V>>(name, security_domain);
     }
 
     /** Create a Map
