@@ -423,7 +423,8 @@ TEST_CASE_TEMPLATE(
     REQUIRE(global_writes.size() == 0);
     REQUIRE(local_writes.size() == 1);
     const auto& latest_writes = local_writes.front();
-    REQUIRE(latest_writes.at("key1").value == "value1");
+    REQUIRE(latest_writes.at("key1").has_value());
+    REQUIRE(latest_writes.at("key1").value() == "value1");
     INFO("Local removals are not seen");
     REQUIRE(latest_writes.find("key2") == latest_writes.end());
     REQUIRE(latest_writes.size() == 1);
@@ -462,8 +463,13 @@ TEST_CASE_TEMPLATE(
     INFO("Old writes are not included");
     REQUIRE(latest_writes.find("key1") == latest_writes.end());
     INFO("Visible removals are included");
-    REQUIRE(latest_writes.at("key2").version == kv::NoVersion);
-    REQUIRE(latest_writes.at("key3").value == "value3");
+    const auto it2 = latest_writes.find("key2");
+    REQUIRE(it2 != latest_writes.end());
+    REQUIRE(!it2->second.has_value());
+    const auto it3 = latest_writes.find("key3");
+    REQUIRE(it3 != latest_writes.end());
+    REQUIRE(it3->second.has_value());
+    REQUIRE(it3->second.value() == "value3");
     REQUIRE(latest_writes.size() == 2);
 
     local_writes.clear();
@@ -511,8 +517,12 @@ TEST_CASE_TEMPLATE(
     kv_store.compact(1);
 
     REQUIRE(global_writes.size() == 1);
-    REQUIRE(global_writes.at(0).version == 1);
-    REQUIRE(global_writes.at(0).writes.at("key1").value == "value1");
+    const auto& latest_writes = global_writes.front();
+    REQUIRE(latest_writes.version == 1);
+    const auto it1 = latest_writes.writes.find("key1");
+    REQUIRE(it1 != latest_writes.writes.end());
+    REQUIRE(it1->second.has_value());
+    REQUIRE(it1->second.value() == "value1");
 
     global_writes.clear();
     kv_store.clear();
@@ -543,9 +553,14 @@ TEST_CASE_TEMPLATE(
     // hook
     REQUIRE(global_writes.size() == 2);
     REQUIRE(global_writes.at(0).version == 1);
-    REQUIRE(global_writes.at(0).writes.at("key1").value == "value1");
-    REQUIRE(global_writes.at(1).version == 2);
-    REQUIRE(global_writes.at(1).writes.at("key2").value == "value2");
+    const auto it1 = global_writes.at(0).writes.find("key1");
+    REQUIRE(it1 != global_writes.at(0).writes.end());
+    REQUIRE(it1->second.has_value());
+    REQUIRE(it1->second.value() == "value1");
+    const auto it2 = global_writes.at(1).writes.find("key2");
+    REQUIRE(it2 != global_writes.at(1).writes.end());
+    REQUIRE(it2->second.has_value());
+    REQUIRE(it2->second.value() == "value2");
 
     global_writes.clear();
     kv_store.clear();
@@ -576,7 +591,10 @@ TEST_CASE_TEMPLATE(
     // hook
     REQUIRE(global_writes.size() == 1);
     REQUIRE(global_writes.at(0).version == 1);
-    REQUIRE(global_writes.at(0).writes.at("key1").value == "value1");
+    const auto it1 = global_writes.at(0).writes.find("key1");
+    REQUIRE(it1 != global_writes.at(0).writes.end());
+    REQUIRE(it1->second.has_value());
+    REQUIRE(it1->second.value() == "value1");
 
     global_writes.clear();
     kv_store.clear();
@@ -601,7 +619,10 @@ TEST_CASE_TEMPLATE(
     // Only writes since the last compact are passed to the global hook
     REQUIRE(global_writes.size() == 1);
     REQUIRE(global_writes.at(0).version == 2);
-    REQUIRE(global_writes.at(0).writes.at("key2").value == "value2");
+    const auto it2 = global_writes.at(0).writes.find("key2");
+    REQUIRE(it2 != global_writes.at(0).writes.end());
+    REQUIRE(it2->second.has_value());
+    REQUIRE(it2->second.value() == "value2");
 
     global_writes.clear();
     kv_store.clear();
