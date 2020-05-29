@@ -263,11 +263,8 @@ namespace ccf
       };
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
+        .set_execute_locally(true)
         .set_auto_schema<void, GetCommit::Out>();
-      install(
-        GeneralProcs::GET_LOCAL_COMMIT, json_adapter(get_local_commit), Read)
-        .set_auto_schema<void, GetCommit::Out>()
-        .set_execute_locally(true);
       install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
         .set_auto_schema<GetTxStatus>()
         .set_http_get_only();
