@@ -221,6 +221,7 @@ namespace kv
     virtual std::pair<View, SeqNo> get_committed_txid() = 0;
 
     virtual View get_view(SeqNo seqno) = 0;
+    virtual View get_view() = 0;
     virtual SeqNo get_committed_seqno() = 0;
     virtual NodeId primary() = 0;
 

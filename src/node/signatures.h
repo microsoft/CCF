@@ -17,12 +17,12 @@ namespace ccf
     NodeId node;
     ObjectId seqno;
     ObjectId view;
-    ObjectId commit;
+    ObjectId commit_seqno;
     crypto::Sha256Hash root;
     std::vector<uint8_t> tree;
 
     MSGPACK_DEFINE(
-      MSGPACK_BASE(RawSignature), node, seqno, view, commit, root, tree);
+      MSGPACK_BASE(RawSignature), node, seqno, view, commit_seqno, root, tree);
 
     Signature() {}
 
@@ -30,14 +30,14 @@ namespace ccf
       node(node_),
       seqno(seqno_),
       view(0),
-      commit(0)
+      commit_seqno(0)
     {}
 
     Signature(const crypto::Sha256Hash& root_) :
       node(0),
       seqno(0),
       view(0),
-      commit(0),
+      commit_seqno(0),
       root(root_),
       tree{0}
     {}
@@ -46,7 +46,7 @@ namespace ccf
       NodeId node_,
       ObjectId seqno_,
       ObjectId view_,
-      ObjectId commit_,
+      ObjectId commit_seqno_,
       const crypto::Sha256Hash root_,
       const std::vector<uint8_t>& sig_,
       const std::vector<uint8_t>& tree_) :
@@ -54,12 +54,12 @@ namespace ccf
       node(node_),
       seqno(seqno_),
       view(view_),
-      commit(commit_),
+      commit_seqno(commit_seqno_),
       root(root_),
       tree(tree_)
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE(Signature, RawSignature)
-  DECLARE_JSON_REQUIRED_FIELDS(Signature, node, seqno, view, commit, root)
+  DECLARE_JSON_REQUIRED_FIELDS(Signature, node, seqno, view, commit_seqno, root)
   using Signatures = kv::Map<ObjectId, Signature>;
 }

@@ -64,6 +64,11 @@ namespace raft
       return raft->get_term(seqno);
     }
 
+    View get_view() override
+    {
+      return raft->get_term();
+    }
+
     SeqNo get_committed_seqno() override
     {
       return raft->get_commit_idx();

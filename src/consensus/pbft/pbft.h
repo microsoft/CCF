@@ -522,6 +522,11 @@ namespace pbft
         client_proxy.get());
     }
 
+    View get_view() override
+    {
+      return message_receiver_base->view() + 2;
+    }
+
     View get_view(SeqNo seqno) override
     {
       // replicas reply to requests on prepare but globally commit (update
@@ -531,7 +536,7 @@ namespace pbft
       auto last_vc_info = view_change_list.back();
       if (last_vc_info.min_global_commit < seqno)
       {
-        return message_receiver_base->view() + 2;
+        return get_view();
       }
 
       for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();

@@ -355,6 +355,11 @@ public:
   {
     return 2;
   }
+
+  View get_view() override
+  {
+    return 2;
+  }
 };
 
 TEST_CASE(

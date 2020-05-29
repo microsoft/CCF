@@ -635,7 +635,7 @@ namespace ccf
         auto s = ls.value();
         index = s.seqno;
         term = s.view;
-        global_commit = s.commit;
+        global_commit = s.commit_seqno;
       }
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());

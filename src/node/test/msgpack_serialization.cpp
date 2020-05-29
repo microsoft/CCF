@@ -187,7 +187,7 @@ TEST_CASE("Signature")
     sig.node = 0;
     sig.seqno = 1;
     sig.view = 2;
-    sig.commit = 3;
+    sig.commit_seqno = 3;
     const auto converted = msgpack_roundtrip(sig);
     CHECK(sig == converted);
   }
@@ -199,7 +199,7 @@ TEST_CASE("Signature")
     sig.node = rand();
     sig.seqno = rand();
     sig.view = rand();
-    sig.commit = rand();
+    sig.commit_seqno = rand();
     const auto converted = msgpack_roundtrip(sig);
     CHECK(sig == converted);
   }

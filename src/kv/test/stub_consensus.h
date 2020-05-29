@@ -89,6 +89,11 @@ namespace kv
       return 2;
     }
 
+    View get_view() override
+    {
+      return 2;
+    }
+
     void recv_message(OArray&& oa) override {}
 
     void add_configuration(

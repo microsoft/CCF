@@ -525,21 +525,26 @@ namespace ccf
       if (consensus->type() == ConsensusType::RAFT)
       {
         auto version = store.next_version();
-        auto txid = consensus->get_committed_txid();
+        auto view = consensus->get_view();
+        auto commit_txid = consensus->get_committed_txid();
         LOG_DEBUG_FMT("Issuing signature at {}", version);
         LOG_DEBUG_FMT(
-          "Signed at {} view: {} commit: {}", version, txid.first, txid.second);
+          "Signed at {} in view: {} commit was: {}.{}",
+          version,
+          view,
+          commit_txid.first,
+          commit_txid.second);
         store.commit(
           version,
-          [version, txid, this]() {
+          [version, view, commit_txid, this]() {
             kv::Tx sig(version);
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
             Signature sig_value(
               id,
               version,
-              txid.first,
-              txid.second,
+              view,
+              commit_txid.second,
               root,
               kp.sign_hash(root.h.data(), root.h.size()),
               replicated_state_tree.serialise());

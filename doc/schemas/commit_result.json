@@ -16,6 +16,6 @@
     "view",
     "seqno"
   ],
-  "title": "debug/getLocalCommit/result",
+  "title": "commit/result",
   "type": "object"
 }
