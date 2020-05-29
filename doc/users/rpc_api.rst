@@ -62,10 +62,10 @@ The API can also be retrieved from a running service using the `listMethods`_ an
 Common Methods
 --------------
 
-getCommit
-~~~~~~~~~
+commit
+~~~~~~
 
-.. literalinclude:: ../schemas/getCommit_result.json
+.. literalinclude:: ../schemas/commit_result.json
     :language: json
 
 tx

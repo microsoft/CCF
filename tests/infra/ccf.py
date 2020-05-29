@@ -550,9 +550,9 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             with primary.node_client() as c:
-                resp = c.get("getCommit")
-                seqno = resp.result["commit"]
-                view = resp.result["term"]
+                resp = c.get("commit")
+                seqno = resp.result["seqno"]
+                view = resp.result["view"]
                 if seqno != 0:
                     break
             time.sleep(0.1)
@@ -595,12 +595,12 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    r = c.get("getCommit")
+                    r = c.get("commit")
                     commits.append(r.seqno)
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
-        # in pbft getCommit increments the commit version, so commits will not be the same
+        # in pbft the commit rpc increments the commit version, so commits will not be the same
         # but they should be in ascending order
         assert (
             [commits[0]] * len(commits) == commits

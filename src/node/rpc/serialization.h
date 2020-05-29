@@ -73,7 +73,7 @@ namespace ccf
     recovery_threshold)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, term, commit)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, view, seqno)
 
   DECLARE_JSON_TYPE(GetTxStatus::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::In, view, seqno)

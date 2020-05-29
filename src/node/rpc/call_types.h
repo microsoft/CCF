@@ -7,6 +7,7 @@
 #include "node/nodes.h"
 #include "node_call_types.h"
 #include "tx_status.h"
+#include "kv/kv_types.h"
 
 #include <nlohmann/json.hpp>
 
@@ -16,8 +17,8 @@ namespace ccf
   {
     struct Out
     {
-      uint64_t term;
-      int64_t commit;
+      kv::Consensus::View view;
+      kv::Consensus::SeqNo seqno;
     };
   };
 
@@ -25,8 +26,8 @@ namespace ccf
   {
     struct In
     {
-      uint64_t view;
-      uint32_t seqno;
+      kv::Consensus::View view;
+      kv::Consensus::SeqNo seqno;
     };
 
     struct Out

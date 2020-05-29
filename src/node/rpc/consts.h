@@ -7,7 +7,6 @@ namespace ccf
 {
   struct GeneralProcs
   {
-    static constexpr auto GET_COMMIT = "getCommit";
     static constexpr auto GET_LOCAL_COMMIT = "debug/getLocalCommit";
     static constexpr auto GET_METRICS = "getMetrics";
     static constexpr auto MK_SIGN = "mkSign";
@@ -21,6 +20,7 @@ namespace ccf
     static constexpr auto VERIFY_RECEIPT = "verifyReceipt";
 
     static constexpr auto GET_TX_STATUS = "tx";
+    static constexpr auto GET_COMMIT = "commit";
   };
 
   struct MemberProcs

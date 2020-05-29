@@ -522,11 +522,6 @@ namespace pbft
         client_proxy.get());
     }
 
-    View get_view() override
-    {
-      return message_receiver_base->view() + 2;
-    }
-
     View get_view(SeqNo seqno) override
     {
       // replicas reply to requests on prepare but globally commit (update
@@ -536,7 +531,7 @@ namespace pbft
       auto last_vc_info = view_change_list.back();
       if (last_vc_info.min_global_commit < seqno)
       {
-        return get_view();
+        return message_receiver_base->view() + 2;
       }
 
       for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
@@ -551,7 +546,12 @@ namespace pbft
       throw std::logic_error("should never be here");
     }
 
-    SeqNo get_commit_seqno() override
+    std::pair<View, SeqNo> get_committed_txid() override
+    {
+      return {get_view(global_commit_seqno), global_commit_seqno};
+    }
+
+    SeqNo get_committed_seqno() override
     {
       return global_commit_seqno;
     }

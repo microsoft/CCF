@@ -196,14 +196,14 @@ namespace http
       return request_index;
     }
 
-    virtual void set_commit(kv::Version cv) override
+    virtual void set_seqno(kv::Version sn) override
     {
-      set_response_header(http::headers::CCF_TX_SEQNO, fmt::format("{}", cv));
+      set_response_header(http::headers::CCF_TX_SEQNO, fmt::format("{}", sn));
     }
 
-    virtual void set_term(kv::Consensus::View t) override
+    virtual void set_view(kv::Consensus::View v) override
     {
-      set_response_header(http::headers::CCF_TX_VIEW, fmt::format("{}", t));
+      set_response_header(http::headers::CCF_TX_VIEW, fmt::format("{}", v));
     }
 
     virtual void set_global_commit(kv::Version gc) override

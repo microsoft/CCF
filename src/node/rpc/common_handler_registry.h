@@ -38,9 +38,8 @@ namespace ccf
       auto get_commit = [this](kv::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
-          const auto commit = tables->commit_version();
-          auto term = consensus->get_view(commit);
-          return make_success(GetCommit::Out{term, commit});
+          auto [view, seqno] = consensus->get_committed_txid();
+          return make_success(GetCommit::Out{view, seqno});
         }
 
         return make_error(
@@ -67,7 +66,7 @@ namespace ccf
         if (consensus != nullptr)
         {
           const auto tx_view = consensus->get_view(in.seqno);
-          const auto committed_seqno = consensus->get_commit_seqno();
+          const auto committed_seqno = consensus->get_committed_seqno();
           const auto committed_view = consensus->get_view(committed_seqno);
 
           GetTxStatus::Out out;
@@ -146,7 +145,7 @@ namespace ccf
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
-          auto current_term = consensus->get_view();
+          auto [current_term, _] = consensus->get_committed_txid();
 
           auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
