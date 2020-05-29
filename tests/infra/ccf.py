@@ -72,7 +72,6 @@ class Network:
         "gov_script",
         "join_timer",
         "worker_threads",
-        "domain",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
