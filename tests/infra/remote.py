@@ -529,6 +529,7 @@ class CCFRemote(object):
         ledger_file=None,
         json_log_path=None,
         binary_dir=".",
+        domain=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -605,6 +606,9 @@ class CCFRemote(object):
             cmd += [
                 f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
             ]
+
+        if domain:
+            cmd += [f"--domain={domain}"]
 
         if start_type == StartType.new:
             cmd += [
