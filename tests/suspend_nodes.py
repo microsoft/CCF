@@ -15,7 +15,7 @@ from loguru import logger as LOG
 
 # pbft will store up to 34 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
 # If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
-# By sending 18 RPC requests and a commit rpc for each of them (what raft consideres as a read pbft will process as a write),
+# By sending 18 RPC requests and a commit rpc for each of them (what raft considers as a read pbft will process as a write),
 # we are sure that we will have to go via the ledger to help late joiners catch up (total 36 reqs > 34)
 TOTAL_REQUESTS = 9  # x2 is 18 since LoggingTxs app sends a private and a public request for each tx index
 
