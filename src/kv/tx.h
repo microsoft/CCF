@@ -55,6 +55,7 @@ namespace kv
       {
         // Grab opacity version that all Maps should be queried at.
         read_version = m.get_store()->current_version();
+        // TODO: snap term here?
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
@@ -83,6 +84,7 @@ namespace kv
       success = false;
       read_version = NoVersion;
       version = NoVersion;
+      //TODO: reset the term too
     }
 
   public:
@@ -208,6 +210,7 @@ namespace kv
             return CommitSuccess::OK;
           }
 
+          // TODO: pass down the term here
           return store->commit(
             version, MovePendingTx(std::move(data), std::move(req_id)), false);
         }

@@ -148,6 +148,14 @@ namespace raft
 #endif
     }
 
+    virtual void set_term(Term t)
+    {
+#ifdef STUB_LOG
+      std::cout << "  Node" << _id << "->>KV" << _id << ": set_term t: " << t
+                << std::endl;
+#endif
+    }
+
     virtual kv::DeserialiseSuccess deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,

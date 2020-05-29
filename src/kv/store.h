@@ -22,6 +22,7 @@ namespace kv
     std::shared_ptr<AbstractTxEncryptor> encryptor = nullptr;
     Version version = 0;
     Version compacted = 0;
+    Term term = 0;
 
     SpinLock maps_lock;
     SpinLock version_lock;
@@ -263,6 +264,11 @@ namespace kv
       auto e = get_encryptor();
       if (e)
         e->rollback(v);
+    }
+
+    void set_term(Term t) override
+    {
+      term = t;
     }
 
     DeserialiseSuccess deserialise_views(

@@ -1208,6 +1208,7 @@ namespace raft
     void rollback(Index idx)
     {
       store->rollback(idx);
+      store->set_term(current_term); // TODO: can be combined with rollback?
       ledger->truncate(idx);
       last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);
