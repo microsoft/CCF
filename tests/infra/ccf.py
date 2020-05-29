@@ -601,13 +601,7 @@ class Network:
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
-        # in pbft the commit rpc increments the commit version, so commits will not be the same
-        # but they should be in ascending order
-        assert (
-            [commits[0]] * len(commits) == commits
-            if consensus == "raft"
-            else sorted(commits) == commits
-        ), "All nodes in sync"
+        assert [commits[0]] * len(commits) == commits, "All nodes in sync"
 
 
 @contextmanager
