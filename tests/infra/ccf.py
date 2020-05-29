@@ -507,10 +507,10 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.get("getPrimaryInfo")
+                        res = c.get("primary_info")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            view = res.result["current_term"]
+                            view = res.result["current_view"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error

@@ -61,7 +61,7 @@ namespace ccf
       NodeId primary_id;
       std::string primary_host;
       std::string primary_port;
-      uint64_t current_term;
+      kv::Consensus::View current_view;
     };
   };
 

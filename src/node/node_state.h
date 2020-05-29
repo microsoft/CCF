@@ -647,9 +647,9 @@ namespace ccf
       setup_raft(true);
 
       LOG_DEBUG_FMT(
-        "Restarting Raft at index: {} term: {} commit_idx {}",
-        index,
+        "Restarting consensus at view: {} seqno: {} commit_seqno {}",
         term,
+        index,
         global_commit);
       consensus->force_become_primary(index, term, term_history, index);
 
