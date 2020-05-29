@@ -145,7 +145,7 @@ namespace ccf
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
-          auto [current_term, _] = consensus->get_committed_txid();
+          auto current_term = consensus->get_view();
 
           auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
