@@ -15,38 +15,35 @@ namespace ccf
   struct Signature : public RawSignature
   {
     NodeId node;
-    ObjectId seqno;
-    ObjectId view;
-    ObjectId commit_seqno;
+    ObjectId seqno = 0;
+    ObjectId view = 0;
+    ObjectId commit_seqno = 0;
+    ObjectId commit_view = 0;
     crypto::Sha256Hash root;
-    std::vector<uint8_t> tree;
+    std::vector<uint8_t> tree = {0};
 
     MSGPACK_DEFINE(
-      MSGPACK_BASE(RawSignature), node, seqno, view, commit_seqno, root, tree);
+      MSGPACK_BASE(RawSignature),
+      node,
+      seqno,
+      view,
+      commit_seqno,
+      commit_view,
+      root,
+      tree);
 
     Signature() {}
 
-    Signature(NodeId node_, ObjectId seqno_) :
-      node(node_),
-      seqno(seqno_),
-      view(0),
-      commit_seqno(0)
-    {}
+    Signature(NodeId node_, ObjectId seqno_) : node(node_), seqno(seqno_) {}
 
-    Signature(const crypto::Sha256Hash& root_) :
-      node(0),
-      seqno(0),
-      view(0),
-      commit_seqno(0),
-      root(root_),
-      tree{0}
-    {}
+    Signature(const crypto::Sha256Hash& root_) : root(root_) {}
 
     Signature(
       NodeId node_,
       ObjectId seqno_,
       ObjectId view_,
       ObjectId commit_seqno_,
+      ObjectId commit_view_,
       const crypto::Sha256Hash root_,
       const std::vector<uint8_t>& sig_,
       const std::vector<uint8_t>& tree_) :
@@ -55,11 +52,13 @@ namespace ccf
       seqno(seqno_),
       view(view_),
       commit_seqno(commit_seqno_),
+      commit_view(commit_view_),
       root(root_),
       tree(tree_)
     {}
   };
   DECLARE_JSON_TYPE_WITH_BASE(Signature, RawSignature)
-  DECLARE_JSON_REQUIRED_FIELDS(Signature, node, seqno, view, commit_seqno, root)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    Signature, node, seqno, view, commit_seqno, commit_view, root)
   using Signatures = kv::Map<ObjectId, Signature>;
 }

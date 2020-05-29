@@ -545,6 +545,7 @@ namespace ccf
               version,
               view,
               commit_txid.second,
+              commit_txid.first,
               root,
               kp.sign_hash(root.h.data(), root.h.size()),
               replicated_state_tree.serialise());
