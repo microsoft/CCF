@@ -569,17 +569,17 @@ namespace ccf
         if (last_sig.has_value())
         {
           LOG_DEBUG_FMT(
-            "Read signature at {} for term {}", ledger_idx, last_sig->term);
+            "Read signature at {} for view {}", ledger_idx, last_sig->view);
           // Initial transactions, before the first signature, must have
-          // happened in the first signature's term (eg - if the first
-          // signature is at idx 20 in term 4, then transactions 1->19 must
-          // also have been in term 4). The brief justification is that while
-          // the first node may start in an arbitrarily high term (it does not
-          // necessarily start in term 1), it cannot _change_ term before a
+          // happened in the first signature's view (eg - if the first
+          // signature is at seqno 20 in view 4, then transactions 1->19 must
+          // also have been in view 4). The brief justification is that while
+          // the first node may start in an arbitrarily high view (it does not
+          // necessarily start in view 1), it cannot _change_ view before a
           // valid signature.
           const auto term_start_idx =
             term_history.empty() ? 1 : last_recovered_commit_idx + 1;
-          for (auto i = term_history.size(); i < last_sig->term; ++i)
+          for (auto i = term_history.size(); i < last_sig->view; ++i)
           {
             term_history.push_back(term_start_idx);
           }
@@ -633,9 +633,9 @@ namespace ccf
       if (ls.has_value())
       {
         auto s = ls.value();
-        index = s.index;
-        term = s.term;
-        global_commit = s.commit;
+        index = s.seqno;
+        term = s.view;
+        global_commit = s.commit_seqno;
       }
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
@@ -647,9 +647,9 @@ namespace ccf
       setup_raft(true);
 
       LOG_DEBUG_FMT(
-        "Restarting Raft at index: {} term: {} commit_idx {}",
-        index,
+        "Restarting consensus at view: {} seqno: {} commit_seqno {}",
         term,
+        index,
         global_commit);
       consensus->force_become_primary(index, term, term_history, index);
 

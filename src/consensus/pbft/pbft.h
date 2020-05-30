@@ -551,7 +551,12 @@ namespace pbft
       throw std::logic_error("should never be here");
     }
 
-    SeqNo get_commit_seqno() override
+    std::pair<View, SeqNo> get_committed_txid() override
+    {
+      return {get_view(global_commit_seqno), global_commit_seqno};
+    }
+
+    SeqNo get_committed_seqno() override
     {
       return global_commit_seqno;
     }

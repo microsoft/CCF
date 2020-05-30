@@ -269,12 +269,12 @@ def test_update_lua(network, args):
 
 
 @reqs.description("Check for commit of every prior transaction")
-@reqs.supports_methods("getCommit", "tx")
+@reqs.supports_methods("commit", "tx")
 def test_view_history(network, args):
     if args.consensus == "pbft":
         # This appears to work in PBFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
-        # - Since each read (eg - /tx and /getCommit) has produced writes and a unique tx ID,
+        # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
         #    there are too many IDs to test exhaustively
         # We could rectify this by making this test non-exhaustive (bisecting for view changes,
         # sampling within a view), but for now it is exhaustive and Raft-only
@@ -285,7 +285,7 @@ def test_view_history(network, args):
 
     for node in network.get_joined_nodes():
         with node.user_client() as c:
-            r = c.get("getCommit")
+            r = c.get("commit")
             check(c)
 
             commit_view = r.view

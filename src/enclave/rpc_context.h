@@ -98,8 +98,8 @@ namespace enclave
 
     virtual void set_response_status(int status) = 0;
 
-    virtual void set_commit(kv::Version) = 0;
-    virtual void set_term(kv::Consensus::View) = 0;
+    virtual void set_seqno(kv::Version) = 0;
+    virtual void set_view(kv::Consensus::View) = 0;
     virtual void set_global_commit(kv::Version) = 0;
 
     virtual void set_response_header(
