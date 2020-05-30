@@ -507,10 +507,10 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.get("getPrimaryInfo")
+                        res = c.get("primary_info")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            view = res.result["current_term"]
+                            view = res.result["current_view"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
@@ -551,9 +551,9 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             with primary.node_client() as c:
-                resp = c.get("getCommit")
-                seqno = resp.result["commit"]
-                view = resp.result["term"]
+                resp = c.get("commit")
+                seqno = resp.result["seqno"]
+                view = resp.result["view"]
                 if seqno != 0:
                     break
             time.sleep(0.1)
@@ -596,18 +596,12 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    r = c.get("getCommit")
+                    r = c.get("commit")
                     commits.append(r.seqno)
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
-        # in pbft getCommit increments the commit version, so commits will not be the same
-        # but they should be in ascending order
-        assert (
-            [commits[0]] * len(commits) == commits
-            if consensus == "raft"
-            else sorted(commits) == commits
-        ), "All nodes in sync"
+        assert [commits[0]] * len(commits) == commits, "All nodes in sync"
 
 
 @contextmanager

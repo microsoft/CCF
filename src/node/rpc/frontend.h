@@ -369,11 +369,11 @@ namespace ccf
                 cv = tx.get_read_version();
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
-              ctx->set_commit(cv);
+              ctx->set_seqno(cv);
               if (consensus != nullptr)
               {
-                ctx->set_term(consensus->get_view(cv));
-                ctx->set_global_commit(consensus->get_commit_seqno());
+                ctx->set_view(consensus->get_view(cv));
+                ctx->set_global_commit(consensus->get_committed_seqno());
 
                 if (
                   history && consensus->is_primary() &&

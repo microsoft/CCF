@@ -247,27 +247,27 @@ namespace client
         // Record time of received responses
         response_times.record_receive(reply.id, commits);
 
-        if (commits.term < last_response_commit.term)
+        if (commits.view < last_response_commit.view)
         {
           throw std::logic_error(fmt::format(
-            "Term went backwards (expected {}, saw {})!",
-            last_response_commit.term,
-            commits.term));
+            "View went backwards (expected {}, saw {})!",
+            last_response_commit.view,
+            commits.view));
         }
         else if (
-          commits.term > last_response_commit.term &&
-          commits.local <= last_response_commit.index)
+          commits.view > last_response_commit.view &&
+          commits.seqno <= last_response_commit.seqno)
         {
           throw std::logic_error(fmt::format(
             "There has been an election and transactions have "
             "been lost! (saw {}.{}, currently at {}.{})",
-            last_response_commit.term,
-            last_response_commit.index,
-            commits.term,
-            commits.local));
+            last_response_commit.view,
+            last_response_commit.seqno,
+            commits.view,
+            commits.seqno));
         }
 
-        last_response_commit = {commits.term, commits.local};
+        last_response_commit = {commits.view, commits.seqno};
       }
     }
 
@@ -436,7 +436,7 @@ namespace client
       }
       else
       {
-        last_commit = last_response_commit.index;
+        last_commit = last_response_commit.seqno;
       }
       auto timing_results = end_timing(last_commit);
       LOG_INFO_FMT("Timing ended");
@@ -536,7 +536,7 @@ namespace client
 
       const auto commit_ids = timing::parse_commit_ids(response);
       LOG_INFO_FMT(
-        "Triggered signature at {}.{}", commit_ids.term, commit_ids.local);
+        "Triggered signature at {}.{}", commit_ids.view, commit_ids.seqno);
 
       return response;
     }
@@ -706,8 +706,8 @@ namespace client
 
       const auto response_commit_ids = timing::parse_commit_ids(response);
 
-      const timing::CommitPoint cp{response_commit_ids.term,
-                                   response_commit_ids.local};
+      const timing::CommitPoint cp{response_commit_ids.view,
+                                   response_commit_ids.seqno};
       return wait_for_global_commit(cp);
     }
 
