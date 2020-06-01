@@ -5,5 +5,5 @@
 
 namespace ccf
 {
-  using Certs = kv::Map<Cert, ObjectId>;
+  using Certs = kv::RawCopySerialisedMap<Cert, ObjectId>;
 }
