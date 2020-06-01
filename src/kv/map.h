@@ -21,9 +21,7 @@ namespace kv
     // Expose correct public aliases of types
     using VersionV = VersionV<V>;
 
-    // TODO: Don't use this Write, use map rather than unordered_map, so K
-    // doesn't need std::hash?
-    using Write = Write<K, V, std::hash<K>>;
+    using Write = std::map<K, std::optional<V>>;
 
     using CommitHook = CommitHook<Write>;
 
@@ -141,23 +139,23 @@ namespace kv
     static kv::untyped::Map::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
       return [hook](Version v, const kv::untyped::Write& w) {
-        Write typed_w;
+        Write typed_writes;
         for (const auto& [uk, opt_uv] : w)
         {
           if (!opt_uv.has_value())
           {
             // Deletions are indicated by nullopt. We cannot deserialise them,
             // they are deletions here as well
-            typed_w[KSerialiser::from_serialised(uk)] = std::nullopt;
+            typed_writes[KSerialiser::from_serialised(uk)] = std::nullopt;
           }
           else
           {
-            typed_w[KSerialiser::from_serialised(uk)] =
+            typed_writes[KSerialiser::from_serialised(uk)] =
               VSerialiser::from_serialised(opt_uv.value());
           }
         }
 
-        hook(v, typed_w);
+        hook(v, typed_writes);
       };
     }
 
