@@ -87,9 +87,7 @@ TEST_CASE("Enclave record")
 
   num_msgs = 0;
   auto r = follower_ledger_enclave.record_entry(data__, size_);
-
-  REQUIRE(r.second);
-  REQUIRE(r.first == tx);
+  REQUIRE(r == tx);
   eio_follower.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)

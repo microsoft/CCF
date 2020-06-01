@@ -33,8 +33,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_entry, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_no_entry);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_append, std::vector<uint8_t>);
+  consensus::ledger_append, bool, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_truncate, consensus::Index);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_compact, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_compact, consensus::Index);
