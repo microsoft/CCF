@@ -180,19 +180,22 @@ namespace kv
     }
   };
 
-  template <typename K, typename V>
-  using JsonSerialisedMap = TypedMap<
-    K,
-    V,
-    kv::serialisers::JsonSerialiser<K>,
-    kv::serialisers::JsonSerialiser<V>>;
+  template <typename K, typename V,
+    template <typename> typename KSerialiser, template <typename> typename VSerialiser = KSerialiser>
+  using MapSerialisedWith = TypedMap<K, V, KSerialiser<K>, VSerialiser<V>>;
+
 
   template <typename K, typename V>
-  using MsgPackSerialisedMap = TypedMap<
+  using JsonSerialisedMap = MapSerialisedWith<
     K,
     V,
-    kv::serialisers::MsgPackSerialiser<K>,
-    kv::serialisers::MsgPackSerialiser<V>>;
+    kv::serialisers::JsonSerialiser>;
+
+  template <typename K, typename V>
+  using MsgPackSerialisedMap = MapSerialisedWith<
+    K,
+    V,
+    kv::serialisers::MsgPackSerialiser>;
 
   // The default kv::Map will use msgpack serialisers. Custom types are
   // supported through the MSGPACK_DEFINE macro
