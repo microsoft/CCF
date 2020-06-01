@@ -597,11 +597,12 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
                     r = c.get("commit")
-                    commits.append(r.seqno)
+                    commits.append(f"{r.view}.{r.seqno}")
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
-        assert [commits[0]] * len(commits) == commits, "All nodes in sync"
+        expected = [commits[0]] * len(commits)
+        assert expected == commits, f"{commits} != {expected}"
 
 
 @contextmanager
