@@ -5,6 +5,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/logger.h"
 #include "ds/messaging.h"
+#include "fs_copy.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -29,6 +30,9 @@ namespace asynchost
 
     ringbuffer::WriterPtr to_enclave;
 
+    // Ledger directory
+    const std::string ledger_dir;
+
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
 
@@ -36,18 +40,25 @@ namespace asynchost
     // one?
     // TODO: Use shared pointer instead?
     std::vector<FILE*> files;
+
+    // Only one for now, which is a little awkward
+    std::vector<std::unique_ptr<FileCopy>> file_copies;
+
     std::vector<size_t> positions;
     const size_t chunk_threshold;
 
+    size_t latest_archived_chunk = 0;
+
     FILE* file; // active chunk
     size_t start_idx = 1; // Start index on the active chunk
-    size_t total_len; // Length of the active chunk
+    size_t total_len = 0; // Length of the active chunk
 
   public:
     MultipleLedger(
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
       size_t chunk_threshold) :
+      ledger_dir(ledger_dir),
       chunk_threshold(chunk_threshold),
       to_enclave(writer_factory.create_writer_to_inside())
     {
@@ -67,6 +78,8 @@ namespace asynchost
       file =
         fopen((fs::path(ledger_dir) / fs::path(current_ledger)).c_str(), "w+b");
       files.emplace_back(file);
+
+      LOG_INFO_FMT("File created");
     }
 
     MultipleLedger(const MultipleLedger& that) = delete;
@@ -96,7 +109,10 @@ namespace asynchost
       fseeko(file, positions.at(idx - 1) + frame_header_size, SEEK_SET);
 
       if (fread(entry.data(), len, 1, file) != 1)
-        throw std::logic_error("Failed to read from file");
+      {
+        throw std::logic_error(
+          fmt::format("Failed to read entry {} from file", idx));
+      }
 
       return entry;
     }
@@ -105,6 +121,9 @@ namespace asynchost
     {
       auto framed_size = framed_entries_size(from, to);
 
+      LOG_DEBUG_FMT(
+        "Ledger read entries from {} to {}, size: {}", from, to, framed_size);
+
       std::vector<uint8_t> framed_entries(framed_size);
       if (framed_size == 0)
         return framed_entries;
@@ -112,7 +131,10 @@ namespace asynchost
       fseeko(file, positions.at(from - 1), SEEK_SET);
 
       if (fread(framed_entries.data(), framed_size, 1, file) != 1)
-        throw std::logic_error("Failed to read from file");
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to read entries from {} to {} from file", from, to));
+      }
 
       return framed_entries;
     }
@@ -150,10 +172,14 @@ namespace asynchost
       uint32_t frame = (uint32_t)size;
 
       if (fwrite(&frame, frame_header_size, 1, file) != 1)
-        throw std::logic_error("Failed to write to file");
+      {
+        throw std::logic_error("Failed to write entry header to ledger");
+      }
 
       if (fwrite(data, size, 1, file) != 1)
-        throw std::logic_error("Failed to write to file");
+      {
+        throw std::logic_error("Failed to write entry to ledger");
+      }
 
       total_len += (size + frame_header_size);
     }
@@ -206,6 +232,14 @@ namespace asynchost
       LOG_FAIL_FMT("Creating new chunk at {}...", signature_idx);
 
       start_idx = signature_idx + 1;
+
+      auto archived_chunk = FileCopy::copy(
+        file,
+        (fs::path(ledger_dir) /
+         fs::path(fmt::format("ledger.{}", latest_archived_chunk++)))
+          .c_str(),
+        positions.at(start_idx),
+        positions.at(signature_idx - 1) + entry_size(signature_idx));
     }
 
     void register_message_handlers(

@@ -125,8 +125,7 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
-  // TODO: For now, this is the number of transactions
-  size_t ledger_size_threshold = 1 << 16;
+  size_t ledger_size_threshold = 1 << 4;
   app
     .add_option(
       "--ledger-chunk-threshold",
