@@ -73,7 +73,9 @@ namespace kv
     template <class F>
     void foreach(F&& f)
     {
-      auto g = [&](const SerialisedEntry& k_rep, const SerialisedEntry& v_rep) {
+      auto g = [&](
+                 const kv::serialisers::SerialisedEntry& k_rep,
+                 const kv::serialisers::SerialisedEntry& v_rep) {
         return f(
           KSerialiser::from_serialised(k_rep),
           VSerialiser::from_serialised(v_rep));

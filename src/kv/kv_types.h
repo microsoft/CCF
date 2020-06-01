@@ -36,8 +36,6 @@ namespace kv
   using BatchVector = std::vector<
     std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
 
-  using SerialisedEntry = std::vector<uint8_t>;
-
   enum CommitSuccess
   {
     OK,

@@ -261,8 +261,8 @@ namespace kv::untyped
   class Map : public AbstractMap, public RollContainer
   {
   public:
-    using K = SerialisedEntry;
-    using V = SerialisedEntry;
+    using K = kv::serialisers::SerialisedEntry;
+    using V = kv::serialisers::SerialisedEntry;
     using H = SerialisedKeyHasher;
 
     using CommitHook = CommitHook<Write>;

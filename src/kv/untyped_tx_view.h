@@ -4,10 +4,11 @@
 
 #include "kv/change_set.h"
 #include "kv/kv_types.h"
+#include "kv/serialised_entry.h"
 
 namespace kv::untyped
 {
-  using SerialisedEntry = kv::SerialisedEntry;
+  using SerialisedEntry = kv::serialisers::SerialisedEntry;
   using SerialisedKeyHasher = std::hash<SerialisedEntry>;
 
   using VersionV = kv::VersionV<SerialisedEntry>;
@@ -26,8 +27,7 @@ namespace kv::untyped
 
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
-    // MyMap::TxView::KeyType, templated on the TxView or Map type rather than
-    // explicitly on SerialisedEntry and SerialisedEntry
+    // MyMap::TxView::KeyType, templated on the TxView or Map type
     using KeyType = SerialisedEntry;
     using ValueType = SerialisedEntry;
 
