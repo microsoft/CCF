@@ -5,6 +5,7 @@
 #include "kv_types.h"
 #include "serialise_entry_json.h"
 #include "serialise_entry_msgpack.h"
+#include "serialise_entry_blit.h"
 #include "tx_view.h"
 
 namespace kv
@@ -190,6 +191,12 @@ namespace kv
     K,
     V,
     kv::serialisers::JsonSerialiser>;
+
+  template <typename K, typename V>
+  using RawCopySerialisedMap = TypedMap<
+    K,
+    V,
+    kv::serialisers::BlitSerialiser<K>, kv::serialisers::BlitSerialiser<V>>;
 
   template <typename K, typename V>
   using MsgPackSerialisedMap = MapSerialisedWith<
