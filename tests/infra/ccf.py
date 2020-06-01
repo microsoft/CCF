@@ -133,7 +133,7 @@ class Network:
         ), "Cannot adjust local node IDs if the network was started from an existing network"
 
         with primary.node_client() as nc:
-            r = nc.get("getPrimaryInfo")
+            r = nc.get("primary_info")
             first_node_id = r.result["primary_id"]
             assert (r.result["primary_host"] == primary.host) and (
                 int(r.result["primary_port"]) == primary.rpc_port
