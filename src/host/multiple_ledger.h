@@ -5,7 +5,6 @@
 #include "consensus/ledger_enclave_types.h"
 #include "ds/logger.h"
 #include "ds/messaging.h"
-#include "fs_copy.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -23,9 +22,7 @@ namespace asynchost
   class MultipleLedger
   {
   private:
-    static constexpr auto ledger_file_prefix = "ledger";
-    static constexpr auto current_ledger = "ledger.current";
-
+    static constexpr auto current_ledger = "ledger";
     static constexpr size_t frame_header_size = sizeof(uint32_t);
 
     ringbuffer::WriterPtr to_enclave;
@@ -41,13 +38,9 @@ namespace asynchost
     // TODO: Use shared pointer instead?
     std::vector<FILE*> files;
 
-    // Only one for now, which is a little awkward
-    std::vector<std::unique_ptr<FileCopy>> file_copies;
-
+    // TODO: To be split per file
     std::vector<size_t> positions;
     const size_t chunk_threshold;
-
-    size_t latest_archived_chunk = 0;
 
     FILE* file; // active chunk
     size_t start_idx = 1; // Start index on the active chunk
@@ -77,7 +70,10 @@ namespace asynchost
 
       file =
         fopen((fs::path(ledger_dir) / fs::path(current_ledger)).c_str(), "w+b");
+      fseeko(file, 0, SEEK_SET);
       files.emplace_back(file);
+
+      // TODO: Reserve offset
 
       LOG_INFO_FMT("File created");
     }
@@ -88,7 +84,6 @@ namespace asynchost
     {
       for (auto const f : files)
       {
-        LOG_FAIL_FMT("Closing one file");
         fflush(f);
         fclose(f);
       }
@@ -162,14 +157,19 @@ namespace asynchost
     }
 
     // TODO: Only applies to latest chunk
-    void write_entry(const uint8_t* data, size_t size)
+    void write_entry(const uint8_t* data, size_t size, bool committable)
     {
       fseeko(file, total_len, SEEK_SET);
       positions.push_back(total_len);
 
-      LOG_DEBUG_FMT("Ledger write {}: {} bytes", positions.size(), size);
+      // LOG_DEBUG_FMT(
+      //   "Ledger write {}: {} bytes. Signature {}",
+      //   positions.size(),
+      //   size,
+      //   committable);
 
       uint32_t frame = (uint32_t)size;
+      total_len += (size + frame_header_size);
 
       if (fwrite(&frame, frame_header_size, 1, file) != 1)
       {
@@ -181,23 +181,42 @@ namespace asynchost
         throw std::logic_error("Failed to write entry to ledger");
       }
 
-      total_len += (size + frame_header_size);
+      LOG_FAIL_FMT(
+        "Size of current chunk is {}",
+        framed_entries_size(start_idx, positions.size()));
+
+      if (
+        committable &&
+        framed_entries_size(start_idx, positions.size()) >= chunk_threshold)
+      {
+        LOG_FAIL_FMT("Creating new chunk at {}", positions.size());
+
+        // TODO:
+        // 1. Rename existing file
+        // 2. Write offset and positions table
+        // 3. Create new file
+        // 4. New file becomes current
+
+        fs::rename(
+          fs::path(ledger_dir) / fs::path(current_ledger),
+          fs::path(ledger_dir) /
+            fs::path(fmt::format("{}.{}", current_ledger, start_idx)));
+
+        start_idx = positions.size() + 1;
+
+        // TODO: Write offset and positions table
+
+        FILE* new_file = fopen(
+          (fs::path(ledger_dir) / fs::path(current_ledger)).c_str(), "w+b");
+        files.emplace_back(new_file);
+
+        file = new_file;
+        fseeko(file, 0, SEEK_SET);
+      }
     }
 
-    // TODO: Only applies to latest chunk
     void truncate(size_t last_idx)
     {
-      // TODO: Check that last_idx is greater than the index at which current
-      // starts
-      if (last_idx < start_idx)
-      {
-        LOG_FAIL_FMT(
-          "Cannot truncate active ledger at {}: active ledger starts at {}",
-          last_idx,
-          start_idx);
-        return;
-      }
-
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", last_idx, positions.size());
 
       // positions[last_idx - 1] is the position of the specified
@@ -221,25 +240,11 @@ namespace asynchost
       }
 
       if (ftruncate(fileno(file), total_len))
-        throw std::logic_error("Failed to truncate file");
+      {
+        throw std::logic_error("Failed to truncate ledger");
+      }
 
       fseeko(file, total_len, SEEK_SET);
-    }
-
-    // TODO: Implement chunking
-    void archive_chunk(size_t signature_idx)
-    {
-      LOG_FAIL_FMT("Creating new chunk at {}...", signature_idx);
-
-      start_idx = signature_idx + 1;
-
-      auto archived_chunk = FileCopy::copy(
-        file,
-        (fs::path(ledger_dir) /
-         fs::path(fmt::format("ledger.{}", latest_archived_chunk++)))
-          .c_str(),
-        positions.at(start_idx),
-        positions.at(signature_idx - 1) + entry_size(signature_idx));
     }
 
     void register_message_handlers(
@@ -248,13 +253,19 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         consensus::ledger_append,
-        [this](const uint8_t* data, size_t size) { write_entry(data, size); });
+        [this](const uint8_t* data, size_t size) {
+          auto committable = serialized::read<bool>(data, size);
+          write_entry(data, size, committable);
+        });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         consensus::ledger_truncate,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
+
+          // TODO: This has to become more complex to handle truncation over a
+          // collection of ledger files
           truncate(idx);
         });
 
@@ -271,7 +282,7 @@ namespace asynchost
 
           if (chunk_size > chunk_threshold)
           {
-            archive_chunk(idx);
+            // archive_chunk(idx);
           }
         });
 
