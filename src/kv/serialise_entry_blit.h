@@ -6,9 +6,20 @@
 
 namespace kv::serialisers
 {
-  template <typename T>
-  struct dependent_false : public std::false_type
-  {};
+  namespace
+  {
+    template <typename T>
+    struct is_std_array : std::false_type
+    {};
+
+    template <typename T, size_t N>
+    struct is_std_array<std::array<T, N>> : public std::true_type
+    {};
+
+    template <typename T>
+    struct dependent_false : public std::false_type
+    {};
+  }
 
   template <typename T>
   struct BlitSerialiser
@@ -18,6 +29,10 @@ namespace kv::serialisers
       if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
       {
         return t;
+      }
+      else if constexpr (is_std_array<T>::value)
+      {
+        return SerialisedEntry(t.begin(), t.end());
       }
       else if constexpr (std::is_integral_v<T>)
       {
@@ -36,6 +51,10 @@ namespace kv::serialisers
       if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
       {
         return rep;
+      }
+      else if constexpr (is_std_array<T>::value)
+      {
+        return T(rep.begin(), rep.end());
       }
       else if constexpr (std::is_integral_v<T>)
       {
