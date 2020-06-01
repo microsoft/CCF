@@ -38,27 +38,13 @@ namespace ccf
       auto get_commit = [this](kv::Tx& tx, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
-          const auto commit = tables->commit_version();
-          auto term = consensus->get_view(commit);
-          return make_success(GetCommit::Out{term, commit});
+          auto [view, seqno] = consensus->get_committed_txid();
+          return make_success(GetCommit::Out{view, seqno});
         }
 
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           "Failed to get commit info from Consensus");
-      };
-
-      auto get_local_commit = [this](kv::Tx& tx, nlohmann::json&& params) {
-        if (consensus != nullptr)
-        {
-          kv::Version commit = tables->commit_version();
-          auto term = consensus->get_view(commit);
-          return make_success(GetCommit::Out{term, commit});
-        }
-
-        return make_error(
-          HTTP_STATUS_INTERNAL_SERVER_ERROR,
-          "Failed to get local commit info from Consensus");
       };
 
       auto get_tx_status = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -67,7 +53,7 @@ namespace ccf
         if (consensus != nullptr)
         {
           const auto tx_view = consensus->get_view(in.seqno);
-          const auto committed_seqno = consensus->get_commit_seqno();
+          const auto committed_seqno = consensus->get_committed_seqno();
           const auto committed_view = consensus->get_view(committed_seqno);
 
           GetTxStatus::Out out;
@@ -146,7 +132,7 @@ namespace ccf
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
-          auto current_term = consensus->get_view();
+          auto current_view = consensus->get_view();
 
           auto nodes_view = tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
@@ -157,7 +143,7 @@ namespace ccf
             out.primary_id = primary_id;
             out.primary_host = info->pubhost;
             out.primary_port = info->rpcport;
-            out.current_term = current_term;
+            out.current_view = current_view;
             return make_success(out);
           }
         }
@@ -264,11 +250,8 @@ namespace ccf
       };
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
+        .set_execute_locally(true)
         .set_auto_schema<void, GetCommit::Out>();
-      install(
-        GeneralProcs::GET_LOCAL_COMMIT, json_adapter(get_local_commit), Read)
-        .set_auto_schema<void, GetCommit::Out>()
-        .set_execute_locally(true);
       install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
         .set_auto_schema<GetTxStatus>()
         .set_http_get_only();
