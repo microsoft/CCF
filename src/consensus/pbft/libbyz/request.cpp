@@ -147,7 +147,8 @@ void Request::sign(int act_len)
 }
 
 Request::Request(Request_rep* contents, std::unique_ptr<pbft::RequestCtx> ctx) :
-  Message(contents), request_ctx(std::move(ctx))
+  Message(contents),
+  request_ctx(std::move(ctx))
 {}
 
 bool Request::pre_verify(VerifyAndParseCommand& e)
@@ -157,7 +158,15 @@ bool Request::pre_verify(VerifyAndParseCommand& e)
   const int old_size = sizeof(Request_rep) + rep().command_size;
   std::shared_ptr<Principal> p =
     pbft::GlobalState::get_node().get_principal(cid);
-  create_context(e);
+  try
+  {
+    create_context(e);
+  }
+  catch (const std::exception& e)
+  {
+    LOG_FAIL_FMT("Failed to parse arguments, e.what:", e.what());
+    return false;
+  }
   Digest d;
 
   comp_digest(d);

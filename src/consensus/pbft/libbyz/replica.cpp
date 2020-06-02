@@ -467,7 +467,7 @@ void Replica::playback_request(kv::Tx& tx)
     "Playback request for request with size {}", request.pbft_raw.size());
   auto req =
     create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size());
-    req->create_context(verify_command);
+  req->create_context(verify_command);
 
   if (!waiting_for_playback_pp)
   {
@@ -2262,17 +2262,17 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   request.set_replier(-1);
   int client_id = request.client_id();
 
-  auto foo = request.get_request_ctx();
-  if (foo.get() == nullptr)
+  auto request_ctx = request.get_request_ctx();
+  if (request_ctx.get() == nullptr)
   {
     request.create_context(verify_command);
-    foo = request.get_request_ctx();
+    request_ctx = request.get_request_ctx();
   }
 
   auto cmd = std::make_unique<ExecCommandMsg>(
     client_id,
     request.request_id(),
-    std::move(foo),
+    std::move(request_ctx),
     reinterpret_cast<uint8_t*>(request.contents()),
     request.contents_size(),
     include_merkle_roots,

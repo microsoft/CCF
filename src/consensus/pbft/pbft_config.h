@@ -15,9 +15,18 @@ namespace pbft
     std::shared_ptr<enclave::RpcHandler> frontend;
     bool does_exec_gov_req;
 
-    std::shared_ptr<enclave::RpcContext> get_rpc_context() override {return ctx;}
-    std::shared_ptr<enclave::RpcHandler> get_rpc_handler() override {return frontend;}
-    bool get_does_exec_gov_req() override {return does_exec_gov_req;}
+    std::shared_ptr<enclave::RpcContext> get_rpc_context() override
+    {
+      return ctx;
+    }
+    std::shared_ptr<enclave::RpcHandler> get_rpc_handler() override
+    {
+      return frontend;
+    }
+    bool get_does_exec_gov_req() override
+    {
+      return does_exec_gov_req;
+    }
   };
 
   class AbstractPbftConfig
@@ -158,10 +167,8 @@ namespace pbft
           enclave::InvalidSessionId, request.caller_id, request.caller_cert);
 
         r_ctx->ctx = enclave::make_fwd_rpc_context(
-          session,
-          request.raw,
-          (enclave::FrameFormat)request.frame_format,
-          {req_start, req_start + req_size});
+          session, request.raw, (enclave::FrameFormat)request.frame_format);
+        //{req_start, req_start + req_size});
 
         const auto actor_opt = http::extract_actor(*r_ctx->ctx);
         if (!actor_opt.has_value())
@@ -184,8 +191,7 @@ namespace pbft
         return r_ctx;
       };
 
-    static void
-    Execute(std::unique_ptr<threading::Tmsg<ExecutionCtx>> c)
+    static void Execute(std::unique_ptr<threading::Tmsg<ExecutionCtx>> c)
     {
       ExecutionCtx& execution_ctx = c->data;
       std::unique_ptr<ExecCommandMsg>& msg = execution_ctx.msg;
@@ -198,86 +204,24 @@ namespace pbft
       Request_id rid = msg->rid;
       uint8_t* req_start = msg->req_start;
       size_t req_size = msg->req_size;
-      Seqno total_requests_executed = msg->total_requests_executed;
       kv::Tx* tx = msg->tx;
-      int replier = msg->replier;
-      uint16_t reply_thread = msg->reply_thread;
 
-      //if (msg->request_ctx.get() == nullptr) {
-        auto foo = self->verify_and_parse(inb, req_start, req_size);
-      //}
-
-
-      //std::unique_ptr<RequestCtx>& r_ctx = foo;
       std::unique_ptr<RequestCtx>& r_ctx = msg->request_ctx;
-      msg->request_ctx->get_rpc_context()->pbft_raw =
-        foo->get_rpc_context()->pbft_raw;
+      msg->request_ctx->get_rpc_context()->pbft_raw = {req_start,
+                                                       req_start + req_size};
 
       r_ctx->get_rpc_context()->is_create_request = c->data.is_first_request;
       r_ctx->get_rpc_context()->set_apply_writes(true);
-      c->data.did_exec_gov_req = (r_ctx->get_does_exec_gov_req() || c->data.did_exec_gov_req);
+      c->data.did_exec_gov_req =
+        (r_ctx->get_does_exec_gov_req() || c->data.did_exec_gov_req);
 
       execution_ctx.frontend = r_ctx->get_rpc_handler();
-
-
-      if (foo->get_rpc_context()->session.get() != msg->request_ctx->get_rpc_context()->session.get())
-      {
-        //LOG_FAIL_FMT("AAAAAAA 1 - no rpc_context");
-      }
-
-/*
-      if (
-        foo->get_rpc_context()->is_create_request !=
-        msg->request_ctx->get_rpc_context()->is_create_request)
-      {
-        LOG_FAIL_FMT("AAAAAAA 2 - no rpc_context");
-      }
-*/
-
-      if (
-        std::equal(
-          foo->get_rpc_context()->pbft_raw.begin(),
-          foo->get_rpc_context()->pbft_raw.end(),
-          msg->request_ctx->get_rpc_context()->pbft_raw.begin()) == false)
-      {
-
-        LOG_FAIL_FMT(
-          "AAAAAAA 3 - no rpc_context, foo:{}, request_ctx:{}",
-          foo->get_rpc_context()->pbft_raw.size(),
-          msg->request_ctx->get_rpc_context()->pbft_raw.size());
-
-        //std::string foo_s((const char*)(foo->get_rpc_context()->pbft_raw.data()), foo->get_rpc_context()->pbft_raw.size());
-        //std::string msg_s((const char*)msg->request_ctx->get_rpc_context()->pbft_raw.data(), msg->request_ctx->get_rpc_context()->pbft_raw.size());
-
-        for (uint32_t i = 0; i < foo->get_rpc_context()->pbft_raw.size(); ++i)
-        {
-          if (
-            foo->get_rpc_context()->pbft_raw.data()[i] !=
-            msg->request_ctx->get_rpc_context()->pbft_raw.data()[i])
-          {
-            LOG_FAIL_FMT(
-              "Different - i:{}, foo:{}, msg:{}",
-              i,
-              foo->get_rpc_context()->pbft_raw.data()[i],
-              msg->request_ctx->get_rpc_context()->pbft_raw.data()[i]);
-          }
-        }
-      }
-
-      if (foo->get_rpc_handler().get() != msg->request_ctx->get_rpc_handler().get())
-      {
-        LOG_FAIL_FMT("AAAAAAA - no rpc_handler");
-      }
-
-      if (foo->get_does_exec_gov_req() != msg->request_ctx->get_does_exec_gov_req())
-      {
-        LOG_FAIL_FMT("AAAAAAA - no does_gov");
-      }
 
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)
       {
-        rep = execution_ctx.frontend->process_pbft(r_ctx->get_rpc_context(), *tx, true);
+        rep = execution_ctx.frontend->process_pbft(
+          r_ctx->get_rpc_context(), *tx, true);
       }
       else
       {

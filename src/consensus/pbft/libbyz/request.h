@@ -150,6 +150,7 @@ public:
   {
     return std::move(request_ctx);
   }
+
 private:
   std::unique_ptr<pbft::RequestCtx> request_ctx;
 

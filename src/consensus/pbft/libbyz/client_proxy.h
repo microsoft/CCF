@@ -236,7 +236,15 @@ bool ClientProxy<T, C>::send_request(
   req->authenticate(len, is_read_only);
 
   auto req_clone = req->clone();
-  req_clone->create_context(verify_command);
+  try
+  {
+    req_clone->create_context(verify_command);
+  }
+  catch (const std::exception& e)
+  {
+    LOG_FAIL_FMT("Failed to parse arguments, e.what:", e.what());
+    return false;
+  }
 
   auto ctx = std::make_unique<RequestContext>(
     my_replica,
