@@ -60,5 +60,5 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_BASE(Signature, RawSignature)
   DECLARE_JSON_REQUIRED_FIELDS(
     Signature, node, seqno, view, commit_seqno, commit_view, root)
-  using Signatures = kv::JsonSerialisedMap<ObjectId, Signature>;
+  using Signatures = kv::Map<ObjectId, Signature>;
 }

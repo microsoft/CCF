@@ -32,12 +32,16 @@ namespace kv
 
     // Where we have pre-serialised data, we dump it directly into the output
     // buffer. If we call append, then pack will prefix the data with some type
-    // information, potentially redundantly repacking already-packed data.
-    void append_raw(const kv::serialisers::SerialisedEntry& entry)
+    // information, potentially redundantly repacking already-packed data. We
+    // assume the serialised entry is already msgpack so we retain a consistent
+    // msgpack stream. If it is in some other format, every parser will need to
+    // be able to distinguish it from ths valid stream
+    void append_pre_serialised(const kv::serialisers::SerialisedEntry& entry)
     {
-      const auto size = entry.size();
-      sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
-      sb.write(reinterpret_cast<char const*>(entry.data()), size);
+      const auto size_before = sb.size();
+      sb.write(reinterpret_cast<char const*>(entry.data()), entry.size());
+      LOG_INFO_FMT(
+        "Writing entry took size from {} to {}", size_before, sb.size());
     }
 
     void clear()
@@ -88,25 +92,14 @@ namespace kv
       return msg->as<T>();
     }
 
-    kv::serialisers::SerialisedEntry read_next_raw()
+    kv::serialisers::SerialisedEntry read_next_pre_serialised()
     {
-      const auto size_size = sizeof(size_t);
-      if (data_size - data_offset < size_size)
-      {
-        throw msgpack::insufficient_bytes("insufficient bytes A");
-      }
-      size_t size = *reinterpret_cast<const size_t*>(data_ptr + data_offset);
-      data_offset += size_size;
-
-      if (data_size - data_offset < size)
-      {
-        throw msgpack::insufficient_bytes("insufficient bytes B");
-      }
-
-      auto entry_data =
-        reinterpret_cast<const uint8_t*>(data_ptr + data_offset);
-      data_offset += size;
-      return kv::serialisers::SerialisedEntry(entry_data, entry_data + size);
+      const auto before_offset = data_offset;
+      msgpack::unpack(msg, data_ptr, data_size, data_offset);
+      LOG_INFO_FMT(
+        "Reading entry took offset from {} to {}", before_offset, data_offset);
+      return kv::serialisers::SerialisedEntry(
+        data_ptr + before_offset, data_ptr + data_offset);
     }
 
     template <typename T>
