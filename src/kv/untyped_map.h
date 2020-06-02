@@ -76,189 +76,7 @@ namespace kv::untyped
     size_t rollback_counter;
   };
 
-  struct RollContainer
-  {
-    virtual ~RollContainer() = default;
-
-    virtual Roll& get_roll() = 0;
-    virtual void append_to_roll(Version v, const State& s, const Write& w) = 0;
-    virtual void trigger_local_hook() = 0;
-  };
-
-  class TxViewCommitter : public AbstractTxView
-  {
-  protected:
-    ChangeSet change_set;
-
-    RollContainer& map;
-    size_t rollback_counter;
-
-    Version commit_version = NoVersion;
-
-    bool changes = false;
-    bool committed_writes = false;
-
-  public:
-    template <typename... Ts>
-    TxViewCommitter(RollContainer& m, size_t rollbacks, Ts&&... ts) :
-      map(m),
-      rollback_counter(rollbacks),
-      change_set(std::forward<Ts>(ts)...)
-    {}
-
-    // Commit-related methods
-    bool has_writes() override
-    {
-      return committed_writes || !change_set.writes.empty();
-    }
-
-    bool has_changes() override
-    {
-      return changes;
-    }
-
-    bool prepare() override
-    {
-      if (change_set.writes.empty())
-        return true;
-
-      auto& roll = map.get_roll();
-
-      // If the parent map has rolled back since this transaction began, this
-      // transaction must fail.
-      if (rollback_counter != roll.rollback_counter)
-        return false;
-
-      // If we have iterated over the map, check for a global version match.
-      auto current = roll.commits->get_tail();
-
-      if (
-        (change_set.read_version != NoVersion) &&
-        (change_set.read_version != current->version))
-      {
-        LOG_DEBUG_FMT("Read version {} is invalid", change_set.read_version);
-        return false;
-      }
-
-      // Check each key in our read set.
-      for (auto it = change_set.reads.begin(); it != change_set.reads.end();
-           ++it)
-      {
-        // Get the value from the current state.
-        auto search = current->state.get(it->first);
-
-        if (it->second == NoVersion)
-        {
-          // If we depend on the key not existing, it must be absent.
-          if (search.has_value())
-          {
-            LOG_DEBUG_FMT("Read depends on non-existing entry");
-            return false;
-          }
-        }
-        else
-        {
-          // If we depend on the key existing, it must be present and have the
-          // version that we expect.
-          if (!search.has_value() || (it->second != search.value().version))
-          {
-            LOG_DEBUG_FMT("Read depends on invalid version of entry");
-            return false;
-          }
-        }
-      }
-
-      return true;
-    }
-
-    void commit(Version v) override
-    {
-      if (change_set.writes.empty())
-      {
-        commit_version = change_set.start_version;
-        return;
-      }
-
-      // Record our commit time.
-      commit_version = v;
-      committed_writes = true;
-
-      if (!change_set.writes.empty())
-      {
-        auto& roll = map.get_roll();
-        auto state = roll.commits->get_tail()->state;
-
-        for (auto it = change_set.writes.begin(); it != change_set.writes.end();
-             ++it)
-        {
-          if (it->second.has_value())
-          {
-            // Write the new value with the global version.
-            changes = true;
-            state = state.put(it->first, VersionV{v, it->second.value()});
-          }
-          else
-          {
-            // Write an empty value with the deleted global version only if
-            // the key exists.
-            auto search = state.get(it->first);
-            if (search.has_value())
-            {
-              changes = true;
-              state = state.put(it->first, VersionV{-v, {}});
-            }
-          }
-        }
-
-        if (changes)
-        {
-          map.append_to_roll(v, state, change_set.writes);
-        }
-      }
-    }
-
-    void post_commit() override
-    {
-      // This is run separately from commit so that all commits in the Tx
-      // have been applied before local hooks are run. The maps in the Tx
-      // are still locked when post_commit is run.
-      if (change_set.writes.empty())
-        return;
-
-      map.trigger_local_hook();
-    }
-
-    // Used by owning map during serialise and deserialise
-    ChangeSet& get_change_set()
-    {
-      return change_set;
-    }
-
-    const ChangeSet& get_change_set() const
-    {
-      return change_set;
-    }
-
-    void set_commit_version(Version v)
-    {
-      commit_version = v;
-    }
-  };
-
-  struct ConcreteTxView : public TxViewCommitter, public TxView
-  {
-    ConcreteTxView(
-      RollContainer& m,
-      size_t rollbacks,
-      State& current_state,
-      State& committed_state,
-      Version v) :
-      TxViewCommitter(m, rollbacks, current_state, committed_state, v),
-      TxView(TxViewCommitter::change_set)
-    {}
-  };
-
-  class Map : public AbstractMap, public RollContainer
+  class Map : public AbstractMap
   {
   public:
     using K = kv::serialisers::SerialisedEntry;
@@ -297,6 +115,180 @@ namespace kv::untyped
     }
 
   public:
+    class TxViewCommitter : public AbstractTxView
+    {
+    protected:
+      ChangeSet change_set;
+
+      Map& map;
+      size_t rollback_counter;
+
+      Version commit_version = NoVersion;
+
+      bool changes = false;
+      bool committed_writes = false;
+
+    public:
+      template <typename... Ts>
+      TxViewCommitter(Map& m, size_t rollbacks, Ts&&... ts) :
+        map(m),
+        rollback_counter(rollbacks),
+        change_set(std::forward<Ts>(ts)...)
+      {}
+
+      // Commit-related methods
+      bool has_writes() override
+      {
+        return committed_writes || !change_set.writes.empty();
+      }
+
+      bool has_changes() override
+      {
+        return changes;
+      }
+
+      bool prepare() override
+      {
+        if (change_set.writes.empty())
+          return true;
+
+        auto& roll = map.get_roll();
+
+        // If the parent map has rolled back since this transaction began, this
+        // transaction must fail.
+        if (rollback_counter != roll.rollback_counter)
+          return false;
+
+        // If we have iterated over the map, check for a global version match.
+        auto current = roll.commits->get_tail();
+
+        if (
+          (change_set.read_version != NoVersion) &&
+          (change_set.read_version != current->version))
+        {
+          LOG_DEBUG_FMT("Read version {} is invalid", change_set.read_version);
+          return false;
+        }
+
+        // Check each key in our read set.
+        for (auto it = change_set.reads.begin(); it != change_set.reads.end();
+             ++it)
+        {
+          // Get the value from the current state.
+          auto search = current->state.get(it->first);
+
+          if (it->second == NoVersion)
+          {
+            // If we depend on the key not existing, it must be absent.
+            if (search.has_value())
+            {
+              LOG_DEBUG_FMT("Read depends on non-existing entry");
+              return false;
+            }
+          }
+          else
+          {
+            // If we depend on the key existing, it must be present and have the
+            // version that we expect.
+            if (!search.has_value() || (it->second != search.value().version))
+            {
+              LOG_DEBUG_FMT("Read depends on invalid version of entry");
+              return false;
+            }
+          }
+        }
+
+        return true;
+      }
+
+      void commit(Version v) override
+      {
+        if (change_set.writes.empty())
+        {
+          commit_version = change_set.start_version;
+          return;
+        }
+
+        // Record our commit time.
+        commit_version = v;
+        committed_writes = true;
+
+        if (!change_set.writes.empty())
+        {
+          auto& roll = map.get_roll();
+          auto state = roll.commits->get_tail()->state;
+
+          for (auto it = change_set.writes.begin();
+               it != change_set.writes.end();
+               ++it)
+          {
+            if (it->second.has_value())
+            {
+              // Write the new value with the global version.
+              changes = true;
+              state = state.put(it->first, VersionV{v, it->second.value()});
+            }
+            else
+            {
+              // Write an empty value with the deleted global version only if
+              // the key exists.
+              auto search = state.get(it->first);
+              if (search.has_value())
+              {
+                changes = true;
+                state = state.put(it->first, VersionV{-v, {}});
+              }
+            }
+          }
+
+          if (changes)
+          {
+            map.append_to_roll(v, state, change_set.writes);
+          }
+        }
+      }
+
+      void post_commit() override
+      {
+        // This is run separately from commit so that all commits in the Tx
+        // have been applied before local hooks are run. The maps in the Tx
+        // are still locked when post_commit is run.
+        if (change_set.writes.empty())
+          return;
+
+        map.trigger_local_hook();
+      }
+
+      // Used by owning map during serialise and deserialise
+      ChangeSet& get_change_set()
+      {
+        return change_set;
+      }
+
+      const ChangeSet& get_change_set() const
+      {
+        return change_set;
+      }
+
+      void set_commit_version(Version v)
+      {
+        commit_version = v;
+      }
+    };
+
+    struct ConcreteTxView : public TxViewCommitter, public TxView
+    {
+      ConcreteTxView(
+        Map& m,
+        size_t rollbacks,
+        State& current_state,
+        State& committed_state,
+        Version v) :
+        TxViewCommitter(m, rollbacks, current_state, committed_state, v),
+        TxView(TxViewCommitter::change_set)
+      {}
+    };
+
     // Public typedef for external consumption
     using TxView = ConcreteTxView;
 
@@ -718,17 +710,17 @@ namespace kv::untyped
       return view;
     }
 
-    Roll& get_roll() override
+    Roll& get_roll()
     {
       return roll;
     }
 
-    void append_to_roll(Version v, const State& s, const Write& w) override
+    void append_to_roll(Version v, const State& s, const Write& w)
     {
       roll.commits->insert_back(create_new_local_commit(v, s, w));
     }
 
-    void trigger_local_hook() override
+    void trigger_local_hook()
     {
       if (local_hook)
       {
