@@ -46,7 +46,6 @@ inline void Big_req_table::remove_unmatched(BR_entry* bre)
 
 bool Big_req_table::add_pre_prepare(Digest& rd, int i, Seqno n, View v)
 {
-  LOG_INFO_FMT("3. YYYYY adding to brt");
   BR_entry* bre;
   auto it = breqs.find(rd);
   if (it != breqs.end())
@@ -116,8 +115,6 @@ void Big_req_table::refresh_entry(Digest& rd, int i, Seqno n, View v)
 
 void Big_req_table::add_pre_prepare(Request* r, Seqno n, View v)
 {
-  LOG_INFO_FMT("2. YYYYY adding to brt - {}", (uint64_t)r->peak_ctx());
-  //throw std::logic_error("no");
   Digest rd = r->digest();
   auto it = breqs.find(rd);
   if (it != breqs.end())
@@ -200,7 +197,6 @@ bool Big_req_table::add_unmatched(BR_entry* e, Request*& old_req)
 
 bool Big_req_table::add_request(Request* r, bool verified)
 {
-  LOG_INFO_FMT("1. YYYYY adding to brt - {}", (uint64_t)r->peak_ctx());
   PBFT_ASSERT(
     r->size() > Request::big_req_thresh && !r->is_read_only(),
     "Invalid Argument");

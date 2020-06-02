@@ -157,7 +157,6 @@ bool Request::pre_verify(VerifyAndParseCommand& e)
   const int old_size = sizeof(Request_rep) + rep().command_size;
   std::shared_ptr<Principal> p =
     pbft::GlobalState::get_node().get_principal(cid);
-  LOG_INFO_FMT("BBBBB");
   create_context(e);
   Digest d;
 
@@ -183,21 +182,15 @@ bool Request::pre_verify(VerifyAndParseCommand& e)
       }
     }
   }
-
   return false;
 }
 
 void Request::create_context(VerifyAndParseCommand& e)
 {
-  LOG_INFO_FMT("AAAAA");
-  //if (request_ctx == nullptr)
-  {
-    Byz_req inb;
-    inb.contents = command(inb.size);
-    request_ctx =
-      e(&inb, reinterpret_cast<uint8_t*>(contents()), contents_size());
-  }
-  LOG_INFO_FMT("AAAAA - {}",(uint64_t)(request_ctx.get()));
+  Byz_req inb;
+  inb.contents = command(inb.size);
+  request_ctx =
+    e(&inb, reinterpret_cast<uint8_t*>(contents()), contents_size());
 }
 
 bool Request::convert(char* m1, unsigned max_len, Request& m2)

@@ -2262,13 +2262,17 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   request.set_replier(-1);
   int client_id = request.client_id();
 
-  auto foobar = request.get_request_ctx();
-  LOG_INFO_FMT("QQQQQQQ - {}", (uint64_t)(foobar.get()));
+  auto foo = request.get_request_ctx();
+  if (foo.get() == nullptr)
+  {
+    request.create_context(verify_command);
+    foo = request.get_request_ctx();
+  }
 
   auto cmd = std::make_unique<ExecCommandMsg>(
     client_id,
     request.request_id(),
-    std::move(foobar),
+    std::move(foo),
     reinterpret_cast<uint8_t*>(request.contents()),
     request.contents_size(),
     include_merkle_roots,
@@ -2351,8 +2355,6 @@ bool Replica::create_execute_commands(
     num_requests = 0;
     while (iter.get(request))
     {
-      // TODO: we should not have to do this again :(
-      //request.create_context(verify_command);
       auto cmd = execute_tentative_request(
         request,
         max_local_commit_value,

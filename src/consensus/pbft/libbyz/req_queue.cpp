@@ -13,8 +13,6 @@ Req_queue::Req_queue() : nelems(0), nbytes(0) {}
 
 bool Req_queue::append(Request* r)
 {
-  LOG_INFO_FMT("1. ZZZZZ adding to req_queue - {}", (uint64_t)r->peak_ctx());
-  //throw std::logic_error("no");
   size_t cid = r->client_id();
   Request_id rid = r->request_id();
   int user_id = r->user_id();

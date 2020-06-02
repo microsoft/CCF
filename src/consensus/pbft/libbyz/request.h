@@ -150,12 +150,6 @@ public:
   {
     return std::move(request_ctx);
   }
-
-  pbft::RequestCtx* peak_ctx()
-  {
-    return request_ctx.get();
-  }
-
 private:
   std::unique_ptr<pbft::RequestCtx> request_ctx;
 

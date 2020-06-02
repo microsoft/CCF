@@ -430,9 +430,7 @@ bool Pre_prepare::Requests_iter::get_big_request(
       return true;
     }
     PBFT_ASSERT(r != 0, "Missing big req");
-    auto ctx = r->get_request_ctx();
-    LOG_INFO_FMT("YYYYYYYYY - {}", (uint64_t)(ctx.get()));
-    req = Request((Request_rep*)r->contents(), std::move(ctx));
+    req = Request((Request_rep*)r->contents(), std::move(r->get_request_ctx()));
     return true;
   }
 

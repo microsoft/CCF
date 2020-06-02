@@ -11,6 +11,7 @@
 
 #include "consensus/pbft/pbft_types.h"
 #include "parameters.h"
+#include "pbft_assert.h"
 
 #include <array>
 #include <cstdint>
@@ -81,7 +82,6 @@ namespace pbft
   };
 };
 
-
 struct ExecCommandMsg
 {
   ExecCommandMsg(
@@ -102,7 +102,7 @@ struct ExecCommandMsg
     kv::Tx* tx_ = nullptr) :
     client(client_),
     rid(rid_),
-    //request_ctx(std::move(request_ctx_)),
+    request_ctx(std::move(request_ctx_)),
     req_start(req_start_),
     req_size(req_size_),
     include_merkle_roots(include_merkle_roots_),
@@ -114,13 +114,7 @@ struct ExecCommandMsg
     cb(cb_),
     tx(tx_)
   {
-
-    LOG_INFO_FMT("TTTTTT  - {}", (uint64_t)(request_ctx_.get()));
-
-    request_ctx = std::move(request_ctx_);
-
-    LOG_INFO_FMT("TTTTTT  - {}", (uint64_t)(request_ctx.get()));
-
+    PBFT_ASSERT(request_ctx.get() != nullptr, "should not be nullptr");
   }
 
   Byz_req inb;
@@ -148,15 +142,6 @@ using ExecCommand = std::function<int(
   uint32_t num_requests,
   uint64_t nonce,
   bool executed_single_threaded)>;
-
-/*
-struct RequestCtx
-{
-  std::shared_ptr<enclave::RpcContext> ctx;
-  std::shared_ptr<enclave::RpcHandler> frontend;
-  bool does_exec_gov_req;
-};
-*/
 
 using VerifyAndParseCommand = std::function<std::unique_ptr<pbft::RequestCtx>(
   Byz_req* inb, uint8_t* req_start, size_t req_size)>;

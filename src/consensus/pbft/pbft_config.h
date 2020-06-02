@@ -203,13 +203,76 @@ namespace pbft
       int replier = msg->replier;
       uint16_t reply_thread = msg->reply_thread;
 
-      //std::unique_ptr<RequestCtx> r_ctx = self->verify_and_parse(inb, req_start, req_size);
+      //if (msg->request_ctx.get() == nullptr) {
+        auto foo = self->verify_and_parse(inb, req_start, req_size);
+      //}
+
+
+      //std::unique_ptr<RequestCtx>& r_ctx = foo;
       std::unique_ptr<RequestCtx>& r_ctx = msg->request_ctx;
+      msg->request_ctx->get_rpc_context()->pbft_raw =
+        foo->get_rpc_context()->pbft_raw;
+
       r_ctx->get_rpc_context()->is_create_request = c->data.is_first_request;
       r_ctx->get_rpc_context()->set_apply_writes(true);
       c->data.did_exec_gov_req = (r_ctx->get_does_exec_gov_req() || c->data.did_exec_gov_req);
 
       execution_ctx.frontend = r_ctx->get_rpc_handler();
+
+
+      if (foo->get_rpc_context()->session.get() != msg->request_ctx->get_rpc_context()->session.get())
+      {
+        //LOG_FAIL_FMT("AAAAAAA 1 - no rpc_context");
+      }
+
+/*
+      if (
+        foo->get_rpc_context()->is_create_request !=
+        msg->request_ctx->get_rpc_context()->is_create_request)
+      {
+        LOG_FAIL_FMT("AAAAAAA 2 - no rpc_context");
+      }
+*/
+
+      if (
+        std::equal(
+          foo->get_rpc_context()->pbft_raw.begin(),
+          foo->get_rpc_context()->pbft_raw.end(),
+          msg->request_ctx->get_rpc_context()->pbft_raw.begin()) == false)
+      {
+
+        LOG_FAIL_FMT(
+          "AAAAAAA 3 - no rpc_context, foo:{}, request_ctx:{}",
+          foo->get_rpc_context()->pbft_raw.size(),
+          msg->request_ctx->get_rpc_context()->pbft_raw.size());
+
+        //std::string foo_s((const char*)(foo->get_rpc_context()->pbft_raw.data()), foo->get_rpc_context()->pbft_raw.size());
+        //std::string msg_s((const char*)msg->request_ctx->get_rpc_context()->pbft_raw.data(), msg->request_ctx->get_rpc_context()->pbft_raw.size());
+
+        for (uint32_t i = 0; i < foo->get_rpc_context()->pbft_raw.size(); ++i)
+        {
+          if (
+            foo->get_rpc_context()->pbft_raw.data()[i] !=
+            msg->request_ctx->get_rpc_context()->pbft_raw.data()[i])
+          {
+            LOG_FAIL_FMT(
+              "Different - i:{}, foo:{}, msg:{}",
+              i,
+              foo->get_rpc_context()->pbft_raw.data()[i],
+              msg->request_ctx->get_rpc_context()->pbft_raw.data()[i]);
+          }
+        }
+      }
+
+      if (foo->get_rpc_handler().get() != msg->request_ctx->get_rpc_handler().get())
+      {
+        LOG_FAIL_FMT("AAAAAAA - no rpc_handler");
+      }
+
+      if (foo->get_does_exec_gov_req() != msg->request_ctx->get_does_exec_gov_req())
+      {
+        LOG_FAIL_FMT("AAAAAAA - no does_gov");
+      }
 
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)
