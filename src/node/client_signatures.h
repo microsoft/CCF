@@ -46,5 +46,5 @@ namespace ccf
   DECLARE_JSON_TYPE(SignedReq)
   DECLARE_JSON_REQUIRED_FIELDS(SignedReq, sig, req, request_body, md)
   // this maps client-id to latest SignedReq
-  using ClientSignatures = kv::JsonSerialisedMap<CallerId, SignedReq>;
+  using ClientSignatures = kv::MsgPackSerialisedMap<CallerId, SignedReq>;
 }
