@@ -101,14 +101,53 @@ namespace asynchost
       return positions.size();
     }
 
+    size_t framed_entries_size(size_t from, size_t to)
+    {
+      LOG_TRACE_FMT(
+        "fes: from {} -> to {} [start: {} - last: {}]",
+        from,
+        to,
+        start_idx,
+        start_idx + positions.size() - 1);
+
+      if ((from == 0) || (to < from) || (to > start_idx + positions.size() - 1))
+      {
+        return 0;
+      }
+
+      // TODO: It might be much easier to record start_idx as (start_idx - 1)??
+      if (to == (start_idx + positions.size() - 1))
+      {
+        LOG_TRACE_FMT(
+          "here, total len {} - start {}",
+          total_len,
+          positions.at(from - start_idx));
+        return total_len - positions.at(from - start_idx);
+      }
+      else
+      {
+        // TODO: This is not really tested for now
+        return positions.at(to - start_idx) - positions.at(from - start_idx);
+      }
+    }
+
+    size_t entry_size(size_t idx)
+    {
+      auto framed_size = framed_entries_size(idx, idx);
+
+      return framed_size ? framed_size - frame_header_size : 0;
+    }
+
     const std::vector<uint8_t> read_entry(size_t idx)
     {
-      if ((idx == 0) || (idx > positions.size()))
+      if ((idx == 0) || (idx > (start_idx - 1 + positions.size())))
+      {
         return {};
+      }
 
       auto len = entry_size(idx);
       std::vector<uint8_t> entry(len);
-      fseeko(file, positions.at(idx - 1) + frame_header_size, SEEK_SET);
+      fseeko(file, positions.at(idx - start_idx) + frame_header_size, SEEK_SET);
 
       if (fread(entry.data(), len, 1, file) != 1)
       {
@@ -141,48 +180,12 @@ namespace asynchost
       return framed_entries;
     }
 
-    size_t framed_entries_size(size_t from, size_t to)
-    {
-      LOG_TRACE_FMT(
-        "fes: from {} -> to {} [start: {} - last: {}]",
-        from,
-        to,
-        start_idx,
-        positions.size());
-
-      if ((from == 0) || (to < from) || (to > start_idx - 1 + positions.size()))
-      {
-        return 0;
-      }
-
-      // TODO: It might be much easier to record start_idx as (start_idx - 1)??
-      if (to == (start_idx - 1 + positions.size()))
-      {
-        LOG_TRACE_FMT(
-          "here, total len {} - start {}",
-          total_len,
-          positions.at(from - start_idx));
-        return total_len - positions.at(from - start_idx);
-      }
-      else
-      {
-        // TODO: This is not really tested for now
-        return positions.at(to - start_idx) - positions.at(from - start_idx);
-      }
-    }
-
-    size_t entry_size(size_t idx)
-    {
-      auto framed_size = framed_entries_size(idx, idx);
-
-      return framed_size ? framed_size - frame_header_size : 0;
-    }
-
     // TODO: Only applies to latest chunk
-    void write_entry(const uint8_t* data, size_t size, bool committable)
+    size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       fseeko(file, total_len, SEEK_SET);
       positions.push_back(total_len);
+      size_t new_idx = start_idx + positions.size() - 1;
 
       // LOG_DEBUG_FMT(
       //   "Ledger write {}: {} bytes. Signature {}",
@@ -191,8 +194,6 @@ namespace asynchost
       //   committable);
 
       uint32_t frame = (uint32_t)size;
-      total_len += (size + frame_header_size);
-
       if (fwrite(&frame, frame_header_size, 1, file) != 1)
       {
         throw std::logic_error("Failed to write entry header to ledger");
@@ -203,34 +204,29 @@ namespace asynchost
         throw std::logic_error("Failed to write entry to ledger");
       }
 
+      total_len +=
+        (size + frame_header_size); // TODO: Not sure we still need this
+
       LOG_FAIL_FMT(
         "[{}] Size of current chunk, from {} to {}, is {}",
         committable,
         start_idx,
-        start_idx + positions.size(),
+        new_idx,
         total_len);
 
-      auto chunk_size =
-        framed_entries_size(start_idx, start_idx - 1 + positions.size());
+      auto chunk_size = framed_entries_size(start_idx, new_idx);
       LOG_FAIL_FMT("entry size so far: {}", chunk_size);
 
       if (committable && chunk_size >= chunk_threshold)
       {
         LOG_FAIL_FMT(
-          ">>>>> Creating new chunk at {}, positions size of {}",
-          start_idx + positions.size(),
+          ">>>>> Creating new chunk which will start at {}, positions size of "
+          "{}",
+          new_idx + 1,
           positions.size());
 
-        // TODO: Retry if didn't write everything
         size_t table_offset = ftello(file);
-
-        // TODO: Marker for now, delete
-        uint8_t marker = 0x88;
-        if (fwrite(&marker, sizeof(marker), 1, file) != 1)
-        {
-          throw std::logic_error("Failed to write entry header to ledger");
-        }
-
+        // TODO: Retry if didn't write everything
         if (
           fwrite(
             reinterpret_cast<uint8_t*>(positions.data()),
@@ -241,12 +237,12 @@ namespace asynchost
           throw std::logic_error("Failed to write positions table to ledger");
         }
 
+        // Write positions table offset at start of file
         if (fseeko(file, 0, SEEK_SET) != 0)
         {
           throw std::logic_error("Failed to set file offset to 0");
         }
 
-        //
         if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
         {
           throw std::logic_error("Failed to write positions table to ledger");
@@ -257,11 +253,9 @@ namespace asynchost
           fs::path(ledger_dir) /
             fs::path(fmt::format("{}.{}", current_ledger, start_idx)));
 
-        start_idx = start_idx + positions.size();
+        start_idx = new_idx + 1;
         positions.clear();
         total_len = sizeof(uint64_t);
-
-        // TODO: Write offset and positions table
 
         FILE* new_file = fopen(
           (fs::path(ledger_dir) / fs::path(current_ledger)).c_str(), "w+b");
@@ -271,6 +265,8 @@ namespace asynchost
 
         file = new_file;
       }
+
+      return new_idx;
     }
 
     void truncate(size_t last_idx)

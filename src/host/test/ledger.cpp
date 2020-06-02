@@ -104,37 +104,47 @@ TEST_CASE("Multiple ledgers")
 
   LOG_DEBUG_FMT("tx per chunk: {}", tx_per_chunk);
 
+  size_t last_idx = 0;
+
   LedgerEntry dummy_entry = {0x42};
   INFO("Not quite enough entries before chunk threshold");
   {
     bool is_committable = true;
     for (int i = 0; i < tx_per_chunk - 1; i++)
     {
-      ledger.write_entry(
-        dummy_entry.value(), sizeof(LedgerEntry), is_committable);
+      REQUIRE(
+        ledger.write_entry(
+          dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
+        ++last_idx);
     }
 
     // Writing committable entries without reaching the chunk threshold
     // does not create new ledger files
-    // REQUIRE(number_of_files_in_directory(ledger_dir) == 1);
+    REQUIRE(number_of_files_in_directory(ledger_dir) == 1);
   }
 
   INFO("Additional non-committable entries do not trigger chunking");
   {
     bool is_committable = false;
-    ledger.write_entry(
-      dummy_entry.value(), sizeof(LedgerEntry), is_committable);
-    ledger.write_entry(
-      dummy_entry.value(), sizeof(LedgerEntry), is_committable);
+    REQUIRE(
+      ledger.write_entry(
+        dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
+      ++last_idx);
+    REQUIRE(
+      ledger.write_entry(
+        dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
+      ++last_idx);
 
-    // REQUIRE(number_of_files_in_directory(ledger_dir) == 1);
+    REQUIRE(number_of_files_in_directory(ledger_dir) == 1);
   }
 
   INFO("Additional committable entry triggers chunking");
   {
     bool is_committable = true;
-    ledger.write_entry(
-      dummy_entry.value(), sizeof(LedgerEntry), is_committable);
+    REQUIRE(
+      ledger.write_entry(
+        dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
+      ++last_idx);
     REQUIRE(number_of_files_in_directory(ledger_dir) == 2);
   }
 
@@ -143,18 +153,36 @@ TEST_CASE("Multiple ledgers")
   {
     size_t chunks_so_far = number_of_files_in_directory(ledger_dir);
 
-    size_t expected_number_of_chunks = 5;
+    size_t expected_number_of_chunks = 1;
     LOG_DEBUG_FMT(
       "Submitting {} txs", tx_per_chunk * expected_number_of_chunks);
     for (int i = 0; i < tx_per_chunk * expected_number_of_chunks; i++)
     {
       bool is_committable = true;
-      ledger.write_entry(
-        dummy_entry.value(), sizeof(LedgerEntry), is_committable);
+      REQUIRE(
+        ledger.write_entry(
+          dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
+        ++last_idx);
     }
     REQUIRE(
       number_of_files_in_directory(ledger_dir) ==
       expected_number_of_chunks + chunks_so_far);
+  }
+
+  INFO("Reading entries from latest chunk");
+  {
+    LOG_DEBUG_FMT("Now, reading...");
+    bool is_committable = false;
+    REQUIRE(
+      ledger.write_entry(
+        dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
+      ++last_idx);
+
+    LOG_DEBUG_FMT("Wrote entry at idx {}", last_idx);
+    REQUIRE(ledger.read_entry(last_idx).size() != 0);
+
+    // Reading in the future fails
+    REQUIRE(ledger.read_entry(last_idx + 1).size() == 0);
   }
   // fs::remove_all(ledger_dir);
 }
