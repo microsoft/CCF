@@ -154,18 +154,12 @@ class RPCLogger:
         )
 
     def log_response(self, response):
+        versioned = (response.view, response.seqno) != (None, None)
+        body = response.result if f"{response.status}"[0] == "2" else response.error
         LOG.debug(
-            truncate(
-                "{}".format(
-                    {
-                        k: v
-                        for k, v in (response.__dict__ or {}).items()
-                        if not k.startswith("_")
-                    }
-                    if response
-                    else None,
-                )
-            )
+            f"{response.status} "
+            + (f"@{response.view}.{response.seqno} " if versioned else "")
+            + truncate(f"{body}")
         )
 
 

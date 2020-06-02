@@ -340,6 +340,7 @@ namespace kv
     virtual ~AbstractStore() {}
     virtual Version next_version() = 0;
     virtual Version current_version() = 0;
+    virtual std::pair<Term, Version> current_term_and_version() = 0;
     virtual Version commit_version() = 0;
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;

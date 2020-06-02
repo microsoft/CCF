@@ -13,10 +13,11 @@ namespace kv
   {
   private:
     OrderedViews view_list;
-    bool committed;
-    bool success;
-    Version read_version;
-    Version version;
+    bool committed = false;
+    bool success = false;
+    Version read_version = NoVersion;
+    Version version = NoVersion;
+    Term term = 0;
 
     kv::TxHistory::RequestID req_id;
 
@@ -54,8 +55,9 @@ namespace kv
       if (read_version == NoVersion)
       {
         // Grab opacity version that all Maps should be queried at.
-        read_version = m.get_store()->current_version();
-        // TODO: snap term here?
+        auto [t, rv] = m.get_store()->current_term_and_version();
+        term = t;
+        read_version = rv;
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
@@ -84,16 +86,12 @@ namespace kv
       success = false;
       read_version = NoVersion;
       version = NoVersion;
-      //TODO: reset the term too
+      term = 0;
     }
 
   public:
     Tx() :
-      view_list(),
-      committed(false),
-      success(false),
-      read_version(NoVersion),
-      version(NoVersion)
+      view_list()
     {}
 
     Tx(const Tx& that) = delete;
@@ -240,6 +238,21 @@ namespace kv
         throw std::logic_error("Transaction aborted");
 
       return version;
+    }
+
+    /** Commit term if committed
+     *
+     * @return Commit term
+     */
+    Version commit_term()
+    {
+      if (!committed)
+        throw std::logic_error("Transaction not yet committed");
+
+      if (!success)
+        throw std::logic_error("Transaction aborted");
+
+      return term;
     }
 
     std::vector<uint8_t> serialise(bool include_reads = false)
