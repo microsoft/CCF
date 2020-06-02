@@ -411,7 +411,7 @@ namespace kv::untyped
 
       uint64_t ctr;
 
-      auto rv = d.template deserialise_read_version<Version>();
+      auto rv = d.deserialise_read_version();
       if (rv != NoVersion)
       {
         change_set.read_version = rv;
@@ -420,21 +420,21 @@ namespace kv::untyped
       ctr = d.deserialise_read_header();
       for (size_t i = 0; i < ctr; ++i)
       {
-        auto r = d.template deserialise_read<K>();
+        auto r = d.deserialise_read();
         change_set.reads[std::get<0>(r)] = std::get<1>(r);
       }
 
       ctr = d.deserialise_write_header();
       for (size_t i = 0; i < ctr; ++i)
       {
-        auto w = d.template deserialise_write<K, V>();
+        auto w = d.deserialise_write();
         change_set.writes[std::get<0>(w)] = std::get<1>(w);
       }
 
       ctr = d.deserialise_remove_header();
       for (size_t i = 0; i < ctr; ++i)
       {
-        auto r = d.template deserialise_remove<K>();
+        auto r = d.deserialise_remove();
         change_set.writes[r] = std::nullopt;
       }
 

@@ -297,7 +297,7 @@ namespace kv
         return DeserialiseSuccess::FAILED;
       }
 
-      Version v = d->template deserialise_version<Version>();
+      Version v = d->deserialise_version();
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback(v - 1);
