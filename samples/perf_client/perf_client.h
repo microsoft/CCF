@@ -425,19 +425,17 @@ namespace client
         }
       }
 
-      const auto global_commit_response = wait_for_global_commit(
-        trigger_signature(create_connection(true, false)));
+      trigger_signature(create_connection(true, false));
+
       size_t last_commit = 0;
       if (!options.no_wait)
       {
-        const auto commit_ids =
-          timing::parse_commit_ids(global_commit_response);
-        last_commit = commit_ids.global;
+        while(response_times.pending()) {
+          LOG_INFO_FMT("Pending: {}", response_times.pending());
+          process_reply(connection->read_response());
+        }
       }
-      else
-      {
-        last_commit = last_response_commit.seqno;
-      }
+      last_commit = last_response_commit.seqno;
       auto timing_results = end_timing(last_commit);
       LOG_INFO_FMT("Timing ended");
       return timing_results;
@@ -650,7 +648,8 @@ namespace client
           {
             // Ensure creation transactions are globally committed before
             // proceeding
-            wait_for_global_commit(trigger_signature(create_connection(true)));
+            trigger_signature(create_connection(true));
+            wait_for_global_commit(last_response.value());
           }
         }
         catch (std::exception& e)

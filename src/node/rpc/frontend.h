@@ -367,7 +367,7 @@ namespace ccf
               auto cv = tx.commit_version();
               if (cv == 0)
                 cv = tx.get_read_version();
-              /* TODO: remove, this is not meaningfully true 
+              /* TODO: remove, this is not meaningfully true!!!
               if (cv == kv::NoVersion)
                 cv = tables.current_version();
               */
@@ -377,8 +377,9 @@ namespace ccf
                 {
                   ctx->set_seqno(cv);
                   ctx->set_view(tx.commit_term());
-                  ctx->set_global_commit(consensus->get_committed_seqno());
                 }
+                // TODO: deprecate
+                ctx->set_global_commit(consensus->get_committed_seqno());
 
                 if (
                   history && consensus->is_primary() &&

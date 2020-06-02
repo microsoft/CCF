@@ -244,6 +244,11 @@ namespace timing
       receives.push_back({Clock::now() - start_time, rpc_id, commit});
     }
 
+    size_t pending() const
+    {
+      return sends.size() - receives.size();
+    }
+
     // Repeatedly calls GET /tx RPC until the target seqno has been
     // committed (or will never be committed), returns first confirming
     // response. Calls record_[send/response], if record is true.

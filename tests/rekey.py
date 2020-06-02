@@ -8,7 +8,6 @@ import infra.e2e_args
 
 
 @reqs.description("Rekey the ledger once")
-@reqs.supports_methods("mkSign")
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     primary, _ = network.find_primary()
