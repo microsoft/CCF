@@ -289,7 +289,7 @@ struct CustomVerboseDumbSerialiser
 };
 
 using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
-using JsonSerialisedMap = kv::TypedMap<
+using CustomJsonMap = kv::TypedMap<
   CustomClass,
   CustomClass,
   CustomJsonSerialiser,
@@ -304,7 +304,7 @@ TEST_CASE_TEMPLATE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
   DefaultSerialisedMap,
-  JsonSerialisedMap,
+  CustomJsonMap,
   VerboseSerialisedMap)
 {
   kv::Store kv_store;

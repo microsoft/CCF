@@ -16,6 +16,13 @@
 MSGPACK_ADD_ENUM(kv::KvOperationType);
 MSGPACK_ADD_ENUM(kv::SecurityDomain);
 
+// Currently we have pre-serialised keys and values, which are often msgpack,
+// which are then re-packed into msg-pack to go into the ledger. This is
+// wasteful. But without this we can't _unpack_ custom types at this level. We
+// should replace this with a custom serialisation format for the ledger. This
+// macro gates the intended code path.
+#define MSGPACK_DONT_REPACK (0)
+
 namespace kv
 {
   class MsgPackWriter
@@ -38,10 +45,11 @@ namespace kv
     // be able to distinguish it from ths valid stream
     void append_pre_serialised(const kv::serialisers::SerialisedEntry& entry)
     {
-      const auto size_before = sb.size();
+#if MSGPACK_DONT_REPACK
       sb.write(reinterpret_cast<char const*>(entry.data()), entry.size());
-      LOG_INFO_FMT(
-        "Writing entry took size from {} to {}", size_before, sb.size());
+#else
+      append(entry);
+#endif
     }
 
     void clear()
@@ -94,12 +102,14 @@ namespace kv
 
     kv::serialisers::SerialisedEntry read_next_pre_serialised()
     {
+#if MSGPACK_DONT_REPACK
       const auto before_offset = data_offset;
       msgpack::unpack(msg, data_ptr, data_size, data_offset);
-      LOG_INFO_FMT(
-        "Reading entry took offset from {} to {}", before_offset, data_offset);
       return kv::serialisers::SerialisedEntry(
         data_ptr + before_offset, data_ptr + data_offset);
+#else
+      return read_next<kv::serialisers::SerialisedEntry>();
+#endif
     }
 
     template <typename T>
