@@ -62,10 +62,10 @@ namespace kv
       current_writer->append(std::forward<T>(t));
     }
 
-    template <typename T>
-    void serialise_internal_public(T&& t)
+    // TODO: Implement this for nljson serialise
+    void serialise_internal_raw(const kv::serialisers::SerialisedEntry& raw)
     {
-      public_writer.append(std::forward<T>(t));
+      current_writer->append_raw(raw);
     }
 
     void set_current_domain(SecurityDomain domain)
@@ -123,34 +123,34 @@ namespace kv
 
     void serialise_read(const SerialisedKey& k, const Version& version)
     {
-      serialise_internal(k);
+      serialise_internal_raw(k);
       serialise_internal(version);
     }
 
     void serialise_write(const SerialisedKey& k, const SerialisedValue& v)
     {
-      serialise_internal(k);
-      serialise_internal(v);
+      serialise_internal_raw(k);
+      serialise_internal_raw(v);
     }
 
     void serialise_write_version(
       const SerialisedKey& k, const SerialisedValue& v, const Version& version)
     {
       serialise_internal(KvOperationType::KOT_WRITE_VERSION);
-      serialise_internal(k);
-      serialise_internal(v);
+      serialise_internal_raw(k);
+      serialise_internal_raw(v);
       serialise_internal(version);
     }
 
     void serialise_remove_version(const SerialisedKey& k)
     {
       serialise_internal(KvOperationType::KOT_REMOVE_VERSION);
-      serialise_internal(k);
+      serialise_internal_raw(k);
     }
 
     void serialise_remove(const SerialisedKey& k)
     {
-      serialise_internal(k);
+      serialise_internal_raw(k);
     }
 
     std::vector<uint8_t> get_raw_data()
@@ -369,7 +369,7 @@ namespace kv
 
     std::tuple<SerialisedKey, Version> deserialise_read()
     {
-      return {current_reader->template read_next<SerialisedKey>(),
+      return {current_reader->read_next_raw(),
               current_reader->template read_next<Version>()};
     }
 
@@ -380,8 +380,7 @@ namespace kv
 
     std::tuple<SerialisedKey, SerialisedValue> deserialise_write()
     {
-      return {current_reader->template read_next<SerialisedKey>(),
-              current_reader->template read_next<SerialisedValue>()};
+      return {current_reader->read_next_raw(), current_reader->read_next_raw()};
     }
 
     uint64_t deserialise_remove_header()
@@ -391,7 +390,7 @@ namespace kv
 
     SerialisedKey deserialise_remove()
     {
-      return current_reader->template read_next<SerialisedKey>();
+      return current_reader->read_next_raw();
     }
 
     bool end()
