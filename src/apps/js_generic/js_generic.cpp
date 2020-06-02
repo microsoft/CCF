@@ -78,7 +78,7 @@ namespace ccfapp
 
     size_t sz = 0;
     auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
-    auto v = table_view->get(std::vector<uint8_t>(k, k + sz));
+    auto v = table_view->get({k, k + sz});
     JS_FreeCString(ctx, k);
 
     if (v.has_value())
@@ -101,7 +101,7 @@ namespace ccfapp
 
     size_t sz = 0;
     auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
-    auto v = table_view->remove(std::vector<uint8_t>(k, k + sz));
+    auto v = table_view->remove({k, k + sz});
     JS_FreeCString(ctx, k);
 
     if (v)
@@ -125,11 +125,11 @@ namespace ccfapp
 
     size_t k_sz = 0;
     auto k = JS_ToCStringLen(ctx, &k_sz, argv[0]);
-    std::vector<uint8_t> k_(k, k + k_sz);
+    kv::untyped::Map::K k_(k, k + k_sz);
 
     size_t v_sz = 0;
     auto v = JS_ToCStringLen(ctx, &v_sz, argv[1]);
-    std::vector<uint8_t> v_(v, v + v_sz);
+    kv::untyped::Map::V v_(v, v + v_sz);
 
     if (!table_view->put(k_, v_))
     {
