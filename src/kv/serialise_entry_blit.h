@@ -28,7 +28,7 @@ namespace kv::serialisers
     {
       if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
       {
-        return t;
+        return SerialisedEntry(t.begin(), t.end());
       }
       else if constexpr (is_std_array<T>::value)
       {
@@ -50,7 +50,7 @@ namespace kv::serialisers
     {
       if constexpr (std::is_same_v<T, std::vector<uint8_t>>)
       {
-        return rep;
+        return T(rep.begin(), rep.end());
       }
       else if constexpr (is_std_array<T>::value)
       {
