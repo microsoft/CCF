@@ -9,6 +9,17 @@
 
 namespace pbft
 {
+  struct RequestCtxImpl : public RequestCtx
+  {
+    std::shared_ptr<enclave::RpcContext> ctx;
+    std::shared_ptr<enclave::RpcHandler> frontend;
+    bool does_exec_gov_req;
+
+    std::shared_ptr<enclave::RpcContext> get_rpc_context() override {return ctx;}
+    std::shared_ptr<enclave::RpcHandler> get_rpc_handler() override {return frontend;}
+    bool get_does_exec_gov_req() override {return does_exec_gov_req;}
+  };
+
   class AbstractPbftConfig
   {
   public:
@@ -17,6 +28,7 @@ namespace pbft
     virtual void set_service_mem(char* sm) = 0;
     virtual void set_receiver(IMessageReceiveBase* message_receive_base_) = 0;
     virtual ExecCommand get_exec_command() = 0;
+    virtual VerifyAndParseCommand get_verify_command() = 0;
   };
 
   class PbftConfigCcf : public AbstractPbftConfig
@@ -47,6 +59,11 @@ namespace pbft
     ExecCommand get_exec_command() override
     {
       return exec_command;
+    }
+
+    VerifyAndParseCommand get_verify_command() override
+    {
+      return verify_and_parse;
     }
 
   private:
@@ -131,55 +148,44 @@ namespace pbft
       }
     }
 
-    struct RequestCtx
-    {
-      std::shared_ptr<enclave::RpcContext> ctx;
-      std::shared_ptr<enclave::RpcHandler> frontend;
-      bool does_exec_gov_req;
-    };
+    VerifyAndParseCommand verify_and_parse =
+      [this](Byz_req* inb, uint8_t* req_start, size_t req_size) {
+        auto r_ctx = std::make_unique<RequestCtxImpl>();
+        pbft::Request request;
+        request.deserialise((uint8_t*)inb->contents, inb->size);
 
-    RequestCtx CreateRequestCtx(
-Byz_req* inb,
-      uint8_t* req_start,
-      size_t req_size
+        auto session = std::make_shared<enclave::SessionContext>(
+          enclave::InvalidSessionId, request.caller_id, request.caller_cert);
 
-    )
-    {
-      RequestCtx r_ctx;
-      pbft::Request request;
-      request.deserialise((uint8_t*)inb->contents, inb->size);
+        r_ctx->ctx = enclave::make_fwd_rpc_context(
+          session,
+          request.raw,
+          (enclave::FrameFormat)request.frame_format,
+          {req_start, req_start + req_size});
 
-      auto session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+        const auto actor_opt = http::extract_actor(*r_ctx->ctx);
+        if (!actor_opt.has_value())
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to extract actor from PBFT request. Method is '{}'",
+            r_ctx->ctx->get_method()));
+        }
 
-      r_ctx.ctx = enclave::make_fwd_rpc_context(
-        session,
-        request.raw,
-        (enclave::FrameFormat)request.frame_format,
-        {req_start, req_start + req_size});
+        const auto& actor_s = actor_opt.value();
+        const auto actor = rpc_map->resolve(actor_s);
+        auto handler = rpc_map->find(actor);
+        if (!handler.has_value())
+          throw std::logic_error(
+            fmt::format("No frontend associated with actor {}", actor_s));
 
-      const auto actor_opt = http::extract_actor(*r_ctx.ctx);
-      if (!actor_opt.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to extract actor from PBFT request. Method is '{}'",
-          r_ctx.ctx->get_method()));
-      }
+        r_ctx->frontend = handler.value();
+        r_ctx->does_exec_gov_req = r_ctx->frontend->is_members_frontend();
 
-      const auto& actor_s = actor_opt.value();
-      const auto actor = rpc_map->resolve(actor_s);
-      auto handler = rpc_map->find(actor);
-      if (!handler.has_value())
-        throw std::logic_error(
-          fmt::format("No frontend associated with actor {}", actor_s));
+        return r_ctx;
+      };
 
-      r_ctx.frontend = handler.value();
-      r_ctx.does_exec_gov_req = r_ctx.frontend->is_members_frontend();
-
-      return r_ctx;
-    }
-
-    static void Execute(std::unique_ptr<threading::Tmsg<ExecutionCtx>> c)
+    static void
+    Execute(std::unique_ptr<threading::Tmsg<ExecutionCtx>> c)
     {
       ExecutionCtx& execution_ctx = c->data;
       std::unique_ptr<ExecCommandMsg>& msg = execution_ctx.msg;
@@ -197,21 +203,22 @@ Byz_req* inb,
       int replier = msg->replier;
       uint16_t reply_thread = msg->reply_thread;
 
-      RequestCtx r_ctx = self->CreateRequestCtx(inb, req_start, req_size);
-      r_ctx.ctx->is_create_request = c->data.is_first_request;
-      r_ctx.ctx->set_apply_writes(true);
-      c->data.did_exec_gov_req = (r_ctx.does_exec_gov_req || c->data.did_exec_gov_req);
+      //std::unique_ptr<RequestCtx> r_ctx = self->verify_and_parse(inb, req_start, req_size);
+      std::unique_ptr<RequestCtx>& r_ctx = msg->request_ctx;
+      r_ctx->get_rpc_context()->is_create_request = c->data.is_first_request;
+      r_ctx->get_rpc_context()->set_apply_writes(true);
+      c->data.did_exec_gov_req = (r_ctx->get_does_exec_gov_req() || c->data.did_exec_gov_req);
 
-      execution_ctx.frontend = r_ctx.frontend;
+      execution_ctx.frontend = r_ctx->get_rpc_handler();
 
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)
       {
-        rep = r_ctx.frontend->process_pbft(r_ctx.ctx, *tx, true);
+        rep = execution_ctx.frontend->process_pbft(r_ctx->get_rpc_context(), *tx, true);
       }
       else
       {
-        rep = r_ctx.frontend->process_pbft(r_ctx.ctx);
+        rep = execution_ctx.frontend->process_pbft(r_ctx->get_rpc_context());
       }
       execution_ctx.version = rep.version;
 

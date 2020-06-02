@@ -175,6 +175,11 @@ void Replica::register_exec(ExecCommand e)
   exec_command = e;
 }
 
+void Replica::register_verify(VerifyAndParseCommand e)
+{
+  verify_command = e;
+}
+
 Replica::~Replica() = default;
 
 struct PreVerifyCbMsg
@@ -462,6 +467,7 @@ void Replica::playback_request(kv::Tx& tx)
     "Playback request for request with size {}", request.pbft_raw.size());
   auto req =
     create_message<Request>(request.pbft_raw.data(), request.pbft_raw.size());
+    req->create_context(verify_command);
 
   if (!waiting_for_playback_pp)
   {
@@ -753,6 +759,13 @@ void Replica::process_message(Message* m)
   {
     state.check_state();
   }
+}
+
+template <>
+bool Replica::gen_pre_verify<Request>(Message* m)
+{
+  auto n = reinterpret_cast<Request*>(m);
+  return n->pre_verify(verify_command);
 }
 
 template <class T>
@@ -2249,9 +2262,13 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
   request.set_replier(-1);
   int client_id = request.client_id();
 
+  auto foobar = request.get_request_ctx();
+  LOG_INFO_FMT("QQQQQQQ - {}", (uint64_t)(foobar.get()));
+
   auto cmd = std::make_unique<ExecCommandMsg>(
     client_id,
     request.request_id(),
+    std::move(foobar),
     reinterpret_cast<uint8_t*>(request.contents()),
     request.contents_size(),
     include_merkle_roots,
@@ -2334,6 +2351,8 @@ bool Replica::create_execute_commands(
     num_requests = 0;
     while (iter.get(request))
     {
+      // TODO: we should not have to do this again :(
+      //request.create_context(verify_command);
       auto cmd = execute_tentative_request(
         request,
         max_local_commit_value,

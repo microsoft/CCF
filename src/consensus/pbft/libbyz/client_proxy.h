@@ -32,6 +32,7 @@ class ClientProxy
 public:
   ClientProxy(
     IMessageReceiveBase& my_replica,
+    VerifyAndParseCommand verify_command_,
     int min_rtimeout = 2000,
     int max_rtimeout = 3000);
   // Effects: Creates a new ClientProxy object
@@ -71,6 +72,7 @@ private:
   IMessageReceiveBase& my_replica;
   View current_view;
   RequestIdGenerator request_id_generator;
+  VerifyAndParseCommand verify_command;
 
   struct RequestContext
   {
@@ -157,11 +159,15 @@ private:
 
 template <class T, class C>
 ClientProxy<T, C>::ClientProxy(
-  IMessageReceiveBase& my_replica, int min_rtimeout_, int max_rtimeout_) :
+  IMessageReceiveBase& my_replica,
+  VerifyAndParseCommand verify_command_,
+  int min_rtimeout_,
+  int max_rtimeout_) :
   current_view(my_replica.view()),
   min_rtimeout(min_rtimeout_),
   max_rtimeout(max_rtimeout_),
   my_replica(my_replica),
+  verify_command(verify_command_),
   out_reqs(Max_outstanding),
   head(nullptr),
   tail(nullptr),
@@ -230,6 +236,7 @@ bool ClientProxy<T, C>::send_request(
   req->authenticate(len, is_read_only);
 
   auto req_clone = req->clone();
+  req_clone->create_context(verify_command);
 
   auto ctx = std::make_unique<RequestContext>(
     my_replica,
@@ -520,6 +527,7 @@ void ClientProxy<T, C>::retransmit()
       // thresh times, and big requests are multicast to all
       // replicas.
       auto req_clone = out_req->clone();
+      req_clone->create_context(verify_command);
       execute_request(req_clone);
     }
     else
