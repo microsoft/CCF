@@ -9,6 +9,8 @@ GCM_SIZE_IV = 12
 LEDGER_TRANSACTION_SIZE = 4
 LEDGER_DOMAIN_SIZE = 8
 
+UNPACK_ARGS = {"raw": True, "strict_map_key": False}
+
 
 def to_uint_32(buffer):
     return struct.unpack("@I", buffer)[0]
@@ -38,7 +40,7 @@ class LedgerDomain:
     def __init__(self, buffer):
         self._buffer = buffer
         self._buffer_size = buffer.getbuffer().nbytes
-        self._unpacker = msgpack.Unpacker(self._buffer, raw=True, strict_map_key=False)
+        self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
         self._version = self._read_next()
         self._tables = {}
         self._read()
@@ -66,14 +68,14 @@ class LedgerDomain:
             write_count = self._read_next()
             if write_count:
                 for _ in range(write_count):
-                    k = self._read_next()
-                    val = self._read_next()
+                    k = msgpack.unpackb(self._read_next(), **UNPACK_ARGS)
+                    val = msgpack.unpackb(self._read_next(), **UNPACK_ARGS)
                     records[k] = val
 
             remove_count = self._read_next()
             if remove_count:
                 for _ in range(remove_count):
-                    k = self._read_next()
+                    k = msgpack.unpackb(self._read_next(), **UNPACK_ARGS)
                     records[k] = None
 
     def get_tables(self):
