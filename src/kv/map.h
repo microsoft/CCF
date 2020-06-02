@@ -3,9 +3,9 @@
 #pragma once
 
 #include "kv_types.h"
+#include "serialise_entry_blit.h"
 #include "serialise_entry_json.h"
 #include "serialise_entry_msgpack.h"
-#include "serialise_entry_blit.h"
 #include "tx_view.h"
 
 namespace kv
@@ -181,27 +181,28 @@ namespace kv
     }
   };
 
-  template <typename K, typename V,
-    template <typename> typename KSerialiser, template <typename> typename VSerialiser = KSerialiser>
+  template <
+    typename K,
+    typename V,
+    template <typename>
+    typename KSerialiser,
+    template <typename> typename VSerialiser = KSerialiser>
   using MapSerialisedWith = TypedMap<K, V, KSerialiser<K>, VSerialiser<V>>;
 
   template <typename K, typename V>
-  using JsonSerialisedMap = MapSerialisedWith<
-    K,
-    V,
-    kv::serialisers::JsonSerialiser>;
+  using JsonSerialisedMap =
+    MapSerialisedWith<K, V, kv::serialisers::JsonSerialiser>;
 
   template <typename K, typename V>
   using RawCopySerialisedMap = TypedMap<
     K,
     V,
-    kv::serialisers::BlitSerialiser<K>, kv::serialisers::BlitSerialiser<V>>;
+    kv::serialisers::BlitSerialiser<K>,
+    kv::serialisers::BlitSerialiser<V>>;
 
   template <typename K, typename V>
-  using MsgPackSerialisedMap = MapSerialisedWith<
-    K,
-    V,
-    kv::serialisers::MsgPackSerialiser>;
+  using MsgPackSerialisedMap =
+    MapSerialisedWith<K, V, kv::serialisers::MsgPackSerialiser>;
 
   // The default kv::Map will use msgpack serialisers. Custom types are
   // supported through the MSGPACK_DEFINE macro

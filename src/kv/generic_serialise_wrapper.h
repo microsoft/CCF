@@ -62,7 +62,8 @@ namespace kv
       current_writer->append(std::forward<T>(t));
     }
 
-    void serialise_internal_pre_serialised(const kv::serialisers::SerialisedEntry& raw)
+    void serialise_internal_pre_serialised(
+      const kv::serialisers::SerialisedEntry& raw)
     {
       current_writer->append_pre_serialised(raw);
     }
@@ -379,7 +380,8 @@ namespace kv
 
     std::tuple<SerialisedKey, SerialisedValue> deserialise_write()
     {
-      return {current_reader->read_next_pre_serialised(), current_reader->read_next_pre_serialised()};
+      return {current_reader->read_next_pre_serialised(),
+              current_reader->read_next_pre_serialised()};
     }
 
     uint64_t deserialise_remove_header()
