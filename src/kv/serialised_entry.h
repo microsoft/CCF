@@ -11,7 +11,6 @@ namespace kv::serialisers
   using SerialisedEntry = llvm_vecsmall::SmallVector<uint8_t, 64>;
 }
 
-// TODO: We should never actually be doing this!
 namespace msgpack
 {
   MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
