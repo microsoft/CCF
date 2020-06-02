@@ -131,6 +131,54 @@ namespace pbft
       }
     }
 
+    struct RequestCtx
+    {
+      std::shared_ptr<enclave::RpcContext> ctx;
+      std::shared_ptr<enclave::RpcHandler> frontend;
+      bool does_exec_gov_req;
+    };
+
+    RequestCtx CreateRequestCtx(
+Byz_req* inb,
+      uint8_t* req_start,
+      size_t req_size
+
+    )
+    {
+      RequestCtx r_ctx;
+      pbft::Request request;
+      request.deserialise((uint8_t*)inb->contents, inb->size);
+
+      auto session = std::make_shared<enclave::SessionContext>(
+        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
+
+      r_ctx.ctx = enclave::make_fwd_rpc_context(
+        session,
+        request.raw,
+        (enclave::FrameFormat)request.frame_format,
+        {req_start, req_start + req_size});
+
+      const auto actor_opt = http::extract_actor(*r_ctx.ctx);
+      if (!actor_opt.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to extract actor from PBFT request. Method is '{}'",
+          r_ctx.ctx->get_method()));
+      }
+
+      const auto& actor_s = actor_opt.value();
+      const auto actor = rpc_map->resolve(actor_s);
+      auto handler = rpc_map->find(actor);
+      if (!handler.has_value())
+        throw std::logic_error(
+          fmt::format("No frontend associated with actor {}", actor_s));
+
+      r_ctx.frontend = handler.value();
+      r_ctx.does_exec_gov_req = r_ctx.frontend->is_members_frontend();
+
+      return r_ctx;
+    }
+
     static void Execute(std::unique_ptr<threading::Tmsg<ExecutionCtx>> c)
     {
       ExecutionCtx& execution_ctx = c->data;
@@ -149,49 +197,21 @@ namespace pbft
       int replier = msg->replier;
       uint16_t reply_thread = msg->reply_thread;
 
-      pbft::Request request;
-      request.deserialise((uint8_t*)inb->contents, inb->size);
+      RequestCtx r_ctx = self->CreateRequestCtx(inb, req_start, req_size);
+      r_ctx.ctx->is_create_request = c->data.is_first_request;
+      r_ctx.ctx->set_apply_writes(true);
+      c->data.did_exec_gov_req = (r_ctx.does_exec_gov_req || c->data.did_exec_gov_req);
 
-      auto session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, request.caller_id, request.caller_cert);
-
-      auto ctx = enclave::make_fwd_rpc_context(
-        session,
-        request.raw,
-        (enclave::FrameFormat)request.frame_format,
-        {req_start, req_start + req_size});
-      ctx->is_create_request = c->data.is_first_request;
-      ctx->set_apply_writes(true);
-
-      const auto actor_opt = http::extract_actor(*ctx);
-      if (!actor_opt.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to extract actor from PBFT request. Method is '{}'",
-          ctx->get_method()));
-      }
-
-      const auto& actor_s = actor_opt.value();
-      const auto actor = self->rpc_map->resolve(actor_s);
-      auto handler = self->rpc_map->find(actor);
-      if (!handler.has_value())
-        throw std::logic_error(
-          fmt::format("No frontend associated with actor {}", actor_s));
-
-      auto frontend = handler.value();
-      c->data.did_exec_gov_req =
-        (c->data.did_exec_gov_req || frontend->is_members_frontend());
-
-      execution_ctx.frontend = frontend;
+      execution_ctx.frontend = r_ctx.frontend;
 
       enclave::RpcHandler::ProcessPbftResp rep;
       if (tx != nullptr)
       {
-        rep = frontend->process_pbft(ctx, *tx, true);
+        rep = r_ctx.frontend->process_pbft(r_ctx.ctx, *tx, true);
       }
       else
       {
-        rep = frontend->process_pbft(ctx);
+        rep = r_ctx.frontend->process_pbft(r_ctx.ctx);
       }
       execution_ctx.version = rep.version;
 
