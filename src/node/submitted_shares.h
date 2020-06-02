@@ -15,5 +15,5 @@ namespace ccf
   // Because shares are submitted to the public-only network on recovery, this
   // table is public but the shares are encrypted with the latest ledger secret.
 
-  using SubmittedShares = kv::JsonSerialisedMap<MemberId, std::vector<uint8_t>>;
+  using SubmittedShares = kv::Map<MemberId, std::vector<uint8_t>>;
 }

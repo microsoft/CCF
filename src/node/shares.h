@@ -75,5 +75,5 @@ namespace ccf
 
   // The key for this table will always be 0 since a live service never needs to
   // access historical recovery shares info.
-  using Shares = kv::JsonSerialisedMap<size_t, RecoverySharesInfo>;
+  using Shares = kv::Map<size_t, RecoverySharesInfo>;
 }

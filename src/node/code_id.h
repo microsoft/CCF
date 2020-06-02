@@ -24,5 +24,5 @@ MSGPACK_ADD_ENUM(ccf::CodeStatus);
 
 namespace ccf
 {
-  using CodeIDs = kv::JsonSerialisedMap<CodeDigest, CodeStatus>;
+  using CodeIDs = kv::Map<CodeDigest, CodeStatus>;
 }

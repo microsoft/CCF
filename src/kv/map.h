@@ -185,7 +185,6 @@ namespace kv
     template <typename> typename KSerialiser, template <typename> typename VSerialiser = KSerialiser>
   using MapSerialisedWith = TypedMap<K, V, KSerialiser<K>, VSerialiser<V>>;
 
-
   template <typename K, typename V>
   using JsonSerialisedMap = MapSerialisedWith<
     K,
