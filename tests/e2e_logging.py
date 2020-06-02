@@ -209,18 +209,18 @@ def test_raw_text(network, args):
     return network
 
 
-@reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("mkSign")
+@reqs.description("Testing forwarding on member frontend")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
-        with backup.node_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
         with backup.member_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
+            check_commit(
+                c.rpc("read", {"table": "ccf.service", "key": 0}),
+                result=lambda r: r["status"] == "OPEN",
+            )
 
     return network
 

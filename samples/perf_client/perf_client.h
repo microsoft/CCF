@@ -533,10 +533,7 @@ namespace client
       // Do a blocking read for this final response
       const auto response = connection->read_response();
       process_reply(response);
-
-      const auto commit_ids = timing::parse_commit_ids(response);
-      LOG_INFO_FMT(
-        "Triggered signature at {}.{}", commit_ids.view, commit_ids.seqno);
+      LOG_INFO_FMT("Triggered signature");
 
       return response;
     }

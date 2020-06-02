@@ -82,6 +82,15 @@ class Response:
             d["error"] = self.error
         return d
 
+    def __str__(self):
+        versioned = (self.view, self.seqno) != (None, None)
+        body = self.result if f"{self.status}"[0] == "2" else self.error
+        return (
+            f"{self.status} "
+            + (f"@{self.view}.{self.seqno} " if versioned else "")
+            + truncate(f"{body}")
+        )
+
     @staticmethod
     def from_requests_response(rr):
         content_type = rr.headers.get("content-type")
@@ -154,13 +163,7 @@ class RPCLogger:
         )
 
     def log_response(self, response):
-        versioned = (response.view, response.seqno) != (None, None)
-        body = response.result if f"{response.status}"[0] == "2" else response.error
-        LOG.debug(
-            f"{response.status} "
-            + (f"@{response.view}.{response.seqno} " if versioned else "")
-            + truncate(f"{body}")
-        )
+        LOG.debug(response)
 
 
 class RPCFileLogger(RPCLogger):
