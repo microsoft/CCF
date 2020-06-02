@@ -55,6 +55,12 @@ namespace asynchost
       chunk_threshold(chunk_threshold),
       to_enclave(writer_factory.create_writer_to_inside())
     {
+      if (chunk_threshold == 0)
+      {
+        throw std::logic_error(
+          "Error: Cannot create ledger with chunk threshold of 0");
+      }
+
       // For now, enforce that the ledger directory is empty on startup
       if (fs::is_directory(ledger_dir))
       {
@@ -136,16 +142,18 @@ namespace asynchost
 
     size_t framed_entries_size(size_t from, size_t to)
     {
-      if ((from == 0) || (to < from) || (to > positions.size()))
-        return 0;
-
-      if (to == positions.size())
+      if ((from == 0) || (to < from) || (to > start_idx + positions.size()))
       {
-        return total_len - positions.at(from - 1);
+        return 0;
+      }
+
+      if (to == (start_idx + positions.size()))
+      {
+        return total_len - positions.at(from - start_idx);
       }
       else
       {
-        return positions.at(to) - positions.at(from - 1);
+        return positions.at(to - start_idx) - positions.at(from - start_idx);
       }
     }
 
@@ -182,27 +190,25 @@ namespace asynchost
       }
 
       LOG_FAIL_FMT(
-        "Size of current chunk is {}",
-        framed_entries_size(start_idx, positions.size()));
+        "[{}] Size of current chunk, from {} to {}, is {}",
+        committable,
+        start_idx,
+        start_idx + positions.size(),
+        total_len);
 
-      if (
-        committable &&
-        framed_entries_size(start_idx, positions.size()) >= chunk_threshold)
+      if (committable && total_len >= chunk_threshold)
       {
-        LOG_FAIL_FMT("Creating new chunk at {}", positions.size());
-
-        // TODO:
-        // 1. Rename existing file
-        // 2. Write offset and positions table
-        // 3. Create new file
-        // 4. New file becomes current
+        LOG_FAIL_FMT(
+          ">>>>> Creating new chunk at {}", start_idx + positions.size());
 
         fs::rename(
           fs::path(ledger_dir) / fs::path(current_ledger),
           fs::path(ledger_dir) /
             fs::path(fmt::format("{}.{}", current_ledger, start_idx)));
 
-        start_idx = positions.size() + 1;
+        start_idx = start_idx + positions.size();
+        positions.clear();
+        total_len = 0;
 
         // TODO: Write offset and positions table
 

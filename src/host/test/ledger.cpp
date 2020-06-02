@@ -63,7 +63,12 @@
 
 struct LedgerEntry
 {
-  uint8_t value;
+  uint64_t value_;
+
+  uint8_t* value()
+  {
+    return reinterpret_cast<uint8_t*>(&value_);
+  }
 };
 
 static constexpr size_t frame_header_size = sizeof(uint32_t);
@@ -83,33 +88,44 @@ TEST_CASE("Multiple ledgers")
   ringbuffer::Circuit eio(1024);
   auto wf = ringbuffer::WriterFactory(eio);
   std::string ledger_dir = "ledger_dir";
-  size_t chunk_threshold = 100;
+
+  INFO("Cannot create a ledger with a chunk threshold of 0");
+  {
+    size_t chunk_threshold = 0;
+    REQUIRE_THROWS(asynchost::MultipleLedger(ledger_dir, wf, chunk_threshold));
+  }
+
+  size_t chunk_threshold = 30;
   asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
 
-  LedgerEntry dummy_entry = {0x42};
-  size_t tx_per_chunk =
-    chunk_threshold / (frame_header_size + sizeof(LedgerEntry));
+  size_t tx_per_chunk = ceil(
+    static_cast<float>(chunk_threshold) /
+    (frame_header_size + sizeof(LedgerEntry)));
 
+  LOG_DEBUG_FMT("tx per chunk: {}", tx_per_chunk);
+
+  LedgerEntry dummy_entry = {0x42};
   INFO("Not quite enough entries before chunk threshold");
   {
     bool is_committable = true;
     for (int i = 0; i < tx_per_chunk - 1; i++)
     {
       ledger.write_entry(
-        &dummy_entry.value, sizeof(LedgerEntry), is_committable);
+        dummy_entry.value(), sizeof(LedgerEntry), is_committable);
     }
 
-    // Writing globally commitable entries without reaching the chunk threshold
+    // Writing committable entries without reaching the chunk threshold
     // does not create new ledger files
-
     REQUIRE(number_of_files_in_directory(ledger_dir) == 1);
   }
 
   INFO("Additional non-committable entries do not trigger chunking");
   {
     bool is_committable = false;
-    ledger.write_entry(&dummy_entry.value, sizeof(LedgerEntry), is_committable);
-    ledger.write_entry(&dummy_entry.value, sizeof(LedgerEntry), is_committable);
+    ledger.write_entry(
+      dummy_entry.value(), sizeof(LedgerEntry), is_committable);
+    ledger.write_entry(
+      dummy_entry.value(), sizeof(LedgerEntry), is_committable);
 
     REQUIRE(number_of_files_in_directory(ledger_dir) == 1);
   }
@@ -117,7 +133,8 @@ TEST_CASE("Multiple ledgers")
   INFO("Additional committable entry triggers chunking");
   {
     bool is_committable = true;
-    ledger.write_entry(&dummy_entry.value, sizeof(LedgerEntry), is_committable);
+    ledger.write_entry(
+      dummy_entry.value(), sizeof(LedgerEntry), is_committable);
     REQUIRE(number_of_files_in_directory(ledger_dir) == 2);
   }
 
@@ -127,20 +144,17 @@ TEST_CASE("Multiple ledgers")
     size_t chunks_so_far = number_of_files_in_directory(ledger_dir);
 
     size_t expected_number_of_chunks = 5;
+    LOG_DEBUG_FMT(
+      "Submitting {} txs", tx_per_chunk * expected_number_of_chunks);
     for (int i = 0; i < tx_per_chunk * expected_number_of_chunks; i++)
     {
       bool is_committable = true;
       ledger.write_entry(
-        &dummy_entry.value, sizeof(LedgerEntry), is_committable);
+        dummy_entry.value(), sizeof(LedgerEntry), is_committable);
     }
     REQUIRE(
       number_of_files_in_directory(ledger_dir) ==
       expected_number_of_chunks + chunks_so_far);
   }
-
-  // TODO:
-  // 1. Also check for size of files
-  // 2. Fix issue with offset
-
   // fs::remove_all(ledger_dir);
 }

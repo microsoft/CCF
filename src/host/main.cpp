@@ -131,7 +131,8 @@ int main(int argc, char** argv)
       "--ledger-chunk-threshold",
       ledger_size_threshold,
       "Size of each ledger chunk")
-    ->capture_default_str();
+    ->capture_default_str()
+    ->check(CLI::PositiveNumber);
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
