@@ -221,7 +221,7 @@ namespace enclave
           bp,
           consensus::ledger_entry,
           [this](const uint8_t* data, size_t size) {
-            auto [body] =
+            const auto [index, purpose, body] =
               ringbuffer::read_message<consensus::ledger_entry>(data, size);
             if (node.is_reading_public_ledger())
               node.recover_public_ledger_entry(body);
@@ -235,7 +235,8 @@ namespace enclave
           bp,
           consensus::ledger_no_entry,
           [this](const uint8_t* data, size_t size) {
-            ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
+            const auto [index, purpose] =
+              ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
             node.recover_ledger_end();
           });
 
