@@ -19,10 +19,35 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
+  class LedgerFile
+  {
+  private:
+    size_t start_idx = 1;
+    size_t total_len = 0;
+    std::vector<size_t> positions;
+
+    FILE* file;
+
+  public:
+    std::string get_file_name(FILE* f)
+    {
+      int fd = fileno(f);
+      auto path = fmt::format("/proc/self/fd/{}", fd);
+      char result[128];
+      ::memset(result, 0, sizeof(result));
+      readlink(path.c_str(), result, sizeof(result) - 1);
+
+      return fs::path(result).filename();
+    }
+
+    LedgerFile() : {}
+  };
+
   class MultipleLedger
   {
   private:
     static constexpr auto current_ledger = "ledger";
+    static constexpr auto ledger_start_idx_delimiter = ".";
     static constexpr size_t frame_header_size = sizeof(uint32_t);
 
     ringbuffer::WriterPtr to_enclave;
@@ -36,7 +61,7 @@ namespace asynchost
     // Keep tracks of all ledger files. Current ledger file is always the last
     // one?
     // TODO: Use shared pointer instead?
-    std::vector<FILE*> files;
+    std::map<size_t, FILE*> files;
 
     // TODO: To be split per file
     std::vector<size_t> positions;
@@ -45,6 +70,31 @@ namespace asynchost
     FILE* file; // active chunk
     size_t start_idx = 1; // Start index on the active chunk
     size_t total_len = 0; // Length of the active chunk
+
+    size_t get_start_idx(FILE* file)
+    {
+      auto file_name = get_file_name(file);
+
+      auto pos = file_name.find(ledger_start_idx_delimiter);
+      if (pos == std::string::npos)
+      {
+        throw std::logic_error(fmt::format(
+          "Error: cannot find delimiter {} in file name {}",
+          ledger_start_idx_delimiter,
+          file_name));
+      }
+      return std::stoul(file_name.substr(pos + 1, file_name.size()));
+    }
+
+    void dump_files()
+    {
+      LOG_FAIL_FMT("****** Active files: ");
+      for (auto const& f : files)
+      {
+        LOG_FAIL_FMT("{}: {}", f.first, get_file_name(f.second));
+      }
+      LOG_FAIL_FMT("******");
+    }
 
   public:
     MultipleLedger(
@@ -80,7 +130,7 @@ namespace asynchost
       // First 8 bytes are reserved for the offset to the position table
       fseeko(file, sizeof(uint64_t), SEEK_SET);
       total_len = sizeof(uint64_t);
-      files.emplace_back(file);
+      files.emplace(1, file);
 
       LOG_INFO_FMT("File created");
     }
@@ -91,8 +141,8 @@ namespace asynchost
     {
       for (auto const f : files)
       {
-        fflush(f);
-        fclose(f);
+        fflush(f.second);
+        fclose(f.second);
       }
     }
 
@@ -127,7 +177,84 @@ namespace asynchost
       else
       {
         // TODO: This is not really tested for now
-        return positions.at(to - start_idx) - positions.at(from - start_idx);
+        // TODO: We need to access previous chunks here
+        dump_files();
+
+        // TODO: Handle entries over multiple chunks!! Hard!!
+
+        // Find file with largest offset that is less than from
+        auto search = std::upper_bound(
+          files.rbegin(),
+          files.rend(),
+          from,
+          [](size_t idx, std::pair<size_t, FILE*> v) {
+            LOG_FAIL_FMT("{} >= {} ? {}", idx, v.first, (idx >= v.first));
+            return idx >= v.first;
+          });
+        if (search == files.rend())
+        {
+          // TODO: Refine this
+          throw std::logic_error(
+            fmt::format("Could not find anything at {}", from));
+        }
+
+        LOG_FAIL_FMT(
+          "Found file \"{}\" for {}", get_file_name(search->second), from);
+
+        // TODO: Load file and positions within it
+        if (search->second == files.rbegin()->second)
+        {
+          // TODO: This can be optimised: we know we can look up the last file
+          // if from and to are within positions
+          LOG_FAIL_FMT("Current file!");
+          return positions.at(to - start_idx) - positions.at(from - start_idx);
+        }
+        else
+        {
+          size_t start_idx_ = get_start_idx(search->second);
+          LOG_FAIL_FMT("Start idx is {}", start_idx_);
+
+          // Load positions
+          // First, get full size of file
+          fseeko(search->second, 0, SEEK_END);
+          size_t total_size = ftello(search->second);
+
+          // Second, read offset at end of file
+          fseeko(search->second, 0, SEEK_SET);
+          size_t table_offset;
+          if (
+            fread(&table_offset, sizeof(table_offset), 1, search->second) != 1)
+          {
+            throw std::logic_error("Failed to read positions offset from file");
+          }
+
+          LOG_FAIL_FMT("table offset is {}", table_offset);
+
+          // Finally, read positions
+          fseeko(search->second, table_offset, SEEK_SET);
+
+          std::vector<size_t> positions_;
+          positions_.resize(
+            (total_size - table_offset) / sizeof(positions_.at(0)));
+          LOG_FAIL_FMT("len of positions_ is {}", positions_.size());
+
+          if (
+            fread(
+              positions_.data(),
+              sizeof(positions_.at(0)),
+              positions_.size(),
+              search->second) != positions_.size())
+          {
+            throw std::logic_error("Failed to read positions_ table from file");
+          }
+
+          for (auto const& p : positions_)
+          {
+            LOG_FAIL_FMT("Positions: {}", p);
+          }
+
+          return positions_.at() - positions_.()
+        }
       }
     }
 
@@ -140,7 +267,7 @@ namespace asynchost
 
     const std::vector<uint8_t> read_entry(size_t idx)
     {
-      if ((idx == 0) || (idx > (start_idx - 1 + positions.size())))
+      if ((idx == 0) || (idx > (start_idx + positions.size() - 1)))
       {
         return {};
       }
@@ -261,7 +388,8 @@ namespace asynchost
           (fs::path(ledger_dir) / fs::path(current_ledger)).c_str(), "w+b");
         fseeko(new_file, sizeof(uint64_t), SEEK_SET);
 
-        files.emplace_back(new_file);
+        // files.emplace_back(new_file);
+        files.emplace(start_idx, new_file);
 
         file = new_file;
       }

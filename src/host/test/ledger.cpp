@@ -183,6 +183,9 @@ TEST_CASE("Multiple ledgers")
 
     // Reading in the future fails
     REQUIRE(ledger.read_entry(last_idx + 1).size() == 0);
+
+    // Reading in the past succeeds
+    REQUIRE(ledger.read_entry(last_idx - 1).size() != 0);
   }
   // fs::remove_all(ledger_dir);
 }
