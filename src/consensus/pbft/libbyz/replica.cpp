@@ -2361,7 +2361,12 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce)
         pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
     exec_command(
-      vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder(), pp->view());
+      vec_exec_cmds,
+      info,
+      num_requests,
+      nonce,
+      !pp->should_reorder(),
+      pp->view());
     return true;
   }
   return false;
@@ -2406,7 +2411,12 @@ bool Replica::execute_tentative(
     }
 
     exec_command(
-      vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder(), pp->view());
+      vec_exec_cmds,
+      info,
+      num_requests,
+      nonce,
+      !pp->should_reorder(),
+      pp->view());
     if (!node_info.general_info.support_threading)
     {
       cb(pp, this, std::move(ctx));

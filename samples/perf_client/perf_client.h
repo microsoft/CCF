@@ -430,7 +430,8 @@ namespace client
       size_t last_commit = 0;
       if (!options.no_wait)
       {
-        while(response_times.pending()) {
+        while (response_times.pending())
+        {
           LOG_INFO_FMT("Pending: {}", response_times.pending());
           process_reply(connection->read_response());
         }

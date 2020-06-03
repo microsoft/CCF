@@ -1046,7 +1046,6 @@ namespace raft
       {
         store->set_term(current_term);
       }
-      
 
       committable_indices.clear();
       state = Leader;

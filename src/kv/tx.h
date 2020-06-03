@@ -90,9 +90,7 @@ namespace kv
     }
 
   public:
-    Tx() :
-      view_list()
-    {}
+    Tx() : view_list() {}
 
     Tx(const Tx& that) = delete;
 
