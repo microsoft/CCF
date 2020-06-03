@@ -8,15 +8,28 @@
 
 namespace kv::serialisers
 {
+  namespace detail
+  {
+    struct SerialisedEntryWriter
+    {
+      SerialisedEntry& entry;
+
+      void write(const char* d, size_t n)
+      {
+        entry.insert(entry.end(), d, d + n);
+      }
+    };
+  }
+
   template <typename T>
   struct MsgPackSerialiser
   {
     static SerialisedEntry to_serialised(const T& t)
     {
-      msgpack::sbuffer sb;
-      msgpack::pack(sb, t);
-      auto sb_data = reinterpret_cast<const uint8_t*>(sb.data());
-      return SerialisedEntry(sb_data, sb_data + sb.size());
+      SerialisedEntry e;
+      detail::SerialisedEntryWriter w{e};
+      msgpack::pack(w, t);
+      return e;
     }
 
     static T from_serialised(const SerialisedEntry& rep)
