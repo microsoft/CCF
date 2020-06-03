@@ -168,7 +168,6 @@ namespace pbft
 
         r_ctx->ctx = enclave::make_fwd_rpc_context(
           session, request.raw, (enclave::FrameFormat)request.frame_format);
-        //{req_start, req_start + req_size});
 
         const auto actor_opt = http::extract_actor(*r_ctx->ctx);
         if (!actor_opt.has_value())
