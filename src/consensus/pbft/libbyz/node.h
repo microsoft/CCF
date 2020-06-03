@@ -4,6 +4,7 @@
 // Licensed under the MIT license.
 #pragma once
 
+#include "ccf_assert.h"
 #include "consensus/consensus_types.h"
 #include "global_state.h"
 #include "itimer.h"
@@ -12,7 +13,6 @@
 #include "message_tags.h"
 #include "network.h"
 #include "nodeinfo.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "request_id_gen.h"
 #include "statistics.h"

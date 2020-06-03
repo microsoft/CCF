@@ -6,11 +6,11 @@
 #pragma once
 
 #include "bitmap.h"
+#include "ccf_assert.h"
 #include "digest.h"
 #include "itimer.h"
 #include "log.h"
 #include "partition.h"
-#include "pbft_assert.h"
 #include "time_types.h"
 #include "types.h"
 

@@ -5,7 +5,7 @@
 
 #include "request_id_gen.h"
 
-#include "pbft_assert.h"
+#include "ccf_assert.h"
 
 #include <sys/time.h>
 

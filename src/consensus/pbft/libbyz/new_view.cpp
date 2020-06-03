@@ -5,8 +5,8 @@
 
 #include "new_view.h"
 
+#include "ccf_assert.h"
 #include "message_tags.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
 
@@ -28,8 +28,8 @@ New_view::New_view(View v) : Message(New_view_tag, Max_message_size)
 void New_view::add_view_change(
   int id, Digest& d, PbftSignature& sig, size_t sig_size)
 {
-  PBFT_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Not a replica");
-  PBFT_ASSERT(vc_info()[id].d == Digest(), "Duplicate");
+  CCF_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Not a replica");
+  CCF_ASSERT(vc_info()[id].d == Digest(), "Duplicate");
 
   VC_info& vci = vc_info()[id];
   vci.d = d;
@@ -39,23 +39,23 @@ void New_view::add_view_change(
 
 void New_view::set_min(Seqno min)
 {
-  PBFT_ASSERT(rep().min == -1, "Invalid state");
+  CCF_ASSERT(rep().min == -1, "Invalid state");
   rep().min = min;
 }
 
 void New_view::set_max(Seqno max)
 {
-  PBFT_ASSERT(min() >= 0, "Invalid state");
+  CCF_ASSERT(min() >= 0, "Invalid state");
   rep().max = max;
-  PBFT_ASSERT(max >= min() && max - min() <= max_out + 1, "Invalid arguments");
+  CCF_ASSERT(max >= min() && max - min() <= max_out + 1, "Invalid arguments");
 }
 
 void New_view::pick(int id, Seqno n)
 {
-  PBFT_ASSERT(min() >= 0, "Invalid state");
-  PBFT_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Not a replica");
-  PBFT_ASSERT(vc_info()[id].d != Digest(), "Invalid argument");
-  PBFT_ASSERT(n >= min() && n <= min() + max_out, "Invalid argument");
+  CCF_ASSERT(min() >= 0, "Invalid state");
+  CCF_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Not a replica");
+  CCF_ASSERT(vc_info()[id].d != Digest(), "Invalid argument");
+  CCF_ASSERT(n >= min() && n <= min() + max_out, "Invalid argument");
 
   picked()[n - min()] = (uint8_t)id;
 }

@@ -5,8 +5,8 @@
 
 #pragma once
 
+#include "ccf_assert.h"
 #include "message_tags.h"
-#include "pbft_assert.h"
 #include "types.h"
 
 #include <memory>

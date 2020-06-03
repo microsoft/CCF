@@ -316,7 +316,7 @@ inline bool View_info::has_nv_message(View vi) const
 
 inline View_change_ack* View_info::my_vc_ack(int id)
 {
-  PBFT_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Invalid argument");
+  CCF_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Invalid argument");
   return my_vacks[id];
 }
 

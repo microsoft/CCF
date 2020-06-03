@@ -4,6 +4,7 @@
 // Licensed under the MIT license.
 #pragma once
 
+#include "ccf_assert.h"
 #include "certificate.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
@@ -12,7 +13,6 @@
 #include "libbyz.h"
 #include "message.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "receive_message_base.h"
 #include "reply.h"
 #include "request.h"
@@ -436,7 +436,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
     if (ctx->prev == nullptr)
     {
-      PBFT_ASSERT(head == ctx, "Invalid state");
+      CCF_ASSERT(head == ctx, "Invalid state");
       head = ctx->next;
     }
     else
@@ -446,7 +446,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
     if (ctx->next == nullptr)
     {
-      PBFT_ASSERT(tail == ctx, "Invalid state");
+      CCF_ASSERT(tail == ctx, "Invalid state");
       tail = ctx->prev;
     }
     else

@@ -31,7 +31,7 @@ char* Rep_info::new_reply(
   int pid, Request_id rid, Seqno n, uint64_t nonce, uint32_t message_size)
 {
   auto r = std::make_unique<Reply>(0, rid, n, nonce, 0, message_size);
-  PBFT_ASSERT(r != nullptr, "Out of memory");
+  CCF_ASSERT(r != nullptr, "Out of memory");
   char* ret = r->contents() + sizeof(Reply_rep);
   {
     std::lock_guard<SpinLock> mguard(lock);
@@ -104,8 +104,8 @@ void Rep_info::send_reply(int pid, Request_id rid, Seqno n, View v, int id)
 
   Reply_rep& rr = r->rep();
 
-  PBFT_ASSERT(rr.reply_size != -1, "Invalid state");
-  PBFT_ASSERT(rr.extra == 0 && rr.v == 0 && rr.replica == 0, "Invalid state");
+  CCF_ASSERT(rr.reply_size != -1, "Invalid state");
+  CCF_ASSERT(rr.extra == 0 && rr.v == 0 && rr.replica == 0, "Invalid state");
 
   int old_size = sizeof(Reply_rep) + rr.reply_size;
 

@@ -9,9 +9,9 @@
  * Definitions of various types.
  */
 
+#include "ccf_assert.h"
 #include "consensus/pbft/pbft_types.h"
 #include "parameters.h"
-#include "pbft_assert.h"
 
 #include <array>
 #include <cstdint>
@@ -114,7 +114,7 @@ struct ExecCommandMsg
     cb(cb_),
     tx(tx_)
   {
-    PBFT_ASSERT(request_ctx.get() != nullptr, "should not be nullptr");
+    CCF_ASSERT(request_ctx.get() != nullptr, "should not be nullptr");
   }
 
   Byz_req inb;

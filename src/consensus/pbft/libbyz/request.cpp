@@ -5,9 +5,9 @@
 
 #include "request.h"
 
+#include "ccf_assert.h"
 #include "message_tags.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "statistics.h"
 
@@ -67,7 +67,7 @@ inline void Request::comp_digest(Digest& d)
 
 void Request::authenticate(int act_len, bool read_only)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     (unsigned)act_len <=
       msize() - sizeof(Request_rep) - pbft::GlobalState::get_node().auth_size(),
     "Invalid request size");
@@ -133,7 +133,7 @@ void Request::re_authenticate(bool change, Principal* p)
 
 void Request::sign(int act_len)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     (unsigned)act_len <=
       msize() - sizeof(Request_rep) - pbft_max_signature_size,
     "Invalid request size");

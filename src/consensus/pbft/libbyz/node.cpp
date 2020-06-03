@@ -5,13 +5,13 @@
 
 #include "node.h"
 
+#include "ccf_assert.h"
 #include "crypt.h"
 #include "ds/logger.h"
 #include "itimer.h"
 #include "message.h"
 #include "message_tags.h"
 #include "parameters.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "time_types.h"
 
@@ -186,8 +186,8 @@ void Node::send(Message* m, int i)
 
 void Node::send(Message* m, Principal* p)
 {
-  PBFT_ASSERT(m->tag() < Max_message_tag, "Invalid message tag");
-  PBFT_ASSERT(p != nullptr, "Must send to a principal");
+  CCF_ASSERT(m->tag() < Max_message_tag, "Invalid message tag");
+  CCF_ASSERT(p != nullptr, "Must send to a principal");
 
   INCR_OP(message_counts_out[m->tag()]);
 

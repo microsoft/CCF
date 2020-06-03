@@ -292,21 +292,21 @@ private:
 
 inline Pre_prepare_rep& Pre_prepare::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Pre_prepare_rep*)msg);
 }
 
 inline char* Pre_prepare::requests()
 {
   char* ret = contents() + sizeof(Pre_prepare_rep);
-  PBFT_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
   return ret;
 }
 
 inline Digest* Pre_prepare::big_reqs()
 {
   char* ret = requests() + rep().rset_size;
-  PBFT_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
   return (Digest*)ret;
 }
 
@@ -343,7 +343,7 @@ inline Seqno Pre_prepare::seqno() const
 
 inline bool Pre_prepare::match(const Prepare* p) const
 {
-  PBFT_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
+  CCF_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
   return digest() == p->digest();
 }
 
@@ -359,7 +359,7 @@ inline int16_t Pre_prepare::num_big_reqs() const
 
 inline Digest& Pre_prepare::big_req_digest(int i)
 {
-  PBFT_ASSERT(i >= 0 && i < num_big_reqs(), "Invalid argument");
+  CCF_ASSERT(i >= 0 && i < num_big_reqs(), "Invalid argument");
   return *(big_reqs() + i);
 }
 
