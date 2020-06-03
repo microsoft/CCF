@@ -169,23 +169,23 @@ TEST_CASE("Multiple ledgers")
       expected_number_of_chunks + chunks_so_far);
   }
 
-  // INFO("Reading entries from latest chunk");
-  // {
-  //   LOG_DEBUG_FMT("Now, reading...");
-  //   bool is_committable = false;
-  //   REQUIRE(
-  //     ledger.write_entry(
-  //       dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
-  //     ++last_idx);
+  INFO("Reading entries from latest chunk");
+  {
+    LOG_DEBUG_FMT("Now, reading...");
+    bool is_committable = false;
+    REQUIRE(
+      ledger.write_entry(
+        dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
+      ++last_idx);
 
-  //   LOG_DEBUG_FMT("Wrote entry at idx {}", last_idx);
-  //   REQUIRE(ledger.read_entry(last_idx).size() != 0);
+    LOG_DEBUG_FMT("Wrote entry at idx {}", last_idx);
+    REQUIRE(ledger.read_entry(last_idx).size() != 0);
 
-  //   // Reading in the future fails
-  //   REQUIRE(ledger.read_entry(last_idx + 1).size() == 0);
+    // Reading in the future fails
+    REQUIRE(ledger.read_entry(last_idx + 1).size() == 0);
 
-  //   // Reading in the past succeeds
-  //   REQUIRE(ledger.read_entry(last_idx - 1).size() != 0);
-  // }
+    // Reading in the past succeeds
+    REQUIRE(ledger.read_entry(last_idx - 1).size() != 0);
+  }
   // fs::remove_all(ledger_dir);
 }

@@ -32,6 +32,8 @@ namespace asynchost
     size_t total_len = 0;
     std::vector<size_t> positions;
 
+    // This uses C stdio instead of fstream because an fstream
+    // cannot be truncated.
     FILE* file;
 
   public:
@@ -115,6 +117,58 @@ namespace asynchost
       return new_idx;
     }
 
+    size_t framed_entries_size(size_t from, size_t to) const
+    {
+      LOG_TRACE_FMT(
+        "fes: from {} -> to {} [start: {} - last: {}]",
+        from,
+        to,
+        start_idx,
+        start_idx + positions.size() - 1);
+
+      if ((from == 0) || (to < from) || (to > start_idx + positions.size() - 1))
+      {
+        return 0;
+      }
+
+      // TODO: It might be much easier to record start_idx as (start_idx - 1)??
+      if (to == (start_idx + positions.size() - 1))
+      {
+        LOG_TRACE_FMT(
+          "here, total len {} - start {}",
+          total_len,
+          positions.at(from - start_idx));
+
+        return total_len - positions.at(from - start_idx);
+      }
+    }
+
+    size_t entry_size(size_t idx) const
+    {
+      auto framed_size = framed_entries_size(idx, idx);
+      return framed_size ? framed_size - frame_header_size : 0;
+    }
+
+    const std::vector<uint8_t> read_entry(size_t idx) const
+    {
+      if ((idx == 0) || (idx > (start_idx + positions.size() - 1)))
+      {
+        return {};
+      }
+
+      auto len = entry_size(idx);
+      std::vector<uint8_t> entry(len);
+      fseeko(file, positions.at(idx - start_idx) + frame_header_size, SEEK_SET);
+
+      if (fread(entry.data(), len, 1, file) != 1)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to read entry {} from file", idx));
+      }
+
+      return entry;
+    }
+
     void finalise()
     {
       fseeko(file, total_len, SEEK_SET);
@@ -147,6 +201,13 @@ namespace asynchost
         fs::path(dir) /
           fs::path(fmt::format("{}.{}", get_file_name(), start_idx)));
     }
+
+    void compact()
+    {
+      // TODO: To be called when the last index in the chunk has been globally committed
+      // 1. fflush
+      // 2. Rename file
+    }
   };
 
   class MultipleLedger
@@ -157,46 +218,11 @@ namespace asynchost
     // Ledger directory
     const std::string ledger_dir;
 
-    // This uses C stdio instead of fstream because an fstream
-    // cannot be truncated.
-
     // Keep tracks of all ledger files. Current ledger file is always the last
     // one?
-    // TODO: Use shared pointer instead?
     std::map<size_t, std::shared_ptr<LedgerFile>> files;
 
-    // TODO: To be split per file
     const size_t chunk_threshold;
-
-    // FILE* file; // active chunk
-    // size_t start_idx = 1; // Start index on the active chunk
-    // size_t total_len = 0; // Length of the active chunk
-
-    // std::string get_file_name(FILE* f)
-    // {
-    //   int fd = fileno(f);
-    //   auto path = fmt::format("/proc/self/fd/{}", fd);
-    //   char result[128];
-    //   ::memset(result, 0, sizeof(result));
-    //   readlink(path.c_str(), result, sizeof(result) - 1);
-
-    //   return fs::path(result).filename();
-    // }
-
-    // size_t get_start_idx(FILE* file)
-    // {
-    //   auto file_name = get_file_name(file);
-
-    //   auto pos = file_name.find(ledger_start_idx_delimiter);
-    //   if (pos == std::string::npos)
-    //   {
-    //     throw std::logic_error(fmt::format(
-    //       "Error: cannot find delimiter {} in file name {}",
-    //       ledger_start_idx_delimiter,
-    //       file_name));
-    //   }
-    //   return std::stoul(file_name.substr(pos + 1, file_name.size()));
-    // }
 
     void dump_files()
     {
@@ -252,13 +278,10 @@ namespace asynchost
 
     MultipleLedger(const MultipleLedger& that) = delete;
 
-    ~MultipleLedger()
+    std::shared_ptr<LedgerFile> get_latest_file()
     {
-      // for (auto const f : files)
-      // {
-      //   fflush(f.second);
-      //   fclose(f.second);
-      // }
+      // TODO: Better checks
+      return files.rbegin()++->second;
     }
 
     // size_t get_last_idx()
@@ -266,118 +289,118 @@ namespace asynchost
     //   return positions.size();
     // }
 
-    // size_t framed_entries_size(size_t from, size_t to)
-    // {
-    //   LOG_TRACE_FMT(
-    //     "fes: from {} -> to {} [start: {} - last: {}]",
-    //     from,
-    //     to,
-    //     start_idx,
-    //     start_idx + positions.size() - 1);
+    size_t framed_entries_size(size_t from, size_t to)
+    {
+      auto f = get_latest_file();
+      return f->framed_entries_size(from, to);
+      // LOG_TRACE_FMT(
+      //   "fes: from {} -> to {} [start: {} - last: {}]",
+      //   from,
+      //   to,
+      //   start_idx,
+      //   start_idx + positions.size() - 1);
 
-    //   if ((from == 0) || (to < from) || (to > start_idx + positions.size() -
-    //   1))
-    //   {
-    //     return 0;
-    //   }
+      // if ((from == 0) || (to < from) || (to > start_idx + positions.size() -
+      // 1))
+      // {
+      //   return 0;
+      // }
 
-    //   // TODO: It might be much easier to record start_idx as (start_idx -
-    //   1)?? if (to == (start_idx + positions.size() - 1))
-    //   {
-    //     LOG_TRACE_FMT(
-    //       "here, total len {} - start {}",
-    //       total_len,
-    //       positions.at(from - start_idx));
-    //     return total_len - positions.at(from - start_idx);
-    //   }
-    //   else
-    //   {
-    //     // TODO: This is not really tested for now
-    //     // TODO: We need to access previous chunks here
-    //     dump_files();
+      // // TODO: It might be much easier to record start_idx as (start_idx -
+      // 1)?? if (to == (start_idx + positions.size() - 1))
+      // {
+      //   LOG_TRACE_FMT(
+      //     "here, total len {} - start {}",
+      //     total_len,
+      //     positions.at(from - start_idx));
+      //   return total_len - positions.at(from - start_idx);
+      // }
+      // else
+      // {
+      // TODO: This is not really tested for now
+      // TODO: We need to access previous chunks here
+      dump_files();
 
-    //     // TODO: Handle entries over multiple chunks!! Hard!!
+      // TODO: Handle entries over multiple chunks!! Hard!!
 
-    //     // Find file with largest offset that is less than from
-    //     auto search = std::upper_bound(
-    //       files.rbegin(),
-    //       files.rend(),
-    //       from,
-    //       [](size_t idx, std::pair<size_t, FILE*> v) {
-    //         LOG_FAIL_FMT("{} >= {} ? {}", idx, v.first, (idx >= v.first));
-    //         return idx >= v.first;
-    //       });
-    //     if (search == files.rend())
-    //     {
-    //       // TODO: Refine this
-    //       throw std::logic_error(
-    //         fmt::format("Could not find anything at {}", from));
-    //     }
+      // // Find file with largest offset that is less than from
+      // auto search = std::upper_bound(
+      //   files.rbegin(),
+      //   files.rend(),
+      //   from,
+      //   [](size_t idx, std::pair<size_t, FILE*> v) {
+      //     LOG_FAIL_FMT("{} >= {} ? {}", idx, v.first, (idx >= v.first));
+      //     return idx >= v.first;
+      //   });
+      // if (search == files.rend())
+      // {
+      //   // TODO: Refine this
+      //   throw std::logic_error(
+      //     fmt::format("Could not find anything at {}", from));
+      // }
 
-    //     LOG_FAIL_FMT(
-    //       "Found file \"{}\" for {}", get_file_name(search->second), from);
+      // LOG_FAIL_FMT(
+      //   "Found file \"{}\" for {}", get_file_name(search->second), from);
 
-    //     // TODO: Load file and positions within it
-    //     if (search->second == files.rbegin()->second)
-    //     {
-    //       // TODO: This can be optimised: we know we can look up the last
-    //       file
-    //       // if from and to are within positions
-    //       LOG_FAIL_FMT("Current file!");
-    //       return positions.at(to - start_idx) - positions.at(from -
-    //       start_idx);
-    //     }
-    //     else
-    //     {
-    //       size_t start_idx_ = get_start_idx(search->second);
-    //       LOG_FAIL_FMT("Start idx is {}", start_idx_);
+      // // TODO: Load file and positions within it
+      // if (search->second == files.rbegin()->second)
+      // {
+      //   // TODO: This can be optimised: we know we can look up the last
+      //   file
+      //     // if from and to are within positions
+      //     LOG_FAIL_FMT("Current file!");
+      //   return positions.at(to - start_idx) - positions.at(from - start_idx);
+      // }
+      // else
+      // {
+      //   size_t start_idx_ = get_start_idx(search->second);
+      //   LOG_FAIL_FMT("Start idx is {}", start_idx_);
 
-    //       // Load positions
-    //       // First, get full size of file
-    //       fseeko(search->second, 0, SEEK_END);
-    //       size_t total_size = ftello(search->second);
+      //   // Load positions
+      //   // First, get full size of file
+      //   fseeko(search->second, 0, SEEK_END);
+      //   size_t total_size = ftello(search->second);
 
-    //       // Second, read offset at end of file
-    //       fseeko(search->second, 0, SEEK_SET);
-    //       size_t table_offset;
-    //       if (
-    //         fread(&table_offset, sizeof(table_offset), 1, search->second) !=
-    //         1)
-    //       {
-    //         throw std::logic_error("Failed to read positions offset from
-    //         file");
-    //       }
+      //   // Second, read offset at end of file
+      //   fseeko(search->second, 0, SEEK_SET);
+      //   size_t table_offset;
+      //   if (
+      //     fread(&table_offset, sizeof(table_offset), 1, search->second) != 1)
+      //   {
+      //     throw std::logic_error("Failed to read positions offset from
+      //     file");
+      //   }
 
-    //       LOG_FAIL_FMT("table offset is {}", table_offset);
+      //   LOG_FAIL_FMT("table offset is {}", table_offset);
 
-    //       // Finally, read positions
-    //       fseeko(search->second, table_offset, SEEK_SET);
+      //   // Finally, read positions
+      //   fseeko(search->second, table_offset, SEEK_SET);
 
-    //       std::vector<size_t> positions_;
-    //       positions_.resize(
-    //         (total_size - table_offset) / sizeof(positions_.at(0)));
-    //       LOG_FAIL_FMT("len of positions_ is {}", positions_.size());
+      //   std::vector<size_t> positions_;
+      //   positions_.resize(
+      //     (total_size - table_offset) / sizeof(positions_.at(0)));
+      //   LOG_FAIL_FMT("len of positions_ is {}", positions_.size());
 
-    //       if (
-    //         fread(
-    //           positions_.data(),
-    //           sizeof(positions_.at(0)),
-    //           positions_.size(),
-    //           search->second) != positions_.size())
-    //       {
-    //         throw std::logic_error("Failed to read positions_ table from
-    //         file");
-    //       }
+      //   if (
+      //     fread(
+      //       positions_.data(),
+      //       sizeof(positions_.at(0)),
+      //       positions_.size(),
+      //       search->second) != positions_.size())
+      //   {
+      //     throw std::logic_error("Failed to read positions_ table from
+      //     file");
+      //   }
 
-    //       for (auto const& p : positions_)
-    //       {
-    //         LOG_FAIL_FMT("Positions: {}", p);
-    //       }
+      //   for (auto const& p : positions_)
+      //   {
+      //     LOG_FAIL_FMT("Positions: {}", p);
+      //   }
 
-    //       return positions_.at() - positions_.()
-    //     }
-    //   }
-    // }
+      //   return positions_.at() - positions_.()
+      // }
+      // }
+    }
 
     // size_t entry_size(size_t idx)
     // {
@@ -386,26 +409,11 @@ namespace asynchost
     //   return framed_size ? framed_size - frame_header_size : 0;
     // }
 
-    // const std::vector<uint8_t> read_entry(size_t idx)
-    // {
-    //   if ((idx == 0) || (idx > (start_idx + positions.size() - 1)))
-    //   {
-    //     return {};
-    //   }
-
-    //   auto len = entry_size(idx);
-    //   std::vector<uint8_t> entry(len);
-    //   fseeko(file, positions.at(idx - start_idx) + frame_header_size,
-    //   SEEK_SET);
-
-    //   if (fread(entry.data(), len, 1, file) != 1)
-    //   {
-    //     throw std::logic_error(
-    //       fmt::format("Failed to read entry {} from file", idx));
-    //   }
-
-    //   return entry;
-    // }
+    const std::vector<uint8_t> read_entry(size_t idx)
+    {
+      // TODO: Identify the file to read this from
+      return get_latest_file()->read_entry(idx);
+    }
 
     // const std::vector<uint8_t> read_framed_entries(size_t from, size_t to)
     // {
@@ -430,13 +438,6 @@ namespace asynchost
     //   return framed_entries;
     // }
 
-    std::shared_ptr<LedgerFile> get_latest_file()
-    {
-      // TODO: Better checks
-      return files.rbegin()++->second;
-    }
-
-    // // TODO: Only applies to latest chunk
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       auto f = get_latest_file();
@@ -454,7 +455,8 @@ namespace asynchost
 
       // TODO: Using current size for now, better to use framed entries size?
       // Probably doesn't matter...
-      auto chunk_size = f->get_current_size() - 8;
+      auto chunk_size =
+        f->get_current_size() - 8; // TODO: Use something better here!!
       LOG_FAIL_FMT("Chunk size so far: {}", chunk_size);
 
       if (committable && chunk_size >= chunk_threshold)
@@ -471,15 +473,6 @@ namespace asynchost
         // TODO: Probably use a list instead here
         files.emplace(
           new_idx + 1, std::make_shared<LedgerFile>(ledger_dir, new_idx + 1));
-
-        // FILE* new_file = fopen(
-        //   (fs::path(ledger_dir) / fs::path(current_ledger)).c_str(), "w+b");
-        // fseeko(new_file, sizeof(uint64_t), SEEK_SET);
-
-        // // files.emplace_back(new_file);
-        // files.emplace(start_idx, new_file);
-
-        // file = new_file;
       }
 
       return new_idx;
