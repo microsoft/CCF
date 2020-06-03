@@ -282,7 +282,7 @@ namespace ccf
         if (!sig.has_value())
           result.signed_index = 0;
         else
-          result.signed_index = sig.value().index;
+          result.signed_index = sig.value().seqno;
 
         return make_success(result);
       };

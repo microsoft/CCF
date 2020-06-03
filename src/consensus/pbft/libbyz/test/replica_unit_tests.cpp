@@ -73,6 +73,28 @@ public:
       }
       return 0;
     };
+
+  struct RequestCtxImpl : public pbft::RequestCtx
+  {
+    std::shared_ptr<enclave::RpcContext> get_rpc_context() override
+    {
+      return nullptr;
+    }
+    std::shared_ptr<enclave::RpcHandler> get_rpc_handler() override
+    {
+      return nullptr;
+    }
+
+    bool get_does_exec_gov_req() override
+    {
+      return true;
+    }
+  };
+
+  VerifyAndParseCommand verify_command =
+    [this](Byz_req* inb, uint8_t* req_start, size_t req_size) {
+      return std::make_unique<RequestCtxImpl>();
+    };
 };
 
 namespace pbft
@@ -238,6 +260,9 @@ NodeInfo init_test_state(PbftState& pbft_state, NodeId node_id = 0)
     node_id);
   pbft::GlobalState::get_replica().register_exec(
     pbft_state.exec_mock.exec_command);
+  pbft::GlobalState::get_replica().register_verify(
+    pbft_state.exec_mock.verify_command);
+
   return node_info;
 }
 

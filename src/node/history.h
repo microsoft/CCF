@@ -476,7 +476,7 @@ namespace ccf
       auto sig_value = sig.value();
       if (term)
       {
-        *term = sig_value.term;
+        *term = sig_value.view;
       }
 
       auto ni = ni_tv->get(sig_value.node);
@@ -526,13 +526,17 @@ namespace ccf
       {
         auto version = store.next_version();
         auto view = consensus->get_view();
-        auto commit = consensus->get_commit_seqno();
+        auto commit_txid = consensus->get_committed_txid();
         LOG_DEBUG_FMT("Issuing signature at {}", version);
         LOG_DEBUG_FMT(
-          "Signed at {} view: {} commit: {}", version, view, commit);
+          "Signed at {} in view: {} commit was: {}.{}",
+          version,
+          view,
+          commit_txid.first,
+          commit_txid.second);
         store.commit(
           version,
-          [version, view, commit, this]() {
+          [version, view, commit_txid, this]() {
             kv::Tx sig(version);
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
@@ -540,7 +544,8 @@ namespace ccf
               id,
               version,
               view,
-              commit,
+              commit_txid.second,
+              commit_txid.first,
               root,
               kp.sign_hash(root.h.data(), root.h.size()),
               replicated_state_tree.serialise());

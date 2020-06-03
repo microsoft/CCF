@@ -146,15 +146,27 @@ void Request::sign(int act_len)
   set_size(old_size + pbft_max_signature_size);
 }
 
-Request::Request(Request_rep* contents) : Message(contents) {}
+Request::Request(Request_rep* contents, std::unique_ptr<pbft::RequestCtx> ctx) :
+  Message(contents),
+  request_ctx(std::move(ctx))
+{}
 
-bool Request::pre_verify()
+bool Request::pre_verify(VerifyAndParseCommand& e)
 {
   const int nid = pbft::GlobalState::get_node().id();
   const int cid = client_id();
   const int old_size = sizeof(Request_rep) + rep().command_size;
   std::shared_ptr<Principal> p =
     pbft::GlobalState::get_node().get_principal(cid);
+  try
+  {
+    create_context(e);
+  }
+  catch (const std::exception& e)
+  {
+    LOG_FAIL_FMT("Failed to parse arguments, e.what:", e.what());
+    return false;
+  }
   Digest d;
 
   comp_digest(d);
@@ -180,6 +192,14 @@ bool Request::pre_verify()
     }
   }
   return false;
+}
+
+void Request::create_context(VerifyAndParseCommand& e)
+{
+  Byz_req inb;
+  inb.contents = command(inb.size);
+  request_ctx =
+    e(&inb, reinterpret_cast<uint8_t*>(contents()), contents_size());
 }
 
 bool Request::convert(char* m1, unsigned max_len, Request& m2)

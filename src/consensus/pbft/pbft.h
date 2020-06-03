@@ -415,6 +415,7 @@ namespace pbft
         mem,
         mem_size,
         pbft_config->get_exec_command(),
+        pbft_config->get_verify_command(),
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,
@@ -433,7 +434,10 @@ namespace pbft
       LOG_INFO_FMT("PBFT setting up client proxy");
       client_proxy =
         std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
-          *message_receiver_base, 5000, 10000);
+          *message_receiver_base,
+          pbft_config->get_verify_command(),
+          5000,
+          10000);
 
       auto reply_handler_cb = [](Reply* m, void* ctx) {
         auto cp =
@@ -551,7 +555,12 @@ namespace pbft
       throw std::logic_error("should never be here");
     }
 
-    SeqNo get_commit_seqno() override
+    std::pair<View, SeqNo> get_committed_txid() override
+    {
+      return {get_view(global_commit_seqno), global_commit_seqno};
+    }
+
+    SeqNo get_committed_seqno() override
     {
       return global_commit_seqno;
     }

@@ -64,12 +64,12 @@ namespace kv
       replica.clear();
     }
 
-    View get_view() override
+    std::pair<View, SeqNo> get_committed_txid() override
     {
-      return 0;
+      return {2, 0};
     }
 
-    SeqNo get_commit_seqno() override
+    SeqNo get_committed_seqno() override
     {
       return 0;
     }
@@ -85,6 +85,11 @@ namespace kv
     }
 
     View get_view(SeqNo seqno) override
+    {
+      return 2;
+    }
+
+    View get_view() override
     {
       return 2;
     }

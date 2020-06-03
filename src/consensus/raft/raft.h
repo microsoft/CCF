@@ -296,6 +296,12 @@ namespace raft
       return current_term;
     }
 
+    std::pair<Term, Index> get_commit_term_and_idx()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      return {get_term_internal(commit_idx), commit_idx};
+    }
+
     Term get_term(Index idx)
     {
       std::lock_guard<SpinLock> guard(lock);

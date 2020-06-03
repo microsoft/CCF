@@ -11,6 +11,7 @@
 
 #include "consensus/pbft/pbft_types.h"
 #include "parameters.h"
+#include "pbft_assert.h"
 
 #include <array>
 #include <cstdint>
@@ -64,11 +65,29 @@ class Request;
 struct ExecCommandMsg;
 struct ByzInfo;
 
+namespace enclave
+{
+  class RpcContext;
+  class RpcHandler;
+};
+
+namespace pbft
+{
+  struct RequestCtx
+  {
+    virtual ~RequestCtx() = default;
+    virtual std::shared_ptr<enclave::RpcContext> get_rpc_context() = 0;
+    virtual std::shared_ptr<enclave::RpcHandler> get_rpc_handler() = 0;
+    virtual bool get_does_exec_gov_req() = 0;
+  };
+};
+
 struct ExecCommandMsg
 {
   ExecCommandMsg(
     int client_,
     Request_id rid_,
+    std::unique_ptr<pbft::RequestCtx> request_ctx_,
     uint8_t* req_start_,
     size_t req_size_,
     bool include_merkle_roots_,
@@ -83,6 +102,7 @@ struct ExecCommandMsg
     kv::Tx* tx_ = nullptr) :
     client(client_),
     rid(rid_),
+    request_ctx(std::move(request_ctx_)),
     req_start(req_start_),
     req_size(req_size_),
     include_merkle_roots(include_merkle_roots_),
@@ -93,7 +113,9 @@ struct ExecCommandMsg
     reply_thread(reply_thread_),
     cb(cb_),
     tx(tx_)
-  {}
+  {
+    PBFT_ASSERT(request_ctx.get() != nullptr, "should not be nullptr");
+  }
 
   Byz_req inb;
   Byz_rep outb;
@@ -105,6 +127,7 @@ struct ExecCommandMsg
   Seqno total_requests_executed;
   int reply_thread;
   kv::Tx* tx;
+  std::unique_ptr<pbft::RequestCtx> request_ctx;
 
   // Required for the callback
   Seqno last_tentative_execute;
@@ -119,3 +142,6 @@ using ExecCommand = std::function<int(
   uint32_t num_requests,
   uint64_t nonce,
   bool executed_single_threaded)>;
+
+using VerifyAndParseCommand = std::function<std::unique_ptr<pbft::RequestCtx>(
+  Byz_req* inb, uint8_t* req_start, size_t req_size)>;
