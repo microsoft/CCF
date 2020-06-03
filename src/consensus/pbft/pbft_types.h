@@ -60,6 +60,7 @@ namespace pbft
     virtual void commit_new_view(
       const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
+    virtual void set_view(Term t) = 0;
   };
 
   template <typename T, typename S>
@@ -201,6 +202,19 @@ namespace pbft
         return p->current_version();
       }
       return kv::NoVersion;
+    }
+
+    void set_view(Term view)
+    {
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+        {
+          p->set_term(view);
+          return;
+        }
+      }
     }
 
     std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor()

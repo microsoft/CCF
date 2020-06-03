@@ -226,9 +226,12 @@ namespace pbft
         ByzInfo& info,
         uint32_t num_requests,
         uint64_t nonce,
-        bool executed_single_threaded) {
+        bool executed_single_threaded,
+        View view) {
         info.pending_cmd_callbacks = num_requests;
         info.version_before_execution_start = store->current_version();
+        LOG_DEBUG_FMT("XXXX: SETTING VIEW TO: {}", view + 2);
+        store->set_view(view + 2);
         for (uint32_t i = 0; i < num_requests; ++i)
         {
           std::unique_ptr<ExecCommandMsg>& msg = msgs[i];

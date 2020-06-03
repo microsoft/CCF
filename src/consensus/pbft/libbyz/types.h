@@ -118,4 +118,5 @@ using ExecCommand = std::function<int(
   ByzInfo& info,
   uint32_t num_requests,
   uint64_t nonce,
-  bool executed_single_threaded)>;
+  bool executed_single_threaded,
+  View view)>;
