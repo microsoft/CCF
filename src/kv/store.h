@@ -270,7 +270,6 @@ namespace kv
     {
       std::lock_guard<SpinLock> vguard(version_lock);
       term = t;
-      LOG_DEBUG_FMT("XXX: Set term: {}", term);
     }
 
     DeserialiseSuccess deserialise_views(
@@ -480,7 +479,7 @@ namespace kv
 
     Version current_version() override
     {
-      // Must lock in case the version is being incremented.
+      // Must lock in case the version or term is being incremented.
       std::lock_guard<SpinLock> vguard(version_lock);
       return version;
     }

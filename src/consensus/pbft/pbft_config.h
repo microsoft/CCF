@@ -230,7 +230,6 @@ namespace pbft
         View view) {
         info.pending_cmd_callbacks = num_requests;
         info.version_before_execution_start = store->current_version();
-        LOG_DEBUG_FMT("XXXX: SETTING VIEW TO: {}", view + 2);
         store->set_view(view + 2);
         for (uint32_t i = 0; i < num_requests; ++i)
         {
