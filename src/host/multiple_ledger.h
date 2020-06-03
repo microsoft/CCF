@@ -6,10 +6,12 @@
 #include "ds/logger.h"
 #include "ds/messaging.h"
 
+// TODO: Check which includes are necessary
 #include <cstdint>
 #include <cstdio>
-#include <errno.h>
+#include <errno.h> // TODO: Use this for better error messages
 #include <filesystem>
+#include <list>
 #include <string>
 #include <sys/types.h>
 #include <unistd.h>
@@ -83,6 +85,11 @@ namespace asynchost
       return start_idx;
     }
 
+    size_t get_last_idx() const
+    {
+      return start_idx + positions.size() - 1;
+    }
+
     size_t get_current_size() const
     {
       return total_len;
@@ -132,7 +139,7 @@ namespace asynchost
       }
 
       // TODO: It might be much easier to record start_idx as (start_idx - 1)??
-      if (to == (start_idx + positions.size() - 1))
+      if (to == get_last_idx())
       {
         LOG_TRACE_FMT(
           "here, total len {} - start {}",
@@ -140,6 +147,11 @@ namespace asynchost
           positions.at(from - start_idx));
 
         return total_len - positions.at(from - start_idx);
+      }
+      else
+      {
+        return positions.at(to - start_idx + 1) -
+          positions.at(from - start_idx);
       }
     }
 
@@ -151,8 +163,9 @@ namespace asynchost
 
     const std::vector<uint8_t> read_entry(size_t idx) const
     {
-      if ((idx == 0) || (idx > (start_idx + positions.size() - 1)))
+      if ((idx < start_idx) || (idx > get_last_idx()))
       {
+        LOG_FAIL_FMT("Unknown entry!");
         return {};
       }
 
@@ -204,7 +217,8 @@ namespace asynchost
 
     void compact()
     {
-      // TODO: To be called when the last index in the chunk has been globally committed
+      // TODO: To be called when the last index in the chunk has been globally
+      // committed
       // 1. fflush
       // 2. Rename file
     }
@@ -220,7 +234,7 @@ namespace asynchost
 
     // Keep tracks of all ledger files. Current ledger file is always the last
     // one?
-    std::map<size_t, std::shared_ptr<LedgerFile>> files;
+    std::list<std::shared_ptr<LedgerFile>> files;
 
     const size_t chunk_threshold;
 
@@ -229,7 +243,7 @@ namespace asynchost
       LOG_FAIL_FMT("****** Active files: ");
       for (auto const& f : files)
       {
-        LOG_FAIL_FMT("{}: {}", f.first, f.second->get_file_name());
+        LOG_FAIL_FMT("{}: {}", f->get_start_idx(), f->get_file_name());
       }
       LOG_FAIL_FMT("******");
     }
@@ -262,18 +276,9 @@ namespace asynchost
           "Error: Could not create ledger directory: {}", ledger_dir));
       }
 
-      files.emplace(1, std::make_shared<LedgerFile>(ledger_dir));
+      files.push_back(std::make_shared<LedgerFile>(ledger_dir));
 
       LOG_FAIL_FMT("Multiple ledger created");
-
-      // file =
-      //   fopen((fs::path(ledger_dir) / fs::path(current_ledger)).c_str(),
-      //   "w+b");
-
-      // // First 8 bytes are reserved for the offset to the position table
-      // fseeko(file, sizeof(uint64_t), SEEK_SET);
-      // total_len = sizeof(uint64_t);
-      // files.emplace(1, file);
     }
 
     MultipleLedger(const MultipleLedger& that) = delete;
@@ -281,18 +286,14 @@ namespace asynchost
     std::shared_ptr<LedgerFile> get_latest_file()
     {
       // TODO: Better checks
-      return files.rbegin()++->second;
+      return *(files.rbegin()++);
     }
-
-    // size_t get_last_idx()
-    // {
-    //   return positions.size();
-    // }
 
     size_t framed_entries_size(size_t from, size_t to)
     {
       auto f = get_latest_file();
       return f->framed_entries_size(from, to);
+
       // LOG_TRACE_FMT(
       //   "fes: from {} -> to {} [start: {} - last: {}]",
       //   from,
@@ -402,17 +403,21 @@ namespace asynchost
       // }
     }
 
-    // size_t entry_size(size_t idx)
-    // {
-    //   auto framed_size = framed_entries_size(idx, idx);
-
-    //   return framed_size ? framed_size - frame_header_size : 0;
-    // }
-
     const std::vector<uint8_t> read_entry(size_t idx)
     {
-      // TODO: Identify the file to read this from
-      return get_latest_file()->read_entry(idx);
+      // Identify the file to read from
+      auto f = std::upper_bound(
+        files.begin(),
+        files.end(),
+        idx,
+        [](size_t idx, std::shared_ptr<LedgerFile>& f) {
+          return (idx <= f->get_last_idx());
+        });
+
+      auto file = (f == files.end()) ? *files.begin() : *f;
+      LOG_FAIL_FMT("Matching file for {} is: {}", idx, file->get_file_name());
+
+      return file->read_entry(idx);
     }
 
     // const std::vector<uint8_t> read_framed_entries(size_t from, size_t to)
@@ -466,13 +471,8 @@ namespace asynchost
         LOG_FAIL_FMT(
           ">>>>> Creating new chunk which will start at {}", new_idx + 1);
 
-        // start_idx = new_idx + 1;
-        // positions.clear();
-        // total_len = sizeof(uint64_t);
-
         // TODO: Probably use a list instead here
-        files.emplace(
-          new_idx + 1, std::make_shared<LedgerFile>(ledger_dir, new_idx + 1));
+        files.push_back(std::make_shared<LedgerFile>(ledger_dir, new_idx + 1));
       }
 
       return new_idx;

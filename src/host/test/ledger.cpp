@@ -63,10 +63,11 @@
 
 struct LedgerEntry
 {
-  uint8_t value_;
+  uint8_t value_ = 1;
 
   uint8_t* value()
   {
+    value_++;
     return reinterpret_cast<uint8_t*>(&value_);
   }
 };
@@ -102,11 +103,13 @@ TEST_CASE("Multiple ledgers")
     static_cast<float>(chunk_threshold) /
     (frame_header_size + sizeof(LedgerEntry)));
 
+  size_t end_of_chunk_idx;
+
   LOG_DEBUG_FMT("tx per chunk: {}", tx_per_chunk);
 
   size_t last_idx = 0;
 
-  LedgerEntry dummy_entry = {0x42};
+  LedgerEntry dummy_entry;
   INFO("Not quite enough entries before chunk threshold");
   {
     bool is_committable = true;
@@ -145,6 +148,8 @@ TEST_CASE("Multiple ledgers")
       ledger.write_entry(
         dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
       ++last_idx);
+
+    end_of_chunk_idx = last_idx;
     REQUIRE(number_of_files_in_directory(ledger_dir) == 2);
   }
 
@@ -178,13 +183,16 @@ TEST_CASE("Multiple ledgers")
         dummy_entry.value(), sizeof(LedgerEntry), is_committable) ==
       ++last_idx);
 
-    LOG_DEBUG_FMT("Wrote entry at idx {}", last_idx);
     REQUIRE(ledger.read_entry(last_idx).size() != 0);
 
     // Reading in the future fails
     REQUIRE(ledger.read_entry(last_idx + 1).size() == 0);
 
     // Reading in the past succeeds
+    REQUIRE(ledger.read_entry(0).size() == 0);
+    REQUIRE(ledger.read_entry(1).size() != 0);
+    REQUIRE(ledger.read_entry(end_of_chunk_idx).size() != 0);
+    REQUIRE(ledger.read_entry(end_of_chunk_idx + 1).size() != 0);
     REQUIRE(ledger.read_entry(last_idx - 1).size() != 0);
   }
   // fs::remove_all(ledger_dir);
