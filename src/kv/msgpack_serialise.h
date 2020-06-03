@@ -17,7 +17,7 @@ MSGPACK_ADD_ENUM(kv::KvOperationType);
 MSGPACK_ADD_ENUM(kv::SecurityDomain);
 
 // Currently we have pre-serialised keys and values, which are often msgpack,
-// which are then re-packed into msg-pack to go into the ledger. This is
+// which are then re-packed into msgpack to go into the ledger. This is
 // wasteful. But without this we can't _unpack_ custom types at this level. We
 // should replace this with a custom serialisation format for the ledger. This
 // macro gates the intended code path.

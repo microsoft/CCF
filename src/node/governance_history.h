@@ -20,6 +20,5 @@ namespace ccf
   };
   DECLARE_JSON_TYPE(GovernanceHistoryEntry)
   DECLARE_JSON_REQUIRED_FIELDS(GovernanceHistoryEntry, signed_request)
-  using GovernanceHistory =
-    kv::MsgPackSerialisedMap<MemberId, GovernanceHistoryEntry>;
+  using GovernanceHistory = kv::Map<MemberId, GovernanceHistoryEntry>;
 }

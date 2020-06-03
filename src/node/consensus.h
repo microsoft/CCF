@@ -11,7 +11,7 @@ namespace ccf
   using ConsensusTable = kv::Map<ObjectId, ConsensusType>;
 }
 
-MSGPACK_ADD_ENUM(ConsensusType);
-
 DECLARE_JSON_ENUM(
   ConsensusType, {{ConsensusType::RAFT, "RAFT"}, {ConsensusType::PBFT, "PBFT"}})
+
+MSGPACK_ADD_ENUM(ConsensusType);

@@ -5,5 +5,5 @@
 
 namespace ccf
 {
-  using Certs = kv::MsgPackSerialisedMap<Cert, ObjectId>;
+  using Certs = kv::Map<Cert, ObjectId>;
 }
