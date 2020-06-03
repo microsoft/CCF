@@ -25,7 +25,7 @@ namespace ds::hashutils
 
     for (const auto& e : v)
     {
-      ds::hashutils::hash_combine(n, e, h);
+      hash_combine(n, e, h);
     }
 
     return n;
@@ -87,7 +87,9 @@ namespace std
   {
     size_t operator()(const llvm_vecsmall::SmallVector<T, N>& v) const
     {
-      return ds::hashutils::hash_container(v);
+      static constexpr siphash::SipKey k{0x7720796f726c694b,
+                                         0x2165726568207361};
+      return siphash::siphash<2, 4>(v.data(), v.size(), k);
     }
   };
 }
