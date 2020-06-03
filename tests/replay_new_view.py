@@ -11,10 +11,6 @@ import infra.logging_app as app
 
 from loguru import logger as LOG
 
-# pbft will store up to 34 of each message type (pre-prepare/prepare/commit) and retransmit these messages to replicas that are behind, enabling catch up.
-# If a replica is too far behind then we need to send entries from the ledger, which is one of the things we want to test here.
-# By sending 18 RPC requests and a commit rpc for each of them (what raft considers as a read pbft will process as a write),
-# we are sure that we will have to go via the ledger to help late joiners catch up (total 36 reqs > 34)
 TOTAL_REQUESTS = 9  # x2 is 18 since LoggingTxs app sends a private and a public request for each tx index
 
 
@@ -31,17 +27,20 @@ def run(args):
         network.start_and_join(args)
         original_nodes = network.get_joined_nodes()
         view_info = {}
-        suspend.update_view_info(network, view_info)
 
+        suspend.update_view_info(network, view_info)
         app.test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
+        suspend.test_suspend_nodes(network, args)
+
+        # run txs while nodes get suspended
+        app.test_run_txs(
+            network=network,
+            args=args,
+            num_txs=4 * TOTAL_REQUESTS,
+            ignore_failures=True,
+        )
         suspend.update_view_info(network, view_info)
-
-        nodes_to_kill = [network.find_any_backup()]
-        nodes_to_keep = [n for n in original_nodes if n not in nodes_to_kill]
-
-        # check that a new node can catch up after all the requests
         late_joiner = network.create_and_trust_node(args.package, "localhost", args)
-        nodes_to_keep.append(late_joiner)
 
         # some requests to be processed while the late joiner catches up
         # (no strict checking that these requests are actually being processed simultaneously with the node catchup)
@@ -53,41 +52,24 @@ def run(args):
             verify=False,  # will try to verify for late joiner and it might not be ready yet
         )
 
-        suspend.wait_for_late_joiner(original_nodes[0], late_joiner)
-
-        # kill the old node(s) and ensure we are still making progress
-        for backup_to_retire in nodes_to_kill:
-            LOG.success(f"Stopping node {backup_to_retire.node_id}")
-            backup_to_retire.stop()
-
-        # check nodes are ok after we killed one off
-        app.test_run_txs(
-            network=network,
-            args=args,
-            nodes=nodes_to_keep,
-            num_txs=len(nodes_to_keep),
-            timeout=30,
-            ignore_failures=True,
-            # in the event of an early view change due to the late joiner this might
-            # take longer than usual to complete and we don't want the test to break here
-        )
-
-        suspend.test_suspend_nodes(network, args, nodes_to_keep)
-
-        # run txs while nodes get suspended
-        app.test_run_txs(
-            network=network,
-            args=args,
-            num_txs=4 * TOTAL_REQUESTS,
-            ignore_failures=True,
-        )
-
-        suspend.update_view_info(network, view_info)
+        caught_up = suspend.wait_for_late_joiner(original_nodes[0], late_joiner)
+        if caught_up == suspend.LateJoinerStatus.Stuck:
+            # should be removed when node configuration has been implemented to allow
+            # a late joiner to force a view change
+            LOG.warning("late joiner is stuck, stop trying if catchup fails again")
+            suspend.wait_for_late_joiner(original_nodes[0], late_joiner, True)
+        elif caught_up == suspend.LateJoinerStatus.NotReady:
+            while caught_up == suspend.LateJoinerStatus.NotReady:
+                LOG.warning("late joiner is not ready to accept RPC's yet")
+                caught_up = suspend.wait_for_late_joiner(original_nodes[0], late_joiner)
+        elif caught_up == suspend.LateJoinerStatus.Ready:
+            LOG.success("late joiner caught up successfully")
 
         # check nodes have resumed normal execution before shutting down
-        app.test_run_txs(network=network, args=args, num_txs=len(nodes_to_keep))
+        app.test_run_txs(
+            network=network, args=args, num_txs=len(network.get_joined_nodes())
+        )
 
-        # we have asserted that all nodes are caught up
         # assert that view changes actually did occur
         assert len(view_info) > 1
 

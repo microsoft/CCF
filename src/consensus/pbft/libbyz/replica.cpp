@@ -373,6 +373,11 @@ void Replica::receive_message(const uint8_t* data, uint32_t size)
 
 void Replica::update_gov_req_info(ByzInfo& info, Pre_prepare* pre_prepare)
 {
+  if (pre_prepare->num_big_reqs() <= 0)
+  {
+    // null op
+    return;
+  }
   info.last_exec_gov_req = gov_req_track.last_seqno();
   if (info.did_exec_gov_req)
   {
@@ -490,7 +495,7 @@ void Replica::playback_request(kv::Tx& tx)
   waiting_for_playback_pp = true;
 
   vec_exec_cmds[0] = std::move(execute_tentative_request(
-    *req, playback_max_local_commit_value, true, &tx, true));
+    *req, playback_max_local_commit_value, true, &tx, -1));
 
   exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
@@ -508,7 +513,8 @@ void Replica::add_certs_if_valid(
   Pre_prepare::ValidProofs_iter vp_iter(pp);
   int p_id;
   bool valid;
-  while (vp_iter.get(p_id, valid, prev_pp->digest()))
+  while (
+    vp_iter.get(p_id, valid, prev_pp->digest(), prev_pp->num_big_reqs() == 0))
   {
     if (valid)
     {
@@ -578,6 +584,14 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
   LOG_TRACE_FMT("Playback pre-prepare {}", pre_prepare.seqno);
   auto executable_pp = create_message<Pre_prepare>(
     pre_prepare.contents.data(), pre_prepare.contents.size());
+  if (!executable_pp->pre_verify())
+  {
+    LOG_INFO_FMT(
+      "Did not verify playback pre-prepare for seqno {} from node {}",
+      executable_pp->seqno(),
+      executable_pp->id());
+    return;
+  }
   auto seqno = executable_pp->seqno();
   playback_pp_seqno = seqno;
   waiting_for_playback_pp = false;
@@ -587,7 +601,17 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
   update_gov_req_info(playback_byz_info, executable_pp.get());
   did_exec_gov_req = false;
 
-  if (compare_execution_results(playback_byz_info, executable_pp.get()))
+  if (executable_pp->num_big_reqs() == 0)
+  {
+    // null op pre prepare, we need to advance last tentative exec but nothing
+    // will be executed
+    ByzInfo info;
+    execute_tentative(executable_pp.get(), info, executable_pp->get_nonce());
+  }
+
+  if (
+    executable_pp->num_big_reqs() == 0 /*null op*/ ||
+    compare_execution_results(playback_byz_info, executable_pp.get()))
   {
     next_pp_seqno = seqno;
 
@@ -597,9 +621,7 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
     }
 
     LOG_TRACE_FMT("Storing pre prepare at seqno {}", seqno);
-
     last_te_version = ledger_writer->write_pre_prepare(tx, executable_pp.get());
-
     global_commit(executable_pp.get());
 
     last_executed++;
@@ -610,7 +632,6 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
       "prepare");
 
     populate_certificates(executable_pp.get());
-
     auto& prepared_cert = plog.fetch(executable_pp->seqno());
     prepared_cert.add(executable_pp.release());
 
@@ -635,6 +656,42 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
       "Merkle roots don't match in playback pre-prepare for seqno {}",
       executable_pp->seqno()));
   }
+}
+
+void Replica::playback_new_view(kv::Tx& tx)
+{
+  auto view = tx.get_view(pbft_new_views_map);
+  auto nv = view->get(0);
+  PBFT_ASSERT(
+    nv.has_value(),
+    "Deserialised new view but it was not found in the new-views map");
+  auto new_view_val = nv.value();
+  LOG_TRACE_FMT(
+    "Playback new-view with view {} for node {}",
+    new_view_val.view,
+    new_view_val.node_id);
+  auto new_view = create_message<New_view>(
+    new_view_val.contents.data(), new_view_val.contents.size());
+  if (!new_view->pre_verify())
+  {
+    LOG_INFO_FMT(
+      "Did not verify playback new-view for view {} from node {}",
+      new_view->view(),
+      new_view->id());
+    return;
+  }
+
+  ledger_writer->write_new_view(tx);
+  // enter the new view
+  v = new_view->view();
+  cur_primary = v % num_replicas;
+  vi.add(new_view.release());
+  vi.set_new_view(v);
+  if (encryptor)
+  {
+    encryptor->set_iv_id(v);
+  }
+  LOG_INFO_FMT("Done with process new view {}", v);
 }
 
 void Replica::init_state()
@@ -1103,7 +1160,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
   {
     is_exec_pending = true;
     Prepared_cert& pc = plog.fetch(seqno);
-
     if (pc.my_prepare() == 0 && pc.is_pp_complete())
     {
       bool send_only_to_self = (f() == 0);
@@ -1235,7 +1291,7 @@ void Replica::handle(Prepare* m)
   }
 
   const Seqno ms = m->seqno();
-  LOG_DEBUG_FMT("handle prepare {}", ms);
+  LOG_DEBUG_FMT("handle prepare {} from {}", ms, m->id());
   // Only accept prepare messages that are not sent by the primary for
   // current view.
   if (
@@ -1561,6 +1617,17 @@ void Replica::handle(Status* m)
       m->last_executed(),
       max_out);
 
+    if (
+      last_stable > m->last_stable() && last_executed > m->last_executed() + 1)
+    {
+      LOG_TRACE_FMT(
+        "Sending append entries to {} since we are way off", m->id());
+      Append_entries ae;
+      send(&ae, m->id());
+      delete m;
+      return;
+    }
+
     if (m->view() < v)
     {
       // Retransmit my latest view-change message
@@ -1581,83 +1648,71 @@ void Replica::handle(Status* m)
       {
         min = std::max(last_stable + 1, m->last_executed() + 1);
         LOG_TRACE_FMT("Retransmitting from min {} to max {}", min, max);
-        if (
-          last_stable > m->last_stable() &&
-          last_executed > m->last_executed() + 1)
+        for (Seqno n = min; n <= max; n++)
         {
-          LOG_TRACE_FMT(
-            "Sending append entries to {} since we are way off", m->id());
-          Append_entries ae;
-          send(&ae, m->id());
-        }
-        else
-        {
-          for (Seqno n = min; n <= max; n++)
+          if (m->is_committed(n))
           {
-            if (m->is_committed(n))
-            {
-              // No need for retransmission of commit or pre-prepare/prepare
-              // message.
-              continue;
-            }
-
-            Commit* c = clog.fetch(n).mine(t_sent);
-            if (c != 0)
-            {
-              retransmit(c, current, t_sent, p.get());
-            }
-
-            if (m->is_prepared(n))
-            {
-              // No need for retransmission of pre-prepare/prepare message.
-              continue;
-            }
-
-            // If I have a pre-prepare/prepare send it, provided I have sent
-            // a pre-prepare/prepare for view v.
-            if (primary() == node_id)
-            {
-              Pre_prepare* pp = plog.fetch(n).my_pre_prepare(t_sent);
-              if (pp != 0)
-              {
-                retransmit(pp, current, t_sent, p.get());
-              }
-            }
-            else
-            {
-              Prepare* pr = plog.fetch(n).my_prepare(t_sent);
-              if (pr != 0)
-              {
-                retransmit(pr, current, t_sent, p.get());
-              }
-            }
+            // No need for retransmission of commit or pre-prepare/prepare
+            // message.
+            continue;
           }
 
-          if (id() == primary())
+          Commit* c = clog.fetch(n).mine(t_sent);
+          if (c != 0)
           {
-            // For now only primary retransmits big requests.
-            Status::BRS_iter gen(m);
+            retransmit(c, current, t_sent, p.get());
+          }
 
-            int count = 0;
-            Seqno ppn;
-            BR_map mrmap;
-            while (gen.get(ppn, mrmap) && count <= max_ret_bytes)
+          if (m->is_prepared(n))
+          {
+            // No need for retransmission of pre-prepare/prepare message.
+            continue;
+          }
+
+          // If I have a pre-prepare/prepare send it, provided I have sent
+          // a pre-prepare/prepare for view v.
+          if (primary() == node_id)
+          {
+            Pre_prepare* pp = plog.fetch(n).my_pre_prepare(t_sent);
+            if (pp != 0)
             {
-              if (plog.within_range(ppn))
+              retransmit(pp, current, t_sent, p.get());
+            }
+          }
+          else
+          {
+            Prepare* pr = plog.fetch(n).my_prepare(t_sent);
+            if (pr != 0)
+            {
+              retransmit(pr, current, t_sent, p.get());
+            }
+          }
+        }
+
+        if (id() == primary())
+        {
+          // For now only primary retransmits big requests.
+          Status::BRS_iter gen(m);
+
+          int count = 0;
+          Seqno ppn;
+          BR_map mrmap;
+          while (gen.get(ppn, mrmap) && count <= max_ret_bytes)
+          {
+            if (plog.within_range(ppn))
+            {
+              Pre_prepare_info::BRS_iter gen(
+                plog.fetch(ppn).prep_info(), mrmap);
+              Request* r;
+              while (gen.get(r))
               {
-                Pre_prepare_info::BRS_iter gen(
-                  plog.fetch(ppn).prep_info(), mrmap);
-                Request* r;
-                while (gen.get(r))
-                {
-                  LOG_TRACE_FMT(
-                    "Retransmitting request with id {} and cid {}",
-                    r->request_id(),
-                    r->client_id());
-                  INCR_OP(message_counts_retransmitted[m->tag()]);
-                  send(r, m->id());
-                  count += r->size();
-                }
+                LOG_TRACE_FMT(
+                  "Retransmitting request with id {} and cid {}",
+                  r->request_id(),
+                  r->client_id());
+                INCR_OP(message_counts_retransmitted[m->tag()]);
+                send(r, m->id());
+                count += r->size();
               }
             }
           }
@@ -2029,18 +2084,9 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     Prepared_cert& pc = plog.fetch(i);
     PBFT_ASSERT(pp != 0 && pp->digest() == d, "Invalid state");
 
-    Pre_prepare::Requests_iter iter(pp);
-    Request request;
-
-    size_t req_in_pp = 0;
-
-    while (iter.get(request))
+    if (encryptor && pp->num_big_reqs() > 0)
     {
-      req_in_pp++;
-    }
-
-    if (encryptor)
-    {
+      // don't change encryptor if nullop
       encryptor->set_iv_id(prev_view);
     }
 
@@ -2067,12 +2113,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
       }
-
-      if (req_in_pp > 0)
-      {
-        // not a null op
-        update_gov_req_info(info, pp);
-      }
+      update_gov_req_info(info, pp);
     }
 
     if (i <= last_executed || pc.is_complete())
@@ -2112,7 +2153,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   {
     encryptor->set_iv_id(v);
   }
-  LOG_INFO << "Done with process new view " << v << std::endl;
+  LOG_INFO_FMT("Done with process new view {}", v);
 }
 
 Pre_prepare* Replica::prepared_pre_prepare(Seqno n, bool was_f_0)
@@ -2471,7 +2512,6 @@ void Replica::execute_committed(bool was_f_0)
       }
 
       Pre_prepare* pp = committed(last_executed + 1, was_f_0);
-
       if (pp && pp->view() == view())
       {
         // Can execute the requests in the message with sequence number

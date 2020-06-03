@@ -868,6 +868,11 @@ namespace pbft
                 message_receiver_base->playback_pre_prepare(tx);
                 break;
               }
+              case kv::DeserialiseSuccess::PASS_NEW_VIEW:
+              {
+                message_receiver_base->playback_new_view(tx);
+                break;
+              }
               default:
                 throw std::logic_error("Unknown DeserialiseSuccess value");
             }

@@ -235,6 +235,10 @@ public:
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
 
+  void playback_new_view(kv::Tx& tx);
+  // Effects: if the new-view message is verified then the replica enters
+  // the new view
+
   bool IsExecutionPending()
   {
     return is_exec_pending;

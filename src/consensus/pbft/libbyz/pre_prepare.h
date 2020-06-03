@@ -201,11 +201,16 @@ public:
     // Requires: Pre_prepare is known to be valid
     // Effects: Return an iterator for the valid principal prepare proofs in "m
 
-    bool get(int& id, bool& is_valid_proof, Digest& prepare_digest);
+    bool get(
+      int& id,
+      bool& is_valid_proof,
+      Digest& prepare_digest,
+      bool is_null_op = false);
     // Effects: Updates "proofs" to "point" to the next proof's "IncludedSig"
     // pid in the Pre_prepare message and returns true. If there are no more
     // proofs left to process, it returns false. "is_valid_proof" indicates
-    // whether the proof is valid or not
+    // whether the proof is valid or not. Null ops are not signed, and therefore
+    // their signature is not checked
 
   private:
     Pre_prepare* msg;

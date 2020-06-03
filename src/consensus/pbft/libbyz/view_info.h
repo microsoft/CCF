@@ -69,6 +69,9 @@ public:
   // view "v", and sends view-change acks for any logged view-change
   // messages from other replicas with view "v".
 
+  void set_new_view(View v);
+  // during playback sets the new view to v and marks the view as complete
+
   //
   // Handling received messages:
   //
