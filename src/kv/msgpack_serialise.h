@@ -38,7 +38,7 @@ namespace kv
     // they care about, and skip over any others
     void append_pre_serialised(const kv::serialisers::SerialisedEntry& entry)
     {
-      const auto size = entry.size();
+      const uint64_t size = entry.size();
       sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
       sb.write(reinterpret_cast<char const*>(entry.data()), entry.size());
     }
@@ -93,29 +93,18 @@ namespace kv
 
     kv::serialisers::SerialisedEntry read_next_pre_serialised()
     {
-      // Check there are sufficient bytes for a size-prefix
-      constexpr auto size_size = sizeof(size_t);
       auto remainder = data_size - data_offset;
-      if (remainder < size_size)
-      {
-        throw std::runtime_error(fmt::format(
-          "Expected {} bytes holding entry size, found only {}",
-          size_size,
-          remainder));
-      }
+      auto data = reinterpret_cast<const uint8_t*>(data_ptr + data_offset);
+      const auto entry_size = serialized::read<uint64_t>(data, remainder);
 
-      // Read the size-prefix
-      const auto entry_size =
-        *reinterpret_cast<const size_t*>(data_ptr + data_offset);
-      data_offset += size_size;
-      remainder -= size_size;
-
-      // Check there are sufficient bytes for entry
       if (remainder < entry_size)
       {
         throw std::runtime_error(fmt::format(
           "Expected {} byte entry, found only {}", entry_size, remainder));
       }
+
+      const auto bytes_read = data_size - data_offset - remainder;
+      data_offset += bytes_read;
 
       const auto before_offset = data_offset;
       data_offset += entry_size;
