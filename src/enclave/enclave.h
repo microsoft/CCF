@@ -12,6 +12,7 @@
 #include "node/node_state.h"
 #include "node/nodetypes.h"
 #include "node/notifier.h"
+#include "node/historical_queries.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"
 #include "node/timer.h"
@@ -28,6 +29,7 @@ namespace enclave
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
+    ccf::historical::StateCache historical_state_cache;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     ccf::Notifier notifier;
     ccf::Timers timers;
@@ -55,6 +57,7 @@ namespace enclave
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       share_manager(network),
+      historical_state_cache(*network.tables, writer_factory.create_writer_to_outside()),
       node(
         writer_factory, network, rpcsessions, notifier, timers, share_manager),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
@@ -223,12 +226,28 @@ namespace enclave
           [this](const uint8_t* data, size_t size) {
             const auto [index, purpose, body] =
               ringbuffer::read_message<consensus::ledger_entry>(data, size);
-            if (node.is_reading_public_ledger())
-              node.recover_public_ledger_entry(body);
-            else if (node.is_reading_private_ledger())
-              node.recover_private_ledger_entry(body);
-            else
-              LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+            switch (purpose)
+            {
+              case consensus::LedgerRequestPurpose::Recovery:
+              {
+                if (node.is_reading_public_ledger())
+                  node.recover_public_ledger_entry(body);
+                else if (node.is_reading_private_ledger())
+                  node.recover_private_ledger_entry(body);
+                else
+                  LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+                break;
+              }
+              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              {
+                historical_state_cache.handle_ledger_entry(index, body);
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+              }
+            }
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -237,7 +256,23 @@ namespace enclave
           [this](const uint8_t* data, size_t size) {
             const auto [index, purpose] =
               ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
-            node.recover_ledger_end();
+            switch (purpose)
+            {
+              case consensus::LedgerRequestPurpose::Recovery:
+              {
+                node.recover_ledger_end();
+                break;
+              }
+              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              {
+                historical_state_cache.handle_no_entry(index);
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+              }
+            }
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());
