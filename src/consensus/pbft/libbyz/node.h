@@ -4,8 +4,8 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "ccf_assert.h"
 #include "consensus/consensus_types.h"
+#include "ds/ccf_assert.h"
 #include "global_state.h"
 #include "itimer.h"
 #include "key_format.h"

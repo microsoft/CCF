@@ -4,7 +4,7 @@
 // Licensed under the MIT license.
 #include "append_entries.h"
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "message_tags.h"
 

@@ -5,7 +5,7 @@
 
 #include "message.h"
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "node.h"
 
 #include <stdlib.h>

@@ -6,7 +6,7 @@
 #include "view_info.h"
 
 #include "big_req_table.h"
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "k_max.h"
 #include "new_view.h"
 #include "pre_prepare.h"

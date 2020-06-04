@@ -5,7 +5,7 @@
 
 #include "digest.h"
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "statistics.h"
 

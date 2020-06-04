@@ -5,7 +5,7 @@
 
 #include "view_change.h"
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "parameters.h"
 #include "principal.h"

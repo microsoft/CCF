@@ -4,7 +4,7 @@
 // Licensed under the MIT license.
 #include "new_principal.h"
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "message_tags.h"
 #include "node.h"

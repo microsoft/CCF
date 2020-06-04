@@ -5,7 +5,7 @@
 
 #include "commit.h"
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "node.h"
 #include "principal.h"
