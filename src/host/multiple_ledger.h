@@ -21,6 +21,7 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
+  // TODO: Unit test this class on its own (probably similar to existing tests)
   class LedgerFile
   {
   private:
@@ -133,12 +134,11 @@ namespace asynchost
         start_idx,
         start_idx + positions.size() - 1);
 
-      if ((from == 0) || (to < from) || (to > start_idx + positions.size() - 1))
+      if ((from < start_idx) || (to < from) || (to > get_last_idx()))
       {
         return 0;
       }
 
-      // TODO: It might be much easier to record start_idx as (start_idx - 1)??
       if (to == get_last_idx())
       {
         LOG_TRACE_FMT(
@@ -180,6 +180,27 @@ namespace asynchost
       }
 
       return entry;
+    }
+
+    const std::vector<uint8_t> read_framed_entries(size_t from, size_t to) const
+    {
+      if ((from < start_idx) || (to > get_last_idx()))
+      {
+        LOG_FAIL_FMT("Unknown entries range!");
+        return {};
+      }
+
+      auto framed_size = framed_entries_size(from, to);
+      std::vector<uint8_t> framed_entries(framed_size);
+      fseeko(file, positions.at(from - start_idx), SEEK_SET);
+
+      if (fread(framed_entries.data(), framed_size, 1, file) != 1)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to read entry range {}-{} from file", from, to));
+      }
+
+      return framed_entries;
     }
 
     void finalise()
@@ -246,6 +267,58 @@ namespace asynchost
         LOG_FAIL_FMT("{}: {}", f->get_start_idx(), f->get_file_name());
       }
       LOG_FAIL_FMT("******");
+    }
+
+    auto get_it_contains_idx(size_t idx)
+    {
+      if (idx == 0)
+      {
+        return files.end();
+      }
+
+      auto f = std::upper_bound(
+        files.begin(),
+        files.end(),
+        idx,
+        [](size_t idx, std::shared_ptr<LedgerFile>& f) {
+          return (idx <= f->get_last_idx());
+        });
+
+      return f;
+    }
+
+    std::shared_ptr<LedgerFile> find_ledger_containing_idx(size_t idx)
+    {
+      auto it = get_it_contains_idx(idx);
+
+      // If idx is not known (i.e. in the future), the first ledger file is
+      // returned, which will not contain idx
+      return ((it == files.end()) ? *files.begin() : *it);
+    }
+
+    std::vector<std::shared_ptr<LedgerFile>> find_ledgers_in_range(
+      size_t from, size_t to)
+    {
+      auto f_from = get_it_contains_idx(from);
+      auto f_to = get_it_contains_idx(to);
+
+      if ((f_from == files.end()) || (f_to == files.end()))
+      {
+        return {};
+      }
+
+      // TODO: Handle case where f_to is last!!
+      if (f_from == f_to)
+      {
+        return {*f_from};
+      }
+
+      std::vector<std::shared_ptr<LedgerFile>> ledgers = {};
+      for (auto it = f_from; it != f_to; it++)
+      {
+        ledgers.emplace_back(*it);
+      }
+      return ledgers;
     }
 
   public:
@@ -405,55 +478,89 @@ namespace asynchost
 
     const std::vector<uint8_t> read_entry(size_t idx)
     {
-      // Identify the file to read from
-      auto f = std::upper_bound(
-        files.begin(),
-        files.end(),
-        idx,
-        [](size_t idx, std::shared_ptr<LedgerFile>& f) {
-          return (idx <= f->get_last_idx());
-        });
-
-      auto file = (f == files.end()) ? *files.begin() : *f;
-      LOG_FAIL_FMT("Matching file for {} is: {}", idx, file->get_file_name());
-
-      return file->read_entry(idx);
+      return find_ledger_containing_idx(idx)->read_entry(idx);
     }
 
-    // const std::vector<uint8_t> read_framed_entries(size_t from, size_t to)
-    // {
-    //   auto framed_size = framed_entries_size(from, to);
+    const std::vector<uint8_t> read_framed_entries(size_t from, size_t to)
+    {
+      // 1. Find all ledgers between from and to
+      // auto ledgers = find_ledgers_in_range(from, to);
 
-    //   LOG_DEBUG_FMT(
-    //     "Ledger read entries from {} to {}, size: {}", from, to,
-    //     framed_size);
+      // LOG_FAIL_FMT("Ledgers found between {} and {}", from, to);
+      // for (auto const& l : ledgers)
+      // {
+      //   LOG_FAIL_FMT("-> {}", l->get_file_name());
+      // }
 
-    //   std::vector<uint8_t> framed_entries(framed_size);
-    //   if (framed_size == 0)
-    //     return framed_entries;
+      auto f_from = get_it_contains_idx(from);
+      auto f_to = get_it_contains_idx(to);
 
-    //   fseeko(file, positions.at(from - 1), SEEK_SET);
+      if ((f_from == files.end()) || (f_to == files.end()))
+      {
+        return {};
+      }
 
-    //   if (fread(framed_entries.data(), framed_size, 1, file) != 1)
-    //   {
-    //     throw std::logic_error(fmt::format(
-    //       "Failed to read entries from {} to {} from file", from, to));
-    //   }
+      std::vector<std::vector<uint8_t>> entries;
+      entries.reserve(std::distance(f_from, f_to) + 1);
 
-    //   return framed_entries;
-    // }
+      if (f_from == f_to)
+      {
+        entries.emplace_back((*f_from)->read_framed_entries(from, to));
+      }
+      else
+      {
+        for (auto it = f_from; it != std::next(f_to); it++)
+        {
+          if (it == f_from)
+          {
+            entries.emplace_back(
+              (*it)->read_framed_entries(from, (*it)->get_last_idx()));
+          }
+          else if (it == f_to)
+          {
+            entries.emplace_back(
+              (*it)->read_framed_entries((*it)->get_start_idx(), to));
+          }
+          else
+          {
+            entries.emplace_back((*it)->read_framed_entries(
+              (*it)->get_start_idx(), (*it)->get_last_idx()));
+          }
+        }
+      }
+
+      LOG_FAIL_FMT("Size of framed entries: {}", entries.size());
+      size_t total_size = 0;
+      for (auto const& e : entries)
+      {
+        total_size += e.size();
+      }
+
+      std::vector<uint8_t> flatten_vector;
+      flatten_vector.reserve(total_size);
+
+      for (auto const& e : entries)
+      {
+        flatten_vector.insert(
+          flatten_vector.end(),
+          std::make_move_iterator(e.begin()),
+          std::make_move_iterator(e.end()));
+      }
+
+      return flatten_vector;
+    }
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       auto f = get_latest_file();
       auto new_idx = f->write_entry(data, size);
 
-      LOG_FAIL_FMT(
-        "[{}] Size of current chunk, from {} to {}, is {}",
-        committable,
-        f->get_start_idx(),
-        new_idx,
-        f->get_current_size());
+      // LOG_FAIL_FMT(
+      //   "[{}] Size of current chunk, from {} to {}, is {}",
+      //   committable,
+      //   f->get_start_idx(),
+      //   new_idx,
+      //   f->get_current_size());
 
       // auto chunk_size = framed_entries_size(start_idx, new_idx);
       // LOG_FAIL_FMT("entry size so far: {}", chunk_size);
@@ -462,14 +569,14 @@ namespace asynchost
       // Probably doesn't matter...
       auto chunk_size =
         f->get_current_size() - 8; // TODO: Use something better here!!
-      LOG_FAIL_FMT("Chunk size so far: {}", chunk_size);
+      // LOG_FAIL_FMT("Chunk size so far: {}", chunk_size);
 
       if (committable && chunk_size >= chunk_threshold)
       {
         f->finalise();
 
-        LOG_FAIL_FMT(
-          ">>>>> Creating new chunk which will start at {}", new_idx + 1);
+        // LOG_FAIL_FMT(
+        //   ">>>>> Creating new chunk which will start at {}", new_idx + 1);
 
         // TODO: Probably use a list instead here
         files.push_back(std::make_shared<LedgerFile>(ledger_dir, new_idx + 1));

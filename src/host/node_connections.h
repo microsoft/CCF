@@ -247,6 +247,9 @@ namespace asynchost
               serialized::overlay<consensus::AppendEntriesIndex>(p, psize);
             // Find the total frame size, and write it along with the header.
             auto count = ae.idx - ae.prev_idx;
+
+            // TODO: One API is sufficient here: get the entries vector, then
+            // use the size of that instead
             uint32_t frame = (uint32_t)(
               size_to_send +
               ledger.framed_entries_size(ae.prev_idx + 1, ae.idx));
