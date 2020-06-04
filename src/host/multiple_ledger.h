@@ -40,6 +40,7 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file;
+    bool is_complete = false;
 
   public:
     LedgerFile(const std::string& dir, size_t start_idx = 1) :
@@ -205,7 +206,35 @@ namespace asynchost
       return framed_entries;
     }
 
-    void finalise()
+    bool truncate(size_t idx)
+    {
+      if (is_complete || (idx < start_idx) || (idx > get_last_idx()))
+      {
+        return false;
+      }
+
+      LOG_FAIL_FMT("Truncating {} at {}", get_file_name(), idx);
+
+      total_len = positions.at(idx - start_idx);
+      positions.resize(idx - start_idx);
+
+      if (fflush(file) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to flush active ledger: {}",
+          strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
+      }
+
+      if (ftruncate(fileno(file), total_len))
+      {
+        throw std::logic_error("Failed to truncate ledger");
+      }
+
+      fseeko(file, total_len, SEEK_SET);
+      return (idx == start_idx); // Returns true indicate that the file is empty
+    }
+
+    void prepare()
     {
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);
@@ -232,10 +261,17 @@ namespace asynchost
         throw std::logic_error("Failed to write positions table to ledger");
       }
 
+      if (fflush(file) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to flush active ledger: {}",
+          strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
+      }
+
       fs::rename(
         fs::path(dir) / fs::path(get_file_name()),
         fs::path(dir) /
-          fs::path(fmt::format("{}.{}", get_file_name(), start_idx)));
+          fs::path(fmt::format("{}.{}", file_name_prefix, start_idx)));
     }
 
     void compact()
@@ -244,9 +280,11 @@ namespace asynchost
       // committed
       // 1. fflush
       // 2. Rename file
+      is_complete = true;
     }
   };
 
+  // TODO: Test with 4 GB files!!!
   class MultipleLedger
   {
   private:
@@ -260,6 +298,7 @@ namespace asynchost
     std::list<std::shared_ptr<LedgerFile>> files;
 
     const size_t chunk_threshold;
+    size_t last_idx = 0;
 
     void dump_files() const
     {
@@ -296,31 +335,6 @@ namespace asynchost
       // If idx is not known (i.e. in the future), the first ledger file is
       // returned, which will not contain idx
       return ((it == files.end()) ? *files.begin() : *it);
-    }
-
-    std::vector<std::shared_ptr<LedgerFile>> find_ledgers_in_range(
-      size_t from, size_t to) const
-    {
-      auto f_from = get_it_contains_idx(from);
-      auto f_to = get_it_contains_idx(to);
-
-      if ((f_from == files.end()) || (f_to == files.end()))
-      {
-        return {};
-      }
-
-      // TODO: Handle case where f_to is last!!
-      if (f_from == f_to)
-      {
-        return {*f_from};
-      }
-
-      std::vector<std::shared_ptr<LedgerFile>> ledgers = {};
-      for (auto it = f_from; it != f_to; it++)
-      {
-        ledgers.emplace_back(*it);
-      }
-      return ledgers;
     }
 
   public:
@@ -496,29 +510,22 @@ namespace asynchost
       std::vector<std::vector<uint8_t>> entries;
       entries.reserve(std::distance(f_from, f_to) + 1);
 
-      if (f_from == f_to)
+      for (auto it = f_from; it != std::next(f_to); it++)
       {
-        entries.emplace_back((*f_from)->read_framed_entries(from, to));
-      }
-      else
-      {
-        for (auto it = f_from; it != std::next(f_to); it++)
+        if (it == f_from)
         {
-          if (it == f_from)
-          {
-            entries.emplace_back(
-              (*it)->read_framed_entries(from, (*it)->get_last_idx()));
-          }
-          else if (it == f_to)
-          {
-            entries.emplace_back(
-              (*it)->read_framed_entries((*it)->get_start_idx(), to));
-          }
-          else
-          {
-            entries.emplace_back((*it)->read_framed_entries(
-              (*it)->get_start_idx(), (*it)->get_last_idx()));
-          }
+          entries.emplace_back(
+            (*it)->read_framed_entries(from, (*it)->get_last_idx()));
+        }
+        else if (it == f_to)
+        {
+          entries.emplace_back(
+            (*it)->read_framed_entries((*it)->get_start_idx(), to));
+        }
+        else
+        {
+          entries.emplace_back((*it)->read_framed_entries(
+            (*it)->get_start_idx(), (*it)->get_last_idx()));
         }
       }
 
@@ -546,7 +553,7 @@ namespace asynchost
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       auto f = get_latest_file();
-      auto new_idx = f->write_entry(data, size);
+      last_idx = f->write_entry(data, size);
 
       // LOG_FAIL_FMT(
       //   "[{}] Size of current chunk, from {} to {}, is {}",
@@ -557,48 +564,53 @@ namespace asynchost
 
       if (committable && f->get_current_size() >= chunk_threshold)
       {
-        f->finalise();
+        f->prepare();
 
-        // LOG_FAIL_FMT(
-        //   ">>>>> Creating new chunk which will start at {}", new_idx + 1);
+        LOG_FAIL_FMT(
+          ">>>>> Creating new chunk which will start at {}", last_idx + 1);
 
-        files.push_back(std::make_shared<LedgerFile>(ledger_dir, new_idx + 1));
+        files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
       }
 
-      return new_idx;
+      return last_idx;
     }
 
-    // void truncate(size_t last_idx)
-    // {
-    //   LOG_DEBUG_FMT("Ledger truncate: {}/{}", last_idx, positions.size());
+    void truncate(size_t idx)
+    {
+      LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
-    //   // positions[last_idx - 1] is the position of the specified
-    //   // final index. Truncate the ledger at position[last_idx].
-    //   if (last_idx >= positions.size())
-    //   {
-    //     LOG_FAIL_FMT(
-    //       "Cannot truncate active ledger at {}: active ledger ends at {}",
-    //       last_idx,
-    //       start_idx);
-    //     return;
-    //   }
+      auto f_from = get_it_contains_idx(idx);
+      auto f_to = get_it_contains_idx(last_idx);
 
-    //   total_len = positions.at(last_idx);
-    //   positions.resize(last_idx);
+      LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to));
 
-    //   if (fflush(file) != 0)
-    //   {
-    //     throw std::logic_error(
-    //       fmt::format("Failed to flush active ledger: {}", strerror(errno)));
-    //   }
+      for (auto it = f_from; it != std::next(f_to);)
+      {
+        auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx();
+        LOG_FAIL_FMT("Truncate idx: {}", truncate_idx);
 
-    //   if (ftruncate(fileno(file), total_len))
-    //   {
-    //     throw std::logic_error("Failed to truncate ledger");
-    //   }
+        // Do not delete the last file if it is the only active one
+        if ((*it)->truncate(truncate_idx) && (std::distance(f_from, f_to) != 0))
+        {
+          LOG_FAIL_FMT("Removing {}", (*it)->get_file_name());
+          auto it_ = it;
+          it++;
+          if (!fs::remove(
+                fs::path(ledger_dir) / fs::path((*it_)->get_file_name())))
+          {
+            throw std::logic_error(
+              fmt::format("Could not remove file {}", (*it)->get_file_name()));
+          }
+          files.erase(it_);
+        }
+        else
+        {
+          it++;
+        }
+      }
 
-    //   fseeko(file, total_len, SEEK_SET);
-    // }
+      last_idx = idx;
+    }
 
     // void register_message_handlers(
     //   messaging::Dispatcher<ringbuffer::Message>& disp)

@@ -29,6 +29,11 @@ struct LedgerEntry
     return value_;
   }
 
+  auto set_value(T v)
+  {
+    value_ = v;
+  }
+
   LedgerEntry() = default;
   LedgerEntry(const std::vector<uint8_t>& raw)
   {
@@ -60,7 +65,7 @@ void verify_framed_entries_range(
 
     auto frame = serialized::read<frame_header_type>(data, size);
     auto entry = serialized::read(data, size, frame);
-    LOG_DEBUG_FMT("Value is {}", TestLedgerEntry(entry).value());
+    // LOG_DEBUG_FMT("Value is {}", TestLedgerEntry(entry).value());
     REQUIRE(TestLedgerEntry(entry).value() == idx);
     i += frame_header_size + frame;
     idx++;
@@ -94,8 +99,8 @@ TEST_CASE("Regular chunking")
   TestLedgerEntry dummy_entry;
 
   // The number of entries per chunk is a function of the threshold (minus the
-  // size of the fixes space for the offset at the size of each file) and the size
-  // of each _framed_ entry
+  // size of the fixes space for the offset at the size of each file) and the
+  // size of each _framed_ entry
   size_t entries_per_chunk = ceil(
     (static_cast<float>(chunk_threshold - sizeof(size_t))) /
     (frame_header_size + sizeof(TestLedgerEntry)));
@@ -226,6 +231,42 @@ TEST_CASE("Regular chunking")
     read_entries_range_from_ledger(ledger, end_of_chunk_idx, last_idx);
     read_entries_range_from_ledger(ledger, end_of_chunk_idx + 1, last_idx);
     read_entries_range_from_ledger(ledger, end_of_chunk_idx + 1, last_idx - 1);
+  }
+
+  INFO("Truncation");
+  {
+    // Truncation of first entry is last chunk keeps latest file open
+    size_t chunks_so_far = number_of_files_in_ledger_dir();
+    ledger.truncate(last_idx--);
+    dummy_entry.set_value(last_idx);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
+
+    is_committable = true;
+    REQUIRE(
+      ledger.write_entry(
+        dummy_entry.increment_value(),
+        sizeof(TestLedgerEntry),
+        is_committable) == ++last_idx);
+
+    // Truncation of entry in penultimate chunk closes latest file open
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
+    ledger.truncate(--last_idx);
+    dummy_entry.set_value(last_idx);
+    last_idx -= 1;
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
+
+    REQUIRE(
+      ledger.write_entry(
+        dummy_entry.increment_value(),
+        sizeof(TestLedgerEntry),
+        is_committable) == ++last_idx);
+
+    // TODO:
+    // 1. Truncate the last idx
+    // 2. Truncate the last idx - 1
+    // 3. Truncate to the beginning of the second chunk
+    // 4. Truncate to the end of the first chunk
+    // 5. Truncate to the start
   }
   // fs::remove_all(ledger_dir);
 }
