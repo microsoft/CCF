@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import io
-import msgpack
+import msgpack.fallback as msgpack  # Default implementation has buggy interaction between read_bytes and tell, so use fallback
 import struct
+
+from loguru import logger as LOG
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -43,6 +45,9 @@ class LedgerDomain:
         self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
         self._version = self._read_next()
         self._tables = {}
+        # Keys and Values may have custom serialisers.
+        # Store most as raw bytes, only decode a few which we know are msgpack.
+        self._msgpacked_tables = {"ccf.member_certs", "ccf.governance.history"}
         self._read()
 
     def _read_next(self):
@@ -51,11 +56,18 @@ class LedgerDomain:
     def _read_next_string(self):
         return self._unpacker.unpack().decode()
 
+    def _read_next_entry(self):
+        size_bytes = self._unpacker.read_bytes(8)
+        (size,) = struct.unpack("<Q", size_bytes)
+        entry_bytes = bytes(self._unpacker.read_bytes(size))
+        return entry_bytes
+
     def _read(self):
         while self._buffer_size > self._unpacker.tell():
             # map_start_indicator
             self._read_next()
             map_name = self._read_next_string()
+            LOG.debug(f"Reading map {map_name}")
             records = {}
             self._tables[map_name] = records
 
@@ -63,20 +75,28 @@ class LedgerDomain:
             self._read_next()
 
             # read_count
-            self._read_next()
+            read_count = self._read_next()
+            assert read_count == 0, f"Unexpected read count: {read_count}"
 
             write_count = self._read_next()
             if write_count:
                 for _ in range(write_count):
-                    k = self._read_next()
-                    val = self._read_next()
+                    k = self._read_next_entry()
+                    val = self._read_next_entry()
+                    if map_name in self._msgpacked_tables:
+                        k = msgpack.unpackb(k, **UNPACK_ARGS)
+                        val = msgpack.unpackb(val, **UNPACK_ARGS)
                     records[k] = val
 
             remove_count = self._read_next()
             if remove_count:
                 for _ in range(remove_count):
-                    k = self._read_next()
+                    k = self._read_next_entry()
+                    if map_name in self._msgpacked_tables:
+                        k = msgpack.unpackb(k, **UNPACK_ARGS)
                     records[k] = None
+
+            LOG.debug(f"Found {read_count} reads, {write_count} writes, and {remove_count} removes")
 
     def get_tables(self):
         return self._tables
