@@ -37,7 +37,7 @@ struct LedgerEntry
     value_ = serialized::read<T>(data, size);
   }
 };
-using TestLedgerEntry = LedgerEntry<uint64_t>;
+using TestLedgerEntry = LedgerEntry<uint32_t>;
 
 size_t number_of_files_in_ledger_dir()
 {
@@ -60,7 +60,7 @@ void verify_framed_entries_range(
 
     auto frame = serialized::read<frame_header_type>(data, size);
     auto entry = serialized::read(data, size, frame);
-    LOG_DEBUG_FMT("Value is {}", entry[0]);
+    LOG_DEBUG_FMT("Value is {}", TestLedgerEntry(entry).value());
     REQUIRE(TestLedgerEntry(entry).value() == idx);
     i += frame_header_size + frame;
     idx++;
@@ -93,11 +93,14 @@ TEST_CASE("Regular chunking")
 
   TestLedgerEntry dummy_entry;
 
-  // The number of entries per chunk is a function of the threshold and the size
+  // The number of entries per chunk is a function of the threshold (minus the
+  // size of the fixes space for the offset at the size of each file) and the size
   // of each _framed_ entry
   size_t entries_per_chunk = ceil(
-    static_cast<float>(chunk_threshold) /
+    (static_cast<float>(chunk_threshold - sizeof(size_t))) /
     (frame_header_size + sizeof(TestLedgerEntry)));
+
+  LOG_DEBUG_FMT("Entries per chunk: {}", entries_per_chunk);
 
   size_t last_idx = 0;
   size_t end_of_chunk_idx;

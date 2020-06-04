@@ -33,7 +33,9 @@ namespace asynchost
 
     size_t start_idx = 1;
     size_t total_len = 0;
-    std::vector<size_t> positions;
+    std::vector<size_t>
+      positions; // TODO: Should this be uint32_t as this
+                 // makes the positions table big at the end of the file?
 
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
@@ -483,15 +485,6 @@ namespace asynchost
 
     const std::vector<uint8_t> read_framed_entries(size_t from, size_t to) const
     {
-      // 1. Find all ledgers between from and to
-      // auto ledgers = find_ledgers_in_range(from, to);
-
-      // LOG_FAIL_FMT("Ledgers found between {} and {}", from, to);
-      // for (auto const& l : ledgers)
-      // {
-      //   LOG_FAIL_FMT("-> {}", l->get_file_name());
-      // }
-
       auto f_from = get_it_contains_idx(from);
       auto f_to = get_it_contains_idx(to);
 
@@ -562,23 +555,13 @@ namespace asynchost
       //   new_idx,
       //   f->get_current_size());
 
-      // auto chunk_size = framed_entries_size(start_idx, new_idx);
-      // LOG_FAIL_FMT("entry size so far: {}", chunk_size);
-
-      // TODO: Using current size for now, better to use framed entries size?
-      // Probably doesn't matter...
-      auto chunk_size =
-        f->get_current_size() - 8; // TODO: Use something better here!!
-      // LOG_FAIL_FMT("Chunk size so far: {}", chunk_size);
-
-      if (committable && chunk_size >= chunk_threshold)
+      if (committable && f->get_current_size() >= chunk_threshold)
       {
         f->finalise();
 
         // LOG_FAIL_FMT(
         //   ">>>>> Creating new chunk which will start at {}", new_idx + 1);
 
-        // TODO: Probably use a list instead here
         files.push_back(std::make_shared<LedgerFile>(ledger_dir, new_idx + 1));
       }
 
