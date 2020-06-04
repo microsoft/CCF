@@ -238,7 +238,7 @@ namespace kv::untyped
 
           if (changes)
           {
-            map.append_to_roll(v, std::move(state), change_set.writes);
+            map.roll.commits->insert_back(map.create_new_local_commit(v, std::move(state), change_set.writes));
           }
         }
       }
@@ -708,11 +708,6 @@ namespace kv::untyped
     Roll& get_roll()
     {
       return roll;
-    }
-
-    void append_to_roll(Version v, State&& s, const Write& w)
-    {
-      roll.commits->insert_back(create_new_local_commit(v, std::move(s), w));
     }
 
     void trigger_local_hook()

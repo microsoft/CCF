@@ -31,8 +31,7 @@ namespace kv
 
     std::optional<V> get(const K& key)
     {
-      const auto k_rep = KSerialiser::to_serialised(key);
-      const auto opt_v_rep = untyped_view.get(k_rep);
+      const auto opt_v_rep = untyped_view.get(KSerialiser::to_serialised(key));
 
       if (opt_v_rep.has_value())
       {
@@ -44,8 +43,7 @@ namespace kv
 
     std::optional<V> get_globally_committed(const K& key)
     {
-      const auto k_rep = KSerialiser::to_serialised(key);
-      const auto opt_v_rep = untyped_view.get_globally_committed(k_rep);
+      const auto opt_v_rep = untyped_view.get_globally_committed(KSerialiser::to_serialised(key));
 
       if (opt_v_rep.has_value())
       {
@@ -57,17 +55,12 @@ namespace kv
 
     bool put(const K& key, const V& value)
     {
-      const auto k_rep = KSerialiser::to_serialised(key);
-      const auto v_rep = VSerialiser::to_serialised(value);
-
-      return untyped_view.put(k_rep, v_rep);
+      return untyped_view.put(KSerialiser::to_serialised(key), VSerialiser::to_serialised(value));
     }
 
     bool remove(const K& key)
     {
-      const auto k_rep = KSerialiser::to_serialised(key);
-
-      return untyped_view.remove(k_rep);
+      return untyped_view.remove(KSerialiser::to_serialised(key));
     }
 
     template <class F>

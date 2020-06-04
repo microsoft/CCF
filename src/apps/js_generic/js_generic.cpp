@@ -14,7 +14,7 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using Table = kv::untyped::Map;
+  using Table = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
 
   static JSValue js_print(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -125,13 +125,11 @@ namespace ccfapp
 
     size_t k_sz = 0;
     auto k = JS_ToCStringLen(ctx, &k_sz, argv[0]);
-    kv::untyped::Map::K k_(k, k + k_sz);
 
     size_t v_sz = 0;
     auto v = JS_ToCStringLen(ctx, &v_sz, argv[1]);
-    kv::untyped::Map::V v_(v, v + v_sz);
 
-    if (!table_view->put(k_, v_))
+    if (!table_view->put({k, k + k_sz}, {v, v + v_sz}))
     {
       r = JS_ThrowRangeError(ctx, "Could not insert at key");
     }

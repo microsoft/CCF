@@ -68,14 +68,14 @@ class LedgerDomain:
             write_count = self._read_next()
             if write_count:
                 for _ in range(write_count):
-                    k = msgpack.unpackb(self._read_next(), **UNPACK_ARGS)
-                    val = msgpack.unpackb(self._read_next(), **UNPACK_ARGS)
+                    k = self._read_next()
+                    val = self._read_next()
                     records[k] = val
 
             remove_count = self._read_next()
             if remove_count:
                 for _ in range(remove_count):
-                    k = msgpack.unpackb(self._read_next(), **UNPACK_ARGS)
+                    k = self._read_next()
                     records[k] = None
 
     def get_tables(self):
