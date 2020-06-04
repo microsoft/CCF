@@ -446,6 +446,9 @@ if(BUILD_TESTS)
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
+  add_picobench(
+    hash_bench SRCS src/ds/test/hash_bench.cpp
+  )
 
   # Storing signed governance operations
   add_e2e_test(
