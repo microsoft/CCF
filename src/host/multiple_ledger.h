@@ -208,15 +208,15 @@ namespace asynchost
 
     bool truncate(size_t idx)
     {
-      if (is_complete || (idx < start_idx) || (idx > get_last_idx()))
+      if (is_complete || (idx < start_idx - 1) || (idx >= get_last_idx()))
       {
         return false;
       }
 
       LOG_FAIL_FMT("Truncating {} at {}", get_file_name(), idx);
 
-      total_len = positions.at(idx - start_idx);
-      positions.resize(idx - start_idx);
+      total_len = positions.at(idx - start_idx + 1);
+      positions.resize(idx - start_idx + 1);
 
       if (fflush(file) != 0)
       {
@@ -231,7 +231,8 @@ namespace asynchost
       }
 
       fseeko(file, total_len, SEEK_SET);
-      return (idx == start_idx); // Returns true indicate that the file is empty
+      return (
+        idx == start_idx - 1); // Returns true indicate that the file is empty
     }
 
     void prepare()
@@ -274,7 +275,7 @@ namespace asynchost
           fs::path(fmt::format("{}.{}", file_name_prefix, start_idx)));
     }
 
-    void compact()
+    void complete()
     {
       // TODO: To be called when the last index in the chunk has been globally
       // committed
@@ -499,6 +500,11 @@ namespace asynchost
 
     const std::vector<uint8_t> read_framed_entries(size_t from, size_t to) const
     {
+      if ((from < 0) || (to > last_idx))
+      {
+        return {};
+      }
+
       auto f_from = get_it_contains_idx(from);
       auto f_to = get_it_contains_idx(to);
 
@@ -579,14 +585,19 @@ namespace asynchost
     {
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
-      auto f_from = get_it_contains_idx(idx);
+      if (idx == 0 || idx >= last_idx)
+      {
+        return;
+      }
+
+      auto f_from = get_it_contains_idx(idx + 1);
       auto f_to = get_it_contains_idx(last_idx);
 
-      LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to));
+      LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to) + 1);
 
       for (auto it = f_from; it != std::next(f_to);)
       {
-        auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx();
+        auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
         LOG_FAIL_FMT("Truncate idx: {}", truncate_idx);
 
         // Do not delete the last file if it is the only active one
