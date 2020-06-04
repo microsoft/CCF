@@ -163,7 +163,7 @@ private:
 
 inline Request_rep& Request::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Request_rep*)msg);
 }
 

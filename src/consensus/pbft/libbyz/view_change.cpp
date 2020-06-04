@@ -5,9 +5,9 @@
 
 #include "view_change.h"
 
+#include "ccf_assert.h"
 #include "message_tags.h"
 #include "parameters.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
 
@@ -38,7 +38,7 @@ View_change::View_change(View v, Seqno ls, int id) :
   rep().digest_signature.fill(0);
   rep().padding.fill(0);
 #endif
-  PBFT_ASSERT(ALIGNED(req_info()), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(req_info()), "Improperly aligned pointer");
 }
 
 void View_change::add_checkpoint(Seqno n, Digest& d)
@@ -55,9 +55,9 @@ void View_change::add_checkpoint(Seqno n, Digest& d)
 void View_change::add_request(
   Seqno n, View v, View lv, Digest& d, bool prepared)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     (last_stable() < n) && (n <= last_stable() + max_out), "Invalid argument");
-  PBFT_ASSERT(v < view() && lv < view(), "Invalid argument");
+  CCF_ASSERT(v < view() && lv < view(), "Invalid argument");
 
   int index = n - last_stable() - 1;
   if (prepared)
@@ -118,7 +118,7 @@ bool View_change::proofs(Seqno n, View& v, View& lv, Digest& d, bool& prepared)
 
 View View_change::req(Seqno n, Digest& d)
 {
-  PBFT_ASSERT(n > last_stable(), "Invalid argument");
+  CCF_ASSERT(n > last_stable(), "Invalid argument");
 
   int index = n - last_stable() - 1;
   if (index >= rep().n_reqs || !test(index))
@@ -135,16 +135,16 @@ View View_change::req(Seqno n, Digest& d)
 
 void View_change::re_authenticate(Principal* p)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     rep().n_reqs >= 0 && rep().n_reqs <= max_out && view() > 0,
     "Invalid state");
-  PBFT_ASSERT(
+  CCF_ASSERT(
     rep().n_ckpts >= 0 && rep().n_ckpts <= max_out / checkpoint_interval + 1,
     "Invalid state");
-  PBFT_ASSERT(
+  CCF_ASSERT(
     rep().n_ckpts == 0 || rep().ckpts[rep().n_ckpts - 1] != Digest(),
     "Invalid state");
-  PBFT_ASSERT(last_stable() >= 0, "Invalid state");
+  CCF_ASSERT(last_stable() >= 0, "Invalid state");
 
   if (rep().digest.is_zero())
   {

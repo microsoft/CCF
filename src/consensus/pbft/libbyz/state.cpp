@@ -5,13 +5,13 @@
 
 #include "state.h"
 
+#include "ccf_assert.h"
 #include "data.h"
 #include "ds/logger.h"
 #include "fetch.h"
 #include "meta_data.h"
 #include "meta_data_cert.h"
 #include "meta_data_d.h"
-#include "pbft_assert.h"
 #include "replica.h"
 #include "statistics.h"
 
@@ -150,7 +150,7 @@ Checkpoint_rec::~Checkpoint_rec()
 
 void Checkpoint_rec::append(int l, size_t i, Part* p)
 {
-  PBFT_ASSERT(parts.find(PartKey(l, i)) == parts.end(), "Invalid state");
+  CCF_ASSERT(parts.find(PartKey(l, i)) == parts.end(), "Invalid state");
   parts.insert({PartKey(l, i), p});
 }
 
@@ -293,7 +293,7 @@ State::~State() {}
 void State::cow_single(int i)
 {
   BlockCopy* bcp;
-  PBFT_ASSERT(i >= 0 && i < nb, "Invalid argument");
+  CCF_ASSERT(i >= 0 && i < nb, "Invalid argument");
 
   INCR_OP(num_cows);
   // Append a copy of the block to the last checkpoint
@@ -349,7 +349,7 @@ inline int State::digest(Digest& d, int l, size_t i)
 
   if (l == PLevels - 1)
   {
-    PBFT_ASSERT(i >= 0 && i < nb, "Invalid argument");
+    CCF_ASSERT(i >= 0 && i < nb, "Invalid argument");
     data = mem[i].data;
     size = Block_size;
   }
@@ -468,7 +468,7 @@ void State::checkpoint(Seqno seqno)
 
 Seqno State::rollback(Seqno last_executed)
 {
-  PBFT_ASSERT(lc >= 0 && !fetching, "Invalid state");
+  CCF_ASSERT(lc >= 0 && !fetching, "Invalid state");
 
   INCR_OP(num_rollbacks);
 
@@ -497,7 +497,7 @@ Seqno State::rollback(Seqno last_executed)
         ptree[level][index].d = part->d;
       }
 
-      PBFT_ASSERT(ptree[0][0].d == cr.sd, "Invalid state");
+      CCF_ASSERT(ptree[0][0].d == cr.sd, "Invalid state");
       cr.clear();
       cowb.clear();
 
@@ -550,7 +550,7 @@ void State::discard_checkpoints(Seqno seqno, Seqno le)
 //
 char* State::get_data(Seqno c, int i)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     checkpoint_log.within_range(c) && i >= 0 && i < nb, "Invalid argument");
 
   if (ptree[PLevels - 1][i].lm <= c && !cowb.test(i))
@@ -580,7 +580,7 @@ char* State::get_data(Seqno c, int i)
 
 Part& State::get_meta_data(Seqno c, int l, int i)
 {
-  PBFT_ASSERT(checkpoint_log.within_range(c), "Invalid argument");
+  CCF_ASSERT(checkpoint_log.within_range(c), "Invalid argument");
 
   Part& p = ptree[l][i];
   if (p.lm <= c)
@@ -604,7 +604,7 @@ Part& State::get_meta_data(Seqno c, int l, int i)
       return *p;
     }
   }
-  // PBFT_ASSERT(0, "Invalid state");
+  // CCF_ASSERT(0, "Invalid state");
   return p; // never reached
 }
 
@@ -651,7 +651,7 @@ void State::send_fetch(bool change_replier)
   Request_id rid = pbft::GlobalState::get_replica().new_rid();
   pbft::GlobalState::get_replica().principal()->set_last_fetch_rid(rid);
 
-  PBFT_ASSERT(stalep[flevel]->size() > 0, "Invalid state");
+  CCF_ASSERT(stalep[flevel]->size() > 0, "Invalid state");
   FPart& p = stalep[flevel]->back();
 
   int replier = -1;
@@ -874,7 +874,7 @@ void State::handle(Data* m)
         mem[i] = m->data();
 
         FPart& pwp = stalep[l - 1]->back();
-        PBFT_ASSERT(
+        CCF_ASSERT(
           pwp.index == i / PSize[l], "Parent is not first at level l-1 queue");
         if (p.lm > pwp.lm)
         {
@@ -900,7 +900,7 @@ void State::handle(Data* m)
 
 bool State::check_digest(Digest& d, Meta_data* m)
 {
-  PBFT_ASSERT(m->level() < PLevels - 1, "Invalid argument");
+  CCF_ASSERT(m->level() < PLevels - 1, "Invalid argument");
 
   int l = m->level();
   int i = m->index();
@@ -988,7 +988,7 @@ void State::handle(Meta_data* m)
         // Queue out-of-date subpartitions for fetching, and if
         // checking, queue up-to-date partitions for checking.
         flevel++;
-        PBFT_ASSERT(stalep[flevel]->size() == 0, "Invalid state");
+        CCF_ASSERT(stalep[flevel]->size() == 0, "Invalid state");
 
         Meta_data::Sub_parts_iter iter(m);
         Digest d;
@@ -1075,7 +1075,7 @@ void State::handle(Meta_data_d* m)
 
           cert->clear();
 
-          PBFT_ASSERT(flevel != PLevels - 1 || wp.index < nb, "Invalid state");
+          CCF_ASSERT(flevel != PLevels - 1 || wp.index < nb, "Invalid state");
           if (cd == ptree[flevel][wp.index].d)
           {
             // State is up-to-date
@@ -1114,8 +1114,8 @@ void State::handle(Meta_data_d* m)
 
 void State::done_with_level()
 {
-  PBFT_ASSERT(stalep[flevel]->size() == 0, "Invalid state");
-  PBFT_ASSERT(flevel > 0, "Invalid state");
+  CCF_ASSERT(stalep[flevel]->size() == 0, "Invalid state");
+  CCF_ASSERT(flevel > 0, "Invalid state");
 
   flevel--;
   FPart& wp = stalep[flevel]->back();
@@ -1123,7 +1123,7 @@ void State::done_with_level()
   int l = flevel;
 
   wp.lu = wp.c;
-  PBFT_ASSERT(wp.c != -1, "Invalid state");
+  CCF_ASSERT(wp.c != -1, "Invalid state");
 
   if (wp.lu >= wp.lm)
   {
@@ -1147,7 +1147,7 @@ void State::done_with_level()
     if (l > 0)
     {
       FPart& pwp = stalep[l - 1]->back();
-      PBFT_ASSERT(
+      CCF_ASSERT(
         pwp.index == i / PSize[l], "Parent is not first at level l-1 queue");
       if (p.lm > pwp.lm)
       {
@@ -1186,7 +1186,7 @@ void State::done_with_level()
       }
 
       // Create checkpoint record for current state
-      PBFT_ASSERT(lc <= wp.lu, "Invalid state");
+      CCF_ASSERT(lc <= wp.lu, "Invalid state");
       lc = wp.lu;
 
       if (!checkpoint_log.within_range(lc))
@@ -1255,7 +1255,7 @@ void State::start_check(Seqno le)
 
 inline bool State::check_data(int i)
 {
-  PBFT_ASSERT(i < nb, "Invalid state");
+  CCF_ASSERT(i < nb, "Invalid state");
 
   Part& p = ptree[PLevels - 1][i];
   Digest d;

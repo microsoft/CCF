@@ -6,9 +6,9 @@
 #include "status.h"
 
 #include "append_entries.h"
+#include "ccf_assert.h"
 #include "message_tags.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "principal.h"
 
 #include <string.h>
@@ -129,16 +129,16 @@ bool Status::pre_verify()
 
 void Status::mark_vcs(int i)
 {
-  PBFT_ASSERT(!has_nv_info(), "Invalid state");
-  PBFT_ASSERT(
+  CCF_ASSERT(!has_nv_info(), "Invalid state");
+  CCF_ASSERT(
     i >= 0 && i < Status_rep::vcs_size * BYTE_BITS, "Invalid argument");
   Bits_set(vcs(), i);
 }
 
 void Status::append_pps(View v, Seqno n, const BR_map& mreqs, bool proof)
 {
-  PBFT_ASSERT(!has_nv_info(), "Invalid state");
-  PBFT_ASSERT(
+  CCF_ASSERT(!has_nv_info(), "Invalid state");
+  CCF_ASSERT(
     (char*)(pps() + rep().sz) < contents() + Max_message_size,
     "Message too small");
 
@@ -152,7 +152,7 @@ void Status::append_pps(View v, Seqno n, const BR_map& mreqs, bool proof)
 
 Status::PPS_iter::PPS_iter(Status* m)
 {
-  PBFT_ASSERT(!m->has_nv_info(), "Invalid state");
+  CCF_ASSERT(!m->has_nv_info(), "Invalid state");
 
   msg = m;
   next = 0;
@@ -176,7 +176,7 @@ bool Status::PPS_iter::get(View& v, Seqno& n, BR_map& mreqs, bool& proof)
 
 Status::BRS_iter::BRS_iter(Status* m)
 {
-  PBFT_ASSERT(m->has_nv_info(), "Invalid state");
+  CCF_ASSERT(m->has_nv_info(), "Invalid state");
 
   msg = m;
   next = 0;
