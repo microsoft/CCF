@@ -183,7 +183,6 @@ void Node::send(Message* m, Principal* p)
   CCF_ASSERT(m->tag() < Max_message_tag, "Invalid message tag");
   CCF_ASSERT(p != nullptr, "Must send to a principal");
 
-
   int error = 0;
   int size = m->size();
   while (error < size)
@@ -213,7 +212,6 @@ bool Node::has_messages(long to)
 
 size_t Node::gen_signature(const char* src, unsigned src_len, char* sig)
 {
-
   auto signature = key_pair->sign(CBuffer{(uint8_t*)src, src_len});
   std::copy(signature.begin(), signature.end(), sig);
 
@@ -223,7 +221,6 @@ size_t Node::gen_signature(const char* src, unsigned src_len, char* sig)
 size_t Node::gen_signature(
   const char* src, unsigned src_len, PbftSignature& sig)
 {
-
   size_t sig_size;
   key_pair->sign(CBuffer{(uint8_t*)src, src_len}, &sig_size, sig.data());
   assert(sig_size <= sig.size());

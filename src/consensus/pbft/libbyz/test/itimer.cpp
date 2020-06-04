@@ -4,6 +4,7 @@
 // Licensed under the MIT license.
 
 #include "itimer.h"
+
 #include "types.h"
 
 #include <signal.h>

@@ -91,7 +91,6 @@ void Reply::authenticate(Principal* p, int act_len, bool tentative)
   int old_size = sizeof(Reply_rep) + act_len;
   set_size(old_size + MAC_size);
 
-
   auth_type = Auth_type::out;
   auth_len = sizeof(Reply_rep);
   auth_src_offset = 0;
