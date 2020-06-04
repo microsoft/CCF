@@ -5,8 +5,8 @@
 
 #include "digest.h"
 
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
-#include "pbft_assert.h"
 #include "statistics.h"
 
 #include <string.h>
@@ -48,7 +48,7 @@ unsigned Digest::block_length()
 
 void Digest::update(Digest::Context& ctx, char* s, unsigned n)
 {
-  PBFT_ASSERT(n % block_length() == 0, "n must be a mutiple of block_length()");
+  CCF_ASSERT(n % block_length() == 0, "n must be a mutiple of block_length()");
   EverCrypt_Hash_update_multi(&ctx.scrut, (uint8_t*)s, n);
 }
 

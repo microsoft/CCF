@@ -5,9 +5,9 @@
 
 #include "reply.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "statistics.h"
 
@@ -83,7 +83,7 @@ char* Reply::store_reply(int& max_len)
 
 void Reply::authenticate(Principal* p, int act_len, bool tentative)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     (unsigned)act_len <= msize() - sizeof(Reply_rep) - MAC_size,
     "Invalid reply size");
 

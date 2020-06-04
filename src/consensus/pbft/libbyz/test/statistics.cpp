@@ -5,8 +5,8 @@
 
 #include "statistics.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
-#include "pbft_assert.h"
 #include "time_types.h"
 #include "timer.h"
 

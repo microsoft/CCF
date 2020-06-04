@@ -5,8 +5,8 @@
 
 #include "pre_prepare.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
-#include "pbft_assert.h"
 #include "prepare.h"
 #include "prepared_cert.h"
 #include "principal.h"
@@ -87,7 +87,7 @@ Pre_prepare::Pre_prepare(
     }
   }
   rep().rset_size = next_req - requests();
-  PBFT_ASSERT(rep().rset_size >= 0, "Request too big");
+  CCF_ASSERT(rep().rset_size >= 0, "Request too big");
 
   // Put big requests after regular ones.
   for (int i = 0; i < n_big_reqs; i++)
@@ -411,7 +411,7 @@ bool Pre_prepare::Requests_iter::get_big_request(Request& req)
 {
   bool is_request_present;
   bool result = get_big_request(req, is_request_present);
-  PBFT_ASSERT(is_request_present, "Missing big req");
+  CCF_ASSERT(is_request_present, "Missing big req");
   return result;
 }
 
@@ -429,8 +429,8 @@ bool Pre_prepare::Requests_iter::get_big_request(
       is_request_present = false;
       return true;
     }
-    PBFT_ASSERT(r != 0, "Missing big req");
-    req = Request((Request_rep*)r->contents());
+    CCF_ASSERT(r != 0, "Missing big req");
+    req = Request((Request_rep*)r->contents(), std::move(r->get_request_ctx()));
     return true;
   }
 
@@ -460,7 +460,7 @@ Pre_prepare::ValidProofs_iter::ValidProofs_iter(Pre_prepare* m)
 }
 
 bool Pre_prepare::ValidProofs_iter::get(
-  int& id, bool& is_valid_proof, Digest& prepare_digest)
+  int& id, bool& is_valid_proof, Digest& prepare_digest, bool is_null_op)
 {
   if (proofs_left <= 0)
   {
@@ -480,7 +480,7 @@ bool Pre_prepare::ValidProofs_iter::get(
     LOG_INFO_FMT("Sender principal has not been configured yet {}", id);
     is_valid_proof = false;
   }
-  else
+  else if (!is_null_op)
   {
     PrepareSignature s(prepare_digest, id, ic->nonce);
 

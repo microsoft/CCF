@@ -73,7 +73,7 @@ Request* Req_queue::remove()
 
   auto rn = rnodes[count % tcount].pop();
   Request* ret = rn->r.release();
-  PBFT_ASSERT(ret != 0, "Invalid state");
+  CCF_ASSERT(ret != 0, "Invalid state");
 
   nelems--;
   nbytes -= ret->size();

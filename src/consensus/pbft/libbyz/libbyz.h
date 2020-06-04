@@ -51,6 +51,7 @@ int Byz_init_replica(
   char* mem,
   unsigned int size,
   ExecCommand exec,
+  VerifyAndParseCommand verify,
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
