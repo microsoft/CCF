@@ -21,7 +21,7 @@ MSGPACK_ADD_ENUM(kv::SecurityDomain);
 // wasteful. But without this we can't _unpack_ custom types at this level. We
 // should replace this with a custom serialisation format for the ledger. This
 // macro gates the intended code path.
-#define MSGPACK_DONT_REPACK (0)
+#define MSGPACK_DONT_REPACK (1)
 
 namespace kv
 {
