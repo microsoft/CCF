@@ -438,7 +438,7 @@ bool View_info::add(std::unique_ptr<View_change> vc)
       if (id != primv && vci != primv && vcv == v)
       {
         // Send view-change ack.
-        LOG_INFO_FMT(" Sending view change ack for {} from {}", v, vci);
+        LOG_INFO_FMT("Sending view change ack for {} from {}", v, vci);
         View_change_ack* vack = new View_change_ack(v, id, vci, vc->digest());
         CCF_ASSERT(my_vacks[vci] == 0, "Invalid state");
 

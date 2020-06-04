@@ -1059,7 +1059,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
           do_not_wait_for_batch_size))))
   {
     LOG_INFO_FMT(
-      "req_size:{}, btimer_state:{}, do_not_wait:{}",
+      "Req_size:{}, btimer_state:{}, do_not_wait:{}",
       rqueue.size(),
       btimer->get_state(),
       (do_not_wait_for_batch_size ? "true" : "false"));

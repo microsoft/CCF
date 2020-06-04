@@ -411,7 +411,7 @@ namespace kv
         // contain anything else
         if (views.size() > 1)
         {
-          LOG_FAIL_FMT("failed to deserialize");
+          LOG_FAIL_FMT("Failed to deserialize");
           LOG_DEBUG_FMT("Unexpected contents in pbft transaction {}", v);
           return DeserialiseSuccess::FAILED;
         }

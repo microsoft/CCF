@@ -72,8 +72,7 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
     threshold = num_replicas - max_faulty;
   }
 
-  LOG_INFO_FMT(
-    " max faulty (f): {} num replicas: {}", max_faulty, num_replicas);
+  LOG_INFO_FMT("Max faulty (f): {} num replicas: {}", max_faulty, num_replicas);
 
   // Read authentication timeout
   int at = node_info.general_info.auth_timeout;
@@ -157,7 +156,7 @@ void Node::configure_principals()
 void Node::init_network(std::unique_ptr<INetwork>&& network_)
 {
   auto principals = get_principals();
-  LOG_INFO_FMT("principals - count:{}", principals->size());
+  LOG_INFO_FMT("Principals - count:{}", principals->size());
   network = std::move(network_);
   auto it = principals->find(node_id);
   assert(it != principals->end());
