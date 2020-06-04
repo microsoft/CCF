@@ -425,15 +425,19 @@ namespace client
         }
       }
 
-      trigger_signature(create_connection(true, false));
-
       size_t last_commit = 0;
       if (!options.no_wait)
-      {
-        while (response_times.pending())
+      { 
+        // Create a new connection, because we need to do some GETs
+        // and when all you have is a WebSocket, everything looks like a POST!
+        auto c = create_connection(true, false);
+        trigger_signature(c);
+        while(true)
         {
-          LOG_INFO_FMT("Pending: {}", response_times.pending());
-          process_reply(connection->read_response());
+          auto r = get_tx_status(c, last_response_commit.view, last_response_commit.seqno);
+          auto b = c->unpack_body(r);
+          if (b["status"] == "COMMITTED")
+            break;
         }
       }
       last_commit = last_response_commit.seqno;
@@ -523,10 +527,6 @@ namespace client
       // Send a mkSign RPC to trigger next global commit
       const auto method = "mkSign";
       const auto mk_sign = connection->gen_request(method);
-      if (response_times.is_timing_active())
-      {
-        response_times.record_send(method, mk_sign.id, true);
-      }
       connection->write(mk_sign.encoded);
 
       // Do a blocking read for this final response
@@ -535,6 +535,18 @@ namespace client
       LOG_INFO_FMT("Triggered signature");
 
       return response;
+    }
+
+    RpcTlsClient::Response get_tx_status(
+      const std::shared_ptr<RpcTlsClient>& connection,
+      size_t view,
+      size_t seqno)
+    {
+      // Send a mkSign RPC to trigger next global commit
+      nlohmann::json p;
+      p["seqno"] = seqno;
+      p["view"] = view;
+      return connection->get("tx", p);
     }
 
     virtual void verify_params(const nlohmann::json& expected)
