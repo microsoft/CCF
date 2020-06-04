@@ -238,7 +238,8 @@ namespace kv::untyped
 
           if (changes)
           {
-            map.roll.commits->insert_back(map.create_new_local_commit(v, std::move(state), change_set.writes));
+            map.roll.commits->insert_back(map.create_new_local_commit(
+              v, std::move(state), change_set.writes));
           }
         }
       }

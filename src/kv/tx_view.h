@@ -43,7 +43,8 @@ namespace kv
 
     std::optional<V> get_globally_committed(const K& key)
     {
-      const auto opt_v_rep = untyped_view.get_globally_committed(KSerialiser::to_serialised(key));
+      const auto opt_v_rep =
+        untyped_view.get_globally_committed(KSerialiser::to_serialised(key));
 
       if (opt_v_rep.has_value())
       {
@@ -55,7 +56,8 @@ namespace kv
 
     bool put(const K& key, const V& value)
     {
-      return untyped_view.put(KSerialiser::to_serialised(key), VSerialiser::to_serialised(value));
+      return untyped_view.put(
+        KSerialiser::to_serialised(key), VSerialiser::to_serialised(value));
     }
 
     bool remove(const K& key)
