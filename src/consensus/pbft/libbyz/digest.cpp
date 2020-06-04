@@ -64,6 +64,5 @@ void Digest::finalize(Digest::Context& ctx)
 
 void Digest::print()
 {
-  LOG_INFO << "digest=[" << d[0] << "," << d[1] << "," << d[2] << "," << d[3]
-           << "]" << std::endl;
+  LOG_INFO_FMT("digest=[{},{},{},{}]", d[0], d[1], d[2], d[3]);
 }

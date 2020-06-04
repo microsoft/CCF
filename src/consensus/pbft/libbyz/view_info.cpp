@@ -314,7 +314,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
   vc->re_authenticate();
   vc_sent = ITimer::current_time();
 
-  LOG_INFO << "Sending view change view: " << vc->view() << std::endl;
+  LOG_INFO_FMT("Sending view change view: {}", vc->view());
   pbft::GlobalState::get_node().send(vc.get(), Node::All_replicas);
 
   // Record that this message was sent.
@@ -336,8 +336,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
         View_change_ack* vack = new View_change_ack(v, id, i, lvc->digest());
         my_vacks[i] = vack;
 
-        LOG_INFO << "Sending view change ack for " << vack->view() << " from "
-                 << i << "\n";
+        LOG_INFO_FMT("Sending view change ack for {} from {}", vack->view(), i);
         pbft::GlobalState::get_node().send(vack, primv);
       }
     }
@@ -439,8 +438,7 @@ bool View_info::add(std::unique_ptr<View_change> vc)
       if (id != primv && vci != primv && vcv == v)
       {
         // Send view-change ack.
-        LOG_INFO << " Sending view change ack for " << v << " from " << vci
-                 << "\n";
+        LOG_INFO_FMT(" Sending view change ack for {} from {}", v, vci);
         View_change_ack* vack = new View_change_ack(v, id, vci, vc->digest());
         CCF_ASSERT(my_vacks[vci] == 0, "Invalid state");
 
@@ -480,8 +478,8 @@ void View_info::add(New_view* nv)
     }
   }
 
-  LOG_INFO << "Rejected new view message for " << nv->view() << " from "
-           << nv->id() << "\n";
+  LOG_INFO_FMT(
+    "Rejected new view message for {} from {}", nv->view(), nv->id());
 
   delete nv;
 }

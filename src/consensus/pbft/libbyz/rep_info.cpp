@@ -93,8 +93,8 @@ void Rep_info::send_reply(int pid, Request_id rid, Seqno n, View v, int id)
 
     if (it == reps.end())
     {
-      LOG_INFO << " Attempt to send reply not in this < " << pid << "," << rid
-               << "," << n << ">" << std::endl;
+      LOG_INFO_FMT(
+        " Attempt to send reply not in this <{},{},{}>", pid, rid, n);
       return;
     }
 

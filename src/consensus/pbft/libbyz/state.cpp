@@ -197,12 +197,11 @@ void Checkpoint_rec::dump_state(std::ostream& os)
 
 void Checkpoint_rec::print()
 {
-  LOG_INFO << "Checkpoint record: " << parts.size() << " blocks" << std::endl;
+  LOG_INFO_FMT("Checkpoint record: {} blocks", parts.size());
   for (auto const& p : parts)
   {
-    LOG_INFO << "Block: level= " << p.first.level << " index= " << p.first.index
-             << std::endl;
-    LOG_INFO << "last mod= " << p.second->lm << std::endl;
+    LOG_INFO_FMT("Block: level={}, index={}", p.first.level, p.first.index);
+    LOG_INFO_FMT("last mod={}", p.second->lm);
     p.second->d.print();
   }
 }
@@ -390,7 +389,7 @@ void State::compute_full_digest()
   checkpoint(0);
 #ifndef INSIDE_ENCLAVE
   cc.stop();
-  LOG_INFO << "Compute full digest elapsed " << cc.elapsed() << std::endl;
+  LOG_INFO_FMT("Compute full digest elapsed {}", cc.elapsed());
 #endif
 
   d.print();
@@ -472,7 +471,7 @@ Seqno State::rollback(Seqno last_executed)
 
   INCR_OP(num_rollbacks);
 
-  LOG_INFO << "Rolling back to checkpoint before " << last_executed << "\n";
+  LOG_INFO_FMT("Rolling back to checkpoint before {}",last_executed);
 
   while (1)
   {
@@ -934,8 +933,12 @@ bool State::check_digest(Digest& d, Meta_data* m)
   bool match = (d == dp);
   if (!match)
   {
-    LOG_INFO << "Digest does not match l=" << l << ", i=" << i
-             << " d=" << d.hash() << " dp=" << dp.hash() << std::endl;
+    LOG_INFO_FMT(
+      "Digest does not match l={}, i={}, d={}, dp={}",
+      l,
+      i,
+      d.hash(),
+      dp.hash());
   }
 
   // undo changes to stree
