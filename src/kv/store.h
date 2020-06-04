@@ -325,7 +325,7 @@ namespace kv
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          LOG_FAIL_FMT("failed to deserialize");
+          LOG_FAIL_FMT("Failed to deserialize");
           LOG_DEBUG_FMT("No such map {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
@@ -333,7 +333,7 @@ namespace kv
         auto view_search = views.find(map_name);
         if (view_search != views.end())
         {
-          LOG_FAIL_FMT("failed to deserialize");
+          LOG_FAIL_FMT("Failed to deserialize");
           LOG_DEBUG_FMT("Multiple writes on {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
@@ -346,7 +346,7 @@ namespace kv
           search->second->deserialise(*d, deserialise_version);
         if (deserialised_write_set == nullptr)
         {
-          LOG_FAIL_FMT("failed to deserialize");
+          LOG_FAIL_FMT("Failed to deserialize");
           LOG_DEBUG_FMT(
             "Could not deserialise Tx for map {} at version {}",
             map_name,
@@ -363,7 +363,7 @@ namespace kv
 
       if (!d->end())
       {
-        LOG_FAIL_FMT("failed to deserialize");
+        LOG_FAIL_FMT("Failed to deserialize");
         LOG_DEBUG_FMT("Unexpected content in Tx at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
@@ -387,7 +387,7 @@ namespace kv
             // a signature and must be verified
             if (views.size() > 1)
             {
-              LOG_FAIL_FMT("failed to deserialize");
+              LOG_FAIL_FMT("Failed to deserialize");
               LOG_DEBUG_FMT(
                 "Unexpected contents in signature transaction {}", v);
               return DeserialiseSuccess::FAILED;
@@ -395,7 +395,7 @@ namespace kv
 
             if (!h->verify(term))
             {
-              LOG_FAIL_FMT("failed to deserialize");
+              LOG_FAIL_FMT("Failed to deserialize");
               LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
               return DeserialiseSuccess::FAILED;
             }

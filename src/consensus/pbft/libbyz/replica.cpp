@@ -1926,7 +1926,7 @@ void Replica::send_view_change()
   ntimer->restop();
 
   LOG_INFO_FMT(
-    "send_view_change last_executed: {}, last_tentative_execute: {}, "
+    "Send_view_change last_executed: {}, last_tentative_execute: {}, "
     "last_stable: {}, last_prepared: {}, next_pp_seqno: {}",
     last_executed,
     last_tentative_execute,
@@ -1934,11 +1934,11 @@ void Replica::send_view_change()
     last_prepared,
     next_pp_seqno);
 
-  LOG_INFO_FMT("plog:");
+  LOG_INFO_FMT("Plog:");
   plog.dump_state(std::cout);
-  LOG_INFO_FMT("clog:");
+  LOG_INFO_FMT("Clog:");
   clog.dump_state(std::cout);
-  LOG_INFO_FMT("elog:");
+  LOG_INFO_FMT("Elog:");
   elog.dump_state(std::cout);
 
   replies.clear();
@@ -1998,7 +1998,7 @@ void Replica::write_new_view_to_ledger()
 
 void Replica::handle(New_principal* m)
 {
-  LOG_INFO_FMT("received new message to add principal, id:{}", m->id());
+  LOG_INFO_FMT("Received new message to add principal, id:{}", m->id());
 
   std::vector<uint8_t> cert(m->cert().begin(), m->cert().end());
   PrincipalInfo info{
@@ -2703,7 +2703,7 @@ void Replica::new_state(Seqno c)
 
   if (c < last_stable)
   {
-    LOG_INFO_FMT("new_state c:{}, last_stable:{}", c, last_stable);
+    LOG_INFO_FMT("New_state c:{}, last_stable:{}", c, last_stable);
   }
 
   if (c > next_pp_seqno)
@@ -3102,7 +3102,7 @@ void Replica::handle(Reply_stable* m)
       enforce_bound(recovery_point);
       STOP_CC(est_time);
 
-      LOG_INFO_FMT("sending recovery request");
+      LOG_INFO_FMT("Sending recovery request");
       // Send recovery request.
       rr = new Request(new_rid(), -1, sizeof(recovery_point));
 
@@ -3161,7 +3161,7 @@ void Replica::send_null()
       // Send null request if there is a recovery in progress and there
       // are no outstanding requests.
       next_pp_seqno++;
-      LOG_INFO_FMT("sending null pp for seqno {}", next_pp_seqno);
+      LOG_INFO_FMT("Sending null pp for seqno {}", next_pp_seqno);
       Req_queue empty;
       size_t requests_in_batch;
 
