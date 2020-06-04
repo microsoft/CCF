@@ -402,8 +402,7 @@ namespace ccf
 
           if (status != HTTP_STATUS_OK)
           {
-            LOG_FAIL_FMT("An error occurred while joining the network");
-            LOG_DEBUG_FMT(
+            LOG_FAIL_FMT(
               "An error occurred while joining the network: {} {}{}",
               status,
               http_status_str(status),
