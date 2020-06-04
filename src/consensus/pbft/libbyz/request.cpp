@@ -164,7 +164,8 @@ bool Request::pre_verify(VerifyAndParseCommand& e)
   }
   catch (const std::exception& e)
   {
-    LOG_FAIL_FMT("Failed to parse arguments, e.what:", e.what());
+    LOG_FAIL_FMT("Failed to parse arguments");
+    LOG_DEBUG_FMT("Failed to parse arguments, e.what: {}", e.what());
     return false;
   }
   Digest d;
@@ -206,7 +207,7 @@ bool Request::convert(char* m1, unsigned max_len, Request& m2)
 {
   if (!Message::convert(m1, max_len, Request_tag, sizeof(Request_rep), m2))
   {
-    LOG_INFO << "convert request false" << std::endl;
+    LOG_INFO_FMT("Convert request false");
     return false;
   }
 

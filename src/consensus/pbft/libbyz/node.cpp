@@ -49,8 +49,8 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
   num_replicas = node_info.general_info.num_replicas;
   if (num_replicas <= 2 * max_faulty)
   {
-    LOG_FATAL << "Not enough replicas: " << num_replicas
-              << " for desired f: " << max_faulty << std::endl;
+    LOG_FATAL_FMT(
+      "Not enough replicas: {} for desired f: {}", num_replicas, max_faulty);
     throw std::logic_error(
       "Not enough replicas: " + std::to_string(num_replicas) +
       " for desired f: " + std::to_string(max_faulty));
@@ -72,8 +72,7 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
     threshold = num_replicas - max_faulty;
   }
 
-  LOG_INFO << " max faulty (f): " << max_faulty
-           << " num replicas: " << num_replicas << std::endl;
+  LOG_INFO_FMT("Max faulty (f): {} num replicas: {}", max_faulty, num_replicas);
 
   // Read authentication timeout
   int at = node_info.general_info.auth_timeout;
@@ -87,8 +86,6 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
   {
     PBFT_FAIL("Could not find my principal");
   }
-
-  LOG_INFO << "My id is " << node_id << std::endl;
 
   // Initialize current view number and primary.
   v = 0;
@@ -105,13 +102,13 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
 
 void Node::add_principal(const PrincipalInfo& principal_info)
 {
-  LOG_INFO << "Adding principal with id:" << principal_info.id << std::endl;
+  LOG_INFO_FMT("Adding principal with id:{}", principal_info.id);
   auto principals = get_principals();
   auto it = principals->find(principal_info.id);
   if (it != principals->end())
   {
-    LOG_INFO << "Principal with id: " << principal_info.id
-             << " has already been configured" << std::endl;
+    LOG_INFO_FMT(
+      "Principal with id:{} has already been configured", principal_info.id);
     auto& principal = it->second;
     if (principal->get_cert().empty())
     {
@@ -136,7 +133,7 @@ void Node::add_principal(const PrincipalInfo& principal_info)
 
   std::atomic_store(&atomic_principals, new_principals);
 
-  LOG_INFO << "Added principal with id:" << principal_info.id << std::endl;
+  LOG_INFO_FMT("Added principal with id:{}", principal_info.id);
 
   if (principal_info.is_replica)
   {
@@ -150,7 +147,7 @@ void Node::configure_principals()
   {
     if (pi.id != node_id)
     {
-      LOG_INFO << "Adding principal: " << pi.id << std::endl;
+      LOG_INFO_FMT("Adding principal:{}", pi.id);
       add_principal(pi);
     }
   }
@@ -159,7 +156,7 @@ void Node::configure_principals()
 void Node::init_network(std::unique_ptr<INetwork>&& network_)
 {
   auto principals = get_principals();
-  LOG_INFO << "principals - count:" << principals->size() << std::endl;
+  LOG_INFO_FMT("Principals - count:{}", principals->size());
   network = std::move(network_);
   auto it = principals->find(node_id);
   assert(it != principals->end());
@@ -283,7 +280,7 @@ void Node::send_to_replicas(Message* m)
 
 void Node::set_f(size_t f)
 {
-  LOG_INFO << "***** setting f to " << f << "*****" << std::endl;
+  LOG_INFO_FMT("***** setting f to {} *****", f);
   max_faulty = f;
   send_only_to_self = (f == 0);
   threshold = f * 2 + 1;

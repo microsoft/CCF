@@ -211,7 +211,7 @@ bool ClientProxy<T, C>::send_request(
   if (current_outstanding.fetch_add(1) >= Max_outstanding)
   {
     current_outstanding.fetch_sub(1);
-    LOG_FAIL << "Too many outstanding requests, rejecting!" << std::endl;
+    LOG_FAIL_FMT("Too many outstanding requests, rejecting");
     return false;
   }
 
@@ -242,7 +242,8 @@ bool ClientProxy<T, C>::send_request(
   }
   catch (const std::exception& e)
   {
-    LOG_FAIL_FMT("Failed to parse arguments, e.what:", e.what());
+    LOG_FAIL_FMT("Failed to parse arguments");
+    LOG_DEBUG_FMT("Failed to parse arguments, e.what:", e.what());
     return false;
   }
 

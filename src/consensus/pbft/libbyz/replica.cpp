@@ -93,15 +93,15 @@ Replica::Replica(
   // Fail if node is not a replica.
   if (!is_replica(id()))
   {
-    LOG_FATAL << "Node is not a replica " << id() << std::endl;
+    LOG_FATAL_FMT("Node is not a replica {}", id());
   }
 
   // Fail if the state Merkle tree cannot support the requested number of bytes
   size_t max_mem_bytes = PLevelSize[PLevels - 1] * Block_size;
   if (nbytes > max_mem_bytes)
   {
-    LOG_FATAL << "Unable to support requested memory size " << nbytes << " > "
-              << max_mem_bytes << std::endl;
+    LOG_FATAL_FMT(
+      "Unable to support requested memory size {} > {}", nbytes, max_mem_bytes);
   }
 
   init_network(std::unique_ptr<INetwork>(network));
@@ -404,19 +404,22 @@ bool Replica::compare_execution_results(
         std::end(r_pp_root),
         std::begin(info.replicated_state_merkle_root)))
   {
-    LOG_FAIL << "Replicated state merkle root between execution and the "
-                "pre_prepare message does not match, seqno:"
-             << pre_prepare->seqno() << std::endl;
+    LOG_FAIL_FMT(
+      "Replicated state merkle root between execution and the pre_prepare "
+      "message does not match, seqno:{}",
+      pre_prepare->seqno());
     execution_match = false;
   }
 
   auto tx_ctx = pre_prepare->get_ctx();
   if (tx_ctx != info.ctx && info.ctx != std::numeric_limits<int64_t>::min())
   {
-    LOG_FAIL << "User ctx between execution and the pre_prepare message "
-                "does not match, seqno:"
-             << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
-             << ", info.ctx:" << info.ctx << std::endl;
+    LOG_FAIL_FMT(
+      "User ctx between execution and the pre_prepare message "
+      "does not match, seqno:{}, tx_ctx:{}, info.ctx:{}",
+      pre_prepare->seqno(),
+      tx_ctx,
+      info.ctx);
     execution_match = false;
   }
 
@@ -713,7 +716,7 @@ void Replica::recv_start()
 
   // Allow recoveries
   rec_ready = true;
-  LOG_INFO << "Replica ready" << std::endl;
+  LOG_INFO_FMT("Replica ready");
 
   if (state.in_check_state())
   {
@@ -1032,11 +1035,13 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     }
     else
     {
-      LOG_INFO
-        << "Failed to do tentative execution at send_pre_prepare next_pp_seqno "
-        << next_pp_seqno << " last_tentative " << last_tentative_execute
-        << " last_executed " << last_executed << " last_stable " << last_stable
-        << std::endl;
+      LOG_INFO_FMT(
+        "Failed to do tentative execution at send_pre_prepare next_pp_seqno {} "
+        "last_tentative {} last_executed {} last_stable {}",
+        next_pp_seqno,
+        last_tentative_execute,
+        last_executed,
+        last_stable);
       next_pp_seqno--;
       delete pp;
       try_send_prepare();
@@ -1053,9 +1058,11 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
          (btimer->get_state() == ITimer::State::running ||
           do_not_wait_for_batch_size))))
   {
-    LOG_INFO << "req_size:" << rqueue.size()
-             << ", btimer_state:" << btimer->get_state() << ", do_not_wait:"
-             << (do_not_wait_for_batch_size ? "true" : "false") << std::endl;
+    LOG_INFO_FMT(
+      "Req_size:{}, btimer_state:{}, do_not_wait:{}",
+      rqueue.size(),
+      btimer->get_state(),
+      (do_not_wait_for_batch_size ? "true" : "false"));
     CCF_ASSERT(false, "send_pre_prepare rqueue and btimer issue");
   }
 }
@@ -1496,7 +1503,7 @@ void Replica::set_f(size_t f)
   {
     if (Node::id() == primary())
     {
-      LOG_INFO << "Waiting for network to open" << std::endl;
+      LOG_INFO_FMT("Waiting for network to open");
       wait_for_network_to_open = true;
     }
 
@@ -1878,7 +1885,7 @@ void Replica::handle(View_change* m)
 
       // Start timer to ensure we move to another view if we do not
       // receive the new-view message for "v".
-      LOG_INFO << "Starting view change timer for view " << v << "\n";
+      LOG_INFO_FMT("Starting view change timer for view {}", v);
       vtimer->restart();
       limbo = false;
       vc_recovering = true;
@@ -1888,22 +1895,23 @@ void Replica::handle(View_change* m)
 
 void Replica::handle(New_view* m)
 {
-  LOG_INFO << "Received new view for " << m->view() << " from " << m->id()
-           << std::endl;
+  LOG_INFO_FMT("Received new view for {} from {}", m->view(), m->id());
   vi.add(m);
 }
 
 void Replica::handle(View_change_ack* m)
 {
-  LOG_INFO << "Received view change ack from " << m->id()
-           << " for view change message for " << m->view() << " from "
-           << m->vc_id() << "\n";
+  LOG_INFO_FMT(
+    "Received view change ack from {} for view change message for {} from {}",
+    m->id(),
+    m->view(),
+    m->vc_id());
   vi.add(m);
 }
 
 void Replica::send_view_change()
 {
-  LOG_INFO << "Before sending view change for " << v + 1 << std::endl;
+  LOG_INFO_FMT("Before sending view change for {}", v + 1);
   if (cur_primary == node_id)
   {
     vi.dump_state(std::cout);
@@ -1917,16 +1925,20 @@ void Replica::send_view_change()
   vtimer->stop(); // stop timer if it is still running
   ntimer->restop();
 
-  LOG_INFO << "send_view_change last_executed: " << last_executed
-           << " last_tentative_execute: " << last_tentative_execute
-           << " last_stable: " << last_stable
-           << " last_prepared: " << last_prepared
-           << "next_pp_seqno: " << next_pp_seqno << std::endl;
-  LOG_INFO << "plog:" << std::endl;
+  LOG_INFO_FMT(
+    "Send_view_change last_executed: {}, last_tentative_execute: {}, "
+    "last_stable: {}, last_prepared: {}, next_pp_seqno: {}",
+    last_executed,
+    last_tentative_execute,
+    last_stable,
+    last_prepared,
+    next_pp_seqno);
+
+  LOG_INFO_FMT("Plog:");
   plog.dump_state(std::cout);
-  LOG_INFO << "clog:" << std::endl;
+  LOG_INFO_FMT("Clog:");
   clog.dump_state(std::cout);
-  LOG_INFO << "elog:" << std::endl;
+  LOG_INFO_FMT("Elog:");
   elog.dump_state(std::cout);
 
   replies.clear();
@@ -1986,8 +1998,7 @@ void Replica::write_new_view_to_ledger()
 
 void Replica::handle(New_principal* m)
 {
-  LOG_INFO << "received new message to add principal, id:" << m->id()
-           << std::endl;
+  LOG_INFO_FMT("Received new message to add principal, id:{}", m->id());
 
   std::vector<uint8_t> cert(m->cert().begin(), m->cert().end());
   PrincipalInfo info{
@@ -2001,17 +2012,18 @@ void Replica::handle(Network_open* m)
   std::shared_ptr<Principal> p = get_principal(m->id());
   if (p == nullptr)
   {
-    LOG_FAIL << "Received network open from unknown principal, id:" << m->id()
-             << std::endl;
+    LOG_FAIL_FMT(
+      "Received network open from unknown principal, id:{}", m->id());
   }
 
   if (p->received_network_open_msg())
   {
-    LOG_FAIL << "Received network open from, id:" << m->id() << "already"
-             << std::endl;
+    LOG_FAIL_FMT("Received network open from, id:{} already", m->id());
   }
-
-  LOG_INFO << "Received network open from, id:" << m->id() << std::endl;
+  else
+  {
+    LOG_INFO_FMT("Received network open from, id:{}", m->id());
+  }
 
   p->set_received_network_open_msg();
 
@@ -2027,8 +2039,9 @@ void Replica::handle(Network_open* m)
 
   if (num_open == principals->size())
   {
-    LOG_INFO << "Finished waiting for machines to network open. "
-             << "starting to process requests" << std::endl;
+    LOG_INFO_FMT(
+      "Finished waiting for machines to network open. starting to process "
+      "requests");
     wait_for_network_to_open = false;
     if (primary() == id())
     {
@@ -2042,11 +2055,16 @@ void Replica::handle(Network_open* m)
 void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
 {
   CCF_ASSERT(ms >= 0 && ms <= min, "Invalid state");
-  LOG_INFO << "Process new view: " << v << " min: " << min << " max: " << max
-           << " ms: " << ms << " last_stable: " << last_stable
-           << " last_executed: " << last_executed
-           << " last_tentative_execute: " << last_tentative_execute
-           << std::endl;
+  LOG_INFO_FMT(
+    "Process new view: {} min: {} max: {} ms: {} last_stable: {} "
+    "last_executed: {} last_tentative_execute: {}",
+    v,
+    min,
+    max,
+    ms,
+    last_stable,
+    last_executed,
+    last_tentative_execute);
 
   rqueue.clear();
   vtimer->restop();
@@ -2056,7 +2074,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
   if (primary(v) == id())
   {
     New_view* nv = vi.my_new_view();
-    LOG_INFO << "Sending new view for " << nv->view() << std::endl;
+    LOG_INFO_FMT("Sending new view for {}", nv->view());
     send(nv, All_replicas);
   }
 
@@ -2685,8 +2703,7 @@ void Replica::new_state(Seqno c)
 
   if (c < last_stable)
   {
-    LOG_INFO << "new_state c:" << c << " last_stable: " << last_stable
-             << std::endl;
+    LOG_INFO_FMT("New_state c:{}, last_stable:{}", c, last_stable);
   }
 
   if (c > next_pp_seqno)
@@ -3057,8 +3074,7 @@ void Replica::enforce_bound(Seqno b)
   Seqno known_stable = se.low_estimate();
   if (!correct)
   {
-    LOG_FAIL << "Incorrect state setting low bound to " << known_stable
-             << std::endl;
+    LOG_FAIL_FMT("Incorrect state setting low bound to {}", known_stable);
     next_pp_seqno = last_prepared = low_bound = last_stable = known_stable;
     last_tentative_execute = last_executed = 0;
     limbo = false;
@@ -3086,7 +3102,7 @@ void Replica::handle(Reply_stable* m)
       enforce_bound(recovery_point);
       STOP_CC(est_time);
 
-      LOG_INFO << "sending recovery request" << std::endl;
+      LOG_INFO_FMT("Sending recovery request");
       // Send recovery request.
       rr = new Request(new_rid(), -1, sizeof(recovery_point));
 
@@ -3098,7 +3114,7 @@ void Replica::handle(Reply_stable* m)
       rr->sign(sizeof(recovery_point));
       send(rr, primary());
 
-      LOG_INFO << "Starting state checking" << std::endl;
+      LOG_INFO_FMT("Starting state checking");
 
       // Stop vtimer while fetching state. It is restarted when the fetch ends
       // in new_state.
@@ -3145,7 +3161,7 @@ void Replica::send_null()
       // Send null request if there is a recovery in progress and there
       // are no outstanding requests.
       next_pp_seqno++;
-      LOG_INFO << " sending null pp for seqno " << next_pp_seqno << "\n";
+      LOG_INFO_FMT("Sending null pp for seqno {}", next_pp_seqno);
       Req_queue empty;
       size_t requests_in_batch;
 
@@ -3202,14 +3218,11 @@ void Replica::vtimer_handler(void* owner)
   {
     if (pbft::GlobalState::get_replica().rqueue.size() > 0)
     {
-      LOG_INFO
-        << "View change timer expired first rid: "
-        << pbft::GlobalState::get_replica().rqueue.first()->request_id()
-        << ", digest:"
-        << pbft::GlobalState::get_replica().rqueue.first()->digest().hash()
-        << " first cid: "
-        << pbft::GlobalState::get_replica().rqueue.first()->client_id()
-        << std::endl;
+      LOG_INFO_FMT(
+        "View change timer expired first rid: {}, digest:{}, first cid:{}",
+        pbft::GlobalState::get_replica().rqueue.first()->request_id(),
+        pbft::GlobalState::get_replica().rqueue.first()->digest().hash(),
+        pbft::GlobalState::get_replica().rqueue.first()->client_id());
     }
 
     pbft::GlobalState::get_replica().send_view_change();
@@ -3266,7 +3279,7 @@ void Replica::rec_timer_handler(void* owner)
     if (pbft::GlobalState::get_replica().recovering)
     {
       INCR_OP(incomplete_recs);
-      LOG_INFO << "* Starting recovery" << std::endl;
+      LOG_INFO_FMT("* Starting recovery");
     }
 
     // Checkpoint
@@ -3297,7 +3310,7 @@ void Replica::ntimer_handler(void* owner)
 void Replica::debug_slow_timer_handler(void* owner)
 {
   ((Replica*)owner)->dump_state(std::cout);
-  LOG_FATAL << "Execution took too long" << std::endl;
+  LOG_FATAL_FMT("Execution took too long");
 }
 
 void Replica::dump_state(std::ostream& os)
