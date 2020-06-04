@@ -9,7 +9,6 @@
 #include "message_tags.h"
 #include "node.h"
 #include "principal.h"
-#include "statistics.h"
 
 #include <stdlib.h>
 #include <strings.h>
@@ -58,8 +57,6 @@ char* Request::store_command(int& max_len)
 
 inline void Request::comp_digest(Digest& d)
 {
-  INCR_OP(num_digests);
-
   d = Digest(
     (char*)&(rep().cid),
     sizeof(short) + sizeof(short) + sizeof(Request_id) + rep().command_size);

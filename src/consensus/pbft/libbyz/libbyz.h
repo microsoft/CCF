@@ -130,12 +130,6 @@ void Byz_modify(void* mem, int size);
    "mem+size" are about to be modified if "mem" and "mem+size-1" are
    within the replica's state. */
 
-void Byz_reset_stats();
-/* Effects: Resets library's statistics counters */
-
-void Byz_print_stats();
-/* Effects: Print library statistics to stdout */
-
 bool Byz_execution_pending();
 /* We are executing an async operation do not execute any time based events
    at this time */

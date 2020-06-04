@@ -142,8 +142,6 @@ private:
   void increase_retransmission_timeout();
   void decrease_retransmission_timeout();
 
-  Cycle_counter latency; // Used to measure latency.
-
   // Multiplier used to obtain retransmission timeout from avg_latency
   static const int Rtimeout_mult = 4;
 
@@ -509,7 +507,6 @@ void ClientProxy<T, C>::retransmit()
     Request* out_req = ctx->req.get();
 
     LOG_INFO_FMT("Retransmitting req id: {}", out_req->request_id());
-    INCR_OP(req_retrans);
 
     n_retrans++;
     bool ro = out_req->is_read_only();

@@ -8,7 +8,6 @@
 #include "replica.h"
 #include "reply.h"
 #include "req_queue.h"
-#include "statistics.h"
 
 #include <stdlib.h>
 #include <string.h>
