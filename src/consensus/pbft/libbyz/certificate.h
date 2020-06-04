@@ -452,7 +452,7 @@ bool Certificate<T>::add(T* msg)
       else
       {
         // Should only happen for replies to read-only requests.
-        LOG_FAIL << "More than f+1 distinct values in certificate" << std::endl;
+        LOG_FAIL_FMT("More than f+1 distinct values in certificate");
         clear();
       }
     }

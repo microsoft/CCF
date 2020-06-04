@@ -92,7 +92,8 @@ namespace ccf
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Invalid forwarded command: {}", err.what());
+        LOG_FAIL_FMT("Invalid forwarded command");
+        LOG_DEBUG_FMT("Invalid forwarded command: {}", err.what());
         return {};
       }
 
@@ -122,7 +123,8 @@ namespace ccf
       }
       catch (const std::exception& err)
       {
-        LOG_FAIL_FMT("Invalid forwarded request: {}", err.what());
+        LOG_FAIL_FMT("Invalid forwarded request");
+        LOG_DEBUG_FMT("Invalid forwarded request: {}", err.what());
         return std::nullopt;
       }
     }
@@ -156,7 +158,8 @@ namespace ccf
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Invalid forwarded response: {}", err.what());
+        LOG_FAIL_FMT("Invalid forwarded response");
+        LOG_DEBUG_FMT("Invalid forwarded response: {}", err.what());
         return {};
       }
 
@@ -194,6 +197,8 @@ namespace ccf
             if (!actor_opt.has_value())
             {
               LOG_FAIL_FMT(
+                "Failed to extract actor from forwarded context.");
+              LOG_DEBUG_FMT(
                 "Failed to extract actor from forwarded context. Method is "
                 "'{}'",
                 ctx->get_method());
@@ -205,6 +210,8 @@ namespace ccf
             if (actor == ccf::ActorsType::unknown || !handler.has_value())
             {
               LOG_FAIL_FMT(
+                "Failed to process forwarded command: unknown actor");
+              LOG_DEBUG_FMT(
                 "Failed to process forwarded command: unknown actor {}",
                 actor_s);
               return;

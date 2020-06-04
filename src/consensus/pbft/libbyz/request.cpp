@@ -164,7 +164,8 @@ bool Request::pre_verify(VerifyAndParseCommand& e)
   }
   catch (const std::exception& e)
   {
-    LOG_FAIL_FMT("Failed to parse arguments, e.what:", e.what());
+    LOG_FAIL_FMT("Failed to parse arguments");
+    LOG_DEBUG_FMT("Failed to parse arguments, e.what: {}", e.what());
     return false;
   }
   Digest d;

@@ -518,7 +518,8 @@ namespace ccf
                 ctx->get_serialised_request(),
                 ctx->frame_format()))
           {
-            LOG_FAIL_FMT(
+            LOG_FAIL_FMT("Adding request failed");
+            LOG_DEBUG_FMT(
               "Adding request failed: {}, {}, {}",
               std::get<0>(reqid),
               std::get<1>(reqid),

@@ -403,6 +403,9 @@ namespace ccf
           if (status != HTTP_STATUS_OK)
           {
             LOG_FAIL_FMT(
+              "An error occurred while joining the network");
+
+            LOG_DEBUG_FMT(
               "An error occurred while joining the network: {} {}{}",
               status,
               http_status_str(status),
@@ -422,6 +425,8 @@ namespace ccf
           catch (const std::exception& e)
           {
             LOG_FAIL_FMT(
+              "An error occurred while parsing the join network response");
+            LOG_DEBUG_FMT(
               "An error occurred while parsing the join network response: {}",
               j.dump());
             return false;
@@ -1222,6 +1227,8 @@ namespace ccf
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT(
+          "Expected boolean body in create response");
+        LOG_DEBUG_FMT(
           "Expected boolean body in create response: {}", body.dump());
         return false;
       }

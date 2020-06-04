@@ -403,19 +403,22 @@ bool Replica::compare_execution_results(
         std::end(r_pp_root),
         std::begin(info.replicated_state_merkle_root)))
   {
-    LOG_FAIL << "Replicated state merkle root between execution and the "
-                "pre_prepare message does not match, seqno:"
-             << pre_prepare->seqno() << std::endl;
+    LOG_FAIL_FMT(
+      "Replicated state merkle root between execution and the pre_prepare "
+      "message does not match, seqno:{}",
+      pre_prepare->seqno());
     execution_match = false;
   }
 
   auto tx_ctx = pre_prepare->get_ctx();
   if (tx_ctx != info.ctx && info.ctx != std::numeric_limits<int64_t>::min())
   {
-    LOG_FAIL << "User ctx between execution and the pre_prepare message "
-                "does not match, seqno:"
-             << pre_prepare->seqno() << ", tx_ctx:" << tx_ctx
-             << ", info.ctx:" << info.ctx << std::endl;
+    LOG_FAIL_FMT(
+      "User ctx between execution and the pre_prepare message "
+      "does not match, seqno:{}, tx_ctx:{}, info.ctx:{}",
+      pre_prepare->seqno(),
+      tx_ctx,
+      info.ctx);
     execution_match = false;
   }
 
@@ -2000,17 +2003,17 @@ void Replica::handle(Network_open* m)
   std::shared_ptr<Principal> p = get_principal(m->id());
   if (p == nullptr)
   {
-    LOG_FAIL << "Received network open from unknown principal, id:" << m->id()
-             << std::endl;
+    LOG_FAIL_FMT("Received network open from unknown principal, id:{}", m->id());
   }
 
   if (p->received_network_open_msg())
   {
-    LOG_FAIL << "Received network open from, id:" << m->id() << "already"
-             << std::endl;
+    LOG_FAIL_FMT("Received network open from, id:{} already", m->id());
   }
-
-  LOG_INFO << "Received network open from, id:" << m->id() << std::endl;
+  else
+  {
+    LOG_INFO_FMT("Received network open from, id:{}", m->id());
+  }
 
   p->set_received_network_open_msg();
 
@@ -2026,8 +2029,7 @@ void Replica::handle(Network_open* m)
 
   if (num_open == principals->size())
   {
-    LOG_INFO << "Finished waiting for machines to network open. "
-             << "starting to process requests" << std::endl;
+    LOG_INFO_FMT("Finished waiting for machines to network open. starting to process requests");
     wait_for_network_to_open = false;
     if (primary() == id())
     {
@@ -3056,8 +3058,7 @@ void Replica::enforce_bound(Seqno b)
   Seqno known_stable = se.low_estimate();
   if (!correct)
   {
-    LOG_FAIL << "Incorrect state setting low bound to " << known_stable
-             << std::endl;
+    LOG_FAIL_FMT("Incorrect state setting low bound to {}", known_stable);
     next_pp_seqno = last_prepared = low_bound = last_stable = known_stable;
     last_tentative_execute = last_executed = 0;
     limbo = false;
