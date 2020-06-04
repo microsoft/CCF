@@ -15,8 +15,7 @@ namespace kv::untyped
   using State =
     kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
   using Read = kv::Read<SerialisedEntry>;
-  using Write =
-    kv::Write<SerialisedEntry, SerialisedEntry>;
+  using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
   using ChangeSet =
     kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
