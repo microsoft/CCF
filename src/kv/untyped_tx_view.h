@@ -14,9 +14,9 @@ namespace kv::untyped
   using VersionV = kv::VersionV<SerialisedEntry>;
   using State =
     kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
-  using Read = kv::Read<SerialisedEntry, SerialisedKeyHasher>;
+  using Read = kv::Read<SerialisedEntry>;
   using Write =
-    kv::Write<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+    kv::Write<SerialisedEntry, SerialisedEntry>;
   using ChangeSet =
     kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
@@ -166,10 +166,7 @@ namespace kv::untyped
       }
 
       // Record in the write set.
-      tx_changes.writes.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(key),
-        std::forward_as_tuple(std::nullopt));
+      tx_changes.writes[key] = std::nullopt;
       return true;
     }
 

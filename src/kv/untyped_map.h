@@ -51,14 +51,9 @@ namespace kv::untyped
   struct LocalCommit
   {
     LocalCommit() = default;
-    LocalCommit(Version v, State&& s, Write&& w) :
+    LocalCommit(Version v, State&& s, const Write& w) :
       version(v),
       state(std::move(s)),
-      writes(std::move(w))
-    {}
-    LocalCommit(Version v, const State& s, const Write& w) :
-      version(v),
-      state(s),
       writes(w)
     {}
 
@@ -243,7 +238,7 @@ namespace kv::untyped
 
           if (changes)
           {
-            map.append_to_roll(v, state, change_set.writes);
+            map.append_to_roll(v, std::move(state), change_set.writes);
           }
         }
       }
@@ -715,9 +710,9 @@ namespace kv::untyped
       return roll;
     }
 
-    void append_to_roll(Version v, const State& s, const Write& w)
+    void append_to_roll(Version v, State&& s, const Write& w)
     {
-      roll.commits->insert_back(create_new_local_commit(v, s, w));
+      roll.commits->insert_back(create_new_local_commit(v, std::move(s), w));
     }
 
     void trigger_local_hook()

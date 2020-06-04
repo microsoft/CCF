@@ -5,7 +5,7 @@
 #include "ds/hash.h"
 #include "kv/kv_types.h"
 
-#include <unordered_map>
+#include <map>
 
 namespace kv
 {
@@ -22,12 +22,12 @@ namespace kv
   template <typename K, typename V, typename H>
   using State = champ::Map<K, VersionV<V>, H>;
 
-  template <typename K, typename H>
-  using Read = std::unordered_map<K, Version, H>;
+  template <typename K>
+  using Read = std::map<K, Version>;
 
   // nullopt values represent deletions
-  template <typename K, typename V, typename H>
-  using Write = std::unordered_map<K, std::optional<V>, H>;
+  template <typename K, typename V>
+  using Write = std::map<K, std::optional<V>>;
 
   // This is a container for a write-set + dependencies. It can be applied to a
   // given state, or used to track a set of operations on a state
@@ -40,8 +40,8 @@ namespace kv
     Version start_version;
 
     Version read_version = NoVersion;
-    Read<K, H> reads = {};
-    Write<K, V, H> writes = {};
+    Read<K> reads = {};
+    Write<K, V> writes = {};
 
     ChangeSet(
       State<K, V, H>& current_state,
