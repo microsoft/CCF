@@ -259,7 +259,7 @@ namespace asynchost
 
     const size_t chunk_threshold;
 
-    void dump_files()
+    void dump_files() const
     {
       LOG_FAIL_FMT("****** Active files: ");
       for (auto const& f : files)
@@ -269,7 +269,7 @@ namespace asynchost
       LOG_FAIL_FMT("******");
     }
 
-    auto get_it_contains_idx(size_t idx)
+    auto get_it_contains_idx(size_t idx) const
     {
       if (idx == 0)
       {
@@ -280,14 +280,14 @@ namespace asynchost
         files.begin(),
         files.end(),
         idx,
-        [](size_t idx, std::shared_ptr<LedgerFile>& f) {
+        [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
           return (idx <= f->get_last_idx());
         });
 
       return f;
     }
 
-    std::shared_ptr<LedgerFile> find_ledger_containing_idx(size_t idx)
+    std::shared_ptr<LedgerFile> find_ledger_containing_idx(size_t idx) const
     {
       auto it = get_it_contains_idx(idx);
 
@@ -297,7 +297,7 @@ namespace asynchost
     }
 
     std::vector<std::shared_ptr<LedgerFile>> find_ledgers_in_range(
-      size_t from, size_t to)
+      size_t from, size_t to) const
     {
       auto f_from = get_it_contains_idx(from);
       auto f_to = get_it_contains_idx(to);
@@ -356,13 +356,13 @@ namespace asynchost
 
     MultipleLedger(const MultipleLedger& that) = delete;
 
-    std::shared_ptr<LedgerFile> get_latest_file()
+    std::shared_ptr<LedgerFile> get_latest_file() const
     {
       // TODO: Better checks
       return *(files.rbegin()++);
     }
 
-    size_t framed_entries_size(size_t from, size_t to)
+    size_t framed_entries_size(size_t from, size_t to) const
     {
       auto f = get_latest_file();
       return f->framed_entries_size(from, to);
@@ -476,12 +476,12 @@ namespace asynchost
       // }
     }
 
-    const std::vector<uint8_t> read_entry(size_t idx)
+    const std::vector<uint8_t> read_entry(size_t idx) const
     {
       return find_ledger_containing_idx(idx)->read_entry(idx);
     }
 
-    const std::vector<uint8_t> read_framed_entries(size_t from, size_t to)
+    const std::vector<uint8_t> read_framed_entries(size_t from, size_t to) const
     {
       // 1. Find all ledgers between from and to
       // auto ledgers = find_ledgers_in_range(from, to);
