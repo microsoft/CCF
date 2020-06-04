@@ -114,9 +114,7 @@ namespace kv
       if (remainder < entry_size)
       {
         throw std::runtime_error(fmt::format(
-          "Expected {} byte entry, found only {}",
-          entry_size,
-          remainder));
+          "Expected {} byte entry, found only {}", entry_size, remainder));
       }
 
       const auto before_offset = data_offset;

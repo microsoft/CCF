@@ -96,7 +96,9 @@ class LedgerDomain:
                         k = msgpack.unpackb(k, **UNPACK_ARGS)
                     records[k] = None
 
-            LOG.debug(f"Found {read_count} reads, {write_count} writes, and {remove_count} removes")
+            LOG.debug(
+                f"Found {read_count} reads, {write_count} writes, and {remove_count} removes"
+            )
 
     def get_tables(self):
         return self._tables
