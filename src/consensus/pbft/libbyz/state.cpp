@@ -200,8 +200,11 @@ void Checkpoint_rec::print()
   LOG_INFO_FMT("Checkpoint record: {} blocks", parts.size());
   for (auto const& p : parts)
   {
-    LOG_INFO_FMT("Block: level={}, index={}", p.first.level, p.first.index);
-    LOG_INFO_FMT("last mod={}", p.second->lm);
+    LOG_INFO_FMT(
+      "Block: level={}, index={}, last mode={}",
+      p.first.level,
+      p.first.index,
+      p.second->lm);
     p.second->d.print();
   }
 }
@@ -471,7 +474,7 @@ Seqno State::rollback(Seqno last_executed)
 
   INCR_OP(num_rollbacks);
 
-  LOG_INFO_FMT("Rolling back to checkpoint before {}",last_executed);
+  LOG_INFO_FMT("Rolling back to checkpoint before {}", last_executed);
 
   while (1)
   {

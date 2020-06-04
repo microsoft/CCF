@@ -482,7 +482,9 @@ bool Certificate<T>::add_mine(T* msg)
   {
     CCF_ASSERT(
       false, "Node is faulty, more than f faulty replicas or faulty primary ");
-    LOG_FATAL_FMT("Node is faulty, more than f faulty replicas or faulty primary {}", msg->stag());
+    LOG_FATAL_FMT(
+      "Node is faulty, more than f faulty replicas or faulty primary {}",
+      msg->stag());
     delete msg;
     return false;
   }

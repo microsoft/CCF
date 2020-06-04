@@ -49,7 +49,8 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
   num_replicas = node_info.general_info.num_replicas;
   if (num_replicas <= 2 * max_faulty)
   {
-    LOG_FATAL_FMT("Not enough replicas: {} for desired f: {}", num_replicas, max_faulty);
+    LOG_FATAL_FMT(
+      "Not enough replicas: {} for desired f: {}", num_replicas, max_faulty);
     throw std::logic_error(
       "Not enough replicas: " + std::to_string(num_replicas) +
       " for desired f: " + std::to_string(max_faulty));
@@ -87,8 +88,6 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
     PBFT_FAIL("Could not find my principal");
   }
 
-  LOG_INFO_FMT("My id is {}", node_id);
-
   // Initialize current view number and primary.
   v = 0;
   cur_primary = 0;
@@ -109,7 +108,8 @@ void Node::add_principal(const PrincipalInfo& principal_info)
   auto it = principals->find(principal_info.id);
   if (it != principals->end())
   {
-    LOG_INFO_FMT("Principal with id:{} has already been configured", principal_info.id);
+    LOG_INFO_FMT(
+      "Principal with id:{} has already been configured", principal_info.id);
     auto& principal = it->second;
     if (principal->get_cert().empty())
     {

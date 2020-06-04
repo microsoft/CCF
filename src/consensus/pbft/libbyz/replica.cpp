@@ -100,7 +100,8 @@ Replica::Replica(
   size_t max_mem_bytes = PLevelSize[PLevels - 1] * Block_size;
   if (nbytes > max_mem_bytes)
   {
-    LOG_FATAL_FMT("Unable to support requested memory size {} > {}", nbytes , max_mem_bytes);
+    LOG_FATAL_FMT(
+      "Unable to support requested memory size {} > {}", nbytes, max_mem_bytes);
   }
 
   init_network(std::unique_ptr<INetwork>(network));
@@ -1894,7 +1895,7 @@ void Replica::handle(View_change* m)
 
 void Replica::handle(New_view* m)
 {
-  LOG_INFO_FMT("Received new view for {} from {}",  m->view() , m->id());
+  LOG_INFO_FMT("Received new view for {} from {}", m->view(), m->id());
   vi.add(m);
 }
 
@@ -2011,7 +2012,8 @@ void Replica::handle(Network_open* m)
   std::shared_ptr<Principal> p = get_principal(m->id());
   if (p == nullptr)
   {
-    LOG_FAIL_FMT("Received network open from unknown principal, id:{}", m->id());
+    LOG_FAIL_FMT(
+      "Received network open from unknown principal, id:{}", m->id());
   }
 
   if (p->received_network_open_msg())
@@ -2037,7 +2039,9 @@ void Replica::handle(Network_open* m)
 
   if (num_open == principals->size())
   {
-    LOG_INFO_FMT("Finished waiting for machines to network open. starting to process requests");
+    LOG_INFO_FMT(
+      "Finished waiting for machines to network open. starting to process "
+      "requests");
     wait_for_network_to_open = false;
     if (primary() == id())
     {

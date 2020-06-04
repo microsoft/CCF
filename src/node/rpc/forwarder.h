@@ -196,8 +196,7 @@ namespace ccf
             const auto actor_opt = http::extract_actor(*ctx);
             if (!actor_opt.has_value())
             {
-              LOG_FAIL_FMT(
-                "Failed to extract actor from forwarded context.");
+              LOG_FAIL_FMT("Failed to extract actor from forwarded context.");
               LOG_DEBUG_FMT(
                 "Failed to extract actor from forwarded context. Method is "
                 "'{}'",

@@ -402,8 +402,7 @@ namespace ccf
 
           if (status != HTTP_STATUS_OK)
           {
-            LOG_FAIL_FMT(
-              "An error occurred while joining the network");
+            LOG_FAIL_FMT("An error occurred while joining the network");
 
             LOG_DEBUG_FMT(
               "An error occurred while joining the network: {} {}{}",
@@ -1226,8 +1225,7 @@ namespace ccf
       const auto body = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
       if (!body.is_boolean())
       {
-        LOG_FAIL_FMT(
-          "Expected boolean body in create response");
+        LOG_FAIL_FMT("Expected boolean body in create response");
         LOG_DEBUG_FMT(
           "Expected boolean body in create response: {}", body.dump());
         return false;

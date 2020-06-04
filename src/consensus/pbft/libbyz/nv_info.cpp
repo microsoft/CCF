@@ -226,7 +226,8 @@ void NV_info::add(std::unique_ptr<View_change> m)
     if (!check_new_view())
     {
       // Primary is faulty.
-      LOG_FAIL_FMT("Primary {} is faulty", pbft::GlobalState::get_node().primary(v));
+      LOG_FAIL_FMT(
+        "Primary {} is faulty", pbft::GlobalState::get_node().primary(v));
     }
   }
 }

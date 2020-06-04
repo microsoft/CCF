@@ -347,7 +347,8 @@ bool Pre_prepare::pre_verify()
             get_digest_sig().data(),
             rep().sig_size))
       {
-        LOG_INFO_FMT("failed to verify signature on the digest, seqno:{}", rep().seqno);
+        LOG_FAIL_FMT(
+          "failed to verify signature on the digest, seqno:{}", rep().seqno);
         return false;
       }
     }
@@ -486,7 +487,8 @@ bool Pre_prepare::ValidProofs_iter::get(
     if (!sender_principal->verify_signature(
           reinterpret_cast<char*>(&s), sizeof(s), ic->sig.data(), ic->sig_size))
     {
-      LOG_INFO_FMT("failed to verify signature on the digest, seqno:{}", msg->seqno());
+      LOG_INFO_FMT(
+        "failed to verify signature on the digest, seqno:{}", msg->seqno());
       is_valid_proof = false;
     }
   }

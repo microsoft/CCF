@@ -22,7 +22,7 @@
       { \
         if ((expr) == 0) \
         { \
-          LOG_INFO_FMT(" Assertion failed: {} {}",#expr,(msg)); \
+          LOG_FAIL_FMT(" Assertion failed: {} {}", #expr, (msg)); \
           logger::print_stacktrace(); \
           throw std::logic_error(msg); \
         } \
@@ -34,7 +34,7 @@
 #  define PBFT_FAIL(msg) \
     do \
     { \
-      LOG_INFO_FMT(" FATAL_ERROR: {}", (msg)); \
+      LOG_FAIL_FMT(" FATAL_ERROR: {}", (msg)); \
       logger::print_stacktrace(); \
       std::terminate(); \
     } while (0)
@@ -45,7 +45,7 @@
       { \
         if ((expr) == 0) \
         { \
-          LOG_INFO_FMT(" Assertion failed: {} {}", #expr, (msg)); \
+          LOG_FAIL_FMT(" Assertion failed: {} {}", #expr, (msg)); \
           throw std::logic_error(msg); \
         } \
       } while (0)
@@ -56,7 +56,7 @@
 #  define PBFT_FAIL(msg) \
     do \
     { \
-      LOG_INFO_FMT(" FATAL_ERROR: {}",(msg)); \
+      LOG_FAIL_FMT(" FATAL_ERROR: {}", (msg)); \
       std::terminate(); \
     } while (0)
 #endif
