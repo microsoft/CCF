@@ -4,8 +4,8 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "ccf_assert.h"
 #include "certificate.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"

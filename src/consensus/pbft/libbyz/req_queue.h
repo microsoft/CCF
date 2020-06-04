@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
 #include "request.h"

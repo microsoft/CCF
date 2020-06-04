@@ -5,7 +5,7 @@
 
 #include "view_change_ack.h"
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "message_tags.h"
 #include "node.h"

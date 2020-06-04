@@ -5,8 +5,8 @@
 
 #include "node.h"
 
-#include "ccf_assert.h"
 #include "crypt.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "itimer.h"
 #include "message.h"

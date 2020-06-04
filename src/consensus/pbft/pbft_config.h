@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "consensus/pbft/libbyz/ccf_assert.h"
 #include "consensus/pbft/libbyz/libbyz.h"
+#include "ds/ccf_assert.h"
 #include "enclave/rpc_handler.h"
 #include "enclave/rpc_map.h"
 #include "pbft_deps.h"

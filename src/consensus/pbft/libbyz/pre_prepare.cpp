@@ -5,7 +5,7 @@
 
 #include "pre_prepare.h"
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "prepare.h"
 #include "prepared_cert.h"

@@ -6,8 +6,8 @@
 #pragma once
 
 #include "bitmap.h"
-#include "ccf_assert.h"
 #include "digest.h"
+#include "ds/ccf_assert.h"
 #include "itimer.h"
 #include "log.h"
 #include "partition.h"

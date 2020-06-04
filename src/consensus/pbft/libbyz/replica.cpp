@@ -6,10 +6,10 @@
 #include "replica.h"
 
 #include "append_entries.h"
-#include "ccf_assert.h"
 #include "checkpoint.h"
 #include "commit.h"
 #include "data.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/thread_messaging.h"

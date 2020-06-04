@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "types.h"
 

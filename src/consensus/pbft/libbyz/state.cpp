@@ -5,8 +5,8 @@
 
 #include "state.h"
 
-#include "ccf_assert.h"
 #include "data.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "fetch.h"
 #include "meta_data.h"

@@ -9,8 +9,8 @@
  * Definitions of various types.
  */
 
-#include "ccf_assert.h"
 #include "consensus/pbft/pbft_types.h"
+#include "ds/ccf_assert.h"
 #include "parameters.h"
 
 #include <array>
