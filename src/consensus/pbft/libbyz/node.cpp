@@ -49,8 +49,7 @@ Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
   num_replicas = node_info.general_info.num_replicas;
   if (num_replicas <= 2 * max_faulty)
   {
-    LOG_FATAL << "Not enough replicas: " << num_replicas
-              << " for desired f: " << max_faulty << std::endl;
+    LOG_FATAL_FMT("Not enough replicas: {} for desired f: {}", num_replicas, max_faulty);
     throw std::logic_error(
       "Not enough replicas: " + std::to_string(num_replicas) +
       " for desired f: " + std::to_string(max_faulty));

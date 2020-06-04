@@ -93,15 +93,14 @@ Replica::Replica(
   // Fail if node is not a replica.
   if (!is_replica(id()))
   {
-    LOG_FATAL << "Node is not a replica " << id() << std::endl;
+    LOG_FATAL_FMT("Node is not a replica {}", id());
   }
 
   // Fail if the state Merkle tree cannot support the requested number of bytes
   size_t max_mem_bytes = PLevelSize[PLevels - 1] * Block_size;
   if (nbytes > max_mem_bytes)
   {
-    LOG_FATAL << "Unable to support requested memory size " << nbytes << " > "
-              << max_mem_bytes << std::endl;
+    LOG_FATAL_FMT("Unable to support requested memory size {} > {}", nbytes , max_mem_bytes);
   }
 
   init_network(std::unique_ptr<INetwork>(network));
@@ -3297,7 +3296,7 @@ void Replica::ntimer_handler(void* owner)
 void Replica::debug_slow_timer_handler(void* owner)
 {
   ((Replica*)owner)->dump_state(std::cout);
-  LOG_FATAL << "Execution took too long" << std::endl;
+  LOG_FATAL_FMT("Execution took too long");
 }
 
 void Replica::dump_state(std::ostream& os)

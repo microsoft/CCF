@@ -453,7 +453,8 @@ int main(int argc, char** argv)
   }
   catch (const std::logic_error& e)
   {
-    LOG_FATAL_FMT("{}. Exiting.", e.what());
+    LOG_DEBUG_FMT("{}. Exiting.", e.what());
+    LOG_FATAL_FMT("Logic_error thrown. Exiting.");
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 

@@ -424,7 +424,8 @@ namespace ccf
           // If serialising the committed transaction fails, there is no way
           // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
-          LOG_FATAL_FMT("Failed to serialise: {}", e.what());
+          LOG_DEBUG_FMT("Failed to serialise: {}", e.what());
+          LOG_FATAL_FMT("Failed to serialise");
           abort();
         }
         catch (const std::exception& e)
