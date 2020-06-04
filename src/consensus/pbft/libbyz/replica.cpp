@@ -3280,8 +3280,6 @@ void Replica::rec_timer_handler(void* owner)
 
     pbft::GlobalState::get_replica().recover();
   }
-  else
-  {}
 
 #endif
 
