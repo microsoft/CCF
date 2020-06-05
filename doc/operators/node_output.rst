@@ -41,3 +41,5 @@ There is an option to further generate machine-readable logs for monitoring. To 
 - ``number`` is the line number in the file the log originated from
 - ``level`` is the level of the log message [info, debug, trace, fail, fatal]
 - ``msg`` is the log message
+
+It is possible to print json logs to standard out. This is enabled by passing the '--log-format-stdout-json` flag when starting a node.

@@ -52,7 +52,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=os.getenv("JSON_LOG_PATH", None),
     )
     parser.add_argument(
-        "log-format-stdout-json",
+        "--log-format-stdout-json",
         help="Set node stdout log format to JSON",
         action="store_true",
         default=False,
