@@ -83,7 +83,7 @@ void set_whitelists(GenesisGenerator& gen)
 class LuaLogger : public logger::JsonConsoleLogger
 {
 public:
-  LuaLogger() : JsonConsoleLogger("") {}
+  LuaLogger() : JsonConsoleLogger() {}
 
   void write(const std::string& log_line) override
   {

@@ -17,8 +17,8 @@ TEST_CASE("Test custom log format")
   std::string log_msg_fail = "log_msg_fail";
 
   std::ofstream out(test_log_file.c_str());
-  std::streambuf* coutbuf = std::cout.rdbuf(); // save old buf
-  std::cout.rdbuf(out.rdbuf()); // redirect std::cout to out.txt!
+  std::streambuf* coutbuf = std::cout.rdbuf();
+  std::cout.rdbuf(out.rdbuf());
 
   LOG_DEBUG_FMT(log_msg_dbg);
   LOG_TRACE_FMT(log_msg_fail);
@@ -26,7 +26,7 @@ TEST_CASE("Test custom log format")
   out.flush();
   out.close();
 
-  std::cout.rdbuf(coutbuf); //reset to standard output again
+  std::cout.rdbuf(coutbuf);
 
   std::ifstream f(test_log_file);
   std::string line;
