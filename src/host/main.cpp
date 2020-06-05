@@ -142,6 +142,8 @@ int main(int argc, char** argv)
     json_log_path,
     "Path to file where the json logs will be written");
 
+  bool json_log_std_out = false;
+  app.add_flag("--json-std-out", json_log_std_out, "send json to std out");
   std::string node_cert_file("nodecert.pem");
   app
     .add_option(
@@ -462,6 +464,12 @@ int main(int argc, char** argv)
 
   // set the host log level
   logger::config::level() = host_log_level;
+
+  // set json log formatter to write to std::out
+  if (json_log_std_out)
+  {
+    logger::config::initialize_with_json_console();
+  }
 
   // set the custom log formatter path
   if (json_log_path.has_value())

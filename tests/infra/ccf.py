@@ -69,6 +69,7 @@ class Network:
         "memory_reserve_startup",
         "notify_server",
         "json_log_path",
+        "json_std_out",
         "gov_script",
         "join_timer",
         "worker_threads",

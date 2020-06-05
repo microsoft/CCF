@@ -52,6 +52,12 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=os.getenv("JSON_LOG_PATH", None),
     )
     parser.add_argument(
+        "--json-std-out",
+        help="Write json logger to standard out",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
         "-g", "--gov-script", help="Path to governance script",
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")
