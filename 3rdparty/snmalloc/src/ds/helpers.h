@@ -13,18 +13,18 @@ namespace snmalloc
   template<class Object, Object init() noexcept>
   class Singleton
   {
+    inline static std::atomic_flag flag;
+    inline static std::atomic<bool> initialised = false;
+    inline static Object obj;
+
   public:
     /**
      * If argument is non-null, then it is assigned the value
      * true, if this is the first call to get.
      * At most one call will be first.
      */
-    inline static Object& get(bool* first = nullptr)
+    inline SNMALLOC_SLOW_PATH static Object& get(bool* first = nullptr)
     {
-      static std::atomic_flag flag;
-      static std::atomic<bool> initialised;
-      static Object obj;
-
       // If defined should be initially false;
       SNMALLOC_ASSERT(first == nullptr || *first == false);
 
@@ -48,7 +48,7 @@ namespace snmalloc
    *
    * Wraps on read. This allows code to trust the value is in range, even when
    * there is a memory corruption.
-   **/
+   */
   template<size_t length, typename T>
   class Mod
   {
@@ -100,5 +100,47 @@ namespace snmalloc
     {
       f();
     }
+  };
+
+  /**
+   * Non-owning version of std::function. Wraps a reference to a callable object
+   * (eg. a lambda) and allows calling it through dynamic dispatch, with no
+   * allocation. This is useful in the allocator code paths, where we can't
+   * safely use std::function.
+   *
+   * Inspired by the C++ proposal:
+   * http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0792r2.html
+   */
+  template<typename Fn>
+  struct function_ref;
+  template<typename R, typename... Args>
+  struct function_ref<R(Args...)>
+  {
+    // The enable_if is used to stop this constructor from shadowing the default
+    // copy / move constructors.
+    template<
+      typename Fn,
+      typename =
+        std::enable_if_t<!std::is_same_v<std::decay_t<Fn>, function_ref>>>
+    function_ref(Fn&& fn)
+    {
+      data_ = static_cast<void*>(&fn);
+      fn_ = execute<Fn>;
+    }
+
+    R operator()(Args... args) const
+    {
+      return fn_(data_, args...);
+    }
+
+  private:
+    void* data_;
+    R (*fn_)(void*, Args...);
+
+    template<typename Fn>
+    static R execute(void* p, Args... args)
+    {
+      return (*static_cast<std::add_pointer_t<Fn>>(p))(args...);
+    };
   };
 } // namespace snmalloc
