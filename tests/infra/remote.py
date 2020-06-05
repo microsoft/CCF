@@ -120,7 +120,7 @@ class SSHRemote(CmdMixin):
         label,
         common_dir,
         env=None,
-        json_log_path=None,
+        log_format_json=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -368,7 +368,7 @@ class LocalRemote(CmdMixin):
         label,
         common_dir,
         env=None,
-        json_log_path=None,
+        log_format_json=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -527,7 +527,7 @@ class CCFRemote(object):
         notify_server=None,
         gov_script=None,
         ledger_file=None,
-        json_log_path=None,
+        log_format_json=None,
         binary_dir=".",
         domain=None,
     ):
@@ -580,9 +580,8 @@ class CCFRemote(object):
             f"--worker-threads={worker_threads}",
         ]
 
-        if json_log_path:
-            log_file = f"{label}_{local_node_id}"
-            cmd += [f"--json-log-path={os.path.join(json_log_path, log_file)}"]
+        if log_format_json:
+            cmd += ["--log-format-json"]
 
         if sig_max_tx:
             cmd += [f"--sig-max-tx={sig_max_tx}"]
@@ -662,7 +661,7 @@ class CCFRemote(object):
             label,
             common_dir,
             env,
-            json_log_path,
+            log_format_json,
         )
 
     def setup(self):
