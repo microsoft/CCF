@@ -133,7 +133,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "8e3efcb1dcb27a5b43b66778a6c61681365f945f"
+          "commitHash": "2b92574123db1d1674f3df9c6dfb3ec10f05ebb3"
         }
       }
     },
