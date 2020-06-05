@@ -143,7 +143,10 @@ int main(int argc, char** argv)
     "Path to file where the json logs will be written");
 
   bool json_log_std_out = false;
-  app.add_flag("--json-std-out", json_log_std_out, "send json to std out");
+  app.add_flag(
+    "log-format-stdout-json",
+    json_log_std_out,
+    "Set node stdout log format to JSON");
   std::string node_cert_file("nodecert.pem");
   app
     .add_option(
