@@ -452,7 +452,7 @@ bool Certificate<T>::add(T* msg)
       else
       {
         // Should only happen for replies to read-only requests.
-        LOG_FAIL << "More than f+1 distinct values in certificate" << std::endl;
+        LOG_FAIL_FMT("More than f+1 distinct values in certificate");
         clear();
       }
     }
@@ -482,9 +482,9 @@ bool Certificate<T>::add_mine(T* msg)
   {
     CCF_ASSERT(
       false, "Node is faulty, more than f faulty replicas or faulty primary ");
-    LOG_FATAL
-      << "Node is faulty, more than f faulty replicas or faulty primary "
-      << msg->stag() << std::endl;
+    LOG_FATAL_FMT(
+      "Node is faulty, more than f faulty replicas or faulty primary {}",
+      msg->stag());
     delete msg;
     return false;
   }
