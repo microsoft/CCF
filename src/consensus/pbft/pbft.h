@@ -415,6 +415,7 @@ namespace pbft
         mem,
         mem_size,
         pbft_config->get_exec_command(),
+        pbft_config->get_verify_command(),
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,
@@ -433,7 +434,10 @@ namespace pbft
       LOG_INFO_FMT("PBFT setting up client proxy");
       client_proxy =
         std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
-          *message_receiver_base, 5000, 10000);
+          *message_receiver_base,
+          pbft_config->get_verify_command(),
+          5000,
+          10000);
 
       auto reply_handler_cb = [](Reply* m, void* ctx) {
         auto cp =
@@ -677,7 +681,8 @@ namespace pbft
         }
         catch (const std::logic_error& err)
         {
-          LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
+          LOG_FAIL_FMT("Invalid encrypted pbft message");
+          LOG_DEBUG_FMT("Invalid encrypted pbft message: {}", err.what());
           return;
         }
       }
@@ -693,7 +698,8 @@ namespace pbft
         }
         catch (const std::logic_error& err)
         {
-          LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+          LOG_FAIL_FMT("Invalid pbft message");
+          LOG_DEBUG_FMT("Invalid pbft message: {}", err.what());
           return;
         }
       }
@@ -766,8 +772,7 @@ namespace pbft
         {
           if (message_receiver_base->IsExecutionPending())
           {
-            LOG_FAIL << "Pending Execution, skipping append entries request"
-                     << std::endl;
+            LOG_FAIL_FMT("Pending Execution, skipping append entries request");
             return;
           }
 
@@ -782,7 +787,7 @@ namespace pbft
           }
           catch (const std::logic_error& err)
           {
-            LOG_FAIL_FMT(err.what());
+            LOG_FAIL_FMT("Failed to authenticate message: {}", err.what());
             return;
           }
 
@@ -862,6 +867,11 @@ namespace pbft
               case kv::DeserialiseSuccess::PASS_PRE_PREPARE:
               {
                 message_receiver_base->playback_pre_prepare(tx);
+                break;
+              }
+              case kv::DeserialiseSuccess::PASS_NEW_VIEW:
+              {
+                message_receiver_base->playback_new_view(tx);
                 break;
               }
               default:

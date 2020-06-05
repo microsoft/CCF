@@ -51,6 +51,7 @@ int Byz_init_replica(
   char* mem,
   unsigned int size,
   ExecCommand exec,
+  VerifyAndParseCommand verify,
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
@@ -128,12 +129,6 @@ void Byz_modify(void* mem, int size);
 /* Effects: Informs library that the bytes between "mem" and
    "mem+size" are about to be modified if "mem" and "mem+size-1" are
    within the replica's state. */
-
-void Byz_reset_stats();
-/* Effects: Resets library's statistics counters */
-
-void Byz_print_stats();
-/* Effects: Print library statistics to stdout */
 
 bool Byz_execution_pending();
 /* We are executing an async operation do not execute any time based events

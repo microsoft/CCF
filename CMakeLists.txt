@@ -451,6 +451,9 @@ if(BUILD_TESTS)
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
+  add_picobench(
+    hash_bench SRCS src/ds/test/hash_bench.cpp
+  )
 
   # Storing signed governance operations
   add_e2e_test(
@@ -549,6 +552,12 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME suspend_nodes_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
+    CONSENSUS pbft
+  )
+
+  add_e2e_test(
+    NAME replay_new_view_pbft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
     CONSENSUS pbft
   )
 

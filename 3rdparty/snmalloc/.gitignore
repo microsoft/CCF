@@ -1,0 +1,8 @@
+release*/
+debug*/
+build*/
+CMakeFiles/
+.vscode/
+.vs/
+*~
+*.sw?

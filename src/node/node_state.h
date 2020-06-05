@@ -422,6 +422,8 @@ namespace ccf
           catch (const std::exception& e)
           {
             LOG_FAIL_FMT(
+              "An error occurred while parsing the join network response");
+            LOG_DEBUG_FMT(
               "An error occurred while parsing the join network response: {}",
               j.dump());
             return false;
@@ -1221,7 +1223,8 @@ namespace ccf
       const auto body = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
       if (!body.is_boolean())
       {
-        LOG_FAIL_FMT(
+        LOG_FAIL_FMT("Expected boolean body in create response");
+        LOG_DEBUG_FMT(
           "Expected boolean body in create response: {}", body.dump());
         return false;
       }

@@ -10,7 +10,6 @@
 #include "replica.h"
 #include "reply.h"
 #include "request.h"
-#include "statistics.h"
 
 #include <random>
 #include <signal.h>
@@ -47,7 +46,6 @@ void Byz_add_principal(const PrincipalInfo& principal_info)
 void Byz_start_replica()
 {
   pbft::GlobalState::get_replica().recv_start();
-  stats.zero_stats();
 }
 
 int Byz_init_replica(
@@ -55,6 +53,7 @@ int Byz_init_replica(
   char* mem,
   unsigned int size,
   ExecCommand exec,
+  VerifyAndParseCommand verify,
   INetwork* network,
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
@@ -82,26 +81,16 @@ int Byz_init_replica(
 
   // Register service-specific functions.
   pbft::GlobalState::get_replica().register_exec(exec);
+  pbft::GlobalState::get_replica().register_verify(verify);
   pbft::GlobalState::get_replica().set_next_expected_sig_offset();
 
   auto used_bytes = pbft::GlobalState::get_replica().used_state_bytes();
-  stats.zero_stats();
   return used_bytes;
 }
 
 void Byz_modify(void* mem, int size)
 {
   pbft::GlobalState::get_replica().modify(mem, size);
-}
-
-void Byz_reset_stats()
-{
-  stats.zero_stats();
-}
-
-void Byz_print_stats()
-{
-  stats.print_stats();
 }
 
 bool Byz_execution_pending()

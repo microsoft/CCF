@@ -106,10 +106,10 @@ namespace kv
       return encryptor;
     }
 
-    template <class K, class V, class H = std::hash<K>>
-    Map<K, V, H>* get(std::string name)
+    template <class K, class V>
+    Map<K, V>* get(std::string name)
     {
-      return get<Map<K, V, H>>(name);
+      return get<Map<K, V>>(name);
     }
 
     /** Get Map by name
@@ -147,12 +147,12 @@ namespace kv
      *
      * @return Newly created Map
      */
-    template <class K, class V, class H = std::hash<K>>
-    Map<K, V, H>& create(
+    template <class K, class V>
+    Map<K, V>& create(
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
     {
-      return create<Map<K, V, H>>(name, security_domain);
+      return create<Map<K, V>>(name, security_domain);
     }
 
     /** Create a Map
@@ -297,7 +297,7 @@ namespace kv
         return DeserialiseSuccess::FAILED;
       }
 
-      Version v = d->template deserialise_version<Version>();
+      Version v = d->deserialise_version();
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback(v - 1);
@@ -325,14 +325,16 @@ namespace kv
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          LOG_FAIL_FMT("No such map {} at version {}", map_name, v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("No such map {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
         auto view_search = views.find(map_name);
         if (view_search != views.end())
         {
-          LOG_FAIL_FMT("Multiple writes on {} at version {}", map_name, v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("Multiple writes on {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
@@ -344,7 +346,8 @@ namespace kv
           search->second->deserialise(*d, deserialise_version);
         if (deserialised_write_set == nullptr)
         {
-          LOG_FAIL_FMT(
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT(
             "Could not deserialise Tx for map {} at version {}",
             map_name,
             deserialise_version);
@@ -360,7 +363,8 @@ namespace kv
 
       if (!d->end())
       {
-        LOG_FAIL_FMT("Unexpected content in Tx at version {}", v);
+        LOG_FAIL_FMT("Failed to deserialize");
+        LOG_DEBUG_FMT("Unexpected content in Tx at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
 
@@ -383,14 +387,16 @@ namespace kv
             // a signature and must be verified
             if (views.size() > 1)
             {
-              LOG_FAIL_FMT(
+              LOG_FAIL_FMT("Failed to deserialize");
+              LOG_DEBUG_FMT(
                 "Unexpected contents in signature transaction {}", v);
               return DeserialiseSuccess::FAILED;
             }
 
             if (!h->verify(term))
             {
-              LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
+              LOG_FAIL_FMT("Failed to deserialize");
+              LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
               return DeserialiseSuccess::FAILED;
             }
             success = DeserialiseSuccess::PASS_SIGNATURE;
@@ -405,7 +411,8 @@ namespace kv
         // contain anything else
         if (views.size() > 1)
         {
-          LOG_FAIL_FMT("Unexpected contents in pbft transaction {}", v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("Unexpected contents in pbft transaction {}", v);
           return DeserialiseSuccess::FAILED;
         }
 

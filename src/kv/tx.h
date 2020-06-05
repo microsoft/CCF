@@ -215,7 +215,8 @@ namespace kv
         {
           committed = false;
 
-          LOG_FAIL_FMT("Error during serialisation: {}", e.what());
+          LOG_FAIL_FMT("Error during serialisation");
+          LOG_DEBUG_FMT("Error during serialisation: {}", e.what());
 
           // Discard original exception type, throw as now fatal
           // KvSerialiserException

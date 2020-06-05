@@ -91,7 +91,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     libcommontest STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/itimer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/time_types.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/statistics.cpp
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
 
