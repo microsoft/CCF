@@ -21,12 +21,22 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
+  static constexpr auto ledger_final_indicator_delimiter = ".final";
+
+  // TODO: Namespace this?
+  static inline bool is_ledger_file_name_compacted(const std::string& file_name)
+  {
+    auto pos = file_name.find(ledger_final_indicator_delimiter);
+    return !(pos == std::string::npos);
+  }
+
   // TODO: Unit test this class on its own (probably similar to existing tests)
   class LedgerFile
   {
   private:
     static constexpr auto file_name_prefix = "ledger";
-    static constexpr auto ledger_start_idx_delimiter = ".";
+    static constexpr auto ledger_start_idx_delimiter = "_";
+
     static constexpr size_t frame_header_size = sizeof(uint32_t);
 
     const std::string dir;
@@ -40,6 +50,7 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file;
+    bool is_prepared = false;
     bool is_complete = false;
 
   public:
@@ -226,6 +237,7 @@ namespace asynchost
         return true;
       }
 
+      is_prepared = false;
       total_len = positions.at(idx - start_idx + 1);
       positions.resize(idx - start_idx + 1);
 
@@ -247,6 +259,11 @@ namespace asynchost
 
     void prepare()
     {
+      if (is_prepared)
+      {
+        return;
+      }
+
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);
 
@@ -282,15 +299,30 @@ namespace asynchost
       fs::rename(
         fs::path(dir) / fs::path(get_file_name()),
         fs::path(dir) /
-          fs::path(fmt::format("{}.{}", file_name_prefix, start_idx)));
+          fs::path(fmt::format("{}_{}", file_name_prefix, start_idx)));
+
+      is_prepared = true;
     }
 
-    void complete()
+    void compact(size_t idx)
     {
       // TODO: To be called when the last index in the chunk has been globally
       // committed
       // 1. fflush
       // 2. Rename file
+      if (
+        !is_prepared || is_complete || (idx < get_last_idx()) ||
+        (idx > get_last_idx()))
+      {
+        return;
+      }
+
+      LOG_DEBUG_FMT("Compacting file at {}", idx);
+
+      fs::rename(
+        fs::path(dir) / fs::path(get_file_name()),
+        fs::path(dir) / fs::path(fmt::format("{}.final", get_file_name())));
+
       is_complete = true;
     }
   };
@@ -310,6 +342,7 @@ namespace asynchost
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
+    size_t compacted = 1;
 
     void dump_files() const
     {
@@ -604,18 +637,13 @@ namespace asynchost
     {
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
-      if (idx >= last_idx)
+      if (idx >= last_idx || idx <= compacted)
       {
         return;
       }
 
       auto f_from = get_it_contains_idx(idx + 1);
-      auto f_to = get_it_contains_idx(last_idx + 1);
-      if (f_to == files.end())
-      {
-        f_to = --f_to;
-      }
-
+      auto f_to = get_it_contains_idx(last_idx);
       LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to) + 1);
 
       for (auto it = f_from; it != std::next(f_to);)
@@ -637,6 +665,30 @@ namespace asynchost
       }
 
       last_idx = idx;
+    }
+
+    void compact(size_t idx)
+    {
+      LOG_DEBUG_FMT("Ledger compact: {}/{}", idx, last_idx);
+
+      if (idx <= compacted)
+      {
+        return;
+      }
+
+      auto f_from = get_it_contains_idx(compacted);
+      auto f_to = get_it_contains_idx(idx);
+      LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to) + 1);
+
+      for (auto it = f_from; it != std::next(f_to);)
+      {
+        auto compact_idx = (it == f_to) ? idx : (*it)->get_last_idx();
+        (*it)->compact(compact_idx);
+
+        it++;
+      }
+
+      compacted = idx;
     }
 
     // void register_message_handlers(

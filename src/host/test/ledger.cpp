@@ -334,6 +334,21 @@ TEST_CASE("Truncation")
   }
 }
 
+size_t number_of_compacted_files_in_ledger_dir()
+{
+  size_t compacted_file_count = 0;
+  for (auto const& f : fs::directory_iterator(ledger_dir))
+  {
+    LOG_DEBUG_FMT("File: {}", f.path());
+    if (asynchost::is_ledger_file_name_compacted(f.path().string()))
+    {
+      compacted_file_count++;
+    }
+  }
+
+  return compacted_file_count;
+}
+
 TEST_CASE("Compaction")
 {
   fs::remove_all(ledger_dir);
@@ -343,7 +358,67 @@ TEST_CASE("Compaction")
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t chunk_count = 3;
-  initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+  size_t end_of_first_chunk_idx =
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
 
-  entry_submitter.write(false);
+  entry_submitter.write(true);
+  size_t last_idx = entry_submitter.get_last_idx();
+  REQUIRE(number_of_compacted_files_in_ledger_dir() == 0);
+
+  INFO("Compacting end of first chunk");
+  {
+    ledger.compact(end_of_first_chunk_idx);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 1);
+  }
+
+  INFO("Compacting in the middle on complete chunk");
+  {
+    ledger.compact(end_of_first_chunk_idx + 1);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 1);
+    ledger.compact(2 * end_of_first_chunk_idx - 1);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 1);
+  }
+
+  INFO("Compacting at the end of a complete chunk");
+  {
+    ledger.compact(2 * end_of_first_chunk_idx);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 2);
+  }
+
+  INFO("Compacting at latest index prepared");
+  {
+    ledger.compact(last_idx - 1);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
+  }
+
+  INFO("Compacting incomplete chunk");
+  {
+    ledger.compact(last_idx);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
+  }
+
+  // TODO: This is a limitation for now.
+  // This is not ideal as the latest chunk would not get compacted until it's
+  // reached the threshold, e.g. during inactivity
+  INFO("Even though latest chunk is complete, it ");
+  {
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.compact(last_idx);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
+    entry_submitter.write(true);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.compact(last_idx);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 4);
+  }
+
+  INFO("Ledger cannot be truncated earlier than compaction");
+  {
+    ledger.truncate(1); // No effect
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+
+    ledger.truncate(2 * end_of_first_chunk_idx); // No effect
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
 }
