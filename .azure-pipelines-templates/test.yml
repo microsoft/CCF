@@ -1,10 +1,11 @@
 parameters:
   suite_name_suffix: ''
   ctest_filter: ''
+  ctest_timeout: '240'
 
 steps:
 - script: |
-    ./tests.sh -VV --timeout 240 --no-compress-output -T Test ${{ parameters.ctest_filter }}
+    ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
   env:
     METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
   displayName: CTest
