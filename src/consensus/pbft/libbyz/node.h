@@ -15,7 +15,6 @@
 #include "nodeinfo.h"
 #include "principal.h"
 #include "request_id_gen.h"
-#include "statistics.h"
 #include "types.h"
 
 #include <atomic>

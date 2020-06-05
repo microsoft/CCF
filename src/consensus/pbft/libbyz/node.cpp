@@ -32,9 +32,6 @@
 #  define NDEBUG
 #endif
 
-// Enable statistics
-#include "statistics.h"
-
 Node::Node(const NodeInfo& node_info_) : node_info(node_info_)
 {
   replica_count = 0;
@@ -186,14 +183,10 @@ void Node::send(Message* m, Principal* p)
   CCF_ASSERT(m->tag() < Max_message_tag, "Invalid message tag");
   CCF_ASSERT(p != nullptr, "Must send to a principal");
 
-  INCR_OP(message_counts_out[m->tag()]);
-
   int error = 0;
   int size = m->size();
   while (error < size)
   {
-    INCR_OP(num_sendto);
-    INCR_CNT(bytes_out, size);
     if (!network)
     {
       throw std::logic_error("Network not set");
@@ -219,8 +212,6 @@ bool Node::has_messages(long to)
 
 size_t Node::gen_signature(const char* src, unsigned src_len, char* sig)
 {
-  INCR_OP(num_sig_gen);
-
   auto signature = key_pair->sign(CBuffer{(uint8_t*)src, src_len});
   std::copy(signature.begin(), signature.end(), sig);
 
@@ -230,8 +221,6 @@ size_t Node::gen_signature(const char* src, unsigned src_len, char* sig)
 size_t Node::gen_signature(
   const char* src, unsigned src_len, PbftSignature& sig)
 {
-  INCR_OP(num_sig_gen);
-
   size_t sig_size;
   key_pair->sign(CBuffer{(uint8_t*)src, src_len}, &sig_size, sig.data());
   assert(sig_size <= sig.size());
