@@ -81,10 +81,13 @@ TEST_CASE("StateCache")
 
   store.set_history(history);
 
+  using NumToString = kv::Map<size_t, std::string>;
+  using StringToBool = kv::Map<std::string, bool>;
+
   {
     INFO("Build some interesting state in the store");
-    auto& as_string = store.create<kv::Map<size_t, std::string>>("as_string");
-    auto& even = store.create<kv::Map<std::string, bool>>("even");
+    auto& as_string = store.create<NumToString>("as_string");
+    auto& even = store.create<StringToBool>("even");
 
     {
       for (size_t i = 0; i < 20; ++i)
@@ -123,13 +126,50 @@ TEST_CASE("StateCache")
   auto stub_writer = std::make_shared<StubWriter>();
   ccf::historical::StateCache cache(store, stub_writer);
 
-  const auto store_at_10 = cache.get_store_at(10);
-  REQUIRE(store_at_10 == nullptr);
+  {
+    auto store_at_10 = cache.get_store_at(10);
+    REQUIRE(store_at_10 == nullptr);
+  }
 
   auto& last_message_written = stub_writer->get_last_message();
   // TODO: Build a dummy dispatcher which will respond with ledger entries?
 
-  // TODO: Change stub consensus to store indices, so we don't have this manual off-by-one correction
-  REQUIRE(!cache.handle_ledger_entry(8, ledger[7]));
-  REQUIRE(cache.handle_ledger_entry(10, ledger[9]));
+  // TODO: Change stub consensus to store indices, so we don't have this manual
+  // off-by-one correction?
+
+  // Cache doesn't accept arbitrary entries
+  REQUIRE(!cache.handle_ledger_entry(9, ledger[8]));
+  REQUIRE(!cache.handle_ledger_entry(11, ledger[10]));
+
+  // Cache accepts requested entries, and then subsequent entries to a signature
+  for (size_t i = 10; i <= 20; ++i)
+  {
+    REQUIRE(cache.handle_ledger_entry(i, ledger[i - 1]));
+    auto store_at_10 = cache.get_store_at(i);
+    REQUIRE(store_at_10 == nullptr);
+  }
+
+  REQUIRE(cache.handle_ledger_entry(21, ledger[20]));
+  auto store_at_10 = cache.get_store_at(10);
+  REQUIRE(store_at_10 != nullptr);
+
+  {
+    auto& as_string = *store_at_10->get<NumToString>("as_string");
+    auto& even = *store_at_10->get<StringToBool>("even");
+
+    kv::Tx tx;
+    auto [as_string_view, even_view] = tx.get_view(as_string, even);
+
+    std::cout << "as_string writes at index 10:" << std::endl;
+    as_string_view->foreach([](const auto& k, const auto& v) {
+      std::cout << fmt::format("{}: {}", k, v) << std::endl;
+      return true;
+    });
+
+    std::cout << "even writes at index 10:" << std::endl;
+    even_view->foreach([](const auto& k, const auto& v) {
+      std::cout << fmt::format("{}: {}", k, v) << std::endl;
+      return true;
+    });
+  }
 }

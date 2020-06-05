@@ -33,6 +33,8 @@ namespace kv
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
+    bool strict_versions = true;
+
     DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
     {
       auto c = apply_views(views, [v]() { return v; });
@@ -302,13 +304,16 @@ namespace kv
       // consensus.
       rollback(v - 1);
 
-      // Make sure this is the next transaction.
-      auto cv = current_version();
-      if (cv != (v - 1))
+      if (strict_versions)
       {
-        LOG_FAIL_FMT(
-          "Tried to deserialise {} but current_version is {}", v, cv);
-        return DeserialiseSuccess::FAILED;
+        // Make sure this is the next transaction.
+        auto cv = current_version();
+        if (cv != (v - 1))
+        {
+          LOG_FAIL_FMT(
+            "Tried to deserialise {} but current_version is {}", v, cv);
+          return DeserialiseSuccess::FAILED;
+        }
       }
 
       // Deserialised transactions express read dependencies as versions,
@@ -377,31 +382,35 @@ namespace kv
         {
           return success;
         }
-        auto h = get_history();
-        if (h)
-        {
-          auto search = views.find("ccf.signatures");
-          if (search != views.end())
-          {
-            // Transactions containing a signature must only contain
-            // a signature and must be verified
-            if (views.size() > 1)
-            {
-              LOG_FAIL_FMT("Failed to deserialize");
-              LOG_DEBUG_FMT(
-                "Unexpected contents in signature transaction {}", v);
-              return DeserialiseSuccess::FAILED;
-            }
 
+        auto h = get_history();
+        
+        auto search = views.find("ccf.signatures");
+        if (search != views.end())
+        {
+          // Transactions containing a signature must only contain
+          // a signature and must be verified
+          if (views.size() > 1)
+          {
+            LOG_FAIL_FMT("Failed to deserialize");
+            LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
+            return DeserialiseSuccess::FAILED;
+          }
+
+          if (h)
+          {
             if (!h->verify(term))
             {
               LOG_FAIL_FMT("Failed to deserialize");
               LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
               return DeserialiseSuccess::FAILED;
             }
-            success = DeserialiseSuccess::PASS_SIGNATURE;
           }
+          success = DeserialiseSuccess::PASS_SIGNATURE;
+        }
 
+        if (h)
+        {
           h->append(data.data(), data.size());
         }
       }
@@ -687,6 +696,11 @@ namespace kv
         lhs->unlock();
         rhs->unlock();
       }
+    }
+
+    void set_strict_versions(bool sv)
+    {
+      strict_versions = sv;
     }
   };
 }

@@ -73,6 +73,7 @@ namespace ccf::historical
 
       // TODO: Add a lazy clone option?
       store->clone_schema(source_store);
+      store->set_strict_versions(false);
 
       const auto deserialise_result = store->deserialise_views(entry);
 
@@ -89,20 +90,20 @@ namespace ccf::historical
           const auto request_it = requested_indices.find(idx);
           if (request_it != requested_indices.end())
           {
+            // We were looking for this entry! Store the produced store
             // TODO: Should we check if we already have this? If the host spams
             // us, do we just ignore everything but the first result they give
             // us?
             untrusted_entries[idx] = store;
           }
-          else
-          {
-            // It's good, but its not what we want! Bin it, ask for the next
-            fetch_entry_at(idx + 1);
-          }
+
+          // In either case, its not a signature - try the next transaction
+          fetch_entry_at(idx + 1);
           break;
         }
         case kv::DeserialiseSuccess::PASS_SIGNATURE:
         {
+          LOG_INFO_FMT("Found a signature transaction at {}", idx);
           // Hurrah! We can hopefully use this signature to move some old stores
           // from untrusted to trusted!
 
@@ -117,6 +118,12 @@ namespace ccf::historical
           // Check that the signature matches the entry we got!
 
           // Move signed stores from untrusted to trusted
+          // TODO: Temp solution, blindly trust everything for now
+          for (const auto& [k, v] : untrusted_entries)
+          {
+            trusted_entries[k] = v;
+          }
+          untrusted_entries.clear();
           break;
         }
         default:
