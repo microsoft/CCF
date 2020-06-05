@@ -104,17 +104,10 @@ TEST_CASE("StateCache")
       }
     }
 
+    history->emit_signature();
+
     store.compact(store.current_version());
   }
-
-  auto stub_writer = std::make_shared<StubWriter>();
-  ccf::historical::StateCache cache(store, stub_writer);
-
-  const auto store_at_10 = cache.get_store_at(10);
-  REQUIRE(store_at_10 == nullptr);
-
-  auto& last_message_written = stub_writer->get_last_message();
-  // TODO: Build a dummy dispatcher which will respond with ledger entries?
 
   std::vector<std::vector<uint8_t>> ledger;
   auto ledger_entry_pair = consensus->pop_oldest_data();
@@ -124,5 +117,19 @@ TEST_CASE("StateCache")
     ledger_entry_pair = consensus->pop_oldest_data();
   }
 
-  REQUIRE(ledger.size() == 20);
+  REQUIRE(ledger.size() == 21);
+
+  // Now we actually get to the historical query part
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(store, stub_writer);
+
+  const auto store_at_10 = cache.get_store_at(10);
+  REQUIRE(store_at_10 == nullptr);
+
+  auto& last_message_written = stub_writer->get_last_message();
+  // TODO: Build a dummy dispatcher which will respond with ledger entries?
+
+  // TODO: Change stub consensus to store indices, so we don't have this manual off-by-one correction
+  REQUIRE(!cache.handle_ledger_entry(8, ledger[7]));
+  REQUIRE(cache.handle_ledger_entry(10, ledger[9]));
 }

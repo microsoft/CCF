@@ -69,6 +69,8 @@ namespace ccf::historical
     {
       StorePtr store = std::make_shared<kv::Store>();
 
+      store->set_encryptor(source_store.get_encryptor());
+
       // TODO: Add a lazy clone option?
       store->clone_schema(source_store);
 
@@ -79,6 +81,7 @@ namespace ccf::historical
         case kv::DeserialiseSuccess::FAILED:
         {
           // TODO: Host gave us junk, did they mean to? Do we fail silently?
+          throw std::logic_error("Deserialise failed!");
           break;
         }
         case kv::DeserialiseSuccess::PASS:
@@ -143,7 +146,7 @@ namespace ccf::historical
       return trusted_it->second;
     }
 
-    void handle_ledger_entry(consensus::Index idx, const LedgerEntry& data)
+    bool handle_ledger_entry(consensus::Index idx, const LedgerEntry& data)
     {
       const auto it =
         std::find(pending_fetches.begin(), pending_fetches.end(), idx);
@@ -151,11 +154,12 @@ namespace ccf::historical
       {
         // TODO
         // Unexpected entry - probably just ignore it?
-        return;
+        return false;
       }
 
       pending_fetches.erase(it);
       update_trusted_stores(idx, data);
+      return true;
     }
 
     void handle_no_entry(consensus::Index idx)
