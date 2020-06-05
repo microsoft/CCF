@@ -18,9 +18,8 @@ struct LedgerEntry
 {
   T value_ = 0;
 
-  uint8_t* increment_value()
+  uint8_t* data()
   {
-    value_++;
     return reinterpret_cast<uint8_t*>(&value_);
   }
 
@@ -35,6 +34,7 @@ struct LedgerEntry
   }
 
   LedgerEntry() = default;
+  LedgerEntry(T v) : value_(v) {}
   LedgerEntry(const std::vector<uint8_t>& raw)
   {
     const uint8_t* data = raw.data();
@@ -90,7 +90,6 @@ class TestEntrySubmitter
 private:
   asynchost::MultipleLedger& ledger;
   size_t last_idx = 0;
-  TestLedgerEntry dummy_entry;
 
 public:
   TestEntrySubmitter(asynchost::MultipleLedger& ledger) : ledger(ledger) {}
@@ -102,11 +101,12 @@ public:
 
   void write(bool is_committable)
   {
+    auto e = TestLedgerEntry(++last_idx);
     REQUIRE(
       ledger.write_entry(
-        dummy_entry.increment_value(),
+        e.data(),
         sizeof(TestLedgerEntry),
-        is_committable) == ++last_idx);
+        is_committable) == last_idx);
   }
 
   void truncate(size_t idx)
@@ -120,7 +120,6 @@ public:
     if (idx < last_idx)
     {
       last_idx = idx;
-      dummy_entry.set_value(idx);
     }
   }
 };
