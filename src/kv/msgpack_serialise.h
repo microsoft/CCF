@@ -16,13 +16,6 @@
 MSGPACK_ADD_ENUM(kv::KvOperationType);
 MSGPACK_ADD_ENUM(kv::SecurityDomain);
 
-// Currently we have pre-serialised keys and values, which are often msgpack,
-// which are then re-packed into msgpack to go into the ledger. This is
-// wasteful. But without this we can't _unpack_ custom types at this level. We
-// should replace this with a custom serialisation format for the ledger. This
-// macro gates the intended code path.
-#define MSGPACK_DONT_REPACK (1)
-
 namespace kv
 {
   class MsgPackWriter
@@ -37,19 +30,17 @@ namespace kv
       msgpack::pack(sb, std::forward<T>(t));
     }
 
-    // Where we have pre-serialised data, we dump it directly into the output
-    // buffer. If we call append, then pack will prefix the data with some type
-    // information, potentially redundantly repacking already-packed data. We
-    // assume the serialised entry is already msgpack so we retain a consistent
-    // msgpack stream. If it is in some other format, every parser will need to
-    // be able to distinguish it from ths valid stream
+    // Where we have pre-serialised data, we dump it length-prefixed into the
+    // output buffer. If we call append, then pack will prefix the data with
+    // some type information, potentially redundantly repacking already-packed
+    // data. This means the output is no longer a stream of msgpack objects!
+    // Parsers are expected to know the type of the Ks and Vs for the tables
+    // they care about, and skip over any others
     void append_pre_serialised(const kv::serialisers::SerialisedEntry& entry)
     {
-#if MSGPACK_DONT_REPACK
+      const uint64_t size = entry.size();
+      sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
       sb.write(reinterpret_cast<char const*>(entry.data()), entry.size());
-#else
-      append(entry);
-#endif
     }
 
     void clear()
@@ -102,14 +93,23 @@ namespace kv
 
     kv::serialisers::SerialisedEntry read_next_pre_serialised()
     {
-#if MSGPACK_DONT_REPACK
+      auto remainder = data_size - data_offset;
+      auto data = reinterpret_cast<const uint8_t*>(data_ptr + data_offset);
+      const auto entry_size = serialized::read<uint64_t>(data, remainder);
+
+      if (remainder < entry_size)
+      {
+        throw std::runtime_error(fmt::format(
+          "Expected {} byte entry, found only {}", entry_size, remainder));
+      }
+
+      const auto bytes_read = data_size - data_offset - remainder;
+      data_offset += bytes_read;
+
       const auto before_offset = data_offset;
-      msgpack::unpack(msg, data_ptr, data_size, data_offset);
+      data_offset += entry_size;
       return kv::serialisers::SerialisedEntry(
         data_ptr + before_offset, data_ptr + data_offset);
-#else
-      return read_next<kv::serialisers::SerialisedEntry>();
-#endif
     }
 
     template <typename T>

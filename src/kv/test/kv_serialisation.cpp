@@ -300,9 +300,6 @@ using VerboseSerialisedMap = kv::TypedMap<
   CustomVerboseDumbSerialiser<KPrefix>,
   CustomVerboseDumbSerialiser<VPrefix>>;
 
-// While the ledger expects everything to be msgpack, we don't actually support
-// custom types
-#if !MSGPACK_DONT_REPACK
 TEST_CASE_TEMPLATE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
@@ -351,7 +348,6 @@ TEST_CASE_TEMPLATE(
     REQUIRE(vb->n == v2.n);
   }
 }
-#endif
 
 bool corrupt_serialised_tx(
   std::vector<uint8_t>& serialised_tx, std::vector<uint8_t>& value_to_corrupt)
