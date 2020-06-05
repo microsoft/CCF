@@ -5,6 +5,7 @@
 #pragma once
 
 #include "certificate.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
@@ -12,7 +13,6 @@
 #include "libbyz.h"
 #include "message.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "receive_message_base.h"
 #include "reply.h"
 #include "request.h"
@@ -32,6 +32,7 @@ class ClientProxy
 public:
   ClientProxy(
     IMessageReceiveBase& my_replica,
+    VerifyAndParseCommand verify_command_,
     int min_rtimeout = 2000,
     int max_rtimeout = 3000);
   // Effects: Creates a new ClientProxy object
@@ -71,6 +72,7 @@ private:
   IMessageReceiveBase& my_replica;
   View current_view;
   RequestIdGenerator request_id_generator;
+  VerifyAndParseCommand verify_command;
 
   struct RequestContext
   {
@@ -140,8 +142,6 @@ private:
   void increase_retransmission_timeout();
   void decrease_retransmission_timeout();
 
-  Cycle_counter latency; // Used to measure latency.
-
   // Multiplier used to obtain retransmission timeout from avg_latency
   static const int Rtimeout_mult = 4;
 
@@ -157,11 +157,15 @@ private:
 
 template <class T, class C>
 ClientProxy<T, C>::ClientProxy(
-  IMessageReceiveBase& my_replica, int min_rtimeout_, int max_rtimeout_) :
+  IMessageReceiveBase& my_replica,
+  VerifyAndParseCommand verify_command_,
+  int min_rtimeout_,
+  int max_rtimeout_) :
   current_view(my_replica.view()),
   min_rtimeout(min_rtimeout_),
   max_rtimeout(max_rtimeout_),
   my_replica(my_replica),
+  verify_command(verify_command_),
   out_reqs(Max_outstanding),
   head(nullptr),
   tail(nullptr),
@@ -205,7 +209,7 @@ bool ClientProxy<T, C>::send_request(
   if (current_outstanding.fetch_add(1) >= Max_outstanding)
   {
     current_outstanding.fetch_sub(1);
-    LOG_FAIL << "Too many outstanding requests, rejecting!" << std::endl;
+    LOG_FAIL_FMT("Too many outstanding requests, rejecting");
     return false;
   }
 
@@ -230,6 +234,16 @@ bool ClientProxy<T, C>::send_request(
   req->authenticate(len, is_read_only);
 
   auto req_clone = req->clone();
+  try
+  {
+    req_clone->create_context(verify_command);
+  }
+  catch (const std::exception& e)
+  {
+    LOG_FAIL_FMT("Failed to parse arguments");
+    LOG_DEBUG_FMT("Failed to parse arguments, e.what:", e.what());
+    return false;
+  }
 
   auto ctx = std::make_unique<RequestContext>(
     my_replica,
@@ -421,7 +435,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
     if (ctx->prev == nullptr)
     {
-      PBFT_ASSERT(head == ctx, "Invalid state");
+      CCF_ASSERT(head == ctx, "Invalid state");
       head = ctx->next;
     }
     else
@@ -431,7 +445,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
     if (ctx->next == nullptr)
     {
-      PBFT_ASSERT(tail == ctx, "Invalid state");
+      CCF_ASSERT(tail == ctx, "Invalid state");
       tail = ctx->prev;
     }
     else
@@ -493,7 +507,6 @@ void ClientProxy<T, C>::retransmit()
     Request* out_req = ctx->req.get();
 
     LOG_INFO_FMT("Retransmitting req id: {}", out_req->request_id());
-    INCR_OP(req_retrans);
 
     n_retrans++;
     bool ro = out_req->is_read_only();
@@ -520,6 +533,7 @@ void ClientProxy<T, C>::retransmit()
       // thresh times, and big requests are multicast to all
       // replicas.
       auto req_clone = out_req->clone();
+      req_clone->create_context(verify_command);
       execute_request(req_clone);
     }
     else

@@ -57,6 +57,7 @@ namespace pbft
       ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(
       kv::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
+    virtual kv::Version commit_tx(kv::Tx& tx) = 0;
     virtual void commit_new_view(
       const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
@@ -124,14 +125,19 @@ namespace pbft
 
     kv::Version commit_tx(kv::Tx& tx, CBuffer root, ccf::Signatures& signatures)
     {
+      auto sig_view = tx.get_view(signatures);
+      ccf::Signature sig_value(root);
+      sig_view->put(0, sig_value);
+      return commit_tx(tx);
+    }
+
+    kv::Version commit_tx(kv::Tx& tx)
+    {
       while (true)
       {
         auto p = x.lock();
         if (p)
         {
-          auto sig_view = tx.get_view(signatures);
-          ccf::Signature sig_value(root);
-          sig_view->put(0, sig_value);
           auto success = tx.commit();
           if (success == kv::CommitSuccess::OK)
           {

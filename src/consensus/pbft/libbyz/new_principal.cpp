@@ -4,10 +4,10 @@
 // Licensed under the MIT license.
 #include "new_principal.h"
 
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "message_tags.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "principal.h"
 
 New_principal::New_principal(
@@ -45,7 +45,7 @@ bool New_principal::verify()
 
 New_principal_rep& New_principal::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((New_principal_rep*)msg);
 }
 

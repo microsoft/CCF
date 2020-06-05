@@ -426,7 +426,8 @@ namespace ccf
           // If serialising the committed transaction fails, there is no way
           // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
-          LOG_FATAL_FMT("Failed to serialise: {}", e.what());
+          LOG_DEBUG_FMT("Failed to serialise: {}", e.what());
+          LOG_FATAL_FMT("Failed to serialise");
           abort();
         }
         catch (const std::exception& e)
@@ -519,7 +520,8 @@ namespace ccf
                 ctx->get_serialised_request(),
                 ctx->frame_format()))
           {
-            LOG_FAIL_FMT(
+            LOG_FAIL_FMT("Adding request failed");
+            LOG_DEBUG_FMT(
               "Adding request failed: {}, {}, {}",
               std::get<0>(reqid),
               std::get<1>(reqid),

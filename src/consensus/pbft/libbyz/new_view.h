@@ -140,7 +140,7 @@ private:
 
 inline New_view_rep& New_view::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((New_view_rep*)msg);
 }
 
@@ -179,7 +179,7 @@ inline Seqno New_view::max() const
 
 inline int New_view::which_picked(Seqno n)
 {
-  PBFT_ASSERT(n >= min() && n < max(), "Invalid argument");
+  CCF_ASSERT(n >= min() && n < max(), "Invalid argument");
   return (int)picked()[n - min()];
 }
 

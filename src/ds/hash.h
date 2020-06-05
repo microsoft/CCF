@@ -6,7 +6,31 @@
 
 #include <array>
 #include <cstdint>
+#include <small_vector/SmallVector.h>
 #include <vector>
+
+namespace ds::hashutils
+{
+  template <typename T>
+  inline void hash_combine(size_t& n, const T& v, std::hash<T>& h)
+  {
+    n ^= h(v) + (n << 6) + (n >> 2);
+  }
+
+  template <typename T>
+  inline size_t hash_container(const T& v)
+  {
+    size_t n = 0x444e414c544f4353;
+    std::hash<typename T::value_type> h{};
+
+    for (const auto& e : v)
+    {
+      hash_combine(n, e, h);
+    }
+
+    return n;
+  }
+}
 
 namespace std
 {
@@ -23,35 +47,12 @@ namespace std
     }
   };
 
-  namespace
-  {
-    template <typename T>
-    inline void hash_combine(size_t& n, const T& v, std::hash<T>& h)
-    {
-      n ^= h(v) + (n << 6) + (n >> 2);
-    }
-
-    template <typename T>
-    inline size_t hash_container(const T& v)
-    {
-      size_t n = 0x444e414c544f4353;
-      std::hash<typename T::value_type> h{};
-
-      for (const auto& e : v)
-      {
-        hash_combine(n, e, h);
-      }
-
-      return n;
-    }
-  }
-
   template <typename T>
   struct hash<std::vector<T>>
   {
     size_t operator()(const std::vector<T>& v) const
     {
-      return hash_container(v);
+      return ds::hashutils::hash_container(v);
     }
   };
 
@@ -60,7 +61,7 @@ namespace std
   {
     size_t operator()(const std::array<T, N>& v) const
     {
-      return hash_container(v);
+      return ds::hashutils::hash_container(v);
     }
   };
 
@@ -72,12 +73,23 @@ namespace std
       size_t n = 0x444e414c544f4353;
 
       std::hash<A> h_a{};
-      hash_combine(n, v.first, h_a);
+      ds::hashutils::hash_combine(n, v.first, h_a);
 
       std::hash<B> h_b{};
-      hash_combine(n, v.second, h_b);
+      ds::hashutils::hash_combine(n, v.second, h_b);
 
       return n;
+    }
+  };
+
+  template <typename T, unsigned N>
+  struct hash<llvm_vecsmall::SmallVector<T, N>>
+  {
+    size_t operator()(const llvm_vecsmall::SmallVector<T, N>& v) const
+    {
+      static constexpr siphash::SipKey k{0x7720796f726c694b,
+                                         0x2165726568207361};
+      return siphash::siphash<2, 4>(v.data(), v.size(), k);
     }
   };
 }

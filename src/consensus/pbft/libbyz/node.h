@@ -5,6 +5,7 @@
 #pragma once
 
 #include "consensus/consensus_types.h"
+#include "ds/ccf_assert.h"
 #include "global_state.h"
 #include "itimer.h"
 #include "key_format.h"
@@ -12,10 +13,8 @@
 #include "message_tags.h"
 #include "network.h"
 #include "nodeinfo.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "request_id_gen.h"
-#include "statistics.h"
 #include "types.h"
 
 #include <atomic>

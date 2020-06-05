@@ -5,10 +5,10 @@
 
 #include "fetch.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "node.h"
 #include "partition.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
 

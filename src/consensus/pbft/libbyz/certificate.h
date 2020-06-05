@@ -452,7 +452,7 @@ bool Certificate<T>::add(T* msg)
       else
       {
         // Should only happen for replies to read-only requests.
-        LOG_FAIL << "More than f+1 distinct values in certificate" << std::endl;
+        LOG_FAIL_FMT("More than f+1 distinct values in certificate");
         clear();
       }
     }
@@ -469,9 +469,9 @@ bool Certificate<T>::add(T* msg)
 template <class T>
 bool Certificate<T>::add_mine(T* msg)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     msg->id() == pbft::GlobalState::get_node().id(), "Invalid argument");
-  PBFT_ASSERT(msg->full(), "Invalid argument");
+  CCF_ASSERT(msg->full(), "Invalid argument");
 
   if (bmap.none() && f != pbft::GlobalState::get_node().f())
   {
@@ -480,11 +480,11 @@ bool Certificate<T>::add_mine(T* msg)
 
   if (c != 0 && !c->msg->match(msg))
   {
-    PBFT_ASSERT(
+    CCF_ASSERT(
       false, "Node is faulty, more than f faulty replicas or faulty primary ");
-    LOG_FATAL
-      << "Node is faulty, more than f faulty replicas or faulty primary "
-      << msg->stag() << std::endl;
+    LOG_FATAL_FMT(
+      "Node is faulty, more than f faulty replicas or faulty primary {}",
+      msg->stag());
     delete msg;
     return false;
   }
@@ -511,7 +511,7 @@ bool Certificate<T>::add_mine(T* msg)
 
   if (c->msg == 0)
   {
-    PBFT_ASSERT(cur_size == 0, "Invalid state");
+    CCF_ASSERT(cur_size == 0, "Invalid state");
     cur_size = 1;
   }
 
@@ -532,7 +532,7 @@ void Certificate<T>::mark_stale()
     int old_cur_size = cur_size;
     if (mym)
     {
-      PBFT_ASSERT(mym == c->msg, "Broken invariant");
+      CCF_ASSERT(mym == c->msg, "Broken invariant");
       c->msg = 0;
       c->count = 0;
       c = vals;

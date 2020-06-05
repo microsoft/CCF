@@ -64,3 +64,8 @@ void LedgerWriter::write_new_view(New_view* nv)
       (const uint8_t*)nv->contents() + nv->size()}},
     pbft_new_views_map);
 }
+
+void LedgerWriter::write_new_view(kv::Tx& tx)
+{
+  store.commit_tx(tx);
+}
