@@ -588,7 +588,7 @@ class CCFRemote(object):
             cmd += [f"--json-log-path={os.path.join(json_log_path, log_file)}"]
 
         if log_format_stdout_json:
-            cmd += [f"--log-format-stdout-json"]
+            cmd += ["--log-format-stdout-json"]
 
         if sig_max_tx:
             cmd += [f"--sig-max-tx={sig_max_tx}"]
