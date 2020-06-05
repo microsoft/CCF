@@ -246,7 +246,7 @@ class Node:
 
     def user_client(self, user_id=0, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=os.path.join(self.common_dir, f"user{user_id}_cert.pem"),
             key=os.path.join(self.common_dir, f"user{user_id}_privk.pem"),
@@ -259,7 +259,7 @@ class Node:
 
     def node_client(self, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=None,
             key=None,
@@ -272,7 +272,7 @@ class Node:
 
     def member_client(self, member_id=0, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=os.path.join(self.common_dir, f"member{member_id}_cert.pem"),
             key=os.path.join(self.common_dir, f"member{member_id}_privk.pem"),
