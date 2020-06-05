@@ -138,9 +138,7 @@ int main(int argc, char** argv)
 
   bool log_format_json = false;
   app.add_flag(
-    "--log-format-json",
-    log_format_json,
-    "Set node stdout log format to JSON");
+    "--log-format-json", log_format_json, "Set node stdout log format to JSON");
 
   std::string node_cert_file("nodecert.pem");
   app
