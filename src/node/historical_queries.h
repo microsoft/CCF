@@ -4,8 +4,8 @@
 
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
-#include "node/rpc/node_interface.h"
 #include "node/history.h"
+#include "node/rpc/node_interface.h"
 
 #include <deque>
 #include <map>
@@ -26,7 +26,8 @@ namespace ccf::historical
     std::deque<consensus::Index> pending_fetches;
 
     using StorePtr = std::shared_ptr<kv::Store>;
-    std::map<consensus::Index, StorePtr> untrusted_entries;
+    std::map<consensus::Index, std::pair<StorePtr, crypto::Sha256Hash>>
+      untrusted_entries;
 
     // TODO: Make this an LRU, evict old entries
     std::map<consensus::Index, StorePtr> trusted_entries;
@@ -99,7 +100,7 @@ namespace ccf::historical
     }
 
     void handle_signature_transaction(
-      consensus::Index idx, const StorePtr& sig_store)
+      consensus::Index sig_idx, const StorePtr& sig_store)
     {
       const auto sig = get_signature(sig_store);
       if (!sig.has_value())
@@ -108,12 +109,11 @@ namespace ccf::historical
           "Missing signature value in signature transaction");
       }
 
-      // TODO: Parse signatures tree
+      // Build tree from signature
       ccf::MerkleTreeHistory tree(sig->tree);
       const auto real_root = tree.get_root();
       if (real_root != sig->root)
       {
-        // TODO: Shouldn't throw when the host sends us junk?
         throw std::logic_error("Invalid signature: invalid root");
       }
 
@@ -125,7 +125,7 @@ namespace ccf::historical
         throw std::logic_error(fmt::format(
           "Signature {} claims it was produced by node {}: This node is "
           "unknown",
-          idx,
+          sig_idx,
           sig->node));
       }
 
@@ -137,20 +137,61 @@ namespace ccf::historical
         sig->sig.size());
       if (!verified)
       {
-        throw std::logic_error(fmt::format("Signature at {} is invalid", idx));
+        throw std::logic_error(
+          fmt::format("Signature at {} is invalid", sig_idx));
       }
 
       // TODO: Find which of our untrusted indices are in this tree
-
-      // TODO: Check that the merkle tree entry matches our untrusted entry
-
-      // Move stores from untrusted to trusted
-      // TODO: Temp solution, blindly trust everything for now
-      for (const auto& [k, v] : untrusted_entries)
+      auto it = untrusted_entries.begin();
+      while (it != untrusted_entries.end())
       {
-        trusted_entries[k] = v;
+        const auto& untrusted_idx = it->first;
+        const auto& untrusted_store = it->second.first;
+        const auto& untrusted_hash = it->second.second;
+
+        try
+        {
+          const auto receipt = tree.get_receipt(untrusted_idx);
+          LOG_INFO_FMT(
+            "From signature at {}, constructed a receipt for {}",
+            sig_idx,
+            untrusted_idx);
+
+          // TODO: Check that the receipt matches our untrusted entry
+          // const auto& entry_hash_in_receipt = receipt.leaf;
+          // if (untrusted_hash != entry_hash_in_receipt)
+          // {
+          //   throw std::logic_error(
+          //     fmt::format("Hash mismatch for {}", untrusted_idx));
+          // }
+
+          // Move stores from untrusted to trusted
+          // TODO: Temp solution, blindly trust everything for now
+          const auto trusted_ib =
+            trusted_entries.emplace(untrusted_idx, untrusted_store);
+          if (trusted_ib.second)
+          {
+            LOG_INFO_FMT("Now trusting {}", untrusted_idx);
+          }
+          else
+          {
+            LOG_INFO_FMT("Already trusted {}", untrusted_idx);
+          }
+          it = untrusted_entries.erase(it);
+        }
+        catch (const std::exception& e)
+        {
+          LOG_INFO_FMT(
+            "Signature at {} does not cover {}: {}",
+            sig_idx,
+            untrusted_idx,
+            e.what());
+          // TODO: Can we expose "what indices do you cover" through the
+          // MerkleTree, rather than try-catch?
+          ++it;
+          // TODO: Should we abandon this untrusted entry now?
+        }
       }
-      untrusted_entries.clear();
     }
 
     void deserialise_ledger_entry(
@@ -170,7 +211,7 @@ namespace ccf::historical
       {
         case kv::DeserialiseSuccess::FAILED:
         {
-          // TODO: Host gave us junk, did they mean to? Do we fail silently?
+          // TODO: Host gave us junk? Do we fail silently?
           throw std::logic_error("Deserialise failed!");
           break;
         }
@@ -183,7 +224,8 @@ namespace ccf::historical
             // TODO: Should we check if we already have this? If the host spams
             // us, do we just ignore everything but the first result they give
             // us?
-            untrusted_entries[idx] = store;
+            crypto::Sha256Hash hash(entry);
+            untrusted_entries[idx] = std::make_pair(store, hash);
           }
 
           // In either case, its not a signature - try the next transaction
@@ -238,6 +280,8 @@ namespace ccf::historical
       }
 
       pending_fetches.erase(it);
+      // TODO: Shouldn't throw when the host sends us junk, catch exceptions
+      // here?
       deserialise_ledger_entry(idx, data);
       return true;
     }

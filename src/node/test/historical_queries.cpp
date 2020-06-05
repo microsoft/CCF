@@ -78,8 +78,8 @@ TEST_CASE("StateCache")
   const auto node_id = 0;
 
   auto kp = tls::make_key_pair();
-  auto history =
-    std::make_shared<ccf::MerkleTxHistory>(store, node_id, *kp, signatures, nodes);
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    store, node_id, *kp, signatures, nodes);
 
   store.set_history(history);
 
@@ -104,26 +104,30 @@ TEST_CASE("StateCache")
     auto& even = store.create<StringToBool>("even");
 
     {
-      for (size_t i = 1; i < 20; ++i)
+      for (size_t i = 1; i <= 20; ++i)
       {
-        kv::Tx tx;
-        auto view = tx.get_view(as_string);
-        const auto s = std::to_string(i);
-        view->put(i, s);
-
-        if (i % 3 == 0)
+        if (i == 7 || i == 20)
         {
-          auto view1 = tx.get_view(even);
-          view1->put(s, s.size() % 2 == 0);
+          history->emit_signature();
+          store.compact(store.current_version());
         }
+        else
+        {
+          kv::Tx tx;
+          auto view = tx.get_view(as_string);
+          const auto s = std::to_string(i);
+          view->put(i, s);
 
-        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+          if (i % 3 == 0)
+          {
+            auto view1 = tx.get_view(even);
+            view1->put(s, s.size() % 2 == 0);
+          }
+
+          REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+        }
       }
     }
-
-    history->emit_signature();
-
-    store.compact(store.current_version());
   }
 
   std::vector<std::vector<uint8_t>> ledger;
@@ -141,8 +145,14 @@ TEST_CASE("StateCache")
   ccf::historical::StateCache cache(store, stub_writer);
 
   {
+    auto store_at_5 = cache.get_store_at(5);
+    REQUIRE(store_at_5 == nullptr);
+
     auto store_at_10 = cache.get_store_at(10);
     REQUIRE(store_at_10 == nullptr);
+
+    auto store_at_25 = cache.get_store_at(25);
+    REQUIRE(store_at_25 == nullptr);
   }
 
   auto& last_message_written = stub_writer->get_last_message();
@@ -156,6 +166,7 @@ TEST_CASE("StateCache")
   REQUIRE(!cache.handle_ledger_entry(11, ledger[10]));
 
   // Cache accepts requested entries, and then subsequent entries to a signature
+  REQUIRE(cache.handle_ledger_entry(5, ledger[4]));
   for (size_t i = 10; i <= 20; ++i)
   {
     REQUIRE(cache.handle_ledger_entry(i, ledger[i - 1]));
@@ -164,6 +175,7 @@ TEST_CASE("StateCache")
   }
 
   REQUIRE(cache.handle_ledger_entry(21, ledger[20]));
+
   auto store_at_10 = cache.get_store_at(10);
   REQUIRE(store_at_10 != nullptr);
 
