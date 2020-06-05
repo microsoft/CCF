@@ -136,30 +136,31 @@ size_t get_entries_per_chunk(size_t chunk_threshold)
     (frame_header_size + sizeof(TestLedgerEntry)));
 }
 
-// Assumes that the latest chunk so far is empty
-size_t create_n_chunks(
+// Assumes that no entries have been written yet
+size_t initialise_ledger(
   TestEntrySubmitter& entry_submitter,
   size_t chunk_threshold,
   size_t chunk_count)
 {
   size_t end_of_first_chunk_idx = 0;
-  size_t chunks_so_far = number_of_files_in_ledger_dir();
   bool is_committable = true;
-  LOG_DEBUG_FMT(
-    "Submitting {} txs", get_entries_per_chunk(chunk_threshold) * chunk_count);
+  size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
+  LOG_DEBUG_FMT("Submitting {} txs", entries_per_chunk * chunk_count);
 
-  for (int i = 0; i < get_entries_per_chunk(chunk_threshold) * chunk_count; i++)
+  for (int i = 0; i < entries_per_chunk * chunk_count; i++)
   {
     entry_submitter.write(is_committable);
   }
 
-  REQUIRE(number_of_files_in_ledger_dir() == chunk_count + chunks_so_far);
+  REQUIRE(number_of_files_in_ledger_dir() == chunk_count);
 
-  return end_of_first_chunk_idx;
+  return entries_per_chunk;
 }
 
 TEST_CASE("Regular chunking")
 {
+  fs::remove_all(ledger_dir);
+
   INFO("Cannot create a ledger with a chunk threshold of 0");
   {
     size_t chunk_threshold = 0;
@@ -171,13 +172,13 @@ TEST_CASE("Regular chunking")
   asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
   TestEntrySubmitter entry_submitter(ledger);
 
-  size_t end_of_first_chunk_idx;
-  bool is_committable;
+  size_t end_of_first_chunk_idx = 0;
+  bool is_committable = true;
 
   INFO("Not quite enough entries before chunk threshold");
   {
     is_committable = true;
-    for (int i = 0; i < entries_per_chunk - 1; i++)
+    for (int i = 0; i < entries_per_chunk; i++)
     {
       entry_submitter.write(is_committable);
     }
@@ -199,7 +200,7 @@ TEST_CASE("Regular chunking")
   {
     is_committable = true;
     entry_submitter.write(is_committable);
-    end_of_first_chunk_idx = entry_submitter.get_last_idx();
+    end_of_first_chunk_idx = entry_submitter.get_last_idx() - 1;
     REQUIRE(number_of_files_in_ledger_dir() == 2);
   }
 
@@ -207,7 +208,12 @@ TEST_CASE("Regular chunking")
     "Submitting more committable entries trigger chunking at regular interval");
   {
     size_t chunk_count = 2;
-    create_n_chunks(entry_submitter, chunk_threshold, chunk_count);
+    LOG_DEBUG_FMT("Submitting {} txs", entries_per_chunk * chunk_count);
+
+    for (int i = 0; i < entries_per_chunk * chunk_count; i++)
+    {
+      entry_submitter.write(is_committable);
+    }
   }
 
   INFO("Reading entries across all chunks");
@@ -234,7 +240,6 @@ TEST_CASE("Regular chunking")
 
   INFO("Reading range of entries across all chunks");
   {
-    LOG_DEBUG_FMT("Reading range of entries...");
     auto last_idx = entry_submitter.get_last_idx();
 
     // Reading from 0 fails
@@ -261,63 +266,84 @@ TEST_CASE("Regular chunking")
     read_entries_range_from_ledger(
       ledger, end_of_first_chunk_idx + 1, last_idx - 1);
   }
-
-  INFO("Truncation");
-  {
-    size_t chunks_so_far = number_of_files_in_ledger_dir();
-    auto last_idx = entry_submitter.get_last_idx();
-    read_entries_range_from_ledger(ledger, 1, last_idx);
-
-    // Truncation of latest index has no effect
-    entry_submitter.truncate(last_idx);
-    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
-
-    // Truncation of last entry in penultimate chunk keeps latest file open
-    entry_submitter.truncate(last_idx - 1);
-    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
-
-    is_committable = true;
-    entry_submitter.write(is_committable);
-
-    // Truncation of entry in penultimate chunk closes latest file open
-    entry_submitter.truncate(last_idx - 2);
-    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
-
-    is_committable = true;
-    entry_submitter.write(is_committable);
-    entry_submitter.write(is_committable);
-    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
-
-    // Truncation of entry at the start of second chunk succeeds
-    entry_submitter.truncate(end_of_first_chunk_idx + 1);
-    REQUIRE(number_of_files_in_ledger_dir() == 2);
-
-    // Truncation of entry at the end of first chunk keeps latest file open
-    entry_submitter.truncate(end_of_first_chunk_idx);
-    REQUIRE(number_of_files_in_ledger_dir() == 2);
-
-    is_committable = true;
-    entry_submitter.write(is_committable);
-
-    // Truncation of very first entry
-    entry_submitter.truncate(1);
-    REQUIRE(number_of_files_in_ledger_dir() == 1);
-
-    // Truncation to 0
-    entry_submitter.truncate(0);
-    REQUIRE(number_of_files_in_ledger_dir() == 1);
-  }
-  fs::remove_all(ledger_dir);
 }
 
-TEST_CASE("Compaction")
+TEST_CASE("Truncation")
 {
+  fs::remove_all(ledger_dir);
+
   size_t chunk_threshold = 30;
   asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t chunk_count = 3;
-  create_n_chunks(entry_submitter, chunk_threshold, chunk_count);
+  size_t end_of_first_chunk_idx =
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
 
-  // fs::remove_all(ledger_dir);
+  // Write another entry to create a new chunk
+  entry_submitter.write(true);
+
+  size_t chunks_so_far = number_of_files_in_ledger_dir();
+  auto last_idx = entry_submitter.get_last_idx();
+
+  INFO("Truncating latest index has no effect");
+  {
+    entry_submitter.truncate(last_idx);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
+  }
+
+  INFO("Truncating last entry in penultimate chunk closes latest file");
+  {
+    entry_submitter.truncate(last_idx - 1);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
+    entry_submitter.write(true);
+  }
+
+  INFO("Truncating entry in penultimate chunk closes latest file");
+  {
+    entry_submitter.truncate(last_idx - 2);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+  }
+
+  INFO("Truncating entry at the start of second chunk");
+  {
+    entry_submitter.truncate(end_of_first_chunk_idx + 1);
+    REQUIRE(number_of_files_in_ledger_dir() == 2);
+  }
+
+  INFO("Truncating entry at the end of first chunk");
+  {
+    entry_submitter.truncate(end_of_first_chunk_idx);
+    REQUIRE(number_of_files_in_ledger_dir() == 1);
+    entry_submitter.write(true);
+  }
+
+  INFO("Truncating very first entry");
+  {
+    entry_submitter.truncate(1);
+    REQUIRE(number_of_files_in_ledger_dir() == 1);
+  }
+
+  INFO("Truncating all the things");
+  {
+    entry_submitter.truncate(0);
+    REQUIRE(number_of_files_in_ledger_dir() == 0);
+    entry_submitter.write(true);
+  }
+}
+
+TEST_CASE("Compaction")
+{
+  fs::remove_all(ledger_dir);
+
+  size_t chunk_threshold = 30;
+  asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+  TestEntrySubmitter entry_submitter(ledger);
+
+  size_t chunk_count = 3;
+  initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+  entry_submitter.write(false);
 }

@@ -215,6 +215,17 @@ namespace asynchost
 
       LOG_FAIL_FMT("Truncating {} at {}", get_file_name(), idx);
 
+      if (idx == start_idx - 1)
+      {
+        LOG_FAIL_FMT("Removing {}", get_file_name());
+        if (!fs::remove(fs::path(dir) / fs::path(get_file_name())))
+        {
+          throw std::logic_error(
+            fmt::format("Could not remove file {}", get_file_name()));
+        }
+        return true;
+      }
+
       total_len = positions.at(idx - start_idx + 1);
       positions.resize(idx - start_idx + 1);
 
@@ -231,8 +242,7 @@ namespace asynchost
       }
 
       fseeko(file, total_len, SEEK_SET);
-      return (
-        idx == start_idx - 1); // Returns true indicate that the file is empty
+      return false;
     }
 
     void prepare()
@@ -375,7 +385,10 @@ namespace asynchost
 
     std::shared_ptr<LedgerFile> get_latest_file() const
     {
-      // TODO: Better checks
+      if (files.empty())
+      {
+        return nullptr;
+      }
       return *(files.rbegin()++);
     }
 
@@ -559,14 +572,11 @@ namespace asynchost
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       auto f = get_latest_file();
-      last_idx = f->write_entry(data, size);
-
-      // LOG_FAIL_FMT(
-      //   "[{}] Size of current chunk, from {} to {}, is {}",
-      //   committable,
-      //   f->get_start_idx(),
-      //   new_idx,
-      //   f->get_current_size());
+      if (f == nullptr)
+      {
+        f = std::make_shared<LedgerFile>(ledger_dir);
+        files.push_back(f);
+      }
 
       if (committable && f->get_current_size() >= chunk_threshold)
       {
@@ -577,6 +587,15 @@ namespace asynchost
 
         files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
       }
+
+      last_idx = get_latest_file()->write_entry(data, size);
+
+      // LOG_FAIL_FMT(
+      //   "[{}] Size of current chunk, from {} to {}, is {}",
+      //   committable,
+      //   f->get_start_idx(),
+      //   new_idx,
+      //   f->get_current_size());
 
       return last_idx;
     }
@@ -591,7 +610,11 @@ namespace asynchost
       }
 
       auto f_from = get_it_contains_idx(idx + 1);
-      auto f_to = get_it_contains_idx(last_idx);
+      auto f_to = get_it_contains_idx(last_idx + 1);
+      if (f_to == files.end())
+      {
+        f_to = --f_to;
+      }
 
       LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to) + 1);
 
@@ -601,17 +624,10 @@ namespace asynchost
         LOG_FAIL_FMT("Truncate idx: {}", truncate_idx);
 
         // Do not delete the last file if it is the only active one
-        if ((*it)->truncate(truncate_idx) && (std::distance(f_from, f_to) != 0))
+        if ((*it)->truncate(truncate_idx))
         {
-          LOG_FAIL_FMT("Removing {}", (*it)->get_file_name());
           auto it_ = it;
           it++;
-          if (!fs::remove(
-                fs::path(ledger_dir) / fs::path((*it_)->get_file_name())))
-          {
-            throw std::logic_error(
-              fmt::format("Could not remove file {}", (*it)->get_file_name()));
-          }
           files.erase(it_);
         }
         else
