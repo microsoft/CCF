@@ -143,7 +143,7 @@ namespace logger
   public:
     void write(const std::string& log_line) override
     {
-      std::cout << log_line << std::flush;
+      std::cout << log_line;
     }
   };
 
