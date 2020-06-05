@@ -75,9 +75,11 @@ TEST_CASE("StateCache")
   auto& nodes =
     store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
 
+  const auto node_id = 0;
+
   auto kp = tls::make_key_pair();
   auto history =
-    std::make_shared<ccf::MerkleTxHistory>(store, 0, *kp, signatures, nodes);
+    std::make_shared<ccf::MerkleTxHistory>(store, node_id, *kp, signatures, nodes);
 
   store.set_history(history);
 
@@ -86,11 +88,23 @@ TEST_CASE("StateCache")
 
   {
     INFO("Build some interesting state in the store");
+
+    {
+      INFO("Store the signing node's key");
+      kv::Tx tx;
+      auto view = tx.get_view(nodes);
+      ccf::NodeInfo ni;
+      ni.cert = kp->self_sign("CN=Test node");
+      ni.status = ccf::NodeStatus::TRUSTED;
+      view->put(node_id, ni);
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+    }
+
     auto& as_string = store.create<NumToString>("as_string");
     auto& even = store.create<StringToBool>("even");
 
     {
-      for (size_t i = 0; i < 20; ++i)
+      for (size_t i = 1; i < 20; ++i)
       {
         kv::Tx tx;
         auto view = tx.get_view(as_string);

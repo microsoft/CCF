@@ -5,6 +5,7 @@
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
 #include "node/rpc/node_interface.h"
+#include "node/history.h"
 
 #include <deque>
 #include <map>
@@ -65,7 +66,95 @@ namespace ccf::historical
       // TODO
     }
 
-    void update_trusted_stores(consensus::Index idx, const LedgerEntry& entry)
+    std::optional<ccf::Signature> get_signature(const StorePtr& sig_store)
+    {
+      kv::Tx tx;
+      auto sig_table = sig_store->get<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      if (sig_table == nullptr)
+      {
+        throw std::logic_error(
+          "Missing signatures table in signature transaction");
+      }
+
+      auto sig_view = tx.get_view(*sig_table);
+      return sig_view->get(0);
+    }
+
+    std::optional<ccf::NodeInfo> get_node_info(ccf::NodeId node_id)
+    {
+      // Current solution: Use current state of Nodes table from real store.
+      // This only works while entries are never deleted from this table, and
+      // makes no check that the signing node was active at the point it
+      // produced this signature
+      kv::Tx tx;
+
+      auto nodes_table = source_store.get<ccf::Nodes>(ccf::Tables::NODES);
+      if (nodes_table == nullptr)
+      {
+        throw std::logic_error("Missing nodes table");
+      }
+
+      auto nodes_view = tx.get_view(*nodes_table);
+      return nodes_view->get(node_id);
+    }
+
+    void handle_signature_transaction(
+      consensus::Index idx, const StorePtr& sig_store)
+    {
+      const auto sig = get_signature(sig_store);
+      if (!sig.has_value())
+      {
+        throw std::logic_error(
+          "Missing signature value in signature transaction");
+      }
+
+      // TODO: Parse signatures tree
+      ccf::MerkleTreeHistory tree(sig->tree);
+      const auto real_root = tree.get_root();
+      if (real_root != sig->root)
+      {
+        // TODO: Shouldn't throw when the host sends us junk?
+        throw std::logic_error("Invalid signature: invalid root");
+      }
+
+      // TODO: Check the signature is produced by the claimed node (needs
+      // retrieval of the node's cert)
+      const auto node_info = get_node_info(sig->node);
+      if (!node_info.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Signature {} claims it was produced by node {}: This node is "
+          "unknown",
+          idx,
+          sig->node));
+      }
+
+      auto verifier = tls::make_verifier(node_info->cert);
+      const auto verified = verifier->verify_hash(
+        real_root.h.data(),
+        real_root.h.size(),
+        sig->sig.data(),
+        sig->sig.size());
+      if (!verified)
+      {
+        throw std::logic_error(fmt::format("Signature at {} is invalid", idx));
+      }
+
+      // TODO: Find which of our untrusted indices are in this tree
+
+      // TODO: Check that the merkle tree entry matches our untrusted entry
+
+      // Move stores from untrusted to trusted
+      // TODO: Temp solution, blindly trust everything for now
+      for (const auto& [k, v] : untrusted_entries)
+      {
+        trusted_entries[k] = v;
+      }
+      untrusted_entries.clear();
+    }
+
+    void deserialise_ledger_entry(
+      consensus::Index idx, const LedgerEntry& entry)
     {
       StorePtr store = std::make_shared<kv::Store>();
 
@@ -107,23 +196,7 @@ namespace ccf::historical
           // Hurrah! We can hopefully use this signature to move some old stores
           // from untrusted to trusted!
 
-          // Get signatures table
-
-          // Parse signatures entry
-
-          // Check each of the transactions it covers
-
-          // See if this includes any of ours
-
-          // Check that the signature matches the entry we got!
-
-          // Move signed stores from untrusted to trusted
-          // TODO: Temp solution, blindly trust everything for now
-          for (const auto& [k, v] : untrusted_entries)
-          {
-            trusted_entries[k] = v;
-          }
-          untrusted_entries.clear();
+          handle_signature_transaction(idx, store);
           break;
         }
         default:
@@ -165,7 +238,7 @@ namespace ccf::historical
       }
 
       pending_fetches.erase(it);
-      update_trusted_stores(idx, data);
+      deserialise_ledger_entry(idx, data);
       return true;
     }
 
