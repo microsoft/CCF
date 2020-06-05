@@ -585,7 +585,7 @@ namespace asynchost
     {
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
-      if (idx == 0 || idx >= last_idx)
+      if (idx >= last_idx)
       {
         return;
       }

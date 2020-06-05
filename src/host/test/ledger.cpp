@@ -112,6 +112,11 @@ public:
   void truncate(size_t idx)
   {
     ledger.truncate(idx);
+
+    // Check that we can read until truncated entry but cannot read after it
+    read_entries_range_from_ledger(ledger, 1, idx);
+    REQUIRE(ledger.read_framed_entries(1, idx + 1).size() == 0);
+
     if (idx < last_idx)
     {
       last_idx = idx;
@@ -250,12 +255,10 @@ TEST_CASE("Regular chunking")
 
     // Truncation of latest index has no effect
     entry_submitter.truncate(last_idx);
-    read_entries_range_from_ledger(ledger, 1, last_idx);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
 
     // Truncation of last entry in penultimate chunk keeps latest file open
     entry_submitter.truncate(last_idx - 1);
-    REQUIRE(ledger.read_framed_entries(1, last_idx).size() == 0);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
 
     is_committable = true;
@@ -268,8 +271,25 @@ TEST_CASE("Regular chunking")
     is_committable = true;
     entry_submitter.write(is_committable);
     entry_submitter.write(is_committable);
+    read_entries_range_from_ledger(ledger, 1, entry_submitter.get_last_idx());
 
-    // read_entries_range_from_ledger(ledger, );
+    // Truncation of entry at the start of second chunk succeeds
+    entry_submitter.truncate(end_of_chunk_idx + 1);
+    REQUIRE(number_of_files_in_ledger_dir() == 2);
+
+    // Truncation of entry at the end of first chunk keeps latest file open
+    entry_submitter.truncate(end_of_chunk_idx);
+    REQUIRE(number_of_files_in_ledger_dir() == 2);
+
+    is_committable = true;
+    entry_submitter.write(is_committable);
+
+    // Truncation of very first entry
+    entry_submitter.truncate(1);
+    REQUIRE(number_of_files_in_ledger_dir() == 1);
+
+    // Truncation to 0
+    entry_submitter.truncate(0);
 
     // entry_submitter.write(is_committable);
     // TODO:
