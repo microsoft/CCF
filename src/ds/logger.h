@@ -78,14 +78,9 @@ namespace logger
     }
   };
 
-  class JsonLogger : public AbstractLogger
+  class JsonConsoleLogger : public AbstractLogger
   {
-  protected:
-    JsonLogger() = default;
-
   public:
-    JsonLogger(std::string log_path) : AbstractLogger(log_path) {}
-
     std::string format(
       const std::string& file_name,
       size_t line_number,
@@ -134,16 +129,12 @@ namespace logger
 
     virtual void write(const std::string& log_line) override
     {
-      dump(log_line);
-    }
-  };
-
-  class JsonConsoleLogger : public JsonLogger
-  {
-  public:
-    void write(const std::string& log_line) override
-    {
       std::cout << log_line;
+    }
+
+    std::ostream& get_stream() override
+    {
+      return std::cout;
     }
   };
 

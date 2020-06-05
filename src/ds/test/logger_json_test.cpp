@@ -11,14 +11,22 @@ TEST_CASE("Test custom log format")
 {
   std::string test_log_file = "./test_json_logger.txt";
   remove(test_log_file.c_str());
-  logger::config::loggers().emplace_back(
-    std::make_unique<logger::JsonLogger>(test_log_file));
+  logger::config::initialize_with_json_console();
   logger::config::level() = logger::DEBUG;
   std::string log_msg_dbg = "log_msg_dbg";
   std::string log_msg_fail = "log_msg_fail";
 
+  std::ofstream out(test_log_file.c_str());
+  std::streambuf* coutbuf = std::cout.rdbuf(); // save old buf
+  std::cout.rdbuf(out.rdbuf()); // redirect std::cout to out.txt!
+
   LOG_DEBUG_FMT(log_msg_dbg);
   LOG_TRACE_FMT(log_msg_fail);
+
+  out.flush();
+  out.close();
+
+  std::cout.rdbuf(coutbuf); //reset to standard output again
 
   std::ifstream f(test_log_file);
   std::string line;
