@@ -4,6 +4,8 @@
 // Licensed under the MIT license.
 #pragma once
 
+#include "../3rdparty/backward-cpp/backward.hpp"
+
 #include <chrono>
 #include <cstring>
 #include <cxxabi.h>
@@ -16,8 +18,6 @@
 #include <sstream>
 #include <string>
 
-#include "../3rdparty/backward-cpp/backward.hpp"
-
 namespace logger
 {
   /** Print a demangled stack backtrace of the caller function to FILE* out. */
@@ -25,7 +25,7 @@ namespace logger
   {
     std::cout << "stack trace:" << std::endl;
     backward::StackTrace st;
-    st.load_here(32);
+    st.load_here();
     backward::Printer p;
     p.print(st);
   }
