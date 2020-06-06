@@ -58,13 +58,64 @@ namespace asynchost
       dir(dir),
       start_idx(start_idx)
     {
-      file = fopen((fs::path(dir) / fs::path(file_name_prefix)).c_str(), "w+b");
+      file = fopen(
+        (fs::path(dir) /
+         fs::path(fmt::format("{}_{}", file_name_prefix, start_idx)))
+          .c_str(),
+        "w+b");
 
       // First 8 bytes are reserved for the offset to the position table
       fseeko(file, sizeof(uint64_t), SEEK_SET);
       total_len = sizeof(uint64_t);
 
       LOG_INFO_FMT("File {} created", get_file_name());
+    }
+
+    LedgerFile(
+      const std::string& dir, const std::string& file_name, size_t start_idx)
+    {
+      LOG_FAIL_FMT("Restoring individual ledger file...");
+
+      // TODO:
+      // 1. Set start_idx, total_len, is_prepared and is_complete
+
+      file = fopen((fs::path(dir) / fs::path(file_name)).c_str(), "r+b");
+      if (!file)
+      {
+        throw std::logic_error("Unable to open ledger file");
+      }
+
+      // Load positions
+      // First, get full size of file
+      fseeko(file, 0, SEEK_END);
+      total_len = ftello(file);
+
+      // Second, read offset at end of file
+      fseeko(file, 0, SEEK_SET);
+      size_t table_offset;
+      if (fread(&table_offset, sizeof(table_offset), 1, file) != 1)
+      {
+        throw std::logic_error("Failed to read positions offset from file");
+      }
+
+      LOG_FAIL_FMT("table offset is {}", table_offset);
+
+      // Finally, read positions
+      fseeko(file, table_offset, SEEK_SET);
+
+      std::vector<size_t> positions_;
+      positions_.resize((total_len - table_offset) / sizeof(positions_.at(0)));
+      LOG_FAIL_FMT("len of positions_ is {}", positions_.size());
+
+      if (
+        fread(
+          positions_.data(),
+          sizeof(positions_.at(0)),
+          positions_.size(),
+          file) != positions_.size())
+      {
+        throw std::logic_error("Failed to read positions_ table from file");
+      }
     }
 
     ~LedgerFile()
@@ -296,11 +347,6 @@ namespace asynchost
           strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
       }
 
-      fs::rename(
-        fs::path(dir) / fs::path(get_file_name()),
-        fs::path(dir) /
-          fs::path(fmt::format("{}_{}", file_name_prefix, start_idx)));
-
       is_prepared = true;
     }
 
@@ -342,7 +388,7 @@ namespace asynchost
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
-    size_t compacted = 1;
+    size_t compacted = 0;
 
     void dump_files() const
     {
@@ -396,22 +442,31 @@ namespace asynchost
           "Error: Cannot create ledger with chunk threshold of 0");
       }
 
-      // For now, enforce that the ledger directory is empty on startup
       if (fs::is_directory(ledger_dir))
       {
-        throw std::logic_error(
-          fmt::format("Error: Ledger directory {} already exists", ledger_dir));
-      }
+        // TODO: Restore ledger
 
-      if (!fs::create_directory(ledger_dir))
+        for (auto const& f : fs::directory_iterator(ledger_dir))
+        {
+          LOG_FAIL_FMT("Restore, {}", f.path().string());
+
+          // TODO: Read start index from file name
+          size_t start_idx = 888;
+
+          files.push_back(std::make_shared<LedgerFile>(
+            f.path().parent_path(), f.path().filename(), start_idx));
+        }
+      }
+      else
       {
-        throw std::logic_error(fmt::format(
-          "Error: Could not create ledger directory: {}", ledger_dir));
+        if (!fs::create_directory(ledger_dir))
+        {
+          throw std::logic_error(fmt::format(
+            "Error: Could not create ledger directory: {}", ledger_dir));
+        }
+
+        files.push_back(std::make_shared<LedgerFile>(ledger_dir));
       }
-
-      files.push_back(std::make_shared<LedgerFile>(ledger_dir));
-
-      LOG_FAIL_FMT("Multiple ledger created");
     }
 
     MultipleLedger(const MultipleLedger& that) = delete;
@@ -637,7 +692,7 @@ namespace asynchost
     {
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
-      if (idx >= last_idx || idx <= compacted)
+      if (idx >= last_idx || idx < compacted)
       {
         return;
       }
@@ -648,10 +703,10 @@ namespace asynchost
 
       for (auto it = f_from; it != std::next(f_to);)
       {
+        // Truncate the first file to the truncation index while the more recent
+        // files are deleted entirely
         auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
         LOG_FAIL_FMT("Truncate idx: {}", truncate_idx);
-
-        // Do not delete the last file if it is the only active one
         if ((*it)->truncate(truncate_idx))
         {
           auto it_ = it;
@@ -676,12 +731,15 @@ namespace asynchost
         return;
       }
 
-      auto f_from = get_it_contains_idx(compacted);
+      auto f_from = (compacted == 0) ? get_it_contains_idx(1) :
+                                       get_it_contains_idx(compacted);
       auto f_to = get_it_contains_idx(idx);
       LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to) + 1);
 
       for (auto it = f_from; it != std::next(f_to);)
       {
+        // Compact all historical files to their latest index while the latest
+        // file is compacted to the compaction index
         auto compact_idx = (it == f_to) ? idx : (*it)->get_last_idx();
         (*it)->compact(compact_idx);
 

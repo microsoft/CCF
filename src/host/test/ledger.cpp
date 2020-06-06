@@ -400,7 +400,7 @@ TEST_CASE("Compaction")
   // TODO: This is a limitation for now.
   // This is not ideal as the latest chunk would not get compacted until it's
   // reached the threshold, e.g. during inactivity
-  INFO("Even though latest chunk is complete, it ");
+  INFO("Even though latest chunk is complete, it does not get compacted");
   {
     entry_submitter.write(true);
     entry_submitter.write(true);
@@ -420,5 +420,29 @@ TEST_CASE("Compaction")
 
     ledger.truncate(2 * end_of_first_chunk_idx); // No effect
     read_entries_range_from_ledger(ledger, 1, last_idx);
+  }
+}
+
+TEST_CASE("Restore existing ledger")
+{
+  fs::remove_all(ledger_dir);
+
+  size_t chunk_threshold = 3000;
+  asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+  TestEntrySubmitter entry_submitter(ledger);
+
+  size_t chunk_count = 3;
+  size_t end_of_first_chunk_idx =
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+  entry_submitter.write(true);
+
+  SUBCASE("Restoring uncompacted files")
+  {
+
+    LOG_DEBUG_FMT("Restoring files\n\n");
+    // TODO: Is it possible to restore a ledger that was compacted with a
+    // different threshold
+    asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
   }
 }
