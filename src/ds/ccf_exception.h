@@ -3,7 +3,7 @@
 #pragma once
 
 #ifdef VIRTUAL_ENCLAVE
-#include "../3rdparty/backward-cpp/backward.hpp"
+#  include "../3rdparty/backward-cpp/backward.hpp"
 #endif
 #include "logger.h"
 
