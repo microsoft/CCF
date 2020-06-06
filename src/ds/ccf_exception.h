@@ -13,19 +13,21 @@ namespace ccf
   public:
     ccf_logic_error(const std::string& what_arg)
     {
+      if (!what_arg.empty())
+      {
+        result.append(what_arg.c_str());
+        result.append("\n");
+      }
+
+#ifdef VIRTUAL_ENCLAVE
       backward::StackTrace st;
       st.load_here();
 
       std::ostringstream stream;
       backward::Printer p;
       p.print(st, stream);
-
-      if (!what_arg.empty())
-      {
-        result.append(what_arg.c_str());
-        result.append("\n");
-      }
       result.append(stream.str());
+#endif
     }
 
     ccf_logic_error() : ccf_logic_error("") {}
