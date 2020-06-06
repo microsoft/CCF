@@ -888,6 +888,8 @@ bool Replica::pre_verify(Message* m)
 
 void Replica::handle(Request* m)
 {
+  std::string* foo = nullptr;
+  foo->clear();
   bool ro = m->is_read_only();
 
   Digest rd = m->digest();
@@ -1050,19 +1052,15 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
   {
     btimer->restart();
   }
-
-  if (!(rqueue.size() == 0 ||
-        (rqueue.size() != 0 &&
-         (btimer->get_state() == ITimer::State::running ||
-          do_not_wait_for_batch_size))))
-  {
-    LOG_INFO_FMT(
-      "Req_size:{}, btimer_state:{}, do_not_wait:{}",
-      rqueue.size(),
-      btimer->get_state(),
-      (do_not_wait_for_batch_size ? "true" : "false"));
-    CCF_ASSERT(false, "send_pre_prepare rqueue and btimer issue");
-  }
+  CCF_ASSERT_FMT(
+    !(rqueue.size() == 0 ||
+      (rqueue.size() != 0 &&
+       (btimer->get_state() == ITimer::State::running ||
+        do_not_wait_for_batch_size))),
+    "Req_size:{}, btimer_state:{}, do_not_wait:{}",
+    rqueue.size(),
+    btimer->get_state(),
+    (do_not_wait_for_batch_size ? "true" : "false"));
 }
 
 template <class T>
