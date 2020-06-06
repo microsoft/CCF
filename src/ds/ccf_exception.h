@@ -2,7 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#ifdef VIRTUAL_ENCLAVE
 #include "../3rdparty/backward-cpp/backward.hpp"
+#endif
 #include "logger.h"
 
 #include <exception>
