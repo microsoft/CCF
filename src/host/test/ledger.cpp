@@ -93,10 +93,14 @@ class TestEntrySubmitter
 {
 private:
   asynchost::MultipleLedger& ledger;
-  size_t last_idx = 0;
+  size_t last_idx;
 
 public:
-  TestEntrySubmitter(asynchost::MultipleLedger& ledger) : ledger(ledger) {}
+  TestEntrySubmitter(
+    asynchost::MultipleLedger& ledger, size_t initial_last_idx = 0) :
+    ledger(ledger),
+    last_idx(initial_last_idx)
+  {}
 
   size_t get_last_idx()
   {
@@ -250,6 +254,9 @@ TEST_CASE("Regular chunking")
     REQUIRE(ledger.read_framed_entries(last_idx, last_idx + 1).size() == 0);
 
     // Reading from the start to any valid index succeeds
+    read_entries_range_from_ledger(ledger, 1, 1);
+    read_entries_range_from_ledger(
+      ledger, end_of_first_chunk_idx - 1, end_of_first_chunk_idx);
     read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
     read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx + 1);
     read_entries_range_from_ledger(ledger, 1, last_idx - 1);
@@ -427,22 +434,33 @@ TEST_CASE("Restore existing ledger")
 {
   fs::remove_all(ledger_dir);
 
-  size_t chunk_threshold = 3000;
-  asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
-  TestEntrySubmitter entry_submitter(ledger);
+  size_t chunk_threshold = 30;
+  size_t initial_last_idx = 0;
 
-  size_t chunk_count = 3;
-  size_t end_of_first_chunk_idx =
-    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+  INFO("Initialise first ledger with all but one complete chunks");
+  {
+    asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+    TestEntrySubmitter entry_submitter(ledger);
 
-  entry_submitter.write(true);
+    size_t chunk_count = 3;
+    size_t end_of_first_chunk_idx =
+      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+    entry_submitter.write(true);
+    initial_last_idx = entry_submitter.get_last_idx();
+  }
 
   SUBCASE("Restoring uncompacted files")
   {
-
     LOG_DEBUG_FMT("Restoring files\n\n");
+    LOG_DEBUG_FMT("Initial last idx: {}", initial_last_idx);
     // TODO: Is it possible to restore a ledger that was compacted with a
     // different threshold
     asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
+
+    read_entries_range_from_ledger(ledger2, 1, 1);
+
+    TestEntrySubmitter entry_submitter(ledger2, initial_last_idx);
+    // entry_submitter.write(true);
   }
 }
