@@ -1017,7 +1017,7 @@ void State::handle(Meta_data* m)
 
 void State::handle(Meta_data_d* m)
 {
-  LOG_TRACE_FMT("Got meta_data_d from {}, index {}", m->id() , m->index());
+  LOG_TRACE_FMT("Got meta_data_d from {}, index {}", m->id(), m->index());
   Request_id crid =
     pbft::GlobalState::get_replica().principal()->last_fetch_rid();
   if (fetching && m->request_id() == crid && flevel == m->level())

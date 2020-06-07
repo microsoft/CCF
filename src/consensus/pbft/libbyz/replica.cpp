@@ -1347,7 +1347,8 @@ void Replica::handle(Commit* m)
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
     {
-      LOG_DEBUG_FMT("calling execute committed from handle commit for seqno:{}", ms);
+      LOG_DEBUG_FMT(
+        "calling execute committed from handle commit for seqno:{}", ms);
       execute_committed();
     }
     return;
@@ -2688,7 +2689,8 @@ void Replica::set_min_pre_prepare_batch_size()
   {
     min_pre_prepare_batch_size = min_min_pre_prepare_batch_size;
   }
-  LOG_TRACE_FMT("new min_pre_prepare_batch_size is:{}", min_pre_prepare_batch_size);
+  LOG_TRACE_FMT(
+    "new min_pre_prepare_batch_size is:{}", min_pre_prepare_batch_size);
 }
 
 void Replica::new_state(Seqno c)
