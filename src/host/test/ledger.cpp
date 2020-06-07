@@ -66,7 +66,7 @@ void verify_framed_entries_range(
 
     auto frame = serialized::read<frame_header_type>(data, size);
     auto entry = serialized::read(data, size, frame);
-    // LOG_DEBUG_FMT("Value is {}", TestLedgerEntry(entry).value());
+    LOG_DEBUG_FMT("Value is {}", TestLedgerEntry(entry).value());
     REQUIRE(TestLedgerEntry(entry).value() == idx);
     i += frame_header_size + frame;
     idx++;
@@ -435,7 +435,8 @@ TEST_CASE("Restore existing ledger")
   fs::remove_all(ledger_dir);
 
   size_t chunk_threshold = 30;
-  size_t initial_last_idx = 0;
+  size_t last_idx = 0;
+  size_t end_of_first_chunk_idx = 0;
 
   INFO("Initialise first ledger with all but one complete chunks");
   {
@@ -443,24 +444,35 @@ TEST_CASE("Restore existing ledger")
     TestEntrySubmitter entry_submitter(ledger);
 
     size_t chunk_count = 3;
-    size_t end_of_first_chunk_idx =
+    end_of_first_chunk_idx =
       initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
 
     entry_submitter.write(true);
-    initial_last_idx = entry_submitter.get_last_idx();
+    last_idx = entry_submitter.get_last_idx();
   }
 
-  SUBCASE("Restoring uncompacted files")
+  SUBCASE("Restoring uncompacted chunks")
   {
     LOG_DEBUG_FMT("Restoring files\n\n");
-    LOG_DEBUG_FMT("Initial last idx: {}", initial_last_idx);
-    // TODO: Is it possible to restore a ledger that was compacted with a
-    // different threshold
+    LOG_DEBUG_FMT("Initial last idx: {}", last_idx);
     asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
 
     read_entries_range_from_ledger(ledger2, 1, 1);
+    LOG_DEBUG_FMT("Reading from 1 to {}", last_idx);
+    read_entries_range_from_ledger(ledger2, 1, last_idx);
 
-    TestEntrySubmitter entry_submitter(ledger2, initial_last_idx);
-    // entry_submitter.write(true);
+    TestEntrySubmitter entry_submitter(ledger2, last_idx);
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+
+    // TODO: Handle truncation
+    // entry_submitter.truncate(1);
   }
+
+  // SUBCASE("Restoring compacted chunks") {}
+
+  // SUBCASE("Restoring both compacted and uncompacted chunks") {}
+
+  // SUBCASE("Restoring ledger with different chunking threshold") {}
 }

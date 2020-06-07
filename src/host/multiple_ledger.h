@@ -34,6 +34,8 @@ namespace asynchost
   class LedgerFile
   {
   private:
+    using positions_offset_header_t = size_t;
+
     static constexpr auto file_name_prefix = "ledger";
     static constexpr auto ledger_start_idx_delimiter = "_";
 
@@ -64,61 +66,95 @@ namespace asynchost
           .c_str(),
         "w+b");
 
-      // First 8 bytes are reserved for the offset to the position table
-      fseeko(file, sizeof(uint64_t), SEEK_SET);
-      total_len = sizeof(uint64_t);
-
-      LOG_INFO_FMT("File {} created", get_file_name());
+      // Header reserved for the offset to the position table
+      fseeko(file, sizeof(positions_offset_header_t), SEEK_SET);
+      total_len = sizeof(positions_offset_header_t);
     }
 
     LedgerFile(const std::string& dir, const std::string& file_name)
     {
-      file = fopen((fs::path(dir) / fs::path(file_name)).c_str(), "r+b");
+      auto full_path = (fs::path(dir) / fs::path(file_name));
+      file = fopen(full_path.c_str(), "r+b");
       if (!file)
       {
-        throw std::logic_error("Unable to open ledger file");
+        throw std::logic_error(
+          fmt::format("Unable to open ledger file {}", full_path));
       }
 
       auto pos = file_name.find(ledger_start_idx_delimiter);
       if (pos == std::string::npos)
       {
         throw std::logic_error(fmt::format(
-          "Ledger file name {} does not contain a start idx", file_name));
+          "Ledger file name {} does not contain a start idx", full_path));
       }
 
       start_idx = std::stol(file_name.substr(pos + 1));
 
-      LOG_FAIL_FMT("Start idx is {}", start_idx);
-
-      // Load positions
       // First, get full size of file
       fseeko(file, 0, SEEK_END);
-      total_len = ftello(file);
+      size_t total_file_size = ftello(file);
 
-      LOG_FAIL_FMT("Total len is : {}", total_len);
-
-      // Second, read offset at end of file
+      // Second, read offset to header table
       fseeko(file, 0, SEEK_SET);
-      size_t table_offset;
-      if (fread(&table_offset, sizeof(table_offset), 1, file) != 1)
+      positions_offset_header_t table_offset;
+      if (fread(&table_offset, sizeof(positions_offset_header_t), 1, file) != 1)
       {
-        throw std::logic_error("Failed to read positions offset from file");
+        throw std::logic_error(fmt::format(
+          "Failed to read positions offset from ledger file {}", full_path));
       }
 
-      LOG_FAIL_FMT("table offset is {}", table_offset);
-
-      // Finally, read positions
-      fseeko(file, table_offset, SEEK_SET);
-
-      positions.resize((total_len - table_offset) / sizeof(positions.at(0)));
-      LOG_FAIL_FMT("len of positions_ is {}", positions.size());
-
-      if (
-        fread(
-          positions.data(), sizeof(positions.at(0)), positions.size(), file) !=
-        positions.size())
+      if (table_offset != 0)
       {
-        throw std::logic_error("Failed to read positions table from file");
+        // If the chunk was finalised, read positions table from file directly
+        total_len = table_offset;
+        fseeko(file, table_offset, SEEK_SET);
+
+        positions.resize(
+          (total_file_size - table_offset) / sizeof(positions.at(0)));
+
+        if (
+          fread(
+            positions.data(),
+            sizeof(positions.at(0)),
+            positions.size(),
+            file) != positions.size())
+        {
+          throw std::logic_error(fmt::format(
+            "Failed to read positions table from ledger file {}", full_path));
+        }
+      }
+      else
+      {
+        // If the chunk was not finalised, read all entries to reconstruct
+        // positions table
+        total_len = total_file_size;
+
+        auto len = total_len - sizeof(positions_offset_header_t);
+        size_t pos = sizeof(positions_offset_header_t);
+        uint32_t entry_size = 0;
+
+        while (len >= frame_header_size)
+        {
+          if (fread(&entry_size, frame_header_size, 1, file) != 1)
+          {
+            throw std::logic_error(fmt::format(
+              "Failed to read frame from ledger file {}", full_path));
+          }
+
+          len -= frame_header_size;
+
+          if (len < entry_size)
+          {
+            throw std::logic_error(
+              fmt::format("Malformed ledger file {}", full_path));
+          }
+
+          fseeko(file, entry_size, SEEK_CUR);
+          len -= entry_size;
+
+          positions.push_back(pos);
+          pos += (entry_size + frame_header_size);
+        }
       }
     }
 
@@ -133,7 +169,7 @@ namespace asynchost
     {
       int fd = fileno(file);
       auto path = fmt::format("/proc/self/fd/{}", fd);
-      char result[128];
+      char result[1024];
       ::memset(result, 0, sizeof(result));
       readlink(path.c_str(), result, sizeof(result) - 1);
 
@@ -161,12 +197,6 @@ namespace asynchost
       positions.push_back(total_len);
       size_t new_idx = start_idx + positions.size() - 1;
 
-      // LOG_DEBUG_FMT(
-      //   "Ledger write {}: {} bytes. Signature {}",
-      //   positions.size(),
-      //   size,
-      //   committable);
-
       uint32_t frame = (uint32_t)size;
       if (fwrite(&frame, frame_header_size, 1, file) != 1)
       {
@@ -178,8 +208,7 @@ namespace asynchost
         throw std::logic_error("Failed to write entry to ledger");
       }
 
-      total_len +=
-        (size + frame_header_size); // TODO: Not sure we still need this
+      total_len += (size + frame_header_size);
 
       return new_idx;
     }
@@ -200,11 +229,6 @@ namespace asynchost
 
       if (to == get_last_idx())
       {
-        LOG_TRACE_FMT(
-          "here, total len {} - start {}",
-          total_len,
-          positions.at(from - start_idx));
-
         return total_len - positions.at(from - start_idx);
       }
       else
@@ -217,14 +241,14 @@ namespace asynchost
     size_t entry_size(size_t idx) const
     {
       auto framed_size = framed_entries_size(idx, idx);
-      return framed_size ? framed_size - frame_header_size : 0;
+      return (framed_size != 0) ? framed_size - frame_header_size : 0;
     }
 
     const std::vector<uint8_t> read_entry(size_t idx) const
     {
       if ((idx < start_idx) || (idx > get_last_idx()))
       {
-        LOG_FAIL_FMT("Unknown entry!");
+        LOG_FAIL_FMT("Unknown entry idx: {}", idx);
         return {};
       }
 
@@ -245,7 +269,7 @@ namespace asynchost
     {
       if ((from < start_idx) || (to > get_last_idx()))
       {
-        LOG_FAIL_FMT("Unknown entries range!");
+        LOG_FAIL_FMT("Unknown entries range: {} - {}", from, to);
         return {};
       }
 
@@ -255,8 +279,8 @@ namespace asynchost
 
       if (fread(framed_entries.data(), framed_size, 1, file) != 1)
       {
-        throw std::logic_error(
-          fmt::format("Failed to read entry range {}-{} from file", from, to));
+        throw std::logic_error(fmt::format(
+          "Failed to read entry range {} - {} from file", from, to));
       }
 
       return framed_entries;
@@ -273,7 +297,7 @@ namespace asynchost
 
       if (idx == start_idx - 1)
       {
-        LOG_FAIL_FMT("Removing {}", get_file_name());
+        // Truncating everything triggers file deletion
         if (!fs::remove(fs::path(dir) / fs::path(get_file_name())))
         {
           throw std::logic_error(
@@ -281,6 +305,8 @@ namespace asynchost
         }
         return true;
       }
+
+      // TODO: Write 0000 to offset if the chunk has been finalised
 
       is_prepared = false;
       total_len = positions.at(idx - start_idx + 1);
@@ -346,10 +372,6 @@ namespace asynchost
 
     void compact(size_t idx)
     {
-      // TODO: To be called when the last index in the chunk has been globally
-      // committed
-      // 1. fflush
-      // 2. Rename file
       if (
         !is_prepared || is_complete || (idx < get_last_idx()) ||
         (idx > get_last_idx()))
@@ -358,6 +380,13 @@ namespace asynchost
       }
 
       LOG_DEBUG_FMT("Compacting file at {}", idx);
+
+      if (fflush(file) != 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Failed to flush active ledger: {}",
+          strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
+      }
 
       fs::rename(
         fs::path(dir) / fs::path(get_file_name()),
@@ -378,12 +407,14 @@ namespace asynchost
 
     // Keep tracks of all ledger files. Current ledger file is always the last
     // one?
+    // TODO: Might change once there is a cache
     std::list<std::shared_ptr<LedgerFile>> files;
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
     size_t compacted = 0;
 
+    // TODO: Delete when necessary
     void dump_files() const
     {
       LOG_FAIL_FMT("****** Active files: ");
@@ -442,19 +473,16 @@ namespace asynchost
 
       if (fs::is_directory(ledger_dir))
       {
-        // TODO: Restore ledger
-
         for (auto const& f : fs::directory_iterator(ledger_dir))
         {
           LOG_FAIL_FMT("Restore, {}", f.path().string());
-
-          // TODO: Calculate last idx which is the latest file last idx
 
           files.push_back(std::make_shared<LedgerFile>(
             f.path().parent_path(), f.path().filename()));
 
           // TODO: Perhaps using a different struct (e.g. unordered map) might
           // help here. The caching strategy will solve this.
+          // Sort files in order of
           files.sort([](
                        const std::shared_ptr<LedgerFile>& a,
                        const std::shared_ptr<LedgerFile>& b) {
@@ -541,7 +569,6 @@ namespace asynchost
         }
       }
 
-      LOG_FAIL_FMT("Size of framed entries: {}", entries.size());
       size_t total_size = 0;
       for (auto const& e : entries)
       {
