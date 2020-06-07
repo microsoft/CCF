@@ -7,6 +7,7 @@
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
+#include "ds/ccf_exception.h"
 #include "host/ledger.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -16,7 +17,6 @@
 #include "replica.h"
 #include "request.h"
 #include "tls/key_pair.h"
-#include "ds/ccf_exception.h"
 
 #include <cstdio>
 #include <doctest/doctest.h>
