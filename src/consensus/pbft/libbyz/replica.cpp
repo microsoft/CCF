@@ -891,19 +891,29 @@ void Replica::handle(Request* m)
   bool ro = m->is_read_only();
 
   Digest rd = m->digest();
-  LOG_TRACE << "Received request with rid: " << m->request_id()
-            << " replier: " << m->replier() << " is_signed: " << m->is_signed()
-            << " is read only: " << m->is_read_only()
-            << " contents size: " << m->contents_size() << " id:" << id()
-            << " primary:" << primary() << " with cid: " << m->client_id()
-            << " current seqno: " << next_pp_seqno
-            << " last executed: " << last_executed << " digest: " << rd.hash()
-            << std::endl;
+
+  LOG_TRACE_FMT(
+    "Received request with rid:{}, replier:{}, is_signed:{}, is read only:{}, "
+    "contents size:{}, id:{} primary:{}, with cid:{}, current seqno:{}, last "
+    "executed:{}, digest:{}",
+    m->request_id(),
+    m->replier(),
+    m->is_signed(),
+    m->is_read_only(),
+    m->contents_size(),
+    id(),
+    primary(),
+    m->client_id(),
+    next_pp_seqno,
+    last_executed,
+    rd.hash());
 
   if (has_complete_new_view())
   {
-    LOG_TRACE << "Received request with rid: " << m->request_id()
-              << " with cid: " << m->client_id() << std::endl;
+    LOG_TRACE_FMT(
+      "Received request with rid:{}, with cid:{}",
+      m->request_id(),
+      m->client_id());
 
     {
       if (id() == primary())
@@ -976,8 +986,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     // Create new pre_prepare message for set of requests
     // in rqueue, log message and multicast the pre_prepare.
     next_pp_seqno++;
-    LOG_TRACE << "creating pre prepare with seqno: " << next_pp_seqno
-              << std::endl;
+    LOG_TRACE_FMT("creating pre prepare with seqno:{}", next_pp_seqno);
     auto ctx = std::make_unique<ExecTentativeCbCtx>();
     ctx->nonce = entropy->random64();
 
@@ -1028,8 +1037,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     is_exec_pending = true;
     if (execute_tentative(pp, fn, std::move(ctx)))
     {
-      LOG_DEBUG << "adding to plog from pre prepare: " << next_pp_seqno
-                << std::endl;
+      LOG_DEBUG_FMT("adding to plog from pre prepare:{}", next_pp_seqno);
     }
     else
     {
@@ -1126,7 +1134,7 @@ void Replica::handle(Pre_prepare* m)
     has_complete_new_view());
   if (in_wv(m) && ms > low_bound && has_complete_new_view())
   {
-    LOG_TRACE << "processing pre prepare with seqno: " << ms << std::endl;
+    LOG_TRACE_FMT("processing pre prepare with seqno:{}", ms);
     Prepared_cert& pc = plog.fetch(ms);
 
     // Only accept message if we never accepted another pre-prepare
@@ -1215,12 +1223,12 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
 
         Prepared_cert& pc = self->plog.fetch(msg->seqno);
         pc.add_mine(p);
-        LOG_DEBUG << "added to pc in prepare: " << pp->seqno() << std::endl;
+        LOG_DEBUG_FMT("added to pc in prepare:{}", pp->seqno());
 
         if (pc.is_complete())
         {
-          LOG_TRACE << "pc is complete for seqno: " << msg->seqno
-                    << " and sending commit" << std::endl;
+          LOG_TRACE_FMT(
+            "pc is complete for seqno:{} and sending commit", msg->seqno);
           self->send_commit(msg->seqno, send_node_id == self->node_id);
         }
 
@@ -1274,8 +1282,7 @@ void Replica::send_commit(Seqno s, bool send_only_to_self)
   Certificate<Commit>& cs = clog.fetch(s);
   if ((cs.add_mine(c) && cs.is_complete()) || (before_f == 0))
   {
-    LOG_DEBUG << "calling execute committed from send_commit seqno: " << s
-              << std::endl;
+    LOG_DEBUG_FMT("calling execute committed from send_commit seqno:{}", s);
     execute_committed(before_f == 0);
 
     if (before_f == 0 && f() != 0)
@@ -1336,13 +1343,11 @@ void Replica::handle(Commit* m)
   // Only accept messages with the current view.
   if (in_wv(m) && ms > low_bound)
   {
-    LOG_TRACE << "handle commit for seqno: " << m->seqno() << ", id:" << m->id()
-              << std::endl;
+    LOG_TRACE_FMT("handle commit for seqno:{}, id:{}", m->seqno(), m->id());
     Certificate<Commit>& cs = clog.fetch(m->seqno());
     if (cs.add(m) && cs.is_complete())
     {
-      LOG_DEBUG << "calling execute committed from handle commit for seqno: "
-                << ms << std::endl;
+      LOG_DEBUG_FMT("calling execute committed from handle commit for seqno:{}", ms);
       execute_committed();
     }
     return;
@@ -2402,9 +2407,11 @@ bool Replica::create_execute_commands(
     !state.in_check_state() && has_complete_new_view())
   {
     last_tentative_execute = last_tentative_execute + 1;
-    LOG_TRACE << "in execute tentative with last_tentative_execute: "
-              << last_tentative_execute
-              << " and last_executed: " << last_executed << std::endl;
+    LOG_TRACE_FMT(
+      "in execute tentative with last_tentative_execute:{},  and "
+      "last_executed:{}",
+      last_tentative_execute,
+      last_executed);
     Pre_prepare::Requests_iter iter(pp);
     Request request;
 
@@ -2552,9 +2559,11 @@ void Replica::execute_committed(bool was_f_0)
           CCF_ASSERT(
             last_executed + 1 == last_tentative_execute,
             "last tentative did not advance with last executed");
-          LOG_DEBUG << "Executed tentative in committed for: " << pp->seqno()
-                    << " execution result true or false: " << executed_ok
-                    << std::endl;
+          LOG_DEBUG_FMT(
+            "Executed tentative in committed for:{}, execution result true or "
+            "false:{}",
+            pp->seqno(),
+            executed_ok);
         }
 
         set_min_pre_prepare_batch_size();
@@ -2679,13 +2688,12 @@ void Replica::set_min_pre_prepare_batch_size()
   {
     min_pre_prepare_batch_size = min_min_pre_prepare_batch_size;
   }
-  LOG_TRACE << "new min_pre_prepare_batch_size is: "
-            << min_pre_prepare_batch_size << std::endl;
+  LOG_TRACE_FMT("new min_pre_prepare_batch_size is:{}", min_pre_prepare_batch_size);
 }
 
 void Replica::new_state(Seqno c)
 {
-  LOG_DEBUG << "Replica got new state at c: " << c << std::endl;
+  LOG_DEBUG_FMT("Replica got new state at c:{}", c);
   if (vi.has_complete_new_view(v) && c >= low_bound)
   {
     has_nv_state = true;
@@ -2807,9 +2815,10 @@ void Replica::mark_stable(Seqno n, bool have_state)
 
   if (have_state && last_stable > last_executed)
   {
-    LOG_TRACE << "mark stable, last_tentative_execute: "
-              << last_tentative_execute << " last_stable: " << last_stable
-              << std::endl;
+    LOG_TRACE_FMT(
+      "mark stable, last_tentative_execute:{}, last_stable:{}",
+      last_tentative_execute,
+      last_stable);
     CCF_ASSERT(last_tentative_execute < last_stable, "Invalid state");
     last_executed = last_tentative_execute = last_stable;
 
