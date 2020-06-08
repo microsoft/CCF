@@ -37,8 +37,6 @@ def run(args):
 
             check = infra.checker.Checker()
             check_commit = infra.checker.Checker(mc)
-            with primary.user_client() as uc:
-                uc.rpc("mkSign")
 
             for connection in scenario["connections"]:
                 with (

@@ -542,7 +542,6 @@ namespace client
       size_t view,
       size_t seqno)
     {
-      // Send a mkSign RPC to trigger next global commit
       nlohmann::json p;
       p["seqno"] = seqno;
       p["view"] = view;
