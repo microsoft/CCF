@@ -95,6 +95,14 @@ namespace asynchost
       fseeko(file, 0, SEEK_END);
       size_t total_file_size = ftello(file);
 
+      if (total_file_size == 0)
+      {
+        // If the file is empty, initialise it as if it were new
+        fseeko(file, sizeof(positions_offset_header_t), SEEK_SET);
+        total_len = sizeof(positions_offset_header_t);
+        return;
+      }
+
       // Second, read offset to header table
       fseeko(file, 0, SEEK_SET);
       positions_offset_header_t table_offset;
@@ -197,7 +205,7 @@ namespace asynchost
       return complete;
     }
 
-    size_t write_entry(const uint8_t* data, size_t size)
+    size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
       fseeko(file, total_len, SEEK_SET);
       positions.push_back(total_len);
@@ -212,6 +220,12 @@ namespace asynchost
       if (fwrite(data, size, 1, file) != 1)
       {
         throw std::logic_error("Failed to write entry to ledger");
+      }
+
+      // Committable entries get flushed to disk straight away
+      if (committable && fflush(file) != 0)
+      {
+        throw std::logic_error("Failed to flush entry to ledger");
       }
 
       total_len += (size + frame_header_size);
@@ -617,6 +631,8 @@ namespace asynchost
         files.push_back(f);
       }
 
+      // TODO: This is not good. A committable entry should always be last in a
+      // chunk
       if (committable && f->get_current_size() >= chunk_threshold)
       {
         f->prepare();
@@ -627,14 +643,11 @@ namespace asynchost
         files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
       }
 
-      last_idx = get_latest_file()->write_entry(data, size);
-
-      // LOG_FAIL_FMT(
-      //   "[{}] Size of current chunk, from {} to {}, is {}",
-      //   committable,
-      //   f->get_start_idx(),
-      //   new_idx,
-      //   f->get_current_size());
+      last_idx = get_latest_file()->write_entry(data, size, committable);
+      LOG_FAIL_FMT(
+        "Wrote entry at {} in file {}",
+        last_idx,
+        get_latest_file()->get_file_name());
 
       return last_idx;
     }

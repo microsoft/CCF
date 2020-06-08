@@ -177,14 +177,14 @@ namespace logger
       {
         // Padding on the right to align the rest of the message
         // with lines that contain enclave time offsets
-        // return fmt::format(
-        //   "{}        {:<3} [{:<5}] {:<36} | {}",
-        //   get_timestamp(host_tm, host_ts),
-        //   thread_id,
-        //   log_level,
-        //   file_line_data,
-        //   msg);
-        return fmt::format("{}", msg);
+        return fmt::format(
+          "{}        {:<3} [{:<5}] {:<36} | {}",
+          get_timestamp(host_tm, host_ts),
+          thread_id,
+          log_level,
+          file_line_data,
+          msg);
+        // return fmt::format("{}", msg);
       }
     }
 

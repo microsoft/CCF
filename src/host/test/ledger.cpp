@@ -568,3 +568,6 @@ TEST_CASE("TODO")
   // Set rlimit https://linux.die.net/man/2/setrlimit to a low number
   // Check if things still work
 }
+
+// TODO:
+// 1. Test that a chunk always ends on a globally committable entry

@@ -117,10 +117,6 @@ int main(int argc, char** argv)
     "Address to advertise publicly to clients (defaults to same as "
     "--rpc-address)");
 
-  std::string ledger_file("ccf.ledger");
-  app.add_option("--ledger-file", ledger_file, "Ledger file")
-    ->capture_default_str();
-
   std::string ledger_dir("ledger");
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
@@ -410,15 +406,15 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if ((*start || *join) && files::exists(ledger_file))
+    if ((*start || *join) && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start/join, ledger file should not exist ({})", ledger_file));
+        "On start/join, ledger directory should not exist ({})", ledger_dir));
     }
-    else if (*recover && !files::exists(ledger_file))
+    else if (*recover && !files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On recovery, ledger file should exist ({}) ", ledger_file));
+        "On recovery, ledger directory should exist ({}) ", ledger_dir));
     }
 
     if (*start)
@@ -517,9 +513,9 @@ int main(int argc, char** argv)
   asynchost::Sigterm sigterm(writer_factory);
 
   // write to a ledger
-  asynchost::Ledger ledger(ledger_file, writer_factory);
-  // asynchost::MultipleLedger ledger(
-  // ledger_dir, writer_factory, ledger_size_threshold);
+  // asynchost::Ledger ledger(ledger_file, writer_factory);
+  asynchost::MultipleLedger ledger(
+    ledger_dir, writer_factory, ledger_size_threshold);
   ledger.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.

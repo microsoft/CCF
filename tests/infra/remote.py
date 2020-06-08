@@ -391,6 +391,12 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] {}".format(self.hostname, cmd))
         return subprocess.call(cmd, shell=True)
 
+    def _cp(self, src_path, dst_path):
+        if os.path.isdir(src_path):
+            assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
+        else:
+            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
@@ -400,7 +406,7 @@ class LocalRemote(CmdMixin):
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = self.root
-            assert self._rc("cp {} {}".format(path, dst_path)) == 0
+            self._cp(path, dst_path)
 
     def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         path = os.path.join(self.root, file_name)
@@ -412,9 +418,8 @@ class LocalRemote(CmdMixin):
         else:
             raise ValueError(path)
         target_name = target_name or file_name
-        assert (
-            self._rc("cp {} {}".format(path, os.path.join(dst_path, target_name))) == 0
-        )
+        # self._cp(path, os.path.join(dst_path, target_name))
+        self._cp(path, dst_path)
 
     def list_files(self):
         return os.listdir(self.root)
@@ -541,8 +546,9 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
+
         self.ledger_file = ledger_file
-        self.ledger_file_name = (
+        self.ledger_dir_name = (
             os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
         )
         self.common_dir = common_dir
@@ -571,7 +577,7 @@ class CCFRemote(object):
             f"--rpc-address={make_address(host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",
             f"--public-rpc-address={make_address(pubhost, rpc_port)}",
-            f"--ledger-file={self.ledger_file_name}",
+            f"--ledger-dir={self.ledger_dir_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
             election_timeout_arg,
@@ -704,11 +710,12 @@ class CCFRemote(object):
         self.remote.set_perf()
 
     def get_ledger(self):
-        self.remote.get(self.ledger_file_name, self.common_dir)
-        return os.path.join(self.common_dir, self.ledger_file_name)
+        LOG.error(f"Getting ledger at {self.ledger_dir_name}")
+        self.remote.get(self.ledger_dir_name, self.common_dir)
+        return os.path.join(self.common_dir, self.ledger_dir_name)
 
     def ledger_path(self):
-        return os.path.join(self.remote.root, self.ledger_file_name)
+        return os.path.join(self.remote.root, self.ledger_dir_name)
 
 
 @contextmanager
