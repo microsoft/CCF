@@ -215,6 +215,7 @@ namespace pbft
       r_ctx->get_rpc_context()->set_apply_writes(true);
       c->data.did_exec_gov_req =
         (r_ctx->get_does_exec_gov_req() || c->data.did_exec_gov_req);
+      LOG_INFO_FMT("is member frontend {}", (r_ctx->get_does_exec_gov_req() ? "true" : "false"));
 
       execution_ctx.frontend = r_ctx->get_rpc_handler();
 
