@@ -486,7 +486,7 @@ TEST_CASE("Restore existing ledger")
     read_entries_range_from_ledger(ledger2, 1, last_idx);
   }
 
-  SUBCASE("Restoring compacted chunks")
+  SUBCASE("Restoring some compacted chunks")
   {
     auto compacted_idx = 0;
     INFO("Initialise first ledger with compacted chunks");
@@ -515,7 +515,49 @@ TEST_CASE("Restore existing ledger")
     read_entries_range_from_ledger(ledger2, 1, end_of_first_chunk_idx);
   }
 
-  // SUBCASE("Restoring both compacted and uncompacted chunks") {}
+  SUBCASE("Restoring ledger with different chunking threshold")
+  {
+    INFO("Initialise first ledger with compacted chunks");
+    {
+      asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+      TestEntrySubmitter entry_submitter(ledger);
 
-  // SUBCASE("Restoring ledger with different chunking threshold") {}
+      end_of_first_chunk_idx =
+        initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+      entry_submitter.write(true);
+      last_idx = entry_submitter.get_last_idx();
+    }
+
+    INFO("Restore new ledger with twice the chunking threshold");
+    {
+      asynchost::MultipleLedger ledger2(ledger_dir, wf, 2 * chunk_threshold);
+      read_entries_range_from_ledger(ledger2, 1, last_idx);
+
+      TestEntrySubmitter entry_submitter(ledger2, last_idx);
+
+      size_t orig_number_files = number_of_files_in_ledger_dir();
+      while (number_of_files_in_ledger_dir() == orig_number_files)
+      {
+        LOG_DEBUG_FMT("Submitting new entry..............");
+        entry_submitter.write(true);
+      }
+      last_idx = entry_submitter.get_last_idx();
+    }
+
+    INFO("Restore new ledger with half the chunking threshold");
+    {
+      asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold / 2);
+      read_entries_range_from_ledger(ledger2, 1, last_idx);
+
+      TestEntrySubmitter entry_submitter(ledger2, last_idx);
+
+      size_t orig_number_files = number_of_files_in_ledger_dir();
+      while (number_of_files_in_ledger_dir() == orig_number_files)
+      {
+        LOG_DEBUG_FMT("Submitting new entry..............");
+        entry_submitter.write(true);
+      }
+    }
+  }
 }
