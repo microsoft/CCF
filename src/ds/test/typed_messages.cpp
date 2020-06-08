@@ -19,13 +19,12 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   large_complex_message,
   uint16_t,
   bool,
-  std::vector<uint8_t>,
   uint32_t,
   std::string,
   bool,
-  std::vector<uint8_t>,
   uint16_t,
-  uint64_t);
+  uint64_t,
+  std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(finish);
 
 TEST_CASE(
@@ -56,9 +55,7 @@ TEST_CASE(
     std::iota(sent.begin(), sent.end(), 0);
 
     DISPATCHER_SET_MESSAGE_HANDLER(
-      bp,
-      large_block_message,
-      [&](const uint8_t* data, size_t size) {
+      bp, large_block_message, [&](const uint8_t* data, size_t size) {
         auto [body] = ringbuffer::read_message<large_block_message>(data, size);
         REQUIRE(body == sent);
 
@@ -99,43 +96,41 @@ TEST_CASE(
     REQUIRE(message_seen);
   }
 
-  // SUBCASE("complex message")
-  // {
-  //   bool message_seen = false;
+  SUBCASE("complex message")
+  {
+    bool message_seen = false;
 
-  //   const uint16_t a = 16;
-  //   const bool b = true;
-  //   const std::vector<uint8_t> c{100, 101, 111};
-  //   const uint32_t d = 42;
-  //   const std::string e = "COMPLEX";
-  //   const bool f = false;
-  //   const std::vector<uint8_t> g{1, 2, 3, 4, 5};
-  //   const uint16_t h = 1661;
-  //   const uint64_t i = 0xdeadbeef;
+    const uint16_t a = 16;
+    const bool b = true;
+    const uint32_t c = 42;
+    const std::string d = "COMPLEX";
+    const bool e = false;
+    const uint16_t f = 1661;
+    const uint64_t g = 0xdeadbeef;
+    const std::vector<uint8_t> h{1, 2, 3, 4, 5};
 
-  //   DISPATCHER_SET_MESSAGE_HANDLER(
-  //     bp, large_complex_message, [&](const uint8_t* data, size_t size) {
-  //       auto [aa, bb, cc, dd, ee, ff, gg, hh, ii] =
-  //         ringbuffer::read_message<large_complex_message>(data, size);
+    DISPATCHER_SET_MESSAGE_HANDLER(
+      bp, large_complex_message, [&](const uint8_t* data, size_t size) {
+        auto [aa, bb, cc, dd, ee, ff, gg, hh] =
+          ringbuffer::read_message<large_complex_message>(data, size);
 
-  //       REQUIRE(a == aa);
-  //       REQUIRE(b == bb);
-  //       REQUIRE(c == cc);
-  //       REQUIRE(d == dd);
-  //       REQUIRE(e == ee);
-  //       REQUIRE(f == ff);
-  //       REQUIRE(g == gg);
-  //       REQUIRE(h == hh);
-  //       REQUIRE(i == ii);
+        REQUIRE(a == aa);
+        REQUIRE(b == bb);
+        REQUIRE(c == cc);
+        REQUIRE(d == dd);
+        REQUIRE(e == ee);
+        REQUIRE(f == ff);
+        REQUIRE(g == gg);
+        REQUIRE(h == hh);
 
-  //       REQUIRE(!message_seen);
-  //       message_seen = true;
-  //     });
+        REQUIRE(!message_seen);
+        message_seen = true;
+      });
 
-  //   RINGBUFFER_WRITE_MESSAGE(
-  //     large_complex_message, writer_p, a, b, c, d, e, f, g, h, i);
-  //   RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
-  //   bp.run(rr);
-  //   REQUIRE(message_seen);
-  // }
+    RINGBUFFER_WRITE_MESSAGE(
+      large_complex_message, writer_p, a, b, c, d, e, f, g, h);
+    RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
+    bp.run(rr);
+    REQUIRE(message_seen);
+  }
 }
