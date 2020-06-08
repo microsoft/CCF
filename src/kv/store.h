@@ -109,7 +109,7 @@ namespace kv
     }
 
     template <class K, class V>
-    Map<K, V>* get(std::string name)
+    Map<K, V>* get(const std::string& name)
     {
       return get<Map<K, V>>(name);
     }
@@ -121,11 +121,38 @@ namespace kv
      * @return Map
      */
     template <class M>
-    M* get(std::string name)
+    M* get(const std::string& name)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       auto search = maps.find(name);
+      if (search != maps.end())
+      {
+        auto result = dynamic_cast<M*>(search->second.get());
+
+        if (result == nullptr)
+          return nullptr;
+
+        return result;
+      }
+
+      return nullptr;
+    }
+
+    /** Get Map by type and name
+     * 
+     * Using type and name of other Map, retrieve the equivalent Map from this Store
+     *
+     * @param other Other map
+     *
+     * @return Map
+     */
+    template <class M>
+    M* get(const M& other)
+    {
+      std::lock_guard<SpinLock> mguard(maps_lock);
+
+      auto search = maps.find(other.get_name());
       if (search != maps.end())
       {
         auto result = dynamic_cast<M*>(search->second.get());
