@@ -84,7 +84,8 @@ def test_large_messages(network, args):
 
         with primary.user_client() as c:
             log_id = 44
-            for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
+            # TODO: Revert max to 20 here
+            for p in range(14, 16) if args.consensus == "raft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
                     c.rpc("LOG_record", {"id": log_id, "msg": long_msg}), result=True,

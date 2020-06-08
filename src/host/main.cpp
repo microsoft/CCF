@@ -262,8 +262,7 @@ int main(int argc, char** argv)
       max_fragment_size,
       "Determines maximum size of individual ringbuffer message fragments. "
       "Messages larger than this will be split into multiple fragments. Value "
-      "is "
-      "used as a shift factor, ie - given N, the limit is (1 << N)")
+      "is used as a shift factor, ie - given N, the limit is (1 << N)")
     ->capture_default_str();
 
   size_t tick_period_ms = 10;
@@ -520,7 +519,7 @@ int main(int argc, char** argv)
   // write to a ledger
   asynchost::Ledger ledger(ledger_file, writer_factory);
   // asynchost::MultipleLedger ledger(
-    // ledger_dir, writer_factory, ledger_size_threshold);
+  // ledger_dir, writer_factory, ledger_size_threshold);
   ledger.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
