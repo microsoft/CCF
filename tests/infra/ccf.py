@@ -68,7 +68,7 @@ class Network:
         "consensus",
         "memory_reserve_startup",
         "notify_server",
-        "json_log_path",
+        "log_format_json",
         "gov_script",
         "join_timer",
         "worker_threads",

@@ -18,7 +18,7 @@ def run(args):
 
     hosts = scenario.get("hosts", ["localhost", "localhost"])
     if args.consensus == "pbft":
-        hosts = ["localhost"] * 4
+        hosts = ["localhost"] * 3
     args.package = scenario["package"]
     # SNIPPET_END: parsing
 
