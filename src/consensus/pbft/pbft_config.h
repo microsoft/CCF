@@ -205,6 +205,8 @@ namespace pbft
       size_t req_size = msg->req_size;
       kv::Tx* tx = msg->tx;
 
+      msg->request_ctx = self->verify_and_parse(inb, req_start, req_size);
+
       std::unique_ptr<RequestCtx>& r_ctx = msg->request_ctx;
       msg->request_ctx->get_rpc_context()->pbft_raw = {req_start,
                                                        req_start + req_size};
