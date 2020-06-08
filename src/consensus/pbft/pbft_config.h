@@ -138,6 +138,7 @@ namespace pbft
         }
       }
 
+      info.did_exec_gov_req = execution_ctx.did_exec_gov_req;
       if (info.pending_cmd_callbacks == 0)
       {
         static_assert(
@@ -149,7 +150,6 @@ namespace pbft
           std::end(root.h),
           std::begin(info.replicated_state_merkle_root));
 
-        info.did_exec_gov_req = execution_ctx.did_exec_gov_req;
         if (info.cb != nullptr)
         {
           info.cb(info.cb_ctx);
