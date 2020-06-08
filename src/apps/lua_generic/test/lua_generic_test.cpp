@@ -101,6 +101,16 @@ void set_lua_logger()
   logger::config::loggers().emplace_back(std::make_unique<LuaLogger>());
 }
 
+struct NodeContext : public ccfapp::AbstractNodeContext
+{
+  StubNotifier notifier;
+
+  AbstractNotifier& get_notifier() override
+  {
+    return notifier;
+  }
+};
+
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
@@ -108,7 +118,7 @@ std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 auto init_frontend(
   NetworkTables& network,
   GenesisGenerator& gen,
-  StubNotifier& notifier,
+  ccfapp::AbstractNodeContext& context,
   const int n_users,
   const int n_members)
 {
@@ -136,7 +146,7 @@ auto init_frontend(
 
   gen.set_app_scripts(lua::Interpreter().invoke<nlohmann::json>(env_script));
   gen.finalize();
-  return get_rpc_handler(network, notifier);
+  return get_rpc_handler(network, context);
 }
 
 void set_handler(NetworkTables& network, const string& method, const Script& h)
@@ -183,9 +193,9 @@ TEST_CASE("simple lua apps")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  StubNotifier notifier;
+  NodeContext context;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, context, 1, 3);
   set_lua_logger();
   auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
@@ -320,9 +330,9 @@ TEST_CASE("simple bank")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  StubNotifier notifier;
+  NodeContext context;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, context, 1, 3);
   set_lua_logger();
   auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
@@ -437,9 +447,9 @@ TEST_CASE("pre-populated environment")
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  StubNotifier notifier;
+  NodeContext context;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, context, 1, 3);
   set_lua_logger();
   auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);

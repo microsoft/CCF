@@ -6,15 +6,22 @@
 
 namespace ccfapp
 {
+  struct AbstractNodeContext
+  {
+    virtual ~AbstractNodeContext() = default;
+
+    virtual ccf::AbstractNotifier& get_notifier() = 0;
+  };
+
   // SNIPPET_START: rpc_handler
   /** To be implemented by the application to be registered by CCF.
    *
-   * @param network Access to the network's tables
-   * @param notifier Access to host notification service
+   * @param network Access to the network's replicated tables
+   * @param context Access to node and host services
    *
    * @return Shared pointer to the application handler instance
    */
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& network, ccf::AbstractNotifier& notifier);
+    ccf::NetworkTables& network, AbstractNodeContext& context);
   // SNIPPET_END: rpc_handler
 }

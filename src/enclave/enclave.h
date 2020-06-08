@@ -8,11 +8,11 @@
 #include "enclave_time.h"
 #include "interface.h"
 #include "node/entities.h"
+#include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
 #include "node/nodetypes.h"
 #include "node/notifier.h"
-#include "node/historical_queries.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/node_frontend.h"
 #include "node/timer.h"
@@ -31,7 +31,6 @@ namespace enclave
     ccf::ShareManager share_manager;
     ccf::historical::StateCache historical_state_cache;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    ccf::Notifier notifier;
     ccf::Timers timers;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
@@ -41,6 +40,18 @@ namespace enclave
     CCFConfig ccf_config;
     StartType start_type;
     ConsensusType consensus_type;
+
+    struct NodeContext : public ccfapp::AbstractNodeContext
+    {
+      ccf::Notifier notifier;
+
+      NodeContext(ccf::Notifier&& n) : notifier(std::move(n)) {}
+
+      ccf::AbstractNotifier& get_notifier() override
+      {
+        return notifier;
+      }
+    } context;
 
   public:
     Enclave(
@@ -53,16 +64,17 @@ namespace enclave
       writer_factory(basic_writer_factory, enclave_config->writer_config),
       network(consensus_type_),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
-      notifier(writer_factory),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       share_manager(network),
-      historical_state_cache(*network.tables, writer_factory.create_writer_to_outside()),
+      historical_state_cache(
+        *network.tables, writer_factory.create_writer_to_outside()),
       node(
-        writer_factory, network, rpcsessions, notifier, timers, share_manager),
+        writer_factory, network, rpcsessions, context.notifier, timers, share_manager),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
-      consensus_type(consensus_type_)
+      consensus_type(consensus_type_),
+      context(ccf::Notifier(writer_factory))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
@@ -73,7 +85,7 @@ namespace enclave
         std::make_unique<ccf::MemberRpcFrontend>(network, node, share_manager));
 
       REGISTER_FRONTEND(
-        rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
+        rpc_map, users, ccfapp::get_rpc_handler(network, context));
 
       REGISTER_FRONTEND(
         rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));

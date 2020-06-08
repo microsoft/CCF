@@ -313,9 +313,9 @@ namespace ccfapp
 {
   // SNIPPET_START: rpc_handler
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    ccf::NetworkTables& nwt, ccf::AbstractNotifier& notifier)
+    ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<loggingapp::Logger>(nwt, notifier);
+    return make_shared<loggingapp::Logger>(nwt, context.get_notifier());
   }
   // SNIPPET_END: rpc_handler
 }
