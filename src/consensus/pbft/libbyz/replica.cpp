@@ -600,6 +600,7 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
   playback_max_local_commit_value = INT64_MIN;
 
   playback_byz_info.did_exec_gov_req = did_exec_gov_req;
+  LOG_INFO_FMT("playback_pre_prepare - seqno:{}", executable_pp->seqno());
   update_gov_req_info(playback_byz_info, executable_pp.get());
   did_exec_gov_req = false;
 
@@ -1012,6 +1013,7 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       pp->sign();
       self->plog.fetch(self->next_pp_seqno).add_mine(pp);
 
+      LOG_INFO_FMT("send pre_prepare - seqno:{}", pp->seqno());
       self->update_gov_req_info(info, pp);
 
       self->requests_per_batch.insert(
@@ -1180,13 +1182,12 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
                   Pre_prepare* pp,
                   Replica* self,
                   std::unique_ptr<ExecTentativeCbCtx> msg) {
-        LOG_INFO_FMT("updating in gov, seqno:");
+        LOG_INFO_FMT(
+          "updating in gov, seqno:{}, is gov:{}",
+          pp->seqno(),
+          (msg->info.did_exec_gov_req ? "true" : "false"));
         if (self->ledger_writer && !self->is_primary())
         {
-          LOG_INFO_FMT(
-            "updating in gov, seqno:{}, is gov:{}",
-            pp->seqno(),
-            (msg->info.did_exec_gov_req ? "true" : "false"));
           self->update_gov_req_info(msg->info, pp);
           if (!self->compare_execution_results(msg->info, pp))
           {
@@ -2136,6 +2137,7 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
       }
+      LOG_INFO_FMT("updating after view-change - seqno:{}", pp->seqno());
       update_gov_req_info(info, pp);
     }
 
