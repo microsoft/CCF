@@ -29,7 +29,6 @@ namespace enclave
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
-    ccf::historical::StateCache historical_state_cache;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
     ccf::Timers timers;
     std::shared_ptr<RPCMap> rpc_map;
@@ -44,12 +43,21 @@ namespace enclave
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
       ccf::Notifier notifier;
+      ccf::historical::StateCache historical_state_cache;
 
-      NodeContext(ccf::Notifier&& n) : notifier(std::move(n)) {}
+      NodeContext(ccf::Notifier&& n, ccf::historical::StateCache&& hsc) :
+        notifier(std::move(n)),
+        historical_state_cache(std::move(hsc))
+      {}
 
       ccf::AbstractNotifier& get_notifier() override
       {
         return notifier;
+      }
+
+      ccf::historical::AbstractStateCache& get_historical_state() override
+      {
+        return historical_state_cache;
       }
     } context;
 
@@ -67,14 +75,20 @@ namespace enclave
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       share_manager(network),
-      historical_state_cache(
-        *network.tables, writer_factory.create_writer_to_outside()),
       node(
-        writer_factory, network, rpcsessions, context.notifier, timers, share_manager),
+        writer_factory,
+        network,
+        rpcsessions,
+        context.notifier,
+        timers,
+        share_manager),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
       consensus_type(consensus_type_),
-      context(ccf::Notifier(writer_factory))
+      context(
+        ccf::Notifier(writer_factory),
+        ccf::historical::StateCache(
+          *network.tables, writer_factory.create_writer_to_outside()))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
@@ -252,7 +266,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                historical_state_cache.handle_ledger_entry(index, body);
+                context.historical_state_cache.handle_ledger_entry(index, body);
                 break;
               }
               default:
@@ -277,7 +291,7 @@ namespace enclave
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
               {
-                historical_state_cache.handle_no_entry(index);
+                context.historical_state_cache.handle_no_entry(index);
                 break;
               }
               default:

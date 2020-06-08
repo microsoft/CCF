@@ -4,6 +4,7 @@
 
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
+#include "node/historical_queries_interface.h"
 #include "node/history.h"
 #include "node/rpc/node_interface.h"
 
@@ -13,7 +14,7 @@
 
 namespace ccf::historical
 {
-  class StateCache
+  class StateCache : public AbstractStateCache
   {
   protected:
     kv::Store& source_store;
@@ -26,7 +27,6 @@ namespace ccf::historical
       Trusted,
     };
 
-    using StorePtr = std::shared_ptr<kv::Store>;
     using LedgerEntry = std::vector<uint8_t>;
 
     struct Request
@@ -278,7 +278,7 @@ namespace ccf::historical
       to_host(host_writer)
     {}
 
-    StorePtr get_store_at(consensus::Index idx)
+    StorePtr get_store_at(consensus::Index idx) override
     {
       const auto it = requests.find(idx);
       if (it == requests.end())
