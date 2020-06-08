@@ -84,7 +84,6 @@ TEST_CASE("StateCache")
   store.set_history(history);
 
   using NumToString = kv::Map<size_t, std::string>;
-  using StringToBool = kv::Map<std::string, bool>;
 
   {
     INFO("Build some interesting state in the store");
@@ -100,8 +99,10 @@ TEST_CASE("StateCache")
       REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
 
-    auto& as_string = store.create<NumToString>("as_string");
-    auto& even = store.create<StringToBool>("even");
+    auto& public_table =
+      store.create<NumToString>("public", kv::SecurityDomain::PUBLIC);
+    auto& private_table =
+      store.create<NumToString>("private", kv::SecurityDomain::PRIVATE);
 
     {
       for (size_t i = 1; i <= 20; ++i)
@@ -114,15 +115,11 @@ TEST_CASE("StateCache")
         else
         {
           kv::Tx tx;
-          auto view = tx.get_view(as_string);
+          auto [public_view, private_view] =
+            tx.get_view(public_table, private_table);
           const auto s = std::to_string(i);
-          view->put(i, s);
-
-          if (i % 3 == 0)
-          {
-            auto view1 = tx.get_view(even);
-            view1->put(s, s.size() % 2 == 0);
-          }
+          public_view->put(i, s);
+          private_view->put(i, s);
 
           REQUIRE(tx.commit() == kv::CommitSuccess::OK);
         }
@@ -180,21 +177,32 @@ TEST_CASE("StateCache")
   REQUIRE(store_at_10 != nullptr);
 
   {
-    auto& as_string = *store_at_10->get<NumToString>("as_string");
-    auto& even = *store_at_10->get<StringToBool>("even");
+    auto& public_table = *store_at_10->get<NumToString>("public");
+    auto& private_table = *store_at_10->get<NumToString>("private");
 
     kv::Tx tx;
-    auto [as_string_view, even_view] = tx.get_view(as_string, even);
+    auto [public_view, private_view] = tx.get_view(public_table, private_table);
 
-    std::cout << "as_string writes at index 10:" << std::endl;
-    as_string_view->foreach([](const auto& k, const auto& v) {
-      std::cout << fmt::format("{}: {}", k, v) << std::endl;
+    const auto k = 9;
+    const auto v = std::to_string(k);
+
+    auto public_v = public_view->get(k);
+    REQUIRE(public_v.has_value());
+    REQUIRE(*public_v == v);
+
+    auto private_v = private_view->get(k);
+    REQUIRE(private_v.has_value());
+    REQUIRE(*private_v == v);
+
+    size_t public_count = 0;
+    public_view->foreach([&public_count](const auto& k, const auto& v) {
+      REQUIRE(public_count++ == 0);
       return true;
     });
 
-    std::cout << "even writes at index 10:" << std::endl;
-    even_view->foreach([](const auto& k, const auto& v) {
-      std::cout << fmt::format("{}: {}", k, v) << std::endl;
+    size_t private_count = 0;
+    private_view->foreach([&private_count](const auto& k, const auto& v) {
+      REQUIRE(private_count++ == 0);
       return true;
     });
   }
