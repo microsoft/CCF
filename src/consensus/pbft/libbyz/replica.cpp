@@ -583,7 +583,7 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
     "Deserialised pre prepare but it was not found in the pre prepares map");
   auto pre_prepare = pp.value();
 
-  LOG_TRACE_FMT("Playback pre-prepare {}", pre_prepare.seqno);
+  LOG_INFO_FMT("Playback pre-prepare {}", pre_prepare.seqno);
   auto executable_pp = create_message<Pre_prepare>(
     pre_prepare.contents.data(), pre_prepare.contents.size());
   if (!executable_pp->pre_verify())
@@ -1180,8 +1180,13 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
                   Pre_prepare* pp,
                   Replica* self,
                   std::unique_ptr<ExecTentativeCbCtx> msg) {
+        LOG_INFO_FMT("updating in gov, seqno:");
         if (self->ledger_writer && !self->is_primary())
         {
+          LOG_INFO_FMT(
+            "updating in gov, seqno:{}, is gov:{}",
+            pp->seqno(),
+            (msg->info.did_exec_gov_req ? "true" : "false"));
           self->update_gov_req_info(msg->info, pp);
           if (!self->compare_execution_results(msg->info, pp))
           {
