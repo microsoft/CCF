@@ -7,6 +7,7 @@
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
+#include "ds/ccf_exception.h"
 #include "host/ledger.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
@@ -436,7 +437,7 @@ TEST_CASE("Test Ledger Replay")
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
         REQUIRE_THROWS_AS(
           pbft::GlobalState::get_replica().playback_pre_prepare(tx),
-          std::logic_error);
+          ccf::ccf_logic_error);
         count_rollbacks++;
 
         // rolled back latest request so need to re-execute
