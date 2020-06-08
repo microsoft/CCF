@@ -13,6 +13,7 @@ namespace http
     static constexpr auto CONTENT_TYPE = "content-type";
     static constexpr auto DIGEST = "digest";
     static constexpr auto LOCATION = "location";
+    static constexpr auto RETRY_AFTER = "retry-after";
     static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
 
     static constexpr auto CCF_TX_SEQNO = "x-ccf-tx-seqno";

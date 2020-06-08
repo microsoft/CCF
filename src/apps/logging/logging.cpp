@@ -29,6 +29,7 @@ namespace loggingapp
     static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
     static constexpr auto LOG_RECORD_ANONYMOUS_CALLER = "LOG_record_anonymous";
     static constexpr auto LOG_RECORD_RAW_TEXT = "LOG_record_raw_text";
+    static constexpr auto LOG_GET_HISTORICAL = "LOG_get_historical";
   };
 
   // SNIPPET: table_definition
@@ -70,7 +71,8 @@ namespace loggingapp
 
   public:
     // SNIPPET_START: constructor
-    LoggerHandlers(ccf::NetworkTables& nwt, ccf::AbstractNotifier& notifier) :
+    LoggerHandlers(
+      ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context) :
       UserHandlerRegistry(nwt),
       records(
         nwt.tables->create<Table>("records", kv::SecurityDomain::PRIVATE)),
@@ -257,6 +259,81 @@ namespace loggingapp
       };
       // SNIPPET_END: log_record_text
 
+      auto& historical_state = context.get_historical_state();
+      auto get_historical = [this, &historical_state](ccf::RequestArgs& args) {
+        const auto params =
+          nlohmann::json::parse(args.rpc_ctx->get_request_body());
+        const auto in = params.get<LoggingGetHistorical::In>();
+
+        // Check that the requested transaction ID is committed
+        {
+          const auto tx_view = consensus->get_view(in.seqno);
+          const auto committed_seqno = consensus->get_committed_seqno();
+          const auto committed_view = consensus->get_view(committed_seqno);
+
+          const auto tx_status = ccf::get_tx_status(
+            in.view, in.seqno, tx_view, committed_view, committed_seqno);
+          if (tx_status != ccf::TxStatus::Committed)
+          {
+            args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+            args.rpc_ctx->set_response_header(
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::TEXT);
+            args.rpc_ctx->set_response_body(fmt::format(
+              "Only committed transactions can be retrieved historically. "
+              "Transaction {}.{} is {}",
+              in.view,
+              in.seqno,
+              ccf::tx_status_to_str(tx_status)));
+            return;
+          }
+        }
+
+        auto historical_store = historical_state.get_store_at(in.seqno);
+        if (historical_store == nullptr)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+          static constexpr size_t retry_after_seconds = 5;
+          args.rpc_ctx->set_response_header(
+            http::headers::RETRY_AFTER, retry_after_seconds);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Historical transaction {}.{} is not currently available.",
+            in.view,
+            in.seqno));
+          return;
+        }
+
+        auto* historical_map = historical_store->get(records);
+        if (historical_map == nullptr)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "Unable to get historical table '{}'.", records.get_name()));
+          return;
+        }
+
+        kv::Tx historical_tx;
+        auto view = historical_tx.get_view(*historical_map);
+        const auto v = view->get(in.id);
+
+        if (v.has_value())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          auto s = v.value();
+          args.rpc_ctx->set_response_body(std::move(s));
+        }
+        else
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+        }
+      };
+
       install(Procs::LOG_RECORD, ccf::json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
@@ -282,7 +359,9 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false);
       install(Procs::LOG_RECORD_RAW_TEXT, log_record_text, Write);
+      install(Procs::LOG_GET_HISTORICAL, get_historical, Read);
 
+      auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(
         [this,
          &notifier](kv::Version version, const ccf::Signatures::Write& w) {
@@ -302,9 +381,9 @@ namespace loggingapp
     LoggerHandlers logger_handlers;
 
   public:
-    Logger(ccf::NetworkTables& network, ccf::AbstractNotifier& notifier) :
+    Logger(ccf::NetworkTables& network, ccfapp::AbstractNodeContext& context) :
       ccf::UserRpcFrontend(*network.tables, logger_handlers),
-      logger_handlers(network, notifier)
+      logger_handlers(network, context)
     {}
   };
 }
@@ -315,7 +394,7 @@ namespace ccfapp
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
     ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
   {
-    return make_shared<loggingapp::Logger>(nwt, context.get_notifier());
+    return make_shared<loggingapp::Logger>(nwt, context);
   }
   // SNIPPET_END: rpc_handler
 }
