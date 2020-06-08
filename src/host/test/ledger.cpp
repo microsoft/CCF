@@ -306,7 +306,7 @@ TEST_CASE("Truncation")
     entry_submitter.write(true);
   }
 
-  INFO("Truncating entry in penultimate chunk closes latest file");
+  INFO("Truncating any entry in penultimate chunk closes latest file");
   {
     entry_submitter.truncate(last_idx - 2);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
@@ -347,7 +347,7 @@ size_t number_of_compacted_files_in_ledger_dir()
   for (auto const& f : fs::directory_iterator(ledger_dir))
   {
     LOG_DEBUG_FMT("File: {}", f.path());
-    if (asynchost::is_ledger_file_name_compacted(f.path().string()))
+    if (asynchost::is_ledger_file_complete(f.path().string()))
     {
       compacted_file_count++;
     }
@@ -437,40 +437,83 @@ TEST_CASE("Restore existing ledger")
   size_t chunk_threshold = 30;
   size_t last_idx = 0;
   size_t end_of_first_chunk_idx = 0;
-
-  INFO("Initialise first ledger with all but one complete chunks");
-  {
-    asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
-    TestEntrySubmitter entry_submitter(ledger);
-
-    size_t chunk_count = 3;
-    end_of_first_chunk_idx =
-      initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
-
-    entry_submitter.write(true);
-    last_idx = entry_submitter.get_last_idx();
-  }
+  size_t chunk_count = 3;
 
   SUBCASE("Restoring uncompacted chunks")
   {
-    LOG_DEBUG_FMT("Restoring files\n\n");
-    LOG_DEBUG_FMT("Initial last idx: {}", last_idx);
-    asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
+    INFO("Initialise first ledger with all but one complete chunk");
+    {
+      asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+      TestEntrySubmitter entry_submitter(ledger);
 
-    read_entries_range_from_ledger(ledger2, 1, 1);
-    LOG_DEBUG_FMT("Reading from 1 to {}", last_idx);
+      end_of_first_chunk_idx =
+        initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+      entry_submitter.write(true);
+      last_idx = entry_submitter.get_last_idx();
+    }
+
+    asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
     read_entries_range_from_ledger(ledger2, 1, last_idx);
 
+    // Restored ledger can be written to
     TestEntrySubmitter entry_submitter(ledger2, last_idx);
     entry_submitter.write(true);
     entry_submitter.write(true);
     entry_submitter.write(true);
 
-    // TODO: Handle truncation
-    // entry_submitter.truncate(1);
+    // Restored ledger can be truncated
+    entry_submitter.truncate(end_of_first_chunk_idx + 1);
+    entry_submitter.truncate(end_of_first_chunk_idx);
+    entry_submitter.truncate(1);
   }
 
-  // SUBCASE("Restoring compacted chunks") {}
+  SUBCASE("Restoring truncated ledger")
+  {
+    INFO("Initialise first ledger with truncation");
+    {
+      asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+      TestEntrySubmitter entry_submitter(ledger);
+
+      end_of_first_chunk_idx =
+        initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+      entry_submitter.truncate(end_of_first_chunk_idx + 1);
+      last_idx = entry_submitter.get_last_idx();
+    }
+
+    asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
+    read_entries_range_from_ledger(ledger2, 1, last_idx);
+  }
+
+  SUBCASE("Restoring compacted chunks")
+  {
+    auto compacted_idx = 0;
+    INFO("Initialise first ledger with compacted chunks");
+    {
+      asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+      TestEntrySubmitter entry_submitter(ledger);
+
+      end_of_first_chunk_idx =
+        initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+
+      compacted_idx = 2 * end_of_first_chunk_idx + 1;
+      entry_submitter.write(true);
+      ledger.compact(compacted_idx);
+      last_idx = entry_submitter.get_last_idx();
+    }
+
+    asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
+    read_entries_range_from_ledger(ledger2, 1, last_idx);
+
+    // Restored ledger cannot be truncated before last idx of last compacted
+    // chunk
+    TestEntrySubmitter entry_submitter(ledger2, last_idx);
+    entry_submitter.truncate(compacted_idx - 1); // Successful
+
+    ledger2.truncate(compacted_idx - 2); // Unsuccessful
+    read_entries_range_from_ledger(ledger2, 1, end_of_first_chunk_idx);
+  }
 
   // SUBCASE("Restoring both compacted and uncompacted chunks") {}
 

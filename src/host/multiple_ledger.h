@@ -23,8 +23,7 @@ namespace asynchost
 {
   static constexpr auto ledger_final_indicator_delimiter = ".final";
 
-  // TODO: Namespace this?
-  static inline bool is_ledger_file_name_compacted(const std::string& file_name)
+  static inline bool is_ledger_file_complete(const std::string& file_name)
   {
     auto pos = file_name.find(ledger_final_indicator_delimiter);
     return !(pos == std::string::npos);
@@ -52,8 +51,8 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file;
-    bool is_prepared = false;
-    bool is_complete = false;
+    bool prepared = false;
+    bool complete = false;
 
   public:
     LedgerFile(const std::string& dir, size_t start_idx = 1) :
@@ -71,7 +70,7 @@ namespace asynchost
       total_len = sizeof(positions_offset_header_t);
     }
 
-    LedgerFile(const std::string& dir, const std::string& file_name)
+    LedgerFile(const std::string& dir, const std::string& file_name) : dir(dir)
     {
       auto full_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(full_path.c_str(), "r+b");
@@ -80,6 +79,8 @@ namespace asynchost
         throw std::logic_error(
           fmt::format("Unable to open ledger file {}", full_path));
       }
+
+      complete = is_ledger_file_complete(file_name);
 
       auto pos = file_name.find(ledger_start_idx_delimiter);
       if (pos == std::string::npos)
@@ -191,6 +192,11 @@ namespace asynchost
       return total_len;
     }
 
+    bool is_complete() const
+    {
+      return complete;
+    }
+
     size_t write_entry(const uint8_t* data, size_t size)
     {
       fseeko(file, total_len, SEEK_SET);
@@ -288,7 +294,7 @@ namespace asynchost
 
     bool truncate(size_t idx)
     {
-      if (is_complete || (idx < start_idx - 1) || (idx >= get_last_idx()))
+      if (complete || (idx < start_idx - 1) || (idx >= get_last_idx()))
       {
         return false;
       }
@@ -306,9 +312,17 @@ namespace asynchost
         return true;
       }
 
-      // TODO: Write 0000 to offset if the chunk has been finalised
+      // TODO: Only if prepared??
 
-      is_prepared = false;
+      // Reset positions offset header
+      fseeko(file, 0, SEEK_SET);
+      positions_offset_header_t table_offset = 0;
+      if (fwrite(&table_offset, sizeof(table_offset), 1, file) != 1)
+      {
+        throw std::logic_error("Failed to reset positions table offset");
+      }
+
+      prepared = false;
       total_len = positions.at(idx - start_idx + 1);
       positions.resize(idx - start_idx + 1);
 
@@ -330,7 +344,7 @@ namespace asynchost
 
     void prepare()
     {
-      if (is_prepared)
+      if (prepared)
       {
         return;
       }
@@ -367,13 +381,13 @@ namespace asynchost
           strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
       }
 
-      is_prepared = true;
+      prepared = true;
     }
 
     void compact(size_t idx)
     {
       if (
-        !is_prepared || is_complete || (idx < get_last_idx()) ||
+        !prepared || complete || (idx < get_last_idx()) ||
         (idx > get_last_idx()))
       {
         return;
@@ -392,7 +406,7 @@ namespace asynchost
         fs::path(dir) / fs::path(get_file_name()),
         fs::path(dir) / fs::path(fmt::format("{}.final", get_file_name())));
 
-      is_complete = true;
+      complete = true;
     }
   };
 
@@ -412,7 +426,7 @@ namespace asynchost
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
-    size_t compacted = 0;
+    size_t compacted_idx = 0;
 
     // TODO: Delete when necessary
     void dump_files() const
@@ -479,18 +493,29 @@ namespace asynchost
 
           files.push_back(std::make_shared<LedgerFile>(
             f.path().parent_path(), f.path().filename()));
-
-          // TODO: Perhaps using a different struct (e.g. unordered map) might
-          // help here. The caching strategy will solve this.
-          // Sort files in order of
-          files.sort([](
-                       const std::shared_ptr<LedgerFile>& a,
-                       const std::shared_ptr<LedgerFile>& b) {
-            return a->get_last_idx() < b->get_last_idx();
-          });
-          // TODO: Early fail if the ledger idx don't follow each other!!
         }
+
+        // TODO: Perhaps using a different struct (e.g. unordered map) might
+        // help here. The caching strategy will solve this.
+        files.sort([](
+                     const std::shared_ptr<LedgerFile>& a,
+                     const std::shared_ptr<LedgerFile>& b) {
+          return a->get_last_idx() < b->get_last_idx();
+        });
         dump_files();
+
+        // TODO: Early fail if the ledger idx don't follow each other!!
+
+        // TODO: Restore compacted
+        for (auto const& f : files)
+        {
+          if (f->is_complete())
+          {
+            compacted_idx = f->get_last_idx();
+          }
+        }
+
+        LOG_FAIL_FMT("Recovered compacted idx is {}", compacted_idx);
 
         last_idx = get_latest_file()->get_last_idx();
 
@@ -624,7 +649,7 @@ namespace asynchost
     {
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
-      if (idx >= last_idx || idx < compacted)
+      if (idx >= last_idx || idx < compacted_idx)
       {
         return;
       }
@@ -658,13 +683,13 @@ namespace asynchost
     {
       LOG_DEBUG_FMT("Ledger compact: {}/{}", idx, last_idx);
 
-      if (idx <= compacted)
+      if (idx <= compacted_idx)
       {
         return;
       }
 
-      auto f_from = (compacted == 0) ? get_it_contains_idx(1) :
-                                       get_it_contains_idx(compacted);
+      auto f_from = (compacted_idx == 0) ? get_it_contains_idx(1) :
+                                           get_it_contains_idx(compacted_idx);
       auto f_to = get_it_contains_idx(idx);
       LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to) + 1);
 
@@ -678,7 +703,7 @@ namespace asynchost
         it++;
       }
 
-      compacted = idx;
+      compacted_idx = idx;
     }
 
     // void register_message_handlers(
