@@ -140,8 +140,9 @@ namespace kv
     }
 
     /** Get Map by type and name
-     * 
-     * Using type and name of other Map, retrieve the equivalent Map from this Store
+     *
+     * Using type and name of other Map, retrieve the equivalent Map from this
+     * Store
      *
      * @param other Other map
      *
@@ -411,7 +412,7 @@ namespace kv
         }
 
         auto h = get_history();
-        
+
         auto search = views.find("ccf.signatures");
         if (search != views.end())
         {
