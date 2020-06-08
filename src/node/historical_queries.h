@@ -19,52 +19,63 @@ namespace ccf::historical
     kv::Store& source_store;
     ringbuffer::WriterPtr to_host;
 
-    // TODO: Add sensible caps on all these containers?
-    std::set<consensus::Index> requested_indices;
-
-    static constexpr size_t MAX_PENDING_FETCHES = 10;
-    std::deque<consensus::Index> pending_fetches;
+    enum class RequestStage
+    {
+      Fetching,
+      Untrusted,
+      Trusted,
+    };
 
     using StorePtr = std::shared_ptr<kv::Store>;
-    std::map<consensus::Index, std::pair<StorePtr, crypto::Sha256Hash>>
-      untrusted_entries;
+    using LedgerEntry = std::vector<uint8_t>;
+
+    struct Request
+    {
+      RequestStage current_stage = RequestStage::Fetching;
+      crypto::Sha256Hash entry_hash = {};
+      StorePtr store = nullptr;
+    };
 
     // TODO: Make this an LRU, evict old entries
-    std::map<consensus::Index, StorePtr> trusted_entries;
+    static constexpr size_t MAX_ACTIVE_REQUESTS = 10;
+    std::map<consensus::Index, Request> requests;
 
-    using LedgerEntry = std::vector<uint8_t>;
+    // To trust an index, we currently need to fetch a sequence of entries
+    // around it - these aren't requests, so we don't store them, but we do
+    // need to distinguish things-we-asked-for from junk-from-the-host
+    std::set<consensus::Index> pending_fetches;
 
     void request_entry_at(consensus::Index idx)
     {
-      const auto ib = requested_indices.insert(idx);
-      if (ib.second)
+      if (requests.size() < MAX_ACTIVE_REQUESTS)
       {
-        fetch_entry_at(idx);
-      }
-    }
-
-    void fetch_entry_at(consensus::Index idx)
-    {
-      if (pending_fetches.size() < MAX_PENDING_FETCHES)
-      {
-        const auto it =
-          std::find(pending_fetches.begin(), pending_fetches.end(), idx);
-        if (it != pending_fetches.end())
+        const auto ib = requests.insert(std::make_pair(idx, Request{}));
+        if (ib.second)
         {
-          // Already fetching this index
-          return;
+          fetch_entry_at(idx);
         }
-
-        RINGBUFFER_WRITE_MESSAGE(
-          consensus::ledger_get,
-          to_host,
-          idx,
-          consensus::LedgerRequestPurpose::HistoricalQuery);
-        pending_fetches.push_back(idx);
       }
 
       // Too many outstanding fetches, this one is silently ignored
       // TODO
+    }
+
+    void fetch_entry_at(consensus::Index idx)
+    {
+      const auto it =
+        std::find(pending_fetches.begin(), pending_fetches.end(), idx);
+      if (it != pending_fetches.end())
+      {
+        // Already fetching this index
+        return;
+      }
+
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_get,
+        to_host,
+        idx,
+        consensus::LedgerRequestPurpose::HistoricalQuery);
+      pending_fetches.insert(idx);
     }
 
     std::optional<ccf::Signature> get_signature(const StorePtr& sig_store)
@@ -142,54 +153,55 @@ namespace ccf::historical
       }
 
       // TODO: Find which of our untrusted indices are in this tree
-      auto it = untrusted_entries.begin();
-      while (it != untrusted_entries.end())
+      auto it = requests.begin();
+      while (it != requests.end())
       {
-        const auto& untrusted_idx = it->first;
-        const auto& untrusted_store = it->second.first;
-        const auto& untrusted_hash = it->second.second;
+        auto& request = it->second;
 
-        try
+        if (request.current_stage == RequestStage::Untrusted)
         {
-          const auto receipt = tree.get_receipt(untrusted_idx);
-          LOG_INFO_FMT(
-            "From signature at {}, constructed a receipt for {}",
-            sig_idx,
-            untrusted_idx);
+          const auto& untrusted_idx = it->first;
+          const auto& untrusted_hash = request.entry_hash;
+          const auto& untrusted_store = request.store;
 
-          // TODO: Check that the receipt matches our untrusted entry
-          // const auto& entry_hash_in_receipt = receipt.leaf;
-          // if (untrusted_hash != entry_hash_in_receipt)
-          // {
-          //   throw std::logic_error(
-          //     fmt::format("Hash mismatch for {}", untrusted_idx));
-          // }
-
-          // Move stores from untrusted to trusted
-          // TODO: Temp solution, blindly trust everything for now
-          const auto trusted_ib =
-            trusted_entries.emplace(untrusted_idx, untrusted_store);
-          if (trusted_ib.second)
+          try
           {
+            const auto receipt = tree.get_receipt(untrusted_idx);
+            LOG_INFO_FMT(
+              "From signature at {}, constructed a receipt for {}",
+              sig_idx,
+              untrusted_idx);
+
+            // TODO: Check that the receipt matches our untrusted entry
+            // const auto& entry_hash_in_receipt = receipt.leaf;
+            // if (untrusted_hash != entry_hash_in_receipt)
+            // {
+            //   throw std::logic_error(
+            //     fmt::format("Hash mismatch for {}", untrusted_idx));
+            // }
+
+            // Move stores from untrusted to trusted
+            // TODO: Temp solution, blindly trust everything for now
             LOG_INFO_FMT("Now trusting {}", untrusted_idx);
+            request.current_stage = RequestStage::Trusted;
+            ++it;
           }
-          else
+          catch (const std::exception& e)
           {
-            LOG_INFO_FMT("Already trusted {}", untrusted_idx);
+            LOG_INFO_FMT(
+              "Signature at {} does not cover {}: {}",
+              sig_idx,
+              untrusted_idx,
+              e.what());
+            // TODO: Can we expose "what indices do you cover" through the
+            // MerkleTree, rather than try-catch?
+            ++it;
+            // TODO: Should we abandon this untrusted entry now?
           }
-          it = untrusted_entries.erase(it);
         }
-        catch (const std::exception& e)
+        else
         {
-          LOG_INFO_FMT(
-            "Signature at {} does not cover {}: {}",
-            sig_idx,
-            untrusted_idx,
-            e.what());
-          // TODO: Can we expose "what indices do you cover" through the
-          // MerkleTree, rather than try-catch?
           ++it;
-          // TODO: Should we abandon this untrusted entry now?
         }
       }
     }
@@ -216,29 +228,41 @@ namespace ccf::historical
           break;
         }
         case kv::DeserialiseSuccess::PASS:
-        {
-          const auto request_it = requested_indices.find(idx);
-          if (request_it != requested_indices.end())
-          {
-            // We were looking for this entry! Store the produced store
-            // TODO: Should we check if we already have this? If the host spams
-            // us, do we just ignore everything but the first result they give
-            // us?
-            crypto::Sha256Hash hash(entry);
-            untrusted_entries[idx] = std::make_pair(store, hash);
-          }
-
-          // In either case, its not a signature - try the next transaction
-          fetch_entry_at(idx + 1);
-          break;
-        }
         case kv::DeserialiseSuccess::PASS_SIGNATURE:
         {
-          LOG_INFO_FMT("Found a signature transaction at {}", idx);
-          // Hurrah! We can hopefully use this signature to move some old stores
-          // from untrusted to trusted!
+          LOG_DEBUG_FMT("Processed transaction at {}", idx);
 
-          handle_signature_transaction(idx, store);
+          auto request_it = requests.find(idx);
+          if (request_it != requests.end())
+          {
+            auto& request = request_it->second;
+            if (request.current_stage == RequestStage::Fetching)
+            {
+              // We were looking for this entry. Store the produced store
+              request.current_stage = RequestStage::Untrusted;
+              request.entry_hash = crypto::Sha256Hash(entry);
+              request.store = store;
+            }
+            else
+            {
+              LOG_INFO_FMT(
+                "Not fetching ledger entry {}: already have it in stage {}",
+                request_it->first,
+                request.current_stage);
+            }
+          }
+
+          if (deserialise_result == kv::DeserialiseSuccess::PASS_SIGNATURE)
+          {
+            // This looks like a valid signature - try to use this signature to
+            // move some stores from untrusted to trusted
+            handle_signature_transaction(idx, store);
+          }
+          else
+          {
+            // This is not a signature - try the next transaction
+            fetch_entry_at(idx + 1);
+          }
           break;
         }
         default:
@@ -256,16 +280,23 @@ namespace ccf::historical
 
     StorePtr get_store_at(consensus::Index idx)
     {
-      const auto trusted_it = trusted_entries.find(idx);
-      if (trusted_it == trusted_entries.end())
+      const auto it = requests.find(idx);
+      if (it == requests.end())
       {
-        // Otherwise, treat this as a hint and (potentially) start fetching it
+        // Treat this as a hint and start fetching it
         request_entry_at(idx);
 
         return nullptr;
       }
 
-      return trusted_it->second;
+      if (it->second.current_stage == RequestStage::Trusted)
+      {
+        // Have this store and trust it
+        return it->second.store;
+      }
+
+      // Still fetching this store or don't trust it yet
+      return nullptr;
     }
 
     bool handle_ledger_entry(consensus::Index idx, const LedgerEntry& data)
@@ -274,8 +305,7 @@ namespace ccf::historical
         std::find(pending_fetches.begin(), pending_fetches.end(), idx);
       if (it == pending_fetches.end())
       {
-        // TODO
-        // Unexpected entry - probably just ignore it?
+        // Unexpected entry - ignore it?
         return false;
       }
 
@@ -288,19 +318,24 @@ namespace ccf::historical
 
     void handle_no_entry(consensus::Index idx)
     {
-      const auto it =
-        std::find(pending_fetches.begin(), pending_fetches.end(), idx);
-      if (it == pending_fetches.end())
+      const auto request_it = requests.find(idx);
+      if (request_it != requests.end())
       {
-        // TODO
-        // We weren't even expecting this entry - surely just ignore it?
-        return;
+        if (request_it->second.current_stage == RequestStage::Fetching)
+        {
+          requests.erase(request_it);
+        }
       }
 
-      // The host failed or refused to gives us this. Currently we just forget
-      // about it, we don't have a mechanism for remembering this failure and
-      // reporting it to users.
-      pending_fetches.erase(it);
+      const auto it =
+        std::find(pending_fetches.begin(), pending_fetches.end(), idx);
+      if (it != pending_fetches.end())
+      {
+        // The host failed or refused to give this entry. Currently just forget
+        // about it - don't have a mechanism for remembering this failure and
+        // reporting it to users.
+        pending_fetches.erase(it);
+      }
     }
   };
 }
