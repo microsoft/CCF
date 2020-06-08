@@ -94,7 +94,7 @@ Pre_prepare::Pre_prepare(
   }
   rep().n_big_reqs = n_big_reqs;
 
-  LOG_TRACE << "request in batch:" << requests_in_batch << std::endl;
+  LOG_TRACE_FMT("request in batch:{}", requests_in_batch);
 
   if (prepared_cert == nullptr)
   {

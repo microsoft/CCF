@@ -245,13 +245,15 @@ Request_id Node::new_rid()
 
 void Node::send_to_replicas(Message* m)
 {
-  LOG_TRACE << "replica_count:" << replica_count
-            << ", num_replicas:" << num_replicas << " m:" << m->tag()
-            << std::endl;
+  LOG_TRACE_FMT(
+    "replica_count:{}, num_replicas:{}, m:{}",
+    replica_count,
+    num_replicas,
+    m->tag());
 
   if (send_only_to_self && m->tag() != Status_tag)
   {
-    LOG_TRACE << "Only sending to self" << std::endl;
+    LOG_TRACE_FMT("Only sending to self");
     send(m, node_id);
   }
   else
