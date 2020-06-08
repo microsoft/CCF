@@ -506,7 +506,6 @@ namespace asynchost
 
         // TODO: Early fail if the ledger idx don't follow each other!!
 
-        // TODO: Restore compacted
         for (auto const& f : files)
         {
           if (f->is_complete())
@@ -514,12 +513,7 @@ namespace asynchost
             compacted_idx = f->get_last_idx();
           }
         }
-
-        LOG_FAIL_FMT("Recovered compacted idx is {}", compacted_idx);
-
         last_idx = get_latest_file()->get_last_idx();
-
-        LOG_FAIL_FMT("Recovered last idx is {}", last_idx);
       }
       else
       {
@@ -706,64 +700,49 @@ namespace asynchost
       compacted_idx = idx;
     }
 
-    // void register_message_handlers(
-    //   messaging::Dispatcher<ringbuffer::Message>& disp)
-    // {
-    //   DISPATCHER_SET_MESSAGE_HANDLER(
-    //     disp,
-    //     consensus::ledger_append,
-    //     [this](const uint8_t* data, size_t size) {
-    //       auto committable = serialized::read<bool>(data, size);
-    //       write_entry(data, size, committable);
-    //     });
+    void register_message_handlers(
+      messaging::Dispatcher<ringbuffer::Message>& disp)
+    {
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp,
+        consensus::ledger_append,
+        [this](const uint8_t* data, size_t size) {
+          auto committable = serialized::read<bool>(data, size);
+          write_entry(data, size, committable);
+        });
 
-    //   DISPATCHER_SET_MESSAGE_HANDLER(
-    //     disp,
-    //     consensus::ledger_truncate,
-    //     [this](const uint8_t* data, size_t size) {
-    //       auto idx = serialized::read<consensus::Index>(data, size);
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp,
+        consensus::ledger_truncate,
+        [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
+          truncate(idx);
+        });
 
-    //       // TODO: This has to become more complex to handle truncation over
-    //       a
-    //       // collection of ledger files
-    //       truncate(idx);
-    //     });
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp,
+        consensus::ledger_compact,
+        [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<consensus::Index>(data, size);
+          compact(idx);
+        });
 
-    //   DISPATCHER_SET_MESSAGE_HANDLER(
-    //     disp,
-    //     consensus::ledger_compact,
-    //     [this](const uint8_t* data, size_t size) {
-    //       auto idx = serialized::read<consensus::Index>(data, size);
-    //       LOG_FAIL_FMT("Compacting ledger at {}", idx);
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
+          auto [idx] =
+            ringbuffer::read_message<consensus::ledger_get>(data, size);
 
-    //       size_t chunk_size = framed_entries_size(start_idx, idx);
-    //       LOG_FAIL_FMT(
-    //         "Size of last chunk: {}/{}", chunk_size, chunk_threshold);
-
-    //       if (chunk_size > chunk_threshold)
-    //       {
-    //         // archive_chunk(idx);
-    //       }
-    //     });
-
-    //   DISPATCHER_SET_MESSAGE_HANDLER(
-    //     disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
-    //       // The enclave has asked for a ledger entry.
-    //       auto [idx] =
-    //         ringbuffer::read_message<consensus::ledger_get>(data, size);
-
-    //       auto& entry = read_entry(idx);
-
-    //       if (entry.size() > 0)
-    //       {
-    //         RINGBUFFER_WRITE_MESSAGE(
-    //           consensus::ledger_entry, to_enclave, entry);
-    //       }
-    //       else
-    //       {
-    //         RINGBUFFER_WRITE_MESSAGE(consensus::ledger_no_entry, to_enclave);
-    //       }
-    //     });
-    // }
+          auto& entry = read_entry(idx);
+          if (entry.size() > 0)
+          {
+            RINGBUFFER_WRITE_MESSAGE(
+              consensus::ledger_entry, to_enclave, entry);
+          }
+          else
+          {
+            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_no_entry, to_enclave);
+          }
+        });
+    }
   };
 }

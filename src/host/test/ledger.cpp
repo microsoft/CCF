@@ -561,3 +561,10 @@ TEST_CASE("Restore existing ledger")
     }
   }
 }
+
+TEST_CASE("TODO")
+{
+  // TODO:
+  // Set rlimit https://linux.die.net/man/2/setrlimit to a low number
+  // Check if things still work
+}

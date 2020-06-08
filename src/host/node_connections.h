@@ -172,7 +172,7 @@ namespace asynchost
       }
     };
 
-    MultipleLedger& ledger;
+    Ledger& ledger;
     TCP listener;
     std::unordered_map<ccf::NodeId, TCP> outgoing;
     std::unordered_map<size_t, TCP> incoming;
@@ -184,7 +184,7 @@ namespace asynchost
   public:
     NodeConnections(
       messaging::Dispatcher<ringbuffer::Message>& disp,
-      MultipleLedger& ledger,
+      Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& service) :
@@ -248,20 +248,21 @@ namespace asynchost
             // Find the total frame size, and write it along with the header.
             auto count = ae.idx - ae.prev_idx;
 
-            // TODO: One API is sufficient here: get the entries vector, then
-            // use the size of that instead
-            uint32_t frame = (uint32_t)(
-              size_to_send +
-              ledger.framed_entries_size(ae.prev_idx + 1, ae.idx));
+            auto framed_entries =
+              ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
+
+            uint32_t frame = (uint32_t)(size_to_send + framed_entries.size());
 
             LOG_DEBUG_FMT(
-              "send AE to {} [{}]: {}, {}", to, frame, ae.idx, ae.prev_idx);
+              "send AE to node {} [{}]: {}, {}",
+              to,
+              frame,
+              ae.idx,
+              ae.prev_idx);
 
             node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
             node.value()->write(size_to_send, data_to_send);
 
-            auto framed_entries =
-              ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
             frame = (uint32_t)framed_entries.size();
             node.value()->write(frame, framed_entries.data());
           }
