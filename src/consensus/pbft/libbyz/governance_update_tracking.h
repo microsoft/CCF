@@ -24,7 +24,9 @@ public:
 
   void rollback(Seqno seqno)
   {
+    Seqno last = last_seqno();
     mark_stable(seqno);
+    LOG_INFO_FMT("rollingback last gov req, before:{}, after:{}, rollback_target:{}", last, last_seqno(), seqno);
   }
 
   void update(Seqno seqno)
