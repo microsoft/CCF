@@ -10,6 +10,7 @@
 #include "commit.h"
 #include "data.h"
 #include "ds/ccf_assert.h"
+#include "ds/ccf_exception.h"
 #include "ds/logger.h"
 #include "ds/serialized.h"
 #include "ds/thread_messaging.h"
@@ -319,7 +320,7 @@ Message* Replica::create_message(const uint8_t* data, uint32_t size)
       // Unknown message type.
       auto err = fmt::format("Unknown message type:{}", Message::get_tag(data));
       LOG_FAIL_FMT(err);
-      throw std::logic_error(err);
+      throw ccf::ccf_logic_error(err);
       return nullptr;
   }
 
@@ -653,7 +654,7 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
   }
   else
   {
-    throw std::logic_error(fmt::format(
+    throw ccf::ccf_logic_error(fmt::format(
       "Merkle roots don't match in playback pre-prepare for seqno {}",
       executable_pp->seqno()));
   }
@@ -1058,19 +1059,15 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
   {
     btimer->restart();
   }
-
-  if (!(rqueue.size() == 0 ||
-        (rqueue.size() != 0 &&
-         (btimer->get_state() == ITimer::State::running ||
-          do_not_wait_for_batch_size))))
-  {
-    LOG_INFO_FMT(
-      "Req_size:{}, btimer_state:{}, do_not_wait:{}",
-      rqueue.size(),
-      btimer->get_state(),
-      (do_not_wait_for_batch_size ? "true" : "false"));
-    CCF_ASSERT(false, "send_pre_prepare rqueue and btimer issue");
-  }
+  CCF_ASSERT_FMT(
+    (rqueue.size() == 0 ||
+     (rqueue.size() != 0 &&
+      (btimer->get_state() == ITimer::State::running ||
+       do_not_wait_for_batch_size))),
+    "Req_size:{}, btimer_state:{}, do_not_wait:{}",
+    rqueue.size(),
+    btimer->get_state(),
+    (do_not_wait_for_batch_size ? "true" : "false"));
 }
 
 template <class T>
