@@ -29,6 +29,7 @@ public:
 
   void update(Seqno seqno)
   {
+    LOG_INFO_FMT("Updating last gov req, before:{}, after:{}", last_seqno(), seqno);
     seqnoWithMemberReqs.insert(new SeqnoWithMemberReq{seqno, nullptr, nullptr});
   }
 
