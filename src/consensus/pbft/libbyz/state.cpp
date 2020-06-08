@@ -13,7 +13,6 @@
 #include "meta_data_cert.h"
 #include "meta_data_d.h"
 #include "replica.h"
-#include "statistics.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -197,12 +196,14 @@ void Checkpoint_rec::dump_state(std::ostream& os)
 
 void Checkpoint_rec::print()
 {
-  LOG_INFO << "Checkpoint record: " << parts.size() << " blocks" << std::endl;
+  LOG_INFO_FMT("Checkpoint record: {} blocks", parts.size());
   for (auto const& p : parts)
   {
-    LOG_INFO << "Block: level= " << p.first.level << " index= " << p.first.index
-             << std::endl;
-    LOG_INFO << "last mod= " << p.second->lm << std::endl;
+    LOG_INFO_FMT(
+      "Block: level={}, index={}, last mode={}",
+      p.first.level,
+      p.first.index,
+      p.second->lm);
     p.second->d.print();
   }
 }
@@ -295,7 +296,6 @@ void State::cow_single(int i)
   BlockCopy* bcp;
   CCF_ASSERT(i >= 0 && i < nb, "Invalid argument");
 
-  INCR_OP(num_cows);
   // Append a copy of the block to the last checkpoint
   Part& p = ptree[PLevels - 1][i];
   bcp = new BlockCopy;
@@ -367,10 +367,6 @@ inline int State::digest(Digest& d, int l, size_t i)
 
 void State::compute_full_digest()
 {
-#ifndef INSIDE_ENCLAVE
-  Cycle_counter cc;
-  cc.start();
-#endif
   int np = nb;
   for (int l = PLevels - 1; l > 0; l--)
   {
@@ -388,10 +384,6 @@ void State::compute_full_digest()
   cowb.clear();
   checkpoint_log.fetch(0).clear();
   checkpoint(0);
-#ifndef INSIDE_ENCLAVE
-  cc.stop();
-  LOG_INFO << "Compute full digest elapsed " << cc.elapsed() << std::endl;
-#endif
 
   d.print();
 }
@@ -455,8 +447,6 @@ void State::update_ptree(Seqno n)
 
 void State::checkpoint(Seqno seqno)
 {
-  INCR_OP(num_ckpts);
-
   update_ptree(seqno);
 
   lc = seqno;
@@ -470,9 +460,7 @@ Seqno State::rollback(Seqno last_executed)
 {
   CCF_ASSERT(lc >= 0 && !fetching, "Invalid state");
 
-  INCR_OP(num_rollbacks);
-
-  LOG_INFO << "Rolling back to checkpoint before " << last_executed << "\n";
+  LOG_INFO_FMT("Rolling back to checkpoint before {}", last_executed);
 
   while (1)
   {
@@ -513,7 +501,7 @@ Seqno State::rollback(Seqno last_executed)
     lc--;
   }
 
-  LOG_DEBUG << "Rolled back to  " << lc << "\n";
+  LOG_DEBUG_FMT("Rolled back to {}", lc);
 
   return lc;
 }
@@ -610,11 +598,9 @@ Part& State::get_meta_data(Seqno c, int l, int i)
 
 void State::start_fetch(Seqno le, Seqno c, Digest* cd, bool stable)
 {
-  LOG_DEBUG << "Starting fetch le: " << le << "c:" << c << std::endl;
+  LOG_DEBUG_FMT("Starting fetch le:{}, c:{}", le, c);
   if (!fetching)
   {
-    INCR_OP(num_fetches);
-
     fetching = true;
     keep_ckpts = false;
     lreplier = rand() % pbft::GlobalState::get_replica().num_of_replicas();
@@ -669,26 +655,17 @@ void State::send_fetch(bool change_replier)
     replier = lreplier;
   }
 
-#ifdef PRINT_STATS
-  if (checking && ptree[flevel][p.index].lm > check_start)
-  {
-    if (flevel == PLevels - 1)
-    {
-      INCR_OP(refetched);
-    }
-    else
-    {
-      INCR_OP(meta_data_refetched);
-    }
-  }
-#endif // PRINT_STATS
-
   // Send fetch to all.
   Fetch f(rid, p.lu, flevel, p.index, p.c, replier);
   pbft::GlobalState::get_replica().send(&f, Node::All_replicas);
-  LOG_TRACE << "Sending fetch message: rid=" << rid << " lu=" << p.lu << " ("
-            << flevel << "," << p.index << ") c=" << p.c << " rep=" << replier
-            << std::endl;
+  LOG_TRACE_FMT(
+    "Sending fetch message: rid={}, lu={} ({},{}) c={} rep={}",
+    rid,
+    p.lu,
+    flevel,
+    p.index,
+    p.c,
+    replier);
 
   if (!cert->has_mine())
   {
@@ -736,10 +713,12 @@ bool State::handle(Fetch* m, Seqno ls)
   if (pi->last_fetch_rid() < m->request_id() && (l < PLevels - 1 || i < nb))
   {
     Seqno rc = m->checkpoint();
-
-    LOG_TRACE << "Receive fetch ls=" << ls << " rc= " << rc
-              << " lu=" << m->last_uptodate() << " lm=" << ptree[l][i].lm
-              << std::endl;
+    LOG_TRACE_FMT(
+      "Receive fetch ls={}, rc={}, lu={}, lm={}",
+      ls,
+      rc,
+      m->last_uptodate(),
+      ptree[l][i].lm);
 
     if (rc >= 0 && m->replier() == pbft::GlobalState::get_replica().id())
     {
@@ -770,7 +749,7 @@ bool State::handle(Fetch* m, Seqno ls)
           {
             Data d(i, p.lm, data);
             pbft::GlobalState::get_replica().send(&d, m->id());
-            LOG_TRACE << "Sending data i=" << i << " lm=" << p.lm << std::endl;
+            LOG_TRACE_FMT("Sending data i={}, lm={}", i, p.lm);
           }
         }
         else
@@ -796,8 +775,7 @@ bool State::handle(Fetch* m, Seqno ls)
             }
           }
           pbft::GlobalState::get_replica().send(&md, m->id());
-          LOG_TRACE << "Sending meta-data l=" << l - 1 << " i=" << i
-                    << " lm=" << p.lm << std::endl;
+          LOG_TRACE_FMT("Sending meta-data l={}, i={}, lm={}", l - 1, i, p.lm);
         }
         delete m;
         return true;
@@ -814,15 +792,19 @@ bool State::handle(Fetch* m, Seqno ls)
       for (; n <= lc; n += checkpoint_interval)
       {
         Part& p = get_meta_data(n, l, i);
-        LOG_TRACE << "Adding digest meta-data-d l=" << l << " i=" << i
-                  << " n=" << n << " digest[0]=" << p.d.hash() << std::endl;
+        LOG_TRACE_FMT(
+          "Adding digest meta-data-d l={}, i={}, n={}, digest[0]={}",
+          l,
+          i,
+          n,
+          p.d.hash());
         mdd.add_digest(n, p.d);
       }
 
       if (mdd.num_digests() > 0)
       {
         mdd.authenticate(pi.get());
-        LOG_TRACE << "Sending meta-data-d l=" << l << " i=" << i << std::endl;
+        LOG_TRACE_FMT("Sending meta-data-d l={}, i={}", l, i);
         pbft::GlobalState::get_replica().send(&mdd, m->id());
       }
     }
@@ -834,8 +816,6 @@ bool State::handle(Fetch* m, Seqno ls)
 
 void State::handle(Data* m)
 {
-  INCR_OP(num_fetched);
-
   int l = PLevels - 1;
   if (fetching && flevel == l)
   {
@@ -848,8 +828,6 @@ void State::handle(Data* m)
       digest(d, i, m->last_mod(), m->data(), Block_size);
       if (wp.c >= 0 && wp.d == d)
       {
-        INCR_OP(num_fetched_a);
-
         Part& p = ptree[l][i];
 
         if (keep_ckpts && !cowb.test(i))
@@ -934,8 +912,12 @@ bool State::check_digest(Digest& d, Meta_data* m)
   bool match = (d == dp);
   if (!match)
   {
-    LOG_INFO << "Digest does not match l=" << l << ", i=" << i
-             << " d=" << d.hash() << " dp=" << dp.hash() << std::endl;
+    LOG_INFO_FMT(
+      "Digest does not match l={}, i={}, d={}, dp={}",
+      l,
+      i,
+      d.hash(),
+      dp.hash());
   }
 
   // undo changes to stree
@@ -959,13 +941,14 @@ bool State::check_digest(Digest& d, Meta_data* m)
 
 void State::handle(Meta_data* m)
 {
-  INCR_OP(meta_data_fetched);
-  INCR_CNT(meta_data_bytes, m->size());
-
   Request_id crid =
     pbft::GlobalState::get_replica().principal()->last_fetch_rid();
-  LOG_TRACE << "Got meta_data index " << m->index() << " from " << m->id()
-            << " rid=" << m->request_id() << " crid=" << crid << std::endl;
+  LOG_TRACE_FMT(
+    "Got meta_data index {}  from {} rid={} crid={}",
+    m->index(),
+    m->id(),
+    m->request_id(),
+    crid);
   if (
     fetching && flevel < PLevels - 1 && m->request_id() == crid &&
     flevel == m->level())
@@ -977,11 +960,9 @@ void State::handle(Meta_data* m)
       // Requested a specific digest that matches the one in m
       if (m->verify() && check_digest(wp.d, m))
       {
-        INCR_OP(meta_data_fetched_a);
-
         // Meta-data was fetched successfully.
-        LOG_TRACE << "Accepted meta_data from " << m->id() << " (" << flevel
-                  << "," << wp.index << ")" << std::endl;
+        LOG_TRACE_FMT(
+          "Accepted meta_data from {} ({},{})", m->id(), flevel, wp.index);
 
         wp.lm = m->last_mod();
 
@@ -1036,11 +1017,7 @@ void State::handle(Meta_data* m)
 
 void State::handle(Meta_data_d* m)
 {
-  INCR_OP(meta_datad_fetched);
-  INCR_CNT(meta_datad_bytes, m->size());
-
-  LOG_TRACE << "Got meta_data_d from " << m->id() << "index" << m->index()
-            << std::endl;
+  LOG_TRACE_FMT("Got meta_data_d from {}, index {}", m->id(), m->index());
   Request_id crid =
     pbft::GlobalState::get_replica().principal()->last_fetch_rid();
   if (fetching && m->request_id() == crid && flevel == m->level())
@@ -1051,15 +1028,15 @@ void State::handle(Meta_data_d* m)
       wp.index == m->index() && m->last_stable() >= lc &&
       m->last_stable() >= wp.lu)
     {
-      INCR_OP(meta_datad_fetched_a);
-
       // Insert message in certificate for working partition
       Digest cd;
       Seqno cc;
       if (cert->add(m))
       {
-        LOG_TRACE << "Got meta_data_d from " << m->id() << "index "
-                  << m->index() << "and ADDED to cert" << std::endl;
+        LOG_TRACE_FMT(
+          "Got meta_data_d from {} index {} and ADDED to cert",
+          m->id(),
+          m->index());
         if (cert->last_stable() > lc)
         {
           keep_ckpts = false;
@@ -1070,8 +1047,7 @@ void State::handle(Meta_data_d* m)
           // Certificate is now complete.
           wp.c = cc;
           wp.d = cd;
-          LOG_TRACE << "Complete meta_data_d cert (" << flevel << ","
-                    << wp.index << ")" << std::endl;
+          LOG_TRACE_FMT("Complete meta_data_d cert ({},{})", flevel, wp.index);
 
           cert->clear();
 
@@ -1296,7 +1272,6 @@ void State::check_state()
       if (p.lm > check_start || check_data(lchecked))
       {
         // Block was fetched after check started or has correct digest.
-        INCR_OP(num_checked);
         count++;
         lchecked++;
       }

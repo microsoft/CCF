@@ -69,7 +69,7 @@ bool Status::pre_verify()
     if (sender == nullptr)
     {
       // Received message from unknown sender
-      LOG_INFO << "Request from unknown pricipal, id:" << id() << std::endl;
+      LOG_INFO_FMT("Request from unknown pricipal, id:{}", id());
 
       PrincipalInfo info;
       info.id = id();

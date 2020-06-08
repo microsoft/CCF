@@ -50,8 +50,6 @@ Pre_prepare::Pre_prepare(
   dh.finalize(context);
   rep().hashed_nonce = dh;
 
-  INCR_OP(pp_digest);
-
   // Fill in the request portion with as many requests as possible
   // and compute digest.
   requests_in_batch = 0;
@@ -96,10 +94,7 @@ Pre_prepare::Pre_prepare(
   }
   rep().n_big_reqs = n_big_reqs;
 
-  INCR_CNT(sum_batch_size, requests_in_batch);
-  INCR_OP(batch_size_histogram[requests_in_batch]);
-
-  LOG_TRACE << "request in batch:" << requests_in_batch << std::endl;
+  LOG_TRACE_FMT("request in batch:{}", requests_in_batch);
 
   if (prepared_cert == nullptr)
   {
@@ -262,8 +257,6 @@ bool Pre_prepare::calculate_digest(Digest& d)
 #endif
   if (size() >= min_size)
   {
-    INCR_OP(pp_digest);
-
     // Check digest.
     Digest::Context context;
 
@@ -290,7 +283,6 @@ bool Pre_prepare::calculate_digest(Digest& d)
       }
       else
       {
-        STOP_CC(pp_digest_cycles);
         return false;
       }
     }
@@ -347,8 +339,8 @@ bool Pre_prepare::pre_verify()
             get_digest_sig().data(),
             rep().sig_size))
       {
-        LOG_INFO << "failed to verify signature on the digest, seqno:"
-                 << rep().seqno << std::endl;
+        LOG_FAIL_FMT(
+          "Failed to verify signature on the digest, seqno:{}", rep().seqno);
         return false;
       }
     }
@@ -487,8 +479,8 @@ bool Pre_prepare::ValidProofs_iter::get(
     if (!sender_principal->verify_signature(
           reinterpret_cast<char*>(&s), sizeof(s), ic->sig.data(), ic->sig_size))
     {
-      LOG_INFO << "failed to verify signature on the digest, seqno:"
-               << msg->seqno() << std::endl;
+      LOG_INFO_FMT(
+        "Failed to verify signature on the digest, seqno:{}", msg->seqno());
       is_valid_proof = false;
     }
   }

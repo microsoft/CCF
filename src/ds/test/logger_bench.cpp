@@ -29,7 +29,7 @@ static void prepare_loggers()
   if constexpr ((LK & LoggerKind::JSON) != 0)
   {
     logger::config::loggers().emplace_back(
-      std::make_unique<logger::JsonLogger>("./custom_json_logger"));
+      std::make_unique<logger::JsonConsoleLogger>());
   }
 
   if constexpr (Absorb)

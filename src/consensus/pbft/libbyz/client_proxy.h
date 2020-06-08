@@ -142,8 +142,6 @@ private:
   void increase_retransmission_timeout();
   void decrease_retransmission_timeout();
 
-  Cycle_counter latency; // Used to measure latency.
-
   // Multiplier used to obtain retransmission timeout from avg_latency
   static const int Rtimeout_mult = 4;
 
@@ -211,7 +209,7 @@ bool ClientProxy<T, C>::send_request(
   if (current_outstanding.fetch_add(1) >= Max_outstanding)
   {
     current_outstanding.fetch_sub(1);
-    LOG_FAIL << "Too many outstanding requests, rejecting!" << std::endl;
+    LOG_FAIL_FMT("Too many outstanding requests, rejecting");
     return false;
   }
 
@@ -242,7 +240,8 @@ bool ClientProxy<T, C>::send_request(
   }
   catch (const std::exception& e)
   {
-    LOG_FAIL_FMT("Failed to parse arguments, e.what:", e.what());
+    LOG_FAIL_FMT("Failed to parse arguments");
+    LOG_DEBUG_FMT("Failed to parse arguments, e.what:", e.what());
     return false;
   }
 
@@ -354,14 +353,17 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
     current_statistics.count_num_samples++;
   }
 
-  LOG_TRACE << "Received reply msg, request_id:" << reply->request_id()
-            << " seqno: " << reply->seqno() << " view " << reply->view()
-            << " id: " << reply->id()
-            << " tentative: " << (reply->is_tentative() ? "true" : "false")
-            << " reps.is_complete: "
-            << (ctx->t_reps.is_complete() ? "true" : "false")
-            << " reply->full: " << (reply->full() ? "true" : "false")
-            << " reps.cvalue: " << (void*)ctx->t_reps.cvalue() << std::endl;
+  LOG_TRACE_FMT(
+    "Received reply msg, request_id:{} seqno:{}, view {} id:{}, tentative:{}, "
+    "reps.is_complete:{}, reply->full:{}, reps.cvalue: {}",
+    reply->request_id(),
+    reply->seqno(),
+    reply->view(),
+    reply->id(),
+    (reply->is_tentative() ? "true" : "false"),
+    (ctx->t_reps.is_complete() ? "true" : "false"),
+    (reply->full() ? "true" : "false"),
+    (void*)ctx->t_reps.cvalue());
 
   if (current_view < reply->view())
   {
@@ -410,9 +412,12 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
   int reply_len;
   uint8_t* reply_buffer = (uint8_t*)reply->reply(reply_len);
 
-  LOG_DEBUG << "Received complete reply request_id:" << reply->request_id()
-            << " client id: " << reply->id() << " seqno: " << reply->seqno()
-            << " view " << reply->view() << std::endl;
+  LOG_DEBUG_FMT(
+    "Received complete reply request_id:{}, client id:{}, seqno:{}, view{}",
+    reply->request_id(),
+    reply->id(),
+    reply->seqno(),
+    reply->view());
 
   auto msg = std::make_unique<threading::Tmsg<ReplyCbMsg>>(&send_reply);
   msg->data.owner = ctx->owner;
@@ -508,7 +513,6 @@ void ClientProxy<T, C>::retransmit()
     Request* out_req = ctx->req.get();
 
     LOG_INFO_FMT("Retransmitting req id: {}", out_req->request_id());
-    INCR_OP(req_retrans);
 
     n_retrans++;
     bool ro = out_req->is_read_only();
@@ -524,8 +528,8 @@ void ClientProxy<T, C>::retransmit()
       }
     }
 
-    LOG_DEBUG << "Client_proxy retransmitting request, rid:"
-              << out_req->request_id() << std::endl;
+    LOG_DEBUG_FMT(
+      "Client_proxy retransmitting request, rid:{}", out_req->request_id());
 
     if (
       out_req->is_read_only() || n_retrans > thresh ||

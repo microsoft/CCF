@@ -136,11 +136,9 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->transform(CLI::CheckedTransformer(level_map, CLI::ignore_case));
 
-  std::optional<std::string> json_log_path;
-  app.add_option(
-    "--json-log-path",
-    json_log_path,
-    "Path to file where the json logs will be written");
+  bool log_format_json = false;
+  app.add_flag(
+    "--log-format-json", log_format_json, "Set node stdout log format to JSON");
 
   std::string node_cert_file("nodecert.pem");
   app
@@ -387,6 +385,12 @@ int main(int argc, char** argv)
     public_rpc_address = rpc_address;
   }
 
+  // set json log formatter to write to std::out
+  if (log_format_json)
+  {
+    logger::config::initialize_with_json_console();
+  }
+
   uint32_t oe_flags = 0;
   try
   {
@@ -463,12 +467,6 @@ int main(int argc, char** argv)
   // set the host log level
   logger::config::level() = host_log_level;
 
-  // set the custom log formatter path
-  if (json_log_path.has_value())
-  {
-    logger::config::loggers().emplace_back(
-      std::make_unique<logger::JsonLogger>(json_log_path.value()));
-  }
   // create the enclave
   host::Enclave enclave(enclave_file, oe_flags);
 

@@ -133,7 +133,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "8e3efcb1dcb27a5b43b66778a6c61681365f945f"
+          "commitHash": "2b92574123db1d1674f3df9c6dfb3ec10f05ebb3"
         }
       }
     },
@@ -145,13 +145,22 @@
           "commitHash": "dc8c3a9a1089e962b32ecdcc940ae11bd2b69e4b"
         }
       }
-    },,
+    },
     {
       "component": {
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/thelink2012/SmallVector",
           "commitHash": "febc8cb7b1a83d902b86dd1612feb7c86c690186"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/bombela/backward-cpp",
+          "commitHash": "83da75636cef3ee6e0c83cf8651e2929e1b87261"
         }
       }
     }

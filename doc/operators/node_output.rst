@@ -22,7 +22,7 @@ Note that your app's logging entries will be interleaved (line-by-line) with the
 JSON Formatting
 ---------------
 
-There is an option to further generate machine-readable logs for monitoring. To enable this pass `--json-log-path <path_to_file>` when creating a node (in either ``start`` or ``join`` mode). The generated logs will be in JSON format as displayed below.
+There is an option to generate machine-readable logs for monitoring. To enable this pass `--json-format-json` when creating a node (in either ``start`` or ``join`` mode). The generated logs will be in JSON format as displayed below.
 
 .. code-block:: json
 

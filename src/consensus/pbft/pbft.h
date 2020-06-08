@@ -681,7 +681,8 @@ namespace pbft
         }
         catch (const std::logic_error& err)
         {
-          LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
+          LOG_FAIL_FMT("Invalid encrypted pbft message");
+          LOG_DEBUG_FMT("Invalid encrypted pbft message: {}", err.what());
           return;
         }
       }
@@ -697,7 +698,8 @@ namespace pbft
         }
         catch (const std::logic_error& err)
         {
-          LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+          LOG_FAIL_FMT("Invalid pbft message");
+          LOG_DEBUG_FMT("Invalid pbft message: {}", err.what());
           return;
         }
       }
@@ -770,8 +772,7 @@ namespace pbft
         {
           if (message_receiver_base->IsExecutionPending())
           {
-            LOG_FAIL << "Pending Execution, skipping append entries request"
-                     << std::endl;
+            LOG_FAIL_FMT("Pending Execution, skipping append entries request");
             return;
           }
 
@@ -786,7 +787,7 @@ namespace pbft
           }
           catch (const std::logic_error& err)
           {
-            LOG_FAIL_FMT(err.what());
+            LOG_FAIL_FMT("Failed to authenticate message: {}", err.what());
             return;
           }
 
