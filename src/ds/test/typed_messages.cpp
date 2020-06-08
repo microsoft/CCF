@@ -1,0 +1,90 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#include "../oversized.h"
+
+#include <doctest/doctest.h>
+
+enum : ringbuffer::Message
+{
+  DEFINE_RINGBUFFER_MSG_TYPE(large_block_message),
+  DEFINE_RINGBUFFER_MSG_TYPE(large_compound_message),
+  DEFINE_RINGBUFFER_MSG_TYPE(finish),
+};
+
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(large_block_message, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  large_compound_message, size_t, std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(finish);
+
+TEST_CASE(
+  "Large message reconstruction" * doctest::test_suite("typed_messages"))
+{
+  constexpr size_t buf_size = 1 << 8;
+
+  ringbuffer::Reader rr(buf_size);
+
+  constexpr auto fragment_max = buf_size / 8;
+  constexpr auto total_max = buf_size / 3;
+  oversized::Writer writer(
+    std::make_unique<ringbuffer::Writer>(rr), fragment_max, total_max);
+  auto writer_p = &writer;
+
+  messaging::BufferProcessor bp("typed_messages");
+  oversized::FragmentReconstructor fr(bp.get_dispatcher());
+  DISPATCHER_SET_MESSAGE_HANDLER(
+    bp, finish, [&bp](const uint8_t* data, size_t size) {
+      bp.set_finished(true);
+    });
+
+  SUBCASE("block message")
+  {
+    std::vector<uint8_t> received;
+    DISPATCHER_SET_MESSAGE_HANDLER(
+      bp,
+      large_block_message,
+      [&bp, &received](const uint8_t* data, size_t size) {
+        auto [body] = ringbuffer::read_message<large_block_message>(data, size);
+        received = body;
+      });
+
+    std::vector<uint8_t> sent(fragment_max * 2);
+    for (auto& b : sent)
+    {
+      b = rand();
+    }
+
+    RINGBUFFER_WRITE_MESSAGE(large_block_message, writer_p, sent);
+    RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
+    bp.run(rr);
+    REQUIRE(received == sent);
+  }
+
+  SUBCASE("compound message")
+  {
+    size_t received_n;
+    std::vector<uint8_t> received_body;
+    DISPATCHER_SET_MESSAGE_HANDLER(
+      bp,
+      large_compound_message,
+      [&bp, &received_n, &received_body](const uint8_t* data, size_t size) {
+        auto [n, body] =
+          ringbuffer::read_message<large_compound_message>(data, size);
+        received_n = n;
+        received_body = body;
+      });
+
+    size_t sent_n = 42u;
+    std::vector<uint8_t> sent_body(fragment_max * 2);
+    for (auto& b : sent_body)
+    {
+      b = rand();
+    }
+
+    RINGBUFFER_WRITE_MESSAGE(
+      large_compound_message, writer_p, sent_n, sent_body);
+    RINGBUFFER_WRITE_MESSAGE(finish, writer_p);
+    bp.run(rr);
+    REQUIRE(received_n == sent_n);
+    REQUIRE(received_body == sent_body);
+  }
+}
