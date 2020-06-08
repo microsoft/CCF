@@ -216,11 +216,8 @@ def test_forwarding_frontends(network, args):
 
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
-        with backup.member_client() as c:
-            check_commit(
-                c.rpc("read", {"table": "ccf.service", "key": 0}),
-                result=lambda r: r["status"] == "OPEN",
-            )
+        ack = network.consortium.get_any_active_member().ack(backup)
+        check_commit(ack)
 
     return network
 
