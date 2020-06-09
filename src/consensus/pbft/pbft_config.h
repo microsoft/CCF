@@ -265,7 +265,7 @@ namespace pbft
         bool executed_single_threaded) {
         info.pending_cmd_callbacks = num_requests;
         info.version_before_execution_start = store->current_version();
-        LOG_INFO_FMT("starting to execute batch of {}", num_requests);
+        //LOG_INFO_FMT("starting to execute batch of {}", num_requests);
         for (uint32_t i = 0; i < num_requests; ++i)
         {
           std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
