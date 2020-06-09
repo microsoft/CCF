@@ -219,13 +219,12 @@ namespace ccf::historical
     void deserialise_ledger_entry(
       consensus::Index idx, const LedgerEntry& entry)
     {
-      StorePtr store = std::make_shared<kv::Store>();
+      StorePtr store = std::make_shared<kv::Store>(false);
 
       store->set_encryptor(source_store.get_encryptor());
 
       // TODO: Add a lazy clone option?
       store->clone_schema(source_store);
-      store->set_strict_versions(false);
 
       const auto deserialise_result = store->deserialise_views(entry);
 

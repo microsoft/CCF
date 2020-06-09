@@ -33,7 +33,7 @@ namespace kv
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
-    bool strict_versions = true;
+    const bool strict_versions = true;
 
     DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
     {
@@ -65,7 +65,7 @@ namespace kv
       }
     }
 
-    Store() {}
+    Store(bool strict_versions_ = true) : strict_versions(strict_versions_) {}
 
     Store(
       const ReplicateType& replicate_type_,
@@ -151,20 +151,7 @@ namespace kv
     template <class M>
     M* get(const M& other)
     {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
-      auto search = maps.find(other.get_name());
-      if (search != maps.end())
-      {
-        auto result = dynamic_cast<M*>(search->second.get());
-
-        if (result == nullptr)
-          return nullptr;
-
-        return result;
-      }
-
-      return nullptr;
+      return get<M>(other.get_name());
     }
 
     /** Create a Map
@@ -724,11 +711,6 @@ namespace kv
         lhs->unlock();
         rhs->unlock();
       }
-    }
-
-    void set_strict_versions(bool sv)
-    {
-      strict_versions = sv;
     }
   };
 }
