@@ -11,6 +11,7 @@ import uuid
 import ctypes
 import signal
 import re
+import stat
 from collections import deque
 
 from loguru import logger as LOG
@@ -178,8 +179,13 @@ class SSHRemote(CmdMixin):
             session.chmod(tgt_path, stat.st_mode)
         for path in self.data_files:
             tgt_path = os.path.join(self.root, os.path.basename(path))
+            if os.path.isdir(path):
+                session.mkdir(tgt_path)
+                for f in os.listdir(path):
+                    session.put(os.path.join(path, f), os.path.join(tgt_path, f))
+            else:
+                session.put(path, tgt_path)
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
-            session.put(path, tgt_path)
         session.close()
 
     def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
@@ -199,10 +205,20 @@ class SSHRemote(CmdMixin):
             while time.time() < end_time:
                 try:
                     target_name = target_name or file_name
-                    session.get(
-                        os.path.join(self.root, file_name),
-                        os.path.join(dst_path, target_name),
-                    )
+                    fileattr = session.lstat(os.path.join(self.root, file_name))
+                    if stat.S_ISDIR(fileattr.st_mode):
+                        src_dir = os.path.join(self.root, file_name)
+                        dst_dir = os.path.join(dst_path, file_name)
+                        os.makedirs(dst_dir)
+                        for f in session.listdir(src_dir):
+                            session.get(
+                                os.path.join(src_dir, f), os.path.join(dst_dir, f),
+                            )
+                    else:
+                        session.get(
+                            os.path.join(self.root, file_name),
+                            os.path.join(dst_path, target_name),
+                        )
                     LOG.debug(
                         "[{}] found {} after {}s".format(
                             self.hostname, file_name, int(time.time() - start_time)
@@ -210,6 +226,7 @@ class SSHRemote(CmdMixin):
                     )
                     break
                 except FileNotFoundError:
+                    LOG.error("File not found")
                     time.sleep(0.1)
             else:
                 raise ValueError(file_name)
@@ -710,7 +727,6 @@ class CCFRemote(object):
         self.remote.set_perf()
 
     def get_ledger(self):
-        LOG.error(f"Getting ledger at {self.ledger_dir_name}")
         self.remote.get(self.ledger_dir_name, self.common_dir)
         return os.path.join(self.common_dir, self.ledger_dir_name)
 

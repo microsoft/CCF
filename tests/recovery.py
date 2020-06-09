@@ -98,9 +98,7 @@ def test_share_resilience(network, args):
 
 
 def run(args):
-    # hosts = ["localhost", "localhost", "localhost"]
-    hosts = ["10.0.0.8"]
-    # TODO: Support for SSH Remote
+    hosts = ["localhost", "localhost", "localhost"]
 
     txs = app.LoggingTxs()
 
