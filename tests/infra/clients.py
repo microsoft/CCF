@@ -130,7 +130,7 @@ class Response:
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
-            headers=response.headers
+            headers=response.headers,
         )
 
 

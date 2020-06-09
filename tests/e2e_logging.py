@@ -244,13 +244,15 @@ def test_historical_query(network, args):
                         retry_after = get_response.headers.get("retry-after")
                         if retry_after is None:
                             raise ValueError(
-                                f"ACCEPTED response missing 'retry-after' header"
+                                f"Response with status {get_response.status} is missing 'retry-after' header"
                             )
                         retry_after = int(retry_after)
                         LOG.warning(f"Sleeping for {retry_after}s")
                         time.sleep(retry_after)
                     elif get_response.status == http.HTTPStatus.OK:
-                        assert get_response.result == msg, f"{get_response.body} != {msg}"
+                        assert (
+                            get_response.result == msg
+                        ), f"{get_response.body} != {msg}"
                         found = True
                         break
                     elif get_response.status == http.HTTPStatus.NO_CONTENT:
