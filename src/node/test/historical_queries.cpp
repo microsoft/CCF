@@ -3,6 +3,7 @@
 
 #include "node/historical_queries.h"
 
+#include "ds/messaging.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "node/history.h"
@@ -137,73 +138,106 @@ TEST_CASE("StateCache")
 
   REQUIRE(ledger.size() == 21);
 
-  // Now we actually get to the historical query part
-  auto stub_writer = std::make_shared<StubWriter>();
-  ccf::historical::StateCache cache(store, stub_writer);
+  // Now we actually get to the historical queries
+  std::vector<consensus::Index> requested_ledger_entries = {};
+  messaging::BufferProcessor bp("historical_queries");
+  DISPATCHER_SET_MESSAGE_HANDLER(
+    bp,
+    consensus::ledger_get,
+    [&requested_ledger_entries](const uint8_t* data, size_t size) {
+      auto [idx, purpose] =
+        ringbuffer::read_message<consensus::ledger_get>(data, size);
+      REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+      requested_ledger_entries.push_back(idx);
+    });
+
+  constexpr size_t buffer_size = 1 << 12;
+
+  ringbuffer::Reader rr(buffer_size);
+  auto rw = std::make_shared<ringbuffer::Writer>(rr);
+  ccf::historical::StateCache cache(store, rw);
 
   {
-    auto store_at_5 = cache.get_store_at(5);
-    REQUIRE(store_at_5 == nullptr);
-
-    auto store_at_10 = cache.get_store_at(10);
-    REQUIRE(store_at_10 == nullptr);
-
-    auto store_at_25 = cache.get_store_at(25);
-    REQUIRE(store_at_25 == nullptr);
+    INFO(
+      "Initially, no stores are available, even if they're requested multiple "
+      "times");
+    REQUIRE(cache.get_store_at(5) == nullptr);
+    REQUIRE(cache.get_store_at(5) == nullptr);
+    REQUIRE(cache.get_store_at(10) == nullptr);
+    REQUIRE(cache.get_store_at(5) == nullptr);
+    REQUIRE(cache.get_store_at(25) == nullptr);
+    REQUIRE(cache.get_store_at(10) == nullptr);
+    REQUIRE(cache.get_store_at(5) == nullptr);
   }
 
-  auto& last_message_written = stub_writer->get_last_message();
-  // TODO: Build a dummy dispatcher which will respond with ledger entries?
+  {
+    INFO("The host sees one request for each index");
+    const auto read = bp.read_n(100, rr);
+    REQUIRE(read == 3);
+    REQUIRE(requested_ledger_entries.size() == 3);
+    REQUIRE(
+      requested_ledger_entries == std::vector<consensus::Index>{5, 10, 25});
+  }
 
   // TODO: Change stub consensus to store indices, so we don't have this manual
   // off-by-one correction?
 
-  // Cache doesn't accept arbitrary entries
-  REQUIRE(!cache.handle_ledger_entry(9, ledger[8]));
-  REQUIRE(!cache.handle_ledger_entry(11, ledger[10]));
-
-  // Cache accepts requested entries, and then subsequent entries to a signature
-  REQUIRE(cache.handle_ledger_entry(5, ledger[4]));
-  for (size_t i = 10; i <= 20; ++i)
   {
-    REQUIRE(cache.handle_ledger_entry(i, ledger[i - 1]));
-    auto store_at_10 = cache.get_store_at(i);
-    REQUIRE(store_at_10 == nullptr);
+    INFO("Cache doesn't accept arbitrary entries");
+    REQUIRE(!cache.handle_ledger_entry(9, ledger[8]));
+    REQUIRE(!cache.handle_ledger_entry(11, ledger[10]));
   }
 
-  REQUIRE(cache.handle_ledger_entry(21, ledger[20]));
+  {
+    INFO(
+      "Cache accepts requested entries, and then subsequent entries to a "
+      "signature");
+    REQUIRE(cache.handle_ledger_entry(5, ledger[4]));
+    for (size_t i = 10; i <= 20; ++i)
+    {
+      REQUIRE(cache.handle_ledger_entry(i, ledger[i - 1]));
+      auto store_at_10 = cache.get_store_at(i);
+      REQUIRE(store_at_10 == nullptr);
+    }
 
-  auto store_at_10 = cache.get_store_at(10);
-  REQUIRE(store_at_10 != nullptr);
+    REQUIRE(cache.handle_ledger_entry(21, ledger[20]));
+  }
 
   {
-    auto& public_table = *store_at_10->get<NumToString>("public");
-    auto& private_table = *store_at_10->get<NumToString>("private");
+    INFO("Historical state can be retrieved from provided entries");
+    auto store_at_10 = cache.get_store_at(10);
+    REQUIRE(store_at_10 != nullptr);
 
-    kv::Tx tx;
-    auto [public_view, private_view] = tx.get_view(public_table, private_table);
+    {
+      auto& public_table = *store_at_10->get<NumToString>("public");
+      auto& private_table = *store_at_10->get<NumToString>("private");
 
-    const auto k = 9;
-    const auto v = std::to_string(k);
+      kv::Tx tx;
+      auto [public_view, private_view] =
+        tx.get_view(public_table, private_table);
 
-    auto public_v = public_view->get(k);
-    REQUIRE(public_v.has_value());
-    REQUIRE(*public_v == v);
+      const auto k = 9;
+      const auto v = std::to_string(k);
 
-    auto private_v = private_view->get(k);
-    REQUIRE(private_v.has_value());
-    REQUIRE(*private_v == v);
+      auto public_v = public_view->get(k);
+      REQUIRE(public_v.has_value());
+      REQUIRE(*public_v == v);
 
-    size_t public_count = 0;
-    public_view->foreach([&public_count](const auto& k, const auto& v) {
-      REQUIRE(public_count++ == 0);
-      return true;
-    });
+      auto private_v = private_view->get(k);
+      REQUIRE(private_v.has_value());
+      REQUIRE(*private_v == v);
 
-    size_t private_count = 0;
-    private_view->foreach([&private_count](const auto& k, const auto& v) {
-      REQUIRE(private_count++ == 0);
-      return true;
-    });
+      size_t public_count = 0;
+      public_view->foreach([&public_count](const auto& k, const auto& v) {
+        REQUIRE(public_count++ == 0);
+        return true;
+      });
+
+      size_t private_count = 0;
+      private_view->foreach([&private_count](const auto& k, const auto& v) {
+        REQUIRE(private_count++ == 0);
+        return true;
+      });
+    }
   }
 }
