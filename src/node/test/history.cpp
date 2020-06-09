@@ -275,7 +275,7 @@ TEST_CASE(
 
   INFO("Batch of two, starting with a commitable");
   {
-    auto rv = store.current_txid();
+    auto rv = store.next_txid();
 
     kv::Tx tx;
     auto txv = tx.get_view(table);
