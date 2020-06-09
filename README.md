@@ -20,7 +20,7 @@ Leveraging the power of trusted execution environments (TEEs), decentralized sys
 
 ## Getting Started with CCF
 
-* [Getting started](https://microsoft.github.io/CCF/master/quickstart/index.html) with Azure confidentual compute and CCF. 
+* [Get started](https://microsoft.github.io/CCF/master/quickstart/index.html) with Azure confidentual compute and CCF. 
 * Learn how to [build](https://microsoft.github.io/CCF/master/quickstart/build.html) and [run](https://microsoft.github.io/CCF/master/quickstart/build.html#running-tests) a test network.
 * Start [building](https://microsoft.github.io/CCF/master/developers/index.html) your first CCF network.
 * Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=), and help us verify those that are checked in.
