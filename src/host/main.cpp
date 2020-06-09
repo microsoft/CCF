@@ -121,12 +121,13 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
-  size_t ledger_size_threshold = 1 << 4;
+  size_t ledger_chunk_threshold = 4;
   app
     .add_option(
       "--ledger-chunk-threshold",
-      ledger_size_threshold,
-      "Size of each ledger chunk")
+      ledger_chunk_threshold,
+      "Minimum size (bytes) at which a new ledger chunk is created. Value is "
+      "used as a shift factor, ie - given N, the limit is (1 << N)")
     ->capture_default_str()
     ->check(CLI::PositiveNumber);
 
@@ -515,7 +516,7 @@ int main(int argc, char** argv)
   // write to a ledger
   // asynchost::Ledger ledger(ledger_file, writer_factory);
   asynchost::MultipleLedger ledger(
-    ledger_dir, writer_factory, ledger_size_threshold);
+    ledger_dir, writer_factory, (1 << ledger_chunk_threshold));
   ledger.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.

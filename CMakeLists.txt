@@ -461,10 +461,17 @@ if(BUILD_TESTS)
     NAME recovery_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
     CONSENSUS raft
-    ADDITIONAL_ARGS --recovery 2
-    # Shorten Raft election timeout to speed up test when it kills a node on purpose
-    # to check that a recovery network is robust to a view change.
-      --raft-election-timeout 4000
+    ADDITIONAL_ARGS
+      --recovery
+      2
+      # Shorten Raft election timeout to speed up test when it kills a node on
+      # purpose to check that a recovery network is robust to a view change.
+      --raft-election-timeout
+      4000
+      # Smaller ledger chunks than default to make sure that a ledger made of
+      # multiple chunks can be recovered
+      --ledger-chunk-threshold
+      14
   )
 
   add_e2e_test(

@@ -551,6 +551,7 @@ class CCFRemote(object):
         ledger_dir=None,
         json_log_path=None,
         binary_dir=".",
+        ledger_chunk_threshold=20,
     ):
         """
         Run a ccf binary on a remote host.
@@ -612,6 +613,9 @@ class CCFRemote(object):
 
         if memory_reserve_startup:
             cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
+
+        if ledger_chunk_threshold:
+            cmd += [f"--ledger-chunk-threshold={ledger_chunk_threshold}"]
 
         if notify_server:
             notify_server_host, *notify_server_port = notify_server.split(":")
