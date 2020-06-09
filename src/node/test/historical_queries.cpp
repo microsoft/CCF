@@ -199,7 +199,7 @@ TEST_CASE("StateCache")
     for (size_t i = 10; i <= 20; ++i)
     {
       REQUIRE(cache.handle_ledger_entry(i, ledger[i]));
-      auto store_at_10 = cache.get_store_at(i);
+      auto store_at_10 = cache.get_store_at(10);
       REQUIRE(store_at_10 == nullptr);
     }
 

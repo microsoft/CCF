@@ -8,9 +8,10 @@
 #include "node/history.h"
 #include "node/rpc/node_interface.h"
 
-#include <deque>
+#include <list>
 #include <map>
 #include <memory>
+#include <set>
 
 namespace ccf::historical
 {
@@ -36,28 +37,40 @@ namespace ccf::historical
       StorePtr store = nullptr;
     };
 
-    // TODO: Make this an LRU, evict old entries
+    // These constitute a simple LRU, where only user queries will refresh an
+    // entry's priority
     static constexpr size_t MAX_ACTIVE_REQUESTS = 10;
     std::map<consensus::Index, Request> requests;
+    std::list<consensus::Index> recent_requests;
 
     // To trust an index, we currently need to fetch a sequence of entries
-    // around it - these aren't requests, so we don't store them, but we do
+    // around it - these aren't user requests, so we don't store them, but we do
     // need to distinguish things-we-asked-for from junk-from-the-host
     std::set<consensus::Index> pending_fetches;
 
     void request_entry_at(consensus::Index idx)
     {
-      if (requests.size() < MAX_ACTIVE_REQUESTS)
+      // To avoid duplicates, remove index if it was already requested
+      recent_requests.remove(idx);
+
+      // Add request to front of list, most recently requested
+      recent_requests.emplace_front(idx);
+
+      // Cull old requests
+      while (recent_requests.size() > MAX_ACTIVE_REQUESTS)
       {
-        const auto ib = requests.insert(std::make_pair(idx, Request{}));
-        if (ib.second)
-        {
-          fetch_entry_at(idx);
-        }
+        const auto old_idx = recent_requests.back();
+        recent_requests.pop_back();
+        requests.erase(old_idx);
       }
 
-      // Too many outstanding fetches, this one is silently ignored
-      // TODO
+      // Try to insert new request
+      const auto ib = requests.insert(std::make_pair(idx, Request{}));
+      if (ib.second)
+      {
+        // If its a new request, begin fetching it
+        fetch_entry_at(idx);
+      }
     }
 
     void fetch_entry_at(consensus::Index idx)
