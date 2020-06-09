@@ -293,7 +293,7 @@ namespace loggingapp
         if (historical_store == nullptr)
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-          static constexpr size_t retry_after_seconds = 5;
+          static constexpr size_t retry_after_seconds = 3;
           args.rpc_ctx->set_response_header(
             http::headers::RETRY_AFTER, retry_after_seconds);
           args.rpc_ctx->set_response_header(
