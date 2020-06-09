@@ -85,7 +85,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     entry->push_back(2);
     entry->push_back(3);
 
-    r0.replicate(kv::BatchVector{{i, entry, true}}, 2);
+    r0.replicate(kv::BatchVector{{i, entry, true}}, 1);
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
     DOCTEST_REQUIRE(r0.get_commit_idx() == i);
   }
@@ -963,7 +963,7 @@ DOCTEST_TEST_CASE(
     "Node 1 and Node 2 proceed to compact at idx 2, where Node 0 has "
     "compacted for a previous term");
   {
-    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{2, second_entry, true}}, 1));
+    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{2, second_entry, true}}, 2));
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
     r1.periodic(ms(10));
     DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 2);
@@ -980,7 +980,7 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(r0.channels->sent_append_entries_response.size() == 0);
 
     DOCTEST_INFO("Another entry from Node 1 so that Node 2 can also compact");
-    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}, 1));
+    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}, 2));
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
     r1.periodic(ms(10));
     DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 2);
