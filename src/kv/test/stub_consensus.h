@@ -13,7 +13,7 @@ namespace kv
   class StubConsensus : public Consensus
   {
   private:
-    std::vector<std::shared_ptr<std::vector<uint8_t>>> replica;
+    std::vector<kv::BatchVector::value_type> replica;
     ConsensusType consensus_type;
 
   public:
@@ -25,32 +25,50 @@ namespace kv
 
     bool replicate(const BatchVector& entries) override
     {
-      for (auto&& [index, data, globally_committable] : entries)
+      for (const auto& entry : entries)
       {
-        replica.push_back(data);
+        replica.push_back(entry);
       }
       return true;
     }
 
-    std::pair<std::vector<uint8_t>, bool> get_latest_data()
-    {
-      if (!replica.empty())
-        return std::make_pair(*replica.back(), true);
-      else
-        return std::make_pair(std::vector<uint8_t>(), false);
-    }
-
-    std::pair<std::vector<uint8_t>, bool> pop_oldest_data()
+    std::optional<std::vector<uint8_t>> get_latest_data()
     {
       if (!replica.empty())
       {
-        auto pair = std::make_pair(*replica.front(), true);
-        replica.erase(replica.begin());
-        return pair;
+        return *std::get<1>(replica.back());
       }
       else
       {
-        return std::make_pair(std::vector<uint8_t>(), false);
+        return std::nullopt;
+      }
+    }
+
+    std::optional<std::vector<uint8_t>> pop_oldest_data()
+    {
+      if (!replica.empty())
+      {
+        auto data = *std::get<1>(replica.front());
+        replica.erase(replica.begin());
+        return data;
+      }
+      else
+      {
+        return std::nullopt;
+      }
+    }
+
+    std::optional<kv::BatchVector::value_type> pop_oldest_entry()
+    {
+      if (!replica.empty())
+      {
+        auto entry = replica.front();
+        replica.erase(replica.begin());
+        return entry;
+      }
+      else
+      {
+        return std::nullopt;
       }
     }
 

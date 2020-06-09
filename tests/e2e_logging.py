@@ -212,6 +212,10 @@ def test_raw_text(network, args):
 @reqs.description("Read historical state")
 @reqs.supports_methods("LOG_record", "LOG_get", "LOG_get_historical")
 def test_historical_query(network, args):
+    if args.consensus == "pbft":
+        LOG.warning("Skipping historical queries in PBFT")
+        return network
+
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 

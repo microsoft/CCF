@@ -128,15 +128,21 @@ TEST_CASE("StateCache")
     }
   }
 
-  std::vector<std::vector<uint8_t>> ledger;
-  auto ledger_entry_pair = consensus->pop_oldest_data();
-  while (ledger_entry_pair.second)
+  std::map<consensus::Index, std::vector<uint8_t>> ledger;
   {
-    ledger.push_back(ledger_entry_pair.first);
-    ledger_entry_pair = consensus->pop_oldest_data();
-  }
+    INFO("Rebuild ledger as seen by host");
+    auto next_ledger_entry = consensus->pop_oldest_entry();
+    while (next_ledger_entry.has_value())
+    {
+      const auto ib = ledger.insert(std::make_pair(
+        std::get<0>(next_ledger_entry.value()),
+        *std::get<1>(next_ledger_entry.value())));
+      REQUIRE(ib.second);
+      next_ledger_entry = consensus->pop_oldest_entry();
+    }
 
-  REQUIRE(ledger.size() == 21);
+    REQUIRE(ledger.size() == 21);
+  }
 
   // Now we actually get to the historical queries
   std::vector<consensus::Index> requested_ledger_entries = {};
@@ -179,28 +185,25 @@ TEST_CASE("StateCache")
       requested_ledger_entries == std::vector<consensus::Index>{5, 10, 25});
   }
 
-  // TODO: Change stub consensus to store indices, so we don't have this manual
-  // off-by-one correction?
-
   {
     INFO("Cache doesn't accept arbitrary entries");
-    REQUIRE(!cache.handle_ledger_entry(9, ledger[8]));
-    REQUIRE(!cache.handle_ledger_entry(11, ledger[10]));
+    REQUIRE(!cache.handle_ledger_entry(9, ledger[9]));
+    REQUIRE(!cache.handle_ledger_entry(11, ledger[11]));
   }
 
   {
     INFO(
       "Cache accepts requested entries, and then subsequent entries to a "
       "signature");
-    REQUIRE(cache.handle_ledger_entry(5, ledger[4]));
+    REQUIRE(cache.handle_ledger_entry(5, ledger[5]));
     for (size_t i = 10; i <= 20; ++i)
     {
-      REQUIRE(cache.handle_ledger_entry(i, ledger[i - 1]));
+      REQUIRE(cache.handle_ledger_entry(i, ledger[i]));
       auto store_at_10 = cache.get_store_at(i);
       REQUIRE(store_at_10 == nullptr);
     }
 
-    REQUIRE(cache.handle_ledger_entry(21, ledger[20]));
+    REQUIRE(cache.handle_ledger_entry(21, ledger[21]));
   }
 
   {

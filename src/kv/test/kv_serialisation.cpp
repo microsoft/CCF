@@ -49,10 +49,11 @@ TEST_CASE(
 
   INFO("Deserialise transaction in target store");
   {
-    REQUIRE(consensus->get_latest_data().second);
-    REQUIRE(!consensus->get_latest_data().first.empty());
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
+    REQUIRE(!latest_data.value().empty());
     REQUIRE(
-      kv_store_target.deserialise(consensus->get_latest_data().first) ==
+      kv_store_target.deserialise(latest_data.value()) ==
       kv::DeserialiseSuccess::PASS);
 
     kv::Tx tx_target;
@@ -101,8 +102,10 @@ TEST_CASE(
 
   INFO("Deserialise transaction in target store");
   {
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
     REQUIRE(
-      kv_store_target.deserialise(consensus->get_latest_data().first) ==
+      kv_store_target.deserialise(latest_data.value()) ==
       kv::DeserialiseSuccess::PASS);
 
     kv::Tx tx_target;
@@ -145,8 +148,10 @@ TEST_CASE(
 
   INFO("Deserialise transaction in target store");
   {
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
     REQUIRE(
-      kv_store_target.deserialise(consensus->get_latest_data().first) !=
+      kv_store_target.deserialise(latest_data.value()) !=
       kv::DeserialiseSuccess::FAILED);
 
     kv::Tx tx;
@@ -180,8 +185,10 @@ TEST_CASE(
     view_priv->put("privk1", "privv1");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
     REQUIRE(
-      kv_store_target.deserialise(consensus->get_latest_data().first) !=
+      kv_store_target.deserialise(latest_data.value()) !=
       kv::DeserialiseSuccess::FAILED);
 
     kv::Tx tx_target;
@@ -201,8 +208,10 @@ TEST_CASE(
     auto view_priv2 = tx2.get_view(priv_map);
     REQUIRE(view_priv2->get("privk1").has_value() == false);
 
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
     REQUIRE(
-      kv_store_target.deserialise(consensus->get_latest_data().first) !=
+      kv_store_target.deserialise(latest_data.value()) !=
       kv::DeserialiseSuccess::FAILED);
 
     kv::Tx tx_target;
@@ -412,12 +421,13 @@ TEST_CASE("Integrity" * doctest::test_suite("serialisation"))
     auto rc = tx.commit();
 
     // Tamper with serialised public data
-    auto serialised_tx = consensus->get_latest_data().first;
+    auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
     std::vector<uint8_t> value_to_corrupt(pub_value.begin(), pub_value.end());
-    REQUIRE(corrupt_serialised_tx(serialised_tx, value_to_corrupt));
+    REQUIRE(corrupt_serialised_tx(latest_data.value(), value_to_corrupt));
 
     REQUIRE(
-      kv_store_target.deserialise(serialised_tx) ==
+      kv_store_target.deserialise(latest_data.value()) ==
       kv::DeserialiseSuccess::FAILED);
   }
 }
@@ -442,9 +452,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
     REQUIRE(
-      s1.deserialise(consensus->get_latest_data().first) !=
-      kv::DeserialiseSuccess::FAILED);
+      s1.deserialise(latest_data.value()) != kv::DeserialiseSuccess::FAILED);
   }
 
   SUBCASE("nlohmann")
@@ -460,9 +471,10 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     tx.get_view(t)->put(k1, v1);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
+    const auto latest_data = consensus->get_latest_data();
+    REQUIRE(latest_data.has_value());
     REQUIRE(
-      s1.deserialise(consensus->get_latest_data().first) !=
-      kv::DeserialiseSuccess::FAILED);
+      s1.deserialise(latest_data.value()) != kv::DeserialiseSuccess::FAILED);
   }
 }
 
