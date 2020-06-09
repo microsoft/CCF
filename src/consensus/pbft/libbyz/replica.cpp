@@ -2357,7 +2357,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     tx);
 
   // Obtain "in" and "out" buffers to call exec_command
-  LOG_INFO_FMT("Calling exec command");
+  //LOG_INFO_FMT("Calling exec command");
   cmd->inb.contents = request.command(cmd->inb.size);
 
   LOG_TRACE_FMT(
@@ -2568,6 +2568,11 @@ void Replica::execute_committed(bool was_f_0)
               "Merkle roots don't match in execute committed for seqno {}",
               pp->seqno());
             return;
+          }
+
+          if(info.did_exec_gov_req)
+          {
+            gov_req_track.update(pp->seqno());
           }
 
           last_te_version = ledger_writer->write_pre_prepare(pp);
