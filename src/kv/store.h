@@ -527,6 +527,7 @@ namespace kv
         std::lock_guard<SpinLock> vguard(version_lock);
         // This can happen when a transaction started before a view change,
         // but tries to commit after the view change is complete.
+        LOG_DEBUG_FMT("Want to commit {} but term is {}", txid.term, term);
         if (txid.term != term)
           return CommitSuccess::NO_REPLICATE;
 

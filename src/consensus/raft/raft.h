@@ -1050,6 +1050,7 @@ namespace raft
       }
       else
       {
+        // but we still want the KV to know which term we're in
         store->set_term(current_term);
       }
 
@@ -1218,6 +1219,7 @@ namespace raft
     void rollback(Index idx)
     {
       store->rollback(idx);
+      LOG_DEBUG_FMT("Setting term in store to: {}", current_term);
       store->set_term(current_term); // TODO: can be combined with rollback?
       ledger->truncate(idx);
       last_idx = idx;

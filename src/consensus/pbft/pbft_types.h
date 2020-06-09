@@ -214,12 +214,14 @@ namespace pbft
 
     kv::TxID next_txid()
     {
-      auto p = x.lock();
-      if (p)
+      while (true)
       {
-        return p->next_txid();
+        auto p = x.lock();
+        if (p)
+        {
+          return p->next_txid();
+        }
       }
-      return {0, kv::NoVersion};
     }
 
     void set_view(Term view)

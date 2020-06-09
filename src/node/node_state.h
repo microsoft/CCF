@@ -602,9 +602,6 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      kv::Tx tx;
-      GenesisGenerator g(network, tx);
-
       network.tables->rollback(last_recovered_commit_idx);
       ledger_truncate(last_recovered_commit_idx);
       LOG_INFO_FMT(
@@ -615,8 +612,30 @@ namespace ccf
       network.ledger_secrets->init(last_recovered_commit_idx + 1);
       setup_encryptor(network.consensus_type);
 
-      g.create_service(network.identity->cert, last_recovered_commit_idx + 1);
+      kv::Version index = 0;
+      kv::Term term = 0;
+      kv::Version global_commit = 0;
 
+      {
+        kv::Tx tx;
+        GenesisGenerator g(network, tx);
+
+        auto ls = g.get_last_signature();
+        if (ls.has_value())
+        {
+          auto s = ls.value();
+          index = s.seqno;
+          term = s.view;
+          global_commit = s.commit_seqno;
+        }
+      }
+      // term_history.size() + 2
+      // TODO: this is not great
+      network.tables->set_term(term + 2);
+
+      kv::Tx tx;
+      GenesisGenerator g(network, tx);
+      g.create_service(network.identity->cert, last_recovered_commit_idx + 1);
       g.retire_active_nodes();
 
       self = g.add_node({node_info_network,
@@ -626,19 +645,6 @@ namespace ccf
                          NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
-
-      kv::Version index = 0;
-      kv::Term term = 0;
-      kv::Version global_commit = 0;
-
-      auto ls = g.get_last_signature();
-      if (ls.has_value())
-      {
-        auto s = ls.value();
-        index = s.seqno;
-        term = s.view;
-        global_commit = s.commit_seqno;
-      }
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)
