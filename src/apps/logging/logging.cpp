@@ -318,15 +318,14 @@ namespace loggingapp
 
         kv::Tx historical_tx;
         auto view = historical_tx.get_view(*historical_map);
-        const auto v = view->get(in.id);
+        auto v = view->get(in.id);
 
         if (v.has_value())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           args.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          auto s = v.value();
-          args.rpc_ctx->set_response_body(std::move(s));
+          args.rpc_ctx->set_response_body(std::move(v.value()));
         }
         else
         {
