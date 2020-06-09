@@ -490,7 +490,7 @@ def test_tx_statuses(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications

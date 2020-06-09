@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 from enum import Enum
 import infra.remote
 import infra.net
 import infra.path
 import infra.clients
 import os
+import socket
 
 from loguru import logger as LOG
 
@@ -22,6 +23,15 @@ class NodeStatus(Enum):
     PENDING = 0
     TRUSTED = 1
     RETIRED = 2
+
+
+def is_addr_local(host, port):
+    with closing(socket.socket()) as s:
+        try:
+            s.bind((host, port or 0))
+            return True
+        except OSError:
+            return False
 
 
 class Node:
@@ -41,6 +51,8 @@ class Node:
 
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
+
+        if is_addr_local(self.host, self.rpc_port):
             self.remote_impl = infra.remote.LocalRemote
         else:
             self.remote_impl = infra.remote.SSHRemote
@@ -234,7 +246,7 @@ class Node:
 
     def user_client(self, user_id=0, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=os.path.join(self.common_dir, f"user{user_id}_cert.pem"),
             key=os.path.join(self.common_dir, f"user{user_id}_privk.pem"),
@@ -247,7 +259,7 @@ class Node:
 
     def node_client(self, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=None,
             key=None,
@@ -260,7 +272,7 @@ class Node:
 
     def member_client(self, member_id=0, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=os.path.join(self.common_dir, f"member{member_id}_cert.pem"),
             key=os.path.join(self.common_dir, f"member{member_id}_privk.pem"),
