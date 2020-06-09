@@ -23,7 +23,7 @@ namespace kv
       consensus_type(consensus_type_)
     {}
 
-    bool replicate(const BatchVector& entries) override
+    bool replicate(const BatchVector& entries, View view) override
     {
       for (auto&& [index, data, globally_committable] : entries)
       {
@@ -135,7 +135,7 @@ namespace kv
       return false;
     }
 
-    bool replicate(const BatchVector& entries) override
+    bool replicate(const BatchVector& entries, View view) override
     {
       return false;
     }

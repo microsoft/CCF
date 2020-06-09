@@ -341,7 +341,7 @@ namespace raft
     }
 
     template <typename T>
-    bool replicate(const std::vector<std::tuple<Index, T, bool>>& entries)
+    bool replicate(const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -350,6 +350,12 @@ namespace raft
         LOG_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
         rollback(last_idx);
+        return false;
+      }
+
+      if (term != current_term)
+      {
+        LOG_FAIL_FMT("Failed to replicate {} items at term {}, current term is {}", entries.size(), term, current_term);
         return false;
       }
 

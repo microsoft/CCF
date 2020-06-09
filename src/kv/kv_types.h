@@ -28,10 +28,16 @@ namespace kv
 
   // Term describes an epoch of Versions. It is incremented when global kv's
   // writer(s) changes. Term and Version combined give a unique identifier for
-  // all accepted kv modifications. Terms are handled by Raft via the
+  // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
   using Term = uint64_t;
   using NodeId = uint64_t;
+
+  struct TxID
+  {
+    Term term = 0;
+    Version version = 0;
+  };
 
   using BatchVector = std::vector<
     std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
@@ -222,7 +228,7 @@ namespace kv
       state = Primary;
     }
 
-    virtual bool replicate(const BatchVector& entries) = 0;
+    virtual bool replicate(const BatchVector& entries, View view) = 0;
     virtual std::pair<View, SeqNo> get_committed_txid() = 0;
 
     virtual View get_view(SeqNo seqno) = 0;
@@ -343,10 +349,16 @@ namespace kv
   {
   public:
     virtual ~AbstractStore() {}
+
     virtual Version next_version() = 0;
+    virtual TxID next_txid() = 0;
+
     virtual Version current_version() = 0;
-    virtual std::pair<Term, Version> current_term_and_version() = 0;
+    virtual TxID current_txid() = 0;
+
+
     virtual Version commit_version() = 0;
+
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
     virtual std::shared_ptr<TxHistory> get_history() = 0;
     virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
@@ -357,8 +369,9 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual void rollback(Version v) = 0;
     virtual void set_term(Term t) = 0;
-    virtual CommitSuccess commit(
-      Version v, PendingTx pt, bool globally_committable) = 0;
+
+    virtual CommitSuccess commit(const TxID& txid, PendingTx pt, bool globally_committable) = 0;
+    
     virtual size_t commit_gap() = 0;
   };
 

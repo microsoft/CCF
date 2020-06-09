@@ -62,6 +62,8 @@ namespace pbft
       const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
     virtual void set_view(Term t) = 0;
+
+    virtual kv::TxID next_txid() = 0;
   };
 
   template <typename T, typename S>
@@ -97,16 +99,16 @@ namespace pbft
         auto p = x.lock();
         if (p)
         {
-          auto version = p->next_version();
+          auto txid = p->next_txid();
           LOG_TRACE_FMT("Storing pre prepare at seqno {}", pp.seqno);
           auto success = p->commit(
-            version,
-            [version,
+            txid,
+            [txid,
              &pbft_pre_prepares_map,
              &signatures,
              pp,
              root = std::vector<uint8_t>(root.p, root.p + root.n)]() {
-              kv::Tx tx(version);
+              kv::Tx tx(txid.version);
               auto pp_view = tx.get_view(pbft_pre_prepares_map);
               pp_view->put(0, pp);
               auto sig_view = tx.get_view(signatures);
@@ -117,7 +119,7 @@ namespace pbft
             false);
           if (success == kv::CommitSuccess::OK)
           {
-            return version;
+            return txid.version;
           }
         }
       }
@@ -155,16 +157,16 @@ namespace pbft
         auto p = x.lock();
         if (p)
         {
-          auto version = p->next_version();
+          auto txid = p->next_txid();
           LOG_TRACE_FMT(
             "Storing new view message at view {} for node {}",
             new_view.view,
             new_view.node_id);
 
           auto success = p->commit(
-            version,
-            [version, &pbft_new_views_map, new_view]() {
-              kv::Tx tx(version);
+            txid,
+            [txid, &pbft_new_views_map, new_view]() {
+              kv::Tx tx(txid.version);
               auto vc_view = tx.get_view(pbft_new_views_map);
               vc_view->put(0, new_view);
               return tx.commit_reserved();
@@ -208,6 +210,16 @@ namespace pbft
         return p->current_version();
       }
       return kv::NoVersion;
+    }
+
+    kv::TxID next_txid()
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->next_txid();
+      }
+      return {0, kv::NoVersion};
     }
 
     void set_view(Term view)
