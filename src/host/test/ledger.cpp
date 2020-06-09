@@ -182,7 +182,7 @@ TEST_CASE("Regular chunking")
   INFO("Not quite enough entries before chunk threshold");
   {
     is_committable = true;
-    for (int i = 0; i < entries_per_chunk; i++)
+    for (int i = 0; i < entries_per_chunk - 1; i++)
     {
       entry_submitter.write(is_committable);
     }
@@ -205,19 +205,26 @@ TEST_CASE("Regular chunking")
     is_committable = true;
     entry_submitter.write(is_committable);
     end_of_first_chunk_idx = entry_submitter.get_last_idx() - 1;
+    REQUIRE(number_of_files_in_ledger_dir() == 1);
+
+    // Threshold is passed, a new ledger file should be created
+    entry_submitter.write(false);
     REQUIRE(number_of_files_in_ledger_dir() == 2);
   }
 
   INFO(
     "Submitting more committable entries trigger chunking at regular interval");
   {
-    size_t chunk_count = 2;
+    size_t chunk_count = 10;
+    size_t number_of_files_before = number_of_files_in_ledger_dir();
     LOG_DEBUG_FMT("Submitting {} txs", entries_per_chunk * chunk_count);
 
     for (int i = 0; i < entries_per_chunk * chunk_count; i++)
     {
       entry_submitter.write(is_committable);
     }
+    REQUIRE(
+      number_of_files_in_ledger_dir() == chunk_count + number_of_files_before);
   }
 
   INFO("Reading entries across all chunks");
@@ -303,15 +310,24 @@ TEST_CASE("Truncation")
   {
     entry_submitter.truncate(last_idx - 1);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
+
+    // New file gets open when one more entry gets submitted
     entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
+    entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
   }
 
   INFO("Truncating any entry in penultimate chunk closes latest file");
   {
     entry_submitter.truncate(last_idx - 2);
     REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
+
+    // New file gets opened when two more entries are submitted
     entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far - 1);
     entry_submitter.write(true);
+    REQUIRE(number_of_files_in_ledger_dir() == chunks_so_far);
   }
 
   INFO("Truncating entry at the start of second chunk");
@@ -347,7 +363,7 @@ size_t number_of_compacted_files_in_ledger_dir()
   for (auto const& f : fs::directory_iterator(ledger_dir))
   {
     LOG_DEBUG_FMT("File: {}", f.path());
-    if (asynchost::is_ledger_file_complete(f.path().string()))
+    if (asynchost::is_ledger_file_compacted(f.path().string()))
     {
       compacted_file_count++;
     }
@@ -392,7 +408,7 @@ TEST_CASE("Compaction")
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 2);
   }
 
-  INFO("Compacting at latest index prepared");
+  INFO("Compacting at the end of last complete chunk");
   {
     ledger.compact(last_idx - 1);
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
@@ -404,16 +420,9 @@ TEST_CASE("Compaction")
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
   }
 
-  // TODO: This is a limitation for now.
-  // This is not ideal as the latest chunk would not get compacted until it's
-  // reached the threshold, e.g. during inactivity
-  INFO("Even though latest chunk is complete, it does not get compacted");
+  INFO("Complete latest chunk and compact");
   {
     entry_submitter.write(true);
-    entry_submitter.write(true);
-    last_idx = entry_submitter.get_last_idx();
-    ledger.compact(last_idx);
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
     entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();
     ledger.compact(last_idx);
@@ -427,6 +436,12 @@ TEST_CASE("Compaction")
 
     ledger.truncate(2 * end_of_first_chunk_idx); // No effect
     read_entries_range_from_ledger(ledger, 1, last_idx);
+
+    // Write and truncate a new entry past compaction
+    entry_submitter.write(true);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.truncate(last_idx - 1); // Deletes entry at last_idx
+    REQUIRE(ledger.read_framed_entries(1, last_idx).size() == 0);
   }
 }
 

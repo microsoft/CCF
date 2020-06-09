@@ -23,13 +23,12 @@ namespace asynchost
 {
   static constexpr auto ledger_final_indicator_delimiter = ".final";
 
-  static inline bool is_ledger_file_complete(const std::string& file_name)
+  static inline bool is_ledger_file_compacted(const std::string& file_name)
   {
     auto pos = file_name.find(ledger_final_indicator_delimiter);
     return !(pos == std::string::npos);
   }
 
-  // TODO: Unit test this class on its own (probably similar to existing tests)
   class LedgerFile
   {
   private:
@@ -51,11 +50,11 @@ namespace asynchost
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
     FILE* file;
-    bool prepared = false;
-    bool complete = false;
+    bool completed = false;
+    bool compacted = false;
 
   public:
-    LedgerFile(const std::string& dir, size_t start_idx = 1) :
+    LedgerFile(const std::string& dir, size_t start_idx) :
       dir(dir),
       start_idx(start_idx)
     {
@@ -80,7 +79,7 @@ namespace asynchost
           fmt::format("Unable to open ledger file {}", full_path));
       }
 
-      complete = is_ledger_file_complete(file_name);
+      compacted = is_ledger_file_compacted(file_name);
 
       auto pos = file_name.find(ledger_start_idx_delimiter);
       if (pos == std::string::npos)
@@ -200,9 +199,9 @@ namespace asynchost
       return total_len;
     }
 
-    bool is_complete() const
+    bool is_compacted() const
     {
-      return complete;
+      return compacted;
     }
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
@@ -222,7 +221,7 @@ namespace asynchost
         throw std::logic_error("Failed to write entry to ledger");
       }
 
-      // Committable entries get flushed to disk straight away
+      // Committable entries get flushed straight away
       if (committable && fflush(file) != 0)
       {
         throw std::logic_error("Failed to flush entry to ledger");
@@ -308,7 +307,7 @@ namespace asynchost
 
     bool truncate(size_t idx)
     {
-      if (complete || (idx < start_idx - 1) || (idx >= get_last_idx()))
+      if (compacted || (idx < start_idx - 1) || (idx >= get_last_idx()))
       {
         return false;
       }
@@ -326,8 +325,6 @@ namespace asynchost
         return true;
       }
 
-      // TODO: Only if prepared??
-
       // Reset positions offset header
       fseeko(file, 0, SEEK_SET);
       positions_offset_header_t table_offset = 0;
@@ -336,7 +333,7 @@ namespace asynchost
         throw std::logic_error("Failed to reset positions table offset");
       }
 
-      prepared = false;
+      completed = false;
       total_len = positions.at(idx - start_idx + 1);
       positions.resize(idx - start_idx + 1);
 
@@ -356,9 +353,9 @@ namespace asynchost
       return false;
     }
 
-    void prepare()
+    void complete()
     {
-      if (prepared)
+      if (completed)
       {
         return;
       }
@@ -366,7 +363,6 @@ namespace asynchost
       fseeko(file, total_len, SEEK_SET);
       size_t table_offset = ftello(file);
 
-      // TODO: Retry if didn't write everything
       if (
         fwrite(
           reinterpret_cast<uint8_t*>(positions.data()),
@@ -395,13 +391,13 @@ namespace asynchost
           strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
       }
 
-      prepared = true;
+      completed = true;
     }
 
     void compact(size_t idx)
     {
       if (
-        !prepared || complete || (idx < get_last_idx()) ||
+        !completed || compacted || (idx < get_last_idx()) ||
         (idx > get_last_idx()))
       {
         return;
@@ -420,7 +416,7 @@ namespace asynchost
         fs::path(dir) / fs::path(get_file_name()),
         fs::path(dir) / fs::path(fmt::format("{}.final", get_file_name())));
 
-      complete = true;
+      compacted = true;
     }
   };
 
@@ -433,14 +429,15 @@ namespace asynchost
     // Ledger directory
     const std::string ledger_dir;
 
-    // Keep tracks of all ledger files. Current ledger file is always the last
-    // one?
-    // TODO: Might change once there is a cache
+    // Keep tracks of all ledger files.
+    // Current ledger file is always the last one
     std::list<std::shared_ptr<LedgerFile>> files;
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
     size_t compacted_idx = 0;
+    bool require_new_file =
+      true; // True if a new file should be created when writing an entry
 
     // TODO: Delete when necessary
     void dump_files() const
@@ -522,7 +519,7 @@ namespace asynchost
 
         for (auto const& f : files)
         {
-          if (f->is_complete())
+          if (f->is_compacted())
           {
             compacted_idx = f->get_last_idx();
           }
@@ -536,8 +533,6 @@ namespace asynchost
           throw std::logic_error(fmt::format(
             "Error: Could not create ledger directory: {}", ledger_dir));
         }
-
-        files.push_back(std::make_shared<LedgerFile>(ledger_dir));
       }
     }
 
@@ -559,7 +554,7 @@ namespace asynchost
 
     const std::vector<uint8_t> read_framed_entries(size_t from, size_t to) const
     {
-      if ((from < 0) || (to > last_idx))
+      if ((from < 0) || (to > last_idx) || (to < from))
       {
         return {};
       }
@@ -624,30 +619,30 @@ namespace asynchost
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
     {
-      auto f = get_latest_file();
-      if (f == nullptr)
+      if (require_new_file)
       {
-        f = std::make_shared<LedgerFile>(ledger_dir);
-        files.push_back(f);
-      }
+        files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
+        require_new_file = false;
 
-      // TODO: This is not good. A committable entry should always be last in a
-      // chunk
+        // TODO: Make sure that require_new_file is set to false on truncate
+      }
+      auto f = get_latest_file();
+      last_idx = f->write_entry(data, size, committable);
+
+      LOG_DEBUG_FMT(
+        "Wrote entry at {} in file {} [committable: {}]",
+        last_idx,
+        f->get_file_name(),
+        committable);
+
       if (committable && f->get_current_size() >= chunk_threshold)
       {
-        f->prepare();
+        f->complete();
+        require_new_file = true;
 
         LOG_FAIL_FMT(
           ">>>>> Creating new chunk which will start at {}", last_idx + 1);
-
-        files.push_back(std::make_shared<LedgerFile>(ledger_dir, last_idx + 1));
       }
-
-      last_idx = get_latest_file()->write_entry(data, size, committable);
-      LOG_FAIL_FMT(
-        "Wrote entry at {} in file {}",
-        last_idx,
-        get_latest_file()->get_file_name());
 
       return last_idx;
     }
@@ -661,9 +656,10 @@ namespace asynchost
         return;
       }
 
+      require_new_file = true;
+
       auto f_from = get_it_contains_idx(idx + 1);
       auto f_to = get_it_contains_idx(last_idx);
-      LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to) + 1);
 
       for (auto it = f_from; it != std::next(f_to);)
       {
@@ -679,6 +675,9 @@ namespace asynchost
         }
         else
         {
+          // A new file will not be required on the next written entry if the a
+          // file is _not_ deleted entirely
+          require_new_file = false;
           it++;
         }
       }
