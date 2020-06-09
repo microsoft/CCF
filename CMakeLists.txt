@@ -255,6 +255,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
     )
