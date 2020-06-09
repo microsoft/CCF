@@ -499,6 +499,7 @@ void Replica::playback_request(kv::Tx& tx)
   vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, -1));
 
+  LOG_INFO_FMT("Calling exec command");
   exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
 
@@ -2351,6 +2352,7 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     tx);
 
   // Obtain "in" and "out" buffers to call exec_command
+  LOG_INFO_FMT("Calling exec command");
   cmd->inb.contents = request.command(cmd->inb.size);
 
   LOG_TRACE_FMT(
@@ -2449,6 +2451,7 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce)
   if (create_execute_commands(
         pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
+    LOG_INFO_FMT("Calling exec command");
     exec_command(
       vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
     return true;
@@ -2494,6 +2497,7 @@ bool Replica::execute_tentative(
       }
     }
 
+    LOG_INFO_FMT("Calling exec command");
     exec_command(
       vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
     if (!node_info.general_info.support_threading)
