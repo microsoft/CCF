@@ -259,6 +259,7 @@ namespace oversized
       auto next = underlying_writer->write_bytes(marker, bytes, write_size);
       bytes += write_size;
       size -= write_size;
+      fragment_progress->remainder -= write_size;
 
       // While there is more to write...
       while (size > 0)
