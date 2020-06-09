@@ -548,7 +548,7 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         notify_server=None,
         gov_script=None,
-        ledger_file=None,
+        ledger_dir=None,
         json_log_path=None,
         binary_dir=".",
     ):
@@ -564,14 +564,12 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
 
-        self.ledger_file = ledger_file
-        self.ledger_dir_name = (
-            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
-        )
+        self.ledger_dir = ledger_dir
+        self.ledger_dir_name = ledger_dir or f"{local_node_id}.ledger"
         self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
-        data_files = [self.ledger_file] if self.ledger_file else []
+        data_files = [self.ledger_dir] if self.ledger_dir else []
 
         # exe_files may be relative or absolute. The remote implementation should
         # copy (or symlink) to the target workspace, and then node will be able

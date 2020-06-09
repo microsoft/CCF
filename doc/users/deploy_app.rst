@@ -41,9 +41,9 @@ The ``start_test_network.sh`` script can also be used to automatically recover a
 .. code-block:: bash
 
     $ cd CCF/build
-    $ cp ./workspace/test_network_0/0.ledger .
+    $ cp -r ./workspace/test_network_0/0.ledger .
     $ cp ./workspace/test_network_0/network_enc_pubk.pem .
-    $ ../start_test_network.sh -p liblogging.enclave.so.signed --recover --ledger 0.ledger --network-enc-pubk network_enc_pubk.pem --common-dir ./workspace/test_network_common/
+    $ ../start_test_network.sh -p liblogging.enclave.so.signed --recover --ledger-dir 0.ledger --network-enc-pubk network_enc_pubk.pem --common-dir ./workspace/test_network_common/
     [2020-05-14 14:50:19.746] Starting 3 CCF nodes...
     [2020-05-14 14:50:19.746] Recovering network from:
     [2020-05-14 14:50:19.746]  - Ledger: 0.ledger
