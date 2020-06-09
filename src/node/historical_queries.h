@@ -141,8 +141,6 @@ namespace ccf::historical
         throw std::logic_error("Invalid signature: invalid root");
       }
 
-      // TODO: Check the signature is produced by the claimed node (needs
-      // retrieval of the node's cert)
       const auto node_info = get_node_info(sig->node);
       if (!node_info.has_value())
       {
@@ -165,7 +163,6 @@ namespace ccf::historical
           fmt::format("Signature at {} is invalid", sig_idx));
       }
 
-      // TODO: Find which of our untrusted indices are in this tree
       auto it = requests.begin();
       while (it != requests.end())
       {
@@ -177,43 +174,43 @@ namespace ccf::historical
           const auto& untrusted_hash = request.entry_hash;
           const auto& untrusted_store = request.store;
 
+          // Use try-catch to find whether this signature covers the target
+          // transaction ID
+          ccf::Receipt receipt;
           try
           {
-            const auto receipt = tree.get_receipt(untrusted_idx);
-            LOG_INFO_FMT(
+            receipt = tree.get_receipt(untrusted_idx);
+            LOG_DEBUG_FMT(
               "From signature at {}, constructed a receipt for {}",
               sig_idx,
               untrusted_idx);
-
-            // TODO: Check that the receipt matches our untrusted entry
-            // const auto& entry_hash_in_receipt = receipt.leaf;
-            // if (untrusted_hash != entry_hash_in_receipt)
-            // {
-            //   throw std::logic_error(
-            //     fmt::format("Hash mismatch for {}", untrusted_idx));
-            // }
-
-            // Move stores from untrusted to trusted
-            // TODO: Temp solution, blindly trust everything for now
-            LOG_INFO_FMT("Now trusting {}", untrusted_idx);
-            request.current_stage = RequestStage::Trusted;
-            ++it;
           }
           catch (const std::exception& e)
           {
-            LOG_INFO_FMT(
-              "Signature at {} does not cover {}: {}",
-              sig_idx,
-              untrusted_idx,
-              e.what());
-            // TODO: Can we expose "what indices do you cover" through the
-            // MerkleTree, rather than try-catch?
+            // This signature doesn't cover this untrusted idx, try the next
             ++it;
-            // TODO: Should we abandon this untrusted entry now?
+            continue;
           }
+
+          // TODO: Check that the receipt matches our untrusted entry
+          // const auto& entry_hash_in_receipt = receipt.leaf;
+          // if (untrusted_hash != entry_hash_in_receipt)
+          // {
+          //   // TODO: We should discard the untrusted store now
+          //   throw std::logic_error(
+          //     fmt::format("Hash mismatch for {}", untrusted_idx));
+          // }
+
+          // Move stores from untrusted to trusted
+          // TODO: Temp solution, blindly trust everything for now
+          LOG_DEBUG_FMT(
+            "Now trusting {} due to signature at {}", untrusted_idx, sig_idx);
+          request.current_stage = RequestStage::Trusted;
+          ++it;
         }
         else
         {
+          // Already trusted or still fetching, skip it
           ++it;
         }
       }
@@ -236,7 +233,6 @@ namespace ccf::historical
       {
         case kv::DeserialiseSuccess::FAILED:
         {
-          // TODO: Host gave us junk? Do we fail silently?
           throw std::logic_error("Deserialise failed!");
           break;
         }
@@ -258,7 +254,7 @@ namespace ccf::historical
             }
             else
             {
-              LOG_INFO_FMT(
+              LOG_DEBUG_FMT(
                 "Not fetching ledger entry {}: already have it in stage {}",
                 request_it->first,
                 request.current_stage);
@@ -323,9 +319,16 @@ namespace ccf::historical
       }
 
       pending_fetches.erase(it);
-      // TODO: Shouldn't throw when the host sends us junk, catch exceptions
-      // here?
-      deserialise_ledger_entry(idx, data);
+
+      try
+      {
+        deserialise_ledger_entry(idx, data);
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Unable to deserialise entry {}: {}", idx, e.what());
+      }
+
       return true;
     }
 
