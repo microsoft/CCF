@@ -327,6 +327,7 @@ namespace ccf::historical
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT("Unable to deserialise entry {}: {}", idx, e.what());
+        return false;
       }
 
       return true;

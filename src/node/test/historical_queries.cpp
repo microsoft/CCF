@@ -243,4 +243,18 @@ TEST_CASE("StateCache")
       });
     }
   }
+
+  {
+    INFO("Cache doesn't throw when given junk");
+    REQUIRE(cache.get_store_at(40) == nullptr);
+    bool result;
+    REQUIRE_NOTHROW(result = cache.handle_ledger_entry(40, {}));
+    REQUIRE(!result);
+    REQUIRE_NOTHROW(result = cache.handle_ledger_entry(40, {0x1, 0x2, 0x3}));
+    REQUIRE(!result);
+    REQUIRE_NOTHROW(result = cache.handle_ledger_entry(40, ledger[0]));
+    REQUIRE(!result);
+    REQUIRE_NOTHROW(result = cache.handle_ledger_entry(40, ledger[21]));
+    REQUIRE(!result);
+  }
 }
