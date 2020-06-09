@@ -514,7 +514,6 @@ int main(int argc, char** argv)
   asynchost::Sigterm sigterm(writer_factory);
 
   // write to a ledger
-  // asynchost::Ledger ledger(ledger_file, writer_factory);
   asynchost::MultipleLedger ledger(
     ledger_dir, writer_factory, (1 << ledger_chunk_threshold));
   ledger.register_message_handlers(bp.get_dispatcher());

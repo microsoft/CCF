@@ -6,7 +6,6 @@
 #include "consensus/pbft/pbft_types.h"
 #include "consensus/raft/raft_types.h"
 #include "host/timer.h"
-#include "ledger.h"
 #include "multiple_ledger.h"
 #include "node/nodetypes.h"
 #include "tcp.h"

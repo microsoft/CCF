@@ -6,10 +6,8 @@
 #include "ds/logger.h"
 #include "ds/messaging.h"
 
-// TODO: Check which includes are necessary
 #include <cstdint>
 #include <cstdio>
-#include <errno.h> // TODO: Use this for better error messages
 #include <filesystem>
 #include <list>
 #include <string>
@@ -21,11 +19,11 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
-  static constexpr auto ledger_final_indicator_delimiter = ".final";
+  static constexpr auto ledger_committed_suffix = ".committed";
 
   static inline bool is_ledger_file_compacted(const std::string& file_name)
   {
-    auto pos = file_name.find(ledger_final_indicator_delimiter);
+    auto pos = file_name.find(ledger_committed_suffix);
     return !(pos == std::string::npos);
   }
 
@@ -69,6 +67,7 @@ namespace asynchost
       total_len = sizeof(positions_offset_header_t);
     }
 
+    // Used when recovering an existing ledger file
     LedgerFile(const std::string& dir, const std::string& file_name) : dir(dir)
     {
       auto full_path = (fs::path(dir) / fs::path(file_name));
@@ -339,9 +338,7 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to flush active ledger: {}",
-          strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
+        throw std::logic_error(fmt::format("Failed to flush ledger file"));
       }
 
       if (ftruncate(fileno(file), total_len))
@@ -386,9 +383,7 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to flush active ledger: {}",
-          strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
+        throw std::logic_error(fmt::format("Failed to flush ledger file"));
       }
 
       completed = true;
@@ -407,14 +402,17 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(fmt::format(
-          "Failed to flush active ledger: {}",
-          strerror(errno))); // TODO: Use strerror everywhere or explain_...()?
+        throw std::logic_error(fmt::format("Failed to flush ledger file"));
       }
 
       fs::rename(
         fs::path(dir) / fs::path(get_file_name()),
-        fs::path(dir) / fs::path(fmt::format("{}.final", get_file_name())));
+        fs::path(dir) /
+          fs::path(fmt::format(
+            "{}-{}{}",
+            get_file_name(),
+            get_last_idx(),
+            ledger_committed_suffix)));
 
       compacted = true;
     }
