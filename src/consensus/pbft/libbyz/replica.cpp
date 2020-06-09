@@ -499,7 +499,6 @@ void Replica::playback_request(kv::Tx& tx)
   vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, -1));
 
-  LOG_INFO_FMT("Calling exec command");
   exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false);
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
 
@@ -584,7 +583,7 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
     "Deserialised pre prepare but it was not found in the pre prepares map");
   auto pre_prepare = pp.value();
 
-  LOG_INFO_FMT("Playback pre-prepare {}", pre_prepare.seqno);
+  LOG_TRACE_FMT("Playback pre-prepare {}", pre_prepare.seqno);
   auto executable_pp = create_message<Pre_prepare>(
     pre_prepare.contents.data(), pre_prepare.contents.size());
   if (!executable_pp->pre_verify())
@@ -601,7 +600,6 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
   playback_max_local_commit_value = INT64_MIN;
 
   playback_byz_info.did_exec_gov_req = did_exec_gov_req;
-  LOG_INFO_FMT("playback_pre_prepare - seqno:{}", executable_pp->seqno());
   update_gov_req_info(playback_byz_info, executable_pp.get());
   did_exec_gov_req = false;
 
@@ -610,7 +608,6 @@ void Replica::playback_pre_prepare(kv::Tx& tx)
     // null op pre prepare, we need to advance last tentative exec but nothing
     // will be executed
     ByzInfo info;
-    LOG_INFO_FMT("Calling exec command");
     execute_tentative(executable_pp.get(), info, executable_pp->get_nonce());
   }
 
@@ -1015,7 +1012,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
       pp->sign();
       self->plog.fetch(self->next_pp_seqno).add_mine(pp);
 
-      LOG_INFO_FMT("send pre_prepare - seqno:{}", pp->seqno());
       self->update_gov_req_info(info, pp);
 
       self->requests_per_batch.insert(
@@ -1040,7 +1036,6 @@ void Replica::send_pre_prepare(bool do_not_wait_for_batch_size)
     };
 
     is_exec_pending = true;
-    LOG_INFO_FMT("Calling exec command");
     if (execute_tentative(pp, fn, std::move(ctx)))
     {
       LOG_DEBUG_FMT("adding to plog from pre prepare:{}", next_pp_seqno);
@@ -1185,10 +1180,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
                   Pre_prepare* pp,
                   Replica* self,
                   std::unique_ptr<ExecTentativeCbCtx> msg) {
-        LOG_INFO_FMT(
-          "updating in gov, seqno:{}, is gov:{}",
-          pp->seqno(),
-          (msg->info.did_exec_gov_req ? "true" : "false"));
         if (self->ledger_writer && !self->is_primary())
         {
           self->update_gov_req_info(msg->info, pp);
@@ -1254,7 +1245,6 @@ void Replica::send_prepare(Seqno seqno, std::optional<ByzInfo> byz_info)
       }
       else
       {
-        LOG_INFO_FMT("Calling exec command");
         if (!execute_tentative(pp, fn, std::move(msg)))
         {
           try_send_prepare();
@@ -2123,14 +2113,12 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
     if (primary() == id())
     {
       pc.add_mine(pp);
-    LOG_INFO_FMT("Calling exec command");
       did_execute = execute_tentative(pp, info, pp->get_nonce());
     }
     else
     {
       pc.add_old(pp);
       uint64_t nonce = entropy->random64();
-    LOG_INFO_FMT("Calling exec command");
       did_execute = execute_tentative(pp, info, nonce);
       Prepare* p = new Prepare(v, i, d, nonce, nullptr, pp->is_signed());
       pc.add_mine(p);
@@ -2143,7 +2131,6 @@ void Replica::process_new_view(Seqno min, Digest d, Seqno max, Seqno ms)
       {
         last_te_version = ledger_writer->write_pre_prepare(pp, prev_view);
       }
-      LOG_INFO_FMT("updating after view-change - seqno:{}", pp->seqno());
       update_gov_req_info(info, pp);
     }
 
@@ -2357,7 +2344,6 @@ std::unique_ptr<ExecCommandMsg> Replica::execute_tentative_request(
     tx);
 
   // Obtain "in" and "out" buffers to call exec_command
-  //LOG_INFO_FMT("Calling exec command");
   cmd->inb.contents = request.command(cmd->inb.size);
 
   LOG_TRACE_FMT(
@@ -2456,7 +2442,6 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce)
   if (create_execute_commands(
         pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
-    //LOG_INFO_FMT("Calling exec command");
     exec_command(
       vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
     return true;
@@ -2502,7 +2487,6 @@ bool Replica::execute_tentative(
       }
     }
 
-    LOG_INFO_FMT("Calling exec command");
     exec_command(
       vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
     if (!node_info.general_info.support_threading)
@@ -2555,7 +2539,6 @@ void Replica::execute_committed(bool was_f_0)
         if (last_executed + 1 > last_tentative_execute)
         {
           ByzInfo info;
-          LOG_INFO_FMT("Calling exec command");
           auto executed_ok = execute_tentative(pp, info, pp->get_nonce());
           CCF_ASSERT(
             executed_ok,
@@ -2570,7 +2553,7 @@ void Replica::execute_committed(bool was_f_0)
             return;
           }
 
-          if(info.did_exec_gov_req)
+          if (info.did_exec_gov_req)
           {
             gov_req_track.update(pp->seqno());
           }

@@ -24,14 +24,11 @@ public:
 
   void rollback(Seqno seqno)
   {
-    Seqno last = last_seqno();
     mark_stable(seqno);
-    LOG_INFO_FMT("rollingback last gov req, before:{}, after:{}, rollback_target:{}", last, last_seqno(), seqno);
   }
 
   void update(Seqno seqno)
   {
-    LOG_INFO_FMT("Updating last gov req, before:{}, after:{}", last_seqno(), seqno);
     seqnoWithMemberReqs.insert(new SeqnoWithMemberReq{seqno, nullptr, nullptr});
   }
 
