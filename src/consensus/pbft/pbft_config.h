@@ -138,7 +138,6 @@ namespace pbft
         }
       }
 
-      //info.did_exec_gov_req = execution_ctx.did_exec_gov_req;
       if (info.pending_cmd_callbacks == 0)
       {
         static_assert(
@@ -150,7 +149,7 @@ namespace pbft
           std::end(root.h),
           std::begin(info.replicated_state_merkle_root));
 
-      //info.did_exec_gov_req = execution_ctx.did_exec_gov_req;
+        info.did_exec_gov_req = execution_ctx.did_exec_gov_req;
         if (info.cb != nullptr)
         {
           info.cb(info.cb_ctx);
@@ -205,8 +204,6 @@ namespace pbft
       uint8_t* req_start = msg->req_start;
       size_t req_size = msg->req_size;
       kv::Tx* tx = msg->tx;
-
-      //msg->request_ctx = self->verify_and_parse(inb, req_start, req_size);
 
       std::unique_ptr<RequestCtx>& r_ctx = msg->request_ctx;
       msg->request_ctx->get_rpc_context()->pbft_raw = {req_start,
