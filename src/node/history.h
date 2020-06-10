@@ -363,19 +363,19 @@ namespace ccf
       return output;
     }
 
-    uint64_t get_first_index()
+    uint64_t begin_index()
     {
       return tree->offset + tree->i;
     }
 
-    uint64_t get_last_index()
+    uint64_t end_index()
     {
       return tree->offset + tree->j - 1;
     }
 
     bool in_range(uint64_t index)
     {
-      return index >= get_first_index() && index <= get_last_index();
+      return index >= begin_index() && index <= end_index();
     }
 
     crypto::Sha256Hash get_hash(uint64_t index)
@@ -389,9 +389,9 @@ namespace ccf
 
       // We flush pairs of hashes, the offset to this leaf depends on the first
       // index's parity
-      const auto first_index = get_first_index();
+      const auto first_index = begin_index();
       const auto leaf_index =
-        index - first_index + (first_index % 2 == 0 ? 1 : 2);
+        index - first_index + (first_index % 2 == 0 ? 0 : 1);
 
       if (leaf_index >= leaves.sz)
       {
@@ -405,7 +405,7 @@ namespace ccf
       return hash;
     }
 
-    void print_hash(LowStar_Vector_vector_str___uint8_t_ hash)
+    void print_hashes(LowStar_Vector_vector_str___uint8_t_ hash)
     {
       LOG_INFO_FMT("sz: {}, cap: {}", hash.sz, hash.cap);
       for (size_t i = 0; i < hash.sz; ++i)
@@ -430,7 +430,7 @@ namespace ccf
         tree->rhs_ok);
 
       LOG_INFO_FMT("hs[0]:");
-      print_hash(tree->hs.vs[0]);
+      print_hashes(tree->hs.vs[0]);
     }
   };
 

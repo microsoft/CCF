@@ -20,38 +20,38 @@ crypto::Sha256Hash rand_hash()
 TEST_CASE("Building a tree")
 {
   ccf::MerkleTreeHistory history;
-  REQUIRE(history.get_first_index() == 0);
-  REQUIRE(history.get_last_index() == 0);
+  REQUIRE(history.begin_index() == 0);
+  REQUIRE(history.end_index() == 0);
 
   constexpr size_t hash_count = 10'000;
   for (size_t i = 1; i < hash_count; ++i)
   {
     auto h = rand_hash();
     history.append(h);
-    REQUIRE(history.get_first_index() == 0);
-    REQUIRE(history.get_last_index() == i);
+    REQUIRE(history.begin_index() == 0);
+    REQUIRE(history.end_index() == i);
   }
 
   constexpr size_t retract_point = hash_count / 3;
   history.retract(retract_point);
-  REQUIRE(history.get_last_index() == retract_point);
+  REQUIRE(history.end_index() == retract_point);
 
   for (size_t i = retract_point + 1; i < hash_count; ++i)
   {
     auto h = rand_hash();
     history.append(h);
-    REQUIRE(history.get_last_index() == i);
+    REQUIRE(history.end_index() == i);
   }
 
   constexpr size_t flush_point = retract_point;
-  const auto prev_first = history.get_first_index();
+  const auto prev_first = history.begin_index();
   history.flush(flush_point);
-  const auto new_first = history.get_first_index();
+  const auto new_first = history.begin_index();
   REQUIRE(new_first >= prev_first);
   REQUIRE(new_first <= flush_point);
 
   REQUIRE_THROWS(history.flush(new_first - 1));
-  REQUIRE(history.get_first_index() == new_first);
+  REQUIRE(history.begin_index() == new_first);
 }
 
 TEST_CASE("Tree equality")
@@ -77,18 +77,19 @@ TEST_CASE("Tree equality")
 
 TEST_CASE("Retrieving hashes")
 {
-  constexpr size_t hash_count = 100;
+  constexpr size_t hash_count = 1'000;
 
   std::map<uint64_t, crypto::Sha256Hash> hashes;
-  for (uint64_t i = 0; i < hash_count; ++i)
-  {
-    hashes[i] = rand_hash();
-  }
+  hashes[0] = crypto::Sha256Hash(); // Index 0 always contains all-0s
 
   ccf::MerkleTreeHistory history;
-  for (auto [i, hash_copy] : hashes)
+
+  size_t index = 1;
+  while (hashes.size() < hash_count)
   {
-    history.append(hash_copy);
+    auto h = rand_hash();
+    hashes[index++] = h;
+    history.append(h);
   }
 
   for (const auto& [i, hash] : hashes)
@@ -102,6 +103,42 @@ TEST_CASE("Retrieving hashes")
     history.flush(i);
     const auto h = history.get_hash(i);
     REQUIRE(h == hash);
+  }
+}
+
+TEST_CASE("Deserialised")
+{
+  constexpr size_t hash_count = 1'000;
+  constexpr auto third = hash_count / 3;
+  constexpr auto two_thirds = 2 * hash_count / 3;
+  std::vector<std::pair<size_t, size_t>> flush_retract = {
+    {0, hash_count},
+    {third, two_thirds},
+    {third + 1, two_thirds},
+    {third, two_thirds + 1}};
+  for (auto [flush_index, retract_index] : flush_retract)
+  {
+    ccf::MerkleTreeHistory original_tree;
+    for (size_t i = 0; i < hash_count; ++i)
+    {
+      auto h = rand_hash();
+      original_tree.append(h);
+    }
+    original_tree.flush(flush_index);
+    original_tree.retract(retract_index);
+
+    const auto serialised = original_tree.serialise();
+
+    ccf::MerkleTreeHistory deser_tree(serialised);
+
+    REQUIRE(deser_tree.begin_index() == original_tree.begin_index());
+    REQUIRE(deser_tree.end_index() == original_tree.end_index());
+    REQUIRE(deser_tree.get_root() == original_tree.get_root());
+
+    for (size_t i = deser_tree.begin_index(); i <= deser_tree.end_index(); ++i)
+    {
+      REQUIRE(deser_tree.get_hash(i) == original_tree.get_hash(i));
+    }
   }
 }
 
