@@ -310,9 +310,9 @@ namespace ccf
       mt_free(tree);
     }
 
-    void append(const crypto::Sha256Hash& hash)
+    void append(crypto::Sha256Hash& hash)
     {
-      uint8_t* h = const_cast<uint8_t*>(hash.h.data());
+      uint8_t* h = hash.h.data();
       if (!mt_insert_pre(tree, h))
       {
         throw std::logic_error("Precondition to mt_insert violated");
