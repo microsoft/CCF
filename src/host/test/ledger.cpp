@@ -595,12 +595,12 @@ size_t number_open_fd()
   return fd_count;
 }
 
-TEST_CASE("Limit number of files")
+TEST_CASE("Limit number of open files")
 {
   fs::remove_all(ledger_dir);
 
   size_t chunk_threshold = 30;
-  size_t chunk_count = 3;
+  size_t chunk_count = 5;
   asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
   TestEntrySubmitter entry_submitter(ledger);
 
@@ -625,21 +625,25 @@ TEST_CASE("Limit number of files")
     ledger.compact(1); // No file compacted
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
-    ledger.compact(2 * end_of_first_chunk_idx); // One file compacted
-
-    LOG_DEBUG_FMT("*****************");
-    REQUIRE(number_open_fd() == initial_number_fd + chunk_count - 1);
+    ledger.compact(end_of_first_chunk_idx); // One file compacted
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
 
     read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx + 1);
-    REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
-    read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
+    // Compacted file is opened in read cache
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
-    // ledger.compact(end_of_first_chunk_idx + 1); // No file compacted
-    // REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
+    ledger.compact(2 * end_of_first_chunk_idx); // One file compacted
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count );
+    // Compacted file is opened in read cache
+    read_entries_range_from_ledger(ledger, 1, 2 * end_of_first_chunk_idx);
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
-    // ledger.compact(last_idx); // All but one file compacted
-    // REQUIRE(number_open_fd() == initial_number_fd + 1);
+    ledger.compact(last_idx); // All but one file compacted
+    // One file open for write, two files open for read
+    REQUIRE(number_open_fd() == initial_number_fd + 3);
+    // All files are open for read
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
   }
 
   // auto last_idx = entry_submitter.get_last_idx();
