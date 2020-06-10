@@ -81,8 +81,9 @@ void read_entry_from_ledger(asynchost::MultipleLedger& ledger, size_t idx)
 }
 
 void read_entries_range_from_ledger(
-  const asynchost::MultipleLedger& ledger, size_t from, size_t to)
+  asynchost::MultipleLedger& ledger, size_t from, size_t to)
 {
+  LOG_DEBUG_FMT("------------------\n");
   verify_framed_entries_range(ledger.read_framed_entries(from, to), from, to);
 }
 
@@ -204,11 +205,11 @@ TEST_CASE("Regular chunking")
   {
     is_committable = true;
     entry_submitter.write(is_committable);
-    end_of_first_chunk_idx = entry_submitter.get_last_idx() - 1;
     REQUIRE(number_of_files_in_ledger_dir() == 1);
 
     // Threshold is passed, a new ledger file should be created
     entry_submitter.write(false);
+    end_of_first_chunk_idx = entry_submitter.get_last_idx() - 1;
     REQUIRE(number_of_files_in_ledger_dir() == 2);
   }
 
@@ -251,6 +252,7 @@ TEST_CASE("Regular chunking")
 
   INFO("Reading range of entries across all chunks");
   {
+    // Note: only testing write cache as no chunk has yet been compacted
     auto last_idx = entry_submitter.get_last_idx();
 
     // Reading from 0 fails
@@ -392,13 +394,15 @@ TEST_CASE("Compaction")
   {
     ledger.compact(end_of_first_chunk_idx);
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 1);
+
+    read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx + 1);
   }
 
   INFO("Compacting in the middle on complete chunk");
   {
     ledger.compact(end_of_first_chunk_idx + 1);
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 1);
-    ledger.compact(2 * end_of_first_chunk_idx - 1);
+    REQUIRE(number_of_compacted_files_in_ledger_dir() == 1); // No effect
+    ledger.compact(2 * end_of_first_chunk_idx - 1); // No effect
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 1);
   }
 
@@ -406,17 +410,19 @@ TEST_CASE("Compaction")
   {
     ledger.compact(2 * end_of_first_chunk_idx);
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 2);
+    read_entries_range_from_ledger(ledger, 1, 2 * end_of_first_chunk_idx + 1);
   }
 
   INFO("Compacting at the end of last complete chunk");
   {
     ledger.compact(last_idx - 1);
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
+    read_entries_range_from_ledger(ledger, 1, last_idx);
   }
 
   INFO("Compacting incomplete chunk");
   {
-    ledger.compact(last_idx);
+    ledger.compact(last_idx); // No effect
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
   }
 
@@ -427,6 +433,7 @@ TEST_CASE("Compaction")
     last_idx = entry_submitter.get_last_idx();
     ledger.compact(last_idx);
     REQUIRE(number_of_compacted_files_in_ledger_dir() == 4);
+    read_entries_range_from_ledger(ledger, 1, last_idx);
   }
 
   INFO("Ledger cannot be truncated earlier than compaction");
@@ -441,6 +448,7 @@ TEST_CASE("Compaction")
     entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();
     ledger.truncate(last_idx - 1); // Deletes entry at last_idx
+    read_entries_range_from_ledger(ledger, 1, last_idx - 1);
     REQUIRE(ledger.read_framed_entries(1, last_idx).size() == 0);
   }
 }
@@ -577,12 +585,65 @@ TEST_CASE("Restore existing ledger")
   }
 }
 
-TEST_CASE("TODO")
+size_t number_open_fd()
 {
-  // TODO:
-  // Set rlimit https://linux.die.net/man/2/setrlimit to a low number
-  // Check if things still work
+  size_t fd_count = 0;
+  for (auto const& f : fs::directory_iterator("/proc/self/fd"))
+  {
+    fd_count++;
+  }
+  return fd_count;
 }
 
-// TODO:
-// 1. Test that a chunk always ends on a globally committable entry
+TEST_CASE("Limit number of files")
+{
+  fs::remove_all(ledger_dir);
+
+  size_t chunk_threshold = 30;
+  size_t chunk_count = 3;
+  asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+  TestEntrySubmitter entry_submitter(ledger);
+
+  size_t initial_number_fd = number_open_fd();
+  size_t last_idx = 0;
+
+  LOG_DEBUG_FMT("Initial number of fd: {}", initial_number_fd);
+
+  size_t end_of_first_chunk_idx =
+    initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
+  REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
+
+  INFO("Writing a new chunk opens a new file");
+  {
+    entry_submitter.write(true);
+    last_idx = entry_submitter.get_last_idx();
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
+  }
+
+  INFO("Compaction closes files");
+  {
+    ledger.compact(1); // No file compacted
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
+
+    ledger.compact(2 * end_of_first_chunk_idx); // One file compacted
+
+    LOG_DEBUG_FMT("*****************");
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count - 1);
+
+    read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx + 1);
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
+    read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
+
+    // ledger.compact(end_of_first_chunk_idx + 1); // No file compacted
+    // REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
+
+    // ledger.compact(last_idx); // All but one file compacted
+    // REQUIRE(number_open_fd() == initial_number_fd + 1);
+  }
+
+  // auto last_idx = entry_submitter.get_last_idx();
+  // read_entries_range_from_ledger(ledger, 1, last_idx);
+
+  LOG_DEBUG_FMT("Final number of fd: {}", number_open_fd());
+}

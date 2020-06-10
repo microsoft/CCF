@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <list>
+#include <map>
 #include <string>
 #include <sys/types.h>
 #include <unistd.h>
@@ -20,11 +21,26 @@ namespace fs = std::filesystem;
 namespace asynchost
 {
   static constexpr auto ledger_committed_suffix = ".committed";
+  static constexpr auto ledger_start_idx_delimiter = "_";
 
   static inline bool is_ledger_file_compacted(const std::string& file_name)
   {
     auto pos = file_name.find(ledger_committed_suffix);
     return !(pos == std::string::npos);
+  }
+
+  // TODO: This will not work once the file is committed
+  static inline size_t get_start_idx_from_file_name(
+    const std::string& file_name)
+  {
+    auto pos = file_name.find(ledger_start_idx_delimiter);
+    if (pos == std::string::npos)
+    {
+      throw std::logic_error(fmt::format(
+        "Ledger file name {} does not contain a start idx", file_name));
+    }
+
+    return std::stol(file_name.substr(pos + 1));
   }
 
   class LedgerFile
@@ -33,7 +49,6 @@ namespace asynchost
     using positions_offset_header_t = size_t;
 
     static constexpr auto file_name_prefix = "ledger";
-    static constexpr auto ledger_start_idx_delimiter = "_";
 
     static constexpr size_t frame_header_size = sizeof(uint32_t);
 
@@ -79,15 +94,7 @@ namespace asynchost
       }
 
       compacted = is_ledger_file_compacted(file_name);
-
-      auto pos = file_name.find(ledger_start_idx_delimiter);
-      if (pos == std::string::npos)
-      {
-        throw std::logic_error(fmt::format(
-          "Ledger file name {} does not contain a start idx", full_path));
-      }
-
-      start_idx = std::stol(file_name.substr(pos + 1));
+      start_idx = get_start_idx_from_file_name(file_name);
 
       // First, get full size of file
       fseeko(file, 0, SEEK_END);
@@ -285,7 +292,7 @@ namespace asynchost
 
     const std::vector<uint8_t> read_framed_entries(size_t from, size_t to) const
     {
-      if ((from < start_idx) || (to > get_last_idx()))
+      if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
         LOG_FAIL_FMT("Unknown entries range: {} - {}", from, to);
         return {};
@@ -389,13 +396,13 @@ namespace asynchost
       completed = true;
     }
 
-    void compact(size_t idx)
+    bool compact(size_t idx)
     {
       if (
         !completed || compacted || (idx < get_last_idx()) ||
         (idx > get_last_idx()))
       {
-        return;
+        return false;
       }
 
       LOG_DEBUG_FMT("Compacting file at {}", idx);
@@ -415,6 +422,7 @@ namespace asynchost
             ledger_committed_suffix)));
 
       compacted = true;
+      return true;
     }
   };
 
@@ -427,15 +435,21 @@ namespace asynchost
     // Ledger directory
     const std::string ledger_dir;
 
-    // Keep tracks of all ledger files.
+    // Keep tracks of all ledger files for writing.
     // Current ledger file is always the last one
     std::list<std::shared_ptr<LedgerFile>> files;
+
+    // Cache of ledger files for reading
+    size_t max_read_cache_size = 2;
+    // std::list<std::shared_ptr<LedgerFile>> files_read_cache;
+    std::map<size_t, std::shared_ptr<LedgerFile>> files_read_cache;
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
     size_t compacted_idx = 0;
-    bool require_new_file =
-      true; // True if a new file should be created when writing an entry
+
+    // True if a new file should be created when writing an entry
+    bool require_new_file = true;
 
     // TODO: Delete when necessary
     void dump_files() const
@@ -500,8 +514,8 @@ namespace asynchost
         {
           LOG_FAIL_FMT("Restore, {}", f.path().string());
 
-          files.push_back(std::make_shared<LedgerFile>(
-            f.path().parent_path(), f.path().filename()));
+          files.push_back(
+            std::make_shared<LedgerFile>(ledger_dir, f.path().filename()));
         }
 
         // TODO: Perhaps using a different struct (e.g. unordered map) might
@@ -547,72 +561,199 @@ namespace asynchost
 
     const std::vector<uint8_t> read_entry(size_t idx) const
     {
+      // TODO: Use same code as below
       return find_ledger_containing_idx(idx)->read_entry(idx);
     }
 
-    const std::vector<uint8_t> read_framed_entries(size_t from, size_t to) const
+    std::shared_ptr<LedgerFile> get_file_from_idx(size_t idx)
     {
-      if ((from < 0) || (to > last_idx) || (to < from))
+      if (idx == 0)
+      {
+        return nullptr;
+      }
+
+      LOG_FAIL_FMT("********** Find file for idx {}", idx);
+
+      dump_files();
+
+      // When looking up write cache, look at start idx
+      auto f = std::upper_bound(
+        files.rbegin(),
+        files.rend(),
+        idx,
+        [](size_t idx, const std::shared_ptr<LedgerFile>& f) {
+          return idx >= f->get_start_idx();
+        });
+
+      if (f != files.rend())
+      {
+        LOG_FAIL_FMT("Write cache hit! {}", (*f)->get_start_idx());
+        return *f;
+      }
+
+      LOG_FAIL_FMT("Write cache miss");
+
+      // TODO: Read read cache
+      for (auto const& r : files_read_cache)
+      {
+        LOG_FAIL_FMT("Read cache: {}", r.first, r.second->get_file_name());
+      }
+
+      auto f__ = std::upper_bound(
+        files_read_cache.begin(),
+        files_read_cache.end(),
+        idx,
+        [](
+          size_t idx, const std::pair<size_t, std::shared_ptr<LedgerFile>>& v) {
+          return (idx <= v.second->get_last_idx());
+        });
+
+      if (f__ != files_read_cache.end())
+      {
+        LOG_FAIL_FMT("Found in read cache: {}", (*f__).second->get_file_name());
+        return (*f__).second;
+      }
+      else
+      {
+        LOG_FAIL_FMT("Nothing in read cache!");
+      }
+      // if (f__ != files_read_cache.rend())
+      // {
+
+      // }
+
+      std::map<size_t, std::string> all_files;
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        all_files.emplace(
+          get_start_idx_from_file_name(f.path().filename()),
+          f.path().filename());
+      }
+
+      for (auto const& f : all_files)
+      {
+        LOG_FAIL_FMT("f: {} -> {}", f.first, f.second);
+      }
+
+      auto f_ = std::upper_bound(
+        all_files.begin(),
+        all_files.end(),
+        idx,
+        [](size_t idx, const std::pair<size_t, std::string>& v) {
+          return (idx <= v.first);
+        });
+
+      if (f_ == all_files.end())
+      {
+        throw std::logic_error(
+          fmt::format("Could not find ledger file on disk for idx {}", idx));
+      }
+
+      auto match_file = std::make_shared<LedgerFile>(ledger_dir, f_->second);
+
+      LOG_FAIL_FMT("Emplacing file to read cache...");
+      files_read_cache.emplace(match_file->get_last_idx(), match_file);
+
+      // TODO: Read read cache
+      for (auto const& r : files_read_cache)
+      {
+        LOG_FAIL_FMT("Read cache: {}", r.first, r.second->get_file_name());
+      }
+
+      LOG_FAIL_FMT("File found is: {}", f_->second);
+      return match_file;
+    }
+
+    const std::vector<uint8_t> read_framed_entries(size_t from, size_t to)
+    {
+      if ((from <= 0) || (to > last_idx) || (to < from))
       {
         return {};
       }
 
-      auto f_from = get_it_contains_idx(from);
-      auto f_to = get_it_contains_idx(to);
+      size_t idx = from;
 
-      if ((f_from == files.end()) || (f_to == files.end()))
+      std::vector<uint8_t> entries;
+
+      while (idx <= to)
       {
-        return {};
+        auto f_from = get_file_from_idx(idx);
+        auto to_ = std::min(f_from->get_last_idx(), to);
+        auto v = f_from->read_framed_entries(idx, to_);
+        entries.insert(
+          entries.end(),
+          std::make_move_iterator(v.begin()),
+          std::make_move_iterator(v.end()));
+
+        LOG_FAIL_FMT("Read {} entries from file", entries.size());
+
+        idx = to_ + 1;
       }
 
-      std::vector<std::vector<uint8_t>> entries;
-      entries.reserve(std::distance(f_from, f_to) + 1);
+      return entries;
 
-      if (f_from == f_to)
-      {
-        // If the framed entries are only read over one chunk, read framed
-        // entries from that chunk and return
-        entries.emplace_back((*f_from)->read_framed_entries(from, to));
-        return entries.at(0);
-      }
+      // // TODO:
+      // // 1. get file which contains from
+      // // 2. read entries
+      // // 3. if last_idx() >= to: stop here, otherwise, loop again with from =
+      // // last_idx() + 1
 
-      for (auto it = f_from; it != std::next(f_to); it++)
-      {
-        if (it == f_from)
-        {
-          entries.emplace_back(
-            (*it)->read_framed_entries(from, (*it)->get_last_idx()));
-        }
-        else if (it == f_to)
-        {
-          entries.emplace_back(
-            (*it)->read_framed_entries((*it)->get_start_idx(), to));
-        }
-        else
-        {
-          entries.emplace_back((*it)->read_framed_entries(
-            (*it)->get_start_idx(), (*it)->get_last_idx()));
-        }
-      }
+      // auto f_from = get_it_contains_idx(from);
+      // auto f_to = get_it_contains_idx(to);
 
-      size_t total_size = 0;
-      for (auto const& e : entries)
-      {
-        total_size += e.size();
-      }
+      // if ((f_from == files.end()) || (f_to == files.end()))
+      // {
+      //   return {};
+      // }
 
-      std::vector<uint8_t> flatten_vector;
-      flatten_vector.reserve(total_size);
+      // std::vector<std::vector<uint8_t>> entries;
+      // entries.reserve(std::distance(f_from, f_to) + 1);
 
-      for (auto const& e : entries)
-      {
-        flatten_vector.insert(
-          flatten_vector.end(),
-          std::make_move_iterator(e.begin()),
-          std::make_move_iterator(e.end()));
-      }
+      // if (f_from == f_to)
+      // {
+      //   // If the framed entries are only read over one chunk, read framed
+      //   // entries from that chunk and return
+      //   entries.emplace_back((*f_from)->read_framed_entries(from, to));
+      //   return entries.at(0);
+      // }
 
-      return flatten_vector;
+      // for (auto it = f_from; it != std::next(f_to); it++)
+      // {
+      //   if (it == f_from)
+      //   {
+      //     entries.emplace_back(
+      //       (*it)->read_framed_entries(from, (*it)->get_last_idx()));
+      //   }
+      //   else if (it == f_to)
+      //   {
+      //     entries.emplace_back(
+      //       (*it)->read_framed_entries((*it)->get_start_idx(), to));
+      //   }
+      //   else
+      //   {
+      //     entries.emplace_back((*it)->read_framed_entries(
+      //       (*it)->get_start_idx(), (*it)->get_last_idx()));
+      //   }
+      // }
+
+      // size_t total_size = 0;
+      // for (auto const& e : entries)
+      // {
+      //   total_size += e.size();
+      // }
+
+      // std::vector<uint8_t> flatten_vector;
+      // flatten_vector.reserve(total_size);
+
+      // for (auto const& e : entries)
+      // {
+      //   flatten_vector.insert(
+      //     flatten_vector.end(),
+      //     std::make_move_iterator(e.begin()),
+      //     std::make_move_iterator(e.end()));
+      // }
+
+      // return flatten_vector;
     }
 
     size_t write_entry(const uint8_t* data, size_t size, bool committable)
@@ -699,14 +840,40 @@ namespace asynchost
 
       for (auto it = f_from; it != std::next(f_to);)
       {
-        // Compact all historical files to their latest index while the latest
+        // Compact all previous file to their latest index while the latest
         // file is compacted to the compaction index
-        auto compact_idx = (it == f_to) ? idx : (*it)->get_last_idx();
-        (*it)->compact(compact_idx);
 
-        it++;
+        auto compact_idx = (it == f_to) ? idx : (*it)->get_last_idx();
+
+        if (
+          (*it)->compact(compact_idx) &&
+          (it != f_to || (idx == (*it)->get_last_idx())))
+        {
+          auto it_ = it;
+          it++;
+          files.erase(it_);
+        }
+        else
+        {
+          it++;
+        }
+
+        // if (it == f_to)
+        // {
+        //   (*it)->compact(idx);
+        //   it++;
+        // }
+        // else
+        // {
+        //   auto it_ = it;
+        //   (*it)->compact((*it)->get_last_idx());
+        //   it++;
+        //   files.erase(it_);
+        // }
       }
 
+      // TODO: Not sure about this. Should be the index of the file that was
+      // erased instead? Probably!
       compacted_idx = idx;
     }
 
