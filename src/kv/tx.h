@@ -26,7 +26,9 @@ namespace kv
     {
       using MapView = typename M::TxView;
 
-      // If the M is present, its AbtractTxView should be an M::TxView. This
+      LOG_DEBUG_FMT("XXX: get_view on {}", m.get_name());
+
+      // If the M is present, its AbstractTxView should be an M::TxView. This
       // invariant could be broken by set_view_list, which will produce an error
       // here
       auto search = view_list.find(m.get_name());
@@ -58,6 +60,7 @@ namespace kv
         auto txid = m.get_store()->current_txid();
         term = txid.term;
         read_version = txid.version;
+        LOG_DEBUG_FMT("XXX: Not a reserved tx t: {} rv: {}", term, read_version);
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
@@ -90,15 +93,18 @@ namespace kv
     }
 
   public:
-    Tx() : view_list() {}
+    Tx() : view_list() {
+      LOG_DEBUG_FMT("XXX: Constructing TX");
+    }
 
     Tx(const Tx& that) = delete;
 
-    void set_view_list(OrderedViews& view_list_) override
+    void set_view_list(OrderedViews& view_list_, Term term_) override
     {
       // if view list is not empty then any coinciding keys will not be
       // overwritten
       view_list.merge(view_list_);
+      term = term_;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
@@ -118,6 +124,11 @@ namespace kv
     Version get_read_version()
     {
       return read_version;
+    }
+
+    Version get_term()
+    {
+      return term;
     }
 
     /** Get a transaction view on a map.
@@ -305,7 +316,9 @@ namespace kv
       success(false),
       read_version(reserved - 1),
       version(reserved)
-    {}
+    {
+      LOG_DEBUG_FMT("XXX: Creating reserved {}", reserved);
+    }
 
     // Used by frontend to commit reserved transactions
     PendingTxInfo commit_reserved()

@@ -441,7 +441,7 @@ namespace kv
 
       if (tx)
       {
-        tx->set_view_list(views);
+        tx->set_view_list(views, term);
       }
 
       return success;

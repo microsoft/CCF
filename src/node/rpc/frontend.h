@@ -580,11 +580,17 @@ namespace ccf
              ctx.pbft_raw});
         };
       }
+      else
+      {
+        LOG_DEBUG_FMT("XXX: Playing back");
+      }
 
       auto rep =
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
 
       version = tx.get_version();
+      LOG_DEBUG_FMT("XXX: Version was {}", version);
+      LOG_DEBUG_FMT("XXX: View was {}", tx.get_term());
 
       return {std::move(rep.value()), version};
     }

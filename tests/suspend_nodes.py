@@ -18,36 +18,6 @@ from loguru import logger as LOG
 TOTAL_REQUESTS = 9  # x2 is 18 since LoggingTxs app sends a private and a public request for each tx index
 
 
-@reqs.description("Suspend nodes")
-def test_suspend_nodes(network, args, nodes_to_keep):
-    cur_primary, _ = network.find_primary()
-
-    # first timer determines after how many seconds each node will be suspended
-    timeouts = []
-    for i, node in enumerate(nodes_to_keep):
-        # if pbft suspend half of them including the primary
-        if i % 2 != 0 and args.consensus == "pbft":
-            continue
-        LOG.success(f"Will suspend node with id {node.node_id}")
-        t = random.uniform(0, 2)
-        LOG.info(f"Initial timer for node {node.node_id} is {t} seconds...")
-        timeouts.append((t, node))
-
-    for t, node in timeouts:
-        suspend_time = (
-            args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
-            else args.raft_election_timeout / 1000
-        )
-        if node.node_id == cur_primary.node_id and args.consensus == "pbft":
-            # if pbft suspend the primary for more than twice the election timeout
-            # in order to make sure view changes will be triggered
-            suspend_time = 2.5 * suspend_time
-        tm = Timer(t, timeout_handler, args=[node, True, suspend_time])
-        tm.start()
-    return network
-
-
 def run(args):
     hosts = ["localhost", "localhost", "localhost"]
 
