@@ -1,8 +1,7 @@
 # The Confidential Consortium Framework 
 
 [![Gitter](https://badges.gitter.im/MSRC-CCF/community.svg)](https://gitter.im/MSRC-CCF/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=master)
-[![Documentation](https://img.shields.io/github/issues/Microsoft/vscode/feature-request.svg)](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-
+[![Docs](https://img.shields.io/badge/Docs-succeeded-green)](https://microsoft.github.io/CCF)
 
 
 <img alt="ccf" align="right" src="https://microsoft.github.io/CCF/master/_images/ccf.svg" width="300">
