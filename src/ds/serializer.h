@@ -311,8 +311,19 @@ namespace serializer
     template <typename T, typename... Ts>
     static auto deserialize_impl(const uint8_t* data, size_t size)
     {
-      const auto next = std::make_tuple(
-        deserialize_value(data, size, Tag<details::remove_cvref_t<T>>{}));
+      using StrippedT = details::remove_cvref_t<T>;
+
+      if constexpr (
+        std::is_same_v<StrippedT, std::vector<uint8_t>> ||
+        std::is_same_v<StrippedT, ByteRange>)
+      {
+        static_assert(
+          sizeof...(Ts) == 0,
+          "Byte vectors must be the final element in message");
+      }
+
+      const auto next =
+        std::make_tuple(deserialize_value(data, size, Tag<StrippedT>{}));
 
       if constexpr (sizeof...(Ts) == 0)
       {
