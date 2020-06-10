@@ -192,17 +192,10 @@ namespace ccf::historical
             continue;
           }
 
-          // TODO: Check that the receipt matches our untrusted entry
-          // const auto& entry_hash_in_receipt = receipt.leaf;
-          // if (untrusted_hash != entry_hash_in_receipt)
-          // {
-          //   // TODO: We should discard the untrusted store now
-          //   throw std::logic_error(
-          //     fmt::format("Hash mismatch for {}", untrusted_idx));
-          // }
+          // This is where full verification should go, checking that the entry
+          // we have is in the signed merkle tree
 
           // Move stores from untrusted to trusted
-          // TODO: Temp solution, blindly trust everything for now
           LOG_DEBUG_FMT(
             "Now trusting {} due to signature at {}", untrusted_idx, sig_idx);
           request.current_stage = RequestStage::Trusted;
@@ -223,7 +216,6 @@ namespace ccf::historical
 
       store->set_encryptor(source_store.get_encryptor());
 
-      // TODO: Add a lazy clone option?
       store->clone_schema(source_store);
 
       const auto deserialise_result = store->deserialise_views(entry);
