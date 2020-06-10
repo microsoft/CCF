@@ -1,13 +1,16 @@
 # The Confidential Consortium Framework 
 
-[![Gitter](https://badges.gitter.im/MSRC-CCF/community.svg)](https://gitter.im/MSRC-CCF/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Daily?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=7&branchName=master)
+[![Gitter](https://badges.gitter.im/MSRC-CCF/community.svg)](https://gitter.im/MSRC-CCF/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=master)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=master)
+[![Documentation](https://img.shields.io/github/issues/Microsoft/vscode/feature-request.svg)](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
+
+
 
 <img alt="ccf" align="right" src="https://microsoft.github.io/CCF/master/_images/ccf.svg" width="300">
 
 The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available,
 and performant applications that focus on multi-party compute and data.
 CCF can enable high-scale, confidential networks that meet key enterprise requirements
-— providing a means to accelerate production consortium based enterprise adoption of blockchain and multi-party compute technology.
+— providing a means to accelerate production and enterprise adoption of consortium based blockchain and multi-party compute technology.
 
 Leveraging the power of trusted execution environments (TEEs), decentralized systems concepts, and cryptography, CCF enables enterprise-ready multiparty computation or blockchains.
 
@@ -22,7 +25,7 @@ Leveraging the power of trusted execution environments (TEEs), decentralized sys
 
 * [Get started](https://microsoft.github.io/CCF/master/quickstart/index.html) with Azure confidentual compute and CCF. 
 * Learn how to [build](https://microsoft.github.io/CCF/master/quickstart/build.html) and [run](https://microsoft.github.io/CCF/master/quickstart/build.html#running-tests) a test network.
-* Start [building](https://microsoft.github.io/CCF/master/developers/index.html) your first CCF network.
+* Start [writing](https://microsoft.github.io/CCF/master/developers/index.html) your own CCF application.
 * Submit [bugs](https://github.com/microsoft/CCF/issues/new?assignees=&labels=bug&template=bug_report.md&title=) and [feature requests](https://github.com/microsoft/CCF/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=), and help us verify those that are checked in.
 
 ## Third-party components
