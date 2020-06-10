@@ -20,6 +20,7 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
+  static constexpr auto max_read_cache_size_default = 5;
   static constexpr auto ledger_committed_suffix = ".committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
 
@@ -440,9 +441,8 @@ namespace asynchost
     std::list<std::shared_ptr<LedgerFile>> files;
 
     // Cache of ledger files for reading
-    size_t max_read_cache_size = 2;
-    // std::list<std::shared_ptr<LedgerFile>> files_read_cache;
-    std::map<size_t, std::shared_ptr<LedgerFile>> files_read_cache;
+    size_t max_read_cache_size;
+    std::list<std::shared_ptr<LedgerFile>> files_read_cache;
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
@@ -497,10 +497,12 @@ namespace asynchost
     MultipleLedger(
       const std::string& ledger_dir,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      size_t chunk_threshold) :
+      size_t chunk_threshold,
+      size_t max_read_cache_size = max_read_cache_size_default) :
       ledger_dir(ledger_dir),
       chunk_threshold(chunk_threshold),
-      to_enclave(writer_factory.create_writer_to_inside())
+      to_enclave(writer_factory.create_writer_to_inside()),
+      max_read_cache_size(max_read_cache_size)
     {
       if (chunk_threshold == 0)
       {
@@ -518,8 +520,6 @@ namespace asynchost
             std::make_shared<LedgerFile>(ledger_dir, f.path().filename()));
         }
 
-        // TODO: Perhaps using a different struct (e.g. unordered map) might
-        // help here. The caching strategy will solve this.
         files.sort([](
                      const std::shared_ptr<LedgerFile>& a,
                      const std::shared_ptr<LedgerFile>& b) {
@@ -527,16 +527,22 @@ namespace asynchost
         });
         dump_files();
 
-        // TODO: Early fail if the ledger idx don't follow each other!!
+        last_idx = get_latest_file()->get_last_idx();
 
-        for (auto const& f : files)
+        for (auto f = files.begin(); f != files.end();)
         {
-          if (f->is_compacted())
+          if ((*f)->is_compacted())
           {
-            compacted_idx = f->get_last_idx();
+            compacted_idx = (*f)->get_last_idx();
+            auto f_ = f;
+            f++;
+            files.erase(f_);
+          }
+          else
+          {
+            f++;
           }
         }
-        last_idx = get_latest_file()->get_last_idx();
       }
       else
       {
@@ -565,6 +571,81 @@ namespace asynchost
       return find_ledger_containing_idx(idx)->read_entry(idx);
     }
 
+    // TODO: Move to private
+    std::shared_ptr<LedgerFile> get_file_from_cache(size_t idx)
+    {
+      if (idx == 0)
+      {
+        return nullptr;
+      }
+
+      // TODO: Read read cache
+      for (auto const& r : files_read_cache)
+      {
+        LOG_FAIL_FMT(
+          "Read cache: {} - {}", r->get_start_idx(), r->get_file_name());
+      }
+
+      for (auto const& f : files_read_cache)
+      {
+        if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
+        {
+          LOG_FAIL_FMT("Read cache hit!");
+          return f;
+        }
+      }
+
+      LOG_FAIL_FMT("Reach cache miss");
+
+      // Read all files from ledger directory
+      std::map<size_t, std::string> all_files;
+      for (auto const& f : fs::directory_iterator(ledger_dir))
+      {
+        all_files.emplace(
+          get_start_idx_from_file_name(f.path().filename()),
+          f.path().filename());
+      }
+
+      for (auto const& f : all_files)
+      {
+        LOG_FAIL_FMT("f: {} -> {}", f.first, f.second);
+      }
+
+      auto f_ = std::upper_bound(
+        all_files.rbegin(),
+        all_files.rend(),
+        idx,
+        [](size_t idx, const std::pair<size_t, std::string>& v) {
+          return (idx >= v.first);
+        });
+
+      if (f_ == all_files.rend())
+      {
+        LOG_FAIL_FMT("Could not find ledger file on disk for idx {}", idx);
+        return nullptr;
+      }
+
+      auto match_file = std::make_shared<LedgerFile>(ledger_dir, f_->second);
+
+      LOG_FAIL_FMT("Emplacing file to read cache...");
+      if (files_read_cache.size() >= max_read_cache_size)
+      {
+        LOG_FAIL_FMT("Maximum size of read cache read! Not emplacing!");
+        files_read_cache.erase(files_read_cache.begin());
+      }
+
+      files_read_cache.emplace_back(match_file);
+
+      // TODO: Read read cache
+      for (auto const& r : files_read_cache)
+      {
+        LOG_FAIL_FMT(
+          "Read cache: {} - {}", r->get_start_idx(), r->get_file_name());
+      }
+
+      return match_file;
+    }
+
     std::shared_ptr<LedgerFile> get_file_from_idx(size_t idx)
     {
       if (idx == 0)
@@ -576,7 +657,7 @@ namespace asynchost
 
       dump_files();
 
-      // When looking up write cache, look at start idx
+      // First, check if the file is in the list of files open for writing
       auto f = std::upper_bound(
         files.rbegin(),
         files.rend(),
@@ -592,76 +673,8 @@ namespace asynchost
       }
 
       LOG_FAIL_FMT("Write cache miss");
-
-      // TODO: Read read cache
-      for (auto const& r : files_read_cache)
-      {
-        LOG_FAIL_FMT("Read cache: {}", r.first, r.second->get_file_name());
-      }
-
-      auto f__ = std::upper_bound(
-        files_read_cache.begin(),
-        files_read_cache.end(),
-        idx,
-        [](
-          size_t idx, const std::pair<size_t, std::shared_ptr<LedgerFile>>& v) {
-          return (idx <= v.second->get_last_idx());
-        });
-
-      if (f__ != files_read_cache.end())
-      {
-        LOG_FAIL_FMT("Found in read cache: {}", (*f__).second->get_file_name());
-        return (*f__).second;
-      }
-      else
-      {
-        LOG_FAIL_FMT("Nothing in read cache!");
-      }
-      // if (f__ != files_read_cache.rend())
-      // {
-
-      // }
-
-      std::map<size_t, std::string> all_files;
-      for (auto const& f : fs::directory_iterator(ledger_dir))
-      {
-        all_files.emplace(
-          get_start_idx_from_file_name(f.path().filename()),
-          f.path().filename());
-      }
-
-      for (auto const& f : all_files)
-      {
-        LOG_FAIL_FMT("f: {} -> {}", f.first, f.second);
-      }
-
-      auto f_ = std::upper_bound(
-        all_files.begin(),
-        all_files.end(),
-        idx,
-        [](size_t idx, const std::pair<size_t, std::string>& v) {
-          return (idx <= v.first);
-        });
-
-      if (f_ == all_files.end())
-      {
-        throw std::logic_error(
-          fmt::format("Could not find ledger file on disk for idx {}", idx));
-      }
-
-      auto match_file = std::make_shared<LedgerFile>(ledger_dir, f_->second);
-
-      LOG_FAIL_FMT("Emplacing file to read cache...");
-      files_read_cache.emplace(match_file->get_last_idx(), match_file);
-
-      // TODO: Read read cache
-      for (auto const& r : files_read_cache)
-      {
-        LOG_FAIL_FMT("Read cache: {}", r.first, r.second->get_file_name());
-      }
-
-      LOG_FAIL_FMT("File found is: {}", f_->second);
-      return match_file;
+      // Otherwise, return file from read cache
+      return get_file_from_cache(idx);
     }
 
     const std::vector<uint8_t> read_framed_entries(size_t from, size_t to)
@@ -678,6 +691,10 @@ namespace asynchost
       while (idx <= to)
       {
         auto f_from = get_file_from_idx(idx);
+        if (f_from == nullptr)
+        {
+          return {};
+        }
         auto to_ = std::min(f_from->get_last_idx(), to);
         auto v = f_from->read_framed_entries(idx, to_);
         entries.insert(

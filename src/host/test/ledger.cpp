@@ -601,7 +601,9 @@ TEST_CASE("Limit number of open files")
 
   size_t chunk_threshold = 30;
   size_t chunk_count = 5;
-  asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
+  size_t max_read_cache_size = 2;
+  asynchost::MultipleLedger ledger(
+    ledger_dir, wf, chunk_threshold, max_read_cache_size);
   TestEntrySubmitter entry_submitter(ledger);
 
   size_t initial_number_fd = number_open_fd();
@@ -620,34 +622,62 @@ TEST_CASE("Limit number of open files")
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
   }
 
-  INFO("Compaction closes files");
+  INFO("Compacting closes files and reading compacted chunks opens those");
   {
     ledger.compact(1); // No file compacted
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
-    ledger.compact(end_of_first_chunk_idx); // One file compacted
+    ledger.compact(end_of_first_chunk_idx); // One file now compacted
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
-
-    read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx + 1);
-    // Compacted file is opened in read cache
+    read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
+    // Compacted file is open in read cache
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
-    ledger.compact(2 * end_of_first_chunk_idx); // One file compacted
-    REQUIRE(number_open_fd() == initial_number_fd + chunk_count );
-    // Compacted file is opened in read cache
+    ledger.compact(2 * end_of_first_chunk_idx); // Two files now compacted
+    REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
     read_entries_range_from_ledger(ledger, 1, 2 * end_of_first_chunk_idx);
+    // Two compacted files open in read cache
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
     ledger.compact(last_idx); // All but one file compacted
     // One file open for write, two files open for read
     REQUIRE(number_open_fd() == initial_number_fd + 3);
-    // All files are open for read
+
     read_entries_range_from_ledger(ledger, 1, last_idx);
-    REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
+    // Number of open files is capped by size of read cache
+    REQUIRE(number_open_fd() == initial_number_fd + 1 + max_read_cache_size);
+
+    // Reading out of order succeeds
+    read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
+    read_entries_range_from_ledger(
+      ledger, 2 * end_of_first_chunk_idx, 3 * end_of_first_chunk_idx);
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+    read_entries_range_from_ledger(
+      ledger, 3 * end_of_first_chunk_idx, last_idx - 1);
+    read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
   }
 
-  // auto last_idx = entry_submitter.get_last_idx();
-  // read_entries_range_from_ledger(ledger, 1, last_idx);
+  INFO("Close and compact latest file");
+  {
+    entry_submitter.write(true);
+    entry_submitter.write(true);
+    last_idx = entry_submitter.get_last_idx();
+    ledger.compact(last_idx);
 
-  LOG_DEBUG_FMT("Final number of fd: {}", number_open_fd());
+    read_entries_range_from_ledger(ledger, 1, last_idx);
+    REQUIRE(number_open_fd() == initial_number_fd + max_read_cache_size);
+  }
+
+  INFO("Still possible to recover a new ledger");
+  {
+    initial_number_fd = number_open_fd();
+    asynchost::MultipleLedger ledger2(
+      ledger_dir, wf, chunk_threshold, max_read_cache_size);
+
+    // Compacted files are not open for write
+    REQUIRE(number_open_fd() == initial_number_fd);
+
+    read_entries_range_from_ledger(ledger2, 1, last_idx);
+    REQUIRE(number_open_fd() == initial_number_fd + max_read_cache_size);
+  }
 }
