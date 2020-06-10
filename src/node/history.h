@@ -362,6 +362,41 @@ namespace ccf
       mt_serialize(tree, output.data(), output.capacity());
       return output;
     }
+
+    uint64_t get_first_index()
+    {
+      return tree->offset + tree->i;
+    }
+
+    uint64_t get_last_index()
+    {
+      return tree->offset + tree->j - 1;
+    }
+
+    bool in_range(uint64_t index)
+    {
+      return index >= get_first_index() && index <= get_last_index();
+    }
+
+    crypto::Sha256Hash get_hash(uint64_t index)
+    {
+      if (!in_range(index))
+      {
+        throw std::logic_error("Cannot get hash for out-of-range index");
+      }
+
+      return {};
+    }
+
+    void print()
+    {
+      LOG_INFO_FMT(
+        "offset: {}, i: {}, j: {}, rhs_ok: {}",
+        tree->offset,
+        tree->i,
+        tree->j,
+        tree->rhs_ok);
+    }
   };
 
   template <class T>
@@ -506,9 +541,9 @@ namespace ccf
     void compact(kv::Version v) override
     {
       flush_pending();
-      if (v > MAX_HISTORY_LEN)
+      // if (v > MAX_HISTORY_LEN)
       {
-        replicated_state_tree.flush(v - MAX_HISTORY_LEN);
+        replicated_state_tree.flush(v);
       }
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
