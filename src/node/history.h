@@ -385,7 +385,39 @@ namespace ccf
         throw std::logic_error("Cannot get hash for out-of-range index");
       }
 
-      return {};
+      const auto leaves = tree->hs.vs[0];
+
+      // We flush pairs of hashes, the offset to this leaf depends on the first
+      // index's parity
+      const auto first_index = get_first_index();
+      const auto leaf_index =
+        index - first_index + (first_index % 2 == 0 ? 1 : 2);
+
+      if (leaf_index >= leaves.sz)
+      {
+        throw std::logic_error("Error in leaf offset calculation");
+      }
+
+      const auto leaf_data = leaves.vs[leaf_index];
+
+      crypto::Sha256Hash hash;
+      std::memcpy(hash.h.data(), leaf_data, hash.h.size());
+      return hash;
+    }
+
+    void print_hash(LowStar_Vector_vector_str___uint8_t_ hash)
+    {
+      LOG_INFO_FMT("sz: {}, cap: {}", hash.sz, hash.cap);
+      for (size_t i = 0; i < hash.sz; ++i)
+      {
+        LOG_INFO_FMT(
+          "{}: {:02x} {:02x} {:02x} {:02x}...",
+          i,
+          hash.vs[i][0],
+          hash.vs[i][1],
+          hash.vs[i][2],
+          hash.vs[i][3]);
+      }
     }
 
     void print()
@@ -396,6 +428,9 @@ namespace ccf
         tree->i,
         tree->j,
         tree->rhs_ok);
+
+      LOG_INFO_FMT("hs[0]:");
+      print_hash(tree->hs.vs[0]);
     }
   };
 
