@@ -33,6 +33,11 @@ namespace kv
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
+    // Generally we will only accept deserialised views if they are contiguous -
+    // at Version N we reject everything but N+1. The exception is when a Store
+    // is used for historical queries, where it may deserialise arbitrary
+    // transactions. In this case the Store is a useful container for a set of
+    // Tables, but its versioning invariants are ignored.
     const bool strict_versions = true;
 
     DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
