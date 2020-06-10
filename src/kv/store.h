@@ -275,7 +275,7 @@ namespace kv
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr,
+      Term* term_ = nullptr,
       ViewContainer* tx = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
@@ -400,7 +400,7 @@ namespace kv
               return DeserialiseSuccess::FAILED;
             }
 
-            if (!h->verify(term))
+            if (!h->verify(term_))
             {
               LOG_FAIL_FMT("Failed to deserialize");
               LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
@@ -527,7 +527,7 @@ namespace kv
         std::lock_guard<SpinLock> vguard(version_lock);
         // This can happen when a transaction started before a view change,
         // but tries to commit after the view change is complete.
-        LOG_DEBUG_FMT("Want to commit {} but term is {}", txid.term, term);
+        LOG_DEBUG_FMT("Want to commit for term {}, term is {}", txid.term, term);
         if (txid.term != term)
           return CommitSuccess::NO_REPLICATE;
 
