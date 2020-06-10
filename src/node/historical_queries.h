@@ -188,6 +188,7 @@ namespace ccf::historical
           catch (const std::exception& e)
           {
             // This signature doesn't cover this untrusted idx, try the next
+            // request
             ++it;
             continue;
           }
@@ -335,15 +336,10 @@ namespace ccf::historical
         }
       }
 
-      const auto it =
-        std::find(pending_fetches.begin(), pending_fetches.end(), idx);
-      if (it != pending_fetches.end())
-      {
-        // The host failed or refused to give this entry. Currently just forget
-        // about it - don't have a mechanism for remembering this failure and
-        // reporting it to users.
-        pending_fetches.erase(it);
-      }
+      // The host failed or refused to give this entry. Currently just forget
+      // about it - don't have a mechanism for remembering this failure and
+      // reporting it to users.
+      pending_fetches.erase(idx);
     }
   };
 }
