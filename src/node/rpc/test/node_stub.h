@@ -3,6 +3,7 @@
 #pragma once
 
 #include "node/rpc/node_interface.h"
+#include "node/rpc/notifier_interface.h"
 #include "node/share_manager.h"
 
 namespace ccf

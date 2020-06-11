@@ -212,11 +212,11 @@ void populate_entries(
   while (true)
   {
     auto ret = consensus->pop_oldest_data();
-    if (!ret.second)
+    if (!ret.has_value())
     {
       break;
     }
-    entries.emplace_back(ret.first);
+    entries.emplace_back(ret.value());
   }
 }
 
@@ -638,8 +638,8 @@ TEST_CASE("Verify prepare proof")
       prepare_node_info.general_info.principal_info[0]);
 
     auto ret = consensus->pop_oldest_data();
-    REQUIRE(ret.second); // deserialized OK
-    auto second_pre_prepare = deserialize_pre_prepare(ret.first, pbft_state);
+    REQUIRE(ret.has_value());
+    auto second_pre_prepare = deserialize_pre_prepare(ret.value(), pbft_state);
     // validate the signature in the proof here
 
     Prepared_cert new_node_prepared_cert;

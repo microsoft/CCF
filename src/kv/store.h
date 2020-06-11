@@ -34,6 +34,13 @@ namespace kv
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
+    // Generally we will only accept deserialised views if they are contiguous -
+    // at Version N we reject everything but N+1. The exception is when a Store
+    // is used for historical queries, where it may deserialise arbitrary
+    // transactions. In this case the Store is a useful container for a set of
+    // Tables, but its versioning invariants are ignored.
+    const bool strict_versions = true;
+
     DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
     {
       auto c = apply_views(views, [v]() { return v; });
@@ -64,7 +71,7 @@ namespace kv
       }
     }
 
-    Store() {}
+    Store(bool strict_versions_ = true) : strict_versions(strict_versions_) {}
 
     Store(
       const ReplicateType& replicate_type_,
@@ -108,7 +115,7 @@ namespace kv
     }
 
     template <class K, class V>
-    Map<K, V>* get(std::string name)
+    Map<K, V>* get(const std::string& name)
     {
       return get<Map<K, V>>(name);
     }
@@ -120,7 +127,7 @@ namespace kv
      * @return Map
      */
     template <class M>
-    M* get(std::string name)
+    M* get(const std::string& name)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -136,6 +143,21 @@ namespace kv
       }
 
       return nullptr;
+    }
+
+    /** Get Map by type and name
+     *
+     * Using type and name of other Map, retrieve the equivalent Map from this
+     * Store
+     *
+     * @param other Other map
+     *
+     * @return Map
+     */
+    template <class M>
+    M* get(const M& other)
+    {
+      return get<M>(other.get_name());
     }
 
     /** Create a Map
@@ -309,13 +331,16 @@ namespace kv
       // consensus.
       rollback(v - 1);
 
-      // Make sure this is the next transaction.
-      auto cv = current_version();
-      if (cv != (v - 1))
+      if (strict_versions)
       {
-        LOG_FAIL_FMT(
-          "Tried to deserialise {} but current_version is {}", v, cv);
-        return DeserialiseSuccess::FAILED;
+        // Make sure this is the next transaction.
+        auto cv = current_version();
+        if (cv != (v - 1))
+        {
+          LOG_FAIL_FMT(
+            "Tried to deserialise {} but current_version is {}", v, cv);
+          return DeserialiseSuccess::FAILED;
+        }
       }
 
       // Deserialised transactions express read dependencies as versions,
@@ -384,31 +409,35 @@ namespace kv
         {
           return success;
         }
-        auto h = get_history();
-        if (h)
-        {
-          auto search = views.find("ccf.signatures");
-          if (search != views.end())
-          {
-            // Transactions containing a signature must only contain
-            // a signature and must be verified
-            if (views.size() > 1)
-            {
-              LOG_FAIL_FMT("Failed to deserialize");
-              LOG_DEBUG_FMT(
-                "Unexpected contents in signature transaction {}", v);
-              return DeserialiseSuccess::FAILED;
-            }
 
+        auto h = get_history();
+
+        auto search = views.find("ccf.signatures");
+        if (search != views.end())
+        {
+          // Transactions containing a signature must only contain
+          // a signature and must be verified
+          if (views.size() > 1)
+          {
+            LOG_FAIL_FMT("Failed to deserialize");
+            LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
+            return DeserialiseSuccess::FAILED;
+          }
+
+          if (h)
+          {
             if (!h->verify(term_))
             {
               LOG_FAIL_FMT("Failed to deserialize");
               LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
               return DeserialiseSuccess::FAILED;
             }
-            success = DeserialiseSuccess::PASS_SIGNATURE;
           }
+          success = DeserialiseSuccess::PASS_SIGNATURE;
+        }
 
+        if (h)
+        {
           h->append(data.data(), data.size());
         }
       }
