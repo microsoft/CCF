@@ -174,7 +174,7 @@ namespace ccf::historical
           tree.in_range(untrusted_idx))
         {
           // Compare signed hash, from signature mini-tree, with hash of the
-          // entry used to populate the store
+          // entry which was used to populate the store
           const auto& untrusted_hash = request.entry_hash;
           const auto trusted_hash = tree.get_leaf(untrusted_idx);
           if (trusted_hash != untrusted_hash)
