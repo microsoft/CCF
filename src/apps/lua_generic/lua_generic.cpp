@@ -208,7 +208,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, AbstractNotifier& notifier)
+    NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
     return std::make_shared<Lua>(network);
   }
