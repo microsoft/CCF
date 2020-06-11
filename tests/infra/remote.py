@@ -66,15 +66,15 @@ def log_errors(out_path, err_path):
             for line in lines:
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
-                # if any(x in stripped_line for x in error_filter):
-                # LOG.error("{}: {}".format(out_path, stripped_line))
-                # error_lines.append(stripped_line)
+                if any(x in stripped_line for x in error_filter):
+                    LOG.error("{}: {}".format(out_path, stripped_line))
+                    error_lines.append(stripped_line)
         if error_lines:
             LOG.info(
                 "{} errors found, printing end of output for context:", len(error_lines)
             )
-            # for line in tail_lines:
-            # LOG.info(line)
+            for line in tail_lines:
+                LOG.info(line)
     except IOError:
         LOG.exception("Could not check output {} for errors".format(out_path))
 
@@ -745,6 +745,7 @@ class CCFRemote(object):
         return os.path.join(self.common_dir, self.ledger_dir_name)
 
     def ledger_path(self):
+        # TODO: Only works with one chunk for now
         return os.path.join(self.remote.root, self.ledger_dir_name)
 
 

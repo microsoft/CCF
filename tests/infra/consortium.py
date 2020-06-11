@@ -414,6 +414,7 @@ class Consortium:
             if r.error is not None or (
                 node_status and r.result["status"] != node_status.name
             ):
+                LOG.error("Return false")
                 return False
 
         return True

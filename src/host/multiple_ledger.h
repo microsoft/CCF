@@ -460,10 +460,6 @@ namespace asynchost
     size_t last_idx = 0;
     size_t compacted_idx = 0;
 
-    // If true, the chunk that is rolled back will be completed (for recovery
-    // only)
-    bool complete_on_compact = false;
-
     // True if a new file should be created when writing an entry
     bool require_new_file;
 
@@ -814,22 +810,12 @@ namespace asynchost
                                            get_it_contains_idx(compacted_idx);
       auto f_to = get_it_contains_idx(idx);
       auto f_end = std::next(f_to);
-      LOG_FAIL_FMT("Number of ledgers: {}", std::distance(f_from, f_to) + 1);
 
       for (auto it = f_from; it != f_end;)
       {
         // Compact all previous file to their latest index while the latest
         // file is compacted to the compaction index
         auto compact_idx = (it == f_to) ? idx : (*it)->get_last_idx();
-
-        // // TODO: On recovery, we may have a non-completed chunk that requires
-        // // completion.
-        // if (complete_on_compact)
-        // {
-        //   (*it)->complete();
-        //   complete_on_compact = false;
-        // }
-
         if (
           (*it)->compact(compact_idx) &&
           (it != f_to || (idx == (*it)->get_last_idx())))

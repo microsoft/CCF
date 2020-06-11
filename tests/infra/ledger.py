@@ -8,6 +8,7 @@ GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
 LEDGER_TRANSACTION_SIZE = 4
 LEDGER_DOMAIN_SIZE = 8
+LEDGER_HEADER_SIZE = 8
 
 
 def to_uint_32(buffer):
@@ -92,7 +93,7 @@ class Transaction:
     _file = None
     _total_size = 0
     _public_domain_size = 0
-    _next_offset = 0
+    _next_offset = LEDGER_HEADER_SIZE
     _public_domain = None
     _file_size = 0
     gcm_header = None
