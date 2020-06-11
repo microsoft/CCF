@@ -157,7 +157,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Minimum size (bytes) at which a new ledger chunk is created. Value is used as a "
         "shift factor, ie - given N, the limit is (1 << N)",
         type=int,
-        default=20,  # 1 MB chunks by default
+        default=23,  # 8 MB chunks by default
     )
 
     add(parser)

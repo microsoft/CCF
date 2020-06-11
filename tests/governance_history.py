@@ -62,10 +62,10 @@ def run(args):
         primary, _ = network.find_primary()
 
         ledger_directory = network.find_primary()[0].remote.ledger_path()
+        # For now, this test only works with one ledger file
         for l in os.listdir(ledger_directory):
             if l.endswith("_1"):
                 ledger_filename = os.path.join(ledger_directory, l)
-        LOG.error(ledger_filename)
         ledger = infra.ledger.Ledger(ledger_filename)
         (
             original_proposals,

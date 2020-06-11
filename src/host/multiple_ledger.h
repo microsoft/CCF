@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <limits>
 #include <list>
 #include <map>
 #include <string>
@@ -20,7 +21,9 @@ namespace fs = std::filesystem;
 
 namespace asynchost
 {
-  static constexpr auto max_read_cache_size_default = 5;
+  static constexpr size_t max_chunk_threshold_size =
+    std::numeric_limits<uint32_t>::max(); // 4GB
+  static constexpr size_t max_read_cache_size_default = 5;
   static constexpr auto ledger_committed_suffix = ".committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
 
@@ -30,7 +33,6 @@ namespace asynchost
     return !(pos == std::string::npos);
   }
 
-  // TODO: This will not work once the file is committed
   static inline size_t get_start_idx_from_file_name(
     const std::string& file_name)
   {
@@ -57,9 +59,7 @@ namespace asynchost
 
     size_t start_idx = 1;
     size_t total_len = 0;
-    std::vector<size_t>
-      positions; // TODO: Should this be uint32_t as this
-                 // makes the positions table big at the end of the file?
+    std::vector<uint32_t> positions;
 
     // This uses C stdio instead of fstream because an fstream
     // cannot be truncated.
@@ -612,10 +612,11 @@ namespace asynchost
       to_enclave(writer_factory.create_writer_to_inside()),
       max_read_cache_size(max_read_cache_size)
     {
-      if (chunk_threshold == 0)
+      if (chunk_threshold == 0 || chunk_threshold > max_chunk_threshold_size)
       {
-        throw std::logic_error(
-          "Error: Cannot create ledger with chunk threshold of 0");
+        throw std::logic_error(fmt::format(
+          "Error: Ledger chunk threshold should be between 1-{}",
+          max_chunk_threshold_size));
       }
 
       if (fs::is_directory(ledger_dir))

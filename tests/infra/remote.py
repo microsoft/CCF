@@ -745,7 +745,6 @@ class CCFRemote(object):
         return os.path.join(self.common_dir, self.ledger_dir_name)
 
     def ledger_path(self):
-        # TODO: Only works with one chunk for now
         return os.path.join(self.remote.root, self.ledger_dir_name)
 
 

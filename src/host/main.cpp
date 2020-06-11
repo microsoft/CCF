@@ -121,7 +121,7 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
-  size_t ledger_chunk_threshold = 4;
+  size_t ledger_chunk_threshold = 23; // ~8MB
   app
     .add_option(
       "--ledger-chunk-threshold",
