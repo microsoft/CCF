@@ -62,13 +62,14 @@ class FakeSocket:
 
 
 class Response:
-    def __init__(self, status, result, error, seqno, view, global_commit):
+    def __init__(self, status, result, error, seqno, view, global_commit, headers):
         self.status = status
         self.result = result
         self.error = error
         self.seqno = seqno
         self.view = view
         self.global_commit = global_commit
+        self.headers = headers
 
     def to_dict(self):
         d = {
@@ -101,6 +102,7 @@ class Response:
             seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
+            headers=rr.headers,
         )
 
     @staticmethod
@@ -128,6 +130,7 @@ class Response:
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
+            headers=response.headers,
         )
 
 
@@ -415,7 +418,7 @@ class WSClient:
         else:
             result = None
             error = payload.decode()
-        return Response(status, result, error, seqno, view, global_commit)
+        return Response(status, result, error, seqno, view, global_commit, headers={})
 
 
 class CCFClient:

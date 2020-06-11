@@ -123,10 +123,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.virtual
-    PUBLIC -stdlib=libc++
-           -lc++
-           -lc++abi
-           -lc++fs
+    PUBLIC ${LINK_LIBCXX}
            -static-libgcc
            -lgcc
            ccfcrypto.host
@@ -258,6 +255,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
     )
@@ -308,6 +306,11 @@ if(BUILD_TESTS)
     )
     use_client_mbedtls(encryptor_test)
     target_link_libraries(encryptor_test PRIVATE secp256k1.host)
+
+    add_unit_test(
+      historical_queries_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+    )
+    target_link_libraries(historical_queries_test PRIVATE secp256k1.host)
 
     add_unit_test(
       msgpack_serialization_test
@@ -449,6 +452,9 @@ if(BUILD_TESTS)
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
+  add_picobench(
+    hash_bench SRCS src/ds/test/hash_bench.cpp
+  )
 
   # Storing signed governance operations
   add_e2e_test(
@@ -551,6 +557,12 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME suspend_nodes_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
+    CONSENSUS pbft
+  )
+
+  add_e2e_test(
+    NAME replay_new_view_pbft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
     CONSENSUS pbft
   )
 

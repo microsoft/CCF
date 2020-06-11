@@ -76,7 +76,7 @@ private:
 
 inline Checkpoint_rep& Checkpoint::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Checkpoint_rep*)msg);
 }
 
@@ -102,6 +102,6 @@ inline bool Checkpoint::stable() const
 
 inline bool Checkpoint::match(const Checkpoint* c) const
 {
-  PBFT_ASSERT(seqno() == c->seqno(), "Invalid argument");
+  CCF_ASSERT(seqno() == c->seqno(), "Invalid argument");
   return digest() == c->digest();
 }

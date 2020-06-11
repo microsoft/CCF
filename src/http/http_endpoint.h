@@ -125,7 +125,8 @@ namespace http
           }
           catch (const std::exception& e)
           {
-            LOG_FAIL_FMT("Error parsing request: {}", e.what());
+            LOG_FAIL_FMT("Error parsing request");
+            LOG_DEBUG_FMT("Error parsing request: {}", e.what());
             close();
             break;
           }

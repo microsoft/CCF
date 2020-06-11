@@ -8,6 +8,7 @@
 #include "enclave_time.h"
 #include "interface.h"
 #include "node/entities.h"
+#include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
 #include "node/nodetypes.h"
@@ -29,7 +30,6 @@ namespace enclave
     ccf::NetworkState network;
     ccf::ShareManager share_manager;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    ccf::Notifier notifier;
     ccf::Timers timers;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
@@ -39,6 +39,27 @@ namespace enclave
     CCFConfig ccf_config;
     StartType start_type;
     ConsensusType consensus_type;
+
+    struct NodeContext : public ccfapp::AbstractNodeContext
+    {
+      ccf::Notifier notifier;
+      ccf::historical::StateCache historical_state_cache;
+
+      NodeContext(ccf::Notifier&& n, ccf::historical::StateCache&& hsc) :
+        notifier(std::move(n)),
+        historical_state_cache(std::move(hsc))
+      {}
+
+      ccf::AbstractNotifier& get_notifier() override
+      {
+        return notifier;
+      }
+
+      ccf::historical::AbstractStateCache& get_historical_state() override
+      {
+        return historical_state_cache;
+      }
+    } context;
 
   public:
     Enclave(
@@ -51,15 +72,23 @@ namespace enclave
       writer_factory(basic_writer_factory, enclave_config->writer_config),
       network(consensus_type_),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
-      notifier(writer_factory),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       share_manager(network),
       node(
-        writer_factory, network, rpcsessions, notifier, timers, share_manager),
+        writer_factory,
+        network,
+        rpcsessions,
+        context.notifier,
+        timers,
+        share_manager),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
-      consensus_type(consensus_type_)
+      consensus_type(consensus_type_),
+      context(
+        ccf::Notifier(writer_factory),
+        ccf::historical::StateCache(
+          *network.tables, writer_factory.create_writer_to_outside()))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
@@ -70,7 +99,7 @@ namespace enclave
         std::make_unique<ccf::MemberRpcFrontend>(network, node, share_manager));
 
       REGISTER_FRONTEND(
-        rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
+        rpc_map, users, ccfapp::get_rpc_handler(network, context));
 
       REGISTER_FRONTEND(
         rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));
@@ -221,22 +250,55 @@ namespace enclave
           bp,
           consensus::ledger_entry,
           [this](const uint8_t* data, size_t size) {
-            auto [body] =
+            const auto [index, purpose, body] =
               ringbuffer::read_message<consensus::ledger_entry>(data, size);
-            if (node.is_reading_public_ledger())
-              node.recover_public_ledger_entry(body);
-            else if (node.is_reading_private_ledger())
-              node.recover_private_ledger_entry(body);
-            else
-              LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+            switch (purpose)
+            {
+              case consensus::LedgerRequestPurpose::Recovery:
+              {
+                if (node.is_reading_public_ledger())
+                  node.recover_public_ledger_entry(body);
+                else if (node.is_reading_private_ledger())
+                  node.recover_private_ledger_entry(body);
+                else
+                  LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+                break;
+              }
+              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              {
+                context.historical_state_cache.handle_ledger_entry(index, body);
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+              }
+            }
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
           consensus::ledger_no_entry,
           [this](const uint8_t* data, size_t size) {
-            ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
-            node.recover_ledger_end();
+            const auto [index, purpose] =
+              ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
+            switch (purpose)
+            {
+              case consensus::LedgerRequestPurpose::Recovery:
+              {
+                node.recover_ledger_end();
+                break;
+              }
+              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              {
+                context.historical_state_cache.handle_no_entry(index);
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+              }
+            }
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());

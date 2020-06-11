@@ -5,8 +5,8 @@
 
 #pragma once
 
+#include "ds/ccf_assert.h"
 #include "parameters.h"
-#include "pbft_assert.h"
 #include "types.h"
 
 #include <iostream>
@@ -91,7 +91,7 @@ void Log<T>::clear(Seqno h)
 template <class T>
 T& Log<T>::fetch(Seqno seqno)
 {
-  PBFT_ASSERT(within_range(seqno), "Invalid argument\n");
+  CCF_ASSERT(within_range(seqno), "Invalid argument");
   return elems[seqno];
 }
 

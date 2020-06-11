@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "current_term": {
+    "current_view": {
       "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "integer"
@@ -22,8 +22,8 @@
     "primary_id",
     "primary_host",
     "primary_port",
-    "current_term"
+    "current_view"
   ],
-  "title": "getPrimaryInfo/result",
+  "title": "primary_info/result",
   "type": "object"
 }

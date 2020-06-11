@@ -220,7 +220,7 @@ private:
 
 inline Status_rep& Status::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Status_rep*)msg);
 }
 
@@ -270,22 +270,22 @@ inline bool Status::test(Seqno n, char* set)
 
 inline void Status::mark_prepared(Seqno n)
 {
-  PBFT_ASSERT(has_nv_info(), "Invalid state");
+  CCF_ASSERT(has_nv_info(), "Invalid state");
   mark(n, prepared());
 }
 
 inline void Status::mark_committed(Seqno n)
 {
-  PBFT_ASSERT(has_nv_info(), "Invalid state");
+  CCF_ASSERT(has_nv_info(), "Invalid state");
   mark(n, committed());
 }
 
 inline void Status::add_breqs(Seqno n, const BR_map& brs)
 {
-  PBFT_ASSERT(has_nv_info(), "Invalid state");
-  PBFT_ASSERT(
+  CCF_ASSERT(has_nv_info(), "Invalid state");
+  CCF_ASSERT(
     n > last_executed() && n <= last_stable() + max_out, "Invalid arguments");
-  PBFT_ASSERT(
+  CCF_ASSERT(
     (char*)(breqs() + rep().brsz) < contents() + Max_message_size,
     "Message too small");
 
@@ -326,20 +326,20 @@ inline Seqno Status::last_executed() const
 
 inline bool Status::is_prepared(Seqno n)
 {
-  PBFT_ASSERT(has_nv_info(), "Invalid state");
+  CCF_ASSERT(has_nv_info(), "Invalid state");
   return test(n, prepared());
 }
 
 inline bool Status::is_committed(Seqno n)
 {
-  PBFT_ASSERT(has_nv_info(), "Invalid state");
+  CCF_ASSERT(has_nv_info(), "Invalid state");
   return test(n, committed());
 }
 
 inline bool Status::has_vc(int i)
 {
-  PBFT_ASSERT(!has_nv_info(), "Invalid state");
-  PBFT_ASSERT(
+  CCF_ASSERT(!has_nv_info(), "Invalid state");
+  CCF_ASSERT(
     i >= 0 && i < Status_rep::vcs_size * BYTE_BITS, "Invalid argument");
   return Bits_test(vcs(), i);
 }

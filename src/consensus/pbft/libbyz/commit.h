@@ -83,7 +83,7 @@ private:
 
 inline Commit_rep& Commit::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Commit_rep*)msg);
 }
 
@@ -104,6 +104,6 @@ inline int Commit::id() const
 
 inline bool Commit::match(const Commit* c) const
 {
-  PBFT_ASSERT(view() == c->view() && seqno() == c->seqno(), "Invalid argument");
+  CCF_ASSERT(view() == c->view() && seqno() == c->seqno(), "Invalid argument");
   return true;
 }

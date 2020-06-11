@@ -33,6 +33,13 @@ namespace kv
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
 
+    // Generally we will only accept deserialised views if they are contiguous -
+    // at Version N we reject everything but N+1. The exception is when a Store
+    // is used for historical queries, where it may deserialise arbitrary
+    // transactions. In this case the Store is a useful container for a set of
+    // Tables, but its versioning invariants are ignored.
+    const bool strict_versions = true;
+
     DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
     {
       auto c = apply_views(views, [v]() { return v; });
@@ -50,20 +57,20 @@ namespace kv
     }
 
   public:
-    void clone_schema(Store& target)
+    void clone_schema(Store& from)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       if ((maps.size() != 0) || (version != 0))
         throw std::logic_error("Cannot clone schema on a non-empty store");
 
-      for (auto& [name, map] : target.maps)
+      for (auto& [name, map] : from.maps)
       {
         maps[name] = std::unique_ptr<AbstractMap>(map->clone(this));
       }
     }
 
-    Store() {}
+    Store(bool strict_versions_ = true) : strict_versions(strict_versions_) {}
 
     Store(
       const ReplicateType& replicate_type_,
@@ -106,10 +113,10 @@ namespace kv
       return encryptor;
     }
 
-    template <class K, class V, class H = std::hash<K>>
-    Map<K, V, H>* get(std::string name)
+    template <class K, class V>
+    Map<K, V>* get(const std::string& name)
     {
-      return get<Map<K, V, H>>(name);
+      return get<Map<K, V>>(name);
     }
 
     /** Get Map by name
@@ -119,7 +126,7 @@ namespace kv
      * @return Map
      */
     template <class M>
-    M* get(std::string name)
+    M* get(const std::string& name)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -137,6 +144,21 @@ namespace kv
       return nullptr;
     }
 
+    /** Get Map by type and name
+     *
+     * Using type and name of other Map, retrieve the equivalent Map from this
+     * Store
+     *
+     * @param other Other map
+     *
+     * @return Map
+     */
+    template <class M>
+    M* get(const M& other)
+    {
+      return get<M>(other.get_name());
+    }
+
     /** Create a Map
      *
      * Note this call will throw a logic_error if a map by that name already
@@ -147,12 +169,12 @@ namespace kv
      *
      * @return Newly created Map
      */
-    template <class K, class V, class H = std::hash<K>>
-    Map<K, V, H>& create(
+    template <class K, class V>
+    Map<K, V>& create(
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
     {
-      return create<Map<K, V, H>>(name, security_domain);
+      return create<Map<K, V>>(name, security_domain);
     }
 
     /** Create a Map
@@ -297,18 +319,21 @@ namespace kv
         return DeserialiseSuccess::FAILED;
       }
 
-      Version v = d->template deserialise_version<Version>();
+      Version v = d->deserialise_version();
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback(v - 1);
 
-      // Make sure this is the next transaction.
-      auto cv = current_version();
-      if (cv != (v - 1))
+      if (strict_versions)
       {
-        LOG_FAIL_FMT(
-          "Tried to deserialise {} but current_version is {}", v, cv);
-        return DeserialiseSuccess::FAILED;
+        // Make sure this is the next transaction.
+        auto cv = current_version();
+        if (cv != (v - 1))
+        {
+          LOG_FAIL_FMT(
+            "Tried to deserialise {} but current_version is {}", v, cv);
+          return DeserialiseSuccess::FAILED;
+        }
       }
 
       // Deserialised transactions express read dependencies as versions,
@@ -325,38 +350,46 @@ namespace kv
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          LOG_FAIL_FMT("No such map {} at version {}", map_name, v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("No such map {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
         auto view_search = views.find(map_name);
         if (view_search != views.end())
         {
-          LOG_FAIL_FMT("Multiple writes on {} at version {}", map_name, v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("Multiple writes on {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
-        auto view = search->second->create_view(v);
         // if we are not committing now then use NoVersion to deserialise
         // otherwise the view will be considered as having a committed
         // version
         auto deserialise_version = (commit ? v : NoVersion);
-        if (!view->deserialise(*d, deserialise_version))
+        auto deserialised_write_set =
+          search->second->deserialise(*d, deserialise_version);
+        if (deserialised_write_set == nullptr)
         {
-          LOG_FAIL_FMT(
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT(
             "Could not deserialise Tx for map {} at version {}",
             map_name,
             deserialise_version);
           return DeserialiseSuccess::FAILED;
         }
 
-        views[map_name] = {search->second.get(),
-                           std::unique_ptr<AbstractTxView>(view)};
+        // Take ownership of the produced write set, store it to be committed
+        // later
+        views[map_name] = {
+          search->second.get(),
+          std::unique_ptr<AbstractTxView>(deserialised_write_set)};
       }
 
       if (!d->end())
       {
-        LOG_FAIL_FMT("Unexpected content in Tx at version {}", v);
+        LOG_FAIL_FMT("Failed to deserialize");
+        LOG_DEBUG_FMT("Unexpected content in Tx at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
 
@@ -369,29 +402,35 @@ namespace kv
         {
           return success;
         }
-        auto h = get_history();
-        if (h)
-        {
-          auto search = views.find("ccf.signatures");
-          if (search != views.end())
-          {
-            // Transactions containing a signature must only contain
-            // a signature and must be verified
-            if (views.size() > 1)
-            {
-              LOG_FAIL_FMT(
-                "Unexpected contents in signature transaction {}", v);
-              return DeserialiseSuccess::FAILED;
-            }
 
-            if (!h->verify(term))
-            {
-              LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
-              return DeserialiseSuccess::FAILED;
-            }
-            success = DeserialiseSuccess::PASS_SIGNATURE;
+        auto h = get_history();
+
+        auto search = views.find("ccf.signatures");
+        if (search != views.end())
+        {
+          // Transactions containing a signature must only contain
+          // a signature and must be verified
+          if (views.size() > 1)
+          {
+            LOG_FAIL_FMT("Failed to deserialize");
+            LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
+            return DeserialiseSuccess::FAILED;
           }
 
+          if (h)
+          {
+            if (!h->verify(term))
+            {
+              LOG_FAIL_FMT("Failed to deserialize");
+              LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
+              return DeserialiseSuccess::FAILED;
+            }
+          }
+          success = DeserialiseSuccess::PASS_SIGNATURE;
+        }
+
+        if (h)
+        {
           h->append(data.data(), data.size());
         }
       }
@@ -401,7 +440,8 @@ namespace kv
         // contain anything else
         if (views.size() > 1)
         {
-          LOG_FAIL_FMT("Unexpected contents in pbft transaction {}", v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("Unexpected contents in pbft transaction {}", v);
           return DeserialiseSuccess::FAILED;
         }
 

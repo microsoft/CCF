@@ -120,16 +120,16 @@ namespace ws
           size_t s = data.size();
 
           auto status = serialized::read<uint16_t>(buf, s);
-          auto commit = serialized::read<size_t>(buf, s);
-          auto term = serialized::read<size_t>(buf, s);
+          auto seqno = serialized::read<size_t>(buf, s);
+          auto view = serialized::read<size_t>(buf, s);
           auto global_commit = serialized::read<size_t>(buf, s);
 
           std::vector<uint8_t> body(buf, buf + s);
 
           proc.handle_response(
             (http_status)status,
-            {{http::headers::CCF_TX_SEQNO, fmt::format("{}", commit)},
-             {http::headers::CCF_TX_VIEW, fmt::format("{}", term)},
+            {{http::headers::CCF_TX_SEQNO, fmt::format("{}", seqno)},
+             {http::headers::CCF_TX_VIEW, fmt::format("{}", view)},
              {http::headers::CCF_GLOBAL_COMMIT,
               fmt::format("{}", global_commit)}},
             std::move(body));

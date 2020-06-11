@@ -102,7 +102,7 @@ On a machine without SGX, you can instead run:
 .. code-block:: bash
 
     $ cd CCF/getting_started/setup_vm
-    $ ./run.sh driver.yml ccf-dev.yml
+    $ ./run.sh ccf-dev.yml
 
 .. _OpenEnclave: https://github.com/openenclave/openenclave
 .. _mbedtls: https://tls.mbed.org/

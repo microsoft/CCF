@@ -1,10 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "consensus/pbft/libbyz/cycle_counter.h"
 #include "consensus/pbft/libbyz/itimer.h"
 #include "consensus/pbft/libbyz/message.h"
-#include "consensus/pbft/libbyz/statistics.h"
 #include "consensus/pbft/libbyz/time_types.h"
 #include "consensus/pbft/libbyz/types.h"
 #include "node/node_to_node.h"
@@ -156,19 +154,3 @@ bool less_than_time(Time t1, Time t2)
 {
   return t1 < t2;
 }
-
-Statistics::Statistics() : rec_stats(20) {}
-
-void Statistics::zero_stats() {}
-
-void Statistics::print_stats() {}
-
-Recovery_stats::Recovery_stats() {}
-
-void Statistics::init_rec_stats() {}
-
-void Statistics::end_rec_stats() {}
-
-void Recovery_stats::zero_stats() {}
-
-void Recovery_stats::print_stats() {}

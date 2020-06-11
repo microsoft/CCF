@@ -26,6 +26,7 @@ jobs:
       parameters:
         ctest_filter: ${{ parameters.ctest_filter }}
         suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }}'
+        ctest_timeout: ${{ parameters.ctest_timeout }}
 
     - ${{ if eq(parameters.suffix, 'Coverage') }}:
       - template: coverage.yml

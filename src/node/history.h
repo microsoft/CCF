@@ -203,12 +203,28 @@ namespace ccf
     uint64_t index;
     uint32_t max_index;
     crypto::Sha256Hash root;
-    hash_vec* path;
+
+    struct Path
+    {
+      hash_vec* raw;
+
+      Path()
+      {
+        raw = init_path();
+      }
+
+      ~Path()
+      {
+        free_path(raw);
+      }
+    };
+
+    std::shared_ptr<Path> path;
 
   public:
     Receipt()
     {
-      path = init_path();
+      path = std::make_shared<Path>();
     }
 
     static Receipt from_v(const std::vector<uint8_t>& v)
@@ -223,7 +239,7 @@ namespace ccf
       s -= r.root.h.size();
       for (size_t i = 0; i < s; i += r.root.SIZE)
       {
-        path_insert(r.path, const_cast<uint8_t*>(buf + i));
+        path_insert(r.path->raw, const_cast<uint8_t*>(buf + i));
       }
       return r;
     }
@@ -231,44 +247,40 @@ namespace ccf
     Receipt(merkle_tree* tree, uint64_t index_)
     {
       index = index_;
-      path = init_path();
+      path = std::make_shared<Path>();
 
-      if (!mt_get_path_pre(tree, index, path, root.h.data()))
+      if (!mt_get_path_pre(tree, index, path->raw, root.h.data()))
       {
-        free_path(path);
         throw std::logic_error("Precondition to mt_get_path violated");
       }
 
-      max_index = mt_get_path(tree, index, path, root.h.data());
+      max_index = mt_get_path(tree, index, path->raw, root.h.data());
     }
 
     bool verify(merkle_tree* tree) const
     {
-      if (!mt_verify_pre(tree, index, max_index, path, (uint8_t*)root.h.data()))
+      if (!mt_verify_pre(
+            tree, index, max_index, path->raw, (uint8_t*)root.h.data()))
       {
         throw std::logic_error("Precondition to mt_verify violated");
       }
 
-      return mt_verify(tree, index, max_index, path, (uint8_t*)root.h.data());
-    }
-
-    ~Receipt()
-    {
-      free_path(path);
+      return mt_verify(
+        tree, index, max_index, path->raw, (uint8_t*)root.h.data());
     }
 
     std::vector<uint8_t> to_v() const
     {
       size_t vs = sizeof(index) + sizeof(max_index) + root.h.size() +
-        (root.h.size() * path->sz);
+        (root.h.size() * path->raw->sz);
       std::vector<uint8_t> v(vs);
       uint8_t* buf = v.data();
       serialized::write(buf, vs, index);
       serialized::write(buf, vs, max_index);
       serialized::write(buf, vs, root.h.data(), root.h.size());
-      for (size_t i = 0; i < path->sz; ++i)
+      for (size_t i = 0; i < path->raw->sz; ++i)
       {
-        serialized::write(buf, vs, *(path->vs + i), root.h.size());
+        serialized::write(buf, vs, *(path->raw->vs + i), root.h.size());
       }
       return v;
     }
@@ -298,9 +310,9 @@ namespace ccf
       mt_free(tree);
     }
 
-    void append(const crypto::Sha256Hash& hash)
+    void append(crypto::Sha256Hash& hash)
     {
-      uint8_t* h = const_cast<uint8_t*>(hash.h.data());
+      uint8_t* h = hash.h.data();
       if (!mt_insert_pre(tree, h))
       {
         throw std::logic_error("Precondition to mt_insert violated");
@@ -476,7 +488,7 @@ namespace ccf
       auto sig_value = sig.value();
       if (term)
       {
-        *term = sig_value.term;
+        *term = sig_value.view;
       }
 
       auto ni = ni_tv->get(sig_value.node);
@@ -526,13 +538,17 @@ namespace ccf
       {
         auto version = store.next_version();
         auto view = consensus->get_view();
-        auto commit = consensus->get_commit_seqno();
+        auto commit_txid = consensus->get_committed_txid();
         LOG_DEBUG_FMT("Issuing signature at {}", version);
         LOG_DEBUG_FMT(
-          "Signed at {} view: {} commit: {}", version, view, commit);
+          "Signed at {} in view: {} commit was: {}.{}",
+          version,
+          view,
+          commit_txid.first,
+          commit_txid.second);
         store.commit(
           version,
-          [version, view, commit, this]() {
+          [version, view, commit_txid, this]() {
             kv::Tx sig(version);
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
@@ -540,7 +556,8 @@ namespace ccf
               id,
               version,
               view,
-              commit,
+              commit_txid.second,
+              commit_txid.first,
               root,
               kp.sign_hash(root.h.data(), root.h.size()),
               replicated_state_tree.serialise());

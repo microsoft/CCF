@@ -121,7 +121,7 @@ class LoggingTxs:
                             TimeoutError,
                             infra.clients.CCFConnectionException,
                         ):
-                            LOG.warning("Network is unavailable")
+                            LOG.debug("Network is unavailable")
                             if not ignore_failures:
                                 raise
 

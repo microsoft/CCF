@@ -69,6 +69,9 @@ public:
   // view "v", and sends view-change acks for any logged view-change
   // messages from other replicas with view "v".
 
+  void set_new_view(View v);
+  // during playback sets the new view to v and marks the view as complete
+
   //
   // Handling received messages:
   //
@@ -313,7 +316,7 @@ inline bool View_info::has_nv_message(View vi) const
 
 inline View_change_ack* View_info::my_vc_ack(int id)
 {
-  PBFT_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Invalid argument");
+  CCF_ASSERT(pbft::GlobalState::get_node().is_replica(id), "Invalid argument");
   return my_vacks[id];
 }
 

@@ -91,7 +91,6 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     libcommontest STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/itimer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/time_types.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/statistics.cpp
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
 
@@ -139,9 +138,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     add_san(${name})
 
     target_compile_options(${name} PRIVATE -stdlib=libc++)
-    target_link_libraries(
-      ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi -lc++fs secp256k1.host
-    )
+    target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} secp256k1.host)
 
   endfunction()
 

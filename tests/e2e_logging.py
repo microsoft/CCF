@@ -84,8 +84,7 @@ def test_large_messages(network, args):
 
         with primary.user_client() as c:
             log_id = 44
-            # TODO: Revert max to 20 here
-            for p in range(14, 16) if args.consensus == "raft" else range(10, 13):
+            for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
                     c.rpc("LOG_record", {"id": log_id, "msg": long_msg}), result=True,
@@ -210,6 +209,78 @@ def test_raw_text(network, args):
     return network
 
 
+@reqs.description("Read historical state")
+@reqs.supports_methods("LOG_record", "LOG_get", "LOG_get_historical")
+def test_historical_query(network, args):
+    if args.consensus == "pbft":
+        LOG.warning("Skipping historical queries in PBFT")
+        return network
+
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        with primary.node_client() as nc:
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
+
+            with primary.user_client() as c:
+                log_id = 10
+                msg = "This tests historical queries"
+                record_response = c.rpc("LOG_record", {"id": log_id, "msg": msg})
+                check_commit(record_response, result=True)
+                view = record_response.view
+                seqno = record_response.seqno
+
+                msg2 = "This overwrites the original message"
+                check_commit(
+                    c.rpc("LOG_record", {"id": log_id, "msg": msg2}), result=True
+                )
+                check(c.get("LOG_get", {"id": log_id}), result={"msg": msg2})
+
+                timeout = 15
+                found = False
+                params = {"view": view, "seqno": seqno, "id": log_id}
+                end_time = time.time() + timeout
+
+                while time.time() < end_time:
+                    get_response = c.rpc("LOG_get_historical", params)
+                    if get_response.status == http.HTTPStatus.ACCEPTED:
+                        retry_after = get_response.headers.get("retry-after")
+                        if retry_after is None:
+                            raise ValueError(
+                                f"Response with status {get_response.status} is missing 'retry-after' header"
+                            )
+                        retry_after = int(retry_after)
+                        LOG.warning(f"Sleeping for {retry_after}s")
+                        time.sleep(retry_after)
+                    elif get_response.status == http.HTTPStatus.OK:
+                        assert (
+                            get_response.result == msg
+                        ), f"{get_response.body} != {msg}"
+                        found = True
+                        break
+                    elif get_response.status == http.HTTPStatus.NO_CONTENT:
+                        raise ValueError(
+                            f"Historical query response claims there was no write to {log_id} at {view}.{seqno}"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unexpected response status {get_response.status}: {get_response}"
+                        )
+
+                if not found:
+                    raise TimeoutError(
+                        f"Unable to handle historical query after {timeout}s"
+                    )
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+
+    return network
+
+
 @reqs.description("Testing forwarding on member and node frontends")
 @reqs.supports_methods("mkSign")
 @reqs.at_least_n_nodes(2)
@@ -270,12 +341,12 @@ def test_update_lua(network, args):
 
 
 @reqs.description("Check for commit of every prior transaction")
-@reqs.supports_methods("getCommit", "tx")
+@reqs.supports_methods("commit", "tx")
 def test_view_history(network, args):
     if args.consensus == "pbft":
         # This appears to work in PBFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
-        # - Since each read (eg - /tx and /getCommit) has produced writes and a unique tx ID,
+        # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
         #    there are too many IDs to test exhaustively
         # We could rectify this by making this test non-exhaustive (bisecting for view changes,
         # sampling within a view), but for now it is exhaustive and Raft-only
@@ -286,7 +357,7 @@ def test_view_history(network, args):
 
     for node in network.get_joined_nodes():
         with node.user_client() as c:
-            r = c.get("getCommit")
+            r = c.get("commit")
             check(c)
 
             commit_view = r.view
@@ -425,7 +496,7 @@ def test_tx_statuses(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
@@ -440,23 +511,24 @@ def run(args):
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
-            # network = test(
-            #     network,
-            #     args,
-            #     notifications_queue,
-            #     verify=args.package is not "libjs_generic",
-            # )
-            # network = test_illegal(
-            #     network, args, verify=args.package is not "libjs_generic"
-            # )
-            # network = test_large_messages(network, args)
-            # network = test_remove(network, args)
-            # network = test_forwarding_frontends(network, args)
-            # network = test_update_lua(network, args)
-            # network = test_cert_prefix(network, args)
-            # network = test_anonymous_caller(network, args)
-            # network = test_raw_text(network, args)
-            # network = test_view_history(network, args)
+            network = test(
+                network,
+                args,
+                notifications_queue,
+                verify=args.package is not "libjs_generic",
+            )
+            network = test_illegal(
+                network, args, verify=args.package is not "libjs_generic"
+            )
+            network = test_large_messages(network, args)
+            network = test_remove(network, args)
+            network = test_forwarding_frontends(network, args)
+            network = test_update_lua(network, args)
+            network = test_cert_prefix(network, args)
+            network = test_anonymous_caller(network, args)
+            network = test_raw_text(network, args)
+            network = test_historical_query(network, args)
+            network = test_view_history(network, args)
 
 
 if __name__ == "__main__":

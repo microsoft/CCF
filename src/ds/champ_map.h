@@ -148,10 +148,10 @@ namespace champ
 
     SubNodes() {}
 
-    SubNodes(std::vector<Node<K, V, H>> ns) : nodes(ns) {}
+    SubNodes(std::vector<Node<K, V, H>>&& ns) : nodes(std::move(ns)) {}
 
-    SubNodes(std::vector<Node<K, V, H>> ns, Bitmap nm, Bitmap dm) :
-      nodes(ns),
+    SubNodes(std::vector<Node<K, V, H>>&& ns, Bitmap nm, Bitmap dm) :
+      nodes(std::move(ns)),
       node_map(nm),
       data_map(dm)
     {}
@@ -311,8 +311,8 @@ namespace champ
     std::shared_ptr<SubNodes<K, V, H>> root;
     size_t _size = 0;
 
-    Map(std::shared_ptr<SubNodes<K, V, H>> root_, size_t size_) :
-      root(root_),
+    Map(std::shared_ptr<SubNodes<K, V, H>>&& root_, size_t size_) :
+      root(std::move(root_)),
       _size(size_)
     {}
 

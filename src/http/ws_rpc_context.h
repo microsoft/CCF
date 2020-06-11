@@ -13,11 +13,11 @@ namespace ws
   static std::vector<uint8_t> serialise(
     size_t code,
     const std::vector<uint8_t>& body,
-    kv::Version commit = 0,
-    kv::Consensus::View term = 0,
+    kv::Version seqno = 0,
+    kv::Consensus::View view = 0,
     kv::Version global_commit = 0)
   {
-    return make_out_frame(code, commit, term, global_commit, body);
+    return make_out_frame(code, seqno, view, global_commit, body);
   };
 
   static std::vector<uint8_t> error(size_t code, const std::string& msg)
@@ -45,8 +45,8 @@ namespace ws
     http_status response_status = HTTP_STATUS_OK;
     std::optional<bool> explicit_apply_writes = std::nullopt;
 
-    size_t commit = 0;
-    size_t term = 0;
+    size_t seqno = 0;
+    size_t view = 0;
     size_t global_commit = 0;
 
   public:
@@ -151,14 +151,14 @@ namespace ws
       const std::string_view& name, const std::string_view& value) override
     {}
 
-    virtual void set_commit(kv::Version cv) override
+    virtual void set_seqno(kv::Version sn) override
     {
-      commit = cv;
+      seqno = sn;
     }
 
-    virtual void set_term(kv::Consensus::View t) override
+    virtual void set_view(kv::Consensus::View t) override
     {
-      term = t;
+      view = t;
     }
 
     virtual void set_global_commit(kv::Version gc) override
@@ -185,7 +185,7 @@ namespace ws
     virtual std::vector<uint8_t> serialise_response() const override
     {
       return serialise(
-        response_status, response_body, commit, term, global_commit);
+        response_status, response_body, seqno, view, global_commit);
     }
 
     virtual std::vector<uint8_t> serialise_error(

@@ -791,18 +791,20 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
-          auto [idx] =
+          auto [idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get>(data, size);
 
           auto& entry = read_entry(idx);
+
           if (entry.size() > 0)
           {
             RINGBUFFER_WRITE_MESSAGE(
-              consensus::ledger_entry, to_enclave, entry);
+              consensus::ledger_entry, to_enclave, idx, purpose, entry);
           }
           else
           {
-            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_no_entry, to_enclave);
+            RINGBUFFER_WRITE_MESSAGE(
+              consensus::ledger_no_entry, to_enclave, idx, purpose);
           }
         });
     }

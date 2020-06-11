@@ -122,7 +122,7 @@ class SSHRemote(CmdMixin):
         label,
         common_dir,
         env=None,
-        json_log_path=None,
+        log_format_json=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -387,7 +387,7 @@ class LocalRemote(CmdMixin):
         label,
         common_dir,
         env=None,
-        json_log_path=None,
+        log_format_json=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -412,7 +412,6 @@ class LocalRemote(CmdMixin):
 
     def _cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
-            LOG.error(src_path)
             assert (
                 self._rc(
                     "rm -rf {}".format(
@@ -559,9 +558,10 @@ class CCFRemote(object):
         notify_server=None,
         gov_script=None,
         ledger_dir=None,
-        json_log_path=None,
+        log_format_json=None,
         binary_dir=".",
         ledger_chunk_threshold=20,
+        domain=None,
     ):
         """
         Run a ccf binary on a remote host.
@@ -613,9 +613,8 @@ class CCFRemote(object):
             f"--worker-threads={worker_threads}",
         ]
 
-        if json_log_path:
-            log_file = f"{label}_{local_node_id}"
-            cmd += [f"--json-log-path={os.path.join(json_log_path, log_file)}"]
+        if log_format_json:
+            cmd += ["--log-format-json"]
 
         if sig_max_tx:
             cmd += [f"--sig-max-tx={sig_max_tx}"]
@@ -642,6 +641,9 @@ class CCFRemote(object):
             cmd += [
                 f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
             ]
+
+        if domain:
+            cmd += [f"--domain={domain}"]
 
         if start_type == StartType.new:
             cmd += [
@@ -695,7 +697,7 @@ class CCFRemote(object):
             label,
             common_dir,
             env,
-            json_log_path,
+            log_format_json,
         )
 
     def setup(self):

@@ -17,6 +17,8 @@
 #include "sizeclasstable.h"
 #include "slab.h"
 
+#include <functional>
+
 namespace snmalloc
 {
   enum Boundary
@@ -49,14 +51,23 @@ namespace snmalloc
     FastFreeLists() : small_fast_free_lists() {}
   };
 
-  SNMALLOC_FAST_PATH void* no_replacement(void*)
-  {
-    return nullptr;
-  }
-
   /**
-   * Allocator.  This class is parameterised on three template parameters.  The
-   * `MemoryProvider` defines the source of memory for this allocator.
+   * Allocator.  This class is parameterised on five template parameters.
+   *
+   * The first two template parameter provides a hook to allow the allocator in
+   * use to be dynamically modified.  This is used to implement a trick from
+   * mimalloc that avoids a conditional branch on the fast path.  We
+   * initialise the thread-local allocator pointer with the address of a global
+   * allocator, which never owns any memory.  The first returns true, if is
+   * passed the global allocator.  The second initialises the thread-local
+   * allocator if it is has been been initialised already. Splitting into two
+   * functions allows for the code to be structured into tail calls to improve
+   * codegen.  The second template takes a function that takes the allocator
+   * that is initialised, and the value returned, is returned by
+   * `InitThreadAllocator`.  This is used incase we are running during teardown
+   * and the thread local allocator cannot be kept alive.
+   *
+   * The `MemoryProvider` defines the source of memory for this allocator.
    * Allocators try to reuse address space by allocating from existing slabs or
    * reusing freed large allocations.  When they need to allocate a new chunk
    * of memory they request space from the `MemoryProvider`.
@@ -65,30 +76,34 @@ namespace snmalloc
    * to associate metadata with large (16MiB, by default) regions, allowing an
    * allocator to find the allocator responsible for that region.
    *
-   * The next template parameter, `IsQueueInline`, defines whether the
+   * The final template parameter, `IsQueueInline`, defines whether the
    * message queue for this allocator should be stored as a field of the
    * allocator (`true`) or provided externally, allowing it to be anywhere else
    * in the address space (`false`).
-   *
-   * The final template parameter provides a hook to allow the allocator in use
-   * to be dynamically modified.  This is used to implement a trick from
-   * mimalloc that avoids a conditional branch on the fast path.  We initialise
-   * the thread-local allocator pointer with the address of a global allocator,
-   * which never owns any memory.  When we try to allocate memory, we call the
-   * replacement function.
    */
   template<
+    bool (*NeedsInitialisation)(void*),
+    void* (*InitThreadAllocator)(function_ref<void*(void*)>),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
-    bool IsQueueInline = true,
-    void* (*Replacement)(void*) = no_replacement>
-  class Allocator
-  : public FastFreeLists,
-    public Pooled<
-      Allocator<MemoryProvider, ChunkMap, IsQueueInline, Replacement>>
+    bool IsQueueInline = true>
+  class Allocator : public FastFreeLists,
+                    public Pooled<Allocator<
+                      NeedsInitialisation,
+                      InitThreadAllocator,
+                      MemoryProvider,
+                      ChunkMap,
+                      IsQueueInline>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
     ChunkMap chunk_map;
+
+    /**
+     * Per size class bumpptr for building new free lists
+     * If aligned to a SLAB start, then it is empty, and a new
+     * slab is required.
+     */
+    void* bump_ptrs[NUM_SMALL_CLASSES] = {nullptr};
 
   public:
     Stats& stats()
@@ -96,7 +111,7 @@ namespace snmalloc
       return large_allocator.stats;
     }
 
-    template<class MP>
+    template<class MP, class Alloc>
     friend class AllocPool;
 
     /**
@@ -155,8 +170,6 @@ namespace snmalloc
       else
         return calloc(1, size);
 #else
-      stats().alloc_request(size);
-
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
@@ -191,6 +204,35 @@ namespace snmalloc
 #endif
     }
 
+    /**
+     * Checks the allocation at `p` could have been validly allocated with
+     * a size of `size`.
+     */
+    void check_size(void* p, size_t size)
+    {
+#if defined(CHECK_CLIENT)
+      auto asize = alloc_size(p);
+      auto asc = size_to_sizeclass(asize);
+      if (size_to_sizeclass(size) != asc)
+      {
+        // Correction for large classes.
+        if (asc > NUM_SIZECLASSES)
+        {
+          if (bits::next_pow2(size) != asize)
+            error("Deallocating with incorrect size supplied.");
+        }
+        // Correction for zero sized allocations.
+        else if ((size != 0) && (asc != 0))
+        {
+          error("Deallocating with incorrect size supplied.");
+        }
+      }
+#else
+      UNUSED(p);
+      UNUSED(size);
+#endif
+    }
+
     /*
      * Free memory of a statically known size. Must be called with an
      * external pointer.
@@ -202,17 +244,15 @@ namespace snmalloc
       UNUSED(size);
       return free(p);
 #else
-
+      check_size(p, size);
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
-
-      handle_message_queue();
 
       if (sizeclass < NUM_SMALL_CLASSES)
       {
         Superslab* super = Superslab::get(p);
         RemoteAllocator* target = super->get_allocator();
 
-        if (target == public_state())
+        if (likely(target == public_state()))
           small_dealloc(super, p, sizeclass);
         else
           remote_dealloc(target, p, sizeclass);
@@ -222,7 +262,7 @@ namespace snmalloc
         Mediumslab* slab = Mediumslab::get(p);
         RemoteAllocator* target = slab->get_allocator();
 
-        if (target == public_state())
+        if (likely(target == public_state()))
           medium_dealloc(slab, p, sizeclass);
         else
           remote_dealloc(target, p, sizeclass);
@@ -244,6 +284,7 @@ namespace snmalloc
       UNUSED(size);
       return free(p);
 #else
+      check_size(p, size);
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
         Superslab* super = Superslab::get(p);
@@ -262,7 +303,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_sized_slow(void* p, size_t size)
     {
       if (size == 0)
-        dealloc(p, 1);
+        return dealloc(p, 1);
 
       if (likely(size <= sizeclass_to_size(NUM_SIZECLASSES - 1)))
       {
@@ -505,8 +546,12 @@ namespace snmalloc
       /// r is used for which round of sending this is.
       inline size_t get_slot(size_t id, size_t r)
       {
-        constexpr size_t allocator_size = sizeof(
-          Allocator<MemoryProvider, ChunkMap, IsQueueInline, Replacement>);
+        constexpr size_t allocator_size = sizeof(Allocator<
+                                                 NeedsInitialisation,
+                                                 InitThreadAllocator,
+                                                 MemoryProvider,
+                                                 ChunkMap,
+                                                 IsQueueInline>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);
         SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
@@ -703,7 +748,7 @@ namespace snmalloc
      *
      * If result pointer is null, then this code raises a Pal::error on the
      * particular check that fails, if any do fail.
-     **/
+     */
     void debug_is_empty(bool* result)
     {
       auto test = [&result](auto& queue) {
@@ -725,6 +770,26 @@ namespace snmalloc
           Remote* n = p->non_atomic_next;
           handle_dealloc_remote(p);
           p = n;
+        }
+      }
+
+      // Dump bump allocators back into memory
+      for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
+      {
+        auto& bp = bump_ptrs[i];
+        auto rsize = sizeclass_to_size(i);
+        FreeListHead ffl;
+        while (pointer_align_up(bp, SLAB_SIZE) != bp)
+        {
+          Slab::alloc_new_list(bp, ffl, rsize);
+          void* prev = ffl.value;
+          while (prev != nullptr)
+          {
+            auto n = Metaslab::follow_next(prev);
+            Superslab* super = Superslab::get(prev);
+            small_dealloc_offseted_inner(super, prev, i);
+            prev = n;
+          }
         }
       }
 
@@ -856,10 +921,19 @@ namespace snmalloc
       remote.post(id());
     }
 
+    /**
+     * Check if this allocator has messages to deallocate blocks from another
+     * thread
+     */
+    SNMALLOC_FAST_PATH bool has_messages()
+    {
+      return !(message_queue().is_empty());
+    }
+
     SNMALLOC_FAST_PATH void handle_message_queue()
     {
       // Inline the empty check, but not necessarily the full queue handling.
-      if (likely(message_queue().is_empty()))
+      if (likely(!has_messages()))
         return;
 
       handle_message_queue_inner();
@@ -877,7 +951,7 @@ namespace snmalloc
         large_allocator.template alloc<NoZero, allow_reserve>(
           0, SUPERSLAB_SIZE));
 
-      if ((allow_reserve == NoReserve) && (super == nullptr))
+      if (super == nullptr)
         return super;
 
       super->init(public_state());
@@ -921,7 +995,7 @@ namespace snmalloc
     }
 
     template<AllowReserve allow_reserve>
-    Slab* alloc_slab(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH Slab* alloc_slab(sizeclass_t sizeclass)
     {
       stats().sizeclass_alloc_slab(sizeclass);
       if (Superslab::is_short_sizeclass(sizeclass))
@@ -939,7 +1013,7 @@ namespace snmalloc
 
         super = get_superslab<allow_reserve>();
 
-        if ((allow_reserve == NoReserve) && (super == nullptr))
+        if (super == nullptr)
           return nullptr;
 
         Slab* slab = super->alloc_short_slab(sizeclass);
@@ -949,7 +1023,7 @@ namespace snmalloc
 
       Superslab* super = get_superslab<allow_reserve>();
 
-      if ((allow_reserve == NoReserve) && (super == nullptr))
+      if (super == nullptr)
         return nullptr;
 
       Slab* slab = super->alloc_slab(sizeclass);
@@ -970,17 +1044,19 @@ namespace snmalloc
 
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
-      return small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_inner<zero_mem, allow_reserve>(sizeclass, size);
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void* small_alloc_inner(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void*
+    small_alloc_inner(sizeclass_t sizeclass, size_t size)
     {
       SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       void* head = fl.value;
       if (likely(head != nullptr))
       {
+        stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
         // Read the next slot from the memory that's about to be allocated.
         fl.value = Metaslab::follow_next(head);
@@ -993,43 +1069,142 @@ namespace snmalloc
         return p;
       }
 
-      return small_alloc_slow<zero_mem, allow_reserve>(sizeclass);
+      if (likely(!has_messages()))
+        return small_alloc_next_free_list<zero_mem, allow_reserve>(
+          sizeclass, size);
+
+      return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass, size);
     }
 
+    /**
+     * Slow path for handling message queue, before dealing with small
+     * allocation request.
+     */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_slow(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_mq_slow(sizeclass_t sizeclass, size_t size)
     {
-      if (void* replacement = Replacement(this))
-      {
-        return reinterpret_cast<Allocator*>(replacement)
-          ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
-      }
+      handle_message_queue_inner();
 
-      stats().sizeclass_alloc(sizeclass);
+      return small_alloc_next_free_list<zero_mem, allow_reserve>(
+        sizeclass, size);
+    }
 
-      handle_message_queue();
+    /**
+     * Attempt to find a new free list to allocate from
+     */
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
+    {
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
 
       Slab* slab;
 
-      if (!sl.is_empty())
+      if (likely(!sl.is_empty()))
       {
-        SlabLink* link = sl.get_head();
-        slab = link->get_slab();
+        stats().alloc_request(size);
+        stats().sizeclass_alloc(sizeclass);
+
+        SlabLink* link = sl.get_next();
+        slab = get_slab(link);
+        auto& ffl = small_fast_free_lists[sizeclass];
+        return slab->alloc<zero_mem>(
+          sl, ffl, rsize, large_allocator.memory_provider);
       }
-      else
+      return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
+    }
+
+    /**
+     * Called when there are no available free list to service this request
+     * Could be due to using the dummy allocator, or needing to bump allocate a
+     * new free list.
+     */
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_rare(sizeclass_t sizeclass, size_t size)
+    {
+      if (likely(!NeedsInitialisation(this)))
       {
-        slab = alloc_slab<allow_reserve>(sizeclass);
-
-        if ((allow_reserve == NoReserve) && (slab == nullptr))
-          return nullptr;
-
-        sl.insert_back(slab->get_link());
+        stats().alloc_request(size);
+        stats().sizeclass_alloc(sizeclass);
+        return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
       }
+      return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass, size);
+    }
+
+    /**
+     * Called on first allocation to set up the thread local allocator,
+     * then directs the allocation request to the newly created allocator.
+     */
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
+    {
+      return InitThreadAllocator([sizeclass, size](void* alloc) {
+        return reinterpret_cast<Allocator*>(alloc)
+          ->template small_alloc_inner<zero_mem, allow_reserve>(
+            sizeclass, size);
+      });
+    }
+
+    /**
+     * Called to create a new free list, and service the request from that new
+     * list.
+     */
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_FAST_PATH void* small_alloc_new_free_list(sizeclass_t sizeclass)
+    {
+      auto& bp = bump_ptrs[sizeclass];
+      if (likely(pointer_align_up(bp, SLAB_SIZE) != bp))
+      {
+        return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
+      }
+      // Fetch new slab
+      return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
+    }
+
+    /**
+     * Creates a new free list from the thread local bump allocator and service
+     * the request from that new list.
+     */
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_FAST_PATH void* small_alloc_build_free_list(sizeclass_t sizeclass)
+    {
+      auto& bp = bump_ptrs[sizeclass];
+      auto rsize = sizeclass_to_size(sizeclass);
       auto& ffl = small_fast_free_lists[sizeclass];
-      return slab->alloc<zero_mem>(
-        sl, ffl, rsize, large_allocator.memory_provider);
+      SNMALLOC_ASSERT(ffl.value == nullptr);
+      Slab::alloc_new_list(bp, ffl, rsize);
+
+      void* p = remove_cache_friendly_offset(ffl.value, sizeclass);
+      ffl.value = Metaslab::follow_next(p);
+
+      if constexpr (zero_mem == YesZero)
+      {
+        large_allocator.memory_provider.zero(p, sizeclass_to_size(sizeclass));
+      }
+      return p;
+    }
+
+    /**
+     * Allocates a new slab to allocate from, set it to be the bump allocator
+     * for this size class, and then builds a new free list from the thread
+     * local bump allocator and service the request from that new list.
+     */
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH void* small_alloc_new_slab(sizeclass_t sizeclass)
+    {
+      auto& bp = bump_ptrs[sizeclass];
+      // Fetch new slab
+      Slab* slab = alloc_slab<allow_reserve>(sizeclass);
+      if (slab == nullptr)
+        return nullptr;
+      bp =
+        pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
+
+      return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
     }
 
     SNMALLOC_FAST_PATH void
@@ -1146,17 +1321,18 @@ namespace snmalloc
       }
       else
       {
-        if (void* replacement = Replacement(this))
+        if (NeedsInitialisation(this))
         {
-          return reinterpret_cast<Allocator*>(replacement)
-            ->template medium_alloc<zero_mem, allow_reserve>(
-              sizeclass, rsize, size);
+          return InitThreadAllocator([size, rsize, sizeclass](void* alloc) {
+            return reinterpret_cast<Allocator*>(alloc)
+              ->medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
+          });
         }
         slab = reinterpret_cast<Mediumslab*>(
           large_allocator.template alloc<NoZero, allow_reserve>(
             0, SUPERSLAB_SIZE));
 
-        if ((allow_reserve == NoReserve) && (slab == nullptr))
+        if (slab == nullptr)
           return nullptr;
 
         slab->init(public_state(), sizeclass, rsize);
@@ -1167,6 +1343,7 @@ namespace snmalloc
           sc->insert(slab);
       }
 
+      stats().alloc_request(size);
       stats().sizeclass_alloc(sizeclass);
       return p;
     }
@@ -1218,10 +1395,12 @@ namespace snmalloc
           zero_mem == YesZero ? "zeromem" : "nozeromem",
           allow_reserve == NoReserve ? "noreserve" : "reserve"));
 
-      if (void* replacement = Replacement(this))
+      if (NeedsInitialisation(this))
       {
-        return reinterpret_cast<Allocator*>(replacement)
-          ->template large_alloc<zero_mem, allow_reserve>(size);
+        return InitThreadAllocator([size](void* alloc) {
+          return reinterpret_cast<Allocator*>(alloc)
+            ->large_alloc<zero_mem, allow_reserve>(size);
+        });
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1230,16 +1409,28 @@ namespace snmalloc
 
       void* p = large_allocator.template alloc<zero_mem, allow_reserve>(
         large_class, size);
+      if (likely(p != nullptr))
+      {
+        chunkmap().set_large_size(p, size);
 
-      chunkmap().set_large_size(p, size);
-
-      stats().large_alloc(large_class);
+        stats().alloc_request(size);
+        stats().large_alloc(large_class);
+      }
       return p;
     }
 
     void large_dealloc(void* p, size_t size)
     {
       MEASURE_TIME(large_dealloc, 4, 16);
+
+      if (NeedsInitialisation(this))
+      {
+        InitThreadAllocator([p, size](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->large_dealloc(p, size);
+          return nullptr;
+        });
+        return;
+      }
 
       size_t size_bits = bits::next_pow2_bits(size);
       SNMALLOC_ASSERT(bits::one_at_bit(size_bits) >= SUPERSLAB_SIZE);
@@ -1255,11 +1446,10 @@ namespace snmalloc
       large_allocator.dealloc(slab, large_class);
     }
 
-    // Note that this is on the slow path as it lead to better code.
-    // As it is tail, not inlining means that it is jumped to, so has no perf
-    // impact on the producer consumer scenarios, and doesn't require register
-    // spills in the fast path for local deallocation.
-    SNMALLOC_SLOW_PATH
+    // This is still considered the fast path as all the complex code is tail
+    // called in its slow path. This leads to one fewer unconditional jump in
+    // Clang.
+    SNMALLOC_FAST_PATH
     void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
@@ -1288,11 +1478,12 @@ namespace snmalloc
       // Now that we've established that we're in the slow path (if we're a
       // real allocator, we will have to empty our cache now), check if we are
       // a real allocator and construct one if we aren't.
-      if (void* replacement = Replacement(this))
+      if (NeedsInitialisation(this))
       {
-        // We have to do a dealloc, not a remote_dealloc here because this may
-        // have been allocated with the allocator that we've just had returned.
-        reinterpret_cast<Allocator*>(replacement)->dealloc(p);
+        InitThreadAllocator([p](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
+          return nullptr;
+        });
         return;
       }
 

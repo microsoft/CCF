@@ -4,9 +4,9 @@
 // Licensed under the MIT license.
 #include "append_entries.h"
 
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "message_tags.h"
-#include "pbft_assert.h"
 
 Append_entries::Append_entries() :
   Message(Append_entries_tag, sizeof(Append_entries_rep))
@@ -23,6 +23,6 @@ bool Append_entries::verify()
 
 Append_entries_rep& Append_entries::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Append_entries_rep*)msg);
 }

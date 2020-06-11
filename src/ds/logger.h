@@ -78,11 +78,9 @@ namespace logger
     }
   };
 
-  class JsonLogger : public AbstractLogger
+  class JsonConsoleLogger : public AbstractLogger
   {
   public:
-    JsonLogger(std::string log_path) : AbstractLogger(log_path) {}
-
     std::string format(
       const std::string& file_name,
       size_t line_number,
@@ -129,9 +127,14 @@ namespace logger
         j["m"].dump());
     }
 
-    void write(const std::string& log_line) override
+    virtual void write(const std::string& log_line) override
     {
-      dump(log_line);
+      std::cout << log_line;
+    }
+
+    std::ostream& get_stream() override
+    {
+      return std::cout;
     }
   };
 
@@ -223,14 +226,22 @@ namespace logger
 
     static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
     {
-      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
-      static bool initialized = false;
-      if (!initialized)
-      {
-        initialized = true;
-        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
-      }
+      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
+      try_initialize();
       return the_loggers;
+    }
+
+    static inline void initialize_with_json_console()
+    {
+      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
+      if (the_loggers.size() > 0)
+      {
+        the_loggers.front() = std::move(std::make_unique<JsonConsoleLogger>());
+      }
+      else
+      {
+        the_loggers.emplace_back(std::make_unique<JsonConsoleLogger>());
+      }
     }
 
     static inline Level& level()
@@ -296,6 +307,22 @@ namespace logger
     static inline bool ok(Level l)
     {
       return l >= level();
+    }
+
+  private:
+    static inline void try_initialize()
+    {
+      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
+      if (the_loggers.size() == 0)
+      {
+        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
+      }
+    }
+
+    static inline std::vector<std::unique_ptr<AbstractLogger>>& get_loggers()
+    {
+      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
+      return the_loggers;
     }
   };
 

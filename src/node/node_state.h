@@ -422,6 +422,8 @@ namespace ccf
           catch (const std::exception& e)
           {
             LOG_FAIL_FMT(
+              "An error occurred while parsing the join network response");
+            LOG_DEBUG_FMT(
               "An error occurred while parsing the join network response: {}",
               j.dump());
             return false;
@@ -569,17 +571,17 @@ namespace ccf
         if (last_sig.has_value())
         {
           LOG_DEBUG_FMT(
-            "Read signature at {} for term {}", ledger_idx, last_sig->term);
+            "Read signature at {} for view {}", ledger_idx, last_sig->view);
           // Initial transactions, before the first signature, must have
-          // happened in the first signature's term (eg - if the first
-          // signature is at idx 20 in term 4, then transactions 1->19 must
-          // also have been in term 4). The brief justification is that while
-          // the first node may start in an arbitrarily high term (it does not
-          // necessarily start in term 1), it cannot _change_ term before a
+          // happened in the first signature's view (eg - if the first
+          // signature is at seqno 20 in view 4, then transactions 1->19 must
+          // also have been in view 4). The brief justification is that while
+          // the first node may start in an arbitrarily high view (it does not
+          // necessarily start in view 1), it cannot _change_ view before a
           // valid signature.
           const auto term_start_idx =
             term_history.empty() ? 1 : last_recovered_commit_idx + 1;
-          for (auto i = term_history.size(); i < last_sig->term; ++i)
+          for (auto i = term_history.size(); i < last_sig->view; ++i)
           {
             term_history.push_back(term_start_idx);
           }
@@ -633,9 +635,9 @@ namespace ccf
       if (ls.has_value())
       {
         auto s = ls.value();
-        index = s.index;
-        term = s.term;
-        global_commit = s.commit;
+        index = s.seqno;
+        term = s.view;
+        global_commit = s.commit_seqno;
       }
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
@@ -647,9 +649,9 @@ namespace ccf
       setup_raft(true);
 
       LOG_DEBUG_FMT(
-        "Restarting Raft at index: {} term: {} commit_idx {}",
-        index,
+        "Restarting consensus at view: {} seqno: {} commit_seqno {}",
         term,
+        index,
         global_commit);
       consensus->force_become_primary(index, term, term_history, index);
 
@@ -1221,7 +1223,8 @@ namespace ccf
       const auto body = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
       if (!body.is_boolean())
       {
-        LOG_FAIL_FMT(
+        LOG_FAIL_FMT("Expected boolean body in create response");
+        LOG_DEBUG_FMT(
           "Expected boolean body in create response: {}", body.dump());
         return false;
       }
@@ -1316,37 +1319,57 @@ namespace ccf
       // When a transaction that changes the configuration commits globally,
       // inform the host of any nodes that no longer need to be tracked.
       network.nodes.set_global_hook(
-        [this](
-          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
-          for (auto& [node_id, ni] : w)
+        [this](kv::Version version, const Nodes::Write& w) {
+          for (const auto& [node_id, opt_ni] : w)
           {
-            if (ni.value.status == NodeStatus::RETIRED)
+            if (!opt_ni.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Unexpected: removal from nodes table ({})", node_id));
+            }
+
+            const auto& ni = opt_ni.value();
+            if (ni.status == NodeStatus::RETIRED)
+            {
               remove_node(node_id);
+            }
           }
         });
 
-      network.service.set_global_hook([this](
-                                        kv::Version version,
-                                        const Service::State& s,
-                                        const Service::Write& w) {
-        if (w.at(0).value.status == ServiceStatus::OPEN)
-        {
-          this->consensus->set_f(1);
-          open_user_frontend();
-          LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
-        }
-      });
+      network.service.set_global_hook(
+        [this](kv::Version version, const Service::Write& w) {
+          const auto it = w.find(0);
+          if (it == w.end() || !it->second.has_value())
+          {
+            throw std::logic_error(
+              "Unexpected: write to service table does not include key 0");
+          }
+
+          if (it->second.value().status == ServiceStatus::OPEN)
+          {
+            this->consensus->set_f(1);
+            open_user_frontend();
+            LOG_INFO_FMT("Network is OPEN, now accepting user transactions");
+          }
+        });
 
       network.secrets.set_local_hook([this](
                                        kv::Version version,
-                                       const Secrets::State& s,
                                        const Secrets::Write& w) {
         bool has_secrets = false;
         std::list<LedgerSecrets::VersionedLedgerSecret> restored_secrets;
 
-        for (auto& [v, secret_set] : w)
+        for (const auto& [v, opt_secret_set] : w)
         {
-          for (auto& encrypted_secret_for_node : secret_set.value.secrets)
+          if (!opt_secret_set.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Unexpected: removal from secrets table ({})", v));
+          }
+
+          const auto& secret_set = opt_secret_set.value();
+
+          for (auto& encrypted_secret_for_node : secret_set.secrets)
           {
             if (encrypted_secret_for_node.node_id == self)
             {
@@ -1354,8 +1377,8 @@ namespace ccf
               gcmcipher.deserialise(encrypted_secret_for_node.encrypted_secret);
               std::vector<uint8_t> plain_secret(gcmcipher.cipher.size());
 
-              auto primary_pubk = tls::make_public_key(
-                secret_set.value.primary_public_encryption_key);
+              auto primary_pubk =
+                tls::make_public_key(secret_set.primary_public_encryption_key);
 
               crypto::KeyAesGcm primary_shared_key(
                 tls::KeyExchangeContext(node_encrypt_kp, primary_pubk)
@@ -1427,10 +1450,17 @@ namespace ccf
     void setup_recovery_hook()
     {
       network.shares.set_local_hook(
-        [this](
-          kv::Version version, const Shares::State& s, const Shares::Write& w) {
-          for (auto& [k, v] : w)
+        [this](kv::Version version, const Shares::Write& w) {
+          for (const auto& [k, opt_v] : w)
           {
+            if (!opt_v.has_value())
+            {
+              throw std::logic_error(
+                fmt::format("Unexpected: removal from shares table ({})", k));
+            }
+
+            const auto& v = opt_v.value();
+
             kv::Version ledger_secret_version;
             if (version == 1)
             {
@@ -1444,15 +1474,15 @@ namespace ccf
               // from the hook plus one. Otherwise (recovery), use the
               // version specified.
               ledger_secret_version =
-                v.value.wrapped_latest_ledger_secret.version == kv::NoVersion ?
+                v.wrapped_latest_ledger_secret.version == kv::NoVersion ?
                 (version + 1) :
-                v.value.wrapped_latest_ledger_secret.version;
+                v.wrapped_latest_ledger_secret.version;
             }
 
             // No encrypted ledger secret are stored in the case of a pure
             // re-share (i.e. no ledger rekey).
             if (
-              !v.value.encrypted_previous_ledger_secret.empty() ||
+              !v.encrypted_previous_ledger_secret.empty() ||
               ledger_secret_version == 1)
             {
               LOG_TRACE_FMT(
@@ -1460,8 +1490,7 @@ namespace ccf
                 ledger_secret_version);
 
               recovery_ledger_secrets.push_back(
-                {ledger_secret_version,
-                 v.value.encrypted_previous_ledger_secret});
+                {ledger_secret_version, v.encrypted_previous_ledger_secret});
             }
           }
         });
@@ -1507,14 +1536,21 @@ namespace ccf
       // map the node id to a hostname and service and inform raft so that it
       // can add a new active configuration.
       network.nodes.set_local_hook(
-        [this](
-          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
+        [this](kv::Version version, const Nodes::Write& w) {
           auto configure = false;
-          std::unordered_set<NodeId> configuration;
+          std::unordered_set<NodeId> configuration =
+            consensus->get_latest_configuration();
 
-          for (auto& [node_id, ni] : w)
+          for (const auto& [node_id, opt_ni] : w)
           {
-            switch (ni.value.status)
+            if (!opt_ni.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Unexpected: removal from nodes table ({})", node_id));
+            }
+
+            const auto& ni = opt_ni.value();
+            switch (ni.status)
             {
               case NodeStatus::PENDING:
               {
@@ -1524,12 +1560,14 @@ namespace ccf
               }
               case NodeStatus::TRUSTED:
               {
-                add_node(node_id, ni.value.nodehost, ni.value.nodeport);
+                add_node(node_id, ni.nodehost, ni.nodeport);
+                configuration.insert(node_id);
                 configure = true;
                 break;
               }
               case NodeStatus::RETIRED:
               {
+                configuration.erase(node_id);
                 configure = true;
                 break;
               }
@@ -1540,12 +1578,7 @@ namespace ccf
 
           if (configure)
           {
-            s.foreach([&](NodeId node_id, const Nodes::VersionV& v) {
-              if (v.value.status == NodeStatus::TRUSTED)
-                configuration.insert(node_id);
-              return true;
-            });
-            consensus->add_configuration(version, move(configuration));
+            consensus->add_configuration(version, configuration);
           }
         });
 
@@ -1633,7 +1666,11 @@ namespace ccf
 
     void read_ledger_idx(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_get, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_get,
+        to_host,
+        idx,
+        consensus::LedgerRequestPurpose::Recovery);
     }
 
     void ledger_truncate(consensus::Index idx)
@@ -1669,17 +1706,20 @@ namespace ccf
       // When a node is added, even locally, inform the host so that it can
       // map the node id to a hostname and service and inform pbft
       network.nodes.set_local_hook(
-        [this](
-          kv::Version version, const Nodes::State& s, const Nodes::Write& w) {
-          std::unordered_set<NodeId> configuration;
-          for (auto& [node_id, ni] : w)
+        [this](kv::Version version, const Nodes::Write& w) {
+          for (const auto& [node_id, opt_ni] : w)
           {
-            add_node(node_id, ni.value.nodehost, ni.value.nodeport);
+            if (!opt_ni.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Unexpected: removal from nodes table ({})", node_id));
+            }
+
+            const auto& ni = opt_ni.value();
+            add_node(node_id, ni.nodehost, ni.nodeport);
 
             consensus->add_configuration(
-              version,
-              configuration,
-              {node_id, ni.value.nodehost, ni.value.nodeport, ni.value.cert});
+              version, {}, {node_id, ni.nodehost, ni.nodeport, ni.cert});
           }
         });
 

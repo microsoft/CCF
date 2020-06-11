@@ -186,7 +186,7 @@ private:
 
 inline View_change_rep& View_change::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((View_change_rep*)msg);
 }
 
@@ -198,13 +198,13 @@ inline Req_info* View_change::req_info()
 
 inline void View_change::mark(int index)
 {
-  PBFT_ASSERT(index >= 0 && index < rep().prepared.size(), "Out of bounds");
+  CCF_ASSERT(index >= 0 && index < rep().prepared.size(), "Out of bounds");
   rep().prepared.set(index);
 }
 
 inline bool View_change::test(int index)
 {
-  PBFT_ASSERT(index >= 0 && index < rep().prepared.size(), "Out of bounds");
+  CCF_ASSERT(index >= 0 && index < rep().prepared.size(), "Out of bounds");
   return rep().prepared.test(index);
 }
 
@@ -251,7 +251,7 @@ inline bool View_change::last_ckpt(Digest& d, Seqno& n)
   {
     d = rep().ckpts[rep().n_ckpts - 1];
     n = (rep().n_ckpts - 1) * checkpoint_interval + rep().last_stable_ckpt;
-    PBFT_ASSERT(d != Digest(), "Invalid state");
+    CCF_ASSERT(d != Digest(), "Invalid state");
 
     return true;
   }
