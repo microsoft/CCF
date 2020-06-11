@@ -45,7 +45,7 @@ namespace ccf::historical
     AbstractStateCache& state_cache,
     const CheckAvailability& available)
   {
-    return [f, &state_cache, &available](RequestArgs& args) {
+    return [f, &state_cache, available](RequestArgs& args) {
       // Extract the requested transaction ID
       kv::Consensus::View target_view;
       kv::Consensus::SeqNo target_seqno;
