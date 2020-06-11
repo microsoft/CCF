@@ -37,7 +37,8 @@ namespace ccf
 }
 
 constexpr auto default_format = jsonrpc::Pack::MsgPack;
-constexpr auto content_type = details::pack_to_content_type(default_format);
+constexpr auto content_type =
+  ccf::jsonhandler::pack_to_content_type(default_format);
 
 using TResponse = http::SimpleResponseProcessor::Response;
 

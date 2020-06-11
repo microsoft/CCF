@@ -47,6 +47,8 @@ namespace loggingapp
       size_t seqno;
       size_t id;
     };
+
+    using Out = LoggingGet::Out;
   };
 
   DECLARE_JSON_TYPE(LoggingGetHistorical::In);

@@ -261,8 +261,8 @@ namespace loggingapp
 
       auto& historical_state = context.get_historical_state();
       auto get_historical = [this, &historical_state](ccf::RequestArgs& args) {
-        const auto params =
-          nlohmann::json::parse(args.rpc_ctx->get_request_body());
+        const auto [pack, params] =
+          ccf::jsonhandler::get_json_params(args.rpc_ctx);
         const auto in = params.get<LoggingGetHistorical::In>();
 
         // Check that the requested transaction ID is committed
@@ -318,14 +318,14 @@ namespace loggingapp
 
         kv::Tx historical_tx;
         auto view = historical_tx.get_view(*historical_map);
-        auto v = view->get(in.id);
+        const auto v = view->get(in.id);
 
         if (v.has_value())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(std::move(v.value()));
+          LoggingGetHistorical::Out out;
+          out.msg = v.value();
+          nlohmann::json j = out;
+          ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
         }
         else
         {
