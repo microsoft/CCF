@@ -543,6 +543,15 @@ namespace asynchost
       return get_file_from_cache(idx);
     }
 
+    std::shared_ptr<LedgerFile> get_latest_file() const
+    {
+      if (files.empty())
+      {
+        return nullptr;
+      }
+      return *(files.rbegin()++);
+    }
+
   public:
     MultipleLedger(
       const std::string& ledger_dir,
@@ -616,15 +625,6 @@ namespace asynchost
     }
 
     MultipleLedger(const MultipleLedger& that) = delete;
-
-    std::shared_ptr<LedgerFile> get_latest_file() const
-    {
-      if (files.empty())
-      {
-        return nullptr;
-      }
-      return *(files.rbegin()++);
-    }
 
     const std::vector<uint8_t> read_entry(size_t idx)
     {
