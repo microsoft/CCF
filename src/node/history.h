@@ -298,11 +298,9 @@ namespace ccf
       tree = mt_deserialize(serialised.data(), serialised.size());
     }
 
-    MerkleTreeHistory()
+    MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
     {
-      ::hash ih(init_hash());
-      tree = mt_create(ih);
-      free_hash(ih);
+      tree = mt_create(first_hash.h.data());
     }
 
     ~MerkleTreeHistory()
@@ -373,6 +371,48 @@ namespace ccf
       std::vector<uint8_t> output(mt_serialize_size(tree));
       mt_serialize(tree, output.data(), output.capacity());
       return output;
+    }
+
+    uint64_t begin_index()
+    {
+      return tree->offset + tree->i;
+    }
+
+    uint64_t end_index()
+    {
+      return tree->offset + tree->j - 1;
+    }
+
+    bool in_range(uint64_t index)
+    {
+      return index >= begin_index() && index <= end_index();
+    }
+
+    crypto::Sha256Hash get_leaf(uint64_t index)
+    {
+      if (!in_range(index))
+      {
+        throw std::logic_error("Cannot get leaf for out-of-range index");
+      }
+
+      const auto leaves = tree->hs.vs[0];
+
+      // We flush pairs of hashes, the offset to this leaf depends on the first
+      // index's parity
+      const auto first_index = begin_index();
+      const auto leaf_index =
+        index - first_index + (first_index % 2 == 0 ? 0 : 1);
+
+      if (leaf_index >= leaves.sz)
+      {
+        throw std::logic_error("Error in leaf offset calculation");
+      }
+
+      const auto leaf_data = leaves.vs[leaf_index];
+
+      crypto::Sha256Hash leaf;
+      std::memcpy(leaf.h.data(), leaf_data, leaf.h.size());
+      return leaf;
     }
   };
 
@@ -518,10 +558,7 @@ namespace ccf
     void compact(kv::Version v) override
     {
       flush_pending();
-      if (v > MAX_HISTORY_LEN)
-      {
-        replicated_state_tree.flush(v - MAX_HISTORY_LEN);
-      }
+      replicated_state_tree.flush(v);
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
