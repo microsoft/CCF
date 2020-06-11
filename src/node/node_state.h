@@ -611,26 +611,7 @@ namespace ccf
 
       network.ledger_secrets->init(last_recovered_commit_idx + 1);
       setup_encryptor(network.consensus_type);
-
-      kv::Version index = 0;
-      kv::Term term = 0;
-      kv::Version global_commit = 0;
-
-      {
-        kv::Tx tx;
-        GenesisGenerator g(network, tx);
-
-        auto ls = g.get_last_signature();
-        if (ls.has_value())
-        {
-          auto s = ls.value();
-          index = s.seqno;
-          term = s.view;
-          global_commit = s.commit_seqno;
-        }
-      }
-      // term_history.size() + 2
-      // TODO: this is not great
+      // KV term must be set before the first Tx is committed
       network.tables->set_term(term_history.size() + 2);
 
       kv::Tx tx;
@@ -645,6 +626,19 @@ namespace ccf
                          NodeStatus::PENDING});
 
       LOG_INFO_FMT("Deleted previous nodes and added self as {}", self);
+
+      kv::Version index = 0;
+      kv::Term term = 0;
+      kv::Version global_commit = 0;
+
+      auto ls = g.get_last_signature();
+      if (ls.has_value())
+      {
+        auto s = ls.value();
+        index = s.seqno;
+        term = s.view;
+        global_commit = s.commit_seqno;
+      }
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)

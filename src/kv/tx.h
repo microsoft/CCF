@@ -60,7 +60,8 @@ namespace kv
         auto txid = m.get_store()->current_txid();
         term = txid.term;
         read_version = txid.version;
-        LOG_DEBUG_FMT("XXX: Not a reserved tx t: {} rv: {}", term, read_version);
+        LOG_DEBUG_FMT(
+          "XXX: Not a reserved tx t: {} rv: {}", term, read_version);
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
@@ -93,7 +94,8 @@ namespace kv
     }
 
   public:
-    Tx() : view_list() {
+    Tx() : view_list()
+    {
       LOG_DEBUG_FMT("XXX: Constructing TX");
     }
 
@@ -218,7 +220,9 @@ namespace kv
           }
 
           return store->commit(
-            {term, version}, MovePendingTx(std::move(data), std::move(req_id)), false);
+            {term, version},
+            MovePendingTx(std::move(data), std::move(req_id)),
+            false);
         }
         catch (const std::exception& e)
         {

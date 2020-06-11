@@ -252,7 +252,7 @@ namespace kv
         map.second->post_compact();
     }
 
-    void rollback(Version v) override
+    void rollback(Version v, std::optional<Term> t = std::nullopt) override
     {
       // This is called to roll the store back to the state it was in
       // at the specified version.
@@ -276,6 +276,8 @@ namespace kv
 
       std::lock_guard<SpinLock> vguard(version_lock);
       version = v;
+      if (t.has_value())
+        term = t.value();
       last_replicated = v;
       last_committable = v;
       rollback_count++;
@@ -535,7 +537,9 @@ namespace kv
     }
 
     CommitSuccess commit(
-      const TxID& txid, PendingTx pending_tx, bool globally_committable) override
+      const TxID& txid,
+      PendingTx pending_tx,
+      bool globally_committable) override
     {
       auto r = get_consensus();
       if (!r)
@@ -556,7 +560,8 @@ namespace kv
         std::lock_guard<SpinLock> vguard(version_lock);
         // This can happen when a transaction started before a view change,
         // but tries to commit after the view change is complete.
-        LOG_DEBUG_FMT("Want to commit for term {}, term is {}", txid.term, term);
+        LOG_DEBUG_FMT(
+          "Want to commit for term {}, term is {}", txid.term, term);
         if (txid.term != term)
           return CommitSuccess::NO_REPLICATE;
 

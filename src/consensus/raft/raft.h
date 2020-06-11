@@ -341,7 +341,8 @@ namespace raft
     }
 
     template <typename T>
-    bool replicate(const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
+    bool replicate(
+      const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -355,7 +356,11 @@ namespace raft
 
       if (term != current_term)
       {
-        LOG_FAIL_FMT("Failed to replicate {} items at term {}, current term is {}", entries.size(), term, current_term);
+        LOG_FAIL_FMT(
+          "Failed to replicate {} items at term {}, current term is {}",
+          entries.size(),
+          term,
+          current_term);
         return false;
       }
 
@@ -1218,9 +1223,8 @@ namespace raft
 
     void rollback(Index idx)
     {
-      store->rollback(idx);
+      store->rollback(idx, current_term);
       LOG_DEBUG_FMT("Setting term in store to: {}", current_term);
-      store->set_term(current_term); // TODO: can be combined with rollback?
       ledger->truncate(idx);
       last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);

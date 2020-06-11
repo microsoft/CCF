@@ -427,14 +427,15 @@ namespace client
 
       size_t last_commit = 0;
       if (!options.no_wait)
-      { 
+      {
         // Create a new connection, because we need to do some GETs
         // and when all you have is a WebSocket, everything looks like a POST!
         auto c = create_connection(true, false);
         trigger_signature(c);
-        while(true)
+        while (true)
         {
-          auto r = get_tx_status(c, last_response_commit.view, last_response_commit.seqno);
+          auto r = get_tx_status(
+            c, last_response_commit.view, last_response_commit.seqno);
           auto b = c->unpack_body(r);
           if (b["status"] == "COMMITTED")
             break;

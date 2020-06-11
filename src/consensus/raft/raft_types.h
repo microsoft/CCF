@@ -28,7 +28,7 @@ namespace raft
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
-    virtual void rollback(Index v) = 0;
+    virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
   };
 
@@ -60,11 +60,11 @@ namespace raft
         p->compact(v);
     }
 
-    void rollback(Index v)
+    void rollback(Index v, std::optional<Term> t = std::nullopt)
     {
       auto p = x.lock();
       if (p)
-        p->rollback(v);
+        p->rollback(v, t);
     }
 
     void set_term(Term t)

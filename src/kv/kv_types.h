@@ -356,7 +356,6 @@ namespace kv
     virtual Version current_version() = 0;
     virtual TxID current_txid() = 0;
 
-
     virtual Version commit_version() = 0;
 
     virtual std::shared_ptr<Consensus> get_consensus() = 0;
@@ -367,11 +366,12 @@ namespace kv
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
-    virtual void rollback(Version v) = 0;
+    virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
 
-    virtual CommitSuccess commit(const TxID& txid, PendingTx pt, bool globally_committable) = 0;
-    
+    virtual CommitSuccess commit(
+      const TxID& txid, PendingTx pt, bool globally_committable) = 0;
+
     virtual size_t commit_gap() = 0;
   };
 
