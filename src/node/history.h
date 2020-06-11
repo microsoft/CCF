@@ -286,11 +286,9 @@ namespace ccf
       tree = mt_deserialize(serialised.data(), serialised.size());
     }
 
-    MerkleTreeHistory()
+    MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
     {
-      ::hash ih(init_hash());
-      tree = mt_create(ih);
-      free_hash(ih);
+      tree = mt_create(first_hash.h.data());
     }
 
     ~MerkleTreeHistory()

@@ -73,6 +73,16 @@ TEST_CASE("Tree equality")
     }
     REQUIRE(tree1.get_root() == tree2.get_root());
   }
+
+  {
+    INFO("Flushing doesn't affect root");
+    const auto final_root = tree1.get_root();
+    for (size_t i = 0; i < tree1.end_index(); ++i)
+    {
+      tree1.flush(i + 1);
+      REQUIRE(tree1.get_root() == final_root);
+    }
+  }
 }
 
 TEST_CASE("Retrieving hashes")
@@ -80,7 +90,7 @@ TEST_CASE("Retrieving hashes")
   constexpr size_t hash_count = 1'000;
 
   std::map<uint64_t, crypto::Sha256Hash> hashes;
-  hashes[0] = crypto::Sha256Hash(); // Index 0 always contains all-0s
+  hashes[0] = crypto::Sha256Hash(); // Default index 0 always contains all-0s
 
   ccf::MerkleTreeHistory history;
 
@@ -142,21 +152,25 @@ TEST_CASE("Deserialised")
   }
 }
 
-// TEST_CASE("First root")
-// {
-//   ccf::MerkleTreeHistory tree;
-//   const auto empty_root = tree.get_root();
+TEST_CASE("First root")
+{
+  {
+    INFO("Empty root");
+    ccf::MerkleTreeHistory tree;
+    const auto empty_root = tree.get_root();
+    REQUIRE(empty_root == crypto::Sha256Hash());
+    REQUIRE(tree.get_hash(0) == empty_root);
+  }
 
-//   const auto h = rand_hash();
-//   {
-//     auto hash_copy = h;
-//     tree.append(hash_copy);
-//   }
-
-//   const auto single_root = tree.get_root();
-//   REQUIRE(empty_root != single_root);
-//   REQUIRE(single_root == h);
-// }
+  {
+    INFO("Single root");
+    const auto h = rand_hash();
+    ccf::MerkleTreeHistory tree(h);
+    const auto single_root = tree.get_root();
+    REQUIRE(single_root == h);
+    REQUIRE(tree.get_hash(0) == single_root);
+  }
+}
 
 // TEST_CASE("Index independence 1")
 // {
@@ -167,9 +181,11 @@ TEST_CASE("Deserialised")
 //     tree1.append(h);
 //   }
 
-//   const auto root = tree1.get_root();
-//   ccf::MerkleTreeHistory tree2;
-//   tree2.append(root);
+//   tree1.flush(tree1.end_index());
+//   tree1.print();
+//   ccf::MerkleTreeHistory tree2(tree1.get_root());
+//   REQUIRE(tree1.get_root() == tree2.get_root());
+//   tree2.print();
 
 //   for (size_t i = 0; i < 5; ++i)
 //   {
@@ -182,9 +198,11 @@ TEST_CASE("Deserialised")
 //       auto h2 = h;
 //       tree2.append(h2);
 //     }
+//     std::cout << "Checking after " << i << " appends" << std::endl;
+//     tree1.print();
+//     tree2.print();
+//     REQUIRE(tree1.get_root() == tree2.get_root());
 //   }
-
-//   REQUIRE(tree1.get_root() == tree2.get_root());
 // }
 
 // TEST_CASE("Index independence 2")
