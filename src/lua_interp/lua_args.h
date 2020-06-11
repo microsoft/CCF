@@ -44,7 +44,8 @@ namespace ccf
       push_raw(l, args.rpc_ctx->get_method());
       lua_setfield(l, -2, "method");
 
-      const auto [pack, params] = ccf::jsonhandler::get_json_params(args.rpc_ctx);
+      const auto [pack, params] =
+        ccf::jsonhandler::get_json_params(args.rpc_ctx);
       push_raw(l, params);
       lua_setfield(l, -2, "params");
 
