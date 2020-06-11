@@ -29,6 +29,11 @@ namespace ccf::historical
     }
   };
 
+  using CheckAvailability = std::function<bool(
+    kv::Consensus::View view,
+    kv::Consensus::SeqNo seqno,
+    std::string& error_reason)>;
+
   using HandleHistoricalQuery = std::function<void(
     ccf::RequestArgs& args,
     StorePtr store,
@@ -36,9 +41,11 @@ namespace ccf::historical
     kv::Consensus::SeqNo seqno)>;
 
   static ccf::HandleFunction adapter(
-    const HandleHistoricalQuery& f, AbstractStateCache& state_cache)
+    const HandleHistoricalQuery& f,
+    AbstractStateCache& state_cache,
+    const CheckAvailability& available)
   {
-    return [f, &state_cache](RequestArgs& args) {
+    return [f, &state_cache, &available](RequestArgs& args) {
       // Extract the requested transaction ID
       kv::Consensus::View target_view;
       kv::Consensus::SeqNo target_seqno;
@@ -93,31 +100,19 @@ namespace ccf::historical
         }
       }
 
-      // TODO: How to access consensus here?
-      // // Check that the requested transaction ID is committed
-      // {
-      //   const auto tx_view = consensus->get_view(in.seqno);
-      //   const auto committed_seqno = consensus->get_committed_seqno();
-      //   const auto committed_view = consensus->get_view(committed_seqno);
+      // Check that the requested transaction ID is available
+      {
+        auto error_reason = fmt::format(
+          "Transaction {}.{} is not available", target_view, target_seqno);
+        if (!available(target_view, target_seqno, error_reason))
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
+          args.rpc_ctx->set_response_body(std::move(error_reason));
+          return;
+        }
+      }
 
-      //   const auto tx_status = ccf::get_tx_status(
-      //     in.view, in.seqno, tx_view, committed_view, committed_seqno);
-      //   if (tx_status != ccf::TxStatus::Committed)
-      //   {
-      //     args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-      //     args.rpc_ctx->set_response_header(
-      //       http::headers::CONTENT_TYPE,
-      //       http::headervalues::contenttype::TEXT);
-      //     args.rpc_ctx->set_response_body(fmt::format(
-      //       "Only committed transactions can be retrieved historically. "
-      //       "Transaction {}.{} is {}",
-      //       in.view,
-      //       in.seqno,
-      //       ccf::tx_status_to_str(tx_status)));
-      //     return;
-      //   }
-      // }
-
+      // Get a store at the target version from the cache, if it is present
       auto historical_store = state_cache.get_store_at(target_seqno);
       if (historical_store == nullptr)
       {
@@ -127,12 +122,13 @@ namespace ccf::historical
           http::headers::RETRY_AFTER, retry_after_seconds);
         args.rpc_ctx->set_response_body(fmt::format(
           "Historical transaction at seqno {} in view {} is not currently "
-          "available.",
+          "available",
           target_seqno,
           target_view));
         return;
       }
 
+      // Call the provided handler
       f(args, historical_store, target_view, target_seqno);
     };
   }

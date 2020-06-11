@@ -300,6 +300,36 @@ namespace loggingapp
         }
       };
 
+      auto is_tx_committed = [this](
+                               kv::Consensus::View view,
+                               kv::Consensus::SeqNo seqno,
+                               std::string& error_reason) {
+        if (consensus == nullptr)
+        {
+          error_reason = "Node is not fully configured";
+          return false;
+        }
+
+        const auto tx_view = consensus->get_view(seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+
+        const auto tx_status = ccf::get_tx_status(
+          view, seqno, tx_view, committed_view, committed_seqno);
+        if (tx_status != ccf::TxStatus::Committed)
+        {
+          error_reason = fmt::format(
+            "Only committed transactions can be queried. Transaction {}.{} is "
+            "{}",
+            view,
+            seqno,
+            ccf::tx_status_to_str(tx_status));
+          return false;
+        }
+
+        return true;
+      };
+
       install(Procs::LOG_RECORD, ccf::json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
@@ -328,7 +358,7 @@ namespace loggingapp
       install(
         Procs::LOG_GET_HISTORICAL,
         ccf::historical::adapter(
-          get_historical, context.get_historical_state()),
+          get_historical, context.get_historical_state(), is_tx_committed),
         Read);
 
       auto& notifier = context.get_notifier();
