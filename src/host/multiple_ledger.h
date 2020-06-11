@@ -190,7 +190,10 @@ namespace asynchost
       auto path = fmt::format("/proc/self/fd/{}", fd);
       char result[1024];
       ::memset(result, 0, sizeof(result));
-      readlink(path.c_str(), result, sizeof(result) - 1);
+      if (readlink(path.c_str(), result, sizeof(result) - 1) < 0)
+      {
+        throw std::logic_error("Could not read ledger file name");
+      }
 
       return fs::path(result).filename();
     }

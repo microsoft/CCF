@@ -16,7 +16,6 @@
 #include "ds/logger.h"
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
-// #include "host/ledger.h" // TODO: This shouldn't be here!!
 #include "kv/kv_types.h"
 #include "node/nodetypes.h"
 
