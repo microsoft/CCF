@@ -15,7 +15,7 @@ extern "C"
 
 using namespace std;
 
-static constexpr size_t appends = 1000000;
+static constexpr size_t appends = 1'000'000;
 static constexpr size_t max_tree_size = 1000;
 static constexpr size_t flushes_without_retract = 10;
 
