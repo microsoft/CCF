@@ -152,11 +152,9 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=10,
     )
     parser.add_argument(
-        "--ledger-chunk-threshold",
-        help="Minimum size (bytes) at which a new ledger chunk is created. Value is used as a "
-        "shift factor, ie - given N, the limit is (1 << N)",
-        type=int,
-        default=23,  # 8 MB chunks by default
+        "--ledger-chunk-max-bytes",
+        help="Minimum size (bytes) at which a new ledger chunk is created.",
+        default= "100MB",  # 100MB chunks by default
     )
 
     add(parser)

@@ -560,7 +560,7 @@ class CCFRemote(object):
         ledger_dir=None,
         log_format_json=None,
         binary_dir=".",
-        ledger_chunk_threshold=20,
+        ledger_chunk_max_bytes=(5 * 1024 * 1024),
         domain=None,
     ):
         """
@@ -625,8 +625,8 @@ class CCFRemote(object):
         if memory_reserve_startup:
             cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
 
-        if ledger_chunk_threshold:
-            cmd += [f"--ledger-chunk-threshold={ledger_chunk_threshold}"]
+        if ledger_chunk_max_bytes:
+            cmd += [f"--ledger-chunk-max-bytes={ledger_chunk_max_bytes}"]
 
         if notify_server:
             notify_server_host, *notify_server_port = notify_server.split(":")

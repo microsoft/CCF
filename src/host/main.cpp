@@ -121,15 +121,14 @@ int main(int argc, char** argv)
   app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
 
-  size_t ledger_chunk_threshold = 23; // ~8MB
+  size_t ledger_chunk_threshold = 5'000'000;
   app
     .add_option(
-      "--ledger-chunk-threshold",
+      "--ledger-chunk-max-bytes",
       ledger_chunk_threshold,
-      "Minimum size (bytes) at which a new ledger chunk is created. Value is "
-      "used as a shift factor, ie - given N, the limit is (1 << N)")
+      "Minimum size (bytes) at which a new ledger chunk is created.")
     ->capture_default_str()
-    ->check(CLI::PositiveNumber);
+    ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -513,7 +512,7 @@ int main(int argc, char** argv)
 
   // write to a ledger
   asynchost::MultipleLedger ledger(
-    ledger_dir, writer_factory, (1 << ledger_chunk_threshold));
+    ledger_dir, writer_factory, ledger_chunk_threshold);
   ledger.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
