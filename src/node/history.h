@@ -402,34 +402,6 @@ namespace ccf
       std::memcpy(hash.h.data(), leaf_data, hash.h.size());
       return hash;
     }
-
-    void print_hashes(LowStar_Vector_vector_str___uint8_t_ hash)
-    {
-      LOG_INFO_FMT("sz: {}, cap: {}", hash.sz, hash.cap);
-      for (size_t i = 0; i < hash.sz; ++i)
-      {
-        LOG_INFO_FMT(
-          "{}: {:02x} {:02x} {:02x} {:02x}...",
-          i,
-          hash.vs[i][0],
-          hash.vs[i][1],
-          hash.vs[i][2],
-          hash.vs[i][3]);
-      }
-    }
-
-    void print()
-    {
-      LOG_INFO_FMT(
-        "offset: {}, i: {}, j: {}, rhs_ok: {}",
-        tree->offset,
-        tree->i,
-        tree->j,
-        tree->rhs_ok);
-
-      LOG_INFO_FMT("hs[0]:");
-      print_hashes(tree->hs.vs[0]);
-    }
   };
 
   template <class T>
@@ -574,10 +546,7 @@ namespace ccf
     void compact(kv::Version v) override
     {
       flush_pending();
-      // if (v > MAX_HISTORY_LEN)
-      {
-        replicated_state_tree.flush(v);
-      }
+      replicated_state_tree.flush(v);
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
