@@ -73,7 +73,6 @@ namespace asynchost
       file(NULL),
       start_idx(start_idx)
     {
-      LOG_FAIL_FMT("***** File is opened from scratch!");
       file = fopen(
         (fs::path(dir) /
          fs::path(fmt::format("{}_{}", file_name_prefix, start_idx)))
@@ -90,8 +89,6 @@ namespace asynchost
       dir(dir),
       file(NULL)
     {
-      LOG_FAIL_FMT("***** File is opened from another one!");
-
       auto full_path = (fs::path(dir) / fs::path(file_name));
       file = fopen(full_path.c_str(), "r+b");
       if (!file)
@@ -183,7 +180,6 @@ namespace asynchost
 
     ~LedgerFile()
     {
-      LOG_INFO_FMT("File {} closed", get_file_name());
       fflush(file);
       fclose(file);
     }
@@ -254,13 +250,6 @@ namespace asynchost
 
     size_t framed_entries_size(size_t from, size_t to) const
     {
-      LOG_TRACE_FMT(
-        "fes: from {} -> to {} [start: {} - last: {}]",
-        from,
-        to,
-        start_idx,
-        start_idx + positions.size() - 1);
-
       if ((from < start_idx) || (to < from) || (to > get_last_idx()))
       {
         return 0;
@@ -287,7 +276,6 @@ namespace asynchost
     {
       if ((idx < start_idx) || (idx > get_last_idx()))
       {
-        LOG_FAIL_FMT("Unknown entry idx: {}", idx);
         return {};
       }
 
@@ -331,8 +319,6 @@ namespace asynchost
       {
         return false;
       }
-
-      LOG_TRACE_FMT("Truncating {} at {}", get_file_name(), idx);
 
       if (idx == start_idx - 1)
       {
@@ -418,8 +404,6 @@ namespace asynchost
         return false;
       }
 
-      LOG_DEBUG_FMT("Compacting file at {}", idx);
-
       if (fflush(file) != 0)
       {
         throw std::logic_error(fmt::format("Failed to flush ledger file"));
@@ -439,7 +423,6 @@ namespace asynchost
     }
   };
 
-  // TODO: Test with 4 GB files!!!
   class MultipleLedger
   {
   private:
@@ -462,21 +445,6 @@ namespace asynchost
 
     // True if a new file should be created when writing an entry
     bool require_new_file;
-
-    // TODO: Delete when necessary
-    void dump_files() const
-    {
-      LOG_FAIL_FMT("****** Active files: ");
-      for (auto const& f : files)
-      {
-        LOG_FAIL_FMT(
-          "{} -> {}: {}",
-          f->get_file_name(),
-          f->get_start_idx(),
-          f->get_last_idx());
-      }
-      LOG_FAIL_FMT("******");
-    }
 
     auto get_it_contains_idx(size_t idx) const
     {
@@ -503,36 +471,23 @@ namespace asynchost
         return nullptr;
       }
 
-      // TODO: Read read cache
-      for (auto const& r : files_read_cache)
-      {
-        LOG_FAIL_FMT(
-          "Read cache: {} - {}", r->get_start_idx(), r->get_file_name());
-      }
-
+      // First, try to find file from read cache
       for (auto const& f : files_read_cache)
       {
         if (f->get_start_idx() <= idx && idx <= f->get_last_idx())
         {
-          LOG_FAIL_FMT("Read cache hit!");
           return f;
         }
       }
 
-      LOG_FAIL_FMT("Reach cache miss");
-
-      // Read all files from ledger directory
+      // If the file is not in the cache, find the file from the ledger
+      // directory
       std::map<size_t, std::string> all_files;
       for (auto const& f : fs::directory_iterator(ledger_dir))
       {
         all_files.emplace(
           get_start_idx_from_file_name(f.path().filename()),
           f.path().filename());
-      }
-
-      for (auto const& f : all_files)
-      {
-        LOG_FAIL_FMT("f: {} -> {}", f.first, f.second);
       }
 
       auto f_ = std::upper_bound(
@@ -549,23 +504,13 @@ namespace asynchost
         return nullptr;
       }
 
+      // Emplace file in the max-sized read cache
       auto match_file = std::make_shared<LedgerFile>(ledger_dir, f_->second);
-
-      LOG_FAIL_FMT("Emplacing file to read cache...");
       if (files_read_cache.size() >= max_read_cache_size)
       {
-        LOG_FAIL_FMT("Maximum size of read cache read! Not emplacing!");
         files_read_cache.erase(files_read_cache.begin());
       }
-
       files_read_cache.emplace_back(match_file);
-
-      // TODO: Read read cache
-      for (auto const& r : files_read_cache)
-      {
-        LOG_FAIL_FMT(
-          "Read cache: {} - {}", r->get_start_idx(), r->get_file_name());
-      }
 
       return match_file;
     }
@@ -576,10 +521,6 @@ namespace asynchost
       {
         return nullptr;
       }
-
-      LOG_FAIL_FMT("********** Find file for idx {}", idx);
-
-      dump_files();
 
       // First, check if the file is in the list of files open for writing
       auto f = std::upper_bound(
@@ -592,11 +533,9 @@ namespace asynchost
 
       if (f != files.rend())
       {
-        LOG_FAIL_FMT("Write cache hit! {}", (*f)->get_start_idx());
         return *f;
       }
 
-      LOG_FAIL_FMT("Write cache miss");
       // Otherwise, return file from read cache
       return get_file_from_cache(idx);
     }
@@ -701,10 +640,8 @@ namespace asynchost
         return {};
       }
 
-      size_t idx = from;
-
       std::vector<uint8_t> entries;
-
+      size_t idx = from;
       while (idx <= to)
       {
         auto f_from = get_file_from_idx(idx);
@@ -722,9 +659,6 @@ namespace asynchost
           entries.end(),
           std::make_move_iterator(v.begin()),
           std::make_move_iterator(v.end()));
-
-        LOG_FAIL_FMT("Read {} entries from file", entries.size());
-
         idx = to_ + 1;
       }
 
@@ -742,18 +676,13 @@ namespace asynchost
       last_idx = f->write_entry(data, size, committable);
 
       LOG_DEBUG_FMT(
-        "Wrote entry at {} in file {} [committable: {}]",
-        last_idx,
-        f->get_file_name(),
-        committable);
+        "Wrote entry at {} [committable: {}]", last_idx, committable);
 
       if (committable && f->get_current_size() >= chunk_threshold)
       {
         f->complete();
         require_new_file = true;
-
-        LOG_FAIL_FMT(
-          ">>>>> Creating new chunk which will start at {}", last_idx + 1);
+        LOG_TRACE_FMT("New ledger chunk will start at {}", last_idx + 1);
       }
 
       return last_idx;
@@ -779,7 +708,6 @@ namespace asynchost
         // Truncate the first file to the truncation index while the more recent
         // files are deleted entirely
         auto truncate_idx = (it == f_from) ? idx : (*it)->get_start_idx() - 1;
-        LOG_FAIL_FMT("Truncate idx: {}", truncate_idx);
         if ((*it)->truncate(truncate_idx))
         {
           auto it_ = it;
