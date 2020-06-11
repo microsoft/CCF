@@ -388,11 +388,11 @@ namespace ccf
       return index >= begin_index() && index <= end_index();
     }
 
-    crypto::Sha256Hash get_hash(uint64_t index)
+    crypto::Sha256Hash get_leaf(uint64_t index)
     {
       if (!in_range(index))
       {
-        throw std::logic_error("Cannot get hash for out-of-range index");
+        throw std::logic_error("Cannot get leaf for out-of-range index");
       }
 
       const auto leaves = tree->hs.vs[0];
@@ -410,9 +410,9 @@ namespace ccf
 
       const auto leaf_data = leaves.vs[leaf_index];
 
-      crypto::Sha256Hash hash;
-      std::memcpy(hash.h.data(), leaf_data, hash.h.size());
-      return hash;
+      crypto::Sha256Hash leaf;
+      std::memcpy(leaf.h.data(), leaf_data, leaf.h.size());
+      return leaf;
     }
   };
 

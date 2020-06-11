@@ -85,7 +85,7 @@ TEST_CASE("Tree equality")
   }
 }
 
-TEST_CASE("Retrieving hashes")
+TEST_CASE("Retrieving leaves")
 {
   constexpr size_t hash_count = 1'000;
 
@@ -104,14 +104,14 @@ TEST_CASE("Retrieving hashes")
 
   for (const auto& [i, hash] : hashes)
   {
-    const auto h = history.get_hash(i);
+    const auto h = history.get_leaf(i);
     REQUIRE(h == hash);
   }
 
   for (const auto& [i, hash] : hashes)
   {
     history.flush(i);
-    const auto h = history.get_hash(i);
+    const auto h = history.get_leaf(i);
     REQUIRE(h == hash);
   }
 }
@@ -147,7 +147,7 @@ TEST_CASE("Deserialised")
 
     for (size_t i = deser_tree.begin_index(); i <= deser_tree.end_index(); ++i)
     {
-      REQUIRE(deser_tree.get_hash(i) == original_tree.get_hash(i));
+      REQUIRE(deser_tree.get_leaf(i) == original_tree.get_leaf(i));
     }
   }
 }
@@ -159,7 +159,7 @@ TEST_CASE("First root")
     ccf::MerkleTreeHistory tree;
     const auto empty_root = tree.get_root();
     REQUIRE(empty_root == crypto::Sha256Hash());
-    REQUIRE(tree.get_hash(0) == empty_root);
+    REQUIRE(tree.get_leaf(0) == empty_root);
   }
 
   {
@@ -168,6 +168,6 @@ TEST_CASE("First root")
     ccf::MerkleTreeHistory tree(h);
     const auto single_root = tree.get_root();
     REQUIRE(single_root == h);
-    REQUIRE(tree.get_hash(0) == single_root);
+    REQUIRE(tree.get_leaf(0) == single_root);
   }
 }
