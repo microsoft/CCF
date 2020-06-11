@@ -631,7 +631,7 @@ namespace ccf
       }
       // term_history.size() + 2
       // TODO: this is not great
-      network.tables->set_term(term + 2);
+      network.tables->set_term(term_history.size() + 2);
 
       kv::Tx tx;
       GenesisGenerator g(network, tx);
