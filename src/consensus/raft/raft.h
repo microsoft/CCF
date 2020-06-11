@@ -1165,7 +1165,7 @@ namespace raft
 
       commit_idx = idx;
 
-      LOG_FAIL_FMT("Compacting...");
+      LOG_DEBUG_FMT("Compacting...");
       store->compact(idx);
       ledger->compact(idx);
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);

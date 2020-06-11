@@ -198,7 +198,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_include_directories(
     cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CCF_GENERATED_DIR}
   )
-  target_compile_options(cchost PRIVATE -stdlib=libc++)
   add_san(cchost)
 
   target_link_libraries(

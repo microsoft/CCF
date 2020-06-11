@@ -187,7 +187,6 @@ namespace logger
           log_level,
           file_line_data,
           msg);
-        // return fmt::format("{}", msg);
       }
     }
 
