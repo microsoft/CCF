@@ -231,9 +231,7 @@ namespace asynchost
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
         consensus::ledger_compact,
-        [this](const uint8_t* data, size_t size) {
-          // TODO: Delete me
-        });
+        [this](const uint8_t* data, size_t size) {});
     }
   };
 }

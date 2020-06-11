@@ -7,6 +7,7 @@
 #include <doctest/doctest.h>
 #include <string>
 
+// Used throughout
 using frame_header_type = uint32_t;
 static constexpr size_t frame_header_size = sizeof(frame_header_type);
 static constexpr auto ledger_dir = "ledger_dir";
@@ -55,6 +56,20 @@ size_t number_of_files_in_ledger_dir()
   return file_count;
 }
 
+size_t number_of_compacted_files_in_ledger_dir()
+{
+  size_t compacted_file_count = 0;
+  for (auto const& f : fs::directory_iterator(ledger_dir))
+  {
+    if (asynchost::is_ledger_file_compacted(f.path().string()))
+    {
+      compacted_file_count++;
+    }
+  }
+
+  return compacted_file_count;
+}
+
 void verify_framed_entries_range(
   const std::vector<uint8_t>& framed_entries, size_t from, size_t to)
 {
@@ -66,7 +81,6 @@ void verify_framed_entries_range(
 
     auto frame = serialized::read<frame_header_type>(data, size);
     auto entry = serialized::read(data, size, frame);
-    LOG_DEBUG_FMT("Value is {}", TestLedgerEntry(entry).value());
     REQUIRE(TestLedgerEntry(entry).value() == idx);
     i += frame_header_size + frame;
     idx++;
@@ -83,13 +97,12 @@ void read_entry_from_ledger(asynchost::MultipleLedger& ledger, size_t idx)
 void read_entries_range_from_ledger(
   asynchost::MultipleLedger& ledger, size_t from, size_t to)
 {
-  LOG_DEBUG_FMT("------------------\n");
   verify_framed_entries_range(ledger.read_framed_entries(from, to), from, to);
 }
 
 // Keeps track of ledger entries written to the ledger.
 // An entry submitted at index i has for value i so that it is easy to verify
-// that the ledger entry returned by the ledger at a specific index is right.
+// that the ledger entry read from the ledger at a specific index is right.
 class TestEntrySubmitter
 {
 private:
@@ -150,7 +163,6 @@ size_t initialise_ledger(
   size_t end_of_first_chunk_idx = 0;
   bool is_committable = true;
   size_t entries_per_chunk = get_entries_per_chunk(chunk_threshold);
-  LOG_DEBUG_FMT("Submitting {} txs", entries_per_chunk * chunk_count);
 
   for (int i = 0; i < entries_per_chunk * chunk_count; i++)
   {
@@ -218,8 +230,6 @@ TEST_CASE("Regular chunking")
   {
     size_t chunk_count = 10;
     size_t number_of_files_before = number_of_files_in_ledger_dir();
-    LOG_DEBUG_FMT("Submitting {} txs", entries_per_chunk * chunk_count);
-
     for (int i = 0; i < entries_per_chunk * chunk_count; i++)
     {
       entry_submitter.write(is_committable);
@@ -359,21 +369,6 @@ TEST_CASE("Truncation")
   }
 }
 
-size_t number_of_compacted_files_in_ledger_dir()
-{
-  size_t compacted_file_count = 0;
-  for (auto const& f : fs::directory_iterator(ledger_dir))
-  {
-    LOG_DEBUG_FMT("File: {}", f.path());
-    if (asynchost::is_ledger_file_compacted(f.path().string()))
-    {
-      compacted_file_count++;
-    }
-  }
-
-  return compacted_file_count;
-}
-
 TEST_CASE("Compaction")
 {
   fs::remove_all(ledger_dir);
@@ -461,19 +456,19 @@ TEST_CASE("Restore existing ledger")
   size_t last_idx = 0;
   size_t end_of_first_chunk_idx = 0;
   size_t chunk_count = 3;
+  size_t number_of_ledger_files = 0;
 
   SUBCASE("Restoring uncompacted chunks")
   {
-    INFO("Initialise first ledger with all but one complete chunk");
+    INFO("Initialise first ledger with complete chunks");
     {
       asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
       TestEntrySubmitter entry_submitter(ledger);
 
       end_of_first_chunk_idx =
         initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
-
-      entry_submitter.write(true);
-      last_idx = entry_submitter.get_last_idx();
+      number_of_ledger_files = number_of_files_in_ledger_dir();
+      last_idx = chunk_count * end_of_first_chunk_idx;
     }
 
     asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
@@ -482,6 +477,8 @@ TEST_CASE("Restore existing ledger")
     // Restored ledger can be written to
     TestEntrySubmitter entry_submitter(ledger2, last_idx);
     entry_submitter.write(true);
+    // On restore, we write a new file as all restored chunks were complete
+    REQUIRE(number_of_files_in_ledger_dir() == number_of_ledger_files + 1);
     entry_submitter.write(true);
     entry_submitter.write(true);
 
@@ -503,15 +500,23 @@ TEST_CASE("Restore existing ledger")
 
       entry_submitter.truncate(end_of_first_chunk_idx + 1);
       last_idx = entry_submitter.get_last_idx();
+      number_of_ledger_files = number_of_files_in_ledger_dir();
     }
 
     asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
     read_entries_range_from_ledger(ledger2, 1, last_idx);
+
+    TestEntrySubmitter entry_submitter(ledger2, last_idx);
+    entry_submitter.write(true);
+    // On restore, we write at the end of the last file is that file is not
+    // complete
+    REQUIRE(number_of_files_in_ledger_dir() == number_of_ledger_files);
   }
 
   SUBCASE("Restoring some compacted chunks")
   {
-    auto compacted_idx = 0;
+    // This is the scenario on recovery
+    size_t compacted_idx = 0;
     INFO("Initialise first ledger with compacted chunks");
     {
       asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
@@ -522,8 +527,8 @@ TEST_CASE("Restore existing ledger")
 
       compacted_idx = 2 * end_of_first_chunk_idx + 1;
       entry_submitter.write(true);
-      ledger.compact(compacted_idx);
       last_idx = entry_submitter.get_last_idx();
+      ledger.compact(compacted_idx);
     }
 
     asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
@@ -562,7 +567,6 @@ TEST_CASE("Restore existing ledger")
       size_t orig_number_files = number_of_files_in_ledger_dir();
       while (number_of_files_in_ledger_dir() == orig_number_files)
       {
-        LOG_DEBUG_FMT("Submitting new entry..............");
         entry_submitter.write(true);
       }
       last_idx = entry_submitter.get_last_idx();
@@ -578,7 +582,6 @@ TEST_CASE("Restore existing ledger")
       size_t orig_number_files = number_of_files_in_ledger_dir();
       while (number_of_files_in_ledger_dir() == orig_number_files)
       {
-        LOG_DEBUG_FMT("Submitting new entry..............");
         entry_submitter.write(true);
       }
     }
@@ -609,8 +612,6 @@ TEST_CASE("Limit number of open files")
   size_t initial_number_fd = number_open_fd();
   size_t last_idx = 0;
 
-  LOG_DEBUG_FMT("Initial number of fd: {}", initial_number_fd);
-
   size_t end_of_first_chunk_idx =
     initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
   REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
@@ -629,6 +630,7 @@ TEST_CASE("Limit number of open files")
 
     ledger.compact(end_of_first_chunk_idx); // One file now compacted
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
+    read_entry_from_ledger(ledger, 1);
     read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
     // Compacted file is open in read cache
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);

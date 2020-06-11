@@ -12,6 +12,7 @@ import ctypes
 import signal
 import re
 import stat
+import shutil
 from collections import deque
 
 from loguru import logger as LOG
@@ -65,15 +66,15 @@ def log_errors(out_path, err_path):
             for line in lines:
                 stripped_line = line.rstrip()
                 tail_lines.append(stripped_line)
-                if any(x in stripped_line for x in error_filter):
-                    LOG.error("{}: {}".format(out_path, stripped_line))
-                    error_lines.append(stripped_line)
+                # if any(x in stripped_line for x in error_filter):
+                # LOG.error("{}: {}".format(out_path, stripped_line))
+                # error_lines.append(stripped_line)
         if error_lines:
             LOG.info(
                 "{} errors found, printing end of output for context:", len(error_lines)
             )
-            for line in tail_lines:
-                LOG.info(line)
+            # for line in tail_lines:
+            # LOG.info(line)
     except IOError:
         LOG.exception("Could not check output {} for errors".format(out_path))
 
@@ -209,6 +210,8 @@ class SSHRemote(CmdMixin):
                     if stat.S_ISDIR(fileattr.st_mode):
                         src_dir = os.path.join(self.root, file_name)
                         dst_dir = os.path.join(dst_path, file_name)
+                        if os.path.exists(dst_dir):
+                            shutil.rmtree(dst_dir)
                         os.makedirs(dst_dir)
                         for f in session.listdir(src_dir):
                             session.get(
@@ -226,7 +229,6 @@ class SSHRemote(CmdMixin):
                     )
                     break
                 except FileNotFoundError:
-                    LOG.error("File not found")
                     time.sleep(0.1)
             else:
                 raise ValueError(file_name)
@@ -410,6 +412,15 @@ class LocalRemote(CmdMixin):
 
     def _cp(self, src_path, dst_path):
         if os.path.isdir(src_path):
+            LOG.error(src_path)
+            assert (
+                self._rc(
+                    "rm -rf {}".format(
+                        os.path.join(dst_path, os.path.basename(src_path))
+                    )
+                )
+                == 0
+            )
             assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
         else:
             assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
@@ -435,7 +446,6 @@ class LocalRemote(CmdMixin):
         else:
             raise ValueError(path)
         target_name = target_name or file_name
-        # self._cp(path, os.path.join(dst_path, target_name))
         self._cp(path, dst_path)
 
     def list_files(self):
@@ -566,7 +576,9 @@ class CCFRemote(object):
         )
 
         self.ledger_dir = ledger_dir
-        self.ledger_dir_name = ledger_dir or f"{local_node_id}.ledger"
+        self.ledger_dir_name = (
+            os.path.basename(ledger_dir) if ledger_dir else f"{local_node_id}.ledger"
+        )
         self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
