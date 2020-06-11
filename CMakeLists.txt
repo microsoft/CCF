@@ -308,6 +308,11 @@ if(BUILD_TESTS)
     target_link_libraries(encryptor_test PRIVATE secp256k1.host)
 
     add_unit_test(
+      historical_queries_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+    )
+    target_link_libraries(historical_queries_test PRIVATE secp256k1.host)
+
+    add_unit_test(
       msgpack_serialization_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/msgpack_serialization.cpp
     )

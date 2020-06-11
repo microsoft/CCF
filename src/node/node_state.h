@@ -1666,7 +1666,11 @@ namespace ccf
 
     void read_ledger_idx(consensus::Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_get, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_get,
+        to_host,
+        idx,
+        consensus::LedgerRequestPurpose::Recovery);
     }
 
     void ledger_truncate(consensus::Index idx)

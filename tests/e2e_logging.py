@@ -209,6 +209,78 @@ def test_raw_text(network, args):
     return network
 
 
+@reqs.description("Read historical state")
+@reqs.supports_methods("LOG_record", "LOG_get", "LOG_get_historical")
+def test_historical_query(network, args):
+    if args.consensus == "pbft":
+        LOG.warning("Skipping historical queries in PBFT")
+        return network
+
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        with primary.node_client() as nc:
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
+
+            with primary.user_client() as c:
+                log_id = 10
+                msg = "This tests historical queries"
+                record_response = c.rpc("LOG_record", {"id": log_id, "msg": msg})
+                check_commit(record_response, result=True)
+                view = record_response.view
+                seqno = record_response.seqno
+
+                msg2 = "This overwrites the original message"
+                check_commit(
+                    c.rpc("LOG_record", {"id": log_id, "msg": msg2}), result=True
+                )
+                check(c.get("LOG_get", {"id": log_id}), result={"msg": msg2})
+
+                timeout = 15
+                found = False
+                params = {"view": view, "seqno": seqno, "id": log_id}
+                end_time = time.time() + timeout
+
+                while time.time() < end_time:
+                    get_response = c.rpc("LOG_get_historical", params)
+                    if get_response.status == http.HTTPStatus.ACCEPTED:
+                        retry_after = get_response.headers.get("retry-after")
+                        if retry_after is None:
+                            raise ValueError(
+                                f"Response with status {get_response.status} is missing 'retry-after' header"
+                            )
+                        retry_after = int(retry_after)
+                        LOG.warning(f"Sleeping for {retry_after}s")
+                        time.sleep(retry_after)
+                    elif get_response.status == http.HTTPStatus.OK:
+                        assert (
+                            get_response.result == msg
+                        ), f"{get_response.body} != {msg}"
+                        found = True
+                        break
+                    elif get_response.status == http.HTTPStatus.NO_CONTENT:
+                        raise ValueError(
+                            f"Historical query response claims there was no write to {log_id} at {view}.{seqno}"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unexpected response status {get_response.status}: {get_response}"
+                        )
+
+                if not found:
+                    raise TimeoutError(
+                        f"Unable to handle historical query after {timeout}s"
+                    )
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+
+    return network
+
+
 @reqs.description("Testing forwarding on member and node frontends")
 @reqs.supports_methods("mkSign")
 @reqs.at_least_n_nodes(2)
@@ -455,6 +527,7 @@ def run(args):
             network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
             network = test_raw_text(network, args)
+            network = test_historical_query(network, args)
             network = test_view_history(network, args)
 
 
