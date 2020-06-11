@@ -394,7 +394,6 @@ if(BUILD_TESTS)
     target_include_directories(lua_test PRIVATE ${LUA_DIR})
     target_link_libraries(lua_test PRIVATE lua.host)
 
-
     add_unit_test(
       merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
     )
