@@ -227,21 +227,20 @@ namespace ccf
       path = std::make_shared<Path>();
     }
 
-    static Receipt from_v(const std::vector<uint8_t>& v)
+    Receipt(const std::vector<uint8_t>& v)
     {
-      Receipt r;
+      path = std::make_shared<Path>();
       const uint8_t* buf = v.data();
       size_t s = v.size();
-      r.index = serialized::read<decltype(index)>(buf, s);
-      r.max_index = serialized::read<decltype(max_index)>(buf, s);
-      std::copy(buf, buf + r.root.h.size(), r.root.h.data());
-      buf += r.root.h.size();
-      s -= r.root.h.size();
-      for (size_t i = 0; i < s; i += r.root.SIZE)
+      index = serialized::read<decltype(index)>(buf, s);
+      max_index = serialized::read<decltype(max_index)>(buf, s);
+      std::copy(buf, buf + root.h.size(), root.h.data());
+      buf += root.h.size();
+      s -= root.h.size();
+      for (size_t i = 0; i < s; i += root.SIZE)
       {
-        path_insert(r.path->raw, const_cast<uint8_t*>(buf + i));
+        path_insert(path->raw, const_cast<uint8_t*>(buf + i));
       }
-      return r;
     }
 
     Receipt(merkle_tree* tree, uint64_t index_)
@@ -256,6 +255,8 @@ namespace ccf
 
       max_index = mt_get_path(tree, index, path->raw, root.h.data());
     }
+
+    Receipt(const Receipt&) = delete;
 
     bool verify(merkle_tree* tree) const
     {
@@ -759,7 +760,7 @@ namespace ccf
 
     bool verify_receipt(const std::vector<uint8_t>& v) override
     {
-      auto r = Receipt::from_v(v);
+      Receipt r(v);
       return replicated_state_tree.verify(r);
     }
   };
