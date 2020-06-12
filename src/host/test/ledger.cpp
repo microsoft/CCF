@@ -91,13 +91,14 @@ void verify_framed_entries_range(
 
 void read_entry_from_ledger(asynchost::MultipleLedger& ledger, size_t idx)
 {
-  REQUIRE(TestLedgerEntry(ledger.read_entry(idx)).value() == idx);
+  REQUIRE(TestLedgerEntry(ledger.read_entry(idx).value()).value() == idx);
 }
 
 void read_entries_range_from_ledger(
   asynchost::MultipleLedger& ledger, size_t from, size_t to)
 {
-  verify_framed_entries_range(ledger.read_framed_entries(from, to), from, to);
+  verify_framed_entries_range(
+    ledger.read_framed_entries(from, to).value(), from, to);
 }
 
 // Keeps track of ledger entries written to the ledger.
@@ -134,8 +135,11 @@ public:
     ledger.truncate(idx);
 
     // Check that we can read until truncated entry but cannot read after it
-    read_entries_range_from_ledger(ledger, 1, idx);
-    REQUIRE(ledger.read_framed_entries(1, idx + 1).size() == 0);
+    if (idx > 0)
+    {
+      read_entries_range_from_ledger(ledger, 1, idx);
+    }
+    REQUIRE_FALSE(ledger.read_framed_entries(1, idx + 1).has_value());
 
     if (idx < last_idx)
     {
@@ -248,10 +252,10 @@ TEST_CASE("Regular chunking")
     read_entry_from_ledger(ledger, last_idx);
 
     // Reading in the future fails
-    REQUIRE(ledger.read_entry(last_idx + 1).size() == 0);
+    REQUIRE_FALSE(ledger.read_entry(last_idx + 1).has_value());
 
     // Reading at 0 fails
-    REQUIRE(ledger.read_entry(0).size() == 0);
+    REQUIRE_FALSE(ledger.read_entry(0).has_value());
 
     // Reading in the past succeeds
     read_entry_from_ledger(ledger, 1);
@@ -266,11 +270,13 @@ TEST_CASE("Regular chunking")
     auto last_idx = entry_submitter.get_last_idx();
 
     // Reading from 0 fails
-    REQUIRE(ledger.read_framed_entries(0, end_of_first_chunk_idx).size() == 0);
+    REQUIRE_FALSE(
+      ledger.read_framed_entries(0, end_of_first_chunk_idx).has_value());
 
     // Reading in the future fails
-    REQUIRE(ledger.read_framed_entries(1, last_idx + 1).size() == 0);
-    REQUIRE(ledger.read_framed_entries(last_idx, last_idx + 1).size() == 0);
+    REQUIRE_FALSE(ledger.read_framed_entries(1, last_idx + 1).has_value());
+    REQUIRE_FALSE(
+      ledger.read_framed_entries(last_idx, last_idx + 1).has_value());
 
     // Reading from the start to any valid index succeeds
     read_entries_range_from_ledger(ledger, 1, 1);
@@ -444,7 +450,7 @@ TEST_CASE("Commit")
     last_idx = entry_submitter.get_last_idx();
     ledger.truncate(last_idx - 1); // Deletes entry at last_idx
     read_entries_range_from_ledger(ledger, 1, last_idx - 1);
-    REQUIRE(ledger.read_framed_entries(1, last_idx).size() == 0);
+    REQUIRE_FALSE(ledger.read_framed_entries(1, last_idx).has_value());
   }
 }
 

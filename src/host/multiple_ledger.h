@@ -267,11 +267,11 @@ namespace asynchost
       return (framed_size != 0) ? framed_size - frame_header_size : 0;
     }
 
-    const std::vector<uint8_t> read_entry(size_t idx) const
+    std::optional<std::vector<uint8_t>> read_entry(size_t idx) const
     {
       if ((idx < start_idx) || (idx > get_last_idx()))
       {
-        return {};
+        return std::nullopt;
       }
 
       auto len = entry_size(idx);
@@ -287,12 +287,13 @@ namespace asynchost
       return entry;
     }
 
-    const std::vector<uint8_t> read_framed_entries(size_t from, size_t to) const
+    std::optional<std::vector<uint8_t>> read_framed_entries(
+      size_t from, size_t to) const
     {
       if ((from < start_idx) || (to > get_last_idx()) || (to < from))
       {
         LOG_FAIL_FMT("Unknown entries range: {} - {}", from, to);
-        return {};
+        return std::nullopt;
       }
 
       auto framed_size = framed_entries_size(from, to);
@@ -620,21 +621,22 @@ namespace asynchost
 
     MultipleLedger(const MultipleLedger& that) = delete;
 
-    const std::vector<uint8_t> read_entry(size_t idx)
+    std::optional<std::vector<uint8_t>> read_entry(size_t idx)
     {
       auto f = get_file_from_idx(idx);
       if (f == nullptr)
       {
-        return {};
+        return std::nullopt;
       }
       return f->read_entry(idx);
     }
 
-    const std::vector<uint8_t> read_framed_entries(size_t from, size_t to)
+    std::optional<std::vector<uint8_t>> read_framed_entries(
+      size_t from, size_t to)
     {
       if ((from <= 0) || (to > last_idx) || (to < from))
       {
-        return {};
+        return std::nullopt;
       }
 
       std::vector<uint8_t> entries;
@@ -644,18 +646,18 @@ namespace asynchost
         auto f_from = get_file_from_idx(idx);
         if (f_from == nullptr)
         {
-          return {};
+          return std::nullopt;
         }
         auto to_ = std::min(f_from->get_last_idx(), to);
         auto v = f_from->read_framed_entries(idx, to_);
-        if (v.size() == 0)
+        if (!v.has_value())
         {
-          return entries;
+          return std::nullopt;
         }
         entries.insert(
           entries.end(),
-          std::make_move_iterator(v.begin()),
-          std::make_move_iterator(v.end()));
+          std::make_move_iterator(v->begin()),
+          std::make_move_iterator(v->end()));
         idx = to_ + 1;
       }
 
@@ -791,12 +793,12 @@ namespace asynchost
           auto [idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get>(data, size);
 
-          auto& entry = read_entry(idx);
+          auto entry = read_entry(idx);
 
-          if (entry.size() > 0)
+          if (entry.has_value())
           {
             RINGBUFFER_WRITE_MESSAGE(
-              consensus::ledger_entry, to_enclave, idx, purpose, entry);
+              consensus::ledger_entry, to_enclave, idx, purpose, entry.value());
           }
           else
           {

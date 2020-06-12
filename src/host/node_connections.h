@@ -248,10 +248,24 @@ namespace asynchost
             // Find the total frame size, and write it along with the header.
             auto count = ae.idx - ae.prev_idx;
 
+            uint32_t frame = (uint32_t)size_to_send;
             auto framed_entries =
               ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
+            if (framed_entries.has_value())
+            {
+              frame += (uint32_t)framed_entries->size();
+              node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
+              node.value()->write(size_to_send, data_to_send);
 
-            uint32_t frame = (uint32_t)(size_to_send + framed_entries.size());
+              frame = (uint32_t)framed_entries->size();
+              node.value()->write(frame, framed_entries->data());
+            }
+            else
+            {
+              // Header-only AE
+              node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
+              node.value()->write(size_to_send, data_to_send);
+            }
 
             LOG_DEBUG_FMT(
               "send AE to node {} [{}]: {}, {}",
@@ -259,12 +273,6 @@ namespace asynchost
               frame,
               ae.idx,
               ae.prev_idx);
-
-            node.value()->write(sizeof(uint32_t), (uint8_t*)&frame);
-            node.value()->write(size_to_send, data_to_send);
-
-            frame = (uint32_t)framed_entries.size();
-            node.value()->write(frame, framed_entries.data());
           }
           else
           {
