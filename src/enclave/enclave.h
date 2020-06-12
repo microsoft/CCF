@@ -33,7 +33,7 @@ namespace enclave
     ccf::Timers timers;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
-    ccf::NodeState node;
+    std::unique_ptr<ccf::NodeState> node;
     std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
 
     CCFConfig ccf_config;
@@ -75,13 +75,6 @@ namespace enclave
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
       share_manager(network),
-      node(
-        writer_factory,
-        network,
-        rpcsessions,
-        context.notifier,
-        timers,
-        share_manager),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
       consensus_type(consensus_type_),
@@ -93,16 +86,25 @@ namespace enclave
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
+      node = std::make_unique<ccf::NodeState>(
+        writer_factory,
+        network,
+        rpcsessions,
+        context.notifier,
+        timers,
+        share_manager);
+
       REGISTER_FRONTEND(
         rpc_map,
         members,
-        std::make_unique<ccf::MemberRpcFrontend>(network, node, share_manager));
+        std::make_unique<ccf::MemberRpcFrontend>(
+          network, *node, share_manager));
 
       REGISTER_FRONTEND(
         rpc_map, users, ccfapp::get_rpc_handler(network, context));
 
       REGISTER_FRONTEND(
-        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));
+        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, *node));
 
       for (auto& [actor, fe] : rpc_map->get_map())
       {
@@ -111,7 +113,7 @@ namespace enclave
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
-      node.initialize(consensus_config, n2n_channels, rpc_map, cmd_forwarder);
+      node->initialize(consensus_config, n2n_channels, rpc_map, cmd_forwarder);
     }
 
     bool create_new_node(
@@ -134,7 +136,7 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node.create({start_type, ccf_config});
+      auto r = node->create({start_type, ccf_config});
       if (!r.second)
         return false;
 
@@ -213,16 +215,16 @@ namespace enclave
             {
               std::chrono::milliseconds elapsed_ms(ms_count);
               logger::config::tick(elapsed_ms);
-              node.tick(elapsed_ms);
+              node->tick(elapsed_ms);
               timers.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // ledger is being read
-              if (!node.is_reading_public_ledger())
+              if (!node->is_reading_public_ledger())
               {
                 for (auto& r : rpc_map->get_map())
                   r.second->tick(elapsed_ms);
               }
-              node.tick_end();
+              node->tick_end();
             }
           });
 
@@ -242,7 +244,7 @@ namespace enclave
             }
             else
             {
-              node.node_msg(std::move(body));
+              node->node_msg(std::move(body));
             }
           });
 
@@ -256,10 +258,10 @@ namespace enclave
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                if (node.is_reading_public_ledger())
-                  node.recover_public_ledger_entry(body);
-                else if (node.is_reading_private_ledger())
-                  node.recover_private_ledger_entry(body);
+                if (node->is_reading_public_ledger())
+                  node->recover_public_ledger_entry(body);
+                else if (node->is_reading_private_ledger())
+                  node->recover_private_ledger_entry(body);
                 else
                   LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
                 break;
@@ -286,7 +288,7 @@ namespace enclave
             {
               case consensus::LedgerRequestPurpose::Recovery:
               {
-                node.recover_ledger_end();
+                node->recover_ledger_end();
                 break;
               }
               case consensus::LedgerRequestPurpose::HistoricalQuery:
@@ -305,11 +307,11 @@ namespace enclave
 
         if (start_type == StartType::Join)
         {
-          node.join({ccf_config});
+          node->join({ccf_config});
         }
         else if (start_type == StartType::Recover)
         {
-          node.start_ledger_recovery();
+          node->start_ledger_recovery();
         }
 
         bp.run(circuit->read_from_outside(), [](size_t consecutive_idles) {
