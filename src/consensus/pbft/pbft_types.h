@@ -78,11 +78,12 @@ namespace pbft
       Term* term = nullptr,
       kv::Tx* tx = nullptr)
     {
-      auto p = x.lock();
-      if (p)
-        return p->deserialise_views(data, public_only, term, tx);
-
-      return S::FAILED;
+      while (true)
+      {
+        auto p = x.lock();
+        if (p)
+          return p->deserialise_views(data, public_only, term, tx);
+      }
     }
 
     kv::Version commit_pre_prepare(
@@ -179,10 +180,14 @@ namespace pbft
 
     void compact(Index v)
     {
-      auto p = x.lock();
-      if (p)
+      while (true)
       {
-        p->compact(v);
+        auto p = x.lock();
+        if (p)
+        {
+          p->compact(v);
+          return;
+        }
       }
     }
 
@@ -201,12 +206,14 @@ namespace pbft
 
     kv::Version current_version()
     {
-      auto p = x.lock();
-      if (p)
+      while (true)
       {
-        return p->current_version();
+        auto p = x.lock();
+        if (p)
+        {
+          return p->current_version();
+        }
       }
-      return kv::NoVersion;
     }
 
     std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor()
