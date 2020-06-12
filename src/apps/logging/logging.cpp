@@ -259,51 +259,13 @@ namespace loggingapp
       };
       // SNIPPET_END: log_record_text
 
-      auto& historical_state = context.get_historical_state();
-      auto get_historical = [this, &historical_state](ccf::RequestArgs& args) {
-        const auto params =
-          nlohmann::json::parse(args.rpc_ctx->get_request_body());
-        const auto in = params.get<LoggingGetHistorical::In>();
-
-        // Check that the requested transaction ID is committed
-        {
-          const auto tx_view = consensus->get_view(in.seqno);
-          const auto committed_seqno = consensus->get_committed_seqno();
-          const auto committed_view = consensus->get_view(committed_seqno);
-
-          const auto tx_status = ccf::get_tx_status(
-            in.view, in.seqno, tx_view, committed_view, committed_seqno);
-          if (tx_status != ccf::TxStatus::Committed)
-          {
-            args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
-            args.rpc_ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::TEXT);
-            args.rpc_ctx->set_response_body(fmt::format(
-              "Only committed transactions can be retrieved historically. "
-              "Transaction {}.{} is {}",
-              in.view,
-              in.seqno,
-              ccf::tx_status_to_str(tx_status)));
-            return;
-          }
-        }
-
-        auto historical_store = historical_state.get_store_at(in.seqno);
-        if (historical_store == nullptr)
-        {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-          static constexpr size_t retry_after_seconds = 3;
-          args.rpc_ctx->set_response_header(
-            http::headers::RETRY_AFTER, retry_after_seconds);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "Historical transaction {}.{} is not currently available.",
-            in.view,
-            in.seqno));
-          return;
-        }
+      auto get_historical = [this](
+                              ccf::RequestArgs& args,
+                              ccf::historical::StorePtr historical_store,
+                              kv::Consensus::View historical_view,
+                              kv::Consensus::SeqNo historical_seqno) {
+        const auto [pack, params] =
+          ccf::jsonhandler::get_json_params(args.rpc_ctx);
 
         auto* historical_map = historical_store->get(records);
         if (historical_map == nullptr)
@@ -312,25 +274,60 @@ namespace loggingapp
           args.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
           args.rpc_ctx->set_response_body(fmt::format(
-            "Unable to get historical table '{}'.", records.get_name()));
+            "Unable to get table '{}' at {}.{}",
+            records.get_name(),
+            historical_view,
+            historical_seqno));
           return;
         }
 
+        const auto in = params.get<LoggingGetHistorical::In>();
+
         kv::Tx historical_tx;
         auto view = historical_tx.get_view(*historical_map);
-        auto v = view->get(in.id);
+        const auto v = view->get(in.id);
 
         if (v.has_value())
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          args.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          args.rpc_ctx->set_response_body(std::move(v.value()));
+          LoggingGetHistorical::Out out;
+          out.msg = v.value();
+          nlohmann::json j = out;
+          ccf::jsonhandler::set_response(std::move(j), args.rpc_ctx, pack);
         }
         else
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
         }
+      };
+
+      auto is_tx_committed = [this](
+                               kv::Consensus::View view,
+                               kv::Consensus::SeqNo seqno,
+                               std::string& error_reason) {
+        if (consensus == nullptr)
+        {
+          error_reason = "Node is not fully configured";
+          return false;
+        }
+
+        const auto tx_view = consensus->get_view(seqno);
+        const auto committed_seqno = consensus->get_committed_seqno();
+        const auto committed_view = consensus->get_view(committed_seqno);
+
+        const auto tx_status = ccf::get_tx_status(
+          view, seqno, tx_view, committed_view, committed_seqno);
+        if (tx_status != ccf::TxStatus::Committed)
+        {
+          error_reason = fmt::format(
+            "Only committed transactions can be queried. Transaction {}.{} is "
+            "{}",
+            view,
+            seqno,
+            ccf::tx_status_to_str(tx_status));
+          return false;
+        }
+
+        return true;
       };
 
       install(Procs::LOG_RECORD, ccf::json_adapter(record), Write)
@@ -358,7 +355,11 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false);
       install(Procs::LOG_RECORD_RAW_TEXT, log_record_text, Write);
-      install(Procs::LOG_GET_HISTORICAL, get_historical, Read);
+      install(
+        Procs::LOG_GET_HISTORICAL,
+        ccf::historical::adapter(
+          get_historical, context.get_historical_state(), is_tx_committed),
+        Read);
 
       auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(

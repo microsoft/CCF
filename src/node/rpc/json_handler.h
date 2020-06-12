@@ -62,7 +62,7 @@ namespace ccf
    * });
    */
 
-  namespace details
+  namespace jsonhandler
   {
     struct ErrorDetails
     {
@@ -236,68 +236,70 @@ namespace ccf
     }
   }
 
-  static details::JsonAdapterResponse make_success(
+  static jsonhandler::JsonAdapterResponse make_success(
     nlohmann::json&& result_payload)
   {
     return std::move(result_payload);
   }
 
-  static details::JsonAdapterResponse make_success(
+  static jsonhandler::JsonAdapterResponse make_success(
     const nlohmann::json& result_payload)
   {
     return result_payload;
   }
 
-  static details::JsonAdapterResponse make_error(
+  static jsonhandler::JsonAdapterResponse make_error(
     http_status status, const std::string& msg = "")
   {
-    return details::ErrorDetails{status, msg};
+    return jsonhandler::ErrorDetails{status, msg};
   }
 
-  using HandlerTxOnly = std::function<details::JsonAdapterResponse(kv::Tx& tx)>;
+  using HandlerTxOnly =
+    std::function<jsonhandler::JsonAdapterResponse(kv::Tx& tx)>;
 
   static HandleFunction json_adapter(const HandlerTxOnly& f)
   {
     return [f](RequestArgs& args) {
-      const auto [packing, params] = details::get_json_params(args.rpc_ctx);
-      details::set_response(f(args.tx), args.rpc_ctx, packing);
+      const auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
+      jsonhandler::set_response(f(args.tx), args.rpc_ctx, packing);
     };
   }
 
-  using HandlerJsonParamsOnly = std::function<details::JsonAdapterResponse(
+  using HandlerJsonParamsOnly = std::function<jsonhandler::JsonAdapterResponse(
     kv::Tx& tx, nlohmann::json&& params)>;
 
   static HandleFunction json_adapter(const HandlerJsonParamsOnly& f)
   {
     return [f](RequestArgs& args) {
-      auto [packing, params] = details::get_json_params(args.rpc_ctx);
-      details::set_response(
+      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
+      jsonhandler::set_response(
         f(args.tx, std::move(params)), args.rpc_ctx, packing);
     };
   }
 
   using HandlerJsonParamsAndCallerId =
-    std::function<details::JsonAdapterResponse(
+    std::function<jsonhandler::JsonAdapterResponse(
       kv::Tx& tx, CallerId caller_id, nlohmann::json&& params)>;
 
   static HandleFunction json_adapter(const HandlerJsonParamsAndCallerId& f)
   {
     return [f](RequestArgs& args) {
-      auto [packing, params] = details::get_json_params(args.rpc_ctx);
-      details::set_response(
+      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
+      jsonhandler::set_response(
         f(args.tx, args.caller_id, std::move(params)), args.rpc_ctx, packing);
     };
   }
 
   using HandlerJsonParamsAndForward =
-    std::function<details::JsonAdapterResponse(
+    std::function<jsonhandler::JsonAdapterResponse(
       RequestArgs& args, nlohmann::json&& params)>;
 
   static HandleFunction json_adapter(const HandlerJsonParamsAndForward& f)
   {
     return [f](RequestArgs& args) {
-      auto [packing, params] = details::get_json_params(args.rpc_ctx);
-      details::set_response(f(args, std::move(params)), args.rpc_ctx, packing);
+      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
+      jsonhandler::set_response(
+        f(args, std::move(params)), args.rpc_ctx, packing);
     };
   }
 }
