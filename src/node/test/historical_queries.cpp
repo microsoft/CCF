@@ -227,6 +227,30 @@ TEST_CASE("StateCache")
   }
 
   {
+    INFO(
+      "Cache accepts _wrong_ requested entry, and the range of supporting "
+      "entries");
+    // NB: This is _a_ valid entry, but not at this index. In fact this stage
+    // will accept anything that looks quite like a valid entry, even if it
+    // never came from a legitimate node - they should all fail at the signature
+    // check
+    REQUIRE(cache.get_store_at(low_index) == nullptr);
+    REQUIRE(cache.handle_ledger_entry(low_index, ledger.at(low_index + 1)));
+
+    // Count up to next signature
+    for (size_t i = low_index + 1; i < high_signature_transaction; ++i)
+    {
+      REQUIRE(provide_ledger_entry(i));
+      REQUIRE(cache.get_store_at(low_index) == nullptr);
+    }
+
+    // Signature is good
+    REQUIRE(provide_ledger_entry(high_signature_transaction));
+    // Junk entry is still not available
+    REQUIRE(cache.get_store_at(low_index) == nullptr);
+  }
+
+  {
     INFO("Historical state can be retrieved from provided entries");
     auto store_at_index = cache.get_store_at(high_index);
     REQUIRE(store_at_index != nullptr);

@@ -73,11 +73,9 @@ namespace asynchost
       file(NULL),
       start_idx(start_idx)
     {
-      file = fopen(
-        (fs::path(dir) /
-         fs::path(fmt::format("{}_{}", file_name_prefix, start_idx)))
-          .c_str(),
-        "w+b");
+      const auto filename = fs::path(fmt::format("{}_{}", file_name_prefix, start_idx));
+      const auto file_path = fs::path(dir) / filename;
+      file = fopen(file_path.c_str(), "w+b");
 
       // Header reserved for the offset to the position table
       fseeko(file, sizeof(positions_offset_header_t), SEEK_SET);
