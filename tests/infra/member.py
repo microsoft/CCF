@@ -140,6 +140,7 @@ class Member:
             r = mc.rpc("ack", params={"state_digest": list(state_digest)}, signed=True)
             assert r.error is None, f"Error ACK: {r.error}"
             self.status = MemberStatus.ACTIVE
+            return r
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
         with remote_node.member_client(member_id=self.member_id) as mc:
