@@ -10,7 +10,7 @@ from loguru import logger as LOG
 
 
 def check_can_progress(node, timeout=3):
-    with node.node_client() as mc:
+    with node.node_client() as c:
         r = c.rpc("commit")
         c.rpc("mkSign")
         end_time = time.time() + timeout
