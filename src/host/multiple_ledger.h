@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <limits>
+#include <linux/limits.h>
 #include <list>
 #include <map>
 #include <string>
@@ -172,7 +173,6 @@ namespace asynchost
 
     ~LedgerFile()
     {
-      fflush(file);
       fclose(file);
     }
 
@@ -180,7 +180,7 @@ namespace asynchost
     {
       int fd = fileno(file);
       auto path = fmt::format("/proc/self/fd/{}", fd);
-      char result[1024];
+      char result[PATH_MAX];
       ::memset(result, 0, sizeof(result));
       if (readlink(path.c_str(), result, sizeof(result) - 1) < 0)
       {
@@ -544,7 +544,7 @@ namespace asynchost
       {
         return nullptr;
       }
-      return *(files.rbegin()++);
+      return files.back();
     }
 
   public:
@@ -715,7 +715,7 @@ namespace asynchost
         }
         else
         {
-          // A new file will not be required on the next written entry if the a
+          // A new file will not be required on the next written entry if the
           // file is _not_ deleted entirely
           require_new_file = false;
           it++;

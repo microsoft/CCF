@@ -1167,7 +1167,7 @@ namespace raft
 
       LOG_DEBUG_FMT("Compacting...");
       store->compact(idx);
-      ledger->compact(idx);
+      ledger->commit(idx);
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed

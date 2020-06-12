@@ -61,7 +61,7 @@ namespace raft
       skip_count = 0;
     }
 
-    void compact(Index idx) {}
+    void commit(Index idx) {}
   };
 
   class ChannelStubProxy

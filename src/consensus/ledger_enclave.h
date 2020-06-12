@@ -91,11 +91,11 @@ namespace consensus
     }
 
     /**
-     * Compact the ledger at a given index.
+     * Commit the ledger at a given index.
      *
-     * @param idx Index to compact at
+     * @param idx Index to commit at
      */
-    void compact(Index idx)
+    void commit(Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_commit, to_host, idx);
     }
