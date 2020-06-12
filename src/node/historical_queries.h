@@ -167,36 +167,32 @@ namespace ccf::historical
       while (it != requests.end())
       {
         auto& request = it->second;
+        const auto& untrusted_idx = it->first;
 
-        if (request.current_stage == RequestStage::Untrusted)
+        if (
+          request.current_stage == RequestStage::Untrusted &&
+          tree.in_range(untrusted_idx))
         {
-          const auto& untrusted_idx = it->first;
+          // Compare signed hash, from signature mini-tree, with hash of the
+          // entry which was used to populate the store
           const auto& untrusted_hash = request.entry_hash;
-          const auto& untrusted_store = request.store;
-
-          // Use try-catch to find whether this signature covers the target
-          // transaction ID
-          ccf::Receipt receipt;
-          try
+          const auto trusted_hash = tree.get_leaf(untrusted_idx);
+          if (trusted_hash != untrusted_hash)
           {
-            receipt = tree.get_receipt(untrusted_idx);
-            LOG_DEBUG_FMT(
-              "From signature at {}, constructed a receipt for {}",
+            LOG_FAIL_FMT(
+              "Signature at {} has a different transaction at {} than "
+              "previously received",
               sig_idx,
               untrusted_idx);
-          }
-          catch (const std::exception& e)
-          {
-            // This signature doesn't cover this untrusted idx, try the next
-            // request
-            ++it;
+            // We trust the signature but not the store - delete this untrusted
+            // store. If it is re-requested, maybe the host will give us a valid
+            // pair of transaction+sig next time
+            it = requests.erase(it);
             continue;
           }
 
-          // This is where full verification should go, checking that the entry
-          // we have is in the signed merkle tree
-
-          // Move stores from untrusted to trusted
+          // Move store from untrusted to trusted
+          const auto& untrusted_store = request.store;
           LOG_DEBUG_FMT(
             "Now trusting {} due to signature at {}", untrusted_idx, sig_idx);
           request.current_stage = RequestStage::Trusted;
@@ -204,7 +200,8 @@ namespace ccf::historical
         }
         else
         {
-          // Already trusted or still fetching, skip it
+          // Already trusted or still fetching, or this signature doesn't cover
+          // this transaction - skip it and try the next
           ++it;
         }
       }
