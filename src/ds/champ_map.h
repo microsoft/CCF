@@ -2,14 +2,15 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_assert.h"
+#include "ds/serialized.h"
+
+#include <algorithm>
 #include <array>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <vector>
-#include <algorithm>
-#include "ds/serialized.h"
-#include  <iostream> 
-#include <assert.h>
 
 namespace champ
 {
@@ -93,7 +94,7 @@ namespace champ
     }
   };
 
-  uint32_t get_padding(uint32_t size)
+  uint32_t static get_padding(uint32_t size)
   {
     uint32_t padding = size % sizeof(uintptr_t);
     if (padding != 0)
@@ -102,7 +103,6 @@ namespace champ
     }
     return padding;
   }
-
 
   template <class K, class V, class H>
   using Node = std::shared_ptr<void>;
@@ -334,10 +334,10 @@ namespace champ
   public:
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
-    static Map<K, V, H> deserialize_map(const std::vector<uint8_t>& serialized_state,
+    Map<K, V, H> static deserialize_map(
+      const std::vector<uint8_t>& serialized_state,
       std::function<const K&(const uint8_t*, uint32_t)> make_k,
-      std::function<const V&(const uint8_t*, uint32_t)> make_v
-    )
+      std::function<const V&(const uint8_t*, uint32_t)> make_v)
     {
       Map<K, V, H> map;
       const uint8_t* data = serialized_state.data();
@@ -406,7 +406,7 @@ namespace champ
   class Snapshot
   {
   private:
-    Map<K,V,H> map;
+    Map<K, V, H> map;
 
     struct pair
     {
@@ -431,7 +431,8 @@ namespace champ
       map.foreach([&](auto& key, auto& value) {
         K* k = &key;
         V* v = &value;
-        this->serialized_state.push_back(pair(k, static_cast<Hash>(H()(key)), v));
+        this->serialized_state.push_back(
+          pair(k, static_cast<Hash>(H()(key)), v));
 
         size += (sizeof(uint64_t) * 2); // headers
         size += k_size(key) + get_padding(k_size(key));
@@ -459,19 +460,13 @@ namespace champ
           sizeof(uint64_t));
 
         serialized::write(
-          data,
-          size,
-          reinterpret_cast<const uint8_t*>(p.k),
-          key_size);
+          data, size, reinterpret_cast<const uint8_t*>(p.k), key_size);
 
         uint32_t padding_size = get_padding(key_size);
         if (padding_size != 0)
         {
           serialized::write(
-            data,
-            size,
-            reinterpret_cast<uint8_t*>(&padding),
-            padding_size);
+            data, size, reinterpret_cast<uint8_t*>(&padding), padding_size);
         }
         serialized::write(
           data,
@@ -480,28 +475,22 @@ namespace champ
           sizeof(uint64_t));
 
         serialized::write(
-          data,
-          size,
-          reinterpret_cast<const uint8_t*>(p.v),
-          value_size);
+          data, size, reinterpret_cast<const uint8_t*>(p.v), value_size);
 
         padding_size = get_padding(key_size);
         if (padding_size != 0)
         {
           serialized::write(
-            data,
-            size,
-            reinterpret_cast<uint8_t*>(&padding),
-            padding_size);
+            data, size, reinterpret_cast<uint8_t*>(&padding), padding_size);
         }
       }
 
-      assert(size == 0);
+      CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
     }
 
     const std::vector<uint8_t>& get_buffer() const
     {
-        return serialized;
+      return serialized;
     }
   };
 }

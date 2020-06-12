@@ -176,7 +176,6 @@ TEST_CASE("serialize map")
       REQUIRE_LT(p.k, num_elements);
       keys.insert(p.k);
       new_map = new_map.put(p.k, p.v);
-
     }
     REQUIRE_EQ(num_elements, new_map.size());
     REQUIRE_EQ(num_elements, keys.size());
