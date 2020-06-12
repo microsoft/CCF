@@ -98,10 +98,10 @@ namespace pbft
         auto success = p->commit(
           version,
           [version,
-            &pbft_pre_prepares_map,
-            &signatures,
-            pp,
-            root = std::vector<uint8_t>(root.p, root.p + root.n)]() {
+           &pbft_pre_prepares_map,
+           &signatures,
+           pp,
+           root = std::vector<uint8_t>(root.p, root.p + root.n)]() {
             kv::Tx tx(version);
             auto pp_view = tx.get_view(pbft_pre_prepares_map);
             pp_view->put(0, pp);
