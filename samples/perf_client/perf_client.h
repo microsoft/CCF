@@ -431,21 +431,7 @@ namespace client
         // and when all you have is a WebSocket, everything looks like a POST!
         auto c = create_connection(true, false);
         trigger_signature(c);
-        while (true)
-        {
-          auto r = get_tx_status(
-            c, last_response_commit.view, last_response_commit.seqno);
-          auto b = c->unpack_body(r);
-          if (b["status"] == "COMMITTED")
-          {
-            if (response_times.is_timing_active())
-            {
-              const auto commit_ids = timing::parse_commit_ids(r);
-              response_times.record_receive(0, commit_ids);
-            }
-            break;
-          }
-        }
+        wait_for_global_commit(last_response_commit);
       }
       const auto last_commit = last_response_commit.seqno;
       auto timing_results = end_timing(last_commit);
@@ -663,7 +649,9 @@ namespace client
         {
           const auto last_response = send_creation_transactions();
 
-          if (last_response.has_value())
+          if (
+            last_response.has_value() &&
+            http::status_success(last_response->status))
           {
             // Ensure creation transactions are globally committed before
             // proceeding
@@ -708,13 +696,13 @@ namespace client
       }
     }
 
-    RpcTlsClient::Response wait_for_global_commit(
+    timing::CommitPoint wait_for_global_commit(
       const timing::CommitPoint& target)
     {
       return response_times.wait_for_global_commit(target);
     }
 
-    RpcTlsClient::Response wait_for_global_commit(
+    timing::CommitPoint wait_for_global_commit(
       const RpcTlsClient::Response& response)
     {
       check_response(response);
