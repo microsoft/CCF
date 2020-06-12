@@ -231,7 +231,7 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::ledger_compact,
+        consensus::ledger_commit,
         [this](const uint8_t* data, size_t size) {});
     }
   };

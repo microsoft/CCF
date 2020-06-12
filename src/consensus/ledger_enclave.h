@@ -32,9 +32,7 @@ namespace consensus
      */
     void put_entry(const std::vector<uint8_t>& entry, bool globally_committable)
     {
-      // write the message
-      RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_append, to_host, globally_committable, entry);
+      put_entry(entry.data(), entry.size(), globally_committable);
     }
 
     /**
@@ -99,7 +97,7 @@ namespace consensus
      */
     void compact(Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_compact, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_commit, to_host, idx);
     }
   };
 }

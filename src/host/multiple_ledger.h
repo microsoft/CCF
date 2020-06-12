@@ -104,14 +104,6 @@ namespace asynchost
       fseeko(file, 0, SEEK_END);
       size_t total_file_size = ftello(file);
 
-      if (total_file_size == 0)
-      {
-        // If the file is empty, initialise it as if it were new
-        fseeko(file, sizeof(positions_offset_header_t), SEEK_SET);
-        total_len = sizeof(positions_offset_header_t);
-        return;
-      }
-
       // Second, read offset to header table
       fseeko(file, 0, SEEK_SET);
       positions_offset_header_t table_offset;
@@ -786,7 +778,7 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::ledger_compact,
+        consensus::ledger_commit,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
           compact(idx);
