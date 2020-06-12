@@ -751,6 +751,8 @@ namespace asynchost
     {
       LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
 
+      return; // TODO: Remove
+
       if (idx <= committed_idx)
       {
         return;

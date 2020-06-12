@@ -511,7 +511,8 @@ int main(int argc, char** argv)
   asynchost::Sigterm sigterm(writer_factory);
 
   // write to a ledger
-  asynchost::Ledger ledger(ledger_dir, writer_factory);
+  asynchost::MultipleLedger ledger(
+    ledger_dir, writer_factory, ledger_chunk_threshold);
   ledger.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.

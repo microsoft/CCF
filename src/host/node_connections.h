@@ -173,7 +173,7 @@ namespace asynchost
       }
     };
 
-    Ledger& ledger;
+    MultipleLedger& ledger;
     TCP listener;
     std::unordered_map<ccf::NodeId, TCP> outgoing;
     std::unordered_map<size_t, TCP> incoming;
@@ -185,7 +185,7 @@ namespace asynchost
   public:
     NodeConnections(
       messaging::Dispatcher<ringbuffer::Message>& disp,
-      Ledger& ledger,
+      MultipleLedger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& service) :
