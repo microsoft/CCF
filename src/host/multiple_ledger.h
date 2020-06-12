@@ -24,13 +24,17 @@ namespace asynchost
   static constexpr size_t max_chunk_threshold_size =
     std::numeric_limits<uint32_t>::max(); // 4GB
   static constexpr size_t max_read_cache_size_default = 5;
-  static constexpr auto ledger_committed_suffix = ".committed";
+  static constexpr auto ledger_committed_suffix = "committed";
   static constexpr auto ledger_start_idx_delimiter = "_";
 
-  static inline bool is_ledger_file_compacted(const std::string& file_name)
+  static inline bool is_ledger_file_committed(const std::string& file_name)
   {
-    auto pos = file_name.find(ledger_committed_suffix);
-    return !(pos == std::string::npos);
+    auto pos = file_name.find(".");
+    if (pos == std::string::npos)
+    {
+      return false;
+    }
+    return file_name.substr(pos + 1) == ledger_committed_suffix;
   }
 
   static inline size_t get_start_idx_from_file_name(
@@ -50,9 +54,7 @@ namespace asynchost
   {
   private:
     using positions_offset_header_t = size_t;
-
     static constexpr auto file_name_prefix = "ledger";
-
     static constexpr size_t frame_header_size = sizeof(uint32_t);
 
     const std::string dir;
@@ -65,7 +67,7 @@ namespace asynchost
     // cannot be truncated.
     FILE* file;
     bool completed = false;
-    bool compacted = false;
+    bool committed = false;
 
   public:
     LedgerFile(const std::string& dir, size_t start_idx) :
@@ -73,8 +75,8 @@ namespace asynchost
       file(NULL),
       start_idx(start_idx)
     {
-      const auto filename = fs::path(fmt::format("{}_{}", file_name_prefix, start_idx));
-      const auto file_path = fs::path(dir) / filename;
+      const auto filename = fmt::format("{}_{}", file_name_prefix, start_idx);
+      const auto file_path = fs::path(dir) / fs::path(filename);
       file = fopen(file_path.c_str(), "w+b");
 
       // Header reserved for the offset to the position table
@@ -95,7 +97,7 @@ namespace asynchost
           fmt::format("Unable to open ledger file {}", full_path));
       }
 
-      compacted = is_ledger_file_compacted(file_name);
+      committed = is_ledger_file_committed(file_name);
       start_idx = get_start_idx_from_file_name(file_name);
 
       // First, get full size of file
@@ -203,9 +205,9 @@ namespace asynchost
       return total_len;
     }
 
-    bool is_compacted() const
+    bool is_committed() const
     {
-      return compacted;
+      return committed;
     }
 
     bool is_complete() const
@@ -308,7 +310,7 @@ namespace asynchost
 
     bool truncate(size_t idx)
     {
-      if (compacted || (idx < start_idx - 1) || (idx >= get_last_idx()))
+      if (committed || (idx < start_idx - 1) || (idx >= get_last_idx()))
       {
         return false;
       }
@@ -389,11 +391,11 @@ namespace asynchost
       completed = true;
     }
 
-    bool compact(size_t idx)
+    bool commit(size_t idx)
     {
-      if (!completed || compacted || (idx != get_last_idx()))
+      if (!completed || committed || (idx != get_last_idx()))
       {
-        // No effect if compaction idx is not last idx
+        // No effect if commit idx is not last idx
         return false;
       }
 
@@ -402,16 +404,18 @@ namespace asynchost
         throw std::logic_error(fmt::format("Failed to flush ledger file"));
       }
 
+      const auto committed_file_name = fmt::format(
+        "{}_{}-{}.{}",
+        file_name_prefix,
+        start_idx,
+        get_last_idx(),
+        ledger_committed_suffix);
+
       fs::rename(
         fs::path(dir) / fs::path(get_file_name()),
-        fs::path(dir) /
-          fs::path(fmt::format(
-            "{}-{}{}",
-            get_file_name(),
-            get_last_idx(),
-            ledger_committed_suffix)));
+        fs::path(dir) / fs::path(committed_file_name));
 
-      compacted = true;
+      committed = true;
       return true;
     }
   };
@@ -434,7 +438,7 @@ namespace asynchost
 
     const size_t chunk_threshold;
     size_t last_idx = 0;
-    size_t compacted_idx = 0;
+    size_t committed_idx = 0;
 
     // True if a new file should be created when writing an entry
     bool require_new_file;
@@ -579,9 +583,9 @@ namespace asynchost
 
         for (auto f = files.begin(); f != files.end();)
         {
-          if ((*f)->is_compacted())
+          if ((*f)->is_committed())
           {
-            compacted_idx = (*f)->get_last_idx();
+            committed_idx = (*f)->get_last_idx();
             auto f_ = f;
             f++;
             files.erase(f_);
@@ -685,7 +689,7 @@ namespace asynchost
     {
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
-      if (idx >= last_idx || idx < compacted_idx)
+      if (idx >= last_idx || idx < committed_idx)
       {
         return;
       }
@@ -719,27 +723,27 @@ namespace asynchost
       last_idx = idx;
     }
 
-    void compact(size_t idx)
+    void commit(size_t idx)
     {
-      LOG_DEBUG_FMT("Ledger compact: {}/{}", idx, last_idx);
+      LOG_DEBUG_FMT("Ledger commit: {}/{}", idx, last_idx);
 
-      if (idx <= compacted_idx)
+      if (idx <= committed_idx)
       {
         return;
       }
 
-      auto f_from = (compacted_idx == 0) ? get_it_contains_idx(1) :
-                                           get_it_contains_idx(compacted_idx);
+      auto f_from = (committed_idx == 0) ? get_it_contains_idx(1) :
+                                           get_it_contains_idx(committed_idx);
       auto f_to = get_it_contains_idx(idx);
       auto f_end = std::next(f_to);
 
       for (auto it = f_from; it != f_end;)
       {
-        // Compact all previous file to their latest index while the latest
-        // file is compacted to the compaction index
-        auto compact_idx = (it == f_to) ? idx : (*it)->get_last_idx();
+        // Commit all previous file to their latest index while the latest
+        // file is committed to the committed index
+        auto commit_idx = (it == f_to) ? idx : (*it)->get_last_idx();
         if (
-          (*it)->compact(compact_idx) &&
+          (*it)->commit(commit_idx) &&
           (it != f_to || (idx == (*it)->get_last_idx())))
         {
           auto it_ = it;
@@ -752,7 +756,7 @@ namespace asynchost
         }
       }
 
-      compacted_idx = idx;
+      committed_idx = idx;
     }
 
     void register_message_handlers(
@@ -779,7 +783,7 @@ namespace asynchost
         consensus::ledger_commit,
         [this](const uint8_t* data, size_t size) {
           auto idx = serialized::read<consensus::Index>(data, size);
-          compact(idx);
+          commit(idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(

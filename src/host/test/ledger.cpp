@@ -56,18 +56,18 @@ size_t number_of_files_in_ledger_dir()
   return file_count;
 }
 
-size_t number_of_compacted_files_in_ledger_dir()
+size_t number_of_committed_files_in_ledger_dir()
 {
-  size_t compacted_file_count = 0;
+  size_t committed_file_count = 0;
   for (auto const& f : fs::directory_iterator(ledger_dir))
   {
-    if (asynchost::is_ledger_file_compacted(f.path().string()))
+    if (asynchost::is_ledger_file_committed(f.path().string()))
     {
-      compacted_file_count++;
+      committed_file_count++;
     }
   }
 
-  return compacted_file_count;
+  return committed_file_count;
 }
 
 void verify_framed_entries_range(
@@ -262,7 +262,7 @@ TEST_CASE("Regular chunking")
 
   INFO("Reading range of entries across all chunks");
   {
-    // Note: only testing write cache as no chunk has yet been compacted
+    // Note: only testing write cache as no chunk has yet been committed
     auto last_idx = entry_submitter.get_last_idx();
 
     // Reading from 0 fails
@@ -369,7 +369,7 @@ TEST_CASE("Truncation")
   }
 }
 
-TEST_CASE("Compaction")
+TEST_CASE("Commit")
 {
   fs::remove_all(ledger_dir);
 
@@ -383,55 +383,55 @@ TEST_CASE("Compaction")
 
   entry_submitter.write(true);
   size_t last_idx = entry_submitter.get_last_idx();
-  REQUIRE(number_of_compacted_files_in_ledger_dir() == 0);
+  REQUIRE(number_of_committed_files_in_ledger_dir() == 0);
 
-  INFO("Compacting end of first chunk");
+  INFO("Comitting end of first chunk");
   {
-    ledger.compact(end_of_first_chunk_idx);
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 1);
+    ledger.commit(end_of_first_chunk_idx);
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 1);
 
     read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx + 1);
   }
 
-  INFO("Compacting in the middle on complete chunk");
+  INFO("Comitting in the middle on complete chunk");
   {
-    ledger.compact(end_of_first_chunk_idx + 1);
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 1); // No effect
-    ledger.compact(2 * end_of_first_chunk_idx - 1); // No effect
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 1);
+    ledger.commit(end_of_first_chunk_idx + 1);
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 1); // No effect
+    ledger.commit(2 * end_of_first_chunk_idx - 1); // No effect
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 1);
   }
 
-  INFO("Compacting at the end of a complete chunk");
+  INFO("Comitting at the end of a complete chunk");
   {
-    ledger.compact(2 * end_of_first_chunk_idx);
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 2);
+    ledger.commit(2 * end_of_first_chunk_idx);
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 2);
     read_entries_range_from_ledger(ledger, 1, 2 * end_of_first_chunk_idx + 1);
   }
 
-  INFO("Compacting at the end of last complete chunk");
+  INFO("Comitting at the end of last complete chunk");
   {
-    ledger.compact(last_idx - 1);
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
+    ledger.commit(last_idx - 1);
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 3);
     read_entries_range_from_ledger(ledger, 1, last_idx);
   }
 
-  INFO("Compacting incomplete chunk");
+  INFO("Comitting incomplete chunk");
   {
-    ledger.compact(last_idx); // No effect
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 3);
+    ledger.commit(last_idx); // No effect
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 3);
   }
 
-  INFO("Complete latest chunk and compact");
+  INFO("Complete latest chunk and commit");
   {
     entry_submitter.write(true);
     entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();
-    ledger.compact(last_idx);
-    REQUIRE(number_of_compacted_files_in_ledger_dir() == 4);
+    ledger.commit(last_idx);
+    REQUIRE(number_of_committed_files_in_ledger_dir() == 4);
     read_entries_range_from_ledger(ledger, 1, last_idx);
   }
 
-  INFO("Ledger cannot be truncated earlier than compaction");
+  INFO("Ledger cannot be truncated earlier than commit");
   {
     ledger.truncate(1); // No effect
     read_entries_range_from_ledger(ledger, 1, last_idx);
@@ -439,7 +439,7 @@ TEST_CASE("Compaction")
     ledger.truncate(2 * end_of_first_chunk_idx); // No effect
     read_entries_range_from_ledger(ledger, 1, last_idx);
 
-    // Write and truncate a new entry past compaction
+    // Write and truncate a new entry past commit
     entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();
     ledger.truncate(last_idx - 1); // Deletes entry at last_idx
@@ -458,7 +458,7 @@ TEST_CASE("Restore existing ledger")
   size_t chunk_count = 3;
   size_t number_of_ledger_files = 0;
 
-  SUBCASE("Restoring uncompacted chunks")
+  SUBCASE("Restoring uncommitted chunks")
   {
     INFO("Initialise first ledger with complete chunks");
     {
@@ -513,11 +513,11 @@ TEST_CASE("Restore existing ledger")
     REQUIRE(number_of_files_in_ledger_dir() == number_of_ledger_files);
   }
 
-  SUBCASE("Restoring some compacted chunks")
+  SUBCASE("Restoring some committed chunks")
   {
     // This is the scenario on recovery
-    size_t compacted_idx = 0;
-    INFO("Initialise first ledger with compacted chunks");
+    size_t committed_idx = 0;
+    INFO("Initialise first ledger with committed chunks");
     {
       asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
       TestEntrySubmitter entry_submitter(ledger);
@@ -525,27 +525,27 @@ TEST_CASE("Restore existing ledger")
       end_of_first_chunk_idx =
         initialise_ledger(entry_submitter, chunk_threshold, chunk_count);
 
-      compacted_idx = 2 * end_of_first_chunk_idx + 1;
+      committed_idx = 2 * end_of_first_chunk_idx + 1;
       entry_submitter.write(true);
       last_idx = entry_submitter.get_last_idx();
-      ledger.compact(compacted_idx);
+      ledger.commit(committed_idx);
     }
 
     asynchost::MultipleLedger ledger2(ledger_dir, wf, chunk_threshold);
     read_entries_range_from_ledger(ledger2, 1, last_idx);
 
-    // Restored ledger cannot be truncated before last idx of last compacted
+    // Restored ledger cannot be truncated before last idx of last committed
     // chunk
     TestEntrySubmitter entry_submitter(ledger2, last_idx);
-    entry_submitter.truncate(compacted_idx - 1); // Successful
+    entry_submitter.truncate(committed_idx - 1); // Successful
 
-    ledger2.truncate(compacted_idx - 2); // Unsuccessful
+    ledger2.truncate(committed_idx - 2); // Unsuccessful
     read_entries_range_from_ledger(ledger2, 1, end_of_first_chunk_idx);
   }
 
   SUBCASE("Restoring ledger with different chunking threshold")
   {
-    INFO("Initialise first ledger with compacted chunks");
+    INFO("Initialise first ledger with committed chunks");
     {
       asynchost::MultipleLedger ledger(ledger_dir, wf, chunk_threshold);
       TestEntrySubmitter entry_submitter(ledger);
@@ -623,25 +623,25 @@ TEST_CASE("Limit number of open files")
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
   }
 
-  INFO("Compacting closes files and reading compacted chunks opens those");
+  INFO("Commit closes files and reading committed chunks opens those");
   {
-    ledger.compact(1); // No file compacted
+    ledger.commit(1); // No file committed
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
-    ledger.compact(end_of_first_chunk_idx); // One file now compacted
+    ledger.commit(end_of_first_chunk_idx); // One file now committed
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
     read_entry_from_ledger(ledger, 1);
     read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
-    // Compacted file is open in read cache
+    // Committed file is open in read cache
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
-    ledger.compact(2 * end_of_first_chunk_idx); // Two files now compacted
+    ledger.commit(2 * end_of_first_chunk_idx); // Two files now committed
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count);
     read_entries_range_from_ledger(ledger, 1, 2 * end_of_first_chunk_idx);
-    // Two compacted files open in read cache
+    // Two committed files open in read cache
     REQUIRE(number_open_fd() == initial_number_fd + chunk_count + 1);
 
-    ledger.compact(last_idx); // All but one file compacted
+    ledger.commit(last_idx); // All but one file committed
     // One file open for write, two files open for read
     REQUIRE(number_open_fd() == initial_number_fd + 3);
 
@@ -659,12 +659,12 @@ TEST_CASE("Limit number of open files")
     read_entries_range_from_ledger(ledger, 1, end_of_first_chunk_idx);
   }
 
-  INFO("Close and compact latest file");
+  INFO("Close and commit latest file");
   {
     entry_submitter.write(true);
     entry_submitter.write(true);
     last_idx = entry_submitter.get_last_idx();
-    ledger.compact(last_idx);
+    ledger.commit(last_idx);
 
     read_entries_range_from_ledger(ledger, 1, last_idx);
     REQUIRE(number_open_fd() == initial_number_fd + max_read_cache_size);
@@ -676,7 +676,7 @@ TEST_CASE("Limit number of open files")
     asynchost::MultipleLedger ledger2(
       ledger_dir, wf, chunk_threshold, max_read_cache_size);
 
-    // Compacted files are not open for write
+    // Committed files are not open for write
     REQUIRE(number_open_fd() == initial_number_fd);
 
     read_entries_range_from_ledger(ledger2, 1, last_idx);
