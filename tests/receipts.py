@@ -32,8 +32,7 @@ def test(network, args, notifications_queue=None):
                     "LOG_record", {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
-                c.rpc("LOG_record", {"id": 43, "msg": "Additional messages"},),
-                result=True,
+                c.rpc("LOG_record", {"id": 43, "msg": "A final message"}), result=True,
             )
             r = c.get("getReceipt", {"commit": r.seqno})
             check(
