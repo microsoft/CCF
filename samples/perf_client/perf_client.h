@@ -425,7 +425,6 @@ namespace client
         }
       }
 
-      size_t last_commit = 0;
       if (!options.no_wait)
       {
         // Create a new connection, because we need to do some GETs
@@ -438,10 +437,17 @@ namespace client
             c, last_response_commit.view, last_response_commit.seqno);
           auto b = c->unpack_body(r);
           if (b["status"] == "COMMITTED")
+          {
+            if (response_times.is_timing_active())
+            {
+              const auto commit_ids = timing::parse_commit_ids(r);
+              response_times.record_receive(0, commit_ids);
+            }
             break;
+          }
         }
       }
-      last_commit = last_response_commit.seqno;
+      const auto last_commit = last_response_commit.seqno;
       auto timing_results = end_timing(last_commit);
       LOG_INFO_FMT("Timing ended");
       return timing_results;
