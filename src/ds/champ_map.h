@@ -7,7 +7,6 @@
 
 #include <algorithm>
 #include <array>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -468,10 +467,8 @@ namespace champ
           size,
           reinterpret_cast<const uint8_t*>(&key_size),
           sizeof(uint64_t));
-
         serialized::write(
           data, size, reinterpret_cast<const uint8_t*>(p.k), key_size);
-
         add_padding(key_size, data, size);
 
         // Serialize the value
@@ -480,7 +477,6 @@ namespace champ
           size,
           reinterpret_cast<const uint8_t*>(&value_size),
           sizeof(uint64_t));
-
         serialized::write(
           data, size, reinterpret_cast<const uint8_t*>(p.v), value_size);
         add_padding(value_size, data, size);
