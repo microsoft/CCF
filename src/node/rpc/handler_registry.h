@@ -29,20 +29,6 @@ namespace ccf
     return 1ul << verb;
   }
 
-  static bool is_committed(
-    kv::Consensus::View view,
-    kv::Consensus::SeqNo seqno,
-    kv::Consensus& consensus)
-  {
-    const auto tx_view = consensus.get_view(seqno);
-    const auto committed_seqno = consensus.get_committed_seqno();
-    const auto committed_view = consensus.get_view(committed_seqno);
-
-    const auto tx_status =
-      ccf::get_tx_status(view, seqno, tx_view, committed_view, committed_seqno);
-    return tx_status == TxStatus::Committed;
-  }
-
   using HandleFunction = std::function<void(RequestArgs& args)>;
 
   /** The HandlerRegistry records the user-defined Handlers for a given
