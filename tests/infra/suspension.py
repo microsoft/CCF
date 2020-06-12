@@ -42,10 +42,10 @@ def update_view_info(network, view_info):
 def get_node_local_commit(node):
     with node.node_client() as c:
         r = c.get("commit")
-        return r.seqno, r.global_commit
+        return r.result["seqno"], r.global_commit
 
 
-def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
+def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=60):
     old_node_lc, old_node_gc = get_node_local_commit(old_node)
     LOG.success(
         f"node {old_node.node_id} is at state local_commit:{old_node_lc}, global_commit:{old_node_gc}"
@@ -62,12 +62,9 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=30):
             if local_commit >= old_node_lc:
                 return LateJoinerStatus.Ready
             time.sleep(1)
-        except (
-            TimeoutError,
-            infra.clients.CCFConnectionException,
-        ):
+        except (TimeoutError, infra.clients.CCFConnectionException,) as exc:
             LOG.warning(
-                f"late joiner with node id {late_joiner.node_id} isn't quite ready yet"
+                f"late joiner with node id {late_joiner.node_id} isn't quite ready yet: {exc}"
             )
     return_state = None
     if local_commit == 0:
