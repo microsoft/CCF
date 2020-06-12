@@ -45,37 +45,27 @@ namespace raft
       bool public_only = false,
       Term* term = nullptr)
     {
-      while (true)
-      {
-        auto p = x.lock();
-        if (p)
-          return p->deserialise(data, public_only, term);
-      }
+      auto p = x.lock();
+      if (p)
+        return p->deserialise(data, public_only, term);
+      return S::FAILED;
     }
 
     void compact(Index v)
     {
-      while (true)
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
-        {
-          p->compact(v);
-          return;
-        }
+        p->compact(v);
       }
     }
 
     void rollback(Index v)
     {
-      while (true)
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
-        {
-          p->rollback(v);
-          return;
-        }
+        p->rollback(v);
       }
     }
   };
