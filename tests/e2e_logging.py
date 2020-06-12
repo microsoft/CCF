@@ -285,17 +285,15 @@ def test_historical_query(network, args):
 
 
 @reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("mkSign")
+@reqs.supports_methods("tx")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
-        with backup.node_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
-        with backup.member_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
+        ack = network.consortium.get_any_active_member().ack(backup)
+        check_commit(ack)
 
     return network
 
