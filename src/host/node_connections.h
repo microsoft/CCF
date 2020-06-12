@@ -7,6 +7,7 @@
 #include "consensus/raft/raft_types.h"
 #include "host/timer.h"
 #include "multiple_ledger.h"
+#include "ledger.h"
 #include "node/nodetypes.h"
 #include "tcp.h"
 
@@ -172,7 +173,7 @@ namespace asynchost
       }
     };
 
-    MultipleLedger& ledger;
+    Ledger& ledger;
     TCP listener;
     std::unordered_map<ccf::NodeId, TCP> outgoing;
     std::unordered_map<size_t, TCP> incoming;
@@ -184,7 +185,7 @@ namespace asynchost
   public:
     NodeConnections(
       messaging::Dispatcher<ringbuffer::Message>& disp,
-      MultipleLedger& ledger,
+      Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& service) :
@@ -249,7 +250,8 @@ namespace asynchost
             auto count = ae.idx - ae.prev_idx;
 
             uint32_t frame = (uint32_t)size_to_send;
-            auto framed_entries =
+            std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
+            framed_entries =
               ledger.read_framed_entries(ae.prev_idx + 1, ae.idx);
             if (framed_entries.has_value())
             {
