@@ -1,4 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
+    // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
 
@@ -6,6 +6,9 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include <algorithm>
+#include "ds/serialized.h"
+#include  <iostream> 
 
 namespace champ
 {
@@ -319,6 +322,39 @@ namespace champ
   public:
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
+    static Map<K, V, H> deserialize_map(const std::vector<uint8_t>& serialized_state,
+      std::function<const K&(const uint8_t*, uint32_t)> make_k,
+      std::function<const V&(const uint8_t*, uint32_t)> make_v
+    )
+    {
+      Map<K, V, H> map;
+      std::cout << "TTTTT" << std::endl;
+      const uint8_t* data = serialized_state.data();
+      size_t size = serialized_state.size();
+
+      std::cout << "TTTTT:" << size << ", data:" << (uint64_t)data << std::endl;
+      while (size != 0)
+      {
+        std::cout << "TTTTT - size:" << size << std::endl;
+        auto key_size = serialized::read<uint32_t>(data, size);
+        std::cout << "1AAAAA:"<< size << ", data:" << (uint64_t)data << std::endl;
+        const uint8_t* key = data;
+        serialized::skip(data, size, key_size);
+        std::cout << "2AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
+
+        auto value_size = serialized::read<uint32_t>(data, size);
+        std::cout << "3AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
+        const uint8_t* value = data;
+        serialized::skip(data, size, value_size);
+        std::cout << "4AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
+        std::cout << "TTTTT:" << value_size << std::endl;
+
+        map = map.put(make_k(key, key_size), make_v(value, value_size));
+        std::cout << "5AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
+      }
+      return map;
+    }
+
     size_t size() const
     {
       return _size;
@@ -358,6 +394,84 @@ namespace champ
     bool foreach(F&& f) const
     {
       return root->foreach(0, std::forward<F>(f));
+    }
+  };
+
+  template <class K, class V, class H = std::hash<K>>
+  class Snapshot
+  {
+  private:
+    Map<K,V,H> map;
+
+    struct pair
+    {
+      K* k;
+      Hash h_k;
+      V* v;
+
+      pair(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
+
+    };
+    std::vector<pair> serialized_state;
+    std::vector<uint8_t> serialized;
+
+  public:
+    Snapshot(
+      Map<K, V, H> map_,
+      std::function<uint32_t(const K& key)> k_size,
+      std::function<uint32_t(const V& value)> v_size)
+    {
+      map = map_;
+      serialized_state.reserve(map.size());
+      size_t size = 0;
+      map.foreach([&](auto& key, auto& value) {
+        K* k = &key;
+        V* v = &value;
+        this->serialized_state.push_back(pair(k, static_cast<Hash>(H()(key)), v));
+
+        size += (sizeof(uint32_t) * 2); // headers
+        size += k_size(key);
+        size += v_size(value);
+
+        return true;
+      });
+      std::sort(
+        serialized_state.begin(), serialized_state.end(), [](pair& i, pair& j) {
+          return i.h_k < j.h_k;
+        });
+      
+      serialized.resize(size);
+      uint8_t* data = serialized.data();
+      for (const auto& p : serialized_state)
+      {
+        uint32_t key_size = k_size(*p.k);
+        uint32_t value_size = v_size(*p.v);
+
+        serialized::write(
+          data,
+          size,
+          reinterpret_cast<const uint8_t*>(&key_size),
+          sizeof(uint32_t));
+        serialized::write(
+          data, size, reinterpret_cast<const uint8_t*>(p.k), key_size);
+
+        serialized::write(data, size, reinterpret_cast<const uint8_t*>(&value_size), sizeof(uint32_t));
+
+        serialized::write(
+          data, size, reinterpret_cast<const uint8_t*>(p.v), value_size);
+      }
+
+      assert(size == 0);
+    }
+
+    const std::vector<pair>& get_serialized_state() const
+    {
+      return serialized_state;
+    }
+
+    const std::vector<uint8_t>& get_buffer() const
+    {
+        return serialized;
     }
   };
 }

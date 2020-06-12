@@ -10,7 +10,7 @@
 using namespace std;
 
 template <class K>
-struct CollisionHash
+struct CollisionHash    
 {
   size_t operator()(const K& k) const noexcept
   {
@@ -134,5 +134,91 @@ TEST_CASE("persistent map operations")
 
     rb = rb_new;
     champ = champ_new;
+  }
+}
+
+static const champ::Map<K, V, H> gen_map(size_t size)
+{
+  champ::Map<K, V, H> map;
+  for (uint64_t i = 0; i < size; ++i)
+  {
+    map = map.put(i, i);
+  }
+  return map;
+}
+
+TEST_CASE("serialize map")
+{
+  struct pair
+  {
+    K k;
+    V v;
+  };
+
+  std::vector<pair> results;
+  uint32_t num_elements = 100;
+  auto map = gen_map(num_elements);
+  INFO("make sure we can serialize a map");
+  {
+    map.foreach([&results](const auto& key, const auto& value) {
+      results.push_back({key, value});
+      return true;
+    });
+    REQUIRE_EQ(num_elements, results.size());
+  }
+
+  INFO("make sure we can deserialize a map");
+  {
+    std::set<K> keys;
+    champ::Map<K, V, H> new_map;
+    for (const auto& p : results)
+    {
+      REQUIRE_LT(p.k, num_elements);
+      keys.insert(p.k);
+      new_map = new_map.put(p.k, p.v);
+
+    }
+    REQUIRE_EQ(num_elements, new_map.size());
+    REQUIRE_EQ(num_elements, keys.size());
+  }
+
+  INFO("Compare state from serialized class");
+  {
+    champ::Snapshot<K, V, H> snapshot(
+      map,
+      [](const K& k) { return sizeof(K); },
+      [](const V& v) { return sizeof(V); });
+    const auto& s = snapshot.get_serialized_state();
+
+    uint32_t last = 0;
+    for (const auto& p : s)
+    {
+      REQUIRE_EQ(last, *p.k);
+      ++last;
+    }
+    REQUIRE_EQ(s.size(), map.size());
+  }
+
+  INFO("Serialize map to array");
+  {
+    champ::Snapshot<K, V, H> snapshot(
+      map,
+      [](const K& k) { return sizeof(K); },
+      [](const V& v) { return sizeof(V); });
+    const std::vector<uint8_t>& s = snapshot.get_buffer();
+
+    champ::Map<K, V, H> new_map = champ::Map<K, V, H>::deserialize_map(
+      s,
+      [](const uint8_t* key, uint32_t) -> K& { return *((K*)key); },
+      [](const uint8_t* value, uint32_t) -> V& { return *((V*)value); });
+
+    std::set<K> keys;
+    new_map.foreach([&keys](const auto& key, const auto& value) {
+      keys.insert(key);
+      REQUIRE_EQ(key, value);
+      return true;
+    });
+    REQUIRE_EQ(map.size(), new_map.size());
+    REQUIRE_EQ(map.size(), keys.size());
   }
 }

@@ -287,6 +287,7 @@ namespace kv
         e->rollback(v);
     }
 
+    // TODO: we deserialise here
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
