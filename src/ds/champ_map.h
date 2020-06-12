@@ -9,6 +9,7 @@
 #include <algorithm>
 #include "ds/serialized.h"
 #include  <iostream> 
+#include <assert.h>
 
 namespace champ
 {
@@ -141,6 +142,16 @@ namespace champ
       return true;
     }
   };
+
+  uint32_t get_padding(uint32_t size)
+  {
+    uint32_t padding = size % sizeof(uintptr_t);
+    if (padding != 0)
+    {
+      padding = sizeof(uintptr_t) - padding;
+    }
+    return padding;
+  }
 
   template <class K, class V, class H>
   struct SubNodes
@@ -335,17 +346,17 @@ namespace champ
       std::cout << "TTTTT:" << size << ", data:" << (uint64_t)data << std::endl;
       while (size != 0)
       {
-        std::cout << "TTTTT - size:" << size << std::endl;
-        auto key_size = serialized::read<uint32_t>(data, size);
+        std::cout << "0AAAAA:"<< size << ", data:" << (uint64_t)data << std::endl;
+        auto key_size = serialized::read<uint64_t>(data, size);
         std::cout << "1AAAAA:"<< size << ", data:" << (uint64_t)data << std::endl;
         const uint8_t* key = data;
-        serialized::skip(data, size, key_size);
+        serialized::skip(data, size, key_size + get_padding(key_size));
         std::cout << "2AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
 
-        auto value_size = serialized::read<uint32_t>(data, size);
+        auto value_size = serialized::read<uint64_t>(data, size);
         std::cout << "3AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
         const uint8_t* value = data;
-        serialized::skip(data, size, value_size);
+        serialized::skip(data, size, value_size + get_padding(value_size));
         std::cout << "4AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
         std::cout << "TTTTT:" << value_size << std::endl;
 
@@ -429,9 +440,9 @@ namespace champ
         V* v = &value;
         this->serialized_state.push_back(pair(k, static_cast<Hash>(H()(key)), v));
 
-        size += (sizeof(uint32_t) * 2); // headers
-        size += k_size(key);
-        size += v_size(value);
+        size += (sizeof(uint64_t) * 2); // headers
+        size += k_size(key) + get_padding(k_size(key));
+        size += v_size(value) + get_padding(k_size(value));
 
         return true;
       });
@@ -439,26 +450,44 @@ namespace champ
         serialized_state.begin(), serialized_state.end(), [](pair& i, pair& j) {
           return i.h_k < j.h_k;
         });
+
+      std::cout << "writing size:" << size << std::endl;
       
       serialized.resize(size);
       uint8_t* data = serialized.data();
+      uintptr_t padding = 0;
       for (const auto& p : serialized_state)
       {
-        uint32_t key_size = k_size(*p.k);
-        uint32_t value_size = v_size(*p.v);
+        std::cout << "1 AAAAA writing size:" << size << std::endl;
+        uint64_t key_size = k_size(*p.k);
+        uint64_t value_size = v_size(*p.v);
 
         serialized::write(
           data,
           size,
           reinterpret_cast<const uint8_t*>(&key_size),
-          sizeof(uint32_t));
+          sizeof(uint64_t));
+        std::cout << "2 AAAAA writing size:" << size << std::endl;
         serialized::write(
-          data, size, reinterpret_cast<const uint8_t*>(p.k), key_size);
-
-        serialized::write(data, size, reinterpret_cast<const uint8_t*>(&value_size), sizeof(uint32_t));
+          data,
+          size,
+          reinterpret_cast<const uint8_t*>(p.k),
+          key_size + get_padding(key_size));
+        std::cout << "3 AAAAA writing size:" << size << std::endl;
 
         serialized::write(
-          data, size, reinterpret_cast<const uint8_t*>(p.v), value_size);
+          data,
+          size,
+          reinterpret_cast<const uint8_t*>(&value_size),
+          sizeof(uint64_t));
+
+        std::cout << "4 AAAAA writing size:" << size << ", value_size:"<< value_size + get_padding(value_size) << std::endl;
+        serialized::write(
+          data,
+          size,
+          reinterpret_cast<const uint8_t*>(p.v),
+          value_size + get_padding(value_size));
+        std::cout << "5 AAAAA writing size:" << size << std::endl;
       }
 
       assert(size == 0);
