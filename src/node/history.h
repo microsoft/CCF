@@ -358,6 +358,18 @@ namespace ccf
 
     Receipt get_receipt(uint64_t index)
     {
+      if (index < begin_index())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot produce receipt for {}: index is too old and has been "
+          "flushed from memory",
+          index));
+      }
+      if (index > end_index())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot produce receipt for {}: index is not yet known", index));
+      }
       return Receipt(tree, index);
     }
 
@@ -559,7 +571,12 @@ namespace ccf
     void compact(kv::Version v) override
     {
       flush_pending();
-      replicated_state_tree.flush(v);
+      // Receipts can only be retrieved to the flushed index. Keep a range of
+      // history so that a range of receipts are available.
+      if (v > MAX_HISTORY_LEN)
+      {
+        replicated_state_tree.flush(v - MAX_HISTORY_LEN);
+      }
       log_hash(replicated_state_tree.get_root(), COMPACT);
     }
 
