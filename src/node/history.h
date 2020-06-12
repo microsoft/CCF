@@ -357,6 +357,18 @@ namespace ccf
 
     Receipt get_receipt(uint64_t index)
     {
+      if (index < begin_index())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot produce receipt for {}: index is too old and has been "
+          "flushed from memory",
+          index));
+      }
+      if (index > end_index())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot produce receipt for {}: index is not yet known", index));
+      }
       return Receipt(tree, index);
     }
 
