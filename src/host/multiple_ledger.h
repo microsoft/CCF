@@ -93,6 +93,11 @@ namespace asynchost
       const auto filename = fmt::format("{}_{}", file_name_prefix, start_idx);
       const auto file_path = fs::path(dir) / fs::path(filename);
       file = fopen(file_path.c_str(), "w+b");
+      if (!file)
+      {
+        throw std::logic_error(fmt::format(
+          "Unable to open ledger file {}: {}", file_path, strerror(errno)));
+      }
 
       // Header reserved for the offset to the position table
       fseeko(file, sizeof(positions_offset_header_t), SEEK_SET);
@@ -108,8 +113,8 @@ namespace asynchost
       file = fopen(full_path.c_str(), "r+b");
       if (!file)
       {
-        throw std::logic_error(
-          fmt::format("Unable to open ledger file {}", full_path));
+        throw std::logic_error(fmt::format(
+          "Unable to open ledger file {}: {}", full_path, strerror(errno)));
       }
 
       committed = is_ledger_file_committed(file_name);
@@ -249,7 +254,8 @@ namespace asynchost
       // Committable entries get flushed straight away
       if (committable && fflush(file) != 0)
       {
-        throw std::logic_error("Failed to flush entry to ledger");
+        throw std::logic_error(
+          fmt::format("Failed to flush entry to ledger: {}", strerror(errno)));
       }
 
       total_len += (size + frame_header_size);
@@ -355,12 +361,14 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(fmt::format("Failed to flush ledger file"));
+        throw std::logic_error(
+          fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
 
       if (ftruncate(fileno(file), total_len))
       {
-        throw std::logic_error("Failed to truncate ledger");
+        throw std::logic_error(
+          fmt::format("Failed to truncate ledger: {}", strerror(errno)));
       }
 
       fseeko(file, total_len, SEEK_SET);
@@ -400,7 +408,8 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(fmt::format("Failed to flush ledger file"));
+        throw std::logic_error(
+          fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
 
       completed = true;
@@ -416,7 +425,8 @@ namespace asynchost
 
       if (fflush(file) != 0)
       {
-        throw std::logic_error(fmt::format("Failed to flush ledger file"));
+        throw std::logic_error(
+          fmt::format("Failed to flush ledger file: {}", strerror(errno)));
       }
 
       const auto committed_file_name = fmt::format(
