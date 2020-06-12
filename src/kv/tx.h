@@ -240,7 +240,6 @@ namespace kv
       return version;
     }
 
-    // TODO: we serialise transactions here
     std::vector<uint8_t> serialise(bool include_reads = false)
     {
       if (!committed)

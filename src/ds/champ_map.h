@@ -1,4 +1,4 @@
-    // Copyright (c) Microsoft Corporation. All rights reserved.
+// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
 
@@ -93,6 +93,17 @@ namespace champ
     }
   };
 
+  uint32_t get_padding(uint32_t size)
+  {
+    uint32_t padding = size % sizeof(uintptr_t);
+    if (padding != 0)
+    {
+      padding = sizeof(uintptr_t) - padding;
+    }
+    return padding;
+  }
+
+
   template <class K, class V, class H>
   using Node = std::shared_ptr<void>;
 
@@ -142,16 +153,6 @@ namespace champ
       return true;
     }
   };
-
-  uint32_t get_padding(uint32_t size)
-  {
-    uint32_t padding = size % sizeof(uintptr_t);
-    if (padding != 0)
-    {
-      padding = sizeof(uintptr_t) - padding;
-    }
-    return padding;
-  }
 
   template <class K, class V, class H>
   struct SubNodes
@@ -339,29 +340,22 @@ namespace champ
     )
     {
       Map<K, V, H> map;
-      std::cout << "TTTTT" << std::endl;
       const uint8_t* data = serialized_state.data();
       size_t size = serialized_state.size();
 
-      std::cout << "TTTTT:" << size << ", data:" << (uint64_t)data << std::endl;
       while (size != 0)
       {
-        std::cout << "0AAAAA:"<< size << ", data:" << (uint64_t)data << std::endl;
+        // Deserialize the key
         auto key_size = serialized::read<uint64_t>(data, size);
-        std::cout << "1AAAAA:"<< size << ", data:" << (uint64_t)data << std::endl;
         const uint8_t* key = data;
         serialized::skip(data, size, key_size + get_padding(key_size));
-        std::cout << "2AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
 
+        // Deserialize the value
         auto value_size = serialized::read<uint64_t>(data, size);
-        std::cout << "3AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
         const uint8_t* value = data;
         serialized::skip(data, size, value_size + get_padding(value_size));
-        std::cout << "4AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
-        std::cout << "TTTTT:" << value_size << std::endl;
 
         map = map.put(make_k(key, key_size), make_v(value, value_size));
-        std::cout << "5AAAAA:"<< size << ", data:" << (uint64_t)data  << std::endl;
       }
       return map;
     }
@@ -421,7 +415,6 @@ namespace champ
       V* v;
 
       pair(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
-
     };
     std::vector<pair> serialized_state;
     std::vector<uint8_t> serialized;
@@ -451,14 +444,11 @@ namespace champ
           return i.h_k < j.h_k;
         });
 
-      std::cout << "writing size:" << size << std::endl;
-      
       serialized.resize(size);
       uint8_t* data = serialized.data();
       uintptr_t padding = 0;
       for (const auto& p : serialized_state)
       {
-        std::cout << "1 AAAAA writing size:" << size << std::endl;
         uint64_t key_size = k_size(*p.k);
         uint64_t value_size = v_size(*p.v);
 
@@ -467,35 +457,46 @@ namespace champ
           size,
           reinterpret_cast<const uint8_t*>(&key_size),
           sizeof(uint64_t));
-        std::cout << "2 AAAAA writing size:" << size << std::endl;
+
         serialized::write(
           data,
           size,
           reinterpret_cast<const uint8_t*>(p.k),
-          key_size + get_padding(key_size));
-        std::cout << "3 AAAAA writing size:" << size << std::endl;
+          key_size);
 
+        uint32_t padding_size = get_padding(key_size);
+        if (padding_size != 0)
+        {
+          serialized::write(
+            data,
+            size,
+            reinterpret_cast<uint8_t*>(&padding),
+            padding_size);
+        }
         serialized::write(
           data,
           size,
           reinterpret_cast<const uint8_t*>(&value_size),
           sizeof(uint64_t));
 
-        std::cout << "4 AAAAA writing size:" << size << ", value_size:"<< value_size + get_padding(value_size) << std::endl;
         serialized::write(
           data,
           size,
           reinterpret_cast<const uint8_t*>(p.v),
-          value_size + get_padding(value_size));
-        std::cout << "5 AAAAA writing size:" << size << std::endl;
+          value_size);
+
+        padding_size = get_padding(key_size);
+        if (padding_size != 0)
+        {
+          serialized::write(
+            data,
+            size,
+            reinterpret_cast<uint8_t*>(&padding),
+            padding_size);
+        }
       }
 
       assert(size == 0);
-    }
-
-    const std::vector<pair>& get_serialized_state() const
-    {
-      return serialized_state;
     }
 
     const std::vector<uint8_t>& get_buffer() const

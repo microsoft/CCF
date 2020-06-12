@@ -10,7 +10,7 @@
 using namespace std;
 
 template <class K>
-struct CollisionHash    
+struct CollisionHash
 {
   size_t operator()(const K& k) const noexcept
   {
@@ -182,23 +182,6 @@ TEST_CASE("serialize map")
     REQUIRE_EQ(num_elements, keys.size());
   }
 
-  INFO("Compare state from serialized class");
-  {
-    champ::Snapshot<K, V, H> snapshot(
-      map,
-      [](const K& k) { return sizeof(K); },
-      [](const V& v) { return sizeof(V); });
-    const auto& s = snapshot.get_serialized_state();
-
-    uint32_t last = 0;
-    for (const auto& p : s)
-    {
-      REQUIRE_EQ(last, *p.k);
-      ++last;
-    }
-    REQUIRE_EQ(s.size(), map.size());
-  }
-
   INFO("Serialize map to array");
   {
     champ::Snapshot<K, V, H> snapshot(
@@ -220,5 +203,26 @@ TEST_CASE("serialize map")
     });
     REQUIRE_EQ(map.size(), new_map.size());
     REQUIRE_EQ(map.size(), keys.size());
+  }
+
+  INFO("Ensure serialized state is byte identical");
+  {
+    champ::Snapshot<K, V, H> snapshot_1(
+      map,
+      [](const K& k) { return sizeof(K); },
+      [](const V& v) { return sizeof(V); });
+    const std::vector<uint8_t>& s_1 = snapshot_1.get_buffer();
+
+    champ::Snapshot<K, V, H> snapshot_2(
+      map,
+      [](const K& k) { return sizeof(K); },
+      [](const V& v) { return sizeof(V); });
+    const std::vector<uint8_t>& s_2 = snapshot_2.get_buffer();
+
+    REQUIRE_EQ(s_1.size(), s_2.size());
+    for (uint32_t i = 0; i < s_1.size(); ++i)
+    {
+      REQUIRE_EQ(s_1[i], s_2[i]);
+    }
   }
 }

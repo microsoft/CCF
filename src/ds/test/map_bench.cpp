@@ -109,7 +109,6 @@ static void benchmark_foreach(picobench::state& s)
   {
     (void)_;
     map.foreach([&count, map](const auto& key, const auto& value) {
-      // TODO: This foreach might be what we need to serialize.....
       count++;
       return true;
     });
