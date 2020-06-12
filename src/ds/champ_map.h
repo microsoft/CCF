@@ -416,8 +416,18 @@ namespace champ
 
       pair(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
     };
-    std::vector<pair> serialized_state;
     std::vector<uint8_t> serialized;
+    const uintptr_t padding = 0;
+
+    void add_padding(uint32_t data_size, uint8_t*& data, size_t& size)
+    {
+      uint32_t padding_size = get_padding(data_size);
+      if (padding_size != 0)
+      {
+        serialized::write(
+          data, size, reinterpret_cast<const uint8_t*>(&padding), padding_size);
+      }
+    }
 
   public:
     Snapshot(
@@ -426,13 +436,13 @@ namespace champ
       std::function<uint32_t(const V& value)> v_size)
     {
       map = map_;
+      std::vector<pair> serialized_state;
       serialized_state.reserve(map.size());
       size_t size = 0;
       map.foreach([&](auto& key, auto& value) {
         K* k = &key;
         V* v = &value;
-        this->serialized_state.push_back(
-          pair(k, static_cast<Hash>(H()(key)), v));
+        serialized_state.push_back(pair(k, static_cast<Hash>(H()(key)), v));
 
         size += (sizeof(uint64_t) * 2); // headers
         size += k_size(key) + get_padding(k_size(key));
@@ -447,12 +457,12 @@ namespace champ
 
       serialized.resize(size);
       uint8_t* data = serialized.data();
-      uintptr_t padding = 0;
       for (const auto& p : serialized_state)
       {
         uint64_t key_size = k_size(*p.k);
         uint64_t value_size = v_size(*p.v);
 
+        // Serialize the key
         serialized::write(
           data,
           size,
@@ -462,12 +472,9 @@ namespace champ
         serialized::write(
           data, size, reinterpret_cast<const uint8_t*>(p.k), key_size);
 
-        uint32_t padding_size = get_padding(key_size);
-        if (padding_size != 0)
-        {
-          serialized::write(
-            data, size, reinterpret_cast<uint8_t*>(&padding), padding_size);
-        }
+        add_padding(key_size, data, size);
+
+        // Serialize the value
         serialized::write(
           data,
           size,
@@ -476,13 +483,7 @@ namespace champ
 
         serialized::write(
           data, size, reinterpret_cast<const uint8_t*>(p.v), value_size);
-
-        padding_size = get_padding(key_size);
-        if (padding_size != 0)
-        {
-          serialized::write(
-            data, size, reinterpret_cast<uint8_t*>(&padding), padding_size);
-        }
+        add_padding(value_size, data, size);
       }
 
       CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
