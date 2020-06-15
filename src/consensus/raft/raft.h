@@ -326,21 +326,6 @@ namespace raft
     }
 
     template <typename T>
-    size_t write_to_ledger(const T& data)
-    {
-      ledger->put_entry(data->data(), data->size());
-      return data->size();
-    }
-
-    template <>
-    size_t write_to_ledger<std::vector<uint8_t>>(
-      const std::vector<uint8_t>& data)
-    {
-      ledger->put_entry(data);
-      return data.size();
-    }
-
-    template <typename T>
     bool replicate(
       const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
