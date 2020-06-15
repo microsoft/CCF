@@ -24,11 +24,6 @@ namespace ccf
     CallerId caller_id;
   };
 
-  static uint64_t verb_to_mask(size_t verb)
-  {
-    return 1ul << verb;
-  }
-
   using HandleFunction = std::function<void(RequestArgs& args)>;
 
   /** The HandlerRegistry records the user-defined Handlers for a given
@@ -213,22 +208,15 @@ namespace ccf
         return *this;
       }
 
-      // Bit mask. Bit i is 1 iff the http_method with value i is allowed.
-      // Default is that all verbs are allowed
-      uint64_t allowed_verbs_mask = ~0;
+      http_method verb;
 
-      // https://github.com/microsoft/CCF/issues/1102
-      Handler& set_allowed_verbs(std::set<http_method>&& allowed_verbs)
+      /** Indicates which HTTP verb the handler should respond to.
+       *
+       * @return The installed Handler for further modification
+       */
+      Handler& set_allowed_verb(http_method v)
       {
-        // Reset mask to disallow everything
-        allowed_verbs_mask = 0;
-
-        // Set bit for each allowed verb
-        for (const auto& verb : allowed_verbs)
-        {
-          allowed_verbs_mask |= verb_to_mask(verb);
-        }
-
+        verb = v;
         return *this;
       }
 
@@ -238,7 +226,7 @@ namespace ccf
        */
       Handler& set_http_get_only()
       {
-        return set_allowed_verbs({HTTP_GET});
+        return set_allowed_verb(HTTP_GET);
       }
 
       /** Indicates that the handler is only accessible via the POST HTTP verb.
@@ -247,13 +235,16 @@ namespace ccf
        */
       Handler& set_http_post_only()
       {
-        return set_allowed_verbs({HTTP_POST});
+        return set_allowed_verb(HTTP_POST);
       }
     };
 
   protected:
     std::optional<Handler> default_handler;
-    std::unordered_map<std::string, Handler> handlers;
+    // Handler lookup uses method and HTTP verb. We assume there is usually a
+    // single verb-per-method, so this map looks up only by method and then we
+    // iterate.
+    std::unordered_map<std::string, std::vector<Handler>> handlers;
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -323,14 +314,21 @@ namespace ccf
 
     virtual void init_handlers(kv::Store& tables) {}
 
-    virtual Handler* find_handler(const std::string& method)
+    virtual Handler* find_handler(const std::string& method, http_method verb)
     {
       auto search = handlers.find(method);
       if (search != handlers.end())
       {
-        return &search->second;
+        for (auto& handler : search->second)
+        {
+          if (handler.verb == verb)
+          {
+            return &handler;
+          }
+        }
       }
-      else if (default_handler)
+
+      if (default_handler)
       {
         return &default_handler.value();
       }

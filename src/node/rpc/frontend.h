@@ -204,7 +204,8 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto handler = handlers.find_handler(local_method);
+      auto handler =
+        handlers.find_handler(local_method, ctx->get_request_verb());
       if (handler != nullptr && handler->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
@@ -220,7 +221,8 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      const auto handler = handlers.find_handler(local_method);
+      const auto handler =
+        handlers.find_handler(local_method, ctx->get_request_verb());
       if (handler == nullptr)
       {
         ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
