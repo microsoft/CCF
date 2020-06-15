@@ -7,11 +7,16 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.11 # CCF_VERSION < This is a search marker for CI version check
+  VERSION 0.11
   LANGUAGES C CXX
 )
 
 set(ENV{BETTER_EXCEPTIONS} 1)
+
+set(CCF_PROJECT_NAME_SUFFIX "")
+set(CCF_PROJECT_NAME "${PROJECT_VERSION}${CCF_PROJECT_NAME_SUFFIX}")
+
+message(STATUS "CCF version=${CCF_PROJECT_NAME}")
 
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
@@ -20,7 +25,7 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf/ccf-${PROJECT_VERSION}"
+      "/opt/ccf/ccf-${CCF_PROJECT_NAME}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
