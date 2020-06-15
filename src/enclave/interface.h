@@ -86,7 +86,7 @@ enum AdminMessage : ringbuffer::Message
   /// Stop processing messages. Host -> Enclave
   DEFINE_RINGBUFFER_MSG_TYPE(stop),
 
-  /// Stop processing messages. Enclave -> Host
+  /// Stopped processing messages. Enclave -> Host
   DEFINE_RINGBUFFER_MSG_TYPE(stopped),
 
   /// Send notification data. Enclave -> Host
