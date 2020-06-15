@@ -41,7 +41,9 @@ def test(network, args, notifications_queue=None):
             )
             invalid = r.result["receipt"]
             invalid[-3] += 1
-            check(c.rpc("receipt/verify", {"receipt": invalid}), result={"valid": False})
+            check(
+                c.rpc("receipt/verify", {"receipt": invalid}), result={"valid": False}
+            )
 
     return network
 
