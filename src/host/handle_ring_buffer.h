@@ -55,6 +55,12 @@ namespace asynchost
           std::cerr << msg << std::endl << std::flush;
           throw std::logic_error(msg);
         });
+
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        bp, AdminMessage::stopped, [](const uint8_t* data, size_t size) {
+          uv_stop(uv_default_loop());
+          LOG_INFO_FMT("Host stopped successfully");
+        });
     }
 
     void every()
