@@ -17,7 +17,7 @@ steps:
       -b ${{ parameters.install_prefix }}/bin \
       -g $(pwd)/../../src/runtime_config/gov.lua \
       -v
-    cp ./workspace/start_network_0/0.ledger .
+    cp -r ./workspace/start_network_0/0.ledger .
     cp ./workspace/start_network_0/network_enc_pubk.pem .
     timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
       python ${{ parameters.install_prefix }}/bin/start_network.py \
@@ -25,7 +25,7 @@ steps:
       -b ${{ parameters.install_prefix }}/bin \
       -v \
       --recover \
-      --ledger 0.ledger \
+      --ledger-dir 0.ledger \
       --network-enc-pubk network_enc_pubk.pem \
       --common-dir ./workspace/start_network_common/
   displayName: Test installed CCF

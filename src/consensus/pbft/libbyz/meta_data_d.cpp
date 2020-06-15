@@ -5,18 +5,18 @@
 
 #include "meta_data_d.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "node.h"
 #include "partition.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
 
 Meta_data_d::Meta_data_d(Request_id r, int l, size_t i, Seqno ls) :
   Message(Meta_data_d_tag, sizeof(Meta_data_d_rep))
 {
-  PBFT_ASSERT(l < PLevels, "Invalid argument");
-  PBFT_ASSERT(i < PLevelSize[l], "Invalid argument");
+  CCF_ASSERT(l < PLevels, "Invalid argument");
+  CCF_ASSERT(i < PLevelSize[l], "Invalid argument");
   rep().rid = r;
   rep().ls = ls;
   rep().l = l;
@@ -32,7 +32,7 @@ Meta_data_d::Meta_data_d(Request_id r, int l, size_t i, Seqno ls) :
 
 void Meta_data_d::add_digest(Seqno n, Digest& digest)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     (last_stable() <= n) && (n <= last_stable() + max_out), "Invalid argument");
 
   int index = (n - last_stable()) / checkpoint_interval;

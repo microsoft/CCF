@@ -320,7 +320,7 @@ auto create_simple_request(
 {
   http::Request request(method);
   request.set_header(
-    http::headers::CONTENT_TYPE, details::pack_to_content_type(pack));
+    http::headers::CONTENT_TYPE, ccf::jsonhandler::pack_to_content_type(pack));
   return request;
 }
 

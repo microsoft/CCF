@@ -25,6 +25,15 @@ namespace snmalloc
   }
 
   /**
+   * Perform pointer arithmetic and return the adjusted pointer.
+   */
+  template<typename T>
+  inline T* pointer_offset_signed(T* base, ptrdiff_t diff)
+  {
+    return reinterpret_cast<T*>(reinterpret_cast<char*>(base) + diff);
+  }
+
+  /**
    * Cast from a pointer type to an address.
    */
   template<typename T>
@@ -65,11 +74,16 @@ namespace snmalloc
   {
     static_assert(alignment > 0);
     static_assert(bits::next_pow2_const(alignment) == alignment);
+    if constexpr (alignment == 1)
+      return static_cast<T*>(p);
+    else
+    {
 #if __has_builtin(__builtin_align_down)
-    return static_cast<T*>(__builtin_align_down(p, alignment));
+      return static_cast<T*>(__builtin_align_down(p, alignment));
 #else
-    return pointer_cast<T>(bits::align_down(address_cast(p), alignment));
+      return pointer_cast<T>(bits::align_down(address_cast(p), alignment));
 #endif
+    }
   }
 
   /**
@@ -81,11 +95,16 @@ namespace snmalloc
   {
     static_assert(alignment > 0);
     static_assert(bits::next_pow2_const(alignment) == alignment);
+    if constexpr (alignment == 1)
+      return static_cast<T*>(p);
+    else
+    {
 #if __has_builtin(__builtin_align_up)
-    return static_cast<T*>(__builtin_align_up(p, alignment));
+      return static_cast<T*>(__builtin_align_up(p, alignment));
 #else
-    return pointer_cast<T>(bits::align_up(address_cast(p), alignment));
+      return pointer_cast<T>(bits::align_up(address_cast(p), alignment));
 #endif
+    }
   }
 
   /**
@@ -115,4 +134,15 @@ namespace snmalloc
     return static_cast<size_t>(
       static_cast<char*>(cursor) - static_cast<char*>(base));
   }
+
+  /**
+   * Compute the difference in pointers in units of char. This can be used
+   * across allocations.
+   */
+  inline ptrdiff_t pointer_diff_signed(void* base, void* cursor)
+  {
+    return static_cast<ptrdiff_t>(
+      static_cast<char*>(cursor) - static_cast<char*>(base));
+  }
+
 } // namespace snmalloc

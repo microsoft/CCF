@@ -164,7 +164,7 @@ namespace siphash
   }
 
   template <size_t CompressionRounds, size_t FinalizationRounds>
-  uint64_t siphash(const std::vector<uint8_t>& in, const SipKey& key)
+  uint64_t siphash(const uint8_t* data, size_t size, const SipKey& key)
   {
     uint64_t out;
 
@@ -172,8 +172,15 @@ namespace siphash
       CompressionRounds,
       FinalizationRounds,
       OutputLength::EightBytes>(
-      in.data(), in.size(), key, reinterpret_cast<uint8_t*>(&out));
+      data, size, key, reinterpret_cast<uint8_t*>(&out));
 
     return out;
+  }
+
+  template <size_t CompressionRounds, size_t FinalizationRounds>
+  uint64_t siphash(const std::vector<uint8_t>& in, const SipKey& key)
+  {
+    return siphash<CompressionRounds, FinalizationRounds>(
+      in.data(), in.size(), key);
   }
 }

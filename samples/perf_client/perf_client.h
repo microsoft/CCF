@@ -247,27 +247,27 @@ namespace client
         // Record time of received responses
         response_times.record_receive(reply.id, commits);
 
-        if (commits.term < last_response_commit.term)
+        if (commits.view < last_response_commit.view)
         {
           throw std::logic_error(fmt::format(
-            "Term went backwards (expected {}, saw {})!",
-            last_response_commit.term,
-            commits.term));
+            "View went backwards (expected {}, saw {})!",
+            last_response_commit.view,
+            commits.view));
         }
         else if (
-          commits.term > last_response_commit.term &&
-          commits.local <= last_response_commit.index)
+          commits.view > last_response_commit.view &&
+          commits.seqno <= last_response_commit.seqno)
         {
           throw std::logic_error(fmt::format(
             "There has been an election and transactions have "
             "been lost! (saw {}.{}, currently at {}.{})",
-            last_response_commit.term,
-            last_response_commit.index,
-            commits.term,
-            commits.local));
+            last_response_commit.view,
+            last_response_commit.seqno,
+            commits.view,
+            commits.seqno));
         }
 
-        last_response_commit = {commits.term, commits.local};
+        last_response_commit = {commits.view, commits.seqno};
       }
     }
 
@@ -425,19 +425,15 @@ namespace client
         }
       }
 
-      const auto global_commit_response = wait_for_global_commit(
-        trigger_signature(create_connection(true, false)));
-      size_t last_commit = 0;
       if (!options.no_wait)
       {
-        const auto commit_ids =
-          timing::parse_commit_ids(global_commit_response);
-        last_commit = commit_ids.global;
+        // Create a new connection, because we need to do some GETs
+        // and when all you have is a WebSocket, everything looks like a POST!
+        auto c = create_connection(true, false);
+        trigger_signature(c);
+        wait_for_global_commit(last_response_commit);
       }
-      else
-      {
-        last_commit = last_response_commit.index;
-      }
+      const auto last_commit = last_response_commit.seqno;
       auto timing_results = end_timing(last_commit);
       LOG_INFO_FMT("Timing ended");
       return timing_results;
@@ -524,21 +520,25 @@ namespace client
       // Send a mkSign RPC to trigger next global commit
       const auto method = "mkSign";
       const auto mk_sign = connection->gen_request(method);
-      if (response_times.is_timing_active())
-      {
-        response_times.record_send(method, mk_sign.id, true);
-      }
       connection->write(mk_sign.encoded);
 
       // Do a blocking read for this final response
       const auto response = connection->read_response();
       process_reply(response);
-
-      const auto commit_ids = timing::parse_commit_ids(response);
-      LOG_INFO_FMT(
-        "Triggered signature at {}.{}", commit_ids.term, commit_ids.local);
+      LOG_INFO_FMT("Triggered signature");
 
       return response;
+    }
+
+    RpcTlsClient::Response get_tx_status(
+      const std::shared_ptr<RpcTlsClient>& connection,
+      size_t view,
+      size_t seqno)
+    {
+      nlohmann::json p;
+      p["seqno"] = seqno;
+      p["view"] = view;
+      return connection->get("tx", p);
     }
 
     virtual void verify_params(const nlohmann::json& expected)
@@ -649,11 +649,14 @@ namespace client
         {
           const auto last_response = send_creation_transactions();
 
-          if (last_response.has_value())
+          if (
+            last_response.has_value() &&
+            http::status_success(last_response->status))
           {
             // Ensure creation transactions are globally committed before
             // proceeding
-            wait_for_global_commit(trigger_signature(create_connection(true)));
+            trigger_signature(create_connection(true));
+            wait_for_global_commit(last_response.value());
           }
         }
         catch (std::exception& e)
@@ -693,21 +696,21 @@ namespace client
       }
     }
 
-    RpcTlsClient::Response wait_for_global_commit(
+    timing::CommitPoint wait_for_global_commit(
       const timing::CommitPoint& target)
     {
       return response_times.wait_for_global_commit(target);
     }
 
-    RpcTlsClient::Response wait_for_global_commit(
+    timing::CommitPoint wait_for_global_commit(
       const RpcTlsClient::Response& response)
     {
       check_response(response);
 
       const auto response_commit_ids = timing::parse_commit_ids(response);
 
-      const timing::CommitPoint cp{response_commit_ids.term,
-                                   response_commit_ids.local};
+      const timing::CommitPoint cp{response_commit_ids.view,
+                                   response_commit_ids.seqno};
       return wait_for_global_commit(cp);
     }
 

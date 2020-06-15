@@ -585,7 +585,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
 
       // (2) ask for a fresher digest of state
       const auto freshen_state_digest_req =
-        create_request(nullptr, "updateAckStateDigest");
+        create_request(nullptr, "ack/update_state_digest");
       const auto freshen_state_digest = parse_response_body<StateDigest>(
         frontend_process(frontend, freshen_state_digest_req, new_member->cert));
       DOCTEST_CHECK(freshen_state_digest.state_digest != ack0.state_digest);
@@ -1644,7 +1644,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   DOCTEST_INFO("Retrieve and decrypt recovery shares");
   {
     const auto get_recovery_shares =
-      create_request(nullptr, "getEncryptedRecoveryShare", HTTP_GET);
+      create_request(nullptr, "recovery_share", HTTP_GET);
 
     for (auto const& m : members)
     {
@@ -1665,7 +1665,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     MemberId member_id = 0;
     const auto submit_recovery_share = create_request(
       SubmitRecoveryShare({retrieved_shares[member_id]}),
-      "submitRecoveryShare");
+      "recovery_share/submit");
 
     check_error(
       frontend_process(
@@ -1697,7 +1697,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       auto bogus_recovery_share = retrieved_shares[m.first];
       bogus_recovery_share[0] = bogus_recovery_share[0] + 1;
       const auto submit_recovery_share = create_request(
-        SubmitRecoveryShare({bogus_recovery_share}), "submitRecoveryShare");
+        SubmitRecoveryShare({bogus_recovery_share}), "recovery_share/submit");
 
       auto rep =
         frontend_process(frontend, submit_recovery_share, m.second.first);
@@ -1728,7 +1728,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     {
       const auto submit_recovery_share = create_request(
         SubmitRecoveryShare({retrieved_shares[m.first]}),
-        "submitRecoveryShare");
+        "recovery_share/submit");
 
       auto ret = parse_response_body<bool>(
         frontend_process(frontend, submit_recovery_share, m.second.first));
@@ -1811,7 +1811,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
     for (auto const& m : members)
     {
       const auto state_digest_req =
-        create_request(nullptr, "updateAckStateDigest");
+        create_request(nullptr, "ack/update_state_digest");
       const auto ack = parse_response_body<StateDigest>(
         frontend_process(frontend, state_digest_req, m.second));
 

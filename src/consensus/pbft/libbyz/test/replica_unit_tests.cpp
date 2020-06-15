@@ -7,7 +7,7 @@
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
-#include "host/ledger.h"
+#include "ds/ccf_exception.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "message.h"
@@ -43,7 +43,8 @@ public:
       ByzInfo& info,
       uint32_t num_requests,
       uint64_t nonce,
-      bool executed_single_threaded) {
+      bool executed_single_threaded,
+      View view) {
       for (uint32_t i = 0; i < num_requests; ++i)
       {
         std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
@@ -72,6 +73,28 @@ public:
         msg->cb(*msg.get(), info);
       }
       return 0;
+    };
+
+  struct RequestCtxImpl : public pbft::RequestCtx
+  {
+    std::shared_ptr<enclave::RpcContext> get_rpc_context() override
+    {
+      return nullptr;
+    }
+    std::shared_ptr<enclave::RpcHandler> get_rpc_handler() override
+    {
+      return nullptr;
+    }
+
+    bool get_does_exec_gov_req() override
+    {
+      return true;
+    }
+  };
+
+  VerifyAndParseCommand verify_command =
+    [this](Byz_req* inb, uint8_t* req_start, size_t req_size) {
+      return std::make_unique<RequestCtxImpl>();
     };
 };
 
@@ -188,11 +211,11 @@ void populate_entries(
   while (true)
   {
     auto ret = consensus->pop_oldest_data();
-    if (!ret.second)
+    if (!ret.has_value())
     {
       break;
     }
-    entries.emplace_back(ret.first);
+    entries.emplace_back(ret.value());
   }
 }
 
@@ -238,6 +261,9 @@ NodeInfo init_test_state(PbftState& pbft_state, NodeId node_id = 0)
     node_id);
   pbft::GlobalState::get_replica().register_exec(
     pbft_state.exec_mock.exec_command);
+  pbft::GlobalState::get_replica().register_verify(
+    pbft_state.exec_mock.verify_command);
+
   return node_info;
 }
 
@@ -261,10 +287,11 @@ TEST_CASE("Test Ledger Replay")
   // initiate replica with stub consensus to be used on replay
   auto write_consensus =
     std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
+  NodeInfo write_node_info;
   INFO("Create dummy pre-prepares and write them to ledger");
   {
     PbftState pbft_state;
-    init_test_state(pbft_state);
+    write_node_info = init_test_state(pbft_state);
 
     pbft_state.store->set_consensus(write_consensus);
     auto& write_derived_map =
@@ -322,6 +349,7 @@ TEST_CASE("Test Ledger Replay")
       info.replicated_state_merkle_root.data()[0] = i + 1;
 
       pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
+      pp->set_digest();
 
       ledger_writer.write_pre_prepare(pp.get());
     }
@@ -334,7 +362,12 @@ TEST_CASE("Test Ledger Replay")
     "corrupt, and in order");
   {
     PbftState pbft_state;
-    init_test_state(pbft_state);
+    NodeId node_id = 1;
+    init_test_state(pbft_state, node_id);
+    // let this node know about the node that signed the pre prepare
+    // otherwise we can't verify the pre prepare during playback
+    pbft::GlobalState::get_node().add_principal(
+      write_node_info.general_info.principal_info[0]);
 
     auto consensus = std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
     pbft_state.store->set_consensus(consensus);
@@ -404,7 +437,7 @@ TEST_CASE("Test Ledger Replay")
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
         REQUIRE_THROWS_AS(
           pbft::GlobalState::get_replica().playback_pre_prepare(tx),
-          std::logic_error);
+          ccf::ccf_logic_error);
         count_rollbacks++;
 
         // rolled back latest request so need to re-execute
@@ -604,8 +637,8 @@ TEST_CASE("Verify prepare proof")
       prepare_node_info.general_info.principal_info[0]);
 
     auto ret = consensus->pop_oldest_data();
-    REQUIRE(ret.second); // deserialized OK
-    auto second_pre_prepare = deserialize_pre_prepare(ret.first, pbft_state);
+    REQUIRE(ret.has_value());
+    auto second_pre_prepare = deserialize_pre_prepare(ret.value(), pbft_state);
     // validate the signature in the proof here
 
     Prepared_cert new_node_prepared_cert;

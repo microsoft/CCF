@@ -5,8 +5,8 @@
 
 #include "message.h"
 
+#include "ds/ccf_assert.h"
 #include "node.h"
-#include "pbft_assert.h"
 
 #include <stdlib.h>
 
@@ -19,7 +19,7 @@ Message::Message(unsigned sz) : msg(0), max_size(ALIGNED_SIZE(sz))
     msg = (Message_rep*)malloc(max_size);
     if (msg != nullptr)
     {
-      PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+      CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
       msg->tag = -1;
       msg->size = 0;
       msg->extra = 0;
@@ -37,7 +37,7 @@ Message::Message(int t, unsigned sz)
 
   max_size = ALIGNED_SIZE(sz);
   msg = (Message_rep*)malloc(max_size);
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   msg->tag = t;
   msg->size = max_size;
   msg->extra = 0;
@@ -49,7 +49,7 @@ Message::Message(int t, unsigned sz)
 
 Message::Message(Message_rep* cont)
 {
-  PBFT_ASSERT(ALIGNED(cont), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(cont), "Improperly aligned pointer");
   msg = cont;
   max_size = -1; // To prevent contents from being deallocated or trimmed
   auth_type = Auth_type::unknown;
@@ -77,14 +77,16 @@ void Message::trim()
 
 void Message::set_size(int size)
 {
-  PBFT_ASSERT(msg && ALIGNED(msg), "Invalid state");
+  CCF_ASSERT(msg && ALIGNED(msg), "Invalid state");
   if (!(max_size < 0 || ALIGNED_SIZE(size) <= max_size))
   {
-    LOG_INFO << "Error - size:" << size
-             << ", aligned_size:" << ALIGNED_SIZE(size)
-             << ", max_size:" << max_size << std::endl;
+    LOG_INFO_FMT(
+      "Error - size:{}, aligned_size:{}, max_size:{}",
+      size,
+      ALIGNED_SIZE(size),
+      max_size);
   }
-  PBFT_ASSERT(max_size < 0 || ALIGNED_SIZE(size) <= max_size, "Invalid state");
+  CCF_ASSERT(max_size < 0 || ALIGNED_SIZE(size) <= max_size, "Invalid state");
   int aligned = ALIGNED_SIZE(size);
   for (int i = size; i < aligned; i++)
   {

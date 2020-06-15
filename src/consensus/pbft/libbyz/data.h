@@ -55,7 +55,7 @@ private:
 
 inline Data_rep& Data::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Data_rep*)msg);
 }
 

@@ -16,7 +16,6 @@
 #include "ds/logger.h"
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
-#include "host/ledger.h"
 #include "kv/kv_types.h"
 #include "node/nodetypes.h"
 
@@ -415,6 +414,7 @@ namespace pbft
         mem,
         mem_size,
         pbft_config->get_exec_command(),
+        pbft_config->get_verify_command(),
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,
@@ -433,7 +433,10 @@ namespace pbft
       LOG_INFO_FMT("PBFT setting up client proxy");
       client_proxy =
         std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
-          *message_receiver_base, 5000, 10000);
+          *message_receiver_base,
+          pbft_config->get_verify_command(),
+          5000,
+          10000);
 
       auto reply_handler_cb = [](Reply* m, void* ctx) {
         auto cp =
@@ -551,7 +554,12 @@ namespace pbft
       throw std::logic_error("should never be here");
     }
 
-    SeqNo get_commit_seqno() override
+    std::pair<View, SeqNo> get_committed_txid() override
+    {
+      return {get_view(global_commit_seqno), global_commit_seqno};
+    }
+
+    SeqNo get_committed_seqno() override
     {
       return global_commit_seqno;
     }
@@ -615,26 +623,11 @@ namespace pbft
       return client_proxy->get_statistics();
     }
 
-    template <typename T>
-    size_t write_to_ledger(const T& data)
-    {
-      ledger->put_entry(data->data(), data->size());
-      return data->size();
-    }
-
-    template <>
-    size_t write_to_ledger<std::vector<uint8_t>>(
-      const std::vector<uint8_t>& data)
-    {
-      ledger->put_entry(data);
-      return data.size();
-    }
-
-    bool replicate(const kv::BatchVector& entries) override
+    bool replicate(const kv::BatchVector& entries, View view) override
     {
       for (auto& [index, data, globally_committable] : entries)
       {
-        write_to_ledger(data);
+        ledger->put_entry(*data, globally_committable);
       }
       return true;
     }
@@ -672,7 +665,8 @@ namespace pbft
         }
         catch (const std::logic_error& err)
         {
-          LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
+          LOG_FAIL_FMT("Invalid encrypted pbft message");
+          LOG_DEBUG_FMT("Invalid encrypted pbft message: {}", err.what());
           return;
         }
       }
@@ -688,7 +682,8 @@ namespace pbft
         }
         catch (const std::logic_error& err)
         {
-          LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+          LOG_FAIL_FMT("Invalid pbft message");
+          LOG_DEBUG_FMT("Invalid pbft message: {}", err.what());
           return;
         }
       }
@@ -761,8 +756,7 @@ namespace pbft
         {
           if (message_receiver_base->IsExecutionPending())
           {
-            LOG_FAIL << "Pending Execution, skipping append entries request"
-                     << std::endl;
+            LOG_FAIL_FMT("Pending Execution, skipping append entries request");
             return;
           }
 
@@ -777,7 +771,7 @@ namespace pbft
           }
           catch (const std::logic_error& err)
           {
-            LOG_FAIL_FMT(err.what());
+            LOG_FAIL_FMT("Failed to authenticate message: {}", err.what());
             return;
           }
 
@@ -823,24 +817,26 @@ namespace pbft
             }
             LOG_TRACE_FMT("Applying append entry for index {}", i);
 
-            auto ret = ledger->get_entry(data, size);
-
-            if (!ret.second)
+            std::vector<uint8_t> entry;
+            try
             {
-              // NB: This will currently never be triggered.
-              // This should only fail if there is malformed data. Truncate
-              // the log and reply false.
+              entry = ledger->get_entry(data, size);
+            }
+            catch (const std::logic_error& e)
+            {
+              // This should only fail if there is malformed data.
               LOG_FAIL_FMT(
-                "Recv append entries to {} from {} but the data is malformed",
+                "Recv append entries to {} from {} but the data is malformed: "
+                "{}",
                 local_id,
-                r.from_node);
-              ledger->truncate(r.prev_idx);
+                r.from_node,
+                e.what());
               return;
             }
 
             kv::Tx tx;
             auto deserialise_success =
-              store->deserialise_views(ret.first, public_only, nullptr, &tx);
+              store->deserialise_views(entry, public_only, nullptr, &tx);
 
             switch (deserialise_success)
             {
@@ -857,6 +853,11 @@ namespace pbft
               case kv::DeserialiseSuccess::PASS_PRE_PREPARE:
               {
                 message_receiver_base->playback_pre_prepare(tx);
+                break;
+              }
+              case kv::DeserialiseSuccess::PASS_NEW_VIEW:
+              {
+                message_receiver_base->playback_new_view(tx);
                 break;
               }
               default:

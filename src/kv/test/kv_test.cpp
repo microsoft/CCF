@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
-#include "kv/experimental.h"
 #include "kv/kv_serialiser.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
@@ -15,7 +14,7 @@
 #include <string>
 #include <vector>
 
-struct RawMapTypes
+struct MapTypes
 {
   using StringString = kv::Map<std::string, std::string>;
   using NumNum = kv::Map<size_t, size_t>;
@@ -23,65 +22,54 @@ struct RawMapTypes
   using StringNum = kv::Map<std::string, size_t>;
 };
 
-struct ExperimentalMapTypes
-{
-  using StringString = kv::experimental::Map<std::string, std::string>;
-  using NumNum = kv::experimental::Map<size_t, size_t>;
-  using NumString = kv::experimental::Map<size_t, std::string>;
-  using StringNum = kv::experimental::Map<std::string, size_t>;
-};
-
-TEST_CASE_TEMPLATE("Map creation", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Map creation")
 {
   kv::Store kv_store;
   const auto map_name = "map";
-  auto& map = kv_store.create<typename MapImpl::StringString>(map_name);
+  auto& map = kv_store.create<MapTypes::StringString>(map_name);
 
   INFO("Get a map that does not exist");
   {
-    REQUIRE(
-      kv_store.get<typename MapImpl::StringString>("invalid_map") == nullptr);
+    REQUIRE(kv_store.get<MapTypes::StringString>("invalid_map") == nullptr);
   }
 
   INFO("Get a map that does exist");
   {
-    auto* p_map = kv_store.get<typename MapImpl::StringString>(map_name);
+    auto* p_map = kv_store.get<MapTypes::StringString>(map_name);
     REQUIRE(*p_map == map);
     REQUIRE(p_map == &map); // They're the _same instance_, not just equal
   }
 
   INFO("Compare different maps");
   {
-    auto& map2 = kv_store.create<typename MapImpl::StringString>("map2");
+    auto& map2 = kv_store.create<MapTypes::StringString>("map2");
     REQUIRE(map != map2);
   }
 
   INFO("Can't create map that already exists");
   {
     REQUIRE_THROWS_AS(
-      kv_store.create<typename MapImpl::StringString>(map_name),
-      std::logic_error);
+      kv_store.create<MapTypes::StringString>(map_name), std::logic_error);
   }
 
   INFO("Can't get a map with the wrong type");
   {
-    REQUIRE(kv_store.get<typename MapImpl::NumNum>(map_name) == nullptr);
-    REQUIRE(kv_store.get<typename MapImpl::NumString>(map_name) == nullptr);
-    REQUIRE(kv_store.get<typename MapImpl::StringNum>(map_name) == nullptr);
+    REQUIRE(kv_store.get<MapTypes::NumNum>(map_name) == nullptr);
+    REQUIRE(kv_store.get<MapTypes::NumString>(map_name) == nullptr);
+    REQUIRE(kv_store.get<MapTypes::StringNum>(map_name) == nullptr);
   }
 
   INFO("Can create a map with a previously invalid name");
   {
-    CHECK_NOTHROW(kv_store.create<typename MapImpl::StringString>("version"));
+    CHECK_NOTHROW(kv_store.create<MapTypes::StringString>("version"));
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Reads/writes and deletions", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Reads/writes and deletions")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<typename MapImpl::StringString>(
-    "map", kv::SecurityDomain::PUBLIC);
+  auto& map =
+    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
 
   constexpr auto k = "key";
   constexpr auto invalid_key = "invalid_key";
@@ -155,11 +143,11 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE("foreach", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("foreach")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<typename MapImpl::StringString>(
-    "map", kv::SecurityDomain::PUBLIC);
+  auto& map =
+    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
 
   std::map<std::string, std::string> iterated_entries;
 
@@ -333,12 +321,11 @@ TEST_CASE_TEMPLATE("foreach", MapImpl, RawMapTypes, ExperimentalMapTypes)
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Rollback and compact", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Rollback and compact")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<typename MapImpl::StringString>(
-    "map", kv::SecurityDomain::PUBLIC);
+  auto& map =
+    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
 
   constexpr auto k = "key";
   constexpr auto v1 = "value1";
@@ -388,14 +375,13 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Clear entire store", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Clear entire store")
 {
   kv::Store kv_store;
-  auto& map1 = kv_store.create<typename MapImpl::StringString>(
-    "map1", kv::SecurityDomain::PUBLIC);
-  auto& map2 = kv_store.create<typename MapImpl::StringString>(
-    "map2", kv::SecurityDomain::PUBLIC);
+  auto& map1 =
+    kv_store.create<MapTypes::StringString>("map1", kv::SecurityDomain::PUBLIC);
+  auto& map2 =
+    kv_store.create<MapTypes::StringString>("map2", kv::SecurityDomain::PUBLIC);
 
   INFO("Commit a transaction over two maps");
   {
@@ -428,10 +414,9 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Local commit hooks", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Local commit hooks")
 {
-  using Write = typename MapImpl::StringString::Write;
+  using Write = MapTypes::StringString::Write;
   std::vector<Write> local_writes;
   std::vector<Write> global_writes;
 
@@ -443,8 +428,8 @@ TEST_CASE_TEMPLATE(
   };
 
   kv::Store kv_store;
-  auto& map = kv_store.create<typename MapImpl::StringString>(
-    "map", kv::SecurityDomain::PUBLIC);
+  auto& map =
+    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
   map.set_local_hook(local_hook);
   map.set_global_hook(global_hook);
 
@@ -513,10 +498,9 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Global commit hooks", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Global commit hooks")
 {
-  using Write = typename MapImpl::StringString::Write;
+  using Write = MapTypes::StringString::Write;
 
   struct GlobalHookInput
   {
@@ -666,15 +650,15 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE("Clone schema", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Clone schema")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store store;
   store.set_encryptor(encryptor);
 
-  auto& public_map = store.create<typename MapImpl::NumString>(
-    "public", kv::SecurityDomain::PUBLIC);
-  auto& private_map = store.create<typename MapImpl::NumString>("private");
+  auto& public_map =
+    store.create<MapTypes::NumString>("public", kv::SecurityDomain::PUBLIC);
+  auto& private_map = store.create<MapTypes::NumString>("private");
   kv::Tx tx1(store.next_version());
   auto [view1, view2] = tx1.get_view(public_map, private_map);
   view1->put(42, "aardvark");
@@ -689,8 +673,7 @@ TEST_CASE_TEMPLATE("Clone schema", MapImpl, RawMapTypes, ExperimentalMapTypes)
   REQUIRE(clone.deserialise(data) == kv::DeserialiseSuccess::PASS);
 }
 
-TEST_CASE_TEMPLATE(
-  "Deserialise return status", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Deserialise return status")
 {
   kv::Store store;
 
@@ -699,7 +682,7 @@ TEST_CASE_TEMPLATE(
   auto& nodes =
     store.create<ccf::Nodes>(ccf::Tables::NODES, kv::SecurityDomain::PUBLIC);
   auto& data =
-    store.create<typename MapImpl::NumNum>("data", kv::SecurityDomain::PUBLIC);
+    store.create<MapTypes::NumNum>("data", kv::SecurityDomain::PUBLIC);
 
   auto kp = tls::make_key_pair();
 
@@ -742,22 +725,21 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Map swap between stores", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Map swap between stores")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store s1;
   s1.set_encryptor(encryptor);
 
-  auto& d1 = s1.create<typename MapImpl::NumNum>("data");
-  auto& pd1 = s1.create<typename MapImpl::NumNum>(
-    "public_data", kv::SecurityDomain::PUBLIC);
+  auto& d1 = s1.create<MapTypes::NumNum>("data");
+  auto& pd1 =
+    s1.create<MapTypes::NumNum>("public_data", kv::SecurityDomain::PUBLIC);
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
-  auto& d2 = s2.create<typename MapImpl::NumNum>("data");
-  auto& pd2 = s2.create<typename MapImpl::NumNum>(
-    "public_data", kv::SecurityDomain::PUBLIC);
+  auto& d2 = s2.create<MapTypes::NumNum>("data");
+  auto& pd2 =
+    s2.create<MapTypes::NumNum>("public_data", kv::SecurityDomain::PUBLIC);
 
   {
     kv::Tx tx;
@@ -815,16 +797,15 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Invalid map swaps", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Invalid map swaps")
 {
   {
     kv::Store s1;
-    s1.create<typename MapImpl::NumNum>("one");
+    s1.create<MapTypes::NumNum>("one");
 
     kv::Store s2;
-    s2.create<typename MapImpl::NumNum>("one");
-    s2.create<typename MapImpl::NumNum>("two");
+    s2.create<MapTypes::NumNum>("one");
+    s2.create<MapTypes::NumNum>("two");
 
     REQUIRE_THROWS_WITH(
       s2.swap_private_maps(s1),
@@ -833,11 +814,11 @@ TEST_CASE_TEMPLATE(
 
   {
     kv::Store s1;
-    s1.create<typename MapImpl::NumNum>("one");
-    s1.create<typename MapImpl::NumNum>("two");
+    s1.create<MapTypes::NumNum>("one");
+    s1.create<MapTypes::NumNum>("two");
 
     kv::Store s2;
-    s2.create<typename MapImpl::NumNum>("one");
+    s2.create<MapTypes::NumNum>("one");
 
     REQUIRE_THROWS_WITH(
       s2.swap_private_maps(s1),
@@ -845,21 +826,20 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Private recovery map swap", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Private recovery map swap")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   kv::Store s1;
   s1.set_encryptor(encryptor);
-  auto& priv1 = s1.create<typename MapImpl::NumNum>("private");
-  auto& pub1 = s1.create<typename MapImpl::NumString>(
-    "public", kv::SecurityDomain::PUBLIC);
+  auto& priv1 = s1.create<MapTypes::NumNum>("private");
+  auto& pub1 =
+    s1.create<MapTypes::NumString>("public", kv::SecurityDomain::PUBLIC);
 
   kv::Store s2;
   s2.set_encryptor(encryptor);
-  auto& priv2 = s2.create<typename MapImpl::NumNum>("private");
-  auto& pub2 = s2.create<typename MapImpl::NumString>(
-    "public", kv::SecurityDomain::PUBLIC);
+  auto& priv2 = s2.create<MapTypes::NumNum>("private");
+  auto& pub2 =
+    s2.create<MapTypes::NumString>("public", kv::SecurityDomain::PUBLIC);
 
   INFO("Populate s1 with public entries");
   // We compact twice, deliberately. A public KV during recovery
@@ -976,12 +956,11 @@ TEST_CASE_TEMPLATE(
   }
 }
 
-TEST_CASE_TEMPLATE(
-  "Conflict resolution", MapImpl, RawMapTypes, ExperimentalMapTypes)
+TEST_CASE("Conflict resolution")
 {
   kv::Store kv_store;
-  auto& map = kv_store.create<typename MapImpl::StringString>(
-    "map", kv::SecurityDomain::PUBLIC);
+  auto& map =
+    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
 
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
     auto view = tx.get_view(map);

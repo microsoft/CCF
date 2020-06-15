@@ -130,8 +130,8 @@ class Member:
 
     def update_ack_state_digest(self, remote_node):
         with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc("updateAckStateDigest")
-            assert r.error is None, f"Error updateAckStateDigest: {r.error}"
+            r = mc.rpc("ack/update_state_digest")
+            assert r.error is None, f"Error ack/update_state_digest: {r.error}"
             return bytearray(r.result["state_digest"])
 
     def ack(self, remote_node):
@@ -140,10 +140,11 @@ class Member:
             r = mc.rpc("ack", params={"state_digest": list(state_digest)}, signed=True)
             assert r.error is None, f"Error ACK: {r.error}"
             self.status = MemberStatus.ACTIVE
+            return r
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
         with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.get("getEncryptedRecoveryShare")
+            r = mc.get("recovery_share")
             if r.status != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
@@ -161,7 +162,7 @@ class Member:
     def submit_recovery_share(self, remote_node, decrypted_recovery_share):
         with remote_node.member_client(member_id=self.member_id) as mc:
             r = mc.rpc(
-                "submitRecoveryShare",
+                "recovery_share/submit",
                 params={"recovery_share": list(decrypted_recovery_share)},
             )
             assert r.error is None, f"Error submitting recovery share: {r.error}"

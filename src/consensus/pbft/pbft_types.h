@@ -57,9 +57,13 @@ namespace pbft
       ccf::Signatures& signatures) = 0;
     virtual kv::Version commit_tx(
       kv::Tx& tx, CBuffer root, ccf::Signatures& signatures) = 0;
+    virtual kv::Version commit_tx(kv::Tx& tx) = 0;
     virtual void commit_new_view(
       const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map) = 0;
     virtual std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor() = 0;
+    virtual void set_view(Term t) = 0;
+
+    virtual kv::TxID next_txid() = 0;
   };
 
   template <typename T, typename S>
@@ -80,7 +84,6 @@ namespace pbft
       auto p = x.lock();
       if (p)
         return p->deserialise_views(data, public_only, term, tx);
-
       return S::FAILED;
     }
 
@@ -90,84 +93,78 @@ namespace pbft
       CBuffer root,
       ccf::Signatures& signatures)
     {
-      while (true)
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
+        auto txid = p->next_txid();
+        LOG_TRACE_FMT("Storing pre prepare at seqno {}", pp.seqno);
+        auto success = p->commit(
+          txid,
+          [txid,
+           &pbft_pre_prepares_map,
+           &signatures,
+           pp,
+           root = std::vector<uint8_t>(root.p, root.p + root.n)]() {
+            kv::Tx tx(txid.version);
+            auto pp_view = tx.get_view(pbft_pre_prepares_map);
+            pp_view->put(0, pp);
+            auto sig_view = tx.get_view(signatures);
+            ccf::Signature sig_value(CBuffer{root.data(), root.size()});
+            sig_view->put(0, sig_value);
+            return tx.commit_reserved();
+          },
+          false);
+        if (success == kv::CommitSuccess::OK)
         {
-          auto version = p->next_version();
-          LOG_TRACE_FMT("Storing pre prepare at seqno {}", pp.seqno);
-          auto success = p->commit(
-            version,
-            [version,
-             &pbft_pre_prepares_map,
-             &signatures,
-             pp,
-             root = std::vector<uint8_t>(root.p, root.p + root.n)]() {
-              kv::Tx tx(version);
-              auto pp_view = tx.get_view(pbft_pre_prepares_map);
-              pp_view->put(0, pp);
-              auto sig_view = tx.get_view(signatures);
-              ccf::Signature sig_value(CBuffer{root.data(), root.size()});
-              sig_view->put(0, sig_value);
-              return tx.commit_reserved();
-            },
-            false);
-          if (success == kv::CommitSuccess::OK)
-          {
-            return version;
-          }
+          return txid.version;
         }
       }
+      return kv::NoVersion;
     }
 
     kv::Version commit_tx(kv::Tx& tx, CBuffer root, ccf::Signatures& signatures)
     {
-      while (true)
+      auto sig_view = tx.get_view(signatures);
+      ccf::Signature sig_value(root);
+      sig_view->put(0, sig_value);
+      return commit_tx(tx);
+    }
+
+    kv::Version commit_tx(kv::Tx& tx)
+    {
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
+        auto success = tx.commit();
+        if (success == kv::CommitSuccess::OK)
         {
-          auto sig_view = tx.get_view(signatures);
-          ccf::Signature sig_value(root);
-          sig_view->put(0, sig_value);
-          auto success = tx.commit();
-          if (success == kv::CommitSuccess::OK)
-          {
-            return tx.get_version();
-          }
+          return tx.get_version();
         }
       }
+      return kv::NoVersion;
     }
 
     void commit_new_view(
       const pbft::NewView& new_view, pbft::NewViewsMap& pbft_new_views_map)
     {
-      while (true)
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
-        {
-          auto version = p->next_version();
-          LOG_TRACE_FMT(
-            "Storing new view message at view {} for node {}",
-            new_view.view,
-            new_view.node_id);
+        auto txid = p->next_txid();
+        LOG_TRACE_FMT(
+          "Storing new view message at view {} for node {}",
+          new_view.view,
+          new_view.node_id);
 
-          auto success = p->commit(
-            version,
-            [version, &pbft_new_views_map, new_view]() {
-              kv::Tx tx(version);
-              auto vc_view = tx.get_view(pbft_new_views_map);
-              vc_view->put(0, new_view);
-              return tx.commit_reserved();
-            },
-            false);
-          if (success == kv::CommitSuccess::OK)
-          {
-            return;
-          }
-        }
+        auto success = p->commit(
+          txid,
+          [txid, &pbft_new_views_map, new_view]() {
+            kv::Tx tx(txid.version);
+            auto vc_view = tx.get_view(pbft_new_views_map);
+            vc_view->put(0, new_view);
+            return tx.commit_reserved();
+          },
+          false);
       }
     }
 
@@ -182,14 +179,10 @@ namespace pbft
 
     void rollback(Index v)
     {
-      while (true)
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
-        {
-          p->rollback(v);
-          break;
-        }
+        p->rollback(v);
       }
     }
 
@@ -203,16 +196,33 @@ namespace pbft
       return kv::NoVersion;
     }
 
+    kv::TxID next_txid()
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        return p->next_txid();
+      }
+      return {0, kv::NoVersion};
+    }
+
+    void set_view(Term view)
+    {
+      auto p = x.lock();
+      if (p)
+      {
+        p->set_term(view);
+      }
+    }
+
     std::shared_ptr<kv::AbstractTxEncryptor> get_encryptor()
     {
-      while (true)
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
-        {
-          return p->get_encryptor();
-        }
+        return p->get_encryptor();
       }
+      return nullptr;
     }
   };
 

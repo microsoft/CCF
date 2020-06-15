@@ -11,7 +11,6 @@
 #include "forwarder.h"
 #include "node/client_signatures.h"
 #include "node/nodes.h"
-#include "notifier_interface.h"
 #include "rpc_exception.h"
 #include "tls/verifier.h"
 
@@ -367,13 +366,15 @@ namespace ccf
               auto cv = tx.commit_version();
               if (cv == 0)
                 cv = tx.get_read_version();
-              if (cv == kv::NoVersion)
-                cv = tables.current_version();
-              ctx->set_commit(cv);
               if (consensus != nullptr)
               {
-                ctx->set_term(consensus->get_view(cv));
-                ctx->set_global_commit(consensus->get_commit_seqno());
+                if (cv != kv::NoVersion)
+                {
+                  ctx->set_seqno(cv);
+                  ctx->set_view(tx.commit_term());
+                }
+                // Deprecated, this will be removed in future releases
+                ctx->set_global_commit(consensus->get_committed_seqno());
 
                 if (
                   history && consensus->is_primary() &&
@@ -424,7 +425,8 @@ namespace ccf
           // If serialising the committed transaction fails, there is no way
           // to recover safely (https://github.com/microsoft/CCF/issues/338).
           // Better to abort.
-          LOG_FATAL_FMT("Failed to serialise: {}", e.what());
+          LOG_DEBUG_FMT("Failed to serialise: {}", e.what());
+          LOG_FATAL_FMT("Failed to serialise");
           abort();
         }
         catch (const std::exception& e)
@@ -517,7 +519,8 @@ namespace ccf
                 ctx->get_serialised_request(),
                 ctx->frame_format()))
           {
-            LOG_FAIL_FMT(
+            LOG_FAIL_FMT("Adding request failed");
+            LOG_DEBUG_FMT(
               "Adding request failed: {}, {}, {}",
               std::get<0>(reqid),
               std::get<1>(reqid),
@@ -581,7 +584,6 @@ namespace ccf
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
 
       version = tx.get_version();
-
       return {std::move(rep.value()), version};
     }
 

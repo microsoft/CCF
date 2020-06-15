@@ -2,16 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/experimental.h"
 #include "script.h"
 
 namespace ccf
 {
-  using Scripts = kv::experimental::Map<
-    std::string,
-    Script,
-    kv::experimental::JsonSerialiser<std::string>,
-    kv::experimental::JsonSerialiser<Script>>;
+  using Scripts = kv::Map<std::string, Script>;
 
   struct GovScriptIds
   {

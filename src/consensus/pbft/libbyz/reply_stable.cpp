@@ -5,8 +5,8 @@
 
 #include "reply_stable.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
 

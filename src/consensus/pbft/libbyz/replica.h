@@ -73,6 +73,7 @@ public:
   // Methods to register service specific functions. The expected
   // specifications for the functions are defined below.
   void register_exec(ExecCommand e);
+  void register_verify(VerifyAndParseCommand e);
   // Effects: Registers "e" as the exec_command function.
 
   int used_state_bytes() const;
@@ -199,9 +200,9 @@ public:
   void init_state();
   void recv_start();
 
-  static bool pre_verify(Message* m);
+  bool pre_verify(Message* m);
   template <class T>
-  static bool gen_pre_verify(Message* m);
+  bool gen_pre_verify(Message* m);
 
   void handle(Request* m);
 
@@ -233,6 +234,10 @@ public:
   void playback_pre_prepare(kv::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
+
+  void playback_new_view(kv::Tx& tx);
+  // Effects: if the new-view message is verified then the replica enters
+  // the new view
 
   bool IsExecutionPending()
   {
@@ -607,6 +612,7 @@ private:
   // Pointers to various functions.
   //
   ExecCommand exec_command;
+  VerifyAndParseCommand verify_command;
 
   //
   // Statistics to set pre_prepare batch info

@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
+@reqs.supports_methods("LOG_record")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     primary, other = network.find_primary_and_any_backup()

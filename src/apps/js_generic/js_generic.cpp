@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
+#include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
 #include "quickjs.h"
 
@@ -77,7 +78,7 @@ namespace ccfapp
 
     size_t sz = 0;
     auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
-    auto v = table_view->get(std::vector<uint8_t>(k, k + sz));
+    auto v = table_view->get({k, k + sz});
     JS_FreeCString(ctx, k);
 
     if (v.has_value())
@@ -100,7 +101,7 @@ namespace ccfapp
 
     size_t sz = 0;
     auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
-    auto v = table_view->remove(std::vector<uint8_t>(k, k + sz));
+    auto v = table_view->remove({k, k + sz});
     JS_FreeCString(ctx, k);
 
     if (v)
@@ -124,13 +125,11 @@ namespace ccfapp
 
     size_t k_sz = 0;
     auto k = JS_ToCStringLen(ctx, &k_sz, argv[0]);
-    std::vector<uint8_t> k_(k, k + k_sz);
 
     size_t v_sz = 0;
     auto v = JS_ToCStringLen(ctx, &v_sz, argv[1]);
-    std::vector<uint8_t> v_(v, v + v_sz);
 
-    if (!table_view->put(k_, v_))
+    if (!table_view->put({k, k + k_sz}, {v, v + v_sz}))
     {
       r = JS_ThrowRangeError(ctx, "Could not insert at key");
     }
@@ -300,7 +299,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, AbstractNotifier& notifier)
+    NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
     return make_shared<JS>(network);
   }

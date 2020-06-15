@@ -5,9 +5,9 @@
 
 #pragma once
 
+#include "ds/ccf_assert.h"
 #include "ds/dl_list.h"
 #include "ds/thread_messaging.h"
-#include "pbft_assert.h"
 #include "request.h"
 #include "types.h"
 
@@ -115,7 +115,7 @@ inline Request* Req_queue::first() const
     auto rn = rnodes[count % tcount].get_head();
     if (rn != nullptr)
     {
-      PBFT_ASSERT(rn->r != 0, "Invalid state");
+      CCF_ASSERT(rn->r != 0, "Invalid state");
       return rn->r.get();
     }
     count++;

@@ -7,6 +7,8 @@
 #include "map.h"
 #include "view_containers.h"
 
+#include <fmt/format.h>
+
 namespace kv
 {
   class Store : public AbstractStore
@@ -22,6 +24,7 @@ namespace kv
     std::shared_ptr<AbstractTxEncryptor> encryptor = nullptr;
     Version version = 0;
     Version compacted = 0;
+    Term term = 0;
 
     SpinLock maps_lock;
     SpinLock version_lock;
@@ -32,6 +35,13 @@ namespace kv
     Version rollback_count = 0;
     kv::ReplicateType replicate_type = kv::ReplicateType::ALL;
     std::unordered_set<std::string> replicated_tables;
+
+    // Generally we will only accept deserialised views if they are contiguous -
+    // at Version N we reject everything but N+1. The exception is when a Store
+    // is used for historical queries, where it may deserialise arbitrary
+    // transactions. In this case the Store is a useful container for a set of
+    // Tables, but its versioning invariants are ignored.
+    const bool strict_versions = true;
 
     DeserialiseSuccess commit_deserialised(OrderedViews& views, Version& v)
     {
@@ -63,7 +73,7 @@ namespace kv
       }
     }
 
-    Store() {}
+    Store(bool strict_versions_ = true) : strict_versions(strict_versions_) {}
 
     Store(
       const ReplicateType& replicate_type_,
@@ -106,10 +116,10 @@ namespace kv
       return encryptor;
     }
 
-    template <class K, class V, class H = std::hash<K>>
-    Map<K, V, H>* get(std::string name)
+    template <class K, class V>
+    Map<K, V>* get(const std::string& name)
     {
-      return get<Map<K, V, H>>(name);
+      return get<Map<K, V>>(name);
     }
 
     /** Get Map by name
@@ -119,7 +129,7 @@ namespace kv
      * @return Map
      */
     template <class M>
-    M* get(std::string name)
+    M* get(const std::string& name)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -137,6 +147,21 @@ namespace kv
       return nullptr;
     }
 
+    /** Get Map by type and name
+     *
+     * Using type and name of other Map, retrieve the equivalent Map from this
+     * Store
+     *
+     * @param other Other map
+     *
+     * @return Map
+     */
+    template <class M>
+    M* get(const M& other)
+    {
+      return get<M>(other.get_name());
+    }
+
     /** Create a Map
      *
      * Note this call will throw a logic_error if a map by that name already
@@ -147,12 +172,12 @@ namespace kv
      *
      * @return Newly created Map
      */
-    template <class K, class V, class H = std::hash<K>>
-    Map<K, V, H>& create(
+    template <class K, class V>
+    Map<K, V>& create(
       std::string name,
       SecurityDomain security_domain = kv::SecurityDomain::PRIVATE)
     {
-      return create<Map<K, V, H>>(name, security_domain);
+      return create<Map<K, V>>(name, security_domain);
     }
 
     /** Create a Map
@@ -229,18 +254,28 @@ namespace kv
         map.second->post_compact();
     }
 
-    void rollback(Version v) override
+    void rollback(Version v, std::optional<Term> t = std::nullopt) override
     {
       // This is called to roll the store back to the state it was in
       // at the specified version.
       // No transactions can be prepared or committed during rollback.
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      if (v >= current_version())
-        return;
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        // The term should always be updated on rollback() when passed
+        // regardless of whether version needs to be updated or not
+        if (t.has_value())
+          term = t.value();
+        if (v >= version)
+          return;
+      }
 
       if (v < commit_version())
-        return;
+        throw std::logic_error(fmt::format(
+          "Attempting rollback to {}, earlier than commit version {}",
+          v,
+          commit_version()));
 
       for (auto& map : maps)
         map.second->lock();
@@ -265,10 +300,16 @@ namespace kv
         e->rollback(v);
     }
 
+    void set_term(Term t) override
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+      term = t;
+    }
+
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr,
+      Term* term_ = nullptr,
       ViewContainer* tx = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
@@ -297,18 +338,21 @@ namespace kv
         return DeserialiseSuccess::FAILED;
       }
 
-      Version v = d->template deserialise_version<Version>();
+      Version v = d->deserialise_version();
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback(v - 1);
 
-      // Make sure this is the next transaction.
-      auto cv = current_version();
-      if (cv != (v - 1))
+      if (strict_versions)
       {
-        LOG_FAIL_FMT(
-          "Tried to deserialise {} but current_version is {}", v, cv);
-        return DeserialiseSuccess::FAILED;
+        // Make sure this is the next transaction.
+        auto cv = current_version();
+        if (cv != (v - 1))
+        {
+          LOG_FAIL_FMT(
+            "Tried to deserialise {} but current_version is {}", v, cv);
+          return DeserialiseSuccess::FAILED;
+        }
       }
 
       // Deserialised transactions express read dependencies as versions,
@@ -325,14 +369,16 @@ namespace kv
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          LOG_FAIL_FMT("No such map {} at version {}", map_name, v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("No such map {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
         auto view_search = views.find(map_name);
         if (view_search != views.end())
         {
-          LOG_FAIL_FMT("Multiple writes on {} at version {}", map_name, v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("Multiple writes on {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
@@ -344,7 +390,8 @@ namespace kv
           search->second->deserialise(*d, deserialise_version);
         if (deserialised_write_set == nullptr)
         {
-          LOG_FAIL_FMT(
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT(
             "Could not deserialise Tx for map {} at version {}",
             map_name,
             deserialise_version);
@@ -360,7 +407,8 @@ namespace kv
 
       if (!d->end())
       {
-        LOG_FAIL_FMT("Unexpected content in Tx at version {}", v);
+        LOG_FAIL_FMT("Failed to deserialize");
+        LOG_DEBUG_FMT("Unexpected content in Tx at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
 
@@ -373,29 +421,35 @@ namespace kv
         {
           return success;
         }
-        auto h = get_history();
-        if (h)
-        {
-          auto search = views.find("ccf.signatures");
-          if (search != views.end())
-          {
-            // Transactions containing a signature must only contain
-            // a signature and must be verified
-            if (views.size() > 1)
-            {
-              LOG_FAIL_FMT(
-                "Unexpected contents in signature transaction {}", v);
-              return DeserialiseSuccess::FAILED;
-            }
 
-            if (!h->verify(term))
-            {
-              LOG_FAIL_FMT("Signature in transaction {} failed to verify", v);
-              return DeserialiseSuccess::FAILED;
-            }
-            success = DeserialiseSuccess::PASS_SIGNATURE;
+        auto h = get_history();
+
+        auto search = views.find("ccf.signatures");
+        if (search != views.end())
+        {
+          // Transactions containing a signature must only contain
+          // a signature and must be verified
+          if (views.size() > 1)
+          {
+            LOG_FAIL_FMT("Failed to deserialize");
+            LOG_DEBUG_FMT("Unexpected contents in signature transaction {}", v);
+            return DeserialiseSuccess::FAILED;
           }
 
+          if (h)
+          {
+            if (!h->verify(term_))
+            {
+              LOG_FAIL_FMT("Failed to deserialize");
+              LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
+              return DeserialiseSuccess::FAILED;
+            }
+          }
+          success = DeserialiseSuccess::PASS_SIGNATURE;
+        }
+
+        if (h)
+        {
           h->append(data.data(), data.size());
         }
       }
@@ -405,7 +459,8 @@ namespace kv
         // contain anything else
         if (views.size() > 1)
         {
-          LOG_FAIL_FMT("Unexpected contents in pbft transaction {}", v);
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("Unexpected contents in pbft transaction {}", v);
           return DeserialiseSuccess::FAILED;
         }
 
@@ -427,7 +482,7 @@ namespace kv
 
       if (tx)
       {
-        tx->set_view_list(views);
+        tx->set_view_list(views, term);
       }
 
       return success;
@@ -472,9 +527,16 @@ namespace kv
 
     Version current_version() override
     {
-      // Must lock in case the version is being incremented.
+      // Must lock in case the version or term is being incremented.
       std::lock_guard<SpinLock> vguard(version_lock);
       return version;
+    }
+
+    TxID current_txid() override
+    {
+      // Must lock in case the version is being incremented.
+      std::lock_guard<SpinLock> vguard(version_lock);
+      return {term, version};
     }
 
     Version commit_version() override
@@ -485,7 +547,9 @@ namespace kv
     }
 
     CommitSuccess commit(
-      Version version, PendingTx pending_tx, bool globally_committable) override
+      const TxID& txid,
+      PendingTx pending_tx,
+      bool globally_committable) override
     {
       auto r = get_consensus();
       if (!r)
@@ -493,21 +557,29 @@ namespace kv
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
-        version,
+        txid.version,
         (globally_committable ? " globally_committable" : ""));
 
       BatchVector batch;
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
+      kv::Consensus::View replication_view = 0;
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        if (globally_committable && version > last_committable)
-          last_committable = version;
+        // This can happen when a transaction started before a view change,
+        // but tries to commit after the view change is complete.
+        LOG_DEBUG_FMT(
+          "Want to commit for term {}, term is {}", txid.term, term);
+        if (txid.term != term)
+          return CommitSuccess::NO_REPLICATE;
+
+        if (globally_committable && txid.version > last_committable)
+          last_committable = txid.version;
 
         pending_txs.insert(
-          {version,
+          {txid.version,
            std::make_pair(std::move(pending_tx), globally_committable)});
 
         auto h = get_history();
@@ -533,7 +605,7 @@ namespace kv
 
           if (h)
           {
-            h->add_pending(reqid, version, data_shared);
+            h->add_pending(reqid, txid.version, data_shared);
           }
 
           LOG_DEBUG_FMT(
@@ -549,9 +621,11 @@ namespace kv
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
+
+        replication_view = term;
       }
 
-      if (r->replicate(batch))
+      if (r->replicate(batch, replication_view))
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         if (
@@ -580,6 +654,18 @@ namespace kv
         version = 0;
 
       return version;
+    }
+
+    TxID next_txid() override
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+
+      // Get the next global version. If we would go negative, wrap to 0.
+      ++version;
+      if (version < 0)
+        version = 0;
+
+      return {term, version};
     }
 
     size_t commit_gap() override

@@ -7,11 +7,16 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.10 # CCF_VERSION < This is a search marker for CI version check
+  VERSION 0.11
   LANGUAGES C CXX
 )
 
 set(ENV{BETTER_EXCEPTIONS} 1)
+
+set(CCF_PROJECT_NAME_SUFFIX "")
+set(CCF_PROJECT_NAME "${PROJECT_VERSION}${CCF_PROJECT_NAME_SUFFIX}")
+
+message(STATUS "CCF version=${CCF_PROJECT_NAME}")
 
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
@@ -20,7 +25,7 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf/ccf-${PROJECT_VERSION}"
+      "/opt/ccf/ccf-${CCF_PROJECT_NAME}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
@@ -255,6 +260,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
     )
@@ -305,6 +311,12 @@ if(BUILD_TESTS)
     )
     use_client_mbedtls(encryptor_test)
     target_link_libraries(encryptor_test PRIVATE secp256k1.host)
+
+    add_unit_test(
+      historical_queries_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+    )
+    target_link_libraries(historical_queries_test PRIVATE secp256k1.host)
 
     add_unit_test(
       msgpack_serialization_test
@@ -393,6 +405,10 @@ if(BUILD_TESTS)
     target_include_directories(lua_test PRIVATE ${LUA_DIR})
     target_link_libraries(lua_test PRIVATE lua.host)
 
+    add_unit_test(
+      merkle_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/merkle_test.cpp
+    )
+
     # Merkle Tree memory test
     add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_link_libraries(
@@ -446,6 +462,7 @@ if(BUILD_TESTS)
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
+  add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
   # Storing signed governance operations
   add_e2e_test(
@@ -465,6 +482,10 @@ if(BUILD_TESTS)
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout
       4000
+      # Smaller ledger chunks than default to make sure that a ledger made of
+      # multiple chunks can be recovered
+      --ledger-chunk-max-bytes
+      20KB
   )
 
   add_e2e_test(
@@ -544,6 +565,12 @@ if(BUILD_TESTS)
   add_e2e_test(
     NAME suspend_nodes_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
+    CONSENSUS pbft
+  )
+
+  add_e2e_test(
+    NAME replay_new_view_pbft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
     CONSENSUS pbft
   )
 

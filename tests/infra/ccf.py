@@ -68,10 +68,12 @@ class Network:
         "consensus",
         "memory_reserve_startup",
         "notify_server",
-        "json_log_path",
+        "log_format_json",
         "gov_script",
         "join_timer",
         "worker_threads",
+        "ledger_chunk_max_bytes",
+        "domain",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -132,7 +134,7 @@ class Network:
         ), "Cannot adjust local node IDs if the network was started from an existing network"
 
         with primary.node_client() as nc:
-            r = nc.get("getPrimaryInfo")
+            r = nc.get("primary_info")
             first_node_id = r.result["primary_id"]
             assert (r.result["primary_host"] == primary.host) and (
                 int(r.result["primary_port"]) == primary.rpc_port
@@ -182,7 +184,7 @@ class Network:
                     raise
             node.network_state = infra.node.NodeNetworkState.joined
 
-    def _start_all_nodes(self, args, recovery=False, ledger_file=None):
+    def _start_all_nodes(self, args, recovery=False, ledger_dir=None):
         hosts = self.hosts
 
         if not args.package:
@@ -210,7 +212,7 @@ class Network:
                     else:
                         node.recover(
                             lib_name=args.package,
-                            ledger_file=ledger_file,
+                            ledger_dir=ledger_dir,
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
@@ -312,19 +314,19 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
-        self, args, ledger_file, common_dir=None,
+        self, args, ledger_dir, common_dir=None,
     ):
         """
         Starts a CCF network in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
-        :param ledger_file: ledger file to recover from.
+        :param ledger_dir: ledger directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
 
-        primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
+        primary = self._start_all_nodes(args, recovery=True, ledger_dir=ledger_dir)
 
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
@@ -477,7 +479,7 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.node_client(connection_timeout=timeout) as c:
-                    r = c.get("getSignedIndex")
+                    r = c.get("signed_index")
                     if r.result["state"] == state:
                         break
             except ConnectionRefusedError:
@@ -506,10 +508,10 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.get("getPrimaryInfo")
+                        res = c.get("primary_info")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            view = res.result["current_term"]
+                            view = res.result["current_view"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
@@ -550,9 +552,9 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             with primary.node_client() as c:
-                resp = c.get("getCommit")
-                seqno = resp.result["commit"]
-                view = resp.result["term"]
+                resp = c.get("commit")
+                seqno = resp.result["seqno"]
+                view = resp.result["view"]
                 if seqno != 0:
                     break
             time.sleep(0.1)
@@ -595,18 +597,13 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    r = c.get("getCommit")
-                    commits.append(r.seqno)
+                    r = c.get("commit")
+                    commits.append(f"{r.view}.{r.seqno}")
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
-        # in pbft getCommit increments the commit version, so commits will not be the same
-        # but they should be in ascending order
-        assert (
-            [commits[0]] * len(commits) == commits
-            if consensus == "raft"
-            else sorted(commits) == commits
-        ), "All nodes in sync"
+        expected = [commits[0]] * len(commits)
+        assert expected == commits, f"{commits} != {expected}"
 
 
 @contextmanager
