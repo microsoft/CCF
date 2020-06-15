@@ -482,6 +482,10 @@ if(BUILD_TESTS)
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout
       4000
+      # Smaller ledger chunks than default to make sure that a ledger made of
+      # multiple chunks can be recovered
+      --ledger-chunk-max-bytes
+      20KB
   )
 
   add_e2e_test(

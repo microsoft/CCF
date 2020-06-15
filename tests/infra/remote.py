@@ -11,6 +11,8 @@ import uuid
 import ctypes
 import signal
 import re
+import stat
+import shutil
 from collections import deque
 
 from loguru import logger as LOG
@@ -178,8 +180,13 @@ class SSHRemote(CmdMixin):
             session.chmod(tgt_path, stat.st_mode)
         for path in self.data_files:
             tgt_path = os.path.join(self.root, os.path.basename(path))
+            if os.path.isdir(path):
+                session.mkdir(tgt_path)
+                for f in os.listdir(path):
+                    session.put(os.path.join(path, f), os.path.join(tgt_path, f))
+            else:
+                session.put(path, tgt_path)
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
-            session.put(path, tgt_path)
         session.close()
 
     def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
@@ -199,10 +206,22 @@ class SSHRemote(CmdMixin):
             while time.time() < end_time:
                 try:
                     target_name = target_name or file_name
-                    session.get(
-                        os.path.join(self.root, file_name),
-                        os.path.join(dst_path, target_name),
-                    )
+                    fileattr = session.lstat(os.path.join(self.root, file_name))
+                    if stat.S_ISDIR(fileattr.st_mode):
+                        src_dir = os.path.join(self.root, file_name)
+                        dst_dir = os.path.join(dst_path, file_name)
+                        if os.path.exists(dst_dir):
+                            shutil.rmtree(dst_dir)
+                        os.makedirs(dst_dir)
+                        for f in session.listdir(src_dir):
+                            session.get(
+                                os.path.join(src_dir, f), os.path.join(dst_dir, f),
+                            )
+                    else:
+                        session.get(
+                            os.path.join(self.root, file_name),
+                            os.path.join(dst_path, target_name),
+                        )
                     LOG.debug(
                         "[{}] found {} after {}s".format(
                             self.hostname, file_name, int(time.time() - start_time)
@@ -391,6 +410,20 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] {}".format(self.hostname, cmd))
         return subprocess.call(cmd, shell=True)
 
+    def _cp(self, src_path, dst_path):
+        if os.path.isdir(src_path):
+            assert (
+                self._rc(
+                    "rm -rf {}".format(
+                        os.path.join(dst_path, os.path.basename(src_path))
+                    )
+                )
+                == 0
+            )
+            assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
+        else:
+            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
@@ -400,7 +433,7 @@ class LocalRemote(CmdMixin):
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
             dst_path = self.root
-            assert self._rc("cp {} {}".format(path, dst_path)) == 0
+            self._cp(path, dst_path)
 
     def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         path = os.path.join(self.root, file_name)
@@ -412,9 +445,7 @@ class LocalRemote(CmdMixin):
         else:
             raise ValueError(path)
         target_name = target_name or file_name
-        assert (
-            self._rc("cp {} {}".format(path, os.path.join(dst_path, target_name))) == 0
-        )
+        self._cp(path, dst_path)
 
     def list_files(self):
         return os.listdir(self.root)
@@ -526,9 +557,10 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         notify_server=None,
         gov_script=None,
-        ledger_file=None,
+        ledger_dir=None,
         log_format_json=None,
         binary_dir=".",
+        ledger_chunk_max_bytes=(5 * 1024 * 1024),
         domain=None,
     ):
         """
@@ -542,14 +574,15 @@ class CCFRemote(object):
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
-        self.ledger_file = ledger_file
-        self.ledger_file_name = (
-            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
+
+        self.ledger_dir = ledger_dir
+        self.ledger_dir_name = (
+            os.path.basename(ledger_dir) if ledger_dir else f"{local_node_id}.ledger"
         )
         self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
-        data_files = [self.ledger_file] if self.ledger_file else []
+        data_files = [self.ledger_dir] if self.ledger_dir else []
 
         # exe_files may be relative or absolute. The remote implementation should
         # copy (or symlink) to the target workspace, and then node will be able
@@ -572,7 +605,7 @@ class CCFRemote(object):
             f"--rpc-address={make_address(host, rpc_port)}",
             f"--rpc-address-file={self.rpc_address_path}",
             f"--public-rpc-address={make_address(pubhost, rpc_port)}",
-            f"--ledger-file={self.ledger_file_name}",
+            f"--ledger-dir={self.ledger_dir_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
             election_timeout_arg,
@@ -591,6 +624,9 @@ class CCFRemote(object):
 
         if memory_reserve_startup:
             cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
+
+        if ledger_chunk_max_bytes:
+            cmd += [f"--ledger-chunk-max-bytes={ledger_chunk_max_bytes}"]
 
         if notify_server:
             notify_server_host, *notify_server_port = notify_server.split(":")
@@ -707,11 +743,11 @@ class CCFRemote(object):
         self.remote.set_perf()
 
     def get_ledger(self):
-        self.remote.get(self.ledger_file_name, self.common_dir)
-        return os.path.join(self.common_dir, self.ledger_file_name)
+        self.remote.get(self.ledger_dir_name, self.common_dir)
+        return os.path.join(self.common_dir, self.ledger_dir_name)
 
     def ledger_path(self):
-        return os.path.join(self.remote.root, self.ledger_file_name)
+        return os.path.join(self.remote.root, self.ledger_dir_name)
 
 
 @contextmanager

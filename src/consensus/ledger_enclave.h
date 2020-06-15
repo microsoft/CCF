@@ -28,11 +28,11 @@ namespace consensus
      * Put a single entry to be written the ledger, when primary.
      *
      * @param entry Serialised entry
+     * @param globally_committable True is entry is signature transaction
      */
-    void put_entry(const std::vector<uint8_t>& entry)
+    void put_entry(const std::vector<uint8_t>& entry, bool globally_committable)
     {
-      // write the message
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, entry);
+      put_entry(entry.data(), entry.size(), globally_committable);
     }
 
     /**
@@ -40,33 +40,14 @@ namespace consensus
      *
      * @param data Serialised entry start
      * @param size Serialised entry size
+     * @param globally_committable True is entry is signature transaction
      */
-    void put_entry(const uint8_t* data, size_t size)
+    void put_entry(const uint8_t* data, size_t size, bool globally_committable)
     {
       serializer::ByteRange byte_range = {data, size};
       // write the message
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, byte_range);
-    }
-
-    /**
-     * Record a single entry to the ledger, when backup.
-     *
-     * @param data Serialised entries
-     * @param size Size of overall serialised entries
-     *
-     * @return Pair of boolean status (false if rejected), raw data as a vector
-     */
-    std::pair<std::vector<uint8_t>, bool> record_entry(
-      const uint8_t*& data, size_t& size)
-    {
-      auto entry_len = serialized::read<uint32_t>(data, size);
-      std::vector<uint8_t> entry(data, data + entry_len);
-
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_append, to_host, entry);
-
-      serialized::skip(data, size, entry_len);
-
-      return std::make_pair(std::move(entry), true);
+      RINGBUFFER_WRITE_MESSAGE(
+        consensus::ledger_append, to_host, globally_committable, byte_range);
     }
 
     /**
@@ -83,15 +64,20 @@ namespace consensus
       serialized::skip(data, size, entry_len);
     }
 
-    std::pair<std::vector<uint8_t>, bool> get_entry(
-      const uint8_t*& data, size_t& size)
+    /**
+     * Retrieve a single entry, advancing offset to the next entry.
+     *
+     * @param data Serialised entries
+     * @param size Size of overall serialised entries
+     *
+     * @return Raw entry as a vector
+     */
+    std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
       auto entry_len = serialized::read<uint32_t>(data, size);
       std::vector<uint8_t> entry(data, data + entry_len);
-
       serialized::skip(data, size, entry_len);
-
-      return std::make_pair(std::move(entry), true);
+      return entry;
     }
 
     /**
@@ -102,6 +88,16 @@ namespace consensus
     void truncate(Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
+    }
+
+    /**
+     * Commit the ledger at a given index.
+     *
+     * @param idx Index to commit at
+     */
+    void commit(Index idx)
+    {
+      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_commit, to_host, idx);
     }
   };
 }
