@@ -26,7 +26,7 @@ public:
 
   DummyConsensus(kv::Store* store_) : store(store_) {}
 
-  bool replicate(const kv::BatchVector& entries) override
+  bool replicate(const kv::BatchVector& entries, View view) override
   {
     if (store)
     {
@@ -213,7 +213,7 @@ public:
 
   CompactingConsensus(kv::Store* store_) : store(store_) {}
 
-  bool replicate(const kv::BatchVector& entries) override
+  bool replicate(const kv::BatchVector& entries, View view) override
   {
     for (auto& [version, data, committable] : entries)
     {
@@ -275,7 +275,7 @@ TEST_CASE(
 
   INFO("Batch of two, starting with a commitable");
   {
-    auto rv = store.next_version();
+    auto rv = store.next_txid();
 
     kv::Tx tx;
     auto txv = tx.get_view(table);
@@ -286,7 +286,7 @@ TEST_CASE(
     store.commit(
       rv,
       [rv, &other_table]() {
-        kv::Tx txr(rv);
+        kv::Tx txr(rv.version);
         auto txrv = txr.get_view(other_table);
         txrv->put(0, 1);
         return txr.commit_reserved();
@@ -320,7 +320,7 @@ public:
     rollback_to(rollback_to_)
   {}
 
-  bool replicate(const kv::BatchVector& entries) override
+  bool replicate(const kv::BatchVector& entries, View view) override
   {
     for (auto& [version, data, committable] : entries)
     {

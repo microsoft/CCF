@@ -141,7 +141,8 @@ using ExecCommand = std::function<int(
   ByzInfo& info,
   uint32_t num_requests,
   uint64_t nonce,
-  bool executed_single_threaded)>;
+  bool executed_single_threaded,
+  View view)>;
 
 using VerifyAndParseCommand = std::function<std::unique_ptr<pbft::RequestCtx>(
   Byz_req* inb, uint8_t* req_start, size_t req_size)>;

@@ -602,9 +602,6 @@ namespace ccf
 
       // When reaching the end of the public ledger, truncate to last signed
       // index and promote network secrets to this index
-      kv::Tx tx;
-      GenesisGenerator g(network, tx);
-
       network.tables->rollback(last_recovered_commit_idx);
       ledger_truncate(last_recovered_commit_idx);
       LOG_INFO_FMT(
@@ -614,9 +611,14 @@ namespace ccf
 
       network.ledger_secrets->init(last_recovered_commit_idx + 1);
       setup_encryptor(network.consensus_type);
+      // KV term must be set before the first Tx is committed
+      LOG_INFO_FMT(
+        "Setting term on public recovery KV to {}", term_history.size() + 2);
+      network.tables->set_term(term_history.size() + 2);
 
+      kv::Tx tx;
+      GenesisGenerator g(network, tx);
       g.create_service(network.identity->cert, last_recovered_commit_idx + 1);
-
       g.retire_active_nodes();
 
       self = g.add_node({node_info_network,
