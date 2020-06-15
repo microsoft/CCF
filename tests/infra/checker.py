@@ -69,6 +69,8 @@ class Checker:
                     result, rpc_result.result
                 )
 
+            assert rpc_result.seqno and rpc_result.view, rpc_result
+
             if self.client:
                 wait_for_global_commit(self.client, rpc_result.seqno, rpc_result.view)
 
