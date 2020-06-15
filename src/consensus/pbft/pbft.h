@@ -639,7 +639,7 @@ namespace pbft
       return data.size();
     }
 
-    bool replicate(const kv::BatchVector& entries) override
+    bool replicate(const kv::BatchVector& entries, View view) override
     {
       for (auto& [index, data, globally_committable] : entries)
       {

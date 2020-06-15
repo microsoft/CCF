@@ -25,7 +25,7 @@ namespace kv
   struct ViewContainer
   {
     virtual ~ViewContainer() = default;
-    virtual void set_view_list(OrderedViews& view_list) = 0;
+    virtual void set_view_list(OrderedViews& view_list, Term term) = 0;
   };
 
   // Atomically checks for conflicts then applies the writes in a set of views

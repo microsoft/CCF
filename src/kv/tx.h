@@ -13,10 +13,11 @@ namespace kv
   {
   private:
     OrderedViews view_list;
-    bool committed;
-    bool success;
-    Version read_version;
-    Version version;
+    bool committed = false;
+    bool success = false;
+    Version read_version = NoVersion;
+    Version version = NoVersion;
+    Term term = 0;
 
     kv::TxHistory::RequestID req_id;
 
@@ -25,7 +26,9 @@ namespace kv
     {
       using MapView = typename M::TxView;
 
-      // If the M is present, its AbtractTxView should be an M::TxView. This
+      LOG_DEBUG_FMT("XXX: get_view on {}", m.get_name());
+
+      // If the M is present, its AbstractTxView should be an M::TxView. This
       // invariant could be broken by set_view_list, which will produce an error
       // here
       auto search = view_list.find(m.get_name());
@@ -54,7 +57,11 @@ namespace kv
       if (read_version == NoVersion)
       {
         // Grab opacity version that all Maps should be queried at.
-        read_version = m.get_store()->current_version();
+        auto txid = m.get_store()->current_txid();
+        term = txid.term;
+        read_version = txid.version;
+        LOG_DEBUG_FMT(
+          "XXX: Not a reserved tx t: {} rv: {}", term, read_version);
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
@@ -83,24 +90,23 @@ namespace kv
       success = false;
       read_version = NoVersion;
       version = NoVersion;
+      term = 0;
     }
 
   public:
-    Tx() :
-      view_list(),
-      committed(false),
-      success(false),
-      read_version(NoVersion),
-      version(NoVersion)
-    {}
+    Tx() : view_list()
+    {
+      LOG_DEBUG_FMT("XXX: Constructing TX");
+    }
 
     Tx(const Tx& that) = delete;
 
-    void set_view_list(OrderedViews& view_list_) override
+    void set_view_list(OrderedViews& view_list_, Term term_) override
     {
       // if view list is not empty then any coinciding keys will not be
       // overwritten
       view_list.merge(view_list_);
+      term = term_;
     }
 
     void set_req_id(const kv::TxHistory::RequestID& req_id_)
@@ -120,6 +126,11 @@ namespace kv
     Version get_read_version()
     {
       return read_version;
+    }
+
+    Version get_term()
+    {
+      return term;
     }
 
     /** Get a transaction view on a map.
@@ -209,7 +220,9 @@ namespace kv
           }
 
           return store->commit(
-            version, MovePendingTx(std::move(data), std::move(req_id)), false);
+            {term, version},
+            MovePendingTx(std::move(data), std::move(req_id)),
+            false);
         }
         catch (const std::exception& e)
         {
@@ -238,6 +251,21 @@ namespace kv
         throw std::logic_error("Transaction aborted");
 
       return version;
+    }
+
+    /** Commit term if committed
+     *
+     * @return Commit term
+     */
+    Version commit_term()
+    {
+      if (!committed)
+        throw std::logic_error("Transaction not yet committed");
+
+      if (!success)
+        throw std::logic_error("Transaction aborted");
+
+      return term;
     }
 
     std::vector<uint8_t> serialise(bool include_reads = false)
@@ -292,7 +320,9 @@ namespace kv
       success(false),
       read_version(reserved - 1),
       version(reserved)
-    {}
+    {
+      LOG_DEBUG_FMT("XXX: Creating reserved {}", reserved);
+    }
 
     // Used by frontend to commit reserved transactions
     PendingTxInfo commit_reserved()

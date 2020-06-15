@@ -22,6 +22,7 @@ namespace kv
     std::shared_ptr<AbstractTxEncryptor> encryptor = nullptr;
     Version version = 0;
     Version compacted = 0;
+    Term term = 0;
 
     SpinLock maps_lock;
     SpinLock version_lock;
@@ -251,7 +252,7 @@ namespace kv
         map.second->post_compact();
     }
 
-    void rollback(Version v) override
+    void rollback(Version v, std::optional<Term> t = std::nullopt) override
     {
       // This is called to roll the store back to the state it was in
       // at the specified version.
@@ -275,6 +276,8 @@ namespace kv
 
       std::lock_guard<SpinLock> vguard(version_lock);
       version = v;
+      if (t.has_value())
+        term = t.value();
       last_replicated = v;
       last_committable = v;
       rollback_count++;
@@ -287,10 +290,16 @@ namespace kv
         e->rollback(v);
     }
 
+    void set_term(Term t) override
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+      term = t;
+    }
+
     DeserialiseSuccess deserialise_views(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr,
+      Term* term_ = nullptr,
       ViewContainer* tx = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
@@ -419,7 +428,7 @@ namespace kv
 
           if (h)
           {
-            if (!h->verify(term))
+            if (!h->verify(term_))
             {
               LOG_FAIL_FMT("Failed to deserialize");
               LOG_DEBUG_FMT("Signature in transaction {} failed to verify", v);
@@ -463,7 +472,7 @@ namespace kv
 
       if (tx)
       {
-        tx->set_view_list(views);
+        tx->set_view_list(views, term);
       }
 
       return success;
@@ -508,9 +517,16 @@ namespace kv
 
     Version current_version() override
     {
-      // Must lock in case the version is being incremented.
+      // Must lock in case the version or term is being incremented.
       std::lock_guard<SpinLock> vguard(version_lock);
       return version;
+    }
+
+    TxID current_txid() override
+    {
+      // Must lock in case the version is being incremented.
+      std::lock_guard<SpinLock> vguard(version_lock);
+      return {term, version};
     }
 
     Version commit_version() override
@@ -521,7 +537,9 @@ namespace kv
     }
 
     CommitSuccess commit(
-      Version version, PendingTx pending_tx, bool globally_committable) override
+      const TxID& txid,
+      PendingTx pending_tx,
+      bool globally_committable) override
     {
       auto r = get_consensus();
       if (!r)
@@ -529,21 +547,29 @@ namespace kv
 
       LOG_DEBUG_FMT(
         "Store::commit {}{}",
-        version,
+        txid.version,
         (globally_committable ? " globally_committable" : ""));
 
       BatchVector batch;
       Version previous_last_replicated = 0;
       Version next_last_replicated = 0;
       Version previous_rollback_count = 0;
+      kv::Consensus::View replication_view = 0;
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
-        if (globally_committable && version > last_committable)
-          last_committable = version;
+        // This can happen when a transaction started before a view change,
+        // but tries to commit after the view change is complete.
+        LOG_DEBUG_FMT(
+          "Want to commit for term {}, term is {}", txid.term, term);
+        if (txid.term != term)
+          return CommitSuccess::NO_REPLICATE;
+
+        if (globally_committable && txid.version > last_committable)
+          last_committable = txid.version;
 
         pending_txs.insert(
-          {version,
+          {txid.version,
            std::make_pair(std::move(pending_tx), globally_committable)});
 
         auto h = get_history();
@@ -569,7 +595,7 @@ namespace kv
 
           if (h)
           {
-            h->add_pending(reqid, version, data_shared);
+            h->add_pending(reqid, txid.version, data_shared);
           }
 
           LOG_DEBUG_FMT(
@@ -585,9 +611,11 @@ namespace kv
         previous_rollback_count = rollback_count;
         previous_last_replicated = last_replicated;
         next_last_replicated = last_replicated + batch.size();
+
+        replication_view = term;
       }
 
-      if (r->replicate(batch))
+      if (r->replicate(batch, replication_view))
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         if (
@@ -616,6 +644,18 @@ namespace kv
         version = 0;
 
       return version;
+    }
+
+    TxID next_txid() override
+    {
+      std::lock_guard<SpinLock> vguard(version_lock);
+
+      // Get the next global version. If we would go negative, wrap to 0.
+      ++version;
+      if (version < 0)
+        version = 0;
+
+      return {term, version};
     }
 
     size_t commit_gap() override
