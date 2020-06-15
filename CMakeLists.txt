@@ -313,7 +313,8 @@ if(BUILD_TESTS)
     target_link_libraries(encryptor_test PRIVATE secp256k1.host)
 
     add_unit_test(
-      historical_queries_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+      historical_queries_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
     target_link_libraries(historical_queries_test PRIVATE secp256k1.host)
 
@@ -461,9 +462,7 @@ if(BUILD_TESTS)
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
-  add_picobench(
-    hash_bench SRCS src/ds/test/hash_bench.cpp
-  )
+  add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
   # Storing signed governance operations
   add_e2e_test(
@@ -483,6 +482,10 @@ if(BUILD_TESTS)
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout
       4000
+      # Smaller ledger chunks than default to make sure that a ledger made of
+      # multiple chunks can be recovered
+      --ledger-chunk-max-bytes
+      20KB
   )
 
   add_e2e_test(
