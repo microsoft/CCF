@@ -28,10 +28,6 @@ jobs:
       displayName: 'Check CCF copyright notices'
       condition: succeededOrFailed()
 
-    - script: ./check-cmake-version-vs-tag.sh
-      displayName: 'Check project version in CMake against git tag'
-      condition: succeededOrFailed()
-
     - script: |
         python3.7 -m venv env
         source env/bin/activate
@@ -40,7 +36,7 @@ jobs:
       displayName: 'Check Python code format'
       condition: succeededOrFailed()
 
-    - script: ./check-cmake-format.sh cmake samples src tests CMakeLists
+    - script: ./check-cmake-format.sh cmake samples src tests CMakeLists.txt
       displayName: 'Check CMake code format'
       condition: succeededOrFailed()
 

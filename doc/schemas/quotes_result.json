@@ -31,6 +31,6 @@
   "required": [
     "quotes"
   ],
-  "title": "getQuote/result",
+  "title": "quotes/result",
   "type": "object"
 }

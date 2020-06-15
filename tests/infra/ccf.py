@@ -72,6 +72,7 @@ class Network:
         "gov_script",
         "join_timer",
         "worker_threads",
+        "ledger_chunk_max_bytes",
         "domain",
     ]
 
@@ -183,7 +184,7 @@ class Network:
                     raise
             node.network_state = infra.node.NodeNetworkState.joined
 
-    def _start_all_nodes(self, args, recovery=False, ledger_file=None):
+    def _start_all_nodes(self, args, recovery=False, ledger_dir=None):
         hosts = self.hosts
 
         if not args.package:
@@ -211,7 +212,7 @@ class Network:
                     else:
                         node.recover(
                             lib_name=args.package,
-                            ledger_file=ledger_file,
+                            ledger_dir=ledger_dir,
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
@@ -313,19 +314,19 @@ class Network:
         LOG.success("***** Network is now open *****")
 
     def start_in_recovery(
-        self, args, ledger_file, common_dir=None,
+        self, args, ledger_dir, common_dir=None,
     ):
         """
         Starts a CCF network in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
-        :param ledger_file: ledger file to recover from.
+        :param ledger_dir: ledger directory to recover from.
         :param common_dir: common directory containing member and user keys and certs.
         """
         self.common_dir = common_dir or get_common_folder_name(
             args.workspace, args.label
         )
 
-        primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
+        primary = self._start_all_nodes(args, recovery=True, ledger_dir=ledger_dir)
 
         # If a common directory was passed in, initialise the consortium from it
         if common_dir is not None:
@@ -478,7 +479,7 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.node_client(connection_timeout=timeout) as c:
-                    r = c.get("getSignedIndex")
+                    r = c.get("signed_index")
                     if r.result["state"] == state:
                         break
             except ConnectionRefusedError:

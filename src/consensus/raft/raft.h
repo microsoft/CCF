@@ -326,22 +326,8 @@ namespace raft
     }
 
     template <typename T>
-    size_t write_to_ledger(const T& data)
-    {
-      ledger->put_entry(data->data(), data->size());
-      return data->size();
-    }
-
-    template <>
-    size_t write_to_ledger<std::vector<uint8_t>>(
-      const std::vector<uint8_t>& data)
-    {
-      ledger->put_entry(data);
-      return data.size();
-    }
-
-    template <typename T>
-    bool replicate(const std::vector<std::tuple<Index, T, bool>>& entries)
+    bool replicate(
+      const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -350,6 +336,16 @@ namespace raft
         LOG_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
         rollback(last_idx);
+        return false;
+      }
+
+      if (term != current_term)
+      {
+        LOG_FAIL_FMT(
+          "Failed to replicate {} items at term {}, current term is {}",
+          entries.size(),
+          term,
+          current_term);
         return false;
       }
 
@@ -370,8 +366,8 @@ namespace raft
           committable_indices.push_back(index);
 
         last_idx = index;
-        auto s = write_to_ledger(*data);
-        entry_size_not_limited += s;
+        ledger->put_entry(*data, globally_committable);
+        entry_size_not_limited += data->size();
         entry_count++;
 
         term_history.update(index, current_term);
@@ -673,27 +669,31 @@ namespace raft
 
         last_idx = i;
         is_first_entry = false;
-        auto ret = ledger->record_entry(data, size);
+        std::vector<uint8_t> entry;
 
-        if (!ret.second)
+        try
         {
-          // NB: This will currently never be triggered.
-          // This should only fail if there is malformed data. Truncate
-          // the log and reply false.
+          entry = ledger->get_entry(data, size);
+        }
+        catch (const std::logic_error& e)
+        {
+          // This should only fail if there is malformed data.
           LOG_FAIL_FMT(
-            "Recv append entries to {} from {} but the data is malformed",
+            "Recv append entries to {} from {} but the data is malformed: {}",
             local_id,
-            r.from_node);
-
+            r.from_node,
+            e.what());
           last_idx = r.prev_idx;
-          ledger->truncate(r.prev_idx);
           send_append_entries_response(r.from_node, false);
           return;
         }
 
         Term sig_term = 0;
         auto deserialise_success =
-          store->deserialise(ret.first, public_only, &sig_term);
+          store->deserialise(entry, public_only, &sig_term);
+
+        ledger->put_entry(
+          entry, deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
 
         switch (deserialise_success)
         {
@@ -1042,6 +1042,11 @@ namespace raft
       {
         rollback(commit_idx);
       }
+      else
+      {
+        // but we still want the KV to know which term we're in
+        store->set_term(current_term);
+      }
 
       committable_indices.clear();
       state = Leader;
@@ -1178,6 +1183,7 @@ namespace raft
 
       LOG_DEBUG_FMT("Compacting...");
       store->compact(idx);
+      ledger->commit(idx);
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed
@@ -1207,7 +1213,8 @@ namespace raft
 
     void rollback(Index idx)
     {
-      store->rollback(idx);
+      store->rollback(idx, current_term);
+      LOG_DEBUG_FMT("Setting term in store to: {}", current_term);
       ledger->truncate(idx);
       last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);

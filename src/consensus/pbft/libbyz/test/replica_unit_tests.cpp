@@ -8,7 +8,6 @@
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
 #include "ds/ccf_exception.h"
-#include "host/ledger.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "message.h"
@@ -44,7 +43,8 @@ public:
       ByzInfo& info,
       uint32_t num_requests,
       uint64_t nonce,
-      bool executed_single_threaded) {
+      bool executed_single_threaded,
+      View view) {
       for (uint32_t i = 0; i < num_requests; ++i)
       {
         std::unique_ptr<ExecCommandMsg>& msg = msgs[i];

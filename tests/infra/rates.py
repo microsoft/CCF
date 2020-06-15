@@ -63,7 +63,7 @@ class TxRates:
 
     def get_metrics(self):
         with self.primary.user_client() as client:
-            rv = client.get("getMetrics")
+            rv = client.get("metrics")
             result = rv.to_dict()
             result = result["result"]
             self.all_metrics = result

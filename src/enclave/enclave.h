@@ -351,6 +351,11 @@ namespace enclave
             CCF_PAUSE();
           }
         });
+
+        auto w = writer_factory.create_writer_to_outside();
+        LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
+        RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, w);
+
         return true;
       }
 #ifndef VIRTUAL_ENCLAVE
