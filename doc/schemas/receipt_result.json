@@ -13,6 +13,6 @@
   "required": [
     "receipt"
   ],
-  "title": "verifyReceipt/params",
+  "title": "receipt/result",
   "type": "object"
 }

@@ -1,16 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "methods": {
+    "cert": {
       "items": {
-        "type": "string"
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
       },
       "type": "array"
     }
   },
   "required": [
-    "methods"
+    "cert"
   ],
-  "title": "listMethods/result",
+  "title": "who/params",
   "type": "object"
 }

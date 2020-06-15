@@ -93,40 +93,33 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to trigger signature");
       };
 
-      auto who_am_i =
+      auto who =
         [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
           if (certs == nullptr)
           {
             return make_error(
               HTTP_STATUS_NOT_FOUND,
               fmt::format(
-                "This frontend does not support {}", GeneralProcs::WHO_AM_I));
+                "This frontend does not support {}", GeneralProcs::WHO));
+          }
+
+          if (!params.is_null())
+          {
+            const WhoIs::In in = params;
+            auto certs_view = tx.get_view(*certs);
+            auto caller_id_opt = certs_view->get(in.cert);
+
+            if (!caller_id_opt.has_value())
+            {
+              return make_error(
+                HTTP_STATUS_BAD_REQUEST, "Certificate not recognised");
+            }
+
+            caller_id = caller_id_opt.value();
           }
 
           return make_success(WhoAmI::Out{caller_id});
         };
-
-      auto who_is = [this](kv::Tx& tx, nlohmann::json&& params) {
-        const WhoIs::In in = params;
-
-        if (certs == nullptr)
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            fmt::format(
-              "This frontend does not support {}", GeneralProcs::WHO_IS));
-        }
-        auto certs_view = tx.get_view(*certs);
-        auto caller_id = certs_view->get(in.cert);
-
-        if (!caller_id.has_value())
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, "Certificate not recognised");
-        }
-
-        return make_success(WhoIs::Out{caller_id.value()});
-      };
 
       auto get_primary_info = [this](kv::Tx& tx, nlohmann::json&& params) {
         if ((nodes != nullptr) && (consensus != nullptr))
@@ -261,11 +254,9 @@ namespace ccf
         .set_http_get_only();
       install(GeneralProcs::MK_SIGN, json_adapter(make_signature), Write)
         .set_auto_schema<void, bool>();
-      install(GeneralProcs::WHO_AM_I, json_adapter(who_am_i), Read)
-        .set_auto_schema<void, WhoAmI::Out>()
+      install(GeneralProcs::WHO, json_adapter(who), Read)
+        .set_auto_schema<WhoIs::In, WhoAmI::Out>()
         .set_http_get_only();
-      install(GeneralProcs::WHO_IS, json_adapter(who_is), Read)
-        .set_auto_schema<WhoIs::In, WhoIs::Out>();
       install(
         GeneralProcs::GET_PRIMARY_INFO, json_adapter(get_primary_info), Read)
         .set_auto_schema<void, GetPrimaryInfo::Out>()
@@ -274,10 +265,11 @@ namespace ccf
         GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read)
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .set_http_get_only();
-      install(GeneralProcs::LIST_METHODS, json_adapter(list_methods_fn), Read)
+      install(
+        GeneralProcs::API_LIST_METHODS, json_adapter(list_methods_fn), Read)
         .set_auto_schema<void, ListMethods::Out>()
         .set_http_get_only();
-      install(GeneralProcs::GET_SCHEMA, json_adapter(get_schema), Read)
+      install(GeneralProcs::API_GET_SCHEMA, json_adapter(get_schema), Read)
         .set_auto_schema<GetSchema>()
         .set_http_get_only();
       install(GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read)

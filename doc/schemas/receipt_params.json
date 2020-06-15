@@ -1,15 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "caller_id": {
-      "maximum": 18446744073709551615,
-      "minimum": 0,
+    "commit": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
       "type": "integer"
     }
   },
   "required": [
-    "caller_id"
+    "commit"
   ],
-  "title": "whoIs/result",
+  "title": "receipt/params",
   "type": "object"
 }

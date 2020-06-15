@@ -8,6 +8,6 @@
   "required": [
     "valid"
   ],
-  "title": "verifyReceipt/result",
+  "title": "receipt/verify/result",
   "type": "object"
 }

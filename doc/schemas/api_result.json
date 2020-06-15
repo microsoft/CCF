@@ -1,18 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "receipt": {
+    "methods": {
       "items": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
+        "type": "string"
       },
       "type": "array"
     }
   },
   "required": [
-    "receipt"
+    "methods"
   ],
-  "title": "getReceipt/result",
+  "title": "api/result",
   "type": "object"
 }

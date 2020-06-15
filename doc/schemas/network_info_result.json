@@ -35,6 +35,6 @@
     "nodes",
     "primary_id"
   ],
-  "title": "getNetworkInfo/result",
+  "title": "network_info/result",
   "type": "object"
 }
