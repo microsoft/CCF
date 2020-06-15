@@ -613,7 +613,7 @@ namespace ccf
       setup_encryptor(network.consensus_type);
       // KV term must be set before the first Tx is committed
       LOG_INFO_FMT(
-        "Setint term on public recovery KV to {}", term_history.size() + 2);
+        "Setting term on public recovery KV to {}", term_history.size() + 2);
       network.tables->set_term(term_history.size() + 2);
 
       kv::Tx tx;
