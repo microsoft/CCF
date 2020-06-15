@@ -479,7 +479,7 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.node_client(connection_timeout=timeout) as c:
-                    r = c.get("getSignedIndex")
+                    r = c.get("signed_index")
                     if r.result["state"] == state:
                         break
             except ConnectionRefusedError:

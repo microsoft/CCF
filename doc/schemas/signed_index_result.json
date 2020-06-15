@@ -19,6 +19,6 @@
     "state",
     "signed_index"
   ],
-  "title": "getSignedIndex/result",
+  "title": "signed_index/result",
   "type": "object"
 }

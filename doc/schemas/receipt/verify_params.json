@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "cert": {
+    "receipt": {
       "items": {
         "maximum": 255,
         "minimum": 0,
@@ -11,8 +11,8 @@
     }
   },
   "required": [
-    "cert"
+    "receipt"
   ],
-  "title": "whoIs/params",
+  "title": "receipt/verify/params",
   "type": "object"
 }

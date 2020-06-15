@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
+@reqs.supports_methods("receipt", "receipt/verify", "LOG_get")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     primary, _ = network.find_primary_and_any_backup()
@@ -34,14 +34,16 @@ def test(network, args, notifications_queue=None):
             check_commit(
                 c.rpc("LOG_record", {"id": 43, "msg": "A final message"}), result=True,
             )
-            r = c.get("getReceipt", {"commit": r.seqno})
+            r = c.get("receipt", {"commit": r.seqno})
             check(
-                c.rpc("verifyReceipt", {"receipt": r.result["receipt"]}),
+                c.rpc("receipt/verify", {"receipt": r.result["receipt"]}),
                 result={"valid": True},
             )
             invalid = r.result["receipt"]
             invalid[-3] += 1
-            check(c.rpc("verifyReceipt", {"receipt": invalid}), result={"valid": False})
+            check(
+                c.rpc("receipt/verify", {"receipt": invalid}), result={"valid": False}
+            )
 
     return network
 
