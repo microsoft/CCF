@@ -264,7 +264,7 @@ namespace kv
       {
         std::lock_guard<SpinLock> vguard(version_lock);
         // The term should always be updated on rollback() when passed
-        // regardless of whether version needs to updated or not
+        // regardless of whether version needs to be updated or not
         if (t.has_value())
           term = t.value();
         if (v >= version)
