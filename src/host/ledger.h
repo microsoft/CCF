@@ -207,7 +207,7 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, consensus::ledger_get, [&](const uint8_t* data, size_t size) {
+        disp, consensus::ledger_get, [this](const uint8_t* data, size_t size) {
           // The enclave has asked for a ledger entry.
           auto [idx, purpose] =
             ringbuffer::read_message<consensus::ledger_get>(data, size);
