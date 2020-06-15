@@ -257,7 +257,7 @@ private:
       }
     }
 
-    LOG_INFO_FMT("VERIFIED {}", prefix);
+    LOG_INFO_FMT("Verified {}", prefix);
   }
 
   void verify_initial_state(const nlohmann::json& expected) override
