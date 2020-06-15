@@ -593,7 +593,6 @@ namespace ccf
       {
         auto txid = store.next_txid();
         auto commit_txid = consensus->get_committed_txid();
-        LOG_DEBUG_FMT("Issuing signature at {}", txid.version);
         LOG_DEBUG_FMT(
           "Signed at {} in view: {} commit was: {}.{}",
           txid.version,

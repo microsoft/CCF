@@ -203,26 +203,20 @@ namespace pbft
 
     kv::TxID next_txid()
     {
-      while (true)
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
-        {
-          return p->next_txid();
-        }
+        return p->next_txid();
       }
     }
 
     void set_view(Term view)
     {
-      while (true)
+      auto p = x.lock();
+      if (p)
       {
-        auto p = x.lock();
-        if (p)
-        {
-          p->set_term(view);
-          return;
-        }
+        p->set_term(view);
+        return;
       }
     }
 

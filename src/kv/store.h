@@ -6,6 +6,7 @@
 #include "kv_types.h"
 #include "map.h"
 #include "view_containers.h"
+
 #include <fmt/format.h>
 
 namespace kv
@@ -271,7 +272,10 @@ namespace kv
       }
 
       if (v < commit_version())
-        throw std::logic_error(fmt::format("Attempting rollback to {}, earlier than commit version {}", v, commit_version()));
+        throw std::logic_error(fmt::format(
+          "Attempting rollback to {}, earlier than commit version {}",
+          v,
+          commit_version()));
 
       for (auto& map : maps)
         map.second->lock();
