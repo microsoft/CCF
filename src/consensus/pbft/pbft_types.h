@@ -165,10 +165,6 @@ namespace pbft
             return tx.commit_reserved();
           },
           false);
-        if (success == kv::CommitSuccess::OK)
-        {
-          return;
-        }
       }
     }
 
@@ -178,7 +174,6 @@ namespace pbft
       if (p)
       {
         p->compact(v);
-        return;
       }
     }
 
@@ -208,6 +203,7 @@ namespace pbft
       {
         return p->next_txid();
       }
+      return {0, kv::NoVersion};
     }
 
     void set_view(Term view)
@@ -216,7 +212,6 @@ namespace pbft
       if (p)
       {
         p->set_term(view);
-        return;
       }
     }
 
