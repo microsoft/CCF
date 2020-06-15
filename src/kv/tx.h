@@ -26,8 +26,6 @@ namespace kv
     {
       using MapView = typename M::TxView;
 
-      LOG_DEBUG_FMT("XXX: get_view on {}", m.get_name());
-
       // If the M is present, its AbstractTxView should be an M::TxView. This
       // invariant could be broken by set_view_list, which will produce an error
       // here
@@ -60,8 +58,6 @@ namespace kv
         auto txid = m.get_store()->current_txid();
         term = txid.term;
         read_version = txid.version;
-        LOG_DEBUG_FMT(
-          "XXX: Not a reserved tx t: {} rv: {}", term, read_version);
       }
 
       MapView* typed_view = m.template create_view<MapView>(read_version);
@@ -95,9 +91,7 @@ namespace kv
 
   public:
     Tx() : view_list()
-    {
-      LOG_DEBUG_FMT("XXX: Constructing TX");
-    }
+    {}
 
     Tx(const Tx& that) = delete;
 
@@ -320,9 +314,7 @@ namespace kv
       success(false),
       read_version(reserved - 1),
       version(reserved)
-    {
-      LOG_DEBUG_FMT("XXX: Creating reserved {}", reserved);
-    }
+    {}
 
     // Used by frontend to commit reserved transactions
     PendingTxInfo commit_reserved()

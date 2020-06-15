@@ -6,6 +6,7 @@
 #include "kv_types.h"
 #include "map.h"
 #include "view_containers.h"
+#include <fmt/format.h>
 
 namespace kv
 {
@@ -259,11 +260,18 @@ namespace kv
       // No transactions can be prepared or committed during rollback.
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      if (v >= current_version())
-        return;
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        // The term should always be updated on rollback() when passed
+        // regardless of whether version needs to updated or not
+        if (t.has_value())
+          term = t.value();
+        if (v >= version)
+          return;
+      }
 
       if (v < commit_version())
-        return;
+        throw std::logic_error(fmt::format("Attempting rollback to {}, earlier than commit version {}", v, commit_version()));
 
       for (auto& map : maps)
         map.second->lock();
@@ -276,8 +284,6 @@ namespace kv
 
       std::lock_guard<SpinLock> vguard(version_lock);
       version = v;
-      if (t.has_value())
-        term = t.value();
       last_replicated = v;
       last_committable = v;
       rollback_count++;
