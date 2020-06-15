@@ -91,25 +91,25 @@ tx
     :language: json
 
 primary_info
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~
 
 .. literalinclude:: ../schemas/primary_info_result.json
     :language: json
 
 metrics
-~~~~~~~~~~
+~~~~~~~
 
 .. literalinclude:: ../schemas/metrics_result.json
     :language: json
 
 api
-~~~~~~~~~~~
+~~~
 
 .. literalinclude:: ../schemas/api_result.json
     :language: json
 
 api/schema
-~~~~~~~~~
+~~~~~~~~~~
 
 .. literalinclude:: ../schemas/api/schema_params.json
     :language: json

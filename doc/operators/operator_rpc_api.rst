@@ -4,7 +4,7 @@ Operator RPC API
 As well as the following methods, :ref:`users/rpc_api:Common Methods` are also available to operators.
 
 quote
---------
+-----
 
 Retrieves quote of single contacted node.
 
@@ -27,7 +27,7 @@ Example
     }
 
 quotes
----------
+------
 
 Retrieves quotes of all trusted nodes.
 
@@ -55,7 +55,7 @@ Example
     }
 
 signed_index
---------------
+------------
 
 .. literalinclude:: ../schemas/getSignedIndex_result.json
     :language: json
