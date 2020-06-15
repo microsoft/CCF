@@ -1,0 +1,14 @@
+jobs:
+- job: Release_Checks
+  displayName: 'Check code is ready for release'
+
+  ${{ insert }}: ${{ parameters.env }}
+
+  steps:
+    - checkout: self
+      clean: true
+      submodules: true
+
+    - script: ./check-cmake-version-vs-tag.sh
+      displayName: 'Check project version in CMake matches git tag'
+      condition: succeededOrFailed()
