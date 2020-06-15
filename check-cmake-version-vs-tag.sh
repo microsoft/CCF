@@ -8,11 +8,11 @@ git_tag=${git_tag#v}
 # Check if git tag looks like a semver value - ignore if not
 if [[ ${git_tag} =~ ^([[:digit:]])+(\.([[:digit:]])+)*(-.*)?$ ]]; then
   mkdir -p build
-  cd build
+  pushd build
   cmake_version=$(cmake .. -L | grep "CCF version=")
   cmake_version=${cmake_version#*=}
   echo "Comparing git tag ($git_tag) with CMake version ($cmake_version)"
-  if [[ ${git_tag} == ${cmake_version} ]]; then
+  if [[ "${git_tag}" == "${cmake_version}" ]]; then
     echo "Git tag ($git_tag) matches CMake version ($cmake_version)"
     exit 0
   else
