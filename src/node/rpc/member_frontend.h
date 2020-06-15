@@ -914,8 +914,7 @@ namespace ccf
           // The number of shares required to re-assemble the secret has not yet
           // been reached
           return make_success(fmt::format(
-            "Recovery share successfully submitted. {}/{} recovery shares "
-            "submitted.",
+            "{}/{} recovery shares successfully submitted.",
             submitted_shares_count,
             g.get_recovery_threshold()));
         }
@@ -937,7 +936,11 @@ namespace ccf
         }
 
         share_manager.clear_submitted_recovery_shares(args.tx);
-        return make_success(true);
+        return make_success(fmt::format(
+          "{}/{} recovery shares successfully submitted. End of recovery "
+          "procedure initiated.",
+          submitted_shares_count,
+          g.get_recovery_threshold()));
       };
       install(
         MemberProcs::SUBMIT_RECOVERY_SHARE,

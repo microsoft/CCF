@@ -42,7 +42,7 @@ def test_add_member(network, args):
     )
 
     try:
-        new_member.get_and_submit_recovery_share(
+        new_member.get_and_decrypt_recovery_share(
             primary, network.store_current_network_encryption_key()
         )
         assert False, "New accepted members are not given recovery shares"

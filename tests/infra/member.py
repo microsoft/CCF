@@ -166,7 +166,6 @@ class Member:
 
     def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):
         # For now, all members are given an encryption key (for recovery)
-        input("")
         infra.proc.ccall(
             self.share_script,
             "--rpc-address",
@@ -181,7 +180,5 @@ class Member:
             os.path.join(self.common_dir, f"member{self.member_id}_privk.pem"),
             "--cacert",
             os.path.join(self.common_dir, "networkcert.pem"),
-            "-i",
-            "-vv",
             log_output=True,
         ).check_returncode()
