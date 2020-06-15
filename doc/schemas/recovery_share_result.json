@@ -22,6 +22,6 @@
     "nonce",
     "encrypted_share"
   ],
-  "title": "getEncryptedRecoveryShare/result",
+  "title": "recovery_share/result",
   "type": "object"
 }
