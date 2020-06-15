@@ -302,12 +302,16 @@ namespace ccf
       return handler;
     }
 
+    /** Installs a handler for POST HTTP requests. See install()
+     */
     Handler& install_post(
       const std::string& method, HandleFunction f, ReadWrite read_write)
     {
       return install(method, f, read_write, HTTP_POST);
     }
 
+    /** Installs a handler for GET HTTP requests. See install()
+     */
     Handler& install_get(
       const std::string& method, HandleFunction f, ReadWrite read_write)
     {
