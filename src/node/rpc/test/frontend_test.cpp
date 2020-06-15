@@ -124,19 +124,18 @@ public:
     auto get_only = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("get_only", get_only, HandlerRegistry::Read).set_http_get_only();
+    install_get("get_only", get_only, HandlerRegistry::Read);
 
     auto post_only = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("post_only", post_only, HandlerRegistry::Read).set_http_post_only();
+    install_post("post_only", post_only, HandlerRegistry::Read);
 
     auto put_or_delete = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     install("put_or_delete", put_or_delete, HandlerRegistry::Read, HTTP_PUT);
-    install("put_or_delete", put_or_delete, HandlerRegistry::Read)
-      .set_allowed_verb(HTTP_DELETE);
+    install("put_or_delete", put_or_delete, HandlerRegistry::Read, HTTP_DELETE);
   }
 };
 

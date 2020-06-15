@@ -333,19 +333,17 @@ namespace loggingapp
       install(Procs::LOG_RECORD, ccf::json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
-      install(Procs::LOG_GET, ccf::json_adapter(get), Read)
-        .set_auto_schema<LoggingGet>()
-        .set_http_get_only();
+      install_get(Procs::LOG_GET, ccf::json_adapter(get), Read)
+        .set_auto_schema<LoggingGet>();
       // SNIPPET_END: install_get
 
       install(Procs::LOG_RECORD_PUBLIC, ccf::json_adapter(record_public), Write)
         .set_params_schema(record_public_params_schema)
         .set_result_schema(record_public_result_schema);
 
-      install(Procs::LOG_GET_PUBLIC, ccf::json_adapter(get_public), Read)
+      install_get(Procs::LOG_GET_PUBLIC, ccf::json_adapter(get_public), Read)
         .set_params_schema(get_public_params_schema)
-        .set_result_schema(get_public_result_schema)
-        .set_http_get_only();
+        .set_result_schema(get_public_result_schema);
 
       install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
       install(
@@ -355,12 +353,11 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false);
       install(Procs::LOG_RECORD_RAW_TEXT, log_record_text, Write);
-      install(
+      install_get(
         Procs::LOG_GET_HISTORICAL,
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed),
-        Read)
-        .set_http_get_only();
+        Read);
 
       auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(

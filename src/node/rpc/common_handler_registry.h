@@ -253,40 +253,32 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
       };
 
-      install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
+      install_get(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
         .set_execute_locally(true)
-        .set_auto_schema<void, GetCommit::Out>()
-        .set_http_get_only();
-      install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
-        .set_auto_schema<GetTxStatus>()
-        .set_http_get_only();
-      install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
+        .set_auto_schema<void, GetCommit::Out>();
+      install_get(
+        GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
+        .set_auto_schema<GetTxStatus>();
+      install_get(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
         .set_auto_schema<void, GetMetrics::Out>()
-        .set_execute_locally(true)
-        .set_http_get_only();
+        .set_execute_locally(true);
       install(GeneralProcs::MK_SIGN, json_adapter(make_signature), Write)
         .set_auto_schema<void, bool>();
-      install(GeneralProcs::WHO, json_adapter(who), Read)
-        .set_auto_schema<WhoIs::In, WhoAmI::Out>()
-        .set_http_get_only();
-      install(
+      install_get(GeneralProcs::WHO, json_adapter(who), Read)
+        .set_auto_schema<WhoIs::In, WhoAmI::Out>();
+      install_get(
         GeneralProcs::GET_PRIMARY_INFO, json_adapter(get_primary_info), Read)
-        .set_auto_schema<void, GetPrimaryInfo::Out>()
-        .set_http_get_only();
-      install(
+        .set_auto_schema<void, GetPrimaryInfo::Out>();
+      install_get(
         GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read)
-        .set_auto_schema<void, GetNetworkInfo::Out>()
-        .set_http_get_only();
-      install(
+        .set_auto_schema<void, GetNetworkInfo::Out>();
+      install_get(
         GeneralProcs::API_LIST_METHODS, json_adapter(list_methods_fn), Read)
-        .set_auto_schema<void, ListMethods::Out>()
-        .set_http_get_only();
-      install(GeneralProcs::API_GET_SCHEMA, json_adapter(get_schema), Read)
-        .set_auto_schema<GetSchema>()
-        .set_http_get_only();
-      install(GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read)
-        .set_auto_schema<GetReceipt>()
-        .set_http_get_only();
+        .set_auto_schema<void, ListMethods::Out>();
+      install_get(GeneralProcs::API_GET_SCHEMA, json_adapter(get_schema), Read)
+        .set_auto_schema<GetSchema>();
+      install_get(GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read)
+        .set_auto_schema<GetReceipt>();
       install(GeneralProcs::VERIFY_RECEIPT, json_adapter(verify_receipt), Read)
         .set_auto_schema<VerifyReceipt>();
     }

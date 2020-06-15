@@ -844,12 +844,11 @@ namespace ccf
 
           return make_success(encrypted_share.value());
         };
-      install(
+      install_get(
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
         json_adapter(get_encrypted_recovery_share),
         Read)
-        .set_auto_schema<void, EncryptedShare>()
-        .set_http_get_only();
+        .set_auto_schema<void, EncryptedShare>();
 
       auto submit_recovery_share = [this](
                                      RequestArgs& args,

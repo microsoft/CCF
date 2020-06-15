@@ -214,7 +214,8 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      Handler& set_allowed_verb(http_method v)
+      [[deprecated("HTTP Verb should not be changed after installation: pass verb to install()")]] Handler&
+      set_allowed_verb(http_method v)
       {
         verb = v;
         return *this;
@@ -224,7 +225,8 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      Handler& set_http_get_only()
+      [[deprecated("HTTP Verb should not be changed after installation: use install_get()")]] Handler&
+      set_http_get_only()
       {
         return set_allowed_verb(HTTP_GET);
       }
@@ -233,7 +235,8 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      Handler& set_http_post_only()
+      [[deprecated("HTTP Verb should not be changed after installation: use install_post()")]] Handler&
+      set_http_post_only()
       {
         return set_allowed_verb(HTTP_POST);
       }
@@ -270,11 +273,12 @@ namespace ccf
      * @param method Method name
      * @param f Method implementation
      * @param read_write Flag if method will Read, Write, MayWrite
+     * @param verb The HTTP verb which this handler will respond to
      * @return The installed Handler for further modification
      */
     Handler& install(
       const std::string& method,
-      HandleFunction f,
+      const HandleFunction& f,
       ReadWrite read_write,
       http_method verb = HTTP_POST)
     {
@@ -296,6 +300,18 @@ namespace ccf
       handler.verb = verb;
       handler.registry = this;
       return handler;
+    }
+
+    Handler& install_post(
+      const std::string& method, HandleFunction f, ReadWrite read_write)
+    {
+      return install(method, f, read_write, HTTP_POST);
+    }
+
+    Handler& install_get(
+      const std::string& method, HandleFunction f, ReadWrite read_write)
+    {
+      return install(method, f, read_write, HTTP_GET);
     }
 
     /** Set a default HandleFunction
