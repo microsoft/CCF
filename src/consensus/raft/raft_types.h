@@ -48,7 +48,6 @@ namespace raft
       auto p = x.lock();
       if (p)
         return p->deserialise(data, public_only, term);
-
       return S::FAILED;
     }
 
@@ -56,14 +55,18 @@ namespace raft
     {
       auto p = x.lock();
       if (p)
+      {
         p->compact(v);
+      }
     }
 
     void rollback(Index v)
     {
       auto p = x.lock();
       if (p)
+      {
         p->rollback(v);
+      }
     }
   };
 
