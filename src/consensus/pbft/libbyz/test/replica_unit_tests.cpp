@@ -8,7 +8,6 @@
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
 #include "ds/ccf_exception.h"
-#include "host/ledger.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "message.h"

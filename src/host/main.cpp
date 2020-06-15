@@ -117,9 +117,18 @@ int main(int argc, char** argv)
     "Address to advertise publicly to clients (defaults to same as "
     "--rpc-address)");
 
-  std::string ledger_file("ccf.ledger");
-  app.add_option("--ledger-file", ledger_file, "Ledger file")
+  std::string ledger_dir("ledger");
+  app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
+
+  size_t ledger_chunk_threshold = 5'000'000;
+  app
+    .add_option(
+      "--ledger-chunk-max-bytes",
+      ledger_chunk_threshold,
+      "Minimum size (bytes) at which a new ledger chunk is created.")
+    ->capture_default_str()
+    ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -247,8 +256,7 @@ int main(int argc, char** argv)
       max_fragment_size,
       "Determines maximum size of individual ringbuffer message fragments. "
       "Messages larger than this will be split into multiple fragments. Value "
-      "is "
-      "used as a shift factor, ie - given N, the limit is (1 << N)")
+      "is used as a shift factor, ie - given N, the limit is (1 << N)")
     ->capture_default_str();
 
   size_t tick_period_ms = 10;
@@ -402,15 +410,15 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if ((*start || *join) && files::exists(ledger_file))
+    if ((*start || *join) && files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On start/join, ledger file should not exist ({})", ledger_file));
+        "On start/join, ledger directory should not exist ({})", ledger_dir));
     }
-    else if (*recover && !files::exists(ledger_file))
+    else if (*recover && !files::exists(ledger_dir))
     {
       throw std::logic_error(fmt::format(
-        "On recovery, ledger file should exist ({}) ", ledger_file));
+        "On recovery, ledger directory should exist ({}) ", ledger_dir));
     }
 
     if (*start)
@@ -503,7 +511,7 @@ int main(int argc, char** argv)
   asynchost::Sigterm sigterm(writer_factory);
 
   // write to a ledger
-  asynchost::Ledger ledger(ledger_file, writer_factory);
+  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_threshold);
   ledger.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
