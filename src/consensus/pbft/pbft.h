@@ -16,7 +16,6 @@
 #include "ds/logger.h"
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
-#include "host/ledger.h"
 #include "kv/kv_types.h"
 #include "node/nodetypes.h"
 
@@ -624,26 +623,11 @@ namespace pbft
       return client_proxy->get_statistics();
     }
 
-    template <typename T>
-    size_t write_to_ledger(const T& data)
-    {
-      ledger->put_entry(data->data(), data->size());
-      return data->size();
-    }
-
-    template <>
-    size_t write_to_ledger<std::vector<uint8_t>>(
-      const std::vector<uint8_t>& data)
-    {
-      ledger->put_entry(data);
-      return data.size();
-    }
-
     bool replicate(const kv::BatchVector& entries) override
     {
       for (auto& [index, data, globally_committable] : entries)
       {
-        write_to_ledger(data);
+        ledger->put_entry(*data, globally_committable);
       }
       return true;
     }
@@ -833,24 +817,26 @@ namespace pbft
             }
             LOG_TRACE_FMT("Applying append entry for index {}", i);
 
-            auto ret = ledger->get_entry(data, size);
-
-            if (!ret.second)
+            std::vector<uint8_t> entry;
+            try
             {
-              // NB: This will currently never be triggered.
-              // This should only fail if there is malformed data. Truncate
-              // the log and reply false.
+              entry = ledger->get_entry(data, size);
+            }
+            catch (const std::logic_error& e)
+            {
+              // This should only fail if there is malformed data.
               LOG_FAIL_FMT(
-                "Recv append entries to {} from {} but the data is malformed",
+                "Recv append entries to {} from {} but the data is malformed: "
+                "{}",
                 local_id,
-                r.from_node);
-              ledger->truncate(r.prev_idx);
+                r.from_node,
+                e.what());
               return;
             }
 
             kv::Tx tx;
             auto deserialise_success =
-              store->deserialise_views(ret.first, public_only, nullptr, &tx);
+              store->deserialise_views(entry, public_only, nullptr, &tx);
 
             switch (deserialise_success)
             {

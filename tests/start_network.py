@@ -29,12 +29,12 @@ def run(args):
         if args.recover:
             args.label = args.label + "_recover"
             LOG.info("Recovering network from:")
-            LOG.info(f" - Ledger: {args.ledger}")
+            LOG.info(f" - Ledger: {args.ledger_dir}")
             LOG.info(
                 f" - Defunct network public encryption key: {args.network_enc_pubk}"
             )
             LOG.info(f" - Common directory: {args.common_dir}")
-            network.start_in_recovery(args, args.ledger, args.common_dir)
+            network.start_in_recovery(args, args.ledger_dir, args.common_dir)
             network.recover(args, args.network_enc_pubk)
         else:
             network.start_and_join(args)
@@ -99,7 +99,7 @@ if __name__ == "__main__":
             default=False,
         )
         parser.add_argument(
-            "--ledger", help="Ledger to recover from",
+            "--ledger-dir", help="Ledger directory to recover from",
         )
         parser.add_argument(
             "--network-enc-pubk",
@@ -112,7 +112,9 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args(add)
     if args.recover and (
-        args.ledger is None or args.common_dir is None or args.network_enc_pubk is None
+        args.ledger_dir is None
+        or args.common_dir is None
+        or args.network_enc_pubk is None
     ):
         print(
             "Error: --recover requires --ledger, --network-enc-pubk and --common-dir arguments."

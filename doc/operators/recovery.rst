@@ -26,14 +26,14 @@ To initiate the first phase of the recovery procedure, one or several nodes shou
     --rpc-address <ccf-node-address>
     --public-rpc-address <ccf-node-public-address>
     [--domain domain]
-    --ledger-file /path/to/ledger/to/recover
+    --ledger-dir /path/to/ledger/dir/to/recover
     --node-cert-file /path/to/node_certificate
     recover
     --network-cert-file /path/to/network_certificate
 
-Each node will then immediately restore the public entries of its ledger (``--ledger-file``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``getSignedIndex`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
+Each node will then immediately restore the public entries of its ledger (``--ledger-dir``). Because deserialising the public entries present in the ledger may take some time, operators can query the progress of the public recovery by calling ``signed_index`` which returns the version of the last signed recovered ledger entry. Once the public ledger is fully recovered, the recovered node automatically becomes part of the public network, allowing other nodes to join the network.
 
-.. note:: If more than one node were started in ``recover`` mode, the node with the highest signed index (as per the response to the ``getSignedIndex`` RPC) should be preferred to start the new network. Other nodes should be shutdown and new nodes restarted with the ``join`` option.
+.. note:: If more than one node were started in ``recover`` mode, the node with the highest signed index (as per the response to the ``signed_index`` RPC) should be preferred to start the new network. Other nodes should be shutdown and new nodes restarted with the ``join`` option.
 
 Similarly to the normal join protocol (see :ref:`operators/start_network:Adding a New Node to the Network`), other nodes are then able to join the network.
 
@@ -44,14 +44,14 @@ Similarly to the normal join protocol (see :ref:`operators/start_network:Adding 
         participant Node 2
         participant Node 3
 
-        Operators->>+Node 2: cchost --rpc-address=ip2:port2 --ledger-file=ledger0 recover
+        Operators->>+Node 2: cchost --rpc-address=ip2:port2 --ledger-dir=./ledger recover
         Node 2-->>Operators: Network Certificate
         Note over Node 2: Reading Public Ledger...
 
-        Operators->>+Node 2: getSignedIndex
+        Operators->>+Node 2: signed_index
         Node 2-->>Operators: {"signed_index": 50, "state": "readingPublicLedger"}
         Note over Node 2: Finished Reading Public Ledger, now Part of Public Network
-        Operators->>Node 2: getSignedIndex
+        Operators->>Node 2: signed_index
         Node 2-->>Operators: {"signed_index": 243, "state": "partOfPublicNetwork"}
 
         Note over Operators, Node 2: Operators select Node 2 to start the new network

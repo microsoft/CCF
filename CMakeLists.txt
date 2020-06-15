@@ -7,11 +7,16 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 project(
   ccf
-  VERSION 0.11 # CCF_VERSION < This is a search marker for CI version check
+  VERSION 0.11
   LANGUAGES C CXX
 )
 
 set(ENV{BETTER_EXCEPTIONS} 1)
+
+set(CCF_PROJECT_NAME_SUFFIX "")
+set(CCF_PROJECT_NAME "${PROJECT_VERSION}${CCF_PROJECT_NAME_SUFFIX}")
+
+message(STATUS "CCF version=${CCF_PROJECT_NAME}")
 
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
@@ -20,7 +25,7 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf/ccf-${PROJECT_VERSION}"
+      "/opt/ccf/ccf-${CCF_PROJECT_NAME}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
@@ -308,7 +313,8 @@ if(BUILD_TESTS)
     target_link_libraries(encryptor_test PRIVATE secp256k1.host)
 
     add_unit_test(
-      historical_queries_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
+      historical_queries_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
     )
     target_link_libraries(historical_queries_test PRIVATE secp256k1.host)
 
@@ -456,9 +462,7 @@ if(BUILD_TESTS)
     kv_bench SRCS src/kv/test/kv_bench.cpp src/crypto/symmetric_key.cpp
                   src/enclave/thread_local.cpp
   )
-  add_picobench(
-    hash_bench SRCS src/ds/test/hash_bench.cpp
-  )
+  add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
   # Storing signed governance operations
   add_e2e_test(
@@ -478,6 +482,10 @@ if(BUILD_TESTS)
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout
       4000
+      # Smaller ledger chunks than default to make sure that a ledger made of
+      # multiple chunks can be recovered
+      --ledger-chunk-max-bytes
+      20KB
   )
 
   add_e2e_test(

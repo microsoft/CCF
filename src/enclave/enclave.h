@@ -204,9 +204,6 @@ namespace enclave
           bp, AdminMessage::stop, [&bp, this](const uint8_t*, size_t) {
             bp.set_finished();
             threading::ThreadMessaging::thread_messaging.set_finished();
-            auto w = writer_factory.create_writer_to_outside();
-            LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
-            RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, w);
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -354,6 +351,11 @@ namespace enclave
             CCF_PAUSE();
           }
         });
+
+        auto w = writer_factory.create_writer_to_outside();
+        LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
+        RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, w);
+
         return true;
       }
 #ifndef VIRTUAL_ENCLAVE

@@ -13,6 +13,6 @@
   "required": [
     "receipt"
   ],
-  "title": "getReceipt/result",
+  "title": "receipt/result",
   "type": "object"
 }

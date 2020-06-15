@@ -30,6 +30,7 @@ namespace consensus
     /// Modify the local ledger. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_append),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_commit),
     ///@}
   };
 }
@@ -46,6 +47,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::Index,
   consensus::LedgerRequestPurpose);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_append, std::vector<uint8_t>);
+  consensus::ledger_append, bool /* committable */, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_truncate, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_commit, consensus::Index);

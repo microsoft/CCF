@@ -24,7 +24,7 @@ def run(args):
     methods_without_schema = set()
 
     def fetch_schema(client):
-        list_response = client.get("listMethods")
+        list_response = client.get("api")
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
@@ -32,7 +32,7 @@ def run(args):
 
         for method in methods:
             schema_found = False
-            schema_response = client.get("getSchema", params={"method": method})
+            schema_response = client.get("api/schema", params={"method": method})
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
@@ -44,6 +44,7 @@ def run(args):
             if schema_response.result is not None:
                 schema_found = True
                 formatted_schema = json.dumps(schema_response.result, indent=2)
+                os.makedirs(os.path.dirname(target_file), exist_ok=True)
                 with open(target_file, "a+") as f:
                     f.seek(0)
                     previous = f.read()
