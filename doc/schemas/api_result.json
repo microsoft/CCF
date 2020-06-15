@@ -1,18 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "state_digest": {
+    "methods": {
       "items": {
-        "maximum": 255,
-        "minimum": 0,
-        "type": "integer"
+        "type": "string"
       },
       "type": "array"
     }
   },
   "required": [
-    "state_digest"
+    "methods"
   ],
-  "title": "updateAckStateDigest/result",
+  "title": "api/result",
   "type": "object"
 }

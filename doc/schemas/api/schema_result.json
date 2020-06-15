@@ -12,6 +12,6 @@
     "params_schema",
     "result_schema"
   ],
-  "title": "getSchema/result",
+  "title": "api/schema/result",
   "type": "object"
 }

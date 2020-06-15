@@ -40,6 +40,6 @@
     "histogram",
     "tx_rates"
   ],
-  "title": "getMetrics/result",
+  "title": "metrics/result",
   "type": "object"
 }
