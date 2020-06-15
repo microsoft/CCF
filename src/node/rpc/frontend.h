@@ -472,9 +472,11 @@ namespace ccf
     void open() override
     {
       std::lock_guard<SpinLock> mguard(lock);
-      is_open_ = true;
-
-      handlers.init_handlers(tables);
+      if (!is_open_)
+      {
+        is_open_ = true;
+        handlers.init_handlers(tables);
+      }
     }
 
     bool is_open() override
