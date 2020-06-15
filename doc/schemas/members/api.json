@@ -1,0 +1,21 @@
+{
+  "get": {
+    "params_schema": null,
+    "result_schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "methods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "methods"
+      ],
+      "title": "api/result",
+      "type": "object"
+    }
+  }
+}

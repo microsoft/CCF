@@ -1,0 +1,34 @@
+{
+  "get": {
+    "params_schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "method": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "title": "api/schema/params",
+      "type": "object"
+    },
+    "result_schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "params_schema": {
+          "$ref": "http://json-schema.org/draft-07/schema#"
+        },
+        "result_schema": {
+          "$ref": "http://json-schema.org/draft-07/schema#"
+        }
+      },
+      "required": [
+        "params_schema",
+        "result_schema"
+      ],
+      "title": "api/schema/result",
+      "type": "object"
+    }
+  }
+}
