@@ -6,7 +6,6 @@
 #include "consensus/pbft/pbft_types.h"
 #include "consensus/raft/raft_types.h"
 #include "host/timer.h"
-#include "multiple_ledger.h"
 #include "ledger.h"
 #include "node/nodetypes.h"
 #include "tcp.h"
@@ -173,7 +172,7 @@ namespace asynchost
       }
     };
 
-    MultipleLedger& ledger;
+    Ledger& ledger;
     TCP listener;
     std::unordered_map<ccf::NodeId, TCP> outgoing;
     std::unordered_map<size_t, TCP> incoming;
@@ -185,7 +184,7 @@ namespace asynchost
   public:
     NodeConnections(
       messaging::Dispatcher<ringbuffer::Message>& disp,
-      MultipleLedger& ledger,
+      Ledger& ledger,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::string& host,
       std::string& service) :
