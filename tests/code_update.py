@@ -54,48 +54,48 @@ def run(args):
             code_not_found_exception is not None
         ), f"Adding a node with unsupported code id {new_code_id} should fail"
 
-        # # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
-        # primary, _ = network.find_primary()
+        # Slow quote verification means that any attempt to add a node may cause an election, so confirm primary after adding node
+        primary, _ = network.find_primary()
 
-        # network.consortium.add_new_code(primary, new_code_id)
+        network.consortium.add_new_code(primary, new_code_id)
 
-        # new_nodes = set()
-        # old_nodes_count = len(network.nodes)
-        # new_nodes_count = old_nodes_count + 1
+        new_nodes = set()
+        old_nodes_count = len(network.nodes)
+        new_nodes_count = old_nodes_count + 1
 
-        # LOG.info(
-        #     f"Adding more new nodes ({new_nodes_count}) than originally existed ({old_nodes_count})"
-        # )
-        # for _ in range(0, new_nodes_count):
-        #     new_node = network.create_and_trust_node(
-        #         args.patched_file_name, "localhost", args
-        #     )
-        #     assert new_node
-        #     new_nodes.add(new_node)
+        LOG.info(
+            f"Adding more new nodes ({new_nodes_count}) than originally existed ({old_nodes_count})"
+        )
+        for _ in range(0, new_nodes_count):
+            new_node = network.create_and_trust_node(
+                args.patched_file_name, "localhost", args
+            )
+            assert new_node
+            new_nodes.add(new_node)
 
-        # LOG.info("Stopping all original nodes")
-        # old_nodes = set(network.nodes).difference(new_nodes)
-        # for node in old_nodes:
-        #     LOG.debug(f"Stopping old node {node.node_id}")
-        #     node.stop()
+        LOG.info("Stopping all original nodes")
+        old_nodes = set(network.nodes).difference(new_nodes)
+        for node in old_nodes:
+            LOG.debug(f"Stopping old node {node.node_id}")
+            node.stop()
 
-        # sleep_time = (
-        #     args.pbft_view_change_timeout * 2 / 1000
-        #     if args.consensus == "pbft"
-        #     else args.raft_election_timeout * 2 / 1000
-        # )
-        # LOG.info(f"Waiting {sleep_time}s for a new primary to be elected...")
-        # time.sleep(sleep_time)
+        sleep_time = (
+            args.pbft_view_change_timeout * 2 / 1000
+            if args.consensus == "pbft"
+            else args.raft_election_timeout * 2 / 1000
+        )
+        LOG.info(f"Waiting {sleep_time}s for a new primary to be elected...")
+        time.sleep(sleep_time)
 
-        # new_primary, _ = network.find_primary()
-        # LOG.info(f"Waited, new_primary is {new_primary.node_id}")
+        new_primary, _ = network.find_primary()
+        LOG.info(f"Waited, new_primary is {new_primary.node_id}")
 
-        # LOG.info("Adding another node to the network")
-        # new_node = network.create_and_trust_node(
-        #     args.patched_file_name, "localhost", args
-        # )
-        # assert new_node
-        # network.wait_for_node_commit_sync(args.consensus)
+        LOG.info("Adding another node to the network")
+        new_node = network.create_and_trust_node(
+            args.patched_file_name, "localhost", args
+        )
+        assert new_node
+        network.wait_for_node_commit_sync(args.consensus)
 
 
 if __name__ == "__main__":

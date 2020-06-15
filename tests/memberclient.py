@@ -81,7 +81,6 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
     network.store_current_network_encryption_key()
     already_active_member = network.consortium.get_any_active_member()
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
-    # TODO: Only get the encrypted share
     saved_share = already_active_member.get_and_decrypt_recovery_share(
         primary, defunct_network_enc_pubk
     )
