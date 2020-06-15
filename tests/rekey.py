@@ -8,6 +8,10 @@ import infra.e2e_args
 
 
 @reqs.description("Rekey the ledger once")
+<<<<<<< HEAD
+=======
+@reqs.supports_methods("primary_info")
+>>>>>>> master
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     primary, _ = network.find_primary()

@@ -9,11 +9,10 @@ import time
 from loguru import logger as LOG
 
 
-def check_can_progress(node):
+def check_can_progress(node, timeout=3):
     with node.node_client() as c:
         r = c.rpc("commit")
         c.rpc("mkSign")
-        timeout = 3
         end_time = time.time() + timeout
         while time.time() < end_time:
             if c.rpc("commit").result["seqno"] > r.result["seqno"]:
