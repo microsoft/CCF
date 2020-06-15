@@ -37,7 +37,7 @@ source env/bin/activate
 pip install cmake_format
 
 unformatted_files=""
-for file in $(find "$@" -name "*.cmake"); do
+for file in $(find "$@" -name "*.cmake" -o -name "CMakeLists.txt"); do
   cmake-format --check "$file"
   d=$?
   if $fix ; then
@@ -52,7 +52,12 @@ for file in $(find "$@" -name "*.cmake"); do
 done
 
 if [ "$unformatted_files" != "" ]; then
-  echo "Fix formatting:"
+  if $fix ; then
+    echo "Formatted files:"
+  else
+    echo "Fix formatting:"
+  fi
+
   echo "$unformatted_files"
   exit 1
 else
