@@ -359,7 +359,8 @@ namespace loggingapp
         Procs::LOG_GET_HISTORICAL,
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed),
-        Read);
+        Read)
+        .set_http_get_only();
 
       auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(
