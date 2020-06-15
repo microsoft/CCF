@@ -208,7 +208,7 @@ namespace ccf
         return *this;
       }
 
-      http_method verb;
+      http_method verb = HTTP_POST;
 
       /** Indicates which HTTP verb the handler should respond to.
        *
@@ -273,12 +273,27 @@ namespace ccf
      * @return The installed Handler for further modification
      */
     Handler& install(
-      const std::string& method, HandleFunction f, ReadWrite read_write)
+      const std::string& method,
+      HandleFunction f,
+      ReadWrite read_write,
+      http_method verb = HTTP_POST)
     {
-      auto& handler = handlers[method];
+      auto& method_handlers = handlers[method];
+      for (const auto& other : method_handlers)
+      {
+        if (other.verb == verb)
+        {
+          throw std::logic_error(fmt::format(
+            "Already have an installed handler for {} on {}",
+            http_method_str(verb),
+            method));
+        }
+      }
+      auto& handler = method_handlers.emplace_back();
       handler.method = method;
       handler.func = f;
       handler.read_write = read_write;
+      handler.verb = verb;
       handler.registry = this;
       return handler;
     }
@@ -334,6 +349,22 @@ namespace ccf
       }
 
       return nullptr;
+    }
+
+    virtual std::vector<http_method> get_allowed_verbs(
+      const std::string& method)
+    {
+      std::vector<http_method> verbs;
+      auto search = handlers.find(method);
+      if (search != handlers.end())
+      {
+        for (auto& handler : search->second)
+        {
+          verbs.push_back(handler.verb);
+        }
+      }
+
+      return verbs;
     }
 
     virtual void tick(

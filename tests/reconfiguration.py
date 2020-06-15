@@ -11,11 +11,11 @@ from loguru import logger as LOG
 
 def check_can_progress(node, timeout=3):
     with node.node_client() as c:
-        r = c.rpc("commit")
+        r = c.get("commit")
         c.rpc("mkSign")
         end_time = time.time() + timeout
         while time.time() < end_time:
-            if c.rpc("commit").result["seqno"] > r.result["seqno"]:
+            if c.get("commit").result["seqno"] > r.result["seqno"]:
                 return
             time.sleep(0.1)
         assert False, f"Stuck at {r}"

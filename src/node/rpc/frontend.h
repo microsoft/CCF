@@ -204,8 +204,8 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto handler =
-        handlers.find_handler(local_method, ctx->get_request_verb());
+      auto handler = handlers.find_handler(
+        local_method, (http_method)ctx->get_request_verb());
       if (handler != nullptr && handler->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
@@ -221,34 +221,37 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      const auto handler =
-        handlers.find_handler(local_method, ctx->get_request_verb());
+      const auto handler = handlers.find_handler(
+        local_method, (http_method)ctx->get_request_verb());
       if (handler == nullptr)
       {
-        ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-        ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-        ctx->set_response_body(fmt::format("Unknown RPC: {}", method));
-        return ctx->serialise_response();
-      }
-
-      if (!(handler->allowed_verbs_mask &
-            verb_to_mask(ctx->get_request_verb())))
-      {
-        ctx->set_response_status(HTTP_STATUS_METHOD_NOT_ALLOWED);
-        std::string allow_header_value;
-        bool first = true;
-        for (size_t verb = 0; verb <= HTTP_SOURCE; ++verb)
+        const auto allowed_verbs = handlers.get_allowed_verbs(local_method);
+        if (allowed_verbs.empty())
         {
-          if (handler->allowed_verbs_mask & verb_to_mask(verb))
-          {
-            allow_header_value += fmt::format(
-              "{}{}", (first ? "" : ", "), http_method_str((http_method)verb));
-            first = false;
-          }
+          ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+          ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          ctx->set_response_body(fmt::format("Unknown RPC: {}", method));
+          return ctx->serialise_response();
         }
-        ctx->set_response_header(http::headers::ALLOW, allow_header_value);
-        return ctx->serialise_response();
+        else
+        {
+          ctx->set_response_status(HTTP_STATUS_METHOD_NOT_ALLOWED);
+          std::vector<char const*> allowed_verb_strs;
+          for (auto verb : allowed_verbs)
+          {
+            allowed_verb_strs.push_back(http_method_str(verb));
+          }
+          const std::string allow_header_value =
+            fmt::format("{}", fmt::join(allowed_verb_strs, ", "));
+          // List allowed methods in 2 places:
+          // - ALLOW header for standards compliance + machine parsing
+          // - Body for visiblity + human readability
+          ctx->set_response_header(http::headers::ALLOW, allow_header_value);
+          ctx->set_response_body(
+            fmt::format("Allowed methods are: {}", allow_header_value));
+          return ctx->serialise_response();
+        }
       }
 
       if (handler->require_client_identity && handlers.has_certs())

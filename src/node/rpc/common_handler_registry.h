@@ -181,7 +181,7 @@ namespace ccf
         return make_success(out);
       };
 
-      auto get_schema = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_schema = [this](RequestArgs& args, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
         const auto it = handlers.find(in.method);
@@ -192,10 +192,21 @@ namespace ccf
             fmt::format("Method {} not recognised", in.method));
         }
 
-        const GetSchema::Out out{it->second.params_schema,
-                                 it->second.result_schema};
+        auto j = nlohmann::json::object();
 
-        return make_success(out);
+        for (auto& handler : it->second)
+        {
+          auto verb_name = http_method_str(handler.verb);
+          std::transform(
+            verb_name.begin(),
+            verb_name.end(),
+            verb_name.begin(),
+            [](unsigned char c) { return std::tolower(c); });
+          j[verb_name] =
+            GetSchema::Out{handler.params_schema, handler.result_schema};
+        }
+
+        return make_success(j);
       };
 
       auto get_receipt = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -251,7 +262,8 @@ namespace ccf
 
       install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
         .set_execute_locally(true)
-        .set_auto_schema<void, GetCommit::Out>();
+        .set_auto_schema<void, GetCommit::Out>()
+        .set_http_get_only();
       install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
         .set_auto_schema<GetTxStatus>()
         .set_http_get_only();

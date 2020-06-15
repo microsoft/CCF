@@ -134,8 +134,9 @@ public:
     auto put_or_delete = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
+    install("put_or_delete", put_or_delete, HandlerRegistry::Read, HTTP_PUT);
     install("put_or_delete", put_or_delete, HandlerRegistry::Read)
-      .set_allowed_verbs({HTTP_PUT, HTTP_DELETE});
+      .set_allowed_verb(HTTP_DELETE);
   }
 };
 

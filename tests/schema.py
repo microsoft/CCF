@@ -11,8 +11,8 @@ import infra.e2e_args
 from loguru import logger as LOG
 
 
-def build_schema_file_path(root, method, schema_type):
-    return os.path.join(root, "{}_{}.json".format(method, schema_type))
+def build_schema_file_path(root, prefix, method):
+    return os.path.join(root, prefix, f"{method}.json")
 
 
 def run(args):
@@ -38,32 +38,28 @@ def run(args):
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
             )
 
+            target_file = build_schema_file_path(
+                args.schema_dir, user_client.prefix, method
+            )
             if schema_response.result is not None:
-                for schema_type in ["params", "result"]:
-                    element_name = "{}_schema".format(schema_type)
-                    element = schema_response.result[element_name]
-                    target_file = build_schema_file_path(
-                        args.schema_dir, method, schema_type
-                    )
-                    if element is not None and len(element) != 0:
-                        schema_found = True
-                        formatted_schema = json.dumps(element, indent=2)
-                        with open(target_file, "a+") as f:
-                            f.seek(0)
-                            previous = f.read()
-                            if previous != formatted_schema:
-                                LOG.debug("Writing schema to {}".format(target_file))
-                                f.truncate(0)
-                                f.seek(0)
-                                f.write(formatted_schema)
-                                changed_files.append(target_file)
-                            else:
-                                LOG.debug("Schema matches in {}".format(target_file))
+                schema_found = True
+                formatted_schema = json.dumps(schema_response.result, indent=2)
+                with open(target_file, "a+") as f:
+                    f.seek(0)
+                    previous = f.read()
+                    if previous != formatted_schema:
+                        LOG.debug("Writing schema to {}".format(target_file))
+                        f.truncate(0)
+                        f.seek(0)
+                        f.write(formatted_schema)
+                        changed_files.append(target_file)
                     else:
-                        # Ensure there are no out-of-date files for schema which have been removed
-                        if os.path.isfile(target_file):
-                            os.remove(target_file)
-                            changed_files.append(target_file)
+                        LOG.debug("Schema matches in {}".format(target_file))
+            else:
+                # Ensure there are no out-of-date files for schema which have been removed
+                if os.path.isfile(target_file):
+                    os.remove(target_file)
+                    changed_files.append(target_file)
 
             if schema_found:
                 methods_with_schema.add(method)
