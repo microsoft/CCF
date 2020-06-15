@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("getReceipt", "verifyReceipt", "LOG_get")
+@reqs.supports_methods("LOG_record")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     primary, other = network.find_primary_and_any_backup()
@@ -19,13 +19,13 @@ def test(network, args, notifications_queue=None):
     msg = "Hello world"
     LOG.info("Write on primary")
     with primary.user_client(ws=True) as c:
-        for i in range(1, 501):
+        for i in [1, 50, 500]:
             r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})
             assert r.result == True, r.result
 
     LOG.info("Write on secondary through forwarding")
     with other.user_client(ws=True) as c:
-        for i in range(1, 501):
+        for i in [1, 50, 500]:
             r = c.rpc("LOG_record", {"id": 42, "msg": msg * i})
             assert r.result == True, r.result
 

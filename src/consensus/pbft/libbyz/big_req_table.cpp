@@ -35,12 +35,12 @@ inline void Big_req_table::remove_unmatched(BR_entry* bre)
 {
   if (bre->maxn < 0)
   {
-    PBFT_ASSERT(bre->r != 0, "Invalid state");
+    CCF_ASSERT(bre->r != 0, "Invalid state");
     auto& centry = unmatched[bre->r->client_id()];
 
     centry.list.remove(bre);
     centry.num_requests--;
-    PBFT_ASSERT(centry.num_requests >= 0, "Should be positive");
+    CCF_ASSERT(centry.num_requests >= 0, "Should be positive");
   }
 }
 
@@ -96,9 +96,9 @@ bool Big_req_table::add_pre_prepare(Digest& rd, int i, Seqno n, View v)
 void Big_req_table::refresh_entry(Digest& rd, int i, Seqno n, View v)
 {
   auto it = breqs.find(rd);
-  PBFT_ASSERT(it != breqs.end(), "Invalid state");
+  CCF_ASSERT(it != breqs.end(), "Invalid state");
   BR_entry* bre = it->second;
-  PBFT_ASSERT(bre != nullptr, "Invalid state");
+  CCF_ASSERT(bre != nullptr, "Invalid state");
 
   if (n > bre->maxn)
   {
@@ -110,7 +110,7 @@ void Big_req_table::refresh_entry(Digest& rd, int i, Seqno n, View v)
     bre->maxv = v;
   }
 
-  PBFT_ASSERT(bre->r != nullptr, "Invalid state");
+  CCF_ASSERT(bre->r != nullptr, "Invalid state");
 }
 
 void Big_req_table::add_pre_prepare(Request* r, Seqno n, View v)
@@ -155,7 +155,7 @@ void Big_req_table::add_pre_prepare(Request* r, Seqno n, View v)
 
 bool Big_req_table::check_pcerts(BR_entry* bre)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     pbft::GlobalState::get_replica().has_complete_new_view(), "Invalid state");
 
   for (int i = 0; i < bre->waiting.size(); i++)
@@ -197,7 +197,7 @@ bool Big_req_table::add_unmatched(BR_entry* e, Request*& old_req)
 
 bool Big_req_table::add_request(Request* r, bool verified)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     r->size() > Request::big_req_thresh && !r->is_read_only(),
     "Invalid Argument");
 
@@ -232,7 +232,7 @@ bool Big_req_table::add_request(Request* r, bool verified)
             v >= last_view &&
             pbft::GlobalState::get_replica().plog.within_range(n))
           {
-            PBFT_ASSERT(n > last_stable, "Invalid state");
+            CCF_ASSERT(n > last_stable, "Invalid state");
             Prepared_cert& pc = pbft::GlobalState::get_replica().plog.fetch(n);
             pc.add(bre->rd, i);
             pbft::GlobalState::get_replica().send_prepare(n);
@@ -264,7 +264,7 @@ bool Big_req_table::add_request(Request* r, bool verified)
       if (old_req)
       {
         auto it = breqs.find(old_req->digest());
-        PBFT_ASSERT(it != breqs.end(), "Invalid state");
+        CCF_ASSERT(it != breqs.end(), "Invalid state");
         auto old_entry = it->second;
         breqs.erase(it);
         delete old_entry;
@@ -314,7 +314,7 @@ void Big_req_table::mark_stable(Seqno ls, Req_queue& rqueue)
     {
       if (bre->maxn < 0)
       {
-        PBFT_ASSERT(bre->r != 0, "Invalid state");
+        CCF_ASSERT(bre->r != 0, "Invalid state");
         if (rqueue.is_in_rqueue(bre->r))
         {
           LOG_TRACE_FMT(

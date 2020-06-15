@@ -95,7 +95,7 @@ This displays several things:
     * The latency of each request (on the left y-axis), ie the delay between a request being sent and the corresponding response received, distinguishing
 
         * the business transactions sent to SmallBank application (green dots) 
-        * the generic ``getCommit`` requests used to poll for global commit synchronisation (red dots)
+        * the generic ``commit`` requests used to poll for global commit synchronisation (red dots)
 
     * The progress of the CCF commit version (on the right axis), showing both
 

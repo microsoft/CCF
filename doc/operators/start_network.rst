@@ -19,7 +19,7 @@ To create a new CCF network, the first node of the network should be invoked wit
     --node-address <ccf-node-to-node-address>
     --public-rpc-address <ccf-node-public-address>
     [--domain domain]
-    --ledger-file /path/to/ledger
+    --ledger-dir /path/to/ledger/dir
     --node-cert-file /path/to/node_certificate
     [--sig-max-tx number_of_transactions]
     [--sig-max-ms number_of_milliseconds]
@@ -83,7 +83,7 @@ To add a new node to an existing opening network, other nodes should be started 
     --rpc-address <ccf-node-address>
     --node-address <ccf-node-to-node-address>
     --public-rpc-address <ccf-node-public-address>
-    --ledger-file /path/to/ledger
+    --ledger-dir /path/to/ledger/dir
     --node-cert-file /path/to/node_certificate
     join
     --network-cert-file /path/to/existing/network_certificate

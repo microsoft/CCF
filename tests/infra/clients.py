@@ -62,13 +62,14 @@ class FakeSocket:
 
 
 class Response:
-    def __init__(self, status, result, error, seqno, view, global_commit):
+    def __init__(self, status, result, error, seqno, view, global_commit, headers):
         self.status = status
         self.result = result
         self.error = error
         self.seqno = seqno
         self.view = view
         self.global_commit = global_commit
+        self.headers = headers
 
     def to_dict(self):
         d = {
@@ -81,6 +82,15 @@ class Response:
         else:
             d["error"] = self.error
         return d
+
+    def __str__(self):
+        versioned = (self.view, self.seqno) != (None, None)
+        body = self.result if f"{self.status}"[0] == "2" else self.error
+        return (
+            f"{self.status} "
+            + (f"@{self.view}.{self.seqno} " if versioned else "")
+            + truncate(f"{body}")
+        )
 
     @staticmethod
     def from_requests_response(rr):
@@ -101,6 +111,7 @@ class Response:
             seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
+            headers=rr.headers,
         )
 
     @staticmethod
@@ -128,6 +139,7 @@ class Response:
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
+            headers=response.headers,
         )
 
 
@@ -154,19 +166,7 @@ class RPCLogger:
         )
 
     def log_response(self, response):
-        LOG.debug(
-            truncate(
-                "{}".format(
-                    {
-                        k: v
-                        for k, v in (response.__dict__ or {}).items()
-                        if not k.startswith("_")
-                    }
-                    if response
-                    else None,
-                )
-            )
-        )
+        LOG.debug(response)
 
 
 class RPCFileLogger(RPCLogger):
@@ -415,7 +415,7 @@ class WSClient:
         else:
             result = None
             error = payload.decode()
-        return Response(status, result, error, seqno, view, global_commit)
+        return Response(status, result, error, seqno, view, global_commit, headers={})
 
 
 class CCFClient:

@@ -55,7 +55,7 @@ public:
   // expects a full reply (if negative, client expects a full reply
   // from all replicas).
 
-  Request(Request_rep* contents);
+  Request(Request_rep* contents, std::unique_ptr<pbft::RequestCtx> = nullptr);
   // Requires: "contents" contains a valid Request_rep. Otherwise, use
   // the static method convert.
   // Effects: Creates a Request message from "contents". No copy
@@ -122,8 +122,10 @@ public:
   // Effects: Returns true iff the authentication token in the message
   // is a signature.
 
-  bool pre_verify();
+  bool pre_verify(VerifyAndParseCommand& e);
   // Effects: Performs preliminary verification checks
+
+  void create_context(VerifyAndParseCommand& e);
 
   static bool convert(char* m1, unsigned max_len, Request& m2);
   // Requires: convert can safely read up to "max_len" bytes starting
@@ -144,7 +146,14 @@ public:
     return Message::size();
   }
 
+  std::unique_ptr<pbft::RequestCtx> get_request_ctx()
+  {
+    return std::move(request_ctx);
+  }
+
 private:
+  std::unique_ptr<pbft::RequestCtx> request_ctx;
+
   Request_rep& rep() const;
   // Effects: Casts "msg" to a Request_rep&
 
@@ -154,7 +163,7 @@ private:
 
 inline Request_rep& Request::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Request_rep*)msg);
 }
 

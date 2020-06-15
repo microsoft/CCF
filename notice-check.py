@@ -10,12 +10,6 @@ NOTICE_LINES_CCF = [
     "Licensed under the Apache 2.0 License.",
 ]
 
-PREFIXES_CCF = [
-    os.linesep.join([prefix + " " + line for line in NOTICE_LINES_CCF])
-    for prefix in ["//", "--", "#"]
-]
-PREFIXES_CCF.append("#!/bin/bash" + os.linesep + PREFIXES_CCF[-1])
-
 NOTICE_LINES_PBFT = [
     "Copyright (c) Microsoft Corporation.",
     "Copyright (c) 1999 Miguel Castro, Barbara Liskov.",
@@ -23,20 +17,21 @@ NOTICE_LINES_PBFT = [
     "Licensed under the MIT license.",
 ]
 
-PREFIXES_PBFT = [
-    os.linesep.join([prefix + " " + line for line in NOTICE_LINES_PBFT])
-    for prefix in ["//", "--", "#"]
-] + [
-    os.linesep.join(
-        [prefix + " " + line for line in [NOTICE_LINES_PBFT[0], NOTICE_LINES_PBFT[3]]]
-    )
+PREFIXES_CCF = [
+    os.linesep.join([prefix + " " + line for line in NOTICE_LINES_CCF])
     for prefix in ["//", "--", "#"]
 ]
-
-PREFIXES_PBFT.append("#!/bin/bash" + os.linesep + PREFIXES_PBFT[-1])
+PREFIXES_CCF.append("#!/bin/bash" + os.linesep + PREFIXES_CCF[-1])
+PREFIXES_CCF.append(os.linesep.join(["//" + " " + line for line in NOTICE_LINES_PBFT]))
+PREFIXES_CCF.append(
+    os.linesep.join(
+        ["//" + " " + line for line in [NOTICE_LINES_PBFT[0], NOTICE_LINES_PBFT[3]]]
+    )
+)
 
 
 def has_notice(path, prefixes):
+    print(f"Reading {path}")
     with open(path) as f:
         text = f.read()
         for prefix in prefixes:
@@ -63,7 +58,7 @@ def submodules():
 
 def check_ccf():
     missing = []
-    excluded = ["3rdparty", ".git", "libbyz", "build"] + submodules()
+    excluded = ["3rdparty", ".git", "build"] + submodules()
     for root, dirs, files in os.walk("."):
         for edir in excluded:
             if edir in dirs:
@@ -78,30 +73,10 @@ def check_ccf():
     return missing
 
 
-def check_pbft():
-    missing = []
-    excluded = [] + submodules()
-    for root, dirs, files in os.walk("src/consensus/pbft/libbyz") and os.walk(
-        "tests/infra/libbyz"
-    ):
-        for edir in excluded:
-            if edir in dirs:
-                dirs.remove(edir)
-        for name in files:
-            if name.startswith("."):
-                continue
-            if is_src(name):
-                path = os.path.join(root, name)
-                if not has_notice(path, PREFIXES_PBFT):
-                    missing.append(path)
-    return missing
-
-
 if __name__ == "__main__":
     missing = []
     missing.extend(check_ccf())
-    missing.extend(check_pbft())
 
     for path in missing:
-        print("Copyright notice missing from {}".format(path))
+        print(f"Copyright notice missing from {path}")
     sys.exit(len(missing))

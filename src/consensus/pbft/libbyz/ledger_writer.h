@@ -2,12 +2,12 @@
 // Licensed under the MIT license.
 #pragma once
 
+#include "consensus/pbft/libbyz/ledger.h"
 #include "consensus/pbft/pbft_new_views.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_types.h"
 #include "kv/kv_types.h"
-#include "ledger.h"
 #include "new_view.h"
 #include "node/signatures.h"
 #include "prepared_cert.h"
@@ -32,4 +32,5 @@ public:
   kv::Version write_pre_prepare(Pre_prepare* pp, View view);
   kv::Version write_pre_prepare(kv::Tx& tx, Pre_prepare* pp);
   void write_new_view(New_view* nv);
+  void write_new_view(kv::Tx& tx);
 };

@@ -39,6 +39,8 @@ namespace loggingapp
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
   // SNIPPET_END: macro_validation_macros
 
+  using LoggingGetHistorical = LoggingGet;
+
   // Public record/get
   // Manual schemas, verified then parsed in handler
   static const std::string j_record_public_in = R"!!!(

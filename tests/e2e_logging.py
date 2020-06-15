@@ -209,18 +209,91 @@ def test_raw_text(network, args):
     return network
 
 
+@reqs.description("Read historical state")
+@reqs.supports_methods("LOG_record", "LOG_get", "LOG_get_historical")
+def test_historical_query(network, args):
+    if args.consensus == "pbft":
+        LOG.warning("Skipping historical queries in PBFT")
+        return network
+
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        with primary.node_client() as nc:
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
+
+            with primary.user_client() as c:
+                log_id = 10
+                msg = "This tests historical queries"
+                record_response = c.rpc("LOG_record", {"id": log_id, "msg": msg})
+                check_commit(record_response, result=True)
+                view = record_response.view
+                seqno = record_response.seqno
+
+                msg2 = "This overwrites the original message"
+                check_commit(
+                    c.rpc("LOG_record", {"id": log_id, "msg": msg2}), result=True
+                )
+                check(c.get("LOG_get", {"id": log_id}), result={"msg": msg2})
+
+                timeout = 15
+                found = False
+                headers = {
+                    infra.clients.CCF_TX_VIEW_HEADER: str(view),
+                    infra.clients.CCF_TX_SEQNO_HEADER: str(seqno),
+                }
+                params = {"id": log_id}
+                end_time = time.time() + timeout
+
+                while time.time() < end_time:
+                    get_response = c.get("LOG_get_historical", params, headers=headers)
+                    if get_response.status == http.HTTPStatus.ACCEPTED:
+                        retry_after = get_response.headers.get("retry-after")
+                        if retry_after is None:
+                            raise ValueError(
+                                f"Response with status {get_response.status} is missing 'retry-after' header"
+                            )
+                        retry_after = int(retry_after)
+                        time.sleep(retry_after)
+                    elif get_response.status == http.HTTPStatus.OK:
+                        assert (
+                            get_response.result["msg"] == msg
+                        ), f"{get_response.result}"
+                        found = True
+                        break
+                    elif get_response.status == http.HTTPStatus.NO_CONTENT:
+                        raise ValueError(
+                            f"Historical query response claims there was no write to {log_id} at {view}.{seqno}"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unexpected response status {get_response.status}: {get_response.error}"
+                        )
+
+                if not found:
+                    raise TimeoutError(
+                        f"Unable to handle historical query after {timeout}s"
+                    )
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+
+    return network
+
+
 @reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("mkSign")
+@reqs.supports_methods("tx")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
-        with backup.node_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
-        with backup.member_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
+        ack = network.consortium.get_any_active_member().ack(backup)
+        check_commit(ack)
 
     return network
 
@@ -269,12 +342,12 @@ def test_update_lua(network, args):
 
 
 @reqs.description("Check for commit of every prior transaction")
-@reqs.supports_methods("getCommit", "tx")
+@reqs.supports_methods("commit", "tx")
 def test_view_history(network, args):
     if args.consensus == "pbft":
         # This appears to work in PBFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
-        # - Since each read (eg - /tx and /getCommit) has produced writes and a unique tx ID,
+        # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
         #    there are too many IDs to test exhaustively
         # We could rectify this by making this test non-exhaustive (bisecting for view changes,
         # sampling within a view), but for now it is exhaustive and Raft-only
@@ -285,7 +358,7 @@ def test_view_history(network, args):
 
     for node in network.get_joined_nodes():
         with node.user_client() as c:
-            r = c.get("getCommit")
+            r = c.get("commit")
             check(c)
 
             commit_view = r.view
@@ -424,7 +497,7 @@ def test_tx_statuses(network, args):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
@@ -455,6 +528,7 @@ def run(args):
             network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
             network = test_raw_text(network, args)
+            network = test_historical_query(network, args)
             network = test_view_history(network, args)
 
 

@@ -14,12 +14,39 @@ namespace ccf
     Invalid,
   };
 
+  constexpr char const* tx_status_to_str(TxStatus status)
+  {
+    switch (status)
+    {
+      case TxStatus::Unknown:
+      {
+        return "UNKNOWN";
+      }
+      case TxStatus::Pending:
+      {
+        return "PENDING";
+      }
+      case TxStatus::Committed:
+      {
+        return "COMMITTED";
+      }
+      case TxStatus::Invalid:
+      {
+        return "INVALID";
+      }
+      default:
+      {
+        return "Unhandled value";
+      }
+    }
+  }
+
   DECLARE_JSON_ENUM(
     TxStatus,
-    {{TxStatus::Unknown, "UNKNOWN"},
-     {TxStatus::Pending, "PENDING"},
-     {TxStatus::Committed, "COMMITTED"},
-     {TxStatus::Invalid, "INVALID"}});
+    {{TxStatus::Unknown, tx_status_to_str(TxStatus::Unknown)},
+     {TxStatus::Pending, tx_status_to_str(TxStatus::Pending)},
+     {TxStatus::Committed, tx_status_to_str(TxStatus::Committed)},
+     {TxStatus::Invalid, tx_status_to_str(TxStatus::Invalid)}});
 
   constexpr size_t VIEW_UNKNOWN = 0;
 
@@ -75,7 +102,7 @@ namespace ccf
       // this node believes locally that this tx id is impossible, but does not
       // have a global commit to back this up - it will eventually receive
       // either a global commit confirming this belief, or an election and
-      // global commit where this tx id is valid
+      // global commit making this tx id invalid
       return TxStatus::Unknown;
     }
   }

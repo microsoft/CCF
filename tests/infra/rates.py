@@ -53,9 +53,9 @@ class TxRates:
 
     def process_next(self):
         with self.primary.user_client() as client:
-            rv = client.get("getCommit")
+            rv = client.get("commit")
             result = rv.to_dict()
-            next_commit = result["result"]["commit"]
+            next_commit = result["result"]["seqno"]
             more_to_process = self.commit != next_commit
             self.commit = next_commit
 
@@ -63,7 +63,7 @@ class TxRates:
 
     def get_metrics(self):
         with self.primary.user_client() as client:
-            rv = client.get("getMetrics")
+            rv = client.get("metrics")
             result = rv.to_dict()
             result = result["result"]
             self.all_metrics = result

@@ -29,12 +29,13 @@ class ScenarioPerfClient : public Base
 private:
   nlohmann::json scenario_json;
 
-  RpcTlsClient::Response send_verbose_transactions(
+  std::optional<RpcTlsClient::Response> send_verbose_transactions(
     const std::shared_ptr<RpcTlsClient>& connection, char const* element_name)
   {
     const auto it = scenario_json.find(element_name);
 
     RpcTlsClient::Response response;
+    bool sent = false;
 
     if (it != scenario_json.end())
     {
@@ -56,12 +57,16 @@ private:
 
         LOG_INFO_FMT("Sending {}: {}", method, params.dump(2));
         response = connection->call(method, params);
+        sent = true;
         const auto response_body = connection->unpack_body(response);
         LOG_INFO_FMT("Response: {} {}", response.status, response_body.dump(2));
       }
     }
 
-    return response;
+    if (sent)
+      return response;
+    else
+      return std::nullopt;
   }
 
   void pre_creation_hook() override

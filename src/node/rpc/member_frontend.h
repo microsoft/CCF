@@ -894,7 +894,6 @@ namespace ccf
         }
 
         const auto in = params.get<SubmitRecoveryShare>();
-        // TODO: This seems to crash the server when this fails!!
         auto raw_recovery_share = tls::raw_from_b64(in.recovery_share);
 
         size_t submitted_shares_count = 0;

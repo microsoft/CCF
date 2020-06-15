@@ -16,10 +16,6 @@ jobs:
       displayName: 'Shell Check'
       condition: succeededOrFailed()
 
-    - script: ./check-cmake-version-vs-tag.sh
-      displayName: 'Check project version in CMake against git tag'
-      condition: succeededOrFailed()
-
     - script: ./check-todo.sh src
       displayName: 'Check for TODOs'
       condition: succeededOrFailed()

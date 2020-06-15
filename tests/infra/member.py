@@ -116,7 +116,13 @@ class Member:
             and wait_for_global_commit
         ):
             with remote_node.node_client() as mc:
-                infra.checker.wait_for_global_commit(mc, r.seqno, r.view, True)
+                # If we vote in a new node, which becomes part of quorum, the transaction
+                # can only commit after it has successfully joined and caught up.
+                # Given that the retry timer on join RPC is 4 seconds, anything less is very
+                # likely to time out!
+                infra.checker.wait_for_global_commit(
+                    mc, r.seqno, r.view, True, timeout=6
+                )
 
         return r
 
@@ -129,8 +135,8 @@ class Member:
 
     def update_ack_state_digest(self, remote_node):
         with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc("updateAckStateDigest")
-            assert r.error is None, f"Error updateAckStateDigest: {r.error}"
+            r = mc.rpc("ack/update_state_digest")
+            assert r.error is None, f"Error ack/update_state_digest: {r.error}"
             return bytearray(r.result["state_digest"])
 
     def ack(self, remote_node):
@@ -139,10 +145,13 @@ class Member:
             r = mc.rpc("ack", params={"state_digest": list(state_digest)}, signed=True)
             assert r.error is None, f"Error ACK: {r.error}"
             self.status = MemberStatus.ACTIVE
+            return r
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
         with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.get("getEncryptedRecoveryShare", params={})
+            r = mc.get("recovery_share")
+            if r.status != http.HTTPStatus.OK.value:
+                raise NoRecoveryShareFound(r)
 
             ctx = infra.crypto.CryptoBoxCtx(
                 os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem"),
@@ -157,6 +166,7 @@ class Member:
 
     def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):
         # For now, all members are given an encryption key (for recovery)
+        input("")
         infra.proc.ccall(
             self.share_script,
             "--rpc-address",
@@ -171,6 +181,7 @@ class Member:
             os.path.join(self.common_dir, f"member{self.member_id}_privk.pem"),
             "--cacert",
             os.path.join(self.common_dir, "networkcert.pem"),
-            # "-i",
+            "-i",
+            "-vv",
             log_output=True,
         ).check_returncode()

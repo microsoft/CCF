@@ -296,32 +296,33 @@ namespace raft
       return current_term;
     }
 
+    std::pair<Term, Index> get_commit_term_and_idx()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      return {get_term_internal(commit_idx), commit_idx};
+    }
+
     Term get_term(Index idx)
     {
       std::lock_guard<SpinLock> guard(lock);
       return get_term_internal(idx);
     }
 
-    void add_configuration(Index idx, std::unordered_set<NodeId> conf)
+    void add_configuration(Index idx, const std::unordered_set<NodeId>& conf)
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, move(conf)});
       create_and_remove_node_state();
     }
 
-    template <typename T>
-    size_t write_to_ledger(const T& data)
+    std::unordered_set<NodeId> get_latest_configuration() const
     {
-      ledger->put_entry(data->data(), data->size());
-      return data->size();
-    }
+      if (configurations.empty())
+      {
+        return {};
+      }
 
-    template <>
-    size_t write_to_ledger<std::vector<uint8_t>>(
-      const std::vector<uint8_t>& data)
-    {
-      ledger->put_entry(data);
-      return data.size();
+      return configurations.back().nodes;
     }
 
     template <typename T>
@@ -354,8 +355,8 @@ namespace raft
           committable_indices.push_back(index);
 
         last_idx = index;
-        auto s = write_to_ledger(*data);
-        entry_size_not_limited += s;
+        ledger->put_entry(*data, globally_committable);
+        entry_size_not_limited += data->size();
         entry_count++;
 
         term_history.update(index, current_term);
@@ -657,27 +658,31 @@ namespace raft
 
         last_idx = i;
         is_first_entry = false;
-        auto ret = ledger->record_entry(data, size);
+        std::vector<uint8_t> entry;
 
-        if (!ret.second)
+        try
         {
-          // NB: This will currently never be triggered.
-          // This should only fail if there is malformed data. Truncate
-          // the log and reply false.
+          entry = ledger->get_entry(data, size);
+        }
+        catch (const std::logic_error& e)
+        {
+          // This should only fail if there is malformed data.
           LOG_FAIL_FMT(
-            "Recv append entries to {} from {} but the data is malformed",
+            "Recv append entries to {} from {} but the data is malformed: {}",
             local_id,
-            r.from_node);
-
+            r.from_node,
+            e.what());
           last_idx = r.prev_idx;
-          ledger->truncate(r.prev_idx);
           send_append_entries_response(r.from_node, false);
           return;
         }
 
         Term sig_term = 0;
         auto deserialise_success =
-          store->deserialise(ret.first, public_only, &sig_term);
+          store->deserialise(entry, public_only, &sig_term);
+
+        ledger->put_entry(
+          entry, deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
 
         switch (deserialise_success)
         {
@@ -1162,6 +1167,7 @@ namespace raft
 
       LOG_DEBUG_FMT("Compacting...");
       store->compact(idx);
+      ledger->commit(idx);
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed

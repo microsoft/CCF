@@ -122,7 +122,7 @@ private:
 
 inline Meta_data_rep& Meta_data::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Meta_data_rep*)msg);
 }
 
