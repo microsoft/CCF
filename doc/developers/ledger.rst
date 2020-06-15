@@ -3,7 +3,7 @@ Ledger
 
 The ledger is the persistent distributed append-only record of the transactions that have been executed by the network. It is written by the primary when a transaction is committed and replicated to all backups which maintain their own duplicated copy.
 
-A node writes its ledger to a file as specified by the ``--ledger-file`` command line argument.
+A node writes its ledger to a directory as specified by the ``--ledger-dir`` command line argument.
 
 Ledger Encryption
 -----------------
