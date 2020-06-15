@@ -248,7 +248,7 @@ namespace timing
     // committed (or will never be committed), returns first confirming
     // response. Calls record_[send/response], if record is true.
     // Throws on errors, or if target is rolled back
-    RpcTlsClient::Response wait_for_global_commit(
+    CommitPoint wait_for_global_commit(
       const CommitPoint& target, bool record = true)
     {
       auto params = nlohmann::json::object();
@@ -302,7 +302,7 @@ namespace timing
             commit_ids.view,
             commit_ids.seqno,
             commit_ids.global);
-          return response;
+          return {commit_ids.view, commit_ids.seqno};
         }
         else if (tx_status == "INVALID")
         {
