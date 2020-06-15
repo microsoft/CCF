@@ -39,7 +39,7 @@ def run(args):
             )
 
             target_file = build_schema_file_path(
-                args.schema_dir, user_client.prefix, method
+                args.schema_dir, client.prefix, method
             )
             if schema_response.result is not None:
                 schema_found = True
@@ -80,7 +80,7 @@ def run(args):
             fetch_schema(user_client)
 
         with primary.node_client() as node_client:
-            LOG.info("node frontend")
+            LOG.warning("node frontend")
             fetch_schema(node_client)
 
         with primary.member_client() as member_client:

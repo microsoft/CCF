@@ -189,7 +189,7 @@ namespace ccf
 
         for (auto& handler : it->second)
         {
-          auto verb_name = http_method_str(handler.verb);
+          std::string verb_name = http_method_str(handler.verb);
           std::transform(
             verb_name.begin(),
             verb_name.end(),
