@@ -74,6 +74,11 @@ T parse_response_body(const TResponse& r)
   return body_j.get<T>();
 }
 
+std::string parse_response_body(const TResponse& r)
+{
+  return std::string(r.body.begin(), r.body.end());
+}
+
 void check_error(const TResponse& r, http_status expected)
 {
   DOCTEST_CHECK(r.status == expected);
@@ -90,6 +95,17 @@ void set_whitelists(GenesisGenerator& gen)
 {
   for (const auto& wl : default_whitelists)
     gen.set_whitelist(wl.first, wl.second);
+}
+
+std::vector<uint8_t> create_text_request(
+  const std::string& text,
+  const string& method_name,
+  http_method verb = HTTP_POST)
+{
+  http::Request r(method_name, verb);
+  const auto body = std::vector<uint8_t>(text.begin(), text.end());
+  r.set_body(&body);
+  return r.build_request();
 }
 
 std::vector<uint8_t> create_request(
@@ -1666,8 +1682,8 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   DOCTEST_INFO("Submit share before the service is in correct state");
   {
     MemberId member_id = 0;
-    const auto submit_recovery_share = create_request(
-      SubmitRecoveryShare({tls::b64_from_raw(retrieved_shares[member_id])}),
+    const auto submit_recovery_share = create_text_request(
+      tls::b64_from_raw(retrieved_shares[member_id]),
       MemberProcs::SUBMIT_RECOVERY_SHARE);
 
     check_error(
@@ -1699,8 +1715,8 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     {
       auto bogus_recovery_share = retrieved_shares[m.first];
       bogus_recovery_share[0] = bogus_recovery_share[0] + 1;
-      const auto submit_recovery_share = create_request(
-        SubmitRecoveryShare({tls::b64_from_raw(bogus_recovery_share)}),
+      const auto submit_recovery_share = create_text_request(
+        tls::b64_from_raw(bogus_recovery_share),
         MemberProcs::SUBMIT_RECOVERY_SHARE);
 
       auto rep =
@@ -1726,8 +1742,8 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     size_t submitted_shares_count = 0;
     for (auto const& m : members)
     {
-      const auto submit_recovery_share = create_request(
-        SubmitRecoveryShare({tls::b64_from_raw(retrieved_shares[m.first])}),
+      const auto submit_recovery_share = create_text_request(
+        tls::b64_from_raw(retrieved_shares[m.first]),
         MemberProcs::SUBMIT_RECOVERY_SHARE);
 
       auto rep =
@@ -1740,7 +1756,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       if (submitted_shares_count >= recovery_threshold)
       {
         DOCTEST_REQUIRE(
-          parse_response_body<std::string>(rep).find(
+          parse_response_body(rep).find(
             "End of recovery procedure initiated.") != std::string::npos);
         break;
       }

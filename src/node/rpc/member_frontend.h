@@ -30,13 +30,6 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
   DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
 
-  struct SubmitRecoveryShare
-  {
-    std::string recovery_share;
-  };
-  DECLARE_JSON_TYPE(SubmitRecoveryShare)
-  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, recovery_share)
-
   struct GetEncryptedRecoveryShare
   {
     std::string encrypted_recovery_share;
@@ -869,32 +862,36 @@ namespace ccf
         .set_auto_schema<void, GetEncryptedRecoveryShare>()
         .set_http_get_only();
 
-      auto submit_recovery_share = [this](
-                                     RequestArgs& args,
-                                     nlohmann::json&& params) {
+      auto submit_recovery_share = [this](ccf::RequestArgs& args) {
         // Only active members can submit their shares for recovery
         if (!check_member_active(args.tx, args.caller_id))
         {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          args.rpc_ctx->set_response_body("Member is not active");
+          return;
         }
 
         GenesisGenerator g(this->network, args.tx);
         if (
           g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
+          args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          args.rpc_ctx->set_response_body(
             "Service is not waiting for recovery shares");
+          return;
         }
 
         if (node.is_reading_private_ledger())
         {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN, "Node is already recovering private ledger");
+          args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          args.rpc_ctx->set_response_body(
+            "Node is already recovering private ledger");
+          return;
         }
 
-        const auto in = params.get<SubmitRecoveryShare>();
-        auto raw_recovery_share = tls::raw_from_b64(in.recovery_share);
+        const auto& in = args.rpc_ctx->get_request_body();
+        const auto s = std::string(in.begin(), in.end());
+        auto raw_recovery_share = tls::raw_from_b64(s);
 
         size_t submitted_shares_count = 0;
         try
@@ -904,19 +901,22 @@ namespace ccf
         }
         catch (const std::logic_error& e)
         {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body(
             fmt::format("Could not submit recovery share: {}", e.what()));
+          return;
         }
 
         if (submitted_shares_count < g.get_recovery_threshold())
         {
           // The number of shares required to re-assemble the secret has not yet
           // been reached
-          return make_success(fmt::format(
+          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          args.rpc_ctx->set_response_body(fmt::format(
             "{}/{} recovery shares successfully submitted.",
             submitted_shares_count,
             g.get_recovery_threshold()));
+          return;
         }
 
         LOG_DEBUG_FMT(
@@ -930,23 +930,23 @@ namespace ccf
         {
           // For now, clear the submitted shares if combination fails.
           share_manager.clear_submitted_recovery_shares(args.tx);
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body(
             fmt::format("Failed to initiate private recovery: {}", e.what()));
+          return;
         }
 
         share_manager.clear_submitted_recovery_shares(args.tx);
-        return make_success(fmt::format(
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_body(fmt::format(
           "{}/{} recovery shares successfully submitted. End of recovery "
           "procedure initiated.",
           submitted_shares_count,
           g.get_recovery_threshold()));
       };
-      install(
-        MemberProcs::SUBMIT_RECOVERY_SHARE,
-        json_adapter(submit_recovery_share),
-        Write)
-        .set_auto_schema<SubmitRecoveryShare, std::string>();
+      install(MemberProcs::SUBMIT_RECOVERY_SHARE, submit_recovery_share, Write)
+        .set_auto_schema<std::string, std::string>();
 
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
