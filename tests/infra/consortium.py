@@ -330,7 +330,9 @@ class Consortium:
             check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_members():
-                r = m.get_and_submit_recovery_share(remote_node, defunct_network_enc_pubk)
+                r = m.get_and_submit_recovery_share(
+                    remote_node, defunct_network_enc_pubk
+                )
                 submitted_shares_count += 1
                 check_commit(r)
 

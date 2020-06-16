@@ -1643,17 +1643,20 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
   DOCTEST_INFO("Retrieve and decrypt recovery shares");
   {
-    const auto get_recovery_shares =
-      create_request(nullptr, "recovery_share", HTTP_GET);
+    const auto get_recovery_shares = create_request(
+      nullptr, MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE, HTTP_GET);
 
     for (auto const& m : members)
     {
-      auto encrypted_share = parse_response_body<EncryptedShare>(
+      auto resp = parse_response_body<GetEncryptedRecoveryShare>(
         frontend_process(frontend, get_recovery_shares, m.second.first));
 
+      auto encrypted_share = tls::raw_from_b64(resp.encrypted_recovery_share);
+      auto nonce = tls::raw_from_b64(resp.nonce);
+
       retrieved_shares[m.first] = crypto::Box::open(
-        encrypted_share.encrypted_share,
-        encrypted_share.nonce,
+        encrypted_share,
+        nonce,
         crypto::BoxKey::public_from_private(
           network.encryption_key->private_raw),
         m.second.second);
@@ -1664,8 +1667,8 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   {
     MemberId member_id = 0;
     const auto submit_recovery_share = create_request(
-      SubmitRecoveryShare({retrieved_shares[member_id]}),
-      "recovery_share/submit");
+      SubmitRecoveryShare({tls::b64_from_raw(retrieved_shares[member_id])}),
+      MemberProcs::SUBMIT_RECOVERY_SHARE);
 
     check_error(
       frontend_process(
@@ -1697,7 +1700,8 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       auto bogus_recovery_share = retrieved_shares[m.first];
       bogus_recovery_share[0] = bogus_recovery_share[0] + 1;
       const auto submit_recovery_share = create_request(
-        SubmitRecoveryShare({bogus_recovery_share}), "recovery_share/submit");
+        SubmitRecoveryShare({tls::b64_from_raw(bogus_recovery_share)}),
+        MemberProcs::SUBMIT_RECOVERY_SHARE);
 
       auto rep =
         frontend_process(frontend, submit_recovery_share, m.second.first);
@@ -1706,11 +1710,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
       // Share submission should only complete when the recovery threshold
       // has been reached
-      if (submitted_shares_count < recovery_threshold)
-      {
-        DOCTEST_REQUIRE(parse_response_body<bool>(rep) == false);
-      }
-      else
+      if (submitted_shares_count >= recovery_threshold)
       {
         check_error(rep, HTTP_STATUS_INTERNAL_SERVER_ERROR);
         break;
@@ -1727,19 +1727,21 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     for (auto const& m : members)
     {
       const auto submit_recovery_share = create_request(
-        SubmitRecoveryShare({retrieved_shares[m.first]}),
-        "recovery_share/submit");
+        SubmitRecoveryShare({tls::b64_from_raw(retrieved_shares[m.first])}),
+        MemberProcs::SUBMIT_RECOVERY_SHARE);
 
-      auto ret = parse_response_body<bool>(
-        frontend_process(frontend, submit_recovery_share, m.second.first));
+      auto rep =
+        frontend_process(frontend, submit_recovery_share, m.second.first);
 
       submitted_shares_count++;
 
       // Share submission should only complete when the recovery threshold
       // has been reached
-      DOCTEST_REQUIRE(ret == (submitted_shares_count >= recovery_threshold));
-      if (ret)
+      if (submitted_shares_count >= recovery_threshold)
       {
+        DOCTEST_REQUIRE(
+          parse_response_body<std::string>(rep).find(
+            "End of recovery procedure initiated.") != std::string::npos);
         break;
       }
     }
