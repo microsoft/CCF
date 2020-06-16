@@ -214,7 +214,10 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      [[deprecated("HTTP Verb should not be changed after installation: pass verb to install()")]] Handler&
+      // clang-format off
+      [[deprecated("HTTP Verb should not be changed after installation: pass verb to install()")]]
+      // clang-format on
+      Handler&
       set_allowed_verb(http_method v)
       {
         verb = v;
@@ -225,7 +228,11 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      [[deprecated("HTTP Verb should not be changed after installation: use install_get()")]] Handler&
+      // clang-format off
+      [[deprecated("HTTP Verb should not be changed after installation: use "
+                    "install_get()")]]
+      // clang-format on
+      Handler&
       set_http_get_only()
       {
         return set_allowed_verb(HTTP_GET);
@@ -235,7 +242,11 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      [[deprecated("HTTP Verb should not be changed after installation: use install_post()")]] Handler&
+      // clang-format off
+      [[deprecated("HTTP Verb should not be changed after installation: use "
+                    "install_post()")]]
+      // clang-format on
+      Handler&
       set_http_post_only()
       {
         return set_allowed_verb(HTTP_POST);
