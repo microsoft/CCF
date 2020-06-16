@@ -515,14 +515,12 @@ if(BUILD_TESTS)
     CONSENSUS raft
     LABEL suite
     ADDITIONAL_ARGS
+      --ledger-recovery-timeout
+      20
       --test-duration
-      1200
+      200
       --enforce-reqs
       # Repeat the full suite multiple times
-      --test-suite
-      all
-      --test-suite
-      all
       --test-suite
       all
       --test-suite
