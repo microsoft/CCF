@@ -51,7 +51,6 @@ The recovery share retrieval, decryption and submission steps are conveniently p
     HTTP/1.1 200 OK
     content-length: 46
     content-type: application/json
-    x-ccf-global-commit: 27
     x-ccf-tx-seqno: 28
     x-ccf-tx-view: 4
     "1/2 recovery shares successfully submitted."
@@ -61,7 +60,6 @@ The recovery share retrieval, decryption and submission steps are conveniently p
     HTTP/1.1 200 OK
     content-length: 83
     content-type: application/json
-    x-ccf-global-commit: 29
     x-ccf-tx-seqno: 30
     x-ccf-tx-view: 4
     "2/2 recovery shares successfully submitted. End of recovery procedure initiated."
