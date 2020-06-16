@@ -15,7 +15,7 @@ Nodes can be configured to store their ledger under a particular directory with 
 File layout
 -----------
 
-The ledger directory contains a series of files. File size is controlled by the ``--ledger-chunk-max-bytes`` command line switch.
+The ledger directory contains a series of files. File size is controlled by the ``--ledger-chunk-max-bytes`` command line option.
 
 Files containing only committed entries are named ``ledger_$STARTSEQNO-$ENDSEQNO.committed``. These files are closed and immutable,
 it is safe to replicate them to backup storage. They are identical across nodes, provided ``--ledger-chunk-max-bytes`` has been set to the same value.
@@ -30,7 +30,10 @@ a ``.committed`` file once the size threshold is met.
 The listing below is an example of what a ledger directory may look like.
 
 .. code-block:: bash
-
+ 
+    $ ./cchost --ledger-dir $LEDGER_DIR ...
+    $ cd $LEDGER_DIR
+    $ ls
     -rw-rw-r-- 1 user user 1.6M Jun 16 14:08 ledger_1-7501.committed
     -rw-rw-r-- 1 user user 1.2M Jun 16 14:08 ledger_12502-17501.committed
     -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_17502-22501.committed
