@@ -253,40 +253,55 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
       };
 
-      install(GeneralProcs::GET_COMMIT, HTTP_GET, json_adapter(get_commit))
+      make_handler(GeneralProcs::GET_COMMIT, HTTP_GET, json_adapter(get_commit))
         .set_execute_locally(true)
-        .set_auto_schema<void, GetCommit::Out>();
-      install(
+        .set_auto_schema<void, GetCommit::Out>()
+        .install();
+      make_handler(
         GeneralProcs::GET_TX_STATUS, HTTP_GET, json_adapter(get_tx_status))
-        .set_auto_schema<GetTxStatus>();
-      install(GeneralProcs::GET_METRICS, HTTP_GET, json_adapter(get_metrics))
+        .set_auto_schema<GetTxStatus>()
+        .install();
+      make_handler(
+        GeneralProcs::GET_METRICS, HTTP_GET, json_adapter(get_metrics))
         .set_auto_schema<void, GetMetrics::Out>()
-        .set_execute_locally(true);
-      install(GeneralProcs::MK_SIGN, HTTP_POST, json_adapter(make_signature))
-        .set_auto_schema<void, bool>();
-      install(GeneralProcs::WHO, HTTP_GET, json_adapter(who))
-        .set_auto_schema<WhoIs::In, WhoAmI::Out>();
-      install(
+        .set_execute_locally(true)
+        .install();
+      make_handler(
+        GeneralProcs::MK_SIGN, HTTP_POST, json_adapter(make_signature))
+        .set_auto_schema<void, bool>()
+        .install();
+      make_handler(GeneralProcs::WHO, HTTP_GET, json_adapter(who))
+        .set_auto_schema<WhoIs::In, WhoAmI::Out>()
+        .install();
+      make_handler(
         GeneralProcs::GET_PRIMARY_INFO,
         HTTP_GET,
         json_adapter(get_primary_info))
-        .set_auto_schema<void, GetPrimaryInfo::Out>();
-      install(
+        .set_auto_schema<void, GetPrimaryInfo::Out>()
+        .install();
+      make_handler(
         GeneralProcs::GET_NETWORK_INFO,
         HTTP_GET,
         json_adapter(get_network_info))
-        .set_auto_schema<void, GetNetworkInfo::Out>();
-      install(
+        .set_auto_schema<void, GetNetworkInfo::Out>()
+        .install();
+      make_handler(
         GeneralProcs::API_LIST_METHODS, HTTP_GET, json_adapter(list_methods_fn))
-        .set_auto_schema<void, ListMethods::Out>();
-      install(GeneralProcs::API_GET_SCHEMA, HTTP_GET, json_adapter(get_schema))
-        .set_auto_schema<GetSchema>();
-      install(GeneralProcs::GET_RECEIPT, HTTP_GET, json_adapter(get_receipt))
-        .set_auto_schema<GetReceipt>();
-      install(
+        .set_auto_schema<void, ListMethods::Out>()
+        .install();
+      make_handler(
+        GeneralProcs::API_GET_SCHEMA, HTTP_GET, json_adapter(get_schema))
+        .set_auto_schema<GetSchema>()
+        .install();
+      make_handler(
+        GeneralProcs::GET_RECEIPT, HTTP_GET, json_adapter(get_receipt))
+        .set_auto_schema<GetReceipt>()
+        .install();
+      make_handler(
         GeneralProcs::VERIFY_RECEIPT, HTTP_POST, json_adapter(verify_receipt))
         .set_read_write(ReadWrite::Read)
-        .set_auto_schema<VerifyReceipt>();
+        .set_auto_schema<VerifyReceipt>()
+        .install();
     }
 
     void tick(
