@@ -623,7 +623,7 @@ namespace pbft
       return client_proxy->get_statistics();
     }
 
-    bool replicate(const kv::BatchVector& entries) override
+    bool replicate(const kv::BatchVector& entries, View view) override
     {
       for (auto& [index, data, globally_committable] : entries)
       {

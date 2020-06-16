@@ -49,9 +49,9 @@ namespace raft
       raft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
-    bool replicate(const kv::BatchVector& entries) override
+    bool replicate(const kv::BatchVector& entries, View view) override
     {
-      return raft->replicate(entries);
+      return raft->replicate(entries, view);
     }
 
     std::pair<View, SeqNo> get_committed_txid() override

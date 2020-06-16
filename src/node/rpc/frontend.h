@@ -366,12 +366,14 @@ namespace ccf
               auto cv = tx.commit_version();
               if (cv == 0)
                 cv = tx.get_read_version();
-              if (cv == kv::NoVersion)
-                cv = tables.current_version();
-              ctx->set_seqno(cv);
               if (consensus != nullptr)
               {
-                ctx->set_view(consensus->get_view(cv));
+                if (cv != kv::NoVersion)
+                {
+                  ctx->set_seqno(cv);
+                  ctx->set_view(tx.commit_term());
+                }
+                // Deprecated, this will be removed in future releases
                 ctx->set_global_commit(consensus->get_committed_seqno());
 
                 if (
@@ -582,7 +584,6 @@ namespace ccf
         process_command(ctx, tx, ctx->session->original_caller->caller_id, fn);
 
       version = tx.get_version();
-
       return {std::move(rep.value()), version};
     }
 
