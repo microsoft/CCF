@@ -463,8 +463,8 @@ bool Replica::compare_execution_results(
 
 void Replica::playback_request(kv::Tx& tx)
 {
-  auto view = tx.get_view(pbft_requests_map);
-  auto req_v = view->get(0);
+  auto tx_view = tx.get_view(pbft_requests_map);
+  auto req_v = tx_view->get(0);
   CCF_ASSERT(
     req_v.has_value(),
     "Deserialised request but it was not found in the requests map");
@@ -499,7 +499,7 @@ void Replica::playback_request(kv::Tx& tx)
   vec_exec_cmds[0] = std::move(execute_tentative_request(
     *req, playback_max_local_commit_value, true, &tx, -1));
 
-  exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false);
+  exec_command(vec_exec_cmds, playback_byz_info, 1, 0, false, view());
   did_exec_gov_req = did_exec_gov_req || playback_byz_info.did_exec_gov_req;
 
   auto owned_req = req.release();
@@ -2443,7 +2443,12 @@ bool Replica::execute_tentative(Pre_prepare* pp, ByzInfo& info, uint64_t nonce)
         pp, info.max_local_commit_value, vec_exec_cmds, num_requests))
   {
     exec_command(
-      vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
+      vec_exec_cmds,
+      info,
+      num_requests,
+      nonce,
+      !pp->should_reorder(),
+      pp->view());
     return true;
   }
   return false;
@@ -2488,7 +2493,12 @@ bool Replica::execute_tentative(
     }
 
     exec_command(
-      vec_exec_cmds, info, num_requests, nonce, !pp->should_reorder());
+      vec_exec_cmds,
+      info,
+      num_requests,
+      nonce,
+      !pp->should_reorder(),
+      pp->view());
     if (!node_info.general_info.support_threading)
     {
       cb(pp, this, std::move(ctx));

@@ -121,14 +121,14 @@ namespace ccf
 
     void emit_signature() override
     {
-      auto version = store.next_version();
-      LOG_INFO_FMT("Issuing signature at {}", version);
+      auto txid = store.next_txid();
+      LOG_INFO_FMT("Issuing signature at {}.{}", txid.term, txid.version);
       store.commit(
-        version,
-        [version, this]() {
-          kv::Tx sig(version);
+        txid,
+        [txid, this]() {
+          kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
-          Signature sig_value(id, version);
+          Signature sig_value(id, txid.version);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -591,26 +591,24 @@ namespace ccf
 
       if (consensus->type() == ConsensusType::RAFT)
       {
-        auto version = store.next_version();
-        auto view = consensus->get_view();
+        auto txid = store.next_txid();
         auto commit_txid = consensus->get_committed_txid();
-        LOG_DEBUG_FMT("Issuing signature at {}", version);
         LOG_DEBUG_FMT(
           "Signed at {} in view: {} commit was: {}.{}",
-          version,
-          view,
+          txid.version,
+          txid.term,
           commit_txid.first,
           commit_txid.second);
         store.commit(
-          version,
-          [version, view, commit_txid, this]() {
-            kv::Tx sig(version);
+          txid,
+          [txid, commit_txid, this]() {
+            kv::Tx sig(txid.version);
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
             Signature sig_value(
               id,
-              version,
-              view,
+              txid.version,
+              txid.term,
               commit_txid.second,
               commit_txid.first,
               root,
