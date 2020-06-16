@@ -53,7 +53,7 @@ namespace ccf
     {
       std::string method;
       HandleFunction func;
-      HandlerRegistry* registry;
+      HandlerRegistry* registry = nullptr;
 
       nlohmann::json params_schema = nullptr;
 
@@ -229,8 +229,8 @@ namespace ccf
       Handler&
       set_allowed_verb(http_method v)
       {
-        verb = v;
-        return *this;
+        const auto previous_verb = verb;
+        return registry->reinstall(*this, method, previous_verb);
       }
 
       /** Indicates that the handler is only accessible via the GET HTTP verb.
@@ -257,6 +257,13 @@ namespace ccf
       set_http_post_only()
       {
         return set_allowed_verb(HTTP_POST);
+      }
+
+      /** Finalise and install this handler
+       */
+      void install()
+      {
+        registry->install(*this);
       }
     };
 
@@ -292,6 +299,27 @@ namespace ccf
 
     virtual ~HandlerRegistry() {}
 
+    /** Create a new handler.
+     *
+     * Set additional properties then call Handler::install() to install it
+     *
+     * @param method The URI at which this handler will be installed
+     * @param verb The HTTP verb which this handler will respond to
+     * @param f Functor which will be invoked for requests to VERB /method
+     * @return The installed Handler for further modification
+     */
+    Handler make_handler(
+      const std::string& method, http_method verb, const HandleFunction& f)
+    {
+      Handler handler;
+      handler.method = method;
+      handler.verb = verb;
+      handler.func = f;
+      handler.read_write = read_write_from_verb(verb);
+      handler.registry = this;
+      return handler;
+    }
+
     /** Install HandleFunction for method name
      *
      * If an implementation is already installed for that method, it will be
@@ -302,17 +330,12 @@ namespace ccf
      * @param f Method implementation
      * @return The installed Handler for further modification
      */
+    // TODO: Deprecate this?
     Handler& install(
       const std::string& method, http_method verb, const HandleFunction& f)
     {
-      auto& method_handlers = installed_handlers[method];
-      auto& handler = method_handlers[verb];
-      handler.method = method;
-      handler.func = f;
-      handler.read_write = read_write_from_verb(verb);
-      handler.verb = verb;
-      handler.registry = this;
-      return handler;
+      make_handler(method, verb, f).install();
+      return installed_handlers[method][verb];
     }
 
     // clang-format off
@@ -324,7 +347,24 @@ namespace ccf
     install(
       const std::string& method, const HandleFunction& f, ReadWrite read_write)
     {
-      return install(method, HTTP_POST, f);
+      return install(method, HTTP_POST, f).set_read_write(read_write);
+    }
+
+    void install(const Handler& h)
+    {
+      installed_handlers[h.method][h.verb] = h;
+    }
+
+    // Only needed to deprecated functions
+    Handler& reinstall(
+      const Handler& h, const std::string& prev_method, http_method prev_verb)
+    {
+      const auto handlers_it = installed_handlers.find(prev_method);
+      if (handlers_it != installed_handlers.end())
+      {
+        handlers_it->second.erase(prev_verb);
+      }
+      return installed_handlers[h.method][h.verb] = h;
     }
 
     /** Set a default HandleFunction
