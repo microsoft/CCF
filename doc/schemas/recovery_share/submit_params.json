@@ -1,13 +1,5 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "properties": {
-    "recovery_share": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "recovery_share"
-  ],
   "title": "recovery_share/submit/params",
-  "type": "object"
+  "type": "string"
 }
