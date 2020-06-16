@@ -324,22 +324,6 @@ namespace ccf
             ctx->session->is_forwarding = true;
             return forward_or_redirect_json(ctx, handler, caller_id);
           }
-
-          case HandlerRegistry::MayWrite:
-          {
-            const auto read_only_it =
-              ctx->get_request_header(http::headers::CCF_READ_ONLY);
-            if (!read_only_it.has_value() || (read_only_it.value() != "true"))
-            {
-              ctx->session->is_forwarding = true;
-              return forward_or_redirect_json(ctx, handler, caller_id);
-            }
-            else if (ctx->session->is_forwarding)
-            {
-              return forward_or_redirect_json(ctx, handler, caller_id);
-            }
-            break;
-          }
         }
       }
 

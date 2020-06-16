@@ -36,8 +36,7 @@ namespace ccf
     enum ReadWrite
     {
       Read,
-      Write,
-      MayWrite
+      Write
     };
 
     /** A Handler represents a user-defined endpoint that can be invoked by

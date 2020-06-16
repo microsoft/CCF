@@ -30,21 +30,19 @@ def truncate(string, max_len=256):
 
 CCF_TX_SEQNO_HEADER = "x-ccf-tx-seqno"
 CCF_TX_VIEW_HEADER = "x-ccf-tx-view"
-CCF_READ_ONLY_HEADER = "x-ccf-read-only"
 # Deprecated, will be removed
 CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 
 class Request:
     def __init__(
-        self, method, params=None, readonly_hint=None, http_verb="POST", headers=None
+        self, method, params=None, http_verb="POST", headers=None
     ):
         if headers is None:
             headers = {}
 
         self.method = method
         self.params = params
-        self.readonly_hint = readonly_hint
         self.http_verb = http_verb
         self.headers = headers
 
@@ -157,11 +155,6 @@ class RPCLogger:
         LOG.info(
             f"{name} {request.http_verb} /{request.method}"
             + (truncate(f" {request.params}") if request.params is not None else "")
-            + (
-                f" (RO hint: {request.readonly_hint})"
-                if request.readonly_hint is not None
-                else ""
-            )
             + f"{description}"
         )
 
@@ -269,9 +262,6 @@ class CurlClient:
 
             cmd.extend(["-H", "Content-Type: application/json"])
 
-            if request.readonly_hint:
-                cmd.extend(["-H", f"{CCF_READ_ONLY_HEADER}: true"])
-
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
             if self.key:
@@ -333,9 +323,6 @@ class RequestClient:
             )
 
         extra_headers = {}
-        if request.readonly_hint:
-            extra_headers[CCF_READ_ONLY_HEADER] = "true"
-
         extra_headers.update(request.headers)
 
         request_args = {
