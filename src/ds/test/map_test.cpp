@@ -181,7 +181,7 @@ TEST_CASE("serialize map")
     REQUIRE_EQ(num_elements, keys.size());
   }
 
-  INFO("Serialize map to array");
+  INFO("Serialize map to and from array");
   {
     champ::Snapshot<K, V, H> snapshot(
       map,
@@ -202,6 +202,19 @@ TEST_CASE("serialize map")
     });
     REQUIRE_EQ(map.size(), new_map.size());
     REQUIRE_EQ(map.size(), keys.size());
+
+    uint32_t offset = 1000;
+    for (uint32_t i = offset; i < offset + num_elements; ++i)
+    {
+      new_map = new_map.put(i, i);
+    }
+    REQUIRE_EQ(new_map.size(), map.size() + num_elements);
+    for (uint32_t i = offset; i < offset + num_elements; ++i)
+    {
+      auto p = new_map.get(i);
+      REQUIRE(p.has_value());
+      REQUIRE(p.value() == i);
+    }
   }
 
   INFO("Ensure serialized state is byte identical");
