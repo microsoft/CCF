@@ -329,21 +329,15 @@ namespace ccf
       installed_handlers[handler.method][handler.verb] = handler;
     }
 
-    CCF_DEPRECATED("Use make_handler(METHOD, VERB, FN)[.set_XXX()].install()")
-    Handler& install(
-      const std::string& method, http_method verb, const HandleFunction& f)
-    {
-      make_handler(method, verb, f).install();
-      return installed_handlers[method][verb];
-    }
-
     CCF_DEPRECATED(
       "HTTP verb should be specified explicitly. "
-      "ReadWrite is implied, or overridden after construction")
+      "Use make_handler(METHOD, VERB, FN).set_read_write().install()")
     Handler& install(
       const std::string& method, const HandleFunction& f, ReadWrite read_write)
     {
-      return install(method, HTTP_POST, f).set_read_write(read_write);
+      constexpr auto default_verb = HTTP_POST;
+      make_handler(method, default_verb, f).set_read_write(read_write).install();
+      return installed_handlers[method][default_verb];
     }
 
     // Only needed to support deprecated functions
