@@ -56,6 +56,12 @@ namespace ccf
     {
       return handlers.install(std::forward<Ts>(ts)...);
     }
+
+    template <typename... Ts>
+    ccf::HandlerRegistry::Handler make_handler(Ts&&... ts)
+    {
+      return handlers.make_handler(std::forward<Ts>(ts)...);
+    }
   };
 
   class UserHandlerRegistry : public CommonHandlerRegistry
