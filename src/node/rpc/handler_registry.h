@@ -329,14 +329,7 @@ namespace ccf
       installed_handlers[handler.method][handler.verb] = handler;
     }
 
-    /** Install HandleFunction for method name
-     *
-     * @param method Method name
-     * @param verb The HTTP verb which this handler will respond to
-     * @param f Method implementation
-     * @return The installed Handler for further modification
-     */
-    // TODO: Deprecate this?
+    CCF_DEPRECATED("Use make_handler(METHOD, VERB, FN)[.set_XXX()].install()")
     Handler& install(
       const std::string& method, http_method verb, const HandleFunction& f)
     {
