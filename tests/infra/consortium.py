@@ -330,18 +330,15 @@ class Consortium:
             check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_members():
-                m.get_and_submit_recovery_share(remote_node, defunct_network_enc_pubk)
-                # r = m.submit_recovery_share(remote_node, decrypted_share)
+                r = m.get_and_submit_recovery_share(remote_node, defunct_network_enc_pubk)
                 submitted_shares_count += 1
-                # check_commit(
-                #     r,
-                #     result=True
-                #     if submitted_shares_count >= self.recovery_threshold
-                #     else False,
-                # )
+                check_commit(r)
 
                 if submitted_shares_count >= self.recovery_threshold:
+                    assert "End of recovery procedure initiated" in r.result
                     break
+                else:
+                    assert "End of recovery procedure initiated" not in r.result
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """

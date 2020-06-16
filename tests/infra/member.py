@@ -10,8 +10,6 @@ import http
 import os
 import base64
 
-from loguru import logger as LOG
-
 
 class NoRecoveryShareFound(Exception):
     def __init__(self, response):
@@ -166,7 +164,7 @@ class Member:
 
     def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):
         # For now, all members are given an encryption key (for recovery)
-        infra.proc.ccall(
+        res = infra.proc.ccall(
             self.share_script,
             "--rpc-address",
             f"{remote_node.host}:{remote_node.rpc_port}",
@@ -181,4 +179,6 @@ class Member:
             "--cacert",
             os.path.join(self.common_dir, "networkcert.pem"),
             log_output=True,
-        ).check_returncode()
+        )
+        res.check_returncode()
+        return infra.clients.Response.from_raw(res.stdout)

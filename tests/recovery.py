@@ -50,20 +50,11 @@ def test_share_resilience(network, args):
                 last_member_to_submit = m
                 break
 
-            # TODO: Address issue of knowing when share is globally committed?
             check_commit = infra.checker.Checker(nc)
-            # decrypted_share = m.get_and_decrypt_recovery_share(
-            #     primary, defunct_network_enc_pubk
-            # )
-            m.get_and_submit_recovery_share(primary, defunct_network_enc_pubk)
-            # check_commit(
-            #     m.submit_recovery_share(primary, decrypted_share), result=False
-            # )
+            check_commit(
+                m.get_and_submit_recovery_share(primary, defunct_network_enc_pubk)
+            )
             submitted_shares_count += 1
-
-    import time
-
-    time.sleep(2)
 
     # In theory, check_commit should be sufficient to guarantee that the new primary
     # will know about all the recovery shares submitted so far. However, because of
