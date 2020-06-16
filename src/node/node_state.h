@@ -17,7 +17,6 @@
 #include "node/rpc/json_rpc.h"
 #include "node_to_node.h"
 #include "notifier.h"
-#include "rpc/consts.h"
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
@@ -504,7 +503,7 @@ namespace ccf
       const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
 
       http::Request r(
-        fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN));
+        fmt::format("/{}/{}", ccf::Actors::NODES, "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
@@ -1178,7 +1177,7 @@ namespace ccf
       const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
       http::Request request(
-        fmt::format("/{}/{}", ccf::Actors::MEMBERS, ccf::MemberProcs::CREATE));
+        fmt::format("/{}/{}", ccf::Actors::MEMBERS, "create"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 

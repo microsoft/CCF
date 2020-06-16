@@ -4,7 +4,6 @@
 #include "common_handler_registry.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
-#include "consts.h"
 #include "ds/buffer.h"
 #include "ds/spin_lock.h"
 #include "enclave/rpc_handler.h"

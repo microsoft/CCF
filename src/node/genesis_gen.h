@@ -10,7 +10,6 @@
 #include "network_tables.h"
 #include "node_info_network.h"
 #include "nodes.h"
-#include "rpc/consts.h"
 #include "runtime_config/default_whitelists.h"
 #include "tls/verifier.h"
 #include "values.h"

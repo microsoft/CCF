@@ -558,7 +558,7 @@ namespace ccf
 
         return make_success(value);
       };
-      make_handler(MemberProcs::READ, HTTP_POST, json_adapter(read))
+      make_handler("read", HTTP_POST, json_adapter(read))
         .set_read_write(ReadWrite::Read)
         .set_auto_schema<KVRead>()
         .install();
@@ -574,7 +574,7 @@ namespace ccf
           return make_success(tsr.run<nlohmann::json>(
             tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
         };
-      make_handler(MemberProcs::QUERY, HTTP_POST, json_adapter(query))
+      make_handler("query", HTTP_POST, json_adapter(query))
         .set_read_write(ReadWrite::Read)
         .set_auto_schema<Script, nlohmann::json>()
         .install();
@@ -600,7 +600,7 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
-      make_handler(MemberProcs::PROPOSE, HTTP_POST, json_adapter(propose))
+      make_handler("propose", HTTP_POST, json_adapter(propose))
         .set_auto_schema<Propose>()
         .install();
 
@@ -652,7 +652,7 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      make_handler(MemberProcs::WITHDRAW, HTTP_POST, json_adapter(withdraw))
+      make_handler("withdraw", HTTP_POST, json_adapter(withdraw))
         .set_auto_schema<ProposalAction, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -700,7 +700,7 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, vote.id, proposal.value()));
       };
-      make_handler(MemberProcs::VOTE, HTTP_POST, json_adapter(vote))
+      make_handler("vote", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -727,7 +727,7 @@ namespace ccf
           return make_success(
             complete_proposal(tx, proposal_id, proposal.value()));
         };
-      make_handler(MemberProcs::COMPLETE, HTTP_POST, json_adapter(complete))
+      make_handler("complete", HTTP_POST, json_adapter(complete))
         .set_auto_schema<ProposalAction, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -796,7 +796,7 @@ namespace ccf
         }
         return make_success(true);
       };
-      make_handler(MemberProcs::ACK, HTTP_POST, json_adapter(ack))
+      make_handler("ack", HTTP_POST, json_adapter(ack))
         .set_auto_schema<StateDigest, bool>()
         .set_require_client_signature(true)
         .install();
@@ -826,9 +826,7 @@ namespace ccf
           return make_success(ma.value());
         };
       make_handler(
-        MemberProcs::UPDATE_ACK_STATE_DIGEST,
-        HTTP_POST,
-        json_adapter(update_state_digest))
+        "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
         .set_auto_schema<void, StateDigest>()
         .install();
 
@@ -855,9 +853,7 @@ namespace ccf
           return make_success(encrypted_share.value());
         };
       make_handler(
-        MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
-        HTTP_GET,
-        json_adapter(get_encrypted_recovery_share))
+        "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
         .set_auto_schema<void, EncryptedShare>()
         .install();
 
@@ -926,9 +922,7 @@ namespace ccf
         return make_success(true);
       };
       make_handler(
-        MemberProcs::SUBMIT_RECOVERY_SHARE,
-        HTTP_POST,
-        json_adapter(submit_recovery_share))
+        "recovery_share/submit", HTTP_POST, json_adapter(submit_recovery_share))
         .set_auto_schema<SubmitRecoveryShare, bool>()
         .install();
 
@@ -996,7 +990,7 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_handler(MemberProcs::CREATE, HTTP_POST, json_adapter(create))
+      make_handler("create", HTTP_POST, json_adapter(create))
         .set_require_client_identity(false)
         .install();
     }

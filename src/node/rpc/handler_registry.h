@@ -336,7 +336,9 @@ namespace ccf
       const std::string& method, const HandleFunction& f, ReadWrite read_write)
     {
       constexpr auto default_verb = HTTP_POST;
-      make_handler(method, default_verb, f).set_read_write(read_write).install();
+      make_handler(method, default_verb, f)
+        .set_read_write(read_write)
+        .install();
       return installed_handlers[method][default_verb];
     }
 
