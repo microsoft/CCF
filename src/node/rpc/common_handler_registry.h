@@ -177,8 +177,8 @@ namespace ccf
       auto get_schema = [this](RequestArgs& args, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
-        const auto it = handlers.find(in.method);
-        if (it == handlers.end())
+        const auto it = installed_handlers.find(in.method);
+        if (it == installed_handlers.end())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -187,9 +187,9 @@ namespace ccf
 
         auto j = nlohmann::json::object();
 
-        for (auto& handler : it->second)
+        for (auto& [verb, handler] : it->second)
         {
-          std::string verb_name = http_method_str(handler.verb);
+          std::string verb_name = http_method_str(verb);
           std::transform(
             verb_name.begin(),
             verb_name.end(),

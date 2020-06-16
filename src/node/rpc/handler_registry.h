@@ -40,15 +40,15 @@ namespace ccf
     };
 
     /** A Handler represents a user-defined endpoint that can be invoked by
-    * authorised users via HTTP requests, over TLS. A Handler is accessible at a
-    * specific verb and URI, e.g. POST /app/accounts or GET /app/records.
-    *
-    * Handlers can read from and mutate the state of the replicated key-value
-    store.
-    *
-    * A CCF application is a collection of Handlers recorded in the
-    application's HandlerRegistry.
-    */
+     * authorised users via HTTP requests, over TLS. A Handler is accessible at
+     * a specific verb and URI, e.g. POST /app/accounts or GET /app/records.
+     *
+     * Handlers can read from and mutate the state of the replicated key-value
+     * store.
+     *
+     * A CCF application is a collection of Handlers recorded in the
+     * application's HandlerRegistry.
+     */
     struct Handler
     {
       std::string method;
@@ -262,10 +262,7 @@ namespace ccf
 
   protected:
     std::optional<Handler> default_handler;
-    // Handler lookup uses method and HTTP verb. We assume there is usually a
-    // single verb-per-method, so this map looks up only by method and then we
-    // iterate.
-    std::unordered_map<std::string, std::vector<Handler>> handlers;
+    std::map<std::string, std::map<http_method, Handler>> installed_handlers;
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -308,18 +305,8 @@ namespace ccf
     Handler& install(
       const std::string& method, http_method verb, const HandleFunction& f)
     {
-      auto& method_handlers = handlers[method];
-      for (const auto& other : method_handlers)
-      {
-        if (other.verb == verb)
-        {
-          throw std::logic_error(fmt::format(
-            "Already have an installed handler for {} on {}",
-            http_method_str(verb),
-            method));
-        }
-      }
-      auto& handler = method_handlers.emplace_back();
+      auto& method_handlers = installed_handlers[method];
+      auto& handler = method_handlers[verb];
       handler.method = method;
       handler.func = f;
       handler.read_write = read_write_from_verb(verb);
@@ -362,9 +349,9 @@ namespace ccf
      */
     virtual void list_methods(kv::Tx& tx, ListMethods::Out& out)
     {
-      for (const auto& handler : handlers)
+      for (const auto& [method, verb_handlers] : installed_handlers)
       {
-        out.methods.push_back(handler.first);
+        out.methods.push_back(method);
       }
     }
 
@@ -372,15 +359,14 @@ namespace ccf
 
     virtual Handler* find_handler(const std::string& method, http_method verb)
     {
-      auto search = handlers.find(method);
-      if (search != handlers.end())
+      auto search = installed_handlers.find(method);
+      if (search != installed_handlers.end())
       {
-        for (auto& handler : search->second)
+        auto& verb_handlers = search->second;
+        auto search2 = verb_handlers.find(verb);
+        if (search2 != verb_handlers.end())
         {
-          if (handler.verb == verb)
-          {
-            return &handler;
-          }
+          return &search2->second;
         }
       }
 
@@ -396,12 +382,12 @@ namespace ccf
       const std::string& method)
     {
       std::vector<http_method> verbs;
-      auto search = handlers.find(method);
-      if (search != handlers.end())
+      auto search = installed_handlers.find(method);
+      if (search != installed_handlers.end())
       {
-        for (auto& handler : search->second)
+        for (auto& [verb, handler] : search->second)
         {
-          verbs.push_back(handler.verb);
+          verbs.push_back(verb);
         }
       }
 
