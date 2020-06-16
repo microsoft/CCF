@@ -15,7 +15,7 @@
 
 namespace logger
 {
-  /** Print a demangled stack backtrace of the caller function to FILE* out. */
+  /** Print a demangled stack backtrace of the caller function to std out. */
   static inline void print_stacktrace()
   {
     std::cout << "stack trace:" << std::endl;
@@ -30,21 +30,5 @@ namespace logger
     std::cout << "Error: signal " << sig << ":" << std::endl;
     print_stacktrace();
     exit(1);
-  }
-
-  static inline void Init(const char* file_name_extention)
-  {
-    signal(SIGSEGV, handler); // install our handler
-
-    std::string output_file("out");
-    output_file.append(file_name_extention);
-    output_file.append(".txt");
-
-    std::string error_file("err");
-    error_file.append(file_name_extention);
-    error_file.append(".txt");
-
-    freopen(output_file.c_str(), "w", stdout);
-    freopen(error_file.c_str(), "w", stderr);
   }
 }
