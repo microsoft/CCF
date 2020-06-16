@@ -45,20 +45,21 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("empty_function", empty_function, HandlerRegistry::Read);
+    install("empty_function", HTTP_POST, empty_function)
+      .set_read_write(HandlerRegistry::Read);
 
     auto empty_function_signed = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install(
-      "empty_function_signed", empty_function_signed, HandlerRegistry::Read)
+    install("empty_function_signed", HTTP_POST, empty_function_signed)
+      .set_read_write(HandlerRegistry::Read)
       .set_require_client_signature(true);
 
     auto empty_function_no_auth = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install(
-      "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Read)
+    install("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
+      .set_read_write(HandlerRegistry::Read)
       .set_require_client_identity(false);
   }
 };
@@ -124,18 +125,18 @@ public:
     auto get_only = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install_get("get_only", get_only, HandlerRegistry::Read);
+    install("get_only", HTTP_GET, get_only);
 
     auto post_only = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install_post("post_only", post_only, HandlerRegistry::Read);
+    install("post_only", HTTP_POST, post_only);
 
     auto put_or_delete = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("put_or_delete", put_or_delete, HandlerRegistry::Read, HTTP_PUT);
-    install("put_or_delete", put_or_delete, HandlerRegistry::Read, HTTP_DELETE);
+    install("put_or_delete", HTTP_PUT, put_or_delete);
+    install("put_or_delete", HTTP_DELETE, put_or_delete);
   }
 };
 
@@ -1053,6 +1054,14 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto rpc_ctx =
     enclave::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
+  if (response.status != HTTP_STATUS_OK)
+  {
+    std::cout << std::string(
+                   serialized_signed_call.begin(), serialized_signed_call.end())
+              << std::endl;
+    std::cout << std::string(response.body.begin(), response.body.end())
+              << std::endl;
+  }
   CHECK(response.status == HTTP_STATUS_OK);
 }
 

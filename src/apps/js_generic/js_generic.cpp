@@ -269,7 +269,7 @@ namespace ccfapp
         return;
       };
 
-      set_default(default_handler, Write);
+      set_default(default_handler);
     }
 
     // Since we do our own dispatch within the default handler, report the

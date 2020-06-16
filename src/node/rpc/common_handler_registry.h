@@ -253,33 +253,39 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
       };
 
-      install_get(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
+      install(GeneralProcs::GET_COMMIT, HTTP_GET, json_adapter(get_commit))
         .set_execute_locally(true)
         .set_auto_schema<void, GetCommit::Out>();
-      install_get(
-        GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
+      install(
+        GeneralProcs::GET_TX_STATUS, HTTP_GET, json_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>();
-      install_get(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
+      install(GeneralProcs::GET_METRICS, HTTP_GET, json_adapter(get_metrics))
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true);
-      install(GeneralProcs::MK_SIGN, json_adapter(make_signature), Write)
+      install(GeneralProcs::MK_SIGN, HTTP_POST, json_adapter(make_signature))
         .set_auto_schema<void, bool>();
-      install_get(GeneralProcs::WHO, json_adapter(who), Read)
+      install(GeneralProcs::WHO, HTTP_GET, json_adapter(who))
         .set_auto_schema<WhoIs::In, WhoAmI::Out>();
-      install_get(
-        GeneralProcs::GET_PRIMARY_INFO, json_adapter(get_primary_info), Read)
+      install(
+        GeneralProcs::GET_PRIMARY_INFO,
+        HTTP_GET,
+        json_adapter(get_primary_info))
         .set_auto_schema<void, GetPrimaryInfo::Out>();
-      install_get(
-        GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read)
+      install(
+        GeneralProcs::GET_NETWORK_INFO,
+        HTTP_GET,
+        json_adapter(get_network_info))
         .set_auto_schema<void, GetNetworkInfo::Out>();
-      install_get(
-        GeneralProcs::API_LIST_METHODS, json_adapter(list_methods_fn), Read)
+      install(
+        GeneralProcs::API_LIST_METHODS, HTTP_GET, json_adapter(list_methods_fn))
         .set_auto_schema<void, ListMethods::Out>();
-      install_get(GeneralProcs::API_GET_SCHEMA, json_adapter(get_schema), Read)
+      install(GeneralProcs::API_GET_SCHEMA, HTTP_GET, json_adapter(get_schema))
         .set_auto_schema<GetSchema>();
-      install_get(GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read)
+      install(GeneralProcs::GET_RECEIPT, HTTP_GET, json_adapter(get_receipt))
         .set_auto_schema<GetReceipt>();
-      install(GeneralProcs::VERIFY_RECEIPT, json_adapter(verify_receipt), Read)
+      install(
+        GeneralProcs::VERIFY_RECEIPT, HTTP_POST, json_adapter(verify_receipt))
+        .set_read_write(ReadWrite::Read)
         .set_auto_schema<VerifyReceipt>();
     }
 

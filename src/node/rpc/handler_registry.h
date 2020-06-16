@@ -53,7 +53,6 @@ namespace ccf
     {
       std::string method;
       HandleFunction func;
-      ReadWrite read_write = Write;
       HandlerRegistry* registry;
 
       nlohmann::json params_schema = nullptr;
@@ -136,6 +135,16 @@ namespace ccf
       Handler& set_auto_schema()
       {
         return set_auto_schema<typename T::In, typename T::Out>();
+      }
+
+      ReadWrite read_write = ReadWrite::Write;
+
+      /** Override whether a handler is read-only or makes writes
+       */
+      Handler& set_read_write(ReadWrite rw)
+      {
+        read_write = rw;
+        return *this;
       }
 
       bool require_client_signature = false;
@@ -229,7 +238,7 @@ namespace ccf
        * @return The installed Handler for further modification
        */
       // clang-format off
-      [[deprecated("HTTP Verb should not be changed after installation: use install_get()")]]
+      [[deprecated("HTTP Verb should not be changed after installation: use install(...HTTP_GET...)")]]
       // clang-format on
       Handler&
       set_http_get_only()
@@ -242,7 +251,7 @@ namespace ccf
        * @return The installed Handler for further modification
        */
       // clang-format off
-      [[deprecated("HTTP Verb should not be changed after installation: use install_post()")]]
+      [[deprecated("HTTP Verb should not be changed after installation: use install(...HTTP_POST...)")]]
       // clang-format on
       Handler&
       set_http_post_only()
@@ -263,6 +272,18 @@ namespace ccf
 
     Certs* certs = nullptr;
 
+    ReadWrite read_write_from_verb(http_method verb)
+    {
+      if (verb == HTTP_GET)
+      {
+        return ReadWrite::Read;
+      }
+      else
+      {
+        return ReadWrite::Write;
+      }
+    }
+
   public:
     HandlerRegistry(kv::Store& tables, const std::string& certs_table_name = "")
     {
@@ -280,16 +301,12 @@ namespace ccf
      * replaced.
      *
      * @param method Method name
-     * @param f Method implementation
-     * @param read_write Flag if method will Read, Write, MayWrite
      * @param verb The HTTP verb which this handler will respond to
+     * @param f Method implementation
      * @return The installed Handler for further modification
      */
     Handler& install(
-      const std::string& method,
-      const HandleFunction& f,
-      ReadWrite read_write,
-      http_method verb = HTTP_POST)
+      const std::string& method, http_method verb, const HandleFunction& f)
     {
       auto& method_handlers = handlers[method];
       for (const auto& other : method_handlers)
@@ -305,26 +322,22 @@ namespace ccf
       auto& handler = method_handlers.emplace_back();
       handler.method = method;
       handler.func = f;
-      handler.read_write = read_write;
+      handler.read_write = read_write_from_verb(verb);
       handler.verb = verb;
       handler.registry = this;
       return handler;
     }
 
-    /** Installs a handler for POST HTTP requests. See install()
-     */
-    Handler& install_post(
-      const std::string& method, HandleFunction f, ReadWrite read_write)
+    // clang-format off
+    [[deprecated(
+      "HTTP verb should be specified explicitly. "
+      "ReadWrite is implied, or overridden after construction")]]
+    // clang-format on
+    Handler&
+    install(
+      const std::string& method, const HandleFunction& f, ReadWrite read_write)
     {
-      return install(method, f, read_write, HTTP_POST);
-    }
-
-    /** Installs a handler for GET HTTP requests. See install()
-     */
-    Handler& install_get(
-      const std::string& method, HandleFunction f, ReadWrite read_write)
-    {
-      return install(method, f, read_write, HTTP_GET);
+      return install(method, HTTP_POST, f);
     }
 
     /** Set a default HandleFunction
@@ -333,12 +346,11 @@ namespace ccf
      * was found.
      *
      * @param f Method implementation
-     * @param read_write Flag if method will Read, Write, MayWrite
      * @return The installed Handler for further modification
      */
-    Handler& set_default(HandleFunction f, ReadWrite read_write)
+    Handler& set_default(HandleFunction f)
     {
-      default_handler = {"", f, read_write, this};
+      default_handler = {"", f, this};
       return default_handler.value();
     }
 

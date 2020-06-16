@@ -175,7 +175,7 @@ namespace ccfapp
         }
       };
 
-      set_default(json_adapter(default_handler), Write);
+      set_default(json_adapter(default_handler));
     }
 
     // Since we do our own dispatch within the default handler, report the

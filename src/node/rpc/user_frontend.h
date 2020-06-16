@@ -56,18 +56,6 @@ namespace ccf
     {
       return handlers.install(std::forward<Ts>(ts)...);
     }
-
-    template <typename... Ts>
-    ccf::HandlerRegistry::Handler& install_get(Ts&&... ts)
-    {
-      return handlers.install_get(std::forward<Ts>(ts)...);
-    }
-
-    template <typename... Ts>
-    ccf::HandlerRegistry::Handler& install_post(Ts&&... ts)
-    {
-      return handlers.install_post(std::forward<Ts>(ts)...);
-    }
   };
 
   class UserHandlerRegistry : public CommonHandlerRegistry

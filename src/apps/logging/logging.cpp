@@ -333,7 +333,7 @@ namespace loggingapp
       install(Procs::LOG_RECORD, ccf::json_adapter(record), Write)
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
-      install_get(Procs::LOG_GET, ccf::json_adapter(get), Read)
+      install(Procs::LOG_GET, ccf::json_adapter(get), Read)
         .set_auto_schema<LoggingGet>();
       // SNIPPET_END: install_get
 
