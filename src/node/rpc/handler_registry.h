@@ -229,8 +229,7 @@ namespace ccf
        * @return The installed Handler for further modification
        */
       // clang-format off
-      [[deprecated("HTTP Verb should not be changed after installation: use "
-                    "install_get()")]]
+      [[deprecated("HTTP Verb should not be changed after installation: use install_get()")]]
       // clang-format on
       Handler&
       set_http_get_only()
@@ -243,8 +242,7 @@ namespace ccf
        * @return The installed Handler for further modification
        */
       // clang-format off
-      [[deprecated("HTTP Verb should not be changed after installation: use "
-                    "install_post()")]]
+      [[deprecated("HTTP Verb should not be changed after installation: use install_post()")]]
       // clang-format on
       Handler&
       set_http_post_only()
