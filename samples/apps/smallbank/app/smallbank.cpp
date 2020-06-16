@@ -450,24 +450,15 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      install(Procs::SMALL_BANKING_CREATE, create, HandlerRegistry::Write);
+      install(Procs::SMALL_BANKING_CREATE, HTTP_POST, create);
+      install(Procs::SMALL_BANKING_CREATE_BATCH, HTTP_POST, create_batch);
+      install(Procs::SMALL_BANKING_BALANCE, HTTP_GET, balance);
       install(
-        Procs::SMALL_BANKING_CREATE_BATCH,
-        create_batch,
-        HandlerRegistry::Write);
-      install(Procs::SMALL_BANKING_BALANCE, balance, HandlerRegistry::Read);
+        Procs::SMALL_BANKING_TRANSACT_SAVINGS, HTTP_POST, transact_savings);
       install(
-        Procs::SMALL_BANKING_TRANSACT_SAVINGS,
-        transact_savings,
-        HandlerRegistry::Write);
-      install(
-        Procs::SMALL_BANKING_DEPOSIT_CHECKING,
-        deposit_checking,
-        HandlerRegistry::Write);
-      install(
-        Procs::SMALL_BANKING_AMALGAMATE, amalgamate, HandlerRegistry::Write);
-      install(
-        Procs::SMALL_BANKING_WRITE_CHECK, writeCheck, HandlerRegistry::Write);
+        Procs::SMALL_BANKING_DEPOSIT_CHECKING, HTTP_POST, deposit_checking);
+      install(Procs::SMALL_BANKING_AMALGAMATE, HTTP_POST, amalgamate);
+      install(Procs::SMALL_BANKING_WRITE_CHECK, HTTP_POST, writeCheck);
     }
   };
 

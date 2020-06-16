@@ -330,34 +330,34 @@ namespace loggingapp
         return true;
       };
 
-      install(Procs::LOG_RECORD, ccf::json_adapter(record), Write)
+      install(Procs::LOG_RECORD, HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>();
       // SNIPPET_START: install_get
-      install(Procs::LOG_GET, ccf::json_adapter(get), Read)
+      install(Procs::LOG_GET, HTTP_GET, ccf::json_adapter(get))
         .set_auto_schema<LoggingGet>();
       // SNIPPET_END: install_get
 
-      install(Procs::LOG_RECORD_PUBLIC, ccf::json_adapter(record_public), Write)
+      install(
+        Procs::LOG_RECORD_PUBLIC, HTTP_POST, ccf::json_adapter(record_public))
         .set_params_schema(record_public_params_schema)
         .set_result_schema(record_public_result_schema);
-
-      install_get(Procs::LOG_GET_PUBLIC, ccf::json_adapter(get_public), Read)
+      install(Procs::LOG_GET_PUBLIC, HTTP_GET, ccf::json_adapter(get_public))
         .set_params_schema(get_public_params_schema)
         .set_result_schema(get_public_result_schema);
 
-      install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
+      install(Procs::LOG_RECORD_PREFIX_CERT, HTTP_POST, log_record_prefix_cert);
       install(
         Procs::LOG_RECORD_ANONYMOUS_CALLER,
-        ccf::json_adapter(log_record_anonymous),
-        Write)
+        HTTP_POST,
+        ccf::json_adapter(log_record_anonymous))
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false);
-      install(Procs::LOG_RECORD_RAW_TEXT, log_record_text, Write);
-      install_get(
+      install(Procs::LOG_RECORD_RAW_TEXT, HTTP_POST, log_record_text);
+      install(
         Procs::LOG_GET_HISTORICAL,
+        HTTP_GET,
         ccf::historical::adapter(
-          get_historical, context.get_historical_state(), is_tx_committed),
-        Read);
+          get_historical, context.get_historical_state(), is_tx_committed));
 
       auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(

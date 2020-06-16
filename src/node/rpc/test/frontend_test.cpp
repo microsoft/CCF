@@ -74,7 +74,7 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("empty_function", empty_function, HandlerRegistry::Read);
+    install("empty_function", HTTP_POST, empty_function);
     disable_request_storing();
   }
 };
@@ -89,14 +89,13 @@ public:
     auto echo_function = [this](kv::Tx& tx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
-    install("echo", json_adapter(echo_function), HandlerRegistry::Read);
+    install("echo", HTTP_POST, json_adapter(echo_function));
 
     auto get_caller_function =
       [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         return make_success(caller_id);
       };
-    install(
-      "get_caller", json_adapter(get_caller_function), HandlerRegistry::Read);
+    install("get_caller", HTTP_POST, json_adapter(get_caller_function));
 
     auto failable_function =
       [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
@@ -111,7 +110,7 @@ public:
 
         return make_success(true);
       };
-    install("failable", json_adapter(failable_function), HandlerRegistry::Read);
+    install("failable", HTTP_POST, json_adapter(failable_function));
   }
 };
 
@@ -169,7 +168,7 @@ public:
       const auto status = parsed["status"].get<http_status>();
       args.rpc_ctx->set_response_status(status);
     };
-    install("maybe_commit", maybe_commit, HandlerRegistry::Write);
+    install("maybe_commit", HTTP_POST, maybe_commit);
   }
 };
 
@@ -187,8 +186,8 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    member_handlers.install(
-      "empty_function", empty_function, HandlerRegistry::Read);
+    member_handlers.install("empty_function", HTTP_POST, empty_function)
+      .set_read_write(HandlerRegistry::Read);
   }
 };
 
@@ -206,7 +205,8 @@ public:
     auto empty_function = [this](RequestArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    handlers.install("empty_function", empty_function, HandlerRegistry::Read);
+    handlers.install("empty_function", HTTP_POST, empty_function)
+      .set_read_write(HandlerRegistry::Read);
   }
 };
 
@@ -241,14 +241,13 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    install("empty_function", empty_function, HandlerRegistry::Write);
+    install("empty_function", HTTP_POST, empty_function);
 
     auto empty_function_no_auth = [this](RequestArgs& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install(
-      "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Write)
+    install("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
       .set_require_client_identity(false);
   }
 };
@@ -269,7 +268,7 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.install("empty_function", empty_function, HandlerRegistry::Write);
+    handlers.install("empty_function", HTTP_POST, empty_function);
   }
 };
 
@@ -292,7 +291,7 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.install("empty_function", empty_function, HandlerRegistry::Write);
+    handlers.install("empty_function", HTTP_POST, empty_function);
   }
 };
 
