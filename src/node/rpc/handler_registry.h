@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_deprecated.h"
 #include "ds/json_schema.h"
 #include "enclave/rpc_context.h"
 #include "http/http_consts.h"
@@ -223,11 +224,10 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      // clang-format off
-      [[deprecated("HTTP Verb should not be changed after installation: pass verb to install()")]]
-      // clang-format on
-      Handler&
-      set_allowed_verb(http_method v)
+      CCF_DEPRECATED(
+        "HTTP Verb should not be changed after installation: pass verb to "
+        "install()")
+      Handler& set_allowed_verb(http_method v)
       {
         const auto previous_verb = verb;
         return registry->reinstall(*this, method, previous_verb);
@@ -237,11 +237,10 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      // clang-format off
-      [[deprecated("HTTP Verb should not be changed after installation: use install(...HTTP_GET...)")]]
-      // clang-format on
-      Handler&
-      set_http_get_only()
+      CCF_DEPRECATED(
+        "HTTP Verb should not be changed after installation: use "
+        "install(...HTTP_GET...)")
+      Handler& set_http_get_only()
       {
         return set_allowed_verb(HTTP_GET);
       }
@@ -250,11 +249,10 @@ namespace ccf
        *
        * @return The installed Handler for further modification
        */
-      // clang-format off
-      [[deprecated("HTTP Verb should not be changed after installation: use install(...HTTP_POST...)")]]
-      // clang-format on
-      Handler&
-      set_http_post_only()
+      CCF_DEPRECATED(
+        "HTTP Verb should not be changed after installation: use "
+        "install(...HTTP_POST...)")
+      Handler& set_http_post_only()
       {
         return set_allowed_verb(HTTP_POST);
       }
@@ -306,7 +304,7 @@ namespace ccf
      * @param method The URI at which this handler will be installed
      * @param verb The HTTP verb which this handler will respond to
      * @param f Functor which will be invoked for requests to VERB /method
-     * @return The installed Handler for further modification
+     * @return The new Handler for further modification
      */
     Handler make_handler(
       const std::string& method, http_method verb, const HandleFunction& f)
@@ -320,10 +318,18 @@ namespace ccf
       return handler;
     }
 
-    /** Install HandleFunction for method name
+    /** Install the given handler, using its method and verb
      *
-     * If an implementation is already installed for that method, it will be
-     * replaced.
+     * If an implementation is already installed for this method and verb, it
+     * will be replaced.
+     * @param handler Handler object describing the new endpoint to install
+     */
+    void install(const Handler& handler)
+    {
+      installed_handlers[handler.method][handler.verb] = handler;
+    }
+
+    /** Install HandleFunction for method name
      *
      * @param method Method name
      * @param verb The HTTP verb which this handler will respond to
@@ -338,24 +344,16 @@ namespace ccf
       return installed_handlers[method][verb];
     }
 
-    // clang-format off
-    [[deprecated(
+    CCF_DEPRECATED(
       "HTTP verb should be specified explicitly. "
-      "ReadWrite is implied, or overridden after construction")]]
-    // clang-format on
-    Handler&
-    install(
+      "ReadWrite is implied, or overridden after construction")
+    Handler& install(
       const std::string& method, const HandleFunction& f, ReadWrite read_write)
     {
       return install(method, HTTP_POST, f).set_read_write(read_write);
     }
 
-    void install(const Handler& h)
-    {
-      installed_handlers[h.method][h.verb] = h;
-    }
-
-    // Only needed to deprecated functions
+    // Only needed to support deprecated functions
     Handler& reinstall(
       const Handler& h, const std::string& prev_method, http_method prev_verb)
     {
