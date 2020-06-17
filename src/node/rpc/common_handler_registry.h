@@ -110,44 +110,45 @@ namespace ccf
 
       if (certs != nullptr)
       {
-        auto who =
-          [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-            if (certs == nullptr)
+        auto who = [this](auto& args, nlohmann::json&& params) {
+          if (certs == nullptr)
+          {
+            return make_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "This frontend does not support 'who'");
+          }
+
+          auto caller_id = args.caller_id;
+
+          if (!params.is_null())
+          {
+            const WhoIs::In in = params;
+            auto certs_view = args.tx.get_view(*certs);
+            auto caller_id_opt = certs_view->get(in.cert);
+
+            if (!caller_id_opt.has_value())
             {
               return make_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                "This frontend does not support 'who'");
+                HTTP_STATUS_BAD_REQUEST, "Certificate not recognised");
             }
 
-            if (!params.is_null())
-            {
-              const WhoIs::In in = params;
-              auto certs_view = tx.get_view(*certs);
-              auto caller_id_opt = certs_view->get(in.cert);
+            caller_id = caller_id_opt.value();
+          }
 
-              if (!caller_id_opt.has_value())
-              {
-                return make_error(
-                  HTTP_STATUS_BAD_REQUEST, "Certificate not recognised");
-              }
-
-              caller_id = caller_id_opt.value();
-            }
-
-            return make_success(WhoAmI::Out{caller_id});
-          };
-        make_handler("who", HTTP_GET, json_adapter(who))
+          return make_success(WhoAmI::Out{caller_id});
+        };
+        make_read_only_handler("who", HTTP_GET, json_read_only_adapter(who))
           .set_auto_schema<WhoIs::In, WhoAmI::Out>()
           .install();
       }
 
-      auto get_primary_info = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_primary_info = [this](auto& args, nlohmann::json&& params) {
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
           auto current_view = consensus->get_view();
 
-          auto nodes_view = tx.get_view(*nodes);
+          auto nodes_view = args.tx.get_view(*nodes);
           auto info = nodes_view->get(primary_id);
 
           if (info)
@@ -164,18 +165,19 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
       };
-      make_handler("primary_info", HTTP_GET, json_adapter(get_primary_info))
+      make_read_only_handler(
+        "primary_info", HTTP_GET, json_read_only_adapter(get_primary_info))
         .set_auto_schema<void, GetPrimaryInfo::Out>()
         .install();
 
-      auto get_network_info = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_network_info = [this](auto& args, nlohmann::json&& params) {
         GetNetworkInfo::Out out;
         if (consensus != nullptr)
         {
           out.primary_id = consensus->primary();
         }
 
-        auto nodes_view = tx.get_view(*nodes);
+        auto nodes_view = args.tx.get_view(*nodes);
         nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status == ccf::NodeStatus::TRUSTED)
           {
@@ -186,7 +188,8 @@ namespace ccf
 
         return make_success(out);
       };
-      make_handler("network_info", HTTP_GET, json_adapter(get_network_info))
+      make_read_only_handler(
+        "network_info", HTTP_GET, json_read_only_adapter(get_network_info))
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
@@ -291,7 +294,6 @@ namespace ccf
       };
       make_command_handler(
         "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))
-        .set_read_write(ReadWrite::Read)
         .set_auto_schema<VerifyReceipt>()
         .install();
     }

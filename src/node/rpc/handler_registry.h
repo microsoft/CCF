@@ -26,7 +26,16 @@ namespace ccf
   };
   using HandleFunction = std::function<void(HandlerArgs& args)>;
 
-  // Commands are endpoints which do not interact with the kv.
+  // Read-only handlers can only get values from the kv, they cannot write
+  struct ReadOnlyHandlerArgs
+  {
+    std::shared_ptr<enclave::RpcContext> rpc_ctx;
+    kv::ReadOnlyTx& tx;
+    CallerId caller_id;
+  };
+  using ReadOnlyHandleFunction = std::function<void(ReadOnlyHandlerArgs& args)>;
+
+  // Commands are endpoints which do not interact with the kv, even to read
   struct CommandHandlerArgs
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
@@ -280,18 +289,6 @@ namespace ccf
 
     Certs* certs = nullptr;
 
-    ReadWrite read_write_from_verb(http_method verb)
-    {
-      if (verb == HTTP_GET)
-      {
-        return ReadWrite::Read;
-      }
-      else
-      {
-        return ReadWrite::Write;
-      }
-    }
-
   public:
     HandlerRegistry(kv::Store& tables, const std::string& certs_table_name = "")
     {
@@ -305,8 +302,8 @@ namespace ccf
 
     /** Create a new handler.
      *
-     * Set additional properties, and finally call Handler::install() to install
-     * it
+     * Caller should set any additional properties on the returned Handler
+     * object, and finally call Handler::install() to install it.
      *
      * @param method The URI at which this handler will be installed
      * @param verb The HTTP verb which this handler will respond to
@@ -320,9 +317,28 @@ namespace ccf
       handler.method = method;
       handler.verb = verb;
       handler.func = f;
-      handler.read_write = read_write_from_verb(verb);
+      handler.read_write = ReadWrite::Write;
       handler.registry = this;
       return handler;
+    }
+
+    /** Create a read-only handler.
+     */
+    Handler make_read_only_handler(
+      const std::string& method,
+      http_method verb,
+      const ReadOnlyHandleFunction& f)
+    {
+      return make_handler(
+               method,
+               verb,
+               [f](HandlerArgs& args) {
+                 kv::ReadOnlyTx ro_tx(args.tx);
+                 ReadOnlyHandlerArgs ro_args{
+                   args.rpc_ctx, ro_tx, args.caller_id};
+                 f(ro_args);
+               })
+        .set_read_write(ReadWrite::Read);
     }
 
     /** Create a new command handler.
@@ -335,11 +351,14 @@ namespace ccf
       http_method verb,
       const CommandHandleFunction& f)
     {
-      auto wrapped_fn = [f](HandlerArgs& args) {
-        CommandHandlerArgs cra{args.rpc_ctx, args.caller_id};
-        f(cra);
-      };
-      return make_handler(method, verb, wrapped_fn);
+      return make_handler(
+               method,
+               verb,
+               [f](HandlerArgs& args) {
+                 CommandHandlerArgs command_args{args.rpc_ctx, args.caller_id};
+                 f(command_args);
+               })
+        .set_read_write(ReadWrite::Read);
     }
 
     /** Install the given handler, using its method and verb
@@ -354,8 +373,10 @@ namespace ccf
     }
 
     CCF_DEPRECATED(
-      "HTTP verb should be specified explicitly. "
-      "Use make_handler(METHOD, VERB, FN).set_read_write().install()")
+      "HTTP verb should be specified explicitly. Use: "
+      "make_handler(METHOD, VERB, FN)"
+      "  .set_read_write() // Only if required"
+      "  .install()")
     Handler& install(
       const std::string& method, const HandleFunction& f, ReadWrite read_write)
     {

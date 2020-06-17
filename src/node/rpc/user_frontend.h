@@ -49,8 +49,8 @@ namespace ccf
       return true;
     }
 
-    // This is simply so apps can write install(...); rather than
-    // handlers.install(...);
+    // Forward these methods so that apps can write foo(...); rather than
+    // handlers.foo(...);
     template <typename... Ts>
     ccf::HandlerRegistry::Handler& install(Ts&&... ts)
     {
@@ -61,6 +61,18 @@ namespace ccf
     ccf::HandlerRegistry::Handler make_handler(Ts&&... ts)
     {
       return handlers.make_handler(std::forward<Ts>(ts)...);
+    }
+
+    template <typename... Ts>
+    ccf::HandlerRegistry::Handler make_read_only_handler(Ts&&... ts)
+    {
+      return handlers.make_read_only_handler(std::forward<Ts>(ts)...);
+    }
+
+    template <typename... Ts>
+    ccf::HandlerRegistry::Handler make_command_handler(Ts&&... ts)
+    {
+      return handlers.make_command_handler(std::forward<Ts>(ts)...);
     }
   };
 

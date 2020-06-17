@@ -177,6 +177,26 @@ public:
   }
 };
 
+class TestAlternativeHandlerTypes : public SimpleUserRpcFrontend
+{
+public:
+  TestAlternativeHandlerTypes(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  {
+    open();
+
+    auto command = [this](CommandHandlerArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_command_handler("command", HTTP_POST, command).install();
+
+    auto read_only = [this](ReadOnlyHandlerArgs& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_read_only_handler("read_only", HTTP_POST, read_only).install();
+    make_read_only_handler("read_only", HTTP_GET, read_only).install();
+  }
+};
+
 class TestMemberFrontend : public MemberRpcFrontend
 {
 public:
@@ -1046,6 +1066,32 @@ TEST_CASE("Explicit commitability")
         }
       }
     }
+  }
+}
+
+TEST_CASE("Alternative handlers")
+{
+  prepare_callers();
+  TestAlternativeHandlerTypes frontend(*network.tables);
+
+  {
+    auto command = create_simple_request("command");
+    const auto serialized_command = command.build_request();
+
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_command);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+
+  for (auto verb : {HTTP_GET, HTTP_POST})
+  {
+    http::Request read_only("read_only", verb);
+    const auto serialized_read_only = read_only.build_request();
+
+    auto rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_read_only);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
   }
 }
 

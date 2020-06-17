@@ -303,6 +303,20 @@ namespace ccf
     };
   }
 
+  using ReadOnlyHandlerWithJson =
+    std::function<jsonhandler::JsonAdapterResponse(
+      ReadOnlyHandlerArgs& args, nlohmann::json&& params)>;
+
+  static ReadOnlyHandleFunction json_read_only_adapter(
+    const ReadOnlyHandlerWithJson& f)
+  {
+    return [f](ReadOnlyHandlerArgs& args) {
+      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
+      jsonhandler::set_response(
+        f(args, std::move(params)), args.rpc_ctx, packing);
+    };
+  }
+
   using CommandHandlerWithJson = std::function<jsonhandler::JsonAdapterResponse(
     CommandHandlerArgs& args, nlohmann::json&& params)>;
 

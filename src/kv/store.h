@@ -310,7 +310,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term_ = nullptr,
-      ViewContainer* tx = nullptr)
+      AbstractViewContainer* tx = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction.

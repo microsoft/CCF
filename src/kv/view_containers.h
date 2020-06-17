@@ -22,9 +22,9 @@ namespace kv
   // stable order to avoid deadlocks. This ordered map will claim in name-order
   using OrderedViews = std::map<std::string, MapView>;
 
-  struct ViewContainer
+  struct AbstractViewContainer
   {
-    virtual ~ViewContainer() = default;
+    virtual ~AbstractViewContainer() = default;
     virtual void set_view_list(OrderedViews& view_list, Term term) = 0;
   };
 
