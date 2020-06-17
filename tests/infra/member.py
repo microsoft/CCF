@@ -53,7 +53,7 @@ class Member:
                 os.path.join(self.common_dir, f"member{self.member_id}_cert.pem")
             )
             assert os.path.isfile(
-                os.path.join(self.common_dir, f"member{self.member_id}_enc_priv.pem")
+                os.path.join(self.common_dir, f"member{self.member_id}_enc_privk.pem")
             )
 
     def is_active(self):
