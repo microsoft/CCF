@@ -453,7 +453,7 @@ namespace ccfapp
       make_handler(Procs::SMALL_BANKING_CREATE, HTTP_POST, create).install();
       make_handler(Procs::SMALL_BANKING_CREATE_BATCH, HTTP_POST, create_batch)
         .install();
-      make_handler(Procs::SMALL_BANKING_BALANCE, HTTP_GET, balance).install();
+      make_handler(Procs::SMALL_BANKING_BALANCE, HTTP_POST, balance).install();
       make_handler(
         Procs::SMALL_BANKING_TRANSACT_SAVINGS, HTTP_POST, transact_savings)
         .install();

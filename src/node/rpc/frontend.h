@@ -247,8 +247,8 @@ namespace ccf
           // - ALLOW header for standards compliance + machine parsing
           // - Body for visiblity + human readability
           ctx->set_response_header(http::headers::ALLOW, allow_header_value);
-          ctx->set_response_body(
-            fmt::format("Allowed methods are: {}", allow_header_value));
+          ctx->set_response_body(fmt::format(
+            "Allowed methods for '{}' are: {}", method, allow_header_value));
           return ctx->serialise_response();
         }
       }
