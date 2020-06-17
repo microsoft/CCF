@@ -210,7 +210,6 @@ TEST_CASE("serialize map")
   {
     champ::Snapshot<K, V, H> snapshot(
       map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
-
     const std::vector<uint8_t>& s = snapshot.get_buffer();
 
     champ::Map<K, V, H> new_map = champ::Map<K, V, H>::deserialize_map(

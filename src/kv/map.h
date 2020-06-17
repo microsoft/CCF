@@ -77,9 +77,6 @@ namespace kv
       return untyped_map.compact(v);
     }
 
-    class Snapshot : public AbstractMap::Snapshot
-    {};
-
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       return untyped_map.snapshot(v);
