@@ -49,8 +49,8 @@ class LoggingTxs:
     ):
         self.pub = {}
         self.priv = {}
-        self.next_pub_index = 0
-        self.next_priv_index = 0
+        self.next_pub_index = 1
+        self.next_priv_index = 1
         self.notifications_queue = notifications_queue
 
     def issue(
