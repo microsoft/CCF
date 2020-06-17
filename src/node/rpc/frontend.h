@@ -308,9 +308,9 @@ namespace ccf
 
       if (!is_primary && consensus->type() == ConsensusType::RAFT)
       {
-        switch (handler->read_write)
+        switch (handler->forwarding_required)
         {
-          case HandlerRegistry::Read:
+          case ForwardingRequired::Sometimes:
           {
             if (ctx->session->is_forwarding)
             {
@@ -319,7 +319,7 @@ namespace ccf
             break;
           }
 
-          case HandlerRegistry::Write:
+          case ForwardingRequired::Always:
           {
             ctx->session->is_forwarding = true;
             return forward_or_redirect_json(ctx, handler, caller_id);

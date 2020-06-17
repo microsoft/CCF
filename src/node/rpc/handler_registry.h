@@ -43,17 +43,23 @@ namespace ccf
   };
   using CommandHandleFunction = std::function<void(CommandHandlerArgs& args)>;
 
+  enum class ForwardingRequired
+  {
+    Sometimes,
+    Always,
+  };
+
   /** The HandlerRegistry records the user-defined Handlers for a given
    * CCF application.
    */
   class HandlerRegistry
   {
   public:
-    enum ReadWrite
-    {
-      Read,
-      Write
-    };
+      enum ReadWrite
+      {
+        Read,
+        Write
+      };
 
     /** A Handler represents a user-defined endpoint that can be invoked by
      * authorised users via HTTP requests, over TLS. A Handler is accessible at
@@ -153,14 +159,20 @@ namespace ccf
         return set_auto_schema<typename T::In, typename T::Out>();
       }
 
-      ReadWrite read_write = ReadWrite::Write;
+      ForwardingRequired forwarding_required = ForwardingRequired::Always;
 
-      /** Override whether a handler is read-only or makes writes
+      /** Override whether a handler is always forwarded, or whether it is safe to sometimes execute on followers
        */
+      Handler& set_forwarding_required(ForwardingRequired fr)
+      {
+        forwarding_required = fr;
+        return *this;
+      }
+
+      CCF_DEPRECATED("Replaced by set_forwarding_required")
       Handler& set_read_write(ReadWrite rw)
       {
-        read_write = rw;
-        return *this;
+        return set_forwarding_required(rw == Read ? ForwardingRequired::Sometimes : ForwardingRequired::Always);
       }
 
       bool require_client_signature = false;
@@ -317,7 +329,8 @@ namespace ccf
       handler.method = method;
       handler.verb = verb;
       handler.func = f;
-      handler.read_write = ReadWrite::Write;
+      // By default, all write transactions are forwarded
+      handler.forwarding_required = ForwardingRequired::Always;
       handler.registry = this;
       return handler;
     }
@@ -338,7 +351,7 @@ namespace ccf
                    args.rpc_ctx, ro_tx, args.caller_id};
                  f(ro_args);
                })
-        .set_read_write(ReadWrite::Read);
+        .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
     /** Create a new command handler.
@@ -358,7 +371,7 @@ namespace ccf
                  CommandHandlerArgs command_args{args.rpc_ctx, args.caller_id};
                  f(command_args);
                })
-        .set_read_write(ReadWrite::Read);
+        .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
     /** Install the given handler, using its method and verb
@@ -375,8 +388,9 @@ namespace ccf
     CCF_DEPRECATED(
       "HTTP verb should be specified explicitly. Use: "
       "make_handler(METHOD, VERB, FN)"
-      "  .set_read_write() // Only if required"
-      "  .install()")
+      "  .set_forwarding_required() // Optional"
+      "  .install()"
+      "or make_read_only_handler(...")
     Handler& install(
       const std::string& method, const HandleFunction& f, ReadWrite read_write)
     {

@@ -569,7 +569,9 @@ namespace ccf
         return make_success(value);
       };
       make_handler("read", HTTP_POST, json_adapter(read))
-        .set_read_write(ReadWrite::Read)
+        // This can be executed locally, but can't currently take ReadOnlyTx due
+        // to restristions in our lua wrappers
+        .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<KVRead>()
         .install();
 
@@ -585,7 +587,9 @@ namespace ccf
             tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
         };
       make_handler("query", HTTP_POST, json_adapter(query))
-        .set_read_write(ReadWrite::Read)
+        // This can be executed locally, but can't currently take ReadOnlyTx due
+        // to restristions in our lua wrappers
+        .set_forwarding_required(ForwardingRequired::Sometimes)
         .set_auto_schema<Script, nlohmann::json>()
         .install();
 
@@ -868,9 +872,7 @@ namespace ccf
         .set_auto_schema<void, GetEncryptedRecoveryShare>()
         .install();
 
-      auto submit_recovery_share = [this](
-                                     HandlerArgs& args,
-                                     nlohmann::json&& params) {
+      auto submit_recovery_share = [this](HandlerArgs& args) {
         // Only active members can submit their shares for recovery
         if (!check_member_active(args.tx, args.caller_id))
         {
@@ -953,8 +955,7 @@ namespace ccf
           submitted_shares_count,
           g.get_recovery_threshold()));
       };
-      make_handler(
-        "recovery_share/submit", HTTP_POST, json_adapter(submit_recovery_share))
+      make_handler("recovery_share/submit", HTTP_POST, submit_recovery_share)
         .set_auto_schema<std::string, std::string>()
         .install();
 

@@ -46,14 +46,14 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("empty_function", HTTP_POST, empty_function)
-      .set_read_write(HandlerRegistry::Read)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
 
     auto empty_function_signed = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("empty_function_signed", HTTP_POST, empty_function_signed)
-      .set_read_write(HandlerRegistry::Read)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
       .set_require_client_signature(true)
       .install();
 
@@ -61,7 +61,7 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
-      .set_read_write(HandlerRegistry::Read)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
       .set_require_client_identity(false)
       .install();
   }
@@ -212,7 +212,7 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     member_handlers.make_handler("empty_function", HTTP_POST, empty_function)
-      .set_read_write(HandlerRegistry::Read)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
 };
@@ -232,7 +232,7 @@ public:
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     handlers.make_handler("empty_function", HTTP_POST, empty_function)
-      .set_read_write(HandlerRegistry::Read)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
 };
