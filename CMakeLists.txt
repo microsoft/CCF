@@ -520,9 +520,6 @@ if(BUILD_TESTS)
       --test-duration
       200
       --enforce-reqs
-      # Repeat the full suite multiple times
-      --test-suite
-      all
       --test-suite
       all
   )
