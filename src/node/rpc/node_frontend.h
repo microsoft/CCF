@@ -149,7 +149,7 @@ namespace ccf
 
       signatures = tables->get<Signatures>(Tables::SIGNATURES);
 
-      auto accept = [this](RequestArgs& args, const nlohmann::json& params) {
+      auto accept = [this](HandlerArgs& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
 
         if (

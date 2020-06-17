@@ -69,7 +69,7 @@ Each function is installed as the handler for a specific RPC ``method``, the nam
 
 The return value from ``install`` is a ``Handler&`` object which can be used to alter how the handler is executed. For example, the handler for ``LOG_get`` shown above sets a `schema` for the handler, which will be used in calls to the ``/getSchema`` endpoint. It also marks the handler as `GET-only`, so the framework will return a ``405 Method Not Allowed`` for any requests which are not HTTP ``GET``.
 
-To process the raw body directly, a handler should use the general lambda signature which takes a single ``RequestArgs&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
+To process the raw body directly, a handler should use the general lambda signature which takes a single ``HandlerArgs&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
 .. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
@@ -79,7 +79,7 @@ To process the raw body directly, a handler should use the general lambda signat
 
 Rather than parsing the request body as JSON and extracting the message from it, in this case `the entire body` is the message to be logged, and the ID to associate it with is passed as a request header.
 
-This general form of handler (taking a single ``RequestArgs&`` parameter) also allows a handler to see additional caller context. An example of this is the ``log_record_prefix_cert`` handler:
+This general form of handler (taking a single ``HandlerArgs&`` parameter) also allows a handler to see additional caller context. An example of this is the ``log_record_prefix_cert`` handler:
 
 .. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp

@@ -17,7 +17,7 @@ namespace ccf
    * fields, to reduce handler complexity and repetition.
    *
    * Rather than:
-   * auto foo = [](RequestArgs& args) {
+   * auto foo = [](HandlerArgs& args) {
    *   nlohmann::json params;
    *   jsonrpc::Pack pack_type;
    *   if (<content-type is JSON>)
@@ -259,7 +259,7 @@ namespace ccf
 
   static HandleFunction json_adapter(const HandlerTxOnly& f)
   {
-    return [f](RequestArgs& args) {
+    return [f](HandlerArgs& args) {
       const auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(f(args.tx), args.rpc_ctx, packing);
     };
@@ -270,7 +270,7 @@ namespace ccf
 
   static HandleFunction json_adapter(const HandlerJsonParamsOnly& f)
   {
-    return [f](RequestArgs& args) {
+    return [f](HandlerArgs& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args.tx, std::move(params)), args.rpc_ctx, packing);
@@ -283,7 +283,7 @@ namespace ccf
 
   static HandleFunction json_adapter(const HandlerJsonParamsAndCallerId& f)
   {
-    return [f](RequestArgs& args) {
+    return [f](HandlerArgs& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args.tx, args.caller_id, std::move(params)), args.rpc_ctx, packing);
@@ -292,11 +292,24 @@ namespace ccf
 
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(
-      RequestArgs& args, nlohmann::json&& params)>;
+      HandlerArgs& args, nlohmann::json&& params)>;
 
   static HandleFunction json_adapter(const HandlerJsonParamsAndForward& f)
   {
-    return [f](RequestArgs& args) {
+    return [f](HandlerArgs& args) {
+      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
+      jsonhandler::set_response(
+        f(args, std::move(params)), args.rpc_ctx, packing);
+    };
+  }
+
+  using CommandHandlerWithJson = std::function<jsonhandler::JsonAdapterResponse(
+    CommandHandlerArgs& args, nlohmann::json&& params)>;
+
+  static CommandHandleFunction json_command_adapter(
+    const CommandHandlerWithJson& f)
+  {
+    return [f](CommandHandlerArgs& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args, std::move(params)), args.rpc_ctx, packing);

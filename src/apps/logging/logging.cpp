@@ -170,7 +170,7 @@ namespace loggingapp
       // SNIPPET_END: get_public
 
       // SNIPPET_START: log_record_prefix_cert
-      auto log_record_prefix_cert = [this](ccf::RequestArgs& args) {
+      auto log_record_prefix_cert = [this](ccf::HandlerArgs& args) {
         const auto body_j =
           nlohmann::json::parse(args.rpc_ctx->get_request_body());
 
@@ -205,7 +205,7 @@ namespace loggingapp
       // SNIPPET_END: log_record_prefix_cert
 
       auto log_record_anonymous =
-        [this](ccf::RequestArgs& args, nlohmann::json&& params) {
+        [this](ccf::HandlerArgs& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingRecord::In>();
           if (in.msg.empty())
           {
@@ -220,7 +220,7 @@ namespace loggingapp
         };
 
       // SNIPPET_START: log_record_text
-      auto log_record_text = [this](ccf::RequestArgs& args) {
+      auto log_record_text = [this](ccf::HandlerArgs& args) {
         const auto expected = http::headervalues::contenttype::TEXT;
         const auto actual =
           args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
@@ -260,7 +260,7 @@ namespace loggingapp
       // SNIPPET_END: log_record_text
 
       auto get_historical = [this](
-                              ccf::RequestArgs& args,
+                              ccf::HandlerArgs& args,
                               ccf::historical::StorePtr historical_store,
                               kv::Consensus::View historical_view,
                               kv::Consensus::SeqNo historical_seqno) {

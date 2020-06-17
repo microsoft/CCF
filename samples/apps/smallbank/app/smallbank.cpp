@@ -45,7 +45,7 @@ namespace ccfapp
   private:
     SmallBankTables tables;
 
-    bool headers_unmatched(RequestArgs& args)
+    bool headers_unmatched(HandlerArgs& args)
     {
       const auto actual =
         args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
@@ -57,7 +57,7 @@ namespace ccfapp
       return false;
     }
 
-    void set_unmatched_header_status(RequestArgs& args)
+    void set_unmatched_header_status(HandlerArgs& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
       args.rpc_ctx->set_response_header(
@@ -69,7 +69,7 @@ namespace ccfapp
           .value_or("")));
     }
 
-    void set_error_status(RequestArgs& args, int status, std::string&& message)
+    void set_error_status(HandlerArgs& args, int status, std::string&& message)
     {
       args.rpc_ctx->set_response_status(status);
       args.rpc_ctx->set_response_header(
@@ -77,7 +77,7 @@ namespace ccfapp
       args.rpc_ctx->set_response_body(std::move(message));
     }
 
-    void set_ok_status(RequestArgs& args)
+    void set_ok_status(HandlerArgs& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       args.rpc_ctx->set_response_header(
@@ -85,7 +85,7 @@ namespace ccfapp
         http::headervalues::contenttype::OCTET_STREAM);
     }
 
-    void set_no_content_status(RequestArgs& args)
+    void set_no_content_status(HandlerArgs& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
     }
@@ -100,7 +100,7 @@ namespace ccfapp
     {
       UserHandlerRegistry::init_handlers(store);
 
-      auto create = [this](RequestArgs& args) {
+      auto create = [this](auto& args) {
         // Create an account with a balance from thin air.
         BankDeserializer bd(args.rpc_ctx->get_request_body().data());
         auto name = bd.name();
@@ -146,7 +146,7 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      auto create_batch = [this](RequestArgs& args) {
+      auto create_batch = [this](auto& args) {
         // Create N accounts with identical balances from thin air.
         // Create an account with a balance from thin air.
         AccountsDeserializer ad(args.rpc_ctx->get_request_body().data());
@@ -203,7 +203,7 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      auto balance = [this](RequestArgs& args) {
+      auto balance = [this](auto& args) {
         // Check the combined balance of an account
         BankDeserializer bd(args.rpc_ctx->get_request_body().data());
         auto name = bd.name();
@@ -246,7 +246,7 @@ namespace ccfapp
           std::vector<uint8_t>(buff.p, buff.p + buff.n));
       };
 
-      auto transact_savings = [this](RequestArgs& args) {
+      auto transact_savings = [this](auto& args) {
         // Add or remove money to the savings account
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
         auto name = td.name();
@@ -291,7 +291,7 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      auto deposit_checking = [this](RequestArgs& args) {
+      auto deposit_checking = [this](auto& args) {
         // Desposit money into the checking account out of thin air
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
         auto name = td.name();
@@ -333,7 +333,7 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      auto amalgamate = [this](RequestArgs& args) {
+      auto amalgamate = [this](auto& args) {
         // Move the contents of one users account to another users account
         AmalgamateDeserializer ad(args.rpc_ctx->get_request_body().data());
         auto name_1 = ad.name_src();
@@ -405,7 +405,7 @@ namespace ccfapp
         set_no_content_status(args);
       };
 
-      auto writeCheck = [this](RequestArgs& args) {
+      auto writeCheck = [this](auto& args) {
         // Write a check, if not enough funds then also charge an extra 1 money
         TransactionDeserializer td(args.rpc_ctx->get_request_body().data());
         auto name = td.name();

@@ -105,7 +105,7 @@ namespace ccfapp
       }
       tsr = std::make_unique<AppTsr>(network, app_tables);
 
-      auto default_handler = [this](RequestArgs& args, nlohmann::json&&) {
+      auto default_handler = [this](HandlerArgs& args, nlohmann::json&&) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
         if (local_method == UserScriptIds::ENV_HANDLER)

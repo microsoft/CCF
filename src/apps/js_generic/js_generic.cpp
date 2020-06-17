@@ -153,7 +153,7 @@ namespace ccfapp
     {
       auto& tables = *network.tables;
 
-      auto default_handler = [this](RequestArgs& args) {
+      auto default_handler = [this](HandlerArgs& args) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
         if (local_method == UserScriptIds::ENV_HANDLER)

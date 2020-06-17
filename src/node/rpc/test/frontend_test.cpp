@@ -42,14 +42,14 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("empty_function", HTTP_POST, empty_function)
       .set_read_write(HandlerRegistry::Read)
       .install();
 
-    auto empty_function_signed = [this](RequestArgs& args) {
+    auto empty_function_signed = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("empty_function_signed", HTTP_POST, empty_function_signed)
@@ -57,7 +57,7 @@ public:
       .set_require_client_signature(true)
       .install();
 
-    auto empty_function_no_auth = [this](RequestArgs& args) {
+    auto empty_function_no_auth = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
@@ -74,7 +74,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("empty_function", HTTP_POST, empty_function).install();
@@ -126,17 +126,17 @@ public:
   {
     open();
 
-    auto get_only = [this](RequestArgs& args) {
+    auto get_only = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("get_only", HTTP_GET, get_only).install();
 
-    auto post_only = [this](RequestArgs& args) {
+    auto post_only = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("post_only", HTTP_POST, post_only).install();
 
-    auto put_or_delete = [this](RequestArgs& args) {
+    auto put_or_delete = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_handler("put_or_delete", HTTP_PUT, put_or_delete).install();
@@ -155,7 +155,7 @@ public:
   {
     open();
 
-    auto maybe_commit = [this](RequestArgs& args) {
+    auto maybe_commit = [this](HandlerArgs& args) {
       const auto parsed =
         jsonrpc::unpack(args.rpc_ctx->get_request_body(), default_pack);
 
@@ -188,7 +188,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     member_handlers.make_handler("empty_function", HTTP_POST, empty_function)
@@ -208,7 +208,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     handlers.make_handler("empty_function", HTTP_POST, empty_function)
@@ -227,7 +227,7 @@ public:
   std::vector<uint8_t> last_caller_cert;
   CallerId last_caller_id;
 
-  void record_ctx(RequestArgs& args)
+  void record_ctx(HandlerArgs& args)
   {
     last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session->caller_cert);
     last_caller_id = args.caller_id;
@@ -242,7 +242,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
@@ -250,7 +250,7 @@ public:
     // will forward it to the primary
     make_handler("empty_function", HTTP_POST, empty_function).install();
 
-    auto empty_function_no_auth = [this](RequestArgs& args) {
+    auto empty_function_no_auth = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
@@ -270,7 +270,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
@@ -294,7 +294,7 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };

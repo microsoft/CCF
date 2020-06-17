@@ -328,7 +328,7 @@ namespace ccf
       }
 
       auto func = handler->func;
-      auto args = RequestArgs{ctx, tx, caller_id};
+      auto args = HandlerArgs{ctx, tx, caller_id};
 
       tx_count++;
 
