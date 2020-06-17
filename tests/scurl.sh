@@ -25,12 +25,12 @@ for item in "$@" ; do
 done
 
 if [ -z "$request" ]; then
-    echo "No request found in arguments (-d or --data-binary)"
+    echo "Error: No request found in arguments (-d or --data-binary)"
     exit 1
 fi
 
 if [ -z "$privk" ]; then
-    echo "No private key found in arguments (--key)"
+    echo "Error: No private key found in arguments (--key)"
     exit 1
 fi
 

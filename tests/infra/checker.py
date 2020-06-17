@@ -71,20 +71,20 @@ class Checker:
 
             assert rpc_result.seqno and rpc_result.view, rpc_result
 
-            if self.client:
-                wait_for_global_commit(self.client, rpc_result.seqno, rpc_result.view)
+        if self.client:
+            wait_for_global_commit(self.client, rpc_result.seqno, rpc_result.view)
 
-            if self.notification_queue:
-                end_time = time.time() + timeout
-                while time.time() < end_time:
-                    while self.notification_queue.not_empty:
-                        notification = self.notification_queue.get()
-                        n = json.loads(notification)["commit"]
-                        assert (
-                            n > self.notified_commit
-                        ), f"Received notification of commit {n} after commit {self.notified_commit}"
-                        self.notified_commit = n
-                        if n >= rpc_result.seqno:
-                            return
-                    time.sleep(0.5)
-                raise TimeoutError("Timed out waiting for notification")
+        if self.notification_queue:
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                while self.notification_queue.not_empty:
+                    notification = self.notification_queue.get()
+                    n = json.loads(notification)["commit"]
+                    assert (
+                        n > self.notified_commit
+                    ), f"Received notification of commit {n} after commit {self.notified_commit}"
+                    self.notified_commit = n
+                    if n >= rpc_result.seqno:
+                        return
+                time.sleep(0.5)
+            raise TimeoutError("Timed out waiting for notification")

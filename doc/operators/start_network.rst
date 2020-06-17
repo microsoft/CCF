@@ -34,7 +34,9 @@ CCF nodes can be started by using IP Addresses (both IPv4 and IPv6 are supported
 
 When starting up, the node generates its own key pair and outputs the certificate associated with its public key at the location specified by ``--node-cert-file``. The certificate of the freshly-created CCF network is also output at the location specified by ``--network-cert-file`` as well as the network encryption public key used by members during recovery via ``--network-enc-pubk-file``.
 
-The certificates and recovery public keys of initial members of the consortium are specified via ``--member-info``. For example, if 3 members should be added to CCF, operators should specify ``--member-info member1_cert.pem,member1_enc_pub.pem``, ``--member-info member2_cert.pem,member2_enc_pub.pem``, ``--member-info member3_cert.pem,member3_enc_pub.pem``.
+.. note:: The network certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using curl, this is passed as the ``--cacert`` argument.
+
+The certificates and recovery public keys of initial members of the consortium are specified via ``--member-info``. For example, if 3 members should be added to CCF, operators should specify ``--member-info member1_cert.pem,member1_enc_pubk.pem``, ``--member-info member2_cert.pem,member2_enc_pubk.pem``, ``--member-info member3_cert.pem,member3_enc_pubk.pem``.
 
 The :term:`Constitution`, as defined by the initial members, should be passed via the ``--gov-script`` option.
 
@@ -112,7 +114,7 @@ Using a Configuration File
 
     [<subcommand, one of [start, join, recover]>]
     network-cert-file = <network-cert-file-name>
-    member-info = "<member_cert.pem>,<member_enc_pub.pem>"
+    member-info = "<member_cert.pem>,<member_enc_pubk.pem>"
     gov-script = <gov-script-name>
 
 .. code-block:: ini
@@ -127,7 +129,7 @@ Using a Configuration File
 
     [<subcommand, one of [start, join, recover]>]
     network-cert-file = <network-cert-file-name>
-    member-info = "<member_cert.pem>,<member_enc_pub.pem>"
+    member-info = "<member_cert.pem>,<member_enc_pubk.pem>"
     gov-script = <gov-script-name>
 
 To pass configuration files, use the ``--config`` option: ``./cchost --config=config.ini``. An error will be generated if the configuration file contains extra fields. Options in the configuration file will be read along with normal command line arguments. Additional information for configuration files in CLI11 can be found `here <https://cliutils.github.io/CLI11/book/chapters/config.html>`_.
