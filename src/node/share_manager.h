@@ -128,12 +128,12 @@ namespace ccf
       for (auto const& [member_id, enc_pub_key] : active_members_info)
       {
         auto nonce = tls::create_entropy()->random(crypto::Box::NONCE_SIZE);
-        auto share_raw = std::vector<uint8_t>(
+        auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
 
         auto enc_pub_key_raw = tls::PublicX25519::parse(tls::Pem(enc_pub_key));
         auto encrypted_share = crypto::Box::create(
-          share_raw,
+          raw_share,
           nonce,
           enc_pub_key_raw,
           network.encryption_key->private_raw);
