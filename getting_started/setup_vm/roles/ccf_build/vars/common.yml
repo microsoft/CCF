@@ -18,6 +18,7 @@ debs:
   - kmod
   - cmake
   - libssl-dev
+  - jq
 
 mbedtls_ver: "2.16.6"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"

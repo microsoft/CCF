@@ -30,12 +30,22 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SetUserData, user_id)
   DECLARE_JSON_OPTIONAL_FIELDS(SetUserData, user_data)
 
-  struct SubmitRecoveryShare
+  struct GetEncryptedRecoveryShare
   {
-    std::vector<uint8_t> recovery_share;
+    std::string encrypted_recovery_share;
+    std::string nonce;
+
+    GetEncryptedRecoveryShare() = default;
+
+    GetEncryptedRecoveryShare(const EncryptedShare& encrypted_share_raw) :
+      encrypted_recovery_share(
+        tls::b64_from_raw(encrypted_share_raw.encrypted_share)),
+      nonce(tls::b64_from_raw(encrypted_share_raw.nonce))
+    {}
   };
-  DECLARE_JSON_TYPE(SubmitRecoveryShare)
-  DECLARE_JSON_REQUIRED_FIELDS(SubmitRecoveryShare, recovery_share)
+  DECLARE_JSON_TYPE(GetEncryptedRecoveryShare)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetEncryptedRecoveryShare, encrypted_recovery_share, nonce)
 
   class MemberHandlers : public CommonHandlerRegistry
   {
@@ -822,78 +832,91 @@ namespace ccf
         Write)
         .set_auto_schema<void, StateDigest>();
 
-      auto get_encrypted_recovery_share =
-        [this](RequestArgs& args, nlohmann::json&& params) {
-          if (!check_member_active(args.tx, args.caller_id))
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              "Only active members are given recovery shares");
-          }
+      auto get_encrypted_recovery_share = [this](
+                                            RequestArgs& args,
+                                            nlohmann::json&& params) {
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN,
+            "Only active members are given recovery shares");
+        }
 
-          auto encrypted_share =
-            share_manager.get_encrypted_share(args.tx, args.caller_id);
+        auto encrypted_share =
+          share_manager.get_encrypted_share(args.tx, args.caller_id);
 
-          if (!encrypted_share.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              fmt::format(
-                "Recovery share not found for member {}", args.caller_id));
-          }
+        if (!encrypted_share.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            fmt::format(
+              "Recovery share not found for member {}", args.caller_id));
+        }
 
-          return make_success(encrypted_share.value());
-        };
+        return make_success(GetEncryptedRecoveryShare(encrypted_share.value()));
+      };
       install(
         MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
         json_adapter(get_encrypted_recovery_share),
         Read)
-        .set_auto_schema<void, EncryptedShare>()
+        .set_auto_schema<void, GetEncryptedRecoveryShare>()
         .set_http_get_only();
 
-      auto submit_recovery_share = [this](
-                                     RequestArgs& args,
-                                     nlohmann::json&& params) {
+      auto submit_recovery_share = [this](ccf::RequestArgs& args) {
         // Only active members can submit their shares for recovery
         if (!check_member_active(args.tx, args.caller_id))
         {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          args.rpc_ctx->set_response_body("Member is not active");
+          return;
         }
 
         GenesisGenerator g(this->network, args.tx);
         if (
           g.get_service_status() != ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
         {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN,
+          args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          args.rpc_ctx->set_response_body(
             "Service is not waiting for recovery shares");
+          return;
         }
 
         if (node.is_reading_private_ledger())
         {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN, "Node is already recovering private ledger");
+          args.rpc_ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
+          args.rpc_ctx->set_response_body(
+            "Node is already recovering private ledger");
+          return;
         }
 
-        const auto in = params.get<SubmitRecoveryShare>();
+        const auto& in = args.rpc_ctx->get_request_body();
+        const auto s = std::string(in.begin(), in.end());
+        auto raw_recovery_share = tls::raw_from_b64(s);
+
         size_t submitted_shares_count = 0;
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
-            args.tx, args.caller_id, in.recovery_share);
+            args.tx, args.caller_id, raw_recovery_share);
         }
         catch (const std::logic_error& e)
         {
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body(
             fmt::format("Could not submit recovery share: {}", e.what()));
+          return;
         }
 
         if (submitted_shares_count < g.get_recovery_threshold())
         {
           // The number of shares required to re-assemble the secret has not yet
           // been reached
-          return make_success(false);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          args.rpc_ctx->set_response_body(fmt::format(
+            "{}/{} recovery shares successfully submitted.",
+            submitted_shares_count,
+            g.get_recovery_threshold()));
+          return;
         }
 
         LOG_DEBUG_FMT(
@@ -907,19 +930,23 @@ namespace ccf
         {
           // For now, clear the submitted shares if combination fails.
           share_manager.clear_submitted_recovery_shares(args.tx);
-          return make_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body(
             fmt::format("Failed to initiate private recovery: {}", e.what()));
+          return;
         }
 
         share_manager.clear_submitted_recovery_shares(args.tx);
-        return make_success(true);
+
+        args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        args.rpc_ctx->set_response_body(fmt::format(
+          "{}/{} recovery shares successfully submitted. End of recovery "
+          "procedure initiated.",
+          submitted_shares_count,
+          g.get_recovery_threshold()));
       };
-      install(
-        MemberProcs::SUBMIT_RECOVERY_SHARE,
-        json_adapter(submit_recovery_share),
-        Write)
-        .set_auto_schema<SubmitRecoveryShare, bool>();
+      install(MemberProcs::SUBMIT_RECOVERY_SHARE, submit_recovery_share, Write)
+        .set_auto_schema<std::string, std::string>();
 
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
