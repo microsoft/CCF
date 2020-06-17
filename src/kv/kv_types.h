@@ -442,5 +442,4 @@ namespace kv
     virtual size_t commit_gap() = 0;
   };
 
-
 }

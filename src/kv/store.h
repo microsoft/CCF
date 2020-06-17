@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_exception.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
 #include "view_containers.h"
-#include "ds/ccf_exception.h"
 
 #include <fmt/format.h>
 
