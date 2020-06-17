@@ -35,9 +35,7 @@ CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 
 class Request:
-    def __init__(
-        self, method, params=None, http_verb="POST", headers=None
-    ):
+    def __init__(self, method, params=None, http_verb="POST", headers=None):
         if headers is None:
             headers = {}
 

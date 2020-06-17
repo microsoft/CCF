@@ -82,7 +82,7 @@ def run(args):
                     {
                         "id": current_view,
                         "msg": "This log is committed in view {}".format(current_view),
-                    }
+                    },
                 )
                 check(res, result=True)
                 seqno = res.seqno

@@ -502,8 +502,7 @@ namespace ccf
 
       const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
 
-      http::Request r(
-        fmt::format("/{}/{}", ccf::Actors::NODES, "join"));
+      http::Request r(fmt::format("/{}/{}", ccf::Actors::NODES, "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);

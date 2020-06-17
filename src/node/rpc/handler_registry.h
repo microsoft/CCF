@@ -55,11 +55,11 @@ namespace ccf
   class HandlerRegistry
   {
   public:
-      enum ReadWrite
-      {
-        Read,
-        Write
-      };
+    enum ReadWrite
+    {
+      Read,
+      Write
+    };
 
     /** A Handler represents a user-defined endpoint that can be invoked by
      * authorised users via HTTP requests, over TLS. A Handler is accessible at
@@ -161,7 +161,8 @@ namespace ccf
 
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
 
-      /** Override whether a handler is always forwarded, or whether it is safe to sometimes execute on followers
+      /** Override whether a handler is always forwarded, or whether it is safe
+       * to sometimes execute on followers
        */
       Handler& set_forwarding_required(ForwardingRequired fr)
       {
@@ -172,7 +173,9 @@ namespace ccf
       CCF_DEPRECATED("Replaced by set_forwarding_required")
       Handler& set_read_write(ReadWrite rw)
       {
-        return set_forwarding_required(rw == Read ? ForwardingRequired::Sometimes : ForwardingRequired::Always);
+        return set_forwarding_required(
+          rw == Read ? ForwardingRequired::Sometimes :
+                       ForwardingRequired::Always);
       }
 
       bool require_client_signature = false;
