@@ -254,7 +254,7 @@ namespace ccf
       };
       make_handler("join", HTTP_POST, json_adapter(accept)).install();
 
-      auto get_signed_index = [this](kv::Tx& tx) {
+      auto get_signed_index = [this](auto& args, nlohmann::json&& params) {
         GetSignedIndex::Out result;
         if (this->node.is_reading_public_ledger())
         {
@@ -278,7 +278,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, "Network is not in recovery mode");
         }
 
-        auto sig_view = tx.get_view(*signatures);
+        auto sig_view = args.tx.get_view(*signatures);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
           result.signed_index = 0;
@@ -287,29 +287,32 @@ namespace ccf
 
         return make_success(result);
       };
-      make_handler("signed_index", HTTP_GET, json_adapter(get_signed_index))
+      make_read_only_handler(
+        "signed_index", HTTP_GET, json_read_only_adapter(get_signed_index))
         .set_auto_schema<GetSignedIndex>()
         .install();
 
-      auto get_quote = [this](kv::Tx& tx) {
+      auto get_quote = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
         std::set<NodeId> filter;
         filter.insert(this->node.get_node_id());
-        this->node.node_quotes(tx, result, filter);
+        this->node.node_quotes(args.tx, result, filter);
 
         return make_success(result);
       };
-      make_handler("quote", HTTP_GET, json_adapter(get_quote))
+      make_read_only_handler(
+        "quote", HTTP_GET, json_read_only_adapter(get_quote))
         .set_auto_schema<GetQuotes>()
         .install();
 
-      auto get_quotes = [this](kv::Tx& tx) {
+      auto get_quotes = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
-        this->node.node_quotes(tx, result);
+        this->node.node_quotes(args.tx, result);
 
         return make_success(result);
       };
-      make_handler("quotes", HTTP_GET, json_adapter(get_quotes))
+      make_read_only_handler(
+        "quotes", HTTP_GET, json_read_only_adapter(get_quotes))
         .set_auto_schema<GetQuotes>()
         .install();
     }
