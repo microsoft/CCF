@@ -43,7 +43,7 @@ namespace nonstd
   {};
 
   template <typename T, T t = T{}>
-  using dependent_false_v = dependent_false<T, t>::value;
+  static constexpr bool dependent_false_v = dependent_false<T, t>::value;
 
   /** remove_cvref combines remove_cv and remove_reference - this is present in
    * C++20
