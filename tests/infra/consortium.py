@@ -334,15 +334,12 @@ class Consortium:
                     remote_node, defunct_network_enc_pubk
                 )
                 submitted_shares_count += 1
+                check_commit(r)
 
                 if submitted_shares_count >= self.recovery_threshold:
                     assert "End of recovery procedure initiated" in r.result
                     break
                 else:
-                    # TODO: Because we do not tick while recovering the private ledger,
-                    # the last share cannot be checked for global commit.
-                    # https://github.com/microsoft/CCF/issues/1213
-                    check_commit(r)
                     assert "End of recovery procedure initiated" not in r.result
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
