@@ -19,18 +19,27 @@ from loguru import logger as LOG
 
 class Consortium:
     def __init__(
-        self, common_dir, key_generator, member_ids=None, curve=None, remote_node=None
+        self,
+        common_dir,
+        key_generator,
+        share_script,
+        member_ids=None,
+        curve=None,
+        remote_node=None,
     ):
         self.common_dir = common_dir
         self.members = []
         self.key_generator = key_generator
+        self.share_script = share_script
         self.members = []
         self.recovery_threshold = None
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
         if member_ids is not None:
             for m_id in member_ids:
-                new_member = infra.member.Member(m_id, curve, common_dir, key_generator)
+                new_member = infra.member.Member(
+                    m_id, curve, common_dir, share_script, key_generator
+                )
                 new_member.set_active()
                 self.members.append(new_member)
             self.recovery_threshold = len(self.members)
@@ -51,7 +60,9 @@ class Consortium:
                     },
                 )
                 for m in r.result or []:
-                    new_member = infra.member.Member(m[0], curve, self.common_dir)
+                    new_member = infra.member.Member(
+                        m[0], curve, self.common_dir, share_script
+                    )
                     if (
                         infra.member.MemberStatus[m[1]]
                         == infra.member.MemberStatus.ACTIVE
@@ -75,7 +86,7 @@ class Consortium:
         # should ACK to become active.
         new_member_id = len(self.members)
         new_member = infra.member.Member(
-            new_member_id, curve, self.common_dir, self.key_generator
+            new_member_id, curve, self.common_dir, self.share_script, self.key_generator
         )
 
         script = """
@@ -87,7 +98,7 @@ class Consortium:
         ) as cert:
             new_member_cert_pem = [ord(c) for c in cert.read()]
         with open(
-            os.path.join(self.common_dir, f"member{new_member_id}_enc_pub.pem")
+            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
         ) as keyshare:
             new_member_keyshare = [ord(k) for k in keyshare.read()]
 
@@ -111,7 +122,7 @@ class Consortium:
 
     def get_members_info(self):
         members_certs = [f"member{m.member_id}_cert.pem" for m in self.members]
-        members_enc_pub = [f"member{m.member_id}_enc_pub.pem" for m in self.members]
+        members_enc_pub = [f"member{m.member_id}_enc_pubk.pem" for m in self.members]
         return list(zip(members_certs, members_enc_pub))
 
     def get_active_members(self):
@@ -315,15 +326,21 @@ class Consortium:
 
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
-        for m in self.get_active_members():
-            decrypted_share = m.get_and_decrypt_recovery_share(
-                remote_node, defunct_network_enc_pubk
-            )
-            r = m.submit_recovery_share(remote_node, decrypted_share)
-            submitted_shares_count += 1
-            assert r.result == (submitted_shares_count >= self.recovery_threshold)
-            if submitted_shares_count >= self.recovery_threshold:
-                break
+        with remote_node.node_client() as nc:
+            check_commit = infra.checker.Checker(nc)
+
+            for m in self.get_active_members():
+                r = m.get_and_submit_recovery_share(
+                    remote_node, defunct_network_enc_pubk
+                )
+                submitted_shares_count += 1
+                check_commit(r)
+
+                if submitted_shares_count >= self.recovery_threshold:
+                    assert "End of recovery procedure initiated" in r.result
+                    break
+                else:
+                    assert "End of recovery procedure initiated" not in r.result
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """
