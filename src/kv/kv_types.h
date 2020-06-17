@@ -280,9 +280,7 @@ namespace kv
       CommitSuccess success_,
       TxHistory::RequestID reqid_,
       std::vector<uint8_t>&& data_) :
-      success(success_),
-      reqid(std::move(reqid_)),
-      data(std::move(data_))
+      success(success_), reqid(std::move(reqid_)), data(std::move(data_))
     {}
   };
 
@@ -297,8 +295,7 @@ namespace kv
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_, kv::TxHistory::RequestID req_id_) :
-      data(std::move(data_)),
-      req_id(std::move(req_id_))
+      data(std::move(data_)), req_id(std::move(req_id_))
     {}
 
     MovePendingTx(MovePendingTx&& other) = default;
@@ -366,9 +363,9 @@ namespace kv
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
+    virtual void snapshot(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-
     virtual CommitSuccess commit(
       const TxID& txid, PendingTx pt, bool globally_committable) = 0;
 
@@ -390,6 +387,12 @@ namespace kv
   class AbstractMap
   {
   public:
+    class Snapshot
+    {
+    public:
+      virtual ~Snapshot() = default;
+    };
+
     virtual ~AbstractMap() {}
     virtual bool operator==(const AbstractMap& that) const = 0;
     virtual bool operator!=(const AbstractMap& that) const = 0;
@@ -401,6 +404,7 @@ namespace kv
       KvStoreDeserialiser& d, Version version) = 0;
     virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
+    virtual Snapshot&& snapshot(Version v) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;
     virtual void lock() = 0;

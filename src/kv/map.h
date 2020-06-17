@@ -77,6 +77,15 @@ namespace kv
       return untyped_map.compact(v);
     }
 
+    class Snapshot : public AbstractMap::Snapshot
+    {
+    };
+
+    AbstractMap::Snapshot&& snapshot(Version v) override
+    {
+      return untyped_map.snapshot(v);
+    }
+
     void post_compact() override
     {
       return untyped_map.post_compact();

@@ -285,6 +285,27 @@ namespace kv::untyped
       {}
     };
 
+    class Snapshot : public AbstractMap::Snapshot
+    {
+    private:
+      std::string name;
+      const SecurityDomain security_domain;
+      const bool replicated;
+      champ::Snapshot<K, kv::VersionV<V>, H> map_snapshot;
+
+    public:
+      Snapshot(
+        std::string name_,
+        SecurityDomain security_domain_,
+        bool replicated_,
+        champ::Snapshot<K, kv::VersionV<V>, H>&& map_snapshot_) :
+        name(name_),
+        security_domain(security_domain_),
+        replicated(replicated_),
+        map_snapshot(std::move(map_snapshot_))
+      {}
+    };
+
     // Public typedef for external consumption
     using TxView = ConcreteTxView;
 
@@ -557,6 +578,89 @@ namespace kv::untyped
     bool operator!=(const AbstractMap& that) const override
     {
       return !(*this == that);
+    }
+
+    AbstractMap::Snapshot&& snapshot(Version v) override
+    {
+      std::cout << "1 foobar - target version:" << v << std::endl;
+      auto r = roll.commits->get_head();
+      std::cout << "2 foobar - version:" << r->version << std::endl;
+      while (r != nullptr)
+      {
+        std::cout << "3 foobar - version:" << r->version << std::endl;
+        if (v < r->version)
+        {
+          break;
+        }
+        r = r->next;
+      }
+
+      if (r == nullptr)
+      {
+        r = roll.commits->get_tail();
+      }
+      else if (r->prev != nullptr)
+      {
+        r = r->prev;
+      }
+
+      std::cout << "4 foobar - version:" << r->version << std::endl;
+      std::function<uint32_t(const SerialisedEntry& key)> k_size =
+        [](const SerialisedEntry& key) { return sizeof(uint64_t) + key.size(); };
+
+      std::function<uint32_t(
+        const SerialisedEntry& key, uint8_t*& data, size_t& size)>
+        k_serialize = [](
+                        const SerialisedEntry& key,
+                        uint8_t*& data,
+                        size_t& size) {
+          uint64_t key_size = key.size();
+          serialized::write(
+            data, size, reinterpret_cast<const uint8_t*>(&key_size), sizeof(uint64_t));
+          serialized::write(
+            data, size, reinterpret_cast<const uint8_t*>(key.data()), key_size);
+          return sizeof(uint64_t) + key_size; 
+        };
+
+      std::function<uint32_t(const kv::VersionV<SerialisedEntry>& value)>
+        v_size = [](const kv::VersionV<SerialisedEntry>& value) {
+          return sizeof(uint64_t) + sizeof(value.version) + value.value.size();
+        };
+
+      std::function<uint32_t(
+        const kv::VersionV<SerialisedEntry>& value,
+        uint8_t*& data,
+        size_t& size)>
+        v_serialize = [](
+                        const kv::VersionV<SerialisedEntry>& value,
+                        uint8_t*& data,
+                        size_t& size) {
+          uint64_t value_size = sizeof(value.version) + value.value.size();
+          //std::cout << "1 remaining size:" << size << std::endl;
+          serialized::write(
+            data,
+            size,
+            reinterpret_cast<const uint8_t*>(&value_size),
+            sizeof(uint64_t));
+
+          //std::cout << "2 remaining size:" << size << std::endl;
+
+          serialized::write(
+            data, size, reinterpret_cast<const uint8_t*>(&value.version), sizeof(value.version));
+          //std::cout << "3 remaining size:" << size << std::endl;
+
+          serialized::write(
+            data, size, reinterpret_cast<const uint8_t*>(value.value.data()), value.value.size());
+          //std::cout << "4 remaining size:" << size << std::endl;
+          return sizeof(uint64_t) + sizeof(value.version) + value_size;
+        };
+
+      std::cout << "5 foobar - version:" << r->version << std::endl;
+      champ::Snapshot<SerialisedEntry, kv::VersionV<SerialisedEntry>, SerialisedKeyHasher>
+        snapshot(r->state, k_size, k_serialize, v_size, v_serialize);
+
+      std::cout << "99 foobar" << std::endl;
+      return std::move(Snapshot(name, security_domain, replicated, std::move(snapshot)));
     }
 
     void compact(Version v) override
