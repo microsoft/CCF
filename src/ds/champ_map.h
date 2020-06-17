@@ -465,7 +465,7 @@ namespace champ
 
         size += (key_size + value_size);
 
-        serialized_state.push_back(pair(k, static_cast<Hash>(H()(key)), v));
+        serialized_state.emplace_back(k, static_cast<Hash>(H()(key)), v);
 
         return true;
       });

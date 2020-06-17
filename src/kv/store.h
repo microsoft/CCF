@@ -6,6 +6,7 @@
 #include "kv_types.h"
 #include "map.h"
 #include "view_containers.h"
+#include "ds/ccf_exception.h"
 
 #include <fmt/format.h>
 
@@ -224,7 +225,10 @@ namespace kv
 
       if (v > current_version())
       {
-        return nullptr;
+        throw ccf::ccf_logic_error(fmt::format(
+          "Attempting to snapshot at invalid version v:{}, current_version:{}",
+          v,
+          current_version()));
       }
 
       auto snapshot = std::make_unique<Snapshot>();
