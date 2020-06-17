@@ -144,42 +144,30 @@ class LoggingTxs:
         LOG.success("Verifying all logging txs")
         for n in network.get_joined_nodes():
             for pub_tx_index in self.pub:
-                self._verify_pub_tx(n, pub_tx_index, timeout=timeout)
+                self._verify_tx(n, pub_tx_index, priv=False, timeout=timeout)
             for priv_tx_index in self.priv:
-                self._verify_priv_tx(n, priv_tx_index, timeout=timeout)
+                self._verify_tx(n, priv_tx_index, priv=True, timeout=timeout)
 
     def verify_last_tx(self, network, timeout=5):
         LOG.success("Verifying last logging tx")
         for n in network.get_joined_nodes():
-            self._verify_pub_tx(n, self.next_pub_index - 1, timeout=timeout)
-            self._verify_priv_tx(n, self.next_priv_index - 1, timeout=timeout)
+            self._verify_tx(n, self.next_pub_index - 1, priv=False, timeout=timeout)
+            self._verify_tx(n, self.next_priv_index - 1, priv=True, timeout=timeout)
 
-    def _verify_pub_tx(self, node, pub_tx_index, timeout=5):
+    def _verify_tx(self, node, idx, priv=True, timeout=5):
+        txs = self.priv if priv else self.pub
+        cmd = "LOG_get" if priv else "LOG_get_pub"
+
         end_time = time.time() + timeout
         while time.time() < end_time:
             with node.user_client() as uc:
-                rep = uc.get("LOG_get_pub", {"id": pub_tx_index})
+                rep = uc.get(cmd, {"id": idx})
                 if rep.status == 404:
                     LOG.warning("User frontend is not yet opened")
                     time.sleep(0.1)
                 else:
                     check = infra.checker.Checker(uc)
                     check(
-                        rep, result={"msg": self.pub[pub_tx_index]},
-                    )
-                    break
-
-    def _verify_priv_tx(self, node, priv_tx_index, timeout=5):
-        end_time = time.time() + timeout
-        while time.time() < end_time:
-            with node.user_client() as uc:
-                rep = uc.get("LOG_get", {"id": priv_tx_index})
-                if rep.status == 404:
-                    LOG.warning("User frontend is not yet opened")
-                    time.sleep(0.1)
-                else:
-                    check = infra.checker.Checker(uc)
-                    check(
-                        rep, result={"msg": self.priv[priv_tx_index]},
+                        rep, result={"msg": txs[idx]},
                     )
                     break
