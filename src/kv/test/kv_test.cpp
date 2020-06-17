@@ -1028,9 +1028,11 @@ TEST_CASE("Conflict resolution")
 
 TEST_CASE("Serialization")
 {
+  const char* map_name = "map";
+  kv::SecurityDomain security_domain = kv::SecurityDomain::PUBLIC;
   kv::Store kv_store;
   auto& map =
-    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
+    kv_store.create<MapTypes::StringString>(map_name, security_domain);
 
   auto try_write = [&](kv::Tx& tx, const std::string& s) {
     auto view = tx.get_view(map);
@@ -1069,10 +1071,14 @@ TEST_CASE("Serialization")
     REQUIRE(res1 == kv::CommitSuccess::OK);
   }
 
+  // now we serialize the a KV that is in the mid point of the known versions
   std::unique_ptr<kv::AbstractStore::Snapshot> s = kv_store.snapshot(1);
   auto& vec_s = s->get_snapshots();
   for (auto& s : vec_s)
   {
-    s->get_buffer();
+    REQUIRE_EQ(s->get_name(), map_name);
+    REQUIRE_EQ(s->get_security_domain(), security_domain);
+    REQUIRE_EQ(s->get_is_replicated(), true);
+    REQUIRE_GT(s->get_buffer().size(), 0);
   }
 }

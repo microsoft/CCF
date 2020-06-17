@@ -223,7 +223,9 @@ namespace kv
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       if (v > current_version())
+      {
         return nullptr;
+      }
 
       auto snapshot = std::make_unique<Snapshot>();
 
@@ -253,16 +255,24 @@ namespace kv
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       if (v > current_version())
+      {
         return;
+      }
 
       for (auto& map : maps)
+      {
         map.second->lock();
+      }
 
       for (auto& map : maps)
+      {
         map.second->compact(v);
+      }
 
       for (auto& map : maps)
+      {
         map.second->unlock();
+      }
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
@@ -270,15 +280,21 @@ namespace kv
 
         auto h = get_history();
         if (h)
+        {
           h->compact(v);
+        }
 
         auto e = get_encryptor();
         if (e)
+        {
           e->compact(v);
+        }
       }
 
       for (auto& map : maps)
+      {
         map.second->post_compact();
+      }
     }
 
     void rollback(Version v, std::optional<Term> t = std::nullopt) override

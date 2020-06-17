@@ -366,6 +366,9 @@ namespace kv
     public:
       virtual ~Snapshot() = default;
       virtual std::vector<uint8_t> get_buffer() = 0;
+      virtual std::string& get_name() = 0;
+      virtual SecurityDomain get_security_domain() = 0;
+      virtual bool get_is_replicated() = 0;
     };
 
     virtual ~AbstractMap() {}

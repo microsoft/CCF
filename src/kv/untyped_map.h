@@ -309,6 +309,21 @@ namespace kv::untyped
       {
         return map_snapshot.get_buffer();
       }
+
+      std::string& get_name() override
+      {
+        return name;
+      }
+
+      SecurityDomain get_security_domain() override
+      {
+        return security_domain;
+      }
+
+      bool get_is_replicated() override
+      {
+        return replicated;
+      }
     };
 
     // Public typedef for external consumption
