@@ -84,7 +84,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--seed",
             help="seed used to randomise the node suspension timeouts",
-            default=random.randint(1, 10),
+            default=42,
         )
 
     args = infra.e2e_args.cli_args(add)
