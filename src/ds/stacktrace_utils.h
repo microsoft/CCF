@@ -24,11 +24,4 @@ namespace logger
     backward::Printer p;
     p.print(st);
   }
-
-  static void handler(int sig)
-  {
-    std::cout << "Error: signal " << sig << ":" << std::endl;
-    print_stacktrace();
-    exit(1);
-  }
 }
