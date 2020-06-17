@@ -217,7 +217,7 @@ namespace kv
       maps[name] = std::unique_ptr<AbstractMap>(result);
       return *result;
     }
-    
+
     std::unique_ptr<Snapshot> snapshot(Version v) override
     {
       std::lock_guard<SpinLock> mguard(maps_lock);

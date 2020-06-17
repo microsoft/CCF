@@ -78,8 +78,7 @@ namespace kv
     }
 
     class Snapshot : public AbstractMap::Snapshot
-    {
-    };
+    {};
 
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {

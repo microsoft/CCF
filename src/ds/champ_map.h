@@ -438,10 +438,15 @@ namespace champ
     Snapshot(
       Map<K, V, H> map_,
       std::function<uint32_t(const K& key)> k_size_,
-      std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)> k_serialize_,
+      std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
+        k_serialize_,
       std::function<uint32_t(const V& value)> v_size_,
-      std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)> v_serialize_)
-      :k_size(k_size_), k_serialize(k_serialize_), v_size(v_size_), v_serialize(v_serialize_)
+      std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
+        v_serialize_) :
+      k_size(k_size_),
+      k_serialize(k_serialize_),
+      v_size(v_size_),
+      v_serialize(v_serialize_)
     {
       map = map_;
     }
@@ -455,10 +460,10 @@ namespace champ
       map.foreach([&](auto& key, auto& value) {
         K* k = &key;
         V* v = &value;
-        uint32_t key_size =  k_size(key) + get_padding(k_size(key));
+        uint32_t key_size = k_size(key) + get_padding(k_size(key));
         uint32_t value_size = v_size(value) + get_padding(v_size(value));
 
-        size += (key_size+value_size);
+        size += (key_size + value_size);
 
         serialized_state.push_back(pair(k, static_cast<Hash>(H()(key)), v));
 

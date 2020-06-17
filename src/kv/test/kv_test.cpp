@@ -1069,5 +1069,10 @@ TEST_CASE("Serialization")
     REQUIRE(res1 == kv::CommitSuccess::OK);
   }
 
-  kv_store.snapshot(1);
+  std::unique_ptr<kv::AbstractStore::Snapshot> s = kv_store.snapshot(1);
+  auto& vec_s = s->get_snapshots();
+  for (auto& s : vec_s)
+  {
+    s->get_buffer();
+  }
 }

@@ -191,7 +191,7 @@ TEST_CASE("serialize map")
         data, size, reinterpret_cast<const uint8_t*>(&key_size), sizeof(K));
       serialized::write(
         data, size, reinterpret_cast<const uint8_t*>(&k), sizeof(K));
-      return 2*sizeof(K);
+      return 2 * sizeof(K);
     };
   std::function<uint32_t(const V& value)> fn_size_v = [](const V& v) {
     return sizeof(V) + sizeof(uint64_t);
@@ -203,9 +203,8 @@ TEST_CASE("serialize map")
         data, size, reinterpret_cast<const uint8_t*>(&value_size), sizeof(V));
       serialized::write(
         data, size, reinterpret_cast<const uint8_t*>(&v), sizeof(V));
-      return 2*sizeof(V);
+      return 2 * sizeof(V);
     };
-
 
   INFO("Serialize map to array");
   {

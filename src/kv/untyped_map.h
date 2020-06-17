@@ -607,7 +607,9 @@ namespace kv::untyped
       }
 
       std::function<uint32_t(const SerialisedEntry& key)> k_size =
-        [](const SerialisedEntry& key) { return sizeof(uint64_t) + key.size(); };
+        [](const SerialisedEntry& key) {
+          return sizeof(uint64_t) + key.size();
+        };
 
       std::function<uint32_t(
         const SerialisedEntry& key, uint8_t*& data, size_t& size)>
@@ -617,10 +619,13 @@ namespace kv::untyped
                         size_t& size) {
           uint64_t key_size = key.size();
           serialized::write(
-            data, size, reinterpret_cast<const uint8_t*>(&key_size), sizeof(uint64_t));
+            data,
+            size,
+            reinterpret_cast<const uint8_t*>(&key_size),
+            sizeof(uint64_t));
           serialized::write(
             data, size, reinterpret_cast<const uint8_t*>(key.data()), key_size);
-          return sizeof(uint64_t) + key_size; 
+          return sizeof(uint64_t) + key_size;
         };
 
       std::function<uint32_t(const kv::VersionV<SerialisedEntry>& value)>
@@ -643,16 +648,26 @@ namespace kv::untyped
             reinterpret_cast<const uint8_t*>(&value_size),
             sizeof(uint64_t));
           serialized::write(
-            data, size, reinterpret_cast<const uint8_t*>(&value.version), sizeof(value.version));
+            data,
+            size,
+            reinterpret_cast<const uint8_t*>(&value.version),
+            sizeof(value.version));
           serialized::write(
-            data, size, reinterpret_cast<const uint8_t*>(value.value.data()), value.value.size());
+            data,
+            size,
+            reinterpret_cast<const uint8_t*>(value.value.data()),
+            value.value.size());
           return sizeof(uint64_t) + sizeof(value.version) + value.value.size();
         };
 
-      champ::Snapshot<SerialisedEntry, kv::VersionV<SerialisedEntry>, SerialisedKeyHasher>
+      champ::Snapshot<
+        SerialisedEntry,
+        kv::VersionV<SerialisedEntry>,
+        SerialisedKeyHasher>
         snapshot(r->state, k_size, k_serialize, v_size, v_serialize);
 
-      return std::move(std::make_unique<Snapshot>(name, security_domain, replicated, std::move(snapshot)));
+      return std::move(std::make_unique<Snapshot>(
+        name, security_domain, replicated, std::move(snapshot)));
     }
 
     void compact(Version v) override

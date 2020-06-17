@@ -280,7 +280,9 @@ namespace kv
       CommitSuccess success_,
       TxHistory::RequestID reqid_,
       std::vector<uint8_t>&& data_) :
-      success(success_), reqid(std::move(reqid_)), data(std::move(data_))
+      success(success_),
+      reqid(std::move(reqid_)),
+      data(std::move(data_))
     {}
   };
 
@@ -295,7 +297,8 @@ namespace kv
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_, kv::TxHistory::RequestID req_id_) :
-      data(std::move(data_)), req_id(std::move(req_id_))
+      data(std::move(data_)),
+      req_id(std::move(req_id_))
     {}
 
     MovePendingTx(MovePendingTx&& other) = default;
@@ -403,6 +406,10 @@ namespace kv
         snapshots.push_back(std::move(snapshot));
       }
 
+      std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
+      {
+        return snapshots;
+      }
     };
 
     virtual ~AbstractStore() {}
