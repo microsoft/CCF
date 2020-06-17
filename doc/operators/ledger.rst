@@ -20,6 +20,8 @@ The ledger directory contains a series of files. File size is controlled by the 
 Files containing only committed entries are named ``ledger_$STARTSEQNO-$ENDSEQNO.committed``. These files are closed and immutable,
 it is safe to replicate them to backup storage. They are identical across nodes, provided ``--ledger-chunk-max-bytes`` has been set to the same value.
 
+.. warning:: Removing files from a ledger directory may cause a node to crash.
+
 Files that still contain some uncommitted entries will be named ``ledger_$STARTSEQNO-$ENDSEQNO`` or ``ledger_$STARTSEQNO`` for the last one.
 These files are typically held open by the cchost process, which may modify their content, or even erase them completely. They may differ arbitrarily across nodes.
 
@@ -35,22 +37,6 @@ The listing below is an example of what a ledger directory may look like.
     $ cd $LEDGER_DIR
     $ ls
     -rw-rw-r-- 1 user user 1.6M Jun 16 14:08 ledger_1-7501.committed
-    -rw-rw-r-- 1 user user 1.2M Jun 16 14:08 ledger_12502-17501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_17502-22501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_22502-27501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_27502-32501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_32502-37501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_37502-42501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_42502-47501.committed
-    -rw-rw-r-- 1 user user 1.2M Jun 16 14:08 ledger_47502-52501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_52502-57501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_57502-62501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_62502-67501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_67502-72501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_72502-77501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_7502-12501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_77502-82501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_82502-87501.committed
-    -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_87502-92501.committed
+    ...
     -rw-rw-r-- 1 user user 1.1M Jun 16 14:08 ledger_92502-97501.committed
     -rw-rw-r-- 1 user user 553K Jun 16 14:08 ledger_97502
