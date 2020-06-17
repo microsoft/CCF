@@ -81,7 +81,7 @@ namespace kv
     {
     };
 
-    AbstractMap::Snapshot&& snapshot(Version v) override
+    std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       return untyped_map.snapshot(v);
     }

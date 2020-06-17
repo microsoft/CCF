@@ -1028,7 +1028,6 @@ TEST_CASE("Conflict resolution")
 
 TEST_CASE("Serialization")
 {
-      std::cout << "AAAAA" << std::endl;
   kv::Store kv_store;
   auto& map =
     kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
@@ -1043,31 +1042,32 @@ TEST_CASE("Serialization")
     view->put(s, s);
   };
 
-  // Simulate parallel execution by interleaving tx steps
-  kv::Tx tx1;
-  kv::Tx tx2;
-
-  // First transaction tries to write a value, depending on initial version
-  try_write(tx1, "bar");
-
+  INFO("Simulate parallel execution by interleaving tx steps");
   {
-    // A second transaction is committed, conflicting with the first
-    try_write(tx2, "baz");
-    const auto res2 = tx2.commit();
-    REQUIRE(res2 == kv::CommitSuccess::OK);
+    kv::Tx tx1;
+    kv::Tx tx2;
+
+    // First transaction tries to write a value, depending on initial version
+    try_write(tx1, "bar");
+
+    {
+      // A second transaction is committed, conflicting with the first
+      try_write(tx2, "baz");
+      const auto res2 = tx2.commit();
+      REQUIRE(res2 == kv::CommitSuccess::OK);
+    }
+
+    // Trying to commit first transaction produces a conflict
+    auto res1 = tx1.commit();
+    REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
+
+    // First transaction is rerun with same object, producing different result
+    try_write(tx1, "buzz");
+
+    // Expected results are committed
+    res1 = tx1.commit();
+    REQUIRE(res1 == kv::CommitSuccess::OK);
   }
 
-  // Trying to commit first transaction produces a conflict
-  auto res1 = tx1.commit();
-  REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
-
-  // First transaction is rerun with same object, producing different result
-  try_write(tx1, "buzz");
-
-  // Expected results are committed
-  res1 = tx1.commit();
-  REQUIRE(res1 == kv::CommitSuccess::OK);
-
   kv_store.snapshot(1);
-      std::cout << "ZZZZZ" << std::endl;
 }

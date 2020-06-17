@@ -217,39 +217,32 @@ namespace kv
       maps[name] = std::unique_ptr<AbstractMap>(result);
       return *result;
     }
-
-    //TODO: we want something similar but serialize
-    void snapshot(Version v) override
+    
+    std::unique_ptr<Snapshot> snapshot(Version v) override
     {
-      std::cout << "baz:" << maps.size() << std::endl;
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       if (v > current_version())
-        return;
+        return nullptr;
+
+      auto snapshot = std::make_unique<Snapshot>();
 
       for (auto& map : maps)
-        map.second->lock();
-
-      for (auto& map : maps)
-        map.second->snapshot(v);
-
-      for (auto& map : maps)
-        map.second->unlock();
-
-      /*
       {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        compacted = v;
-
-        auto h = get_history();
-        if (h)
-          h->compact(v);
-
-        auto e = get_encryptor();
-        if (e)
-          e->compact(v);
+        map.second->lock();
       }
-      */
+
+      for (auto& map : maps)
+      {
+        snapshot->add_snapshot(std::move(map.second->snapshot(v)));
+      }
+
+      for (auto& map : maps)
+      {
+        map.second->unlock();
+      }
+
+      return std::move(snapshot);
     }
 
     void compact(Version v) override
