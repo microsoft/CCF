@@ -13,6 +13,7 @@ namespace ccf
     static constexpr auto GET_COMMIT = "commit";
     static constexpr auto GET_METRICS = "metrics";
     static constexpr auto GET_NETWORK_INFO = "network_info";
+    static constexpr auto GET_NODES_BY_RPC_ADDRESS = "node/ids";
     static constexpr auto GET_PRIMARY_INFO = "primary_info";
     static constexpr auto GET_RECEIPT = "receipt";
     static constexpr auto GET_TX_STATUS = "tx";

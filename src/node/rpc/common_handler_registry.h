@@ -164,6 +164,25 @@ namespace ccf
         return make_success(out);
       };
 
+      auto get_nodes_by_rpc_address = [this](kv::Tx& tx, nlohmann::json&& params) {
+        const auto in = params.get<GetNodesByRPCAddress::In>();
+
+        GetNodesByRPCAddress::Out out;
+        auto nodes_view = tx.get_view(*nodes);
+        nodes_view->foreach([&in, &out](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.rpchost == in.host && ni.rpcport == in.port)
+          {
+            if (ni.status != ccf::NodeStatus::RETIRED || in.retired)
+            {
+              out.nodes.push_back({nid, ni.status});
+            }
+          }
+          return true;
+        });
+
+        return make_success(out);
+      };
+
       auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
         ListMethods::Out out;
 
@@ -264,6 +283,10 @@ namespace ccf
       install(
         GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read)
         .set_auto_schema<void, GetNetworkInfo::Out>()
+        .set_http_get_only();
+      install(
+        GeneralProcs::GET_NODES_BY_RPC_ADDRESS, json_adapter(get_nodes_by_rpc_address), Read)
+        .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
         .set_http_get_only();
       install(
         GeneralProcs::API_LIST_METHODS, json_adapter(list_methods_fn), Read)

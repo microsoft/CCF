@@ -95,6 +95,13 @@ namespace ccf
   DECLARE_JSON_TYPE(GetNetworkInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, primary_id)
 
+  DECLARE_JSON_TYPE(GetNodesByRPCAddress::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::In, host, port)
+  DECLARE_JSON_TYPE(GetNodesByRPCAddress::NodeInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::NodeInfo, node_id, status)
+  DECLARE_JSON_TYPE(GetNodesByRPCAddress::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetNodesByRPCAddress::Out, nodes)
+
   DECLARE_JSON_TYPE(CallerInfo)
   DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id)
 
