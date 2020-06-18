@@ -1357,7 +1357,7 @@ namespace ccf
 
           if (
             it->second.value().status == ServiceStatus::OPEN &&
-            this->is_part_of_network())
+            !this->is_part_of_public_network())
           {
             this->consensus->set_f(1);
             open_user_frontend();
