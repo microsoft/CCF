@@ -330,9 +330,11 @@ namespace loggingapp
         return true;
       };
 
-      make_endpoint(Procs::LOG_RECORD, HTTP_POST, ccf::json_adapter(record))
+      // SNIPPET_START: install_record
+      make_endpoint("LOG_record", HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
+      // SNIPPET_START: install_record
       // SNIPPET_START: install_get
       make_endpoint(Procs::LOG_GET, HTTP_GET, ccf::json_adapter(get))
         .set_auto_schema<LoggingGet>()

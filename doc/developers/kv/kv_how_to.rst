@@ -32,7 +32,7 @@ A ``Map`` can either be created as private (default) or public. Transactions on 
 Accessing the ``Transaction``
 -----------------------------
 
-A :cpp:class:`kv::Tx` corresponds to the atomic operations that can be executed on the Key-Value ``Store``. A transaction can affect one or multiple ``Map`` and are automatically committed by CCF once a RPC handler returns.
+A :cpp:class:`kv::Tx` corresponds to the atomic operations that can be executed on the Key-Value ``Store``. A transaction can affect one or multiple ``Map`` and are automatically committed by CCF once the endpoint's handler returns successfully.
 
 A single ``Transaction`` (``tx``) is passed to all the end-points of an application and should be used to interact with the Key-Value ``Store``.
 
@@ -73,6 +73,24 @@ Once a ``View`` on a specific ``Map`` has been obtained, it is possible to:
     // View is now empty
     view_map1->get("key1");
     assert(v1.has_value() == false);
+
+Read-only views
+---------------
+
+For operations which only read from a map, it is possible to retrieve a :cpp:class:`kv::Map::ReadOnlyTxView` which only supports the `get` operation:
+
+.. code-block:: cpp
+
+    // Read-only view on map_priv
+    auto view_map1 = tx.get_read_only_view(map_priv);
+
+    // Reading from that view
+    auto v1 = view_map1->get("key1");
+    assert(v1.value() == "value1");
+
+    // Writes are blocked at compile time
+    view_map1->put("key1", "value2"); // Does not compile
+    view_map1->remove("key1"); // Does not compile
 
 Removing a key
 --------------
@@ -126,7 +144,7 @@ Custom key and value types
 
 User-defined types can also be used for the types of the key and value mapping of each :cpp:class:`kv::Map`. When defining each custom type, the following conditions must be met:
 
-- For both the custom key and value types, the ``MSGPACK_DEFINE();`` macro should be used to declare each members of the custom type for serialisation.
+- For both the custom key and value types, the ``MSGPACK_DEFINE();`` macro should be used to declare each member of the custom type for serialisation.
 - For the custom key type, the ``==`` operator should be defined.
 
 .. code-block:: cpp
