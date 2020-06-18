@@ -107,16 +107,6 @@ namespace raft
       raft->enable_all_domains();
     }
 
-    void resume_replication() override
-    {
-      raft->resume_replication();
-    }
-
-    void suspend_replication(kv::Version version) override
-    {
-      raft->suspend_replication(version);
-    }
-
     void set_f(size_t) override
     {
       return;

@@ -134,11 +134,6 @@ namespace raft
     // entries
     bool public_only = false;
 
-    // In recovery mode, while a follower is reading the private ledger, no
-    // entries later than the index at which the network secrets are known
-    // should be replicated
-    std::optional<Index> recovery_max_index;
-
     // Randomness
     std::uniform_int_distribution<int> distrib;
     std::default_random_engine rand;
@@ -207,25 +202,6 @@ namespace raft
       // be deserialised
       std::lock_guard<SpinLock> guard(lock);
       public_only = false;
-    }
-
-    void suspend_replication(Index idx)
-    {
-      // Suspend replication of append entries up to a specific version
-      // Note that this should only be called when the raft lock is taken (e.g.
-      // from a commit hook on a follower)
-      LOG_INFO_FMT("Suspending replication for idx > {}", idx);
-      recovery_max_index = idx;
-    }
-
-    void resume_replication()
-    {
-      // Resume replication.
-      // Note that this should be called when the raft lock is not taken (e.g.
-      // after the ledger has been read)
-      std::lock_guard<SpinLock> guard(lock);
-      LOG_INFO_FMT("Resuming replication");
-      recovery_max_index.reset();
     }
 
     void force_become_leader()
@@ -640,32 +616,6 @@ namespace raft
         }
 
         LOG_DEBUG_FMT("Replicating on follower {}: {}", local_id, i);
-
-        // If replication is suspended during recovery, only accept entries if
-        // their index is less than the max recovery index
-        if (recovery_max_index.has_value() && i > recovery_max_index.value())
-        {
-          if (is_first_entry)
-          {
-            // If no entry was replicated in the batch, abort replication of the
-            // whole batch
-            LOG_INFO_FMT(
-              "Replication suspended: {} > {}", i, recovery_max_index.value());
-            send_append_entries_response(r.from_node, false);
-            return;
-          }
-          else
-          {
-            // If an entry was successfully replicated in the batch, deserialise
-            // up to that entry
-            LOG_INFO_FMT(
-              "Replication suspended up to {} but deserialised up to {}",
-              recovery_max_index.value(),
-              i - 1);
-            send_append_entries_response(r.from_node, true);
-            return;
-          }
-        }
 
         last_idx = i;
         is_first_entry = false;

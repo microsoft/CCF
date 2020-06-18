@@ -218,11 +218,13 @@ namespace enclave
               node->tick(elapsed_ms);
               timers.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
-              // ledger is being read
+              // public ledger is being read
               if (!node->is_reading_public_ledger())
               {
                 for (auto& r : rpc_map->get_map())
+                {
                   r.second->tick(elapsed_ms);
+                }
               }
               node->tick_end();
             }
