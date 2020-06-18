@@ -20,18 +20,14 @@ namespace consensus
     /// Request individual ledger entries. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_get),
 
-    ///@{
     /// Respond to ledger_get. Host -> Enclave
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_entry),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_no_entry),
-    ///@}
 
-    ///@{
     /// Modify the local ledger. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_append),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_commit),
-    ///@}
   };
 }
 

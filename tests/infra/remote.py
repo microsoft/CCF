@@ -432,7 +432,7 @@ class LocalRemote(CmdMixin):
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
-            dst_path = self.root
+            dst_path = os.path.join(self.root, os.path.basename(path))
             self._cp(path, dst_path)
 
     def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
@@ -575,9 +575,11 @@ class CCFRemote(object):
             self.BIN, enclave_type, binary_dir=binary_dir
         )
 
-        self.ledger_dir = ledger_dir
+        self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
         self.ledger_dir_name = (
-            os.path.basename(ledger_dir) if ledger_dir else f"{local_node_id}.ledger"
+            os.path.basename(self.ledger_dir)
+            if self.ledger_dir
+            else f"{local_node_id}.ledger"
         )
         self.common_dir = common_dir
 

@@ -469,6 +469,8 @@ if(BUILD_TESTS)
     NAME governance_history_test
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_history.py
     CONSENSUS raft
+    ADDITIONAL_ARGS # https://github.com/microsoft/CCF/issues/1275
+                    --ledger-chunk-max-bytes 20MB
   )
 
   add_e2e_test(
@@ -482,10 +484,6 @@ if(BUILD_TESTS)
       # purpose to check that a recovery network is robust to a view change.
       --raft-election-timeout
       4000
-      # Smaller ledger chunks than default to make sure that a ledger made of
-      # multiple chunks can be recovered
-      --ledger-chunk-max-bytes
-      20KB
   )
 
   add_e2e_test(
@@ -558,12 +556,16 @@ if(BUILD_TESTS)
     NAME suspend_nodes_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
     CONSENSUS pbft
+    LABEL long_test
+    ADDITIONAL_ARGS --seed 42
   )
 
   add_e2e_test(
     NAME replay_new_view_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
     CONSENSUS pbft
+    LABEL long_test
+    ADDITIONAL_ARGS --seed 42
   )
 
   if(BUILD_SMALLBANK)

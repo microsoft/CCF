@@ -714,15 +714,25 @@ namespace ccf
 
     void recover_private_ledger_end_unsafe()
     {
-      sm.expect(State::readingPrivateLedger);
-
       // When reaching the end of the private ledger, make sure the same
       // ledger has been read and swap in private state
+
+      sm.expect(State::readingPrivateLedger);
+
+      if (recovery_v != recovery_store->current_version())
+      {
+        throw std::logic_error(fmt::format(
+          "Private recovery did not reach public ledger version: {}/{}",
+          recovery_store->current_version(),
+          recovery_v));
+      }
+
       auto h = dynamic_cast<MerkleTxHistory*>(recovery_history.get());
       if (h->get_replicated_state_root() != recovery_root)
       {
-        throw std::logic_error(
-          "Root of public store does not match root of private store");
+        throw std::logic_error(fmt::format(
+          "Root of public store does not match root of private store at {}",
+          recovery_v));
       }
 
       network.tables->swap_private_maps(*recovery_store.get());
@@ -730,12 +740,6 @@ namespace ccf
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
-
-      // On backups, resume replication
-      if (!consensus->is_primary())
-      {
-        consensus->resume_replication();
-      }
 
       // Open the service
       if (consensus->is_primary())
@@ -886,8 +890,11 @@ namespace ccf
     {
       if (
         !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork))
+        !sm.check(State::partOfPublicNetwork) &&
+        !sm.check(State::readingPrivateLedger))
+      {
         return;
+      }
 
       consensus->periodic(elapsed);
     }
@@ -896,8 +903,11 @@ namespace ccf
     {
       if (
         !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork))
+        !sm.check(State::partOfPublicNetwork) &&
+        !sm.check(State::readingPrivateLedger))
+      {
         return;
+      }
 
       consensus->periodic_end();
     }
@@ -907,7 +917,8 @@ namespace ccf
       // Only process messages once part of network
       if (
         !sm.check(State::partOfNetwork) &&
-        !sm.check(State::partOfPublicNetwork))
+        !sm.check(State::partOfPublicNetwork) &&
+        !sm.check(State::readingPrivateLedger))
       {
         return;
       }
@@ -939,7 +950,8 @@ namespace ccf
     {
       return (
         (sm.check(State::partOfNetwork) ||
-         sm.check(State::partOfPublicNetwork)) &&
+         sm.check(State::partOfPublicNetwork) ||
+         sm.check(State::readingPrivateLedger)) &&
         consensus->is_primary());
     }
 
@@ -1304,10 +1316,6 @@ namespace ccf
       // Setup new temporary store and record current version/root
       setup_private_recovery_store();
 
-      // Suspend consensus replication at recovery_v + 1 since this is called
-      // from commit hook
-      consensus->suspend_replication(recovery_v + 1);
-
       // Start reading private security domain of ledger
       ledger_idx = 0;
       read_ledger_idx(++ledger_idx);
@@ -1346,7 +1354,9 @@ namespace ccf
               "Unexpected: write to service table does not include key 0");
           }
 
-          if (it->second.value().status == ServiceStatus::OPEN)
+          if (
+            it->second.value().status == ServiceStatus::OPEN &&
+            !this->is_part_of_public_network())
           {
             this->consensus->set_f(1);
             open_user_frontend();
