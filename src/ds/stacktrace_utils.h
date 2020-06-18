@@ -4,47 +4,32 @@
 // Licensed under the MIT license.
 #pragma once
 
-#include "../3rdparty/backward-cpp/backward.hpp"
+#ifndef INSIDE_ENCLAVE
+#  include <backward-cpp/backward.hpp>
+#endif
 
-#include <cstring>
-#include <fstream>
-#include <optional>
-#include <signal.h>
-#include <sstream>
-#include <string>
+#include <iostream>
 
-namespace logger
+namespace stacktrace
 {
-  /** Print a demangled stack backtrace of the caller function to FILE* out. */
+  /** Print a demangled stack backtrace of the caller function to std out. */
   static inline void print_stacktrace()
   {
+#ifndef INSIDE_ENCLAVE
     std::cout << "stack trace:" << std::endl;
     backward::StackTrace st;
     st.load_here();
     backward::Printer p;
     p.print(st);
+#endif
   }
 
-  static void handler(int sig)
+  static inline void init_sig_handlers()
   {
-    std::cout << "Error: signal " << sig << ":" << std::endl;
-    print_stacktrace();
-    exit(1);
-  }
-
-  static inline void Init(const char* file_name_extention)
-  {
-    signal(SIGSEGV, handler); // install our handler
-
-    std::string output_file("out");
-    output_file.append(file_name_extention);
-    output_file.append(".txt");
-
-    std::string error_file("err");
-    error_file.append(file_name_extention);
-    error_file.append(".txt");
-
-    freopen(output_file.c_str(), "w", stdout);
-    freopen(error_file.c_str(), "w", stderr);
+#ifndef INSIDE_ENCLAVE
+    // This registers signal handlers on construction, and these remain after
+    // destruction.
+    backward::SignalHandling sh;
+#endif
   }
 }
