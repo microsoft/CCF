@@ -57,7 +57,7 @@ Example
 signed_index
 ------------
 
-.. literalinclude:: ../schemas/getSignedIndex_result.json
+.. literalinclude:: ../schemas/singed_index_result.json
     :language: json
 
 Example
