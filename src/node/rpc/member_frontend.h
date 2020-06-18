@@ -489,7 +489,9 @@ namespace ccf
     }
 
     bool check_member_status(
-      kv::ReadOnlyTx& tx, MemberId id, std::initializer_list<MemberStatus> allowed)
+      kv::ReadOnlyTx& tx,
+      MemberId id,
+      std::initializer_list<MemberStatus> allowed)
     {
       auto member = tx.get_read_only_view(this->network.members)->get(id);
       if (!member)
