@@ -1,7 +1,7 @@
 Building CCF from Source
 =========================
 
-Once you have cloned the CCF repository, setup your VM and installed all dependencies (see :ref:`quickstart/requirements:Requirements`), you will be able to successfully build and run the CCF test suite that will deploy a local CCF network.
+Once you have cloned the CCF repository, setup your VM and installed all dependencies, you will be able to successfully build and run the CCF test suite that will deploy a local CCF network.
 
 To build CCF from source on a SGX-enabled machine, run the following:
 
