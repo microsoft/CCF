@@ -91,7 +91,7 @@ add_custom_command(
 
 # Copy utilities from tests directory
 set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh
-                  upload_pico_metrics.py scurl.sh
+                  upload_pico_metrics.py scurl.sh submit_recovery_share.sh
 )
 foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
@@ -101,7 +101,8 @@ endforeach()
 
 # Install specific utilities
 install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
-                 ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin
+                 ${CCF_DIR}/tests/sgxinfo.sh
+                 ${CCF_DIR}/tests/submit_recovery_share.sh DESTINATION bin
 )
 
 # Install getting_started scripts for VM creation and setup

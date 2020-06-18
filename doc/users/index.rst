@@ -5,7 +5,7 @@ To generate the certificate and private key of trusted users should be generated
 
 .. code-block:: bash
 
-    $ CCF/tests/keygenerator.sh --name=user1
+    $ CCF/tests/keygenerator.sh --name user1
     -- Generating identity private key and certificate for participant "user1"...
     Identity private key generated at:   user1_privk.pem
     Identity certificate generated at:   user1_cert.pem (to be registered in CCF)
