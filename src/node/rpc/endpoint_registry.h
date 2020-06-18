@@ -26,8 +26,13 @@ namespace ccf
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
-  // Read-only endpoints can only get values from the kv, they cannot write
-  struct ReadOnlyEndpointContext
+  using HandlerArgs CCF_DEPRECATED(
+    "Handlers have been renamed to Endpoints. Please use EndpointContext "
+    "instead of HandlerArgs, and use 'auto' wherever possible") =
+    EndpointContext
+
+    // Read-only endpoints can only get values from the kv, they cannot write
+    struct ReadOnlyEndpointContext
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     kv::ReadOnlyTx& tx;
@@ -84,7 +89,7 @@ namespace ccf
       /** Sets the JSON schema that the request parameters must comply with.
        *
        * @param j Request parameters JSON schema
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       Endpoint& set_params_schema(const nlohmann::json& j)
       {
@@ -97,7 +102,7 @@ namespace ccf
       /** Sets the JSON schema that the request response must comply with.
        *
        * @param j Request response JSON schema
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       Endpoint& set_result_schema(const nlohmann::json& j)
       {
@@ -116,7 +121,7 @@ namespace ccf
        *
        * @tparam In Request parameters JSON-serialisable data structure
        * @tparam Out Request response JSON-serialisable data structure
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       template <typename In, typename Out>
       Endpoint& set_auto_schema()
@@ -153,7 +158,7 @@ namespace ccf
        *
        * @tparam T Request parameters and response JSON-serialisable data
        * structure
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       template <typename T>
       Endpoint& set_auto_schema()
@@ -167,7 +172,7 @@ namespace ccf
        * safe to sometimes execute on followers.
        *
        * @param fr Enum value with desired status
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       Endpoint& set_forwarding_required(ForwardingRequired fr)
       {
@@ -191,7 +196,7 @@ namespace ccf
        * By default, client signatures are not required.
        *
        * @param v Boolean indicating whether the request must be signed
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       Endpoint& set_require_client_signature(bool v)
       {
@@ -213,7 +218,7 @@ namespace ccf
        * \endverbatim
        *
        * @param v Boolean indicating whether the user identity must be known
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       Endpoint& set_require_client_identity(bool v)
       {
@@ -246,7 +251,7 @@ namespace ccf
        *
        * @param v Boolean indicating whether the Endpoint is executed locally,
        * on the node receiving the request
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       Endpoint& set_execute_locally(bool v)
       {
@@ -258,7 +263,7 @@ namespace ccf
 
       /** Indicates which HTTP verb the endpoint should respond to.
        *
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: pass verb to "
@@ -271,7 +276,7 @@ namespace ccf
 
       /** Indicates that the endpoint is only accessible via the GET HTTP verb.
        *
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: use "
@@ -283,7 +288,7 @@ namespace ccf
 
       /** Indicates that the endpoint is only accessible via the POST HTTP verb.
        *
-       * @return The installed Endpoint for further modification
+       * @return This Endpoint for further modification
        */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: use "
@@ -432,7 +437,7 @@ namespace ccf
      * EndpointFunction was found.
      *
      * @param f Method implementation
-     * @return The installed Endpoint for further modification
+     * @return This Endpoint for further modification
      */
     Endpoint& set_default(EndpointFunction f)
     {
