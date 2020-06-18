@@ -4,10 +4,7 @@
 #pragma once
 
 #include "ds/logger.h"
-
-#ifndef INSIDE_ENCLAVE
-#  include "stacktrace_utils.h"
-#endif
+#include "stacktrace_utils.h"
 
 #define CCF_ASSERT_FMT_FAIL(...) \
   CCF_ASSERT(false, fmt::format(__VA_ARGS__).c_str())
@@ -23,7 +20,7 @@
         if ((expr) == 0) \
         { \
           LOG_FAIL_FMT("Assertion failed: {} {}", #expr, (msg)); \
-          logger::print_stacktrace(); \
+          stacktrace::print_stacktrace(); \
           throw std::logic_error(msg); \
         } \
       } while (0)
@@ -35,7 +32,7 @@
     do \
     { \
       LOG_FAIL_FMT("FATAL_ERROR: {}", (msg)); \
-      logger::print_stacktrace(); \
+      stacktrace::print_stacktrace(); \
       std::terminate(); \
     } while (0)
 #else
