@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../ds/logger.h"
-#include "../ds/spin_lock.h"
+#include "ds/logger.h"
+#include "ds/spin_lock.h"
+#include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "enclave_time.h"
 
@@ -52,6 +53,8 @@ extern "C"
     {
       return false;
     }
+
+    stacktrace::init_sig_handlers();
 
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
