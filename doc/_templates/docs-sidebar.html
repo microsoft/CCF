@@ -34,7 +34,7 @@
     </ul>
 
     {% if versions %}
-    {%- for item in versions %}
+    {%- for item in versions|sort(attribute='name', reverse=True) %}
       <ul>
         <li>
           <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
