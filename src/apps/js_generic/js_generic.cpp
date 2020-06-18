@@ -139,7 +139,7 @@ namespace ccfapp
     return r;
   }
 
-  class JSHandlers : public UserHandlerRegistry
+  class JSHandlers : public UserEndpointRegistry
   {
   private:
     NetworkTables& network;
@@ -147,7 +147,7 @@ namespace ccfapp
 
   public:
     JSHandlers(NetworkTables& network) :
-      UserHandlerRegistry(network),
+      UserEndpointRegistry(network),
       network(network),
       table(network.tables->create<Table>("data"))
     {
@@ -276,7 +276,7 @@ namespace ccfapp
     // supported methods here
     void list_methods(kv::Tx& tx, ListMethods::Out& out) override
     {
-      UserHandlerRegistry::list_methods(tx, out);
+      UserEndpointRegistry::list_methods(tx, out);
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {

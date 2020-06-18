@@ -40,7 +40,7 @@ namespace ccfapp
     {}
   };
 
-  class SmallBankHandlers : public UserHandlerRegistry
+  class SmallBankHandlers : public UserEndpointRegistry
   {
   private:
     SmallBankTables tables;
@@ -92,13 +92,13 @@ namespace ccfapp
 
   public:
     SmallBankHandlers(kv::Store& store) :
-      UserHandlerRegistry(store),
+      UserEndpointRegistry(store),
       tables(store)
     {}
 
     void init_handlers(kv::Store& store) override
     {
-      UserHandlerRegistry::init_handlers(store);
+      UserEndpointRegistry::init_handlers(store);
 
       auto create = [this](auto& args) {
         // Create an account with a balance from thin air.

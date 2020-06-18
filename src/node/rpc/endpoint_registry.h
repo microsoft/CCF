@@ -29,7 +29,7 @@ namespace ccf
   using HandlerArgs CCF_DEPRECATED(
     "Handlers have been renamed to Endpoints. Please use EndpointContext "
     "instead of HandlerArgs, and use 'auto' wherever possible") =
-    EndpointContext
+    EndpointContext;
 
     // Read-only endpoints can only get values from the kv, they cannot write
     struct ReadOnlyEndpointContext
