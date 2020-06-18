@@ -2,17 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "handler_registry.h"
+#include "endpoint_registry.h"
 #include "json_handler.h"
 #include "metrics.h"
 
 namespace ccf
 {
   /*
-   * Extends the basic HandlerRegistry with methods which should be present
+   * Extends the basic EndpointRegistry with methods which should be present
    * on all frontends
    */
-  class CommonHandlerRegistry : public HandlerRegistry
+  class CommonEndpointRegistry : public EndpointRegistry
   {
   private:
     metrics::Metrics metrics;
@@ -23,16 +23,16 @@ namespace ccf
     kv::Store* tables = nullptr;
 
   public:
-    CommonHandlerRegistry(
+    CommonEndpointRegistry(
       kv::Store& store, const std::string& certs_table_name = "") :
-      HandlerRegistry(store, certs_table_name),
+      EndpointRegistry(store, certs_table_name),
       nodes(store.get<Nodes>(Tables::NODES)),
       tables(&store)
     {}
 
     void init_handlers(kv::Store& t) override
     {
-      HandlerRegistry::init_handlers(t);
+      EndpointRegistry::init_handlers(t);
 
       auto get_commit = [this](auto& args, nlohmann::json&& params) {
         if (consensus != nullptr)
@@ -220,7 +220,7 @@ namespace ccf
 
         auto j = nlohmann::json::object();
 
-        for (auto& [verb, handler] : it->second)
+        for (auto& [verb, endpoint] : it->second)
         {
           std::string verb_name = http_method_str(verb);
           std::transform(
@@ -229,7 +229,7 @@ namespace ccf
             verb_name.begin(),
             [](unsigned char c) { return std::tolower(c); });
           j[verb_name] =
-            GetSchema::Out{handler.params_schema, handler.result_schema};
+            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
         }
 
         return make_success(j);
@@ -305,7 +305,7 @@ namespace ccf
     {
       metrics.track_tx_rates(elapsed, stats);
 
-      HandlerRegistry::tick(elapsed, stats);
+      EndpointRegistry::tick(elapsed, stats);
     }
   };
 }

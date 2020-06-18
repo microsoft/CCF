@@ -1247,12 +1247,12 @@ namespace ccf
       }
 
       const auto actor = rpc_map->resolve(actor_opt.value());
-      auto handler = this->rpc_map->find(actor);
-      if (!handler.has_value())
+      auto frontend_opt = this->rpc_map->find(actor);
+      if (!frontend_opt.has_value())
       {
-        throw std::logic_error("Handler has no value");
+        throw std::logic_error("RpcMap::find returned invalid (empty) frontend");
       }
-      auto frontend = handler.value();
+      auto frontend = frontend_opt.value();
 
       const auto response = frontend->process(ctx);
       if (!response.has_value())

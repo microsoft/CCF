@@ -4,7 +4,7 @@
 
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
-#include "node/rpc/handler_registry.h"
+#include "node/rpc/endpoint_registry.h"
 
 #include <memory>
 

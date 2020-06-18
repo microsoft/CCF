@@ -21,7 +21,7 @@ namespace ccf
     Users* users;
 
   public:
-    UserRpcFrontend(kv::Store& tables, HandlerRegistry& h) :
+    UserRpcFrontend(kv::Store& tables, EndpointRegistry& h) :
       RpcFrontend(
         tables,
         h,
@@ -50,50 +50,51 @@ namespace ccf
     }
 
     // Forward these methods so that apps can write foo(...); rather than
-    // handlers.foo(...);
+    // endpoints.foo(...);
     template <typename... Ts>
-    ccf::HandlerRegistry::Handler& install(Ts&&... ts)
+    ccf::EndpointRegistry::Endpoint& install(Ts&&... ts)
     {
-      return handlers.install(std::forward<Ts>(ts)...);
+      return endpoints.install(std::forward<Ts>(ts)...);
     }
 
     template <typename... Ts>
-    ccf::HandlerRegistry::Handler make_endpoint(Ts&&... ts)
+    ccf::EndpointRegistry::Endpoint make_endpoint(Ts&&... ts)
     {
-      return handlers.make_endpoint(std::forward<Ts>(ts)...);
+      return endpoints.make_endpoint(std::forward<Ts>(ts)...);
     }
 
     template <typename... Ts>
-    ccf::HandlerRegistry::Handler make_read_only_endpoint(Ts&&... ts)
+    ccf::EndpointRegistry::Endpoint make_read_only_endpoint(Ts&&... ts)
     {
-      return handlers.make_read_only_endpoint(std::forward<Ts>(ts)...);
+      return endpoints.make_read_only_endpoint(std::forward<Ts>(ts)...);
     }
 
     template <typename... Ts>
-    ccf::HandlerRegistry::Handler make_command_endpoint(Ts&&... ts)
+    ccf::EndpointRegistry::Endpoint make_command_endpoint(Ts&&... ts)
     {
-      return handlers.make_command_endpoint(std::forward<Ts>(ts)...);
+      return endpoints.make_command_endpoint(std::forward<Ts>(ts)...);
     }
   };
 
-  class UserHandlerRegistry : public CommonHandlerRegistry
+  class UserEndpointRegistry : public CommonEndpointRegistry
   {
   public:
-    UserHandlerRegistry(kv::Store& store) :
-      CommonHandlerRegistry(store, Tables::USER_CERTS)
+    UserEndpointRegistry(kv::Store& store) :
+      CommonEndpointRegistry(store, Tables::USER_CERTS)
     {}
 
-    UserHandlerRegistry(NetworkTables& network) :
-      CommonHandlerRegistry(*network.tables, Tables::USER_CERTS)
+    UserEndpointRegistry(NetworkTables& network) :
+      CommonEndpointRegistry(*network.tables, Tables::USER_CERTS)
     {}
   };
 
   // TODO: Add using here. Maybe deprecated?
+  using UserHandlerRegistry = UserEndpointRegistry;
 
   class SimpleUserRpcFrontend : public UserRpcFrontend
   {
   protected:
-    UserHandlerRegistry common_handlers;
+    UserEndpointRegistry common_handlers;
 
   public:
     SimpleUserRpcFrontend(kv::Store& tables) :

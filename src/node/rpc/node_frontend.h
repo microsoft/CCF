@@ -11,7 +11,7 @@
 
 namespace ccf
 {
-  class NodeHandlers : public CommonHandlerRegistry
+  class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
     NetworkState& network;
@@ -137,15 +137,15 @@ namespace ccf
     }
 
   public:
-    NodeHandlers(NetworkState& network, AbstractNodeState& node) :
-      CommonHandlerRegistry(*network.tables),
+    NodeEndpoints(NetworkState& network, AbstractNodeState& node) :
+      CommonEndpointRegistry(*network.tables),
       network(network),
       node(node)
     {}
 
     void init_handlers(kv::Store& tables_) override
     {
-      CommonHandlerRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers(tables_);
 
       signatures = tables->get<Signatures>(Tables::SIGNATURES);
 
@@ -322,12 +322,12 @@ namespace ccf
   class NodeRpcFrontend : public RpcFrontend
   {
   protected:
-    NodeHandlers node_handlers;
+    NodeEndpoints node_endpoints;
 
   public:
     NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
-      RpcFrontend(*network.tables, node_handlers),
-      node_handlers(network, node)
+      RpcFrontend(*network.tables, node_endpoints),
+      node_endpoints(network, node)
     {}
   };
 }

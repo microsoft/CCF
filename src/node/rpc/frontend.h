@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "common_handler_registry.h"
+#include "common_endpoint_registry.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "ds/buffer.h"
@@ -25,7 +25,7 @@ namespace ccf
   {
   protected:
     kv::Store& tables;
-    HandlerRegistry& handlers;
+    EndpointRegistry& endpoints;
 
     void disable_request_storing()
     {
@@ -65,26 +65,26 @@ namespace ccf
       if (consensus != c)
       {
         consensus = c;
-        handlers.set_consensus(consensus);
+        endpoints.set_consensus(consensus);
       }
     }
 
     void update_history()
     {
       history = tables.get_history().get();
-      handlers.set_history(history);
+      endpoints.set_history(history);
     }
 
     std::vector<uint8_t> get_cert_to_forward(
       std::shared_ptr<enclave::RpcContext> ctx,
-      HandlerRegistry::Handler* handler = nullptr)
+      EndpointRegistry::Endpoint* endpoint = nullptr)
     {
       // Only forward the certificate if the certificate cannot be looked up
-      // from the caller ID on the receiving frontend or if the handler does not
-      // require a known client identity
+      // from the caller ID on the receiving frontend or if the endpoint does
+      // not require a known client identity
       if (
-        !handlers.has_certs() ||
-        (handler != nullptr && !handler->require_client_identity))
+        !endpoints.has_certs() ||
+        (endpoint != nullptr && !endpoint->require_client_identity))
       {
         return ctx->session->caller_cert;
       }
@@ -94,7 +94,7 @@ namespace ccf
 
     std::optional<std::vector<uint8_t>> forward_or_redirect_json(
       std::shared_ptr<enclave::RpcContext> ctx,
-      HandlerRegistry::Handler* handler,
+      EndpointRegistry::Endpoint* endpoint,
       CallerId caller_id)
     {
       if (cmd_forwarder && !ctx->session->original_caller.has_value())
@@ -106,7 +106,7 @@ namespace ccf
           if (
             primary_id != NoNode &&
             cmd_forwarder->forward_command(
-              ctx, primary_id, caller_id, get_cert_to_forward(ctx, handler)))
+              ctx, primary_id, caller_id, get_cert_to_forward(ctx, endpoint)))
           {
             // Indicate that the RPC has been forwarded to primary
             LOG_TRACE_FMT("RPC forwarded to primary {}", primary_id);
@@ -203,9 +203,9 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto handler = handlers.find_handler(
+      auto endpoint = endpoints.find_endpoint(
         local_method, (http_method)ctx->get_request_verb());
-      if (handler != nullptr && handler->execute_locally)
+      if (endpoint != nullptr && endpoint->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
       }
@@ -220,11 +220,11 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      const auto handler = handlers.find_handler(
+      const auto endpoint = endpoints.find_endpoint(
         local_method, (http_method)ctx->get_request_verb());
-      if (handler == nullptr)
+      if (endpoint == nullptr)
       {
-        const auto allowed_verbs = handlers.get_allowed_verbs(local_method);
+        const auto allowed_verbs = endpoints.get_allowed_verbs(local_method);
         if (allowed_verbs.empty())
         {
           ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
@@ -253,9 +253,9 @@ namespace ccf
         }
       }
 
-      if (handler->require_client_identity && handlers.has_certs())
+      if (endpoint->require_client_identity && endpoints.has_certs())
       {
-        // Only if handler requires client identity.
+        // Only if endpoint requires client identity.
         // If a request is forwarded, check that the caller is known. Otherwise,
         // only check that the caller id is valid.
         if (
@@ -273,7 +273,7 @@ namespace ccf
         ctx->is_create_request;
 
       const auto signed_request = ctx->get_signed_request();
-      if (handler->require_client_signature && !signed_request.has_value())
+      if (endpoint->require_client_signature && !signed_request.has_value())
       {
         set_response_unauthorized(
           ctx, fmt::format("'{}' RPC must be signed", method));
@@ -281,7 +281,7 @@ namespace ccf
       }
 
       // By default, signed requests are verified and recorded, even on
-      // handlers that do not require client signatures
+      // endpoints that do not require client signatures
       if (signed_request.has_value())
       {
         // For forwarded requests (raft only), skip verification as it is
@@ -308,13 +308,13 @@ namespace ccf
 
       if (!is_primary && consensus->type() == ConsensusType::RAFT)
       {
-        switch (handler->forwarding_required)
+        switch (endpoint->forwarding_required)
         {
           case ForwardingRequired::Sometimes:
           {
             if (ctx->session->is_forwarding)
             {
-              return forward_or_redirect_json(ctx, handler, caller_id);
+              return forward_or_redirect_json(ctx, endpoint, caller_id);
             }
             break;
           }
@@ -322,12 +322,12 @@ namespace ccf
           case ForwardingRequired::Always:
           {
             ctx->session->is_forwarding = true;
-            return forward_or_redirect_json(ctx, handler, caller_id);
+            return forward_or_redirect_json(ctx, endpoint, caller_id);
           }
         }
       }
 
-      auto func = handler->func;
+      auto func = endpoint->func;
       auto args = EndpointContext{ctx, tx, caller_id};
 
       tx_count++;
@@ -429,12 +429,12 @@ namespace ccf
   public:
     RpcFrontend(
       kv::Store& tables_,
-      HandlerRegistry& handlers_,
+      EndpointRegistry& handlers_,
       ClientSignatures* client_sigs_ = nullptr) :
       tables(tables_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
-      handlers(handlers_),
+      endpoints(handlers_),
       pbft_requests_map(
         tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
@@ -460,7 +460,7 @@ namespace ccf
       if (!is_open_)
       {
         is_open_ = true;
-        handlers.init_handlers(tables);
+        endpoints.init_handlers(tables);
       }
     }
 
@@ -486,7 +486,7 @@ namespace ccf
 
       kv::Tx tx;
 
-      auto caller_id = handlers.get_caller_id(tx, ctx->session->caller_cert);
+      auto caller_id = endpoints.get_caller_id(tx, ctx->session->caller_cert);
 
       if (consensus != nullptr && consensus->type() == ConsensusType::PBFT)
       {
@@ -633,7 +633,7 @@ namespace ccf
       }
       stats.tx_count = tx_count;
 
-      handlers.tick(elapsed, stats);
+      endpoints.tick(elapsed, stats);
 
       // reset tx_counter for next tick interval
       tx_count = 0;

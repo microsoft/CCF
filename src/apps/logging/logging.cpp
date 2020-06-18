@@ -73,7 +73,7 @@ namespace loggingapp
     // SNIPPET_START: constructor
     LoggerHandlers(
       ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context) :
-      UserHandlerRegistry(nwt),
+      ccf::UserHandlerRegistry(nwt),
       records(
         nwt.tables->create<Table>("records", kv::SecurityDomain::PRIVATE)),
       public_records(nwt.tables->create<Table>(

@@ -211,7 +211,7 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    member_handlers.make_endpoint("empty_function", HTTP_POST, empty_function)
+    member_endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
@@ -219,19 +219,19 @@ public:
 
 class TestNoCertsFrontend : public RpcFrontend
 {
-  HandlerRegistry handlers;
+  EndpointRegistry endpoints;
 
 public:
   TestNoCertsFrontend(kv::Store& tables) :
-    RpcFrontend(tables, handlers),
-    handlers(tables)
+    RpcFrontend(tables, endpoints),
+    endpoints(tables)
   {
     open();
 
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    handlers.make_endpoint("empty_function", HTTP_POST, empty_function)
+    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
@@ -296,7 +296,7 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.make_endpoint("empty_function", HTTP_POST, empty_function)
+    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
       .install();
   }
 };
@@ -320,7 +320,7 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.make_endpoint("empty_function", HTTP_POST, empty_function)
+    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
       .install();
   }
 };
@@ -554,7 +554,7 @@ TEST_CASE("process with signatures")
     REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
   }
 
-  SUBCASE("handler does not require signature")
+  SUBCASE("endpoint does not require signature")
   {
     const auto simple_call = create_simple_request();
     const auto [signed_call, signed_req] = create_signed_request(simple_call);
@@ -589,7 +589,7 @@ TEST_CASE("process with signatures")
     }
   }
 
-  SUBCASE("handler requires signature")
+  SUBCASE("endpoint requires signature")
   {
     const auto simple_call = create_simple_request("empty_function_signed");
     const auto [signed_call, signed_req] = create_signed_request(simple_call);
@@ -654,7 +654,7 @@ TEST_CASE("process with caller")
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
 
-  SUBCASE("handler does not require valid caller")
+  SUBCASE("endpoint does not require valid caller")
   {
     const auto simple_call = create_simple_request("empty_function_no_auth");
     const auto serialized_simple_call = simple_call.build_request();
@@ -693,7 +693,7 @@ TEST_CASE("process with caller")
     }
   }
 
-  SUBCASE("handler requires valid caller")
+  SUBCASE("endpoint requires valid caller")
   {
     const auto simple_call = create_simple_request("empty_function");
     const auto serialized_simple_call = simple_call.build_request();
@@ -1069,7 +1069,7 @@ TEST_CASE("Explicit commitability")
   }
 }
 
-TEST_CASE("Alternative handlers")
+TEST_CASE("Alternative endpoints")
 {
   prepare_callers();
   TestAlternativeHandlerTypes frontend(*network.tables);
@@ -1202,7 +1202,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   {
-    INFO("Unauthenticated handler");
+    INFO("Unauthenticated endpoint");
     auto simple_call_no_auth = create_simple_request("empty_function_no_auth");
     auto serialized_call_no_auth = simple_call_no_auth.build_request();
 

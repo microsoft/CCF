@@ -47,7 +47,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     GetEncryptedRecoveryShare, encrypted_recovery_share, nonce)
 
-  class MemberHandlers : public CommonHandlerRegistry
+  class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
     Script get_script(kv::Tx& tx, std::string name)
@@ -525,11 +525,11 @@ namespace ccf
     const lua::TxScriptRunner tsr;
 
   public:
-    MemberHandlers(
+    MemberEndpoints(
       NetworkTables& network,
       AbstractNodeState& node,
       ShareManager& share_manager) :
-      CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
+      CommonEndpointRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
       share_manager(share_manager),
@@ -538,7 +538,7 @@ namespace ccf
 
     void init_handlers(kv::Store& tables_) override
     {
-      CommonHandlerRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers(tables_);
 
       auto read = [this](
                     kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
@@ -1037,7 +1037,7 @@ namespace ccf
       return "Could not find matching member certificate";
     }
 
-    MemberHandlers member_handlers;
+    MemberEndpoints member_endpoints;
     Members* members;
 
   public:
@@ -1046,8 +1046,8 @@ namespace ccf
       AbstractNodeState& node,
       ShareManager& share_manager) :
       RpcFrontend(
-        *network.tables, member_handlers, &network.member_client_signatures),
-      member_handlers(network, node, share_manager),
+        *network.tables, member_endpoints, &network.member_client_signatures),
+      member_endpoints(network, node, share_manager),
       members(&network.members)
     {}
 

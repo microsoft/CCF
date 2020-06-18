@@ -51,10 +51,10 @@ namespace ccf
     Always,
   };
 
-  /** The HandlerRegistry records the user-defined Handlers for a given
+  /** The EndpointRegistry records the user-defined endpoints for a given
    * CCF application.
    */
-  class HandlerRegistry
+  class EndpointRegistry
   {
   public:
     enum ReadWrite
@@ -63,30 +63,30 @@ namespace ccf
       Write
     };
 
-    /** A Handler represents a user-defined endpoint that can be invoked by
-     * authorised users via HTTP requests, over TLS. A Handler is accessible at
-     * a specific verb and URI, e.g. POST /app/accounts or GET /app/records.
+    /** An Endpoint represents a user-defined resource that can be invoked by
+     * authorised users via HTTP requests, over TLS. An Endpoint is accessible
+     * at a specific verb and URI, e.g. POST /app/accounts or GET /app/records.
      *
-     * Handlers can read from and mutate the state of the replicated key-value
+     * Endpoints can read from and mutate the state of the replicated key-value
      * store.
      *
-     * A CCF application is a collection of Handlers recorded in the
-     * application's HandlerRegistry.
+     * A CCF application is a collection of Endpoints recorded in the
+     * application's EndpointRegistry.
      */
-    struct Handler
+    struct Endpoint
     {
       std::string method;
       EndpointFunction func;
-      HandlerRegistry* registry = nullptr;
+      EndpointRegistry* registry = nullptr;
 
       nlohmann::json params_schema = nullptr;
 
       /** Sets the JSON schema that the request parameters must comply with.
        *
        * @param j Request parameters JSON schema
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
-      Handler& set_params_schema(const nlohmann::json& j)
+      Endpoint& set_params_schema(const nlohmann::json& j)
       {
         params_schema = j;
         return *this;
@@ -97,9 +97,9 @@ namespace ccf
       /** Sets the JSON schema that the request response must comply with.
        *
        * @param j Request response JSON schema
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
-      Handler& set_result_schema(const nlohmann::json& j)
+      Endpoint& set_result_schema(const nlohmann::json& j)
       {
         result_schema = j;
         return *this;
@@ -116,10 +116,10 @@ namespace ccf
        *
        * @tparam In Request parameters JSON-serialisable data structure
        * @tparam Out Request response JSON-serialisable data structure
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
       template <typename In, typename Out>
-      Handler& set_auto_schema()
+      Endpoint& set_auto_schema()
       {
         if constexpr (!std::is_same_v<In, void>)
         {
@@ -153,30 +153,30 @@ namespace ccf
        *
        * @tparam T Request parameters and response JSON-serialisable data
        * structure
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
       template <typename T>
-      Handler& set_auto_schema()
+      Endpoint& set_auto_schema()
       {
         return set_auto_schema<typename T::In, typename T::Out>();
       }
 
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
 
-      /** Overrides whether a handler is always forwarded, or whether it is safe
-       * to sometimes execute on followers.
-       * 
+      /** Overrides whether a Endpoint is always forwarded, or whether it is
+       * safe to sometimes execute on followers.
+       *
        * @param fr Enum value with desired status
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
-      Handler& set_forwarding_required(ForwardingRequired fr)
+      Endpoint& set_forwarding_required(ForwardingRequired fr)
       {
         forwarding_required = fr;
         return *this;
       }
 
       CCF_DEPRECATED("Replaced by set_forwarding_required")
-      Handler& set_read_write(ReadWrite rw)
+      Endpoint& set_read_write(ReadWrite rw)
       {
         return set_forwarding_required(
           rw == Read ? ForwardingRequired::Sometimes :
@@ -191,9 +191,9 @@ namespace ccf
        * By default, client signatures are not required.
        *
        * @param v Boolean indicating whether the request must be signed
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
-      Handler& set_require_client_signature(bool v)
+      Endpoint& set_require_client_signature(bool v)
       {
         require_client_signature = v;
         return *this;
@@ -209,18 +209,19 @@ namespace ccf
        * \verbatim embed:rst:leading-asterisk
        * .. warning::
        *  If set to false, it is left to the application developer to implement
-       *  the authentication and authorisation mechanisms for the handler.
+       *  the authentication and authorisation mechanisms for the Endpoint.
        * \endverbatim
        *
        * @param v Boolean indicating whether the user identity must be known
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
-      Handler& set_require_client_identity(bool v)
+      Endpoint& set_require_client_identity(bool v)
       {
         if (!v && registry != nullptr && !registry->has_certs())
         {
           LOG_INFO_FMT(
-            "Disabling client identity requirement on {} handler has no effect "
+            "Disabling client identity requirement on {} Endpoint has no "
+            "effect "
             "since its registry does not have certificates table",
             method);
           return *this;
@@ -232,22 +233,22 @@ namespace ccf
 
       bool execute_locally = false;
 
-      /** Indicates that the execution of the handler does not require consensus
-       * from other nodes in the network.
+      /** Indicates that the execution of the Endpoint does not require
+       * consensus from other nodes in the network.
        *
-       * By default, handlers are not executed locally.
+       * By default, endpoints are not executed locally.
        *
        * \verbatim embed:rst:leading-asterisk
        * .. warning::
-       *  Use with caution. This should only be used for non-critical handlers
+       *  Use with caution. This should only be used for non-critical endpoints
        *  that do not read or mutate the state of the key-value store.
        * \endverbatim
        *
-       * @param v Boolean indicating whether the handler is executed locally, on
-       * the node receiving the request
-       * @return The installed Handler for further modification
+       * @param v Boolean indicating whether the Endpoint is executed locally,
+       * on the node receiving the request
+       * @return The installed Endpoint for further modification
        */
-      Handler& set_execute_locally(bool v)
+      Endpoint& set_execute_locally(bool v)
       {
         execute_locally = v;
         return *this;
@@ -255,44 +256,44 @@ namespace ccf
 
       http_method verb = HTTP_POST;
 
-      /** Indicates which HTTP verb the handler should respond to.
+      /** Indicates which HTTP verb the endpoint should respond to.
        *
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: pass verb to "
         "install()")
-      Handler& set_allowed_verb(http_method v)
+      Endpoint& set_allowed_verb(http_method v)
       {
         const auto previous_verb = verb;
         return registry->reinstall(*this, method, previous_verb);
       }
 
-      /** Indicates that the handler is only accessible via the GET HTTP verb.
+      /** Indicates that the endpoint is only accessible via the GET HTTP verb.
        *
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: use "
         "install(...HTTP_GET...)")
-      Handler& set_http_get_only()
+      Endpoint& set_http_get_only()
       {
         return set_allowed_verb(HTTP_GET);
       }
 
-      /** Indicates that the handler is only accessible via the POST HTTP verb.
+      /** Indicates that the endpoint is only accessible via the POST HTTP verb.
        *
-       * @return The installed Handler for further modification
+       * @return The installed Endpoint for further modification
        */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: use "
         "install(...HTTP_POST...)")
-      Handler& set_http_post_only()
+      Endpoint& set_http_post_only()
       {
         return set_allowed_verb(HTTP_POST);
       }
 
-      /** Finalise and install this handler
+      /** Finalise and install this endpoint
        */
       void install()
       {
@@ -301,8 +302,8 @@ namespace ccf
     };
 
   protected:
-    std::optional<Handler> default_handler;
-    std::map<std::string, std::map<http_method, Handler>> installed_handlers;
+    std::optional<Endpoint> default_handler;
+    std::map<std::string, std::map<http_method, Endpoint>> installed_handlers;
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -310,7 +311,8 @@ namespace ccf
     Certs* certs = nullptr;
 
   public:
-    HandlerRegistry(kv::Store& tables, const std::string& certs_table_name = "")
+    EndpointRegistry(
+      kv::Store& tables, const std::string& certs_table_name = "")
     {
       if (!certs_table_name.empty())
       {
@@ -318,34 +320,34 @@ namespace ccf
       }
     }
 
-    virtual ~HandlerRegistry() {}
+    virtual ~EndpointRegistry() {}
 
-    /** Create a new handler.
+    /** Create a new endpoint.
      *
-     * Caller should set any additional properties on the returned Handler
-     * object, and finally call Handler::install() to install it.
+     * Caller should set any additional properties on the returned Endpoint
+     * object, and finally call Endpoint::install() to install it.
      *
-     * @param method The URI at which this handler will be installed
-     * @param verb The HTTP verb which this handler will respond to
+     * @param method The URI at which this endpoint will be installed
+     * @param verb The HTTP verb which this endpoint will respond to
      * @param f Functor which will be invoked for requests to VERB /method
-     * @return The new Handler for further modification
+     * @return The new Endpoint for further modification
      */
-    Handler make_endpoint(
+    Endpoint make_endpoint(
       const std::string& method, http_method verb, const EndpointFunction& f)
     {
-      Handler handler;
-      handler.method = method;
-      handler.verb = verb;
-      handler.func = f;
+      Endpoint endpoint;
+      endpoint.method = method;
+      endpoint.verb = verb;
+      endpoint.func = f;
       // By default, all write transactions are forwarded
-      handler.forwarding_required = ForwardingRequired::Always;
-      handler.registry = this;
-      return handler;
+      endpoint.forwarding_required = ForwardingRequired::Always;
+      endpoint.registry = this;
+      return endpoint;
     }
 
-    /** Create a read-only handler.
+    /** Create a read-only endpoint.
      */
-    Handler make_read_only_endpoint(
+    Endpoint make_read_only_endpoint(
       const std::string& method,
       http_method verb,
       const ReadOnlyEndpointFunction& f)
@@ -362,12 +364,12 @@ namespace ccf
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
-    /** Create a new command handler.
+    /** Create a new command endpoint.
      *
      * Commands are endpoints which do not read or write from the KV. See
      * make_endpoint().
      */
-    Handler make_command_endpoint(
+    Endpoint make_command_endpoint(
       const std::string& method,
       http_method verb,
       const CommandEndpointFunction& f)
@@ -383,15 +385,15 @@ namespace ccf
         .set_forwarding_required(ForwardingRequired::Sometimes);
     }
 
-    /** Install the given handler, using its method and verb
+    /** Install the given endpoint, using its method and verb
      *
      * If an implementation is already installed for this method and verb, it
      * will be replaced.
-     * @param handler Handler object describing the new endpoint to install
+     * @param endpoint Endpoint object describing the new resource to install
      */
-    void install(const Handler& handler)
+    void install(const Endpoint& endpoint)
     {
-      installed_handlers[handler.method][handler.verb] = handler;
+      installed_handlers[endpoint.method][endpoint.verb] = endpoint;
     }
 
     CCF_DEPRECATED(
@@ -400,7 +402,7 @@ namespace ccf
       "  .set_forwarding_required() // Optional"
       "  .install()"
       "or make_read_only_endpoint(...")
-    Handler& install(
+    Endpoint& install(
       const std::string& method,
       const EndpointFunction& f,
       ReadWrite read_write)
@@ -413,8 +415,8 @@ namespace ccf
     }
 
     // Only needed to support deprecated functions
-    Handler& reinstall(
-      const Handler& h, const std::string& prev_method, http_method prev_verb)
+    Endpoint& reinstall(
+      const Endpoint& h, const std::string& prev_method, http_method prev_verb)
     {
       const auto handlers_it = installed_handlers.find(prev_method);
       if (handlers_it != installed_handlers.end())
@@ -430,9 +432,9 @@ namespace ccf
      * EndpointFunction was found.
      *
      * @param f Method implementation
-     * @return The installed Handler for further modification
+     * @return The installed Endpoint for further modification
      */
-    Handler& set_default(EndpointFunction f)
+    Endpoint& set_default(EndpointFunction f)
     {
       default_handler = {"", f, this};
       return default_handler.value();
@@ -440,7 +442,7 @@ namespace ccf
 
     /** Populate out with all supported methods
      *
-     * This is virtual since the default handler may do its own dispatch
+     * This is virtual since the default endpoint may do its own dispatch
      * internally, so derived implementations must be able to populate the list
      * with the supported methods however it constructs them.
      */
@@ -454,7 +456,7 @@ namespace ccf
 
     virtual void init_handlers(kv::Store& tables) {}
 
-    virtual Handler* find_handler(const std::string& method, http_method verb)
+    virtual Endpoint* find_endpoint(const std::string& method, http_method verb)
     {
       auto search = installed_handlers.find(method);
       if (search != installed_handlers.end())
@@ -482,7 +484,7 @@ namespace ccf
       auto search = installed_handlers.find(method);
       if (search != installed_handlers.end())
       {
-        for (auto& [verb, handler] : search->second)
+        for (auto& [verb, endpoint] : search->second)
         {
           verbs.push_back(verb);
         }
