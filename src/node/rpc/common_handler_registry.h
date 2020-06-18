@@ -164,7 +164,8 @@ namespace ccf
         return make_success(out);
       };
 
-      auto get_nodes_by_rpc_address = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_nodes_by_rpc_address = [this](
+                                        kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<GetNodesByRPCAddress::In>();
 
         GetNodesByRPCAddress::Out out;
@@ -285,7 +286,9 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .set_http_get_only();
       install(
-        GeneralProcs::GET_NODES_BY_RPC_ADDRESS, json_adapter(get_nodes_by_rpc_address), Read)
+        GeneralProcs::GET_NODES_BY_RPC_ADDRESS,
+        json_adapter(get_nodes_by_rpc_address),
+        Read)
         .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
         .set_http_get_only();
       install(
