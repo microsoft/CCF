@@ -558,6 +558,7 @@ if(BUILD_TESTS)
     NAME suspend_nodes_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
     CONSENSUS pbft
+    LABEL long_test
     ADDITIONAL_ARGS --seed 42
   )
 
@@ -565,6 +566,7 @@ if(BUILD_TESTS)
     NAME replay_new_view_pbft
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
     CONSENSUS pbft
+    LABEL long_test
     ADDITIONAL_ARGS --seed 42
   )
 
