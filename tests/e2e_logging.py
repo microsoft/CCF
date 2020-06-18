@@ -459,7 +459,7 @@ def test_tx_statuses(network, args):
 
     with primary.user_client() as c:
         check = infra.checker.Checker()
-        r = c.rpc("LOG_record", {"id": 1, "msg": "Ignored"})
+        r = c.rpc("LOG_record", {"id": 0, "msg": "Ignored"})
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
