@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_exception.h"
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
@@ -218,6 +219,38 @@ namespace kv
       return *result;
     }
 
+    std::unique_ptr<Snapshot> snapshot(Version v) override
+    {
+      std::lock_guard<SpinLock> mguard(maps_lock);
+
+      if (v > current_version())
+      {
+        throw ccf::ccf_logic_error(fmt::format(
+          "Attempting to snapshot at invalid version v:{}, current_version:{}",
+          v,
+          current_version()));
+      }
+
+      auto snapshot = std::make_unique<Snapshot>();
+
+      for (auto& map : maps)
+      {
+        map.second->lock();
+      }
+
+      for (auto& map : maps)
+      {
+        snapshot->add_snapshot(std::move(map.second->snapshot(v)));
+      }
+
+      for (auto& map : maps)
+      {
+        map.second->unlock();
+      }
+
+      return std::move(snapshot);
+    }
+
     void compact(Version v) override
     {
       // This is called when the store will never be rolled back to any
@@ -226,16 +259,24 @@ namespace kv
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       if (v > current_version())
+      {
         return;
+      }
 
       for (auto& map : maps)
+      {
         map.second->lock();
+      }
 
       for (auto& map : maps)
+      {
         map.second->compact(v);
+      }
 
       for (auto& map : maps)
+      {
         map.second->unlock();
+      }
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
@@ -243,15 +284,21 @@ namespace kv
 
         auto h = get_history();
         if (h)
+        {
           h->compact(v);
+        }
 
         auto e = get_encryptor();
         if (e)
+        {
           e->compact(v);
+        }
       }
 
       for (auto& map : maps)
+      {
         map.second->post_compact();
+      }
     }
 
     void rollback(Version v, std::optional<Term> t = std::nullopt) override

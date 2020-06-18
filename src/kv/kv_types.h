@@ -345,9 +345,76 @@ namespace kv
       Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
   };
 
+  class AbstractTxView
+  {
+  public:
+    virtual ~AbstractTxView() = default;
+
+    virtual bool has_writes() = 0;
+    virtual bool has_changes() = 0;
+    virtual bool prepare() = 0;
+    virtual void commit(Version v) = 0;
+    virtual void post_commit() = 0;
+  };
+
+  class AbstractStore;
+  class AbstractMap
+  {
+  public:
+    class Snapshot
+    {
+    public:
+      virtual ~Snapshot() = default;
+      virtual std::vector<uint8_t> get_buffer() = 0;
+      virtual std::string& get_name() = 0;
+      virtual SecurityDomain get_security_domain() = 0;
+      virtual bool get_is_replicated() = 0;
+    };
+
+    virtual ~AbstractMap() {}
+    virtual bool operator==(const AbstractMap& that) const = 0;
+    virtual bool operator!=(const AbstractMap& that) const = 0;
+
+    virtual AbstractStore* get_store() = 0;
+    virtual void serialise(
+      const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
+    virtual AbstractTxView* deserialise(
+      KvStoreDeserialiser& d, Version version) = 0;
+    virtual const std::string& get_name() const = 0;
+    virtual void compact(Version v) = 0;
+    virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
+    virtual void post_compact() = 0;
+    virtual void rollback(Version v) = 0;
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
+    virtual SecurityDomain get_security_domain() = 0;
+    virtual bool is_replicated() = 0;
+    virtual void clear() = 0;
+
+    virtual AbstractMap* clone(AbstractStore* store) = 0;
+    virtual void swap(AbstractMap* map) = 0;
+  };
+
   class AbstractStore
   {
   public:
+    class Snapshot
+    {
+    private:
+      std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
+
+    public:
+      void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
+      {
+        snapshots.push_back(std::move(snapshot));
+      }
+
+      std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
+      {
+        return snapshots;
+      }
+    };
+
     virtual ~AbstractStore() {}
 
     virtual Version next_version() = 0;
@@ -366,50 +433,13 @@ namespace kv
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
+    virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
-
     virtual CommitSuccess commit(
       const TxID& txid, PendingTx pt, bool globally_committable) = 0;
 
     virtual size_t commit_gap() = 0;
   };
 
-  class AbstractTxView
-  {
-  public:
-    virtual ~AbstractTxView() = default;
-
-    virtual bool has_writes() = 0;
-    virtual bool has_changes() = 0;
-    virtual bool prepare() = 0;
-    virtual void commit(Version v) = 0;
-    virtual void post_commit() = 0;
-  };
-
-  class AbstractMap
-  {
-  public:
-    virtual ~AbstractMap() {}
-    virtual bool operator==(const AbstractMap& that) const = 0;
-    virtual bool operator!=(const AbstractMap& that) const = 0;
-
-    virtual AbstractStore* get_store() = 0;
-    virtual void serialise(
-      const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
-    virtual AbstractTxView* deserialise(
-      KvStoreDeserialiser& d, Version version) = 0;
-    virtual const std::string& get_name() const = 0;
-    virtual void compact(Version v) = 0;
-    virtual void post_compact() = 0;
-    virtual void rollback(Version v) = 0;
-    virtual void lock() = 0;
-    virtual void unlock() = 0;
-    virtual SecurityDomain get_security_domain() = 0;
-    virtual bool is_replicated() = 0;
-    virtual void clear() = 0;
-
-    virtual AbstractMap* clone(AbstractStore* store) = 0;
-    virtual void swap(AbstractMap* map) = 0;
-  };
 }
