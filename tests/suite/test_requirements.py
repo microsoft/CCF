@@ -114,7 +114,10 @@ def recover(number_txs=5):
                 consensus=infra.e2e_args.get("consensus"),
             )
             new_network = func(*args, **kwargs)
-            new_network.txs.verify(network=new_network)
+            new_network.txs.verify(
+                network=new_network,
+                timeout=infra.e2e_args.get("ledger_recovery_timeout"),
+            )
             return new_network
 
         return wrapper
