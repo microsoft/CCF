@@ -27,7 +27,7 @@ jobs:
       suffix: 'Coverage'
       artifact_name: 'NoSGX_Coverage'
       ctest_filter: '-LE "benchmark|perf|long_test"'
-      ctest_timeout: '240'
+      ctest_timeout: '300'
 
   - template: common.yml
     parameters:
