@@ -58,21 +58,21 @@ namespace ccf
     }
 
     template <typename... Ts>
-    ccf::HandlerRegistry::Handler make_handler(Ts&&... ts)
+    ccf::HandlerRegistry::Handler make_endpoint(Ts&&... ts)
     {
-      return handlers.make_handler(std::forward<Ts>(ts)...);
+      return handlers.make_endpoint(std::forward<Ts>(ts)...);
     }
 
     template <typename... Ts>
-    ccf::HandlerRegistry::Handler make_read_only_handler(Ts&&... ts)
+    ccf::HandlerRegistry::Handler make_read_only_endpoint(Ts&&... ts)
     {
-      return handlers.make_read_only_handler(std::forward<Ts>(ts)...);
+      return handlers.make_read_only_endpoint(std::forward<Ts>(ts)...);
     }
 
     template <typename... Ts>
-    ccf::HandlerRegistry::Handler make_command_handler(Ts&&... ts)
+    ccf::HandlerRegistry::Handler make_command_endpoint(Ts&&... ts)
     {
-      return handlers.make_command_handler(std::forward<Ts>(ts)...);
+      return handlers.make_command_endpoint(std::forward<Ts>(ts)...);
     }
   };
 

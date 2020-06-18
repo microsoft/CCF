@@ -252,7 +252,7 @@ namespace ccf
           return add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING);
         }
       };
-      make_handler("join", HTTP_POST, json_adapter(accept)).install();
+      make_endpoint("join", HTTP_POST, json_adapter(accept)).install();
 
       auto get_signed_index = [this](auto& args, nlohmann::json&& params) {
         GetSignedIndex::Out result;
@@ -287,7 +287,7 @@ namespace ccf
 
         return make_success(result);
       };
-      make_read_only_handler(
+      make_read_only_endpoint(
         "signed_index", HTTP_GET, json_read_only_adapter(get_signed_index))
         .set_auto_schema<GetSignedIndex>()
         .install();
@@ -300,7 +300,7 @@ namespace ccf
 
         return make_success(result);
       };
-      make_read_only_handler(
+      make_read_only_endpoint(
         "quote", HTTP_GET, json_read_only_adapter(get_quote))
         .set_auto_schema<GetQuotes>()
         .install();
@@ -311,7 +311,7 @@ namespace ccf
 
         return make_success(result);
       };
-      make_read_only_handler(
+      make_read_only_endpoint(
         "quotes", HTTP_GET, json_read_only_adapter(get_quotes))
         .set_auto_schema<GetQuotes>()
         .install();

@@ -325,7 +325,7 @@ namespace ccf
      * @param f Functor which will be invoked for requests to VERB /method
      * @return The new Handler for further modification
      */
-    Handler make_handler(
+    Handler make_endpoint(
       const std::string& method, http_method verb, const HandleFunction& f)
     {
       Handler handler;
@@ -340,12 +340,12 @@ namespace ccf
 
     /** Create a read-only handler.
      */
-    Handler make_read_only_handler(
+    Handler make_read_only_endpoint(
       const std::string& method,
       http_method verb,
       const ReadOnlyHandleFunction& f)
     {
-      return make_handler(
+      return make_endpoint(
                method,
                verb,
                [f](HandlerArgs& args) {
@@ -360,14 +360,14 @@ namespace ccf
     /** Create a new command handler.
      *
      * Commands are endpoints which do not read or write from the KV. See
-     * make_handler().
+     * make_endpoint().
      */
-    Handler make_command_handler(
+    Handler make_command_endpoint(
       const std::string& method,
       http_method verb,
       const CommandHandleFunction& f)
     {
-      return make_handler(
+      return make_endpoint(
                method,
                verb,
                [f](HandlerArgs& args) {
@@ -390,15 +390,15 @@ namespace ccf
 
     CCF_DEPRECATED(
       "HTTP verb should be specified explicitly. Use: "
-      "make_handler(METHOD, VERB, FN)"
+      "make_endpoint(METHOD, VERB, FN)"
       "  .set_forwarding_required() // Optional"
       "  .install()"
-      "or make_read_only_handler(...")
+      "or make_read_only_endpoint(...")
     Handler& install(
       const std::string& method, const HandleFunction& f, ReadWrite read_write)
     {
       constexpr auto default_verb = HTTP_POST;
-      make_handler(method, default_verb, f)
+      make_endpoint(method, default_verb, f)
         .set_read_write(read_write)
         .install();
       return installed_handlers[method][default_verb];

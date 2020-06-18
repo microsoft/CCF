@@ -45,7 +45,7 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           "Failed to get commit info from Consensus");
       };
-      make_command_handler("commit", HTTP_GET, json_command_adapter(get_commit))
+      make_command_endpoint("commit", HTTP_GET, json_command_adapter(get_commit))
         .set_execute_locally(true)
         .set_auto_schema<void, GetCommit::Out>()
         .install();
@@ -68,7 +68,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Consensus is not yet configured");
       };
-      make_command_handler("tx", HTTP_GET, json_command_adapter(get_tx_status))
+      make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>()
         .install();
 
@@ -76,7 +76,7 @@ namespace ccf
         auto result = metrics.get_metrics();
         return make_success(result);
       };
-      make_command_handler(
+      make_command_endpoint(
         "metrics", HTTP_GET, json_command_adapter(get_metrics))
         .set_auto_schema<void, GetMetrics::Out>()
         .set_execute_locally(true)
@@ -103,7 +103,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to trigger signature");
       };
-      make_command_handler(
+      make_command_endpoint(
         "mkSign", HTTP_POST, json_command_adapter(make_signature))
         .set_auto_schema<void, bool>()
         .install();
@@ -137,7 +137,7 @@ namespace ccf
 
           return make_success(WhoAmI::Out{caller_id});
         };
-        make_read_only_handler("who", HTTP_GET, json_read_only_adapter(who))
+        make_read_only_endpoint("who", HTTP_GET, json_read_only_adapter(who))
           .set_auto_schema<WhoIs::In, WhoAmI::Out>()
           .install();
       }
@@ -165,7 +165,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
       };
-      make_read_only_handler(
+      make_read_only_endpoint(
         "primary_info", HTTP_GET, json_read_only_adapter(get_primary_info))
         .set_auto_schema<void, GetPrimaryInfo::Out>()
         .install();
@@ -188,7 +188,7 @@ namespace ccf
 
         return make_success(out);
       };
-      make_read_only_handler(
+      make_read_only_endpoint(
         "network_info", HTTP_GET, json_read_only_adapter(get_network_info))
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
@@ -202,7 +202,7 @@ namespace ccf
 
         return make_success(out);
       };
-      make_handler("api", HTTP_GET, json_adapter(list_methods_fn))
+      make_endpoint("api", HTTP_GET, json_adapter(list_methods_fn))
         .set_auto_schema<void, ListMethods::Out>()
         .install();
 
@@ -233,7 +233,7 @@ namespace ccf
 
         return make_success(j);
       };
-      make_command_handler(
+      make_command_endpoint(
         "api/schema", HTTP_GET, json_command_adapter(get_schema))
         .set_auto_schema<GetSchema>()
         .install();
@@ -264,7 +264,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to produce receipt");
       };
-      make_command_handler(
+      make_command_endpoint(
         "receipt", HTTP_GET, json_command_adapter(get_receipt))
         .set_auto_schema<GetReceipt>()
         .install();
@@ -292,7 +292,7 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
       };
-      make_command_handler(
+      make_command_endpoint(
         "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))
         .set_auto_schema<VerifyReceipt>()
         .install();

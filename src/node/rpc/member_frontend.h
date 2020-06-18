@@ -568,7 +568,7 @@ namespace ccf
 
         return make_success(value);
       };
-      make_handler("read", HTTP_POST, json_adapter(read))
+      make_endpoint("read", HTTP_POST, json_adapter(read))
         // This can be executed locally, but can't currently take ReadOnlyTx due
         // to restristions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
@@ -586,7 +586,7 @@ namespace ccf
           return make_success(tsr.run<nlohmann::json>(
             tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
         };
-      make_handler("query", HTTP_POST, json_adapter(query))
+      make_endpoint("query", HTTP_POST, json_adapter(query))
         // This can be executed locally, but can't currently take ReadOnlyTx due
         // to restristions in our lua wrappers
         .set_forwarding_required(ForwardingRequired::Sometimes)
@@ -614,7 +614,7 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
-      make_handler("propose", HTTP_POST, json_adapter(propose))
+      make_endpoint("propose", HTTP_POST, json_adapter(propose))
         .set_auto_schema<Propose>()
         .install();
 
@@ -666,7 +666,7 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      make_handler("withdraw", HTTP_POST, json_adapter(withdraw))
+      make_endpoint("withdraw", HTTP_POST, json_adapter(withdraw))
         .set_auto_schema<ProposalAction, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -714,7 +714,7 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, vote.id, proposal.value()));
       };
-      make_handler("vote", HTTP_POST, json_adapter(vote))
+      make_endpoint("vote", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -741,7 +741,7 @@ namespace ccf
           return make_success(
             complete_proposal(tx, proposal_id, proposal.value()));
         };
-      make_handler("complete", HTTP_POST, json_adapter(complete))
+      make_endpoint("complete", HTTP_POST, json_adapter(complete))
         .set_auto_schema<ProposalAction, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -810,7 +810,7 @@ namespace ccf
         }
         return make_success(true);
       };
-      make_handler("ack", HTTP_POST, json_adapter(ack))
+      make_endpoint("ack", HTTP_POST, json_adapter(ack))
         .set_auto_schema<StateDigest, bool>()
         .set_require_client_signature(true)
         .install();
@@ -839,7 +839,7 @@ namespace ccf
 
           return make_success(ma.value());
         };
-      make_handler(
+      make_endpoint(
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
         .set_auto_schema<void, StateDigest>()
         .install();
@@ -867,7 +867,7 @@ namespace ccf
 
         return make_success(GetEncryptedRecoveryShare(encrypted_share.value()));
       };
-      make_handler(
+      make_endpoint(
         "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
         .set_auto_schema<void, GetEncryptedRecoveryShare>()
         .install();
@@ -955,7 +955,7 @@ namespace ccf
           submitted_shares_count,
           g.get_recovery_threshold()));
       };
-      make_handler("recovery_share/submit", HTTP_POST, submit_recovery_share)
+      make_endpoint("recovery_share/submit", HTTP_POST, submit_recovery_share)
         .set_auto_schema<std::string, std::string>()
         .install();
 
@@ -1023,7 +1023,7 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      make_handler("create", HTTP_POST, json_adapter(create))
+      make_endpoint("create", HTTP_POST, json_adapter(create))
         .set_require_client_identity(false)
         .install();
     }

@@ -17,7 +17,7 @@ namespace ccf
    * fields, to reduce handler complexity and repetition.
    *
    * Rather than:
-   * auto foo = [](HandlerArgs& args) {
+   * auto foo = [](auto& args) {
    *   nlohmann::json params;
    *   jsonrpc::Pack pack_type;
    *   if (<content-type is JSON>)

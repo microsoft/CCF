@@ -330,39 +330,39 @@ namespace loggingapp
         return true;
       };
 
-      make_handler(Procs::LOG_RECORD, HTTP_POST, ccf::json_adapter(record))
+      make_endpoint(Procs::LOG_RECORD, HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_START: install_get
-      make_handler(Procs::LOG_GET, HTTP_GET, ccf::json_adapter(get))
+      make_endpoint(Procs::LOG_GET, HTTP_GET, ccf::json_adapter(get))
         .set_auto_schema<LoggingGet>()
         .install();
       // SNIPPET_END: install_get
 
-      make_handler(
+      make_endpoint(
         Procs::LOG_RECORD_PUBLIC, HTTP_POST, ccf::json_adapter(record_public))
         .set_params_schema(record_public_params_schema)
         .set_result_schema(record_public_result_schema)
         .install();
-      make_handler(
+      make_endpoint(
         Procs::LOG_GET_PUBLIC, HTTP_GET, ccf::json_adapter(get_public))
         .set_params_schema(get_public_params_schema)
         .set_result_schema(get_public_result_schema)
         .install();
 
-      make_handler(
+      make_endpoint(
         Procs::LOG_RECORD_PREFIX_CERT, HTTP_POST, log_record_prefix_cert)
         .install();
-      make_handler(
+      make_endpoint(
         Procs::LOG_RECORD_ANONYMOUS_CALLER,
         HTTP_POST,
         ccf::json_adapter(log_record_anonymous))
         .set_auto_schema<LoggingRecord::In, bool>()
         .set_require_client_identity(false)
         .install();
-      make_handler(Procs::LOG_RECORD_RAW_TEXT, HTTP_POST, log_record_text)
+      make_endpoint(Procs::LOG_RECORD_RAW_TEXT, HTTP_POST, log_record_text)
         .install();
-      make_handler(
+      make_endpoint(
         Procs::LOG_GET_HISTORICAL,
         HTTP_GET,
         ccf::historical::adapter(

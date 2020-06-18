@@ -45,14 +45,14 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_handler("empty_function", HTTP_POST, empty_function)
+    make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
 
     auto empty_function_signed = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_handler("empty_function_signed", HTTP_POST, empty_function_signed)
+    make_endpoint("empty_function_signed", HTTP_POST, empty_function_signed)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .set_require_client_signature(true)
       .install();
@@ -60,7 +60,7 @@ public:
     auto empty_function_no_auth = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_handler("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
+    make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .set_require_client_identity(false)
       .install();
@@ -77,7 +77,7 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_handler("empty_function", HTTP_POST, empty_function).install();
+    make_endpoint("empty_function", HTTP_POST, empty_function).install();
     disable_request_storing();
   }
 };
@@ -92,13 +92,13 @@ public:
     auto echo_function = [this](kv::Tx& tx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
-    make_handler("echo", HTTP_POST, json_adapter(echo_function)).install();
+    make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
 
     auto get_caller_function =
       [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         return make_success(caller_id);
       };
-    make_handler("get_caller", HTTP_POST, json_adapter(get_caller_function))
+    make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
       .install();
 
     auto failable_function =
@@ -114,7 +114,7 @@ public:
 
         return make_success(true);
       };
-    make_handler("failable", HTTP_POST, json_adapter(failable_function))
+    make_endpoint("failable", HTTP_POST, json_adapter(failable_function))
       .install();
   }
 };
@@ -129,18 +129,18 @@ public:
     auto get_only = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_handler("get_only", HTTP_GET, get_only).install();
+    make_endpoint("get_only", HTTP_GET, get_only).install();
 
     auto post_only = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_handler("post_only", HTTP_POST, post_only).install();
+    make_endpoint("post_only", HTTP_POST, post_only).install();
 
     auto put_or_delete = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_handler("put_or_delete", HTTP_PUT, put_or_delete).install();
-    make_handler("put_or_delete", HTTP_DELETE, put_or_delete).install();
+    make_endpoint("put_or_delete", HTTP_PUT, put_or_delete).install();
+    make_endpoint("put_or_delete", HTTP_DELETE, put_or_delete).install();
   }
 };
 
@@ -173,7 +173,7 @@ public:
       const auto status = parsed["status"].get<http_status>();
       args.rpc_ctx->set_response_status(status);
     };
-    make_handler("maybe_commit", HTTP_POST, maybe_commit).install();
+    make_endpoint("maybe_commit", HTTP_POST, maybe_commit).install();
   }
 };
 
@@ -187,13 +187,13 @@ public:
     auto command = [this](CommandHandlerArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_command_handler("command", HTTP_POST, command).install();
+    make_command_endpoint("command", HTTP_POST, command).install();
 
     auto read_only = [this](ReadOnlyHandlerArgs& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_read_only_handler("read_only", HTTP_POST, read_only).install();
-    make_read_only_handler("read_only", HTTP_GET, read_only).install();
+    make_read_only_endpoint("read_only", HTTP_POST, read_only).install();
+    make_read_only_endpoint("read_only", HTTP_GET, read_only).install();
   }
 };
 
@@ -211,7 +211,7 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    member_handlers.make_handler("empty_function", HTTP_POST, empty_function)
+    member_handlers.make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
@@ -231,7 +231,7 @@ public:
     auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    handlers.make_handler("empty_function", HTTP_POST, empty_function)
+    handlers.make_endpoint("empty_function", HTTP_POST, empty_function)
       .set_forwarding_required(ForwardingRequired::Sometimes)
       .install();
   }
@@ -268,13 +268,13 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    make_handler("empty_function", HTTP_POST, empty_function).install();
+    make_endpoint("empty_function", HTTP_POST, empty_function).install();
 
     auto empty_function_no_auth = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    make_handler("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
+    make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
       .set_require_client_identity(false)
       .install();
   }
@@ -296,7 +296,7 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.make_handler("empty_function", HTTP_POST, empty_function)
+    handlers.make_endpoint("empty_function", HTTP_POST, empty_function)
       .install();
   }
 };
@@ -320,7 +320,7 @@ public:
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.make_handler("empty_function", HTTP_POST, empty_function)
+    handlers.make_endpoint("empty_function", HTTP_POST, empty_function)
       .install();
   }
 };
