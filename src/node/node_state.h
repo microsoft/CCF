@@ -1250,7 +1250,8 @@ namespace ccf
       auto frontend_opt = this->rpc_map->find(actor);
       if (!frontend_opt.has_value())
       {
-        throw std::logic_error("RpcMap::find returned invalid (empty) frontend");
+        throw std::logic_error(
+          "RpcMap::find returned invalid (empty) frontend");
       }
       auto frontend = frontend_opt.value();
 

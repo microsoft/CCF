@@ -31,8 +31,8 @@ namespace ccf
     "instead of HandlerArgs, and use 'auto' wherever possible") =
     EndpointContext;
 
-    // Read-only endpoints can only get values from the kv, they cannot write
-    struct ReadOnlyEndpointContext
+  // Read-only endpoints can only get values from the kv, they cannot write
+  struct ReadOnlyEndpointContext
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     kv::ReadOnlyTx& tx;

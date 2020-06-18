@@ -204,19 +204,20 @@ namespace loggingapp
       };
       // SNIPPET_END: log_record_prefix_cert
 
-      auto log_record_anonymous = [this](ccf::EndpointContext& args, nlohmann::json&& params) {
-        const auto in = params.get<LoggingRecord::In>();
-        if (in.msg.empty())
-        {
-          return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
-        }
+      auto log_record_anonymous =
+        [this](ccf::EndpointContext& args, nlohmann::json&& params) {
+          const auto in = params.get<LoggingRecord::In>();
+          if (in.msg.empty())
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+          }
 
-        const auto log_line = fmt::format("Anonymous: {}", in.msg);
-        auto view = args.tx.get_view(records);
-        view->put(in.id, log_line);
-        return ccf::make_success(true);
-      };
+          const auto log_line = fmt::format("Anonymous: {}", in.msg);
+          auto view = args.tx.get_view(records);
+          view->put(in.id, log_line);
+          return ccf::make_success(true);
+        };
 
       // SNIPPET_START: log_record_text
       auto log_record_text = [this](auto& args) {
