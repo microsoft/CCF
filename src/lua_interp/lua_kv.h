@@ -4,7 +4,6 @@
 #include "lua_json.h"
 
 /**
- * @file luajsonKvTable.h
  * @brief Wrap KvTable structures so they can be used in lua. Types are
  * translated using nlohmann::json.
  */
