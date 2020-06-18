@@ -1003,7 +1003,7 @@ namespace ccf
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {
-      auto nodes_view = tx.get_view(network.nodes);
+      auto nodes_view = tx.get_read_only_view(network.nodes);
 
       nodes_view->foreach([&result, &filter, this](
                             const NodeId& nid, const NodeInfo& ni) {

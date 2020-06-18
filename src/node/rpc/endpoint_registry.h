@@ -361,9 +361,8 @@ namespace ccf
                method,
                verb,
                [f](EndpointContext& args) {
-                 kv::ReadOnlyTx ro_tx(args.tx);
                  ReadOnlyEndpointContext ro_args{
-                   args.rpc_ctx, ro_tx, args.caller_id};
+                   args.rpc_ctx, args.tx, args.caller_id};
                  f(ro_args);
                })
         .set_forwarding_required(ForwardingRequired::Sometimes);

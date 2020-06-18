@@ -279,7 +279,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, "Network is not in recovery mode");
         }
 
-        auto sig_view = args.tx.get_view(*signatures);
+        auto sig_view = args.tx.get_read_only_view(*signatures);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
           result.signed_index = 0;

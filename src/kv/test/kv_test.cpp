@@ -344,10 +344,10 @@ TEST_CASE("Read-only tx")
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 
-  INFO("Read with true read-only tx");
+  INFO("Do only reads with an overpowered Tx");
   {
-    kv::TrueReadOnlyTx tx;
-    auto view = tx.get_view(map);
+    kv::Tx tx;
+    auto view = tx.get_read_only_view(map);
     const auto v = view->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);
@@ -360,11 +360,10 @@ TEST_CASE("Read-only tx")
     // view->remove(k);
   }
 
-  INFO("Read with wrapper read-only tx");
+  INFO("Read with read-only tx");
   {
-    kv::Tx write_tx;
-    kv::WrapperReadOnlyTx tx(write_tx);
-    auto view = tx.get_view(map);
+    kv::ReadOnlyTx tx;
+    auto view = tx.get_read_only_view(map);
     const auto v = view->get(k);
     REQUIRE(v.has_value());
     REQUIRE(v.value() == v1);

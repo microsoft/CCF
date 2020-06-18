@@ -9,10 +9,11 @@
 
 namespace kv
 {
-  template <template <typename M> typename GetView>
-  class GenericTx : public AbstractViewContainer
+  // Manages a collection of TxViews. Derived implementations call get_tuple to
+  // retrieve views over target maps.
+  class BaseTx : public AbstractViewContainer
   {
-  private:
+  protected:
     OrderedViews view_list;
     bool committed = false;
     bool success = false;
@@ -23,9 +24,9 @@ namespace kv
     kv::TxHistory::RequestID req_id;
 
     template <class M>
-    std::tuple<GetView<M>*> get_tuple(M& m)
+    std::tuple<typename M::TxView*> get_tuple(M& m)
     {
-      using MapView = GetView<M>;
+      using MapView = typename M::TxView;
 
       // If the M is present, its AbstractTxView should be an M::TxView. This
       // invariant could be broken by set_view_list, which will produce an error
@@ -74,7 +75,8 @@ namespace kv
     }
 
     template <class M, class... Ms>
-    std::tuple<GetView<M>*, GetView<Ms>*...> get_tuple(M& m, Ms&... ms)
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_tuple(
+      M& m, Ms&... ms)
     {
       return std::tuple_cat(get_tuple(m), get_tuple(ms...));
     }
@@ -90,9 +92,9 @@ namespace kv
     }
 
   public:
-    GenericTx() : view_list() {}
+    BaseTx() : view_list() {}
 
-    GenericTx(const GenericTx& that) = delete;
+    BaseTx(const BaseTx& that) = delete;
 
     void set_view_list(OrderedViews& view_list_, Term term_) override
     {
@@ -124,29 +126,6 @@ namespace kv
     Version get_term()
     {
       return term;
-    }
-
-    /** Get a transaction view on a map.
-     *
-     * This adds the map to the transaction set if it is not yet present.
-     *
-     * @param m Map
-     */
-    template <class M>
-    GetView<M>* get_view(M& m)
-    {
-      return std::get<0>(get_tuple(m));
-    }
-
-    /** Get transaction views over multiple maps.
-     *
-     * @param m Map
-     * @param ms Map
-     */
-    template <class M, class... Ms>
-    std::tuple<GetView<M>*, GetView<Ms>*...> get_view(M& m, Ms&... ms)
-    {
-      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
     }
 
     /** Commit transaction
@@ -306,7 +285,7 @@ namespace kv
     }
 
     // Used by frontend for reserved transactions
-    GenericTx(Version reserved) :
+    BaseTx(Version reserved) :
       view_list(),
       committed(false),
       success(false),
@@ -335,75 +314,63 @@ namespace kv
     }
   };
 
-  namespace details
+  class ReadOnlyTx : public BaseTx
   {
-    template <typename M>
-    using GetWriteableView = typename M::TxView;
-
-    template <typename M>
-    using GetReadOnlyView = typename M::ReadOnlyTxView;
-  };
-
-  // The most common type of Tx creates TxViews which can be used for reads and
-  // writes
-  class Tx : public GenericTx<details::GetWriteableView>
-  {
-    using Base = GenericTx<details::GetWriteableView>;
-
   public:
-    using Base::Base;
-  };
+    using BaseTx::BaseTx;
 
-  // If we know at construction that a Tx will only read, we can create an
-  // TrueReadOnlyTx. It creates and stores ReadOnlyTxViews, which have no
-  // write functions
-  class TrueReadOnlyTx : public GenericTx<details::GetReadOnlyView>
-  {
-    using Base = GenericTx<details::GetReadOnlyView>;
-
-  public:
-    using Base::Base;
-  };
-
-  // If we have a maybe-writing Tx that we want to present as ReadOnly, use
-  // WrapperReadOnlyTx. It wraps an underlying Tx, and casts the views it
-  // returns. This can only be used for get_view - every other operation should
-  // be done on the wrapped Tx
-  class WrapperReadOnlyTx
-  {
-  protected:
-    Tx& tx;
-
-    template <typename M>
-    using GetView = details::GetReadOnlyView<M>;
-
+    /** Get a read-only transaction view on a map.
+     *
+     * This adds the map to the transaction set if it is not yet present.
+     *
+     * @param m Map
+     */
     template <class M>
-    std::tuple<GetView<M>*> get_ro_tuple(M& m)
+    typename M::ReadOnlyTxView* get_read_only_view(M& m)
     {
-      return tx.get_view(m);
+      return std::get<0>(get_tuple(m));
     }
 
+    /** Get read-only transaction views over multiple maps.
+     *
+     * @param m Map
+     * @param ms Map
+     */
     template <class M, class... Ms>
-    std::tuple<GetView<M>*, GetView<Ms>*...> get_ro_tuple(M& m, Ms&... ms)
+    std::tuple<typename M::ReadOnlyTxView*, typename Ms::ReadOnlyTxView*...>
+    get_read_only_view(M& m, Ms&... ms)
     {
-      return std::tuple_cat(get_ro_tuple(m), get_ro_tuple(ms...));
-    }
-
-  public:
-    WrapperReadOnlyTx(Tx& tx_) : tx(tx_) {}
-
-    template <class M>
-    GetView<M>* get_view(M& m)
-    {
-      return std::get<0>(get_ro_tuple(m));
-    }
-
-    template <class M, class... Ms>
-    std::tuple<GetView<M>*, GetView<Ms>*...> get_view(M& m, Ms&... ms)
-    {
-      return std::tuple_cat(get_ro_tuple(m), get_ro_tuple(ms...));
+      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
     }
   };
 
-  using ReadOnlyTx = WrapperReadOnlyTx;
+  class Tx : public ReadOnlyTx
+  {
+  public:
+    using ReadOnlyTx::ReadOnlyTx;
+
+    /** Get a transaction view on a map.
+     *
+     * This adds the map to the transaction set if it is not yet present.
+     *
+     * @param m Map
+     */
+    template <class M>
+    typename M::TxView* get_view(M& m)
+    {
+      return std::get<0>(get_tuple(m));
+    }
+
+    /** Get transaction views over multiple maps.
+     *
+     * @param m Map
+     * @param ms Map
+     */
+    template <class M, class... Ms>
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
+      M& m, Ms&... ms)
+    {
+      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
+    }
+  };
 }

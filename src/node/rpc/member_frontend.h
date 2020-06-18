@@ -477,21 +477,21 @@ namespace ccf
       return get_proposal_info(proposal_id, proposal);
     }
 
-    bool check_member_active(kv::Tx& tx, MemberId id)
+    bool check_member_active(kv::ReadOnlyTx& tx, MemberId id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
     }
 
-    bool check_member_accepted(kv::Tx& tx, MemberId id)
+    bool check_member_accepted(kv::ReadOnlyTx& tx, MemberId id)
     {
       return check_member_status(
         tx, id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED});
     }
 
     bool check_member_status(
-      kv::Tx& tx, MemberId id, std::initializer_list<MemberStatus> allowed)
+      kv::ReadOnlyTx& tx, MemberId id, std::initializer_list<MemberStatus> allowed)
     {
-      auto member = tx.get_view(this->network.members)->get(id);
+      auto member = tx.get_read_only_view(this->network.members)->get(id);
       if (!member)
       {
         return false;

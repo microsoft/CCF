@@ -124,7 +124,7 @@ namespace ccf
           if (!params.is_null())
           {
             const WhoIs::In in = params;
-            auto certs_view = args.tx.get_view(*certs);
+            auto certs_view = args.tx.get_read_only_view(*certs);
             auto caller_id_opt = certs_view->get(in.cert);
 
             if (!caller_id_opt.has_value())
@@ -149,7 +149,7 @@ namespace ccf
           NodeId primary_id = consensus->primary();
           auto current_view = consensus->get_view();
 
-          auto nodes_view = args.tx.get_view(*nodes);
+          auto nodes_view = args.tx.get_read_only_view(*nodes);
           auto info = nodes_view->get(primary_id);
 
           if (info)
@@ -178,7 +178,7 @@ namespace ccf
           out.primary_id = consensus->primary();
         }
 
-        auto nodes_view = args.tx.get_view(*nodes);
+        auto nodes_view = args.tx.get_read_only_view(*nodes);
         nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status == ccf::NodeStatus::TRUSTED)
           {
