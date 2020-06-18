@@ -181,12 +181,35 @@ TEST_CASE("serialize map")
     REQUIRE_EQ(num_elements, keys.size());
   }
 
-  INFO("Serialize map to and from array");
+  std::function<uint32_t(const K& key)> fn_size_k = [](const K& k) {
+    return sizeof(K) + sizeof(uint64_t);
+  };
+  std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
+    fn_serialize_k = [](const K& k, uint8_t*& data, size_t& size) {
+      uint64_t key_size = sizeof(K);
+      serialized::write(
+        data, size, reinterpret_cast<const uint8_t*>(&key_size), sizeof(K));
+      serialized::write(
+        data, size, reinterpret_cast<const uint8_t*>(&k), sizeof(K));
+      return 2 * sizeof(K);
+    };
+  std::function<uint32_t(const V& value)> fn_size_v = [](const V& v) {
+    return sizeof(V) + sizeof(uint64_t);
+  };
+  std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
+    fn_serialize_v = [](const V& v, uint8_t*& data, size_t& size) {
+      uint64_t value_size = sizeof(V);
+      serialized::write(
+        data, size, reinterpret_cast<const uint8_t*>(&value_size), sizeof(V));
+      serialized::write(
+        data, size, reinterpret_cast<const uint8_t*>(&v), sizeof(V));
+      return 2 * sizeof(V);
+    };
+
+  INFO("Serialize map to array");
   {
     champ::Snapshot<K, V, H> snapshot(
-      map,
-      [](const K& k) { return sizeof(K); },
-      [](const V& v) { return sizeof(V); });
+      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
     const std::vector<uint8_t>& s = snapshot.get_buffer();
 
     champ::Map<K, V, H> new_map = champ::Map<K, V, H>::deserialize_map(
@@ -220,15 +243,11 @@ TEST_CASE("serialize map")
   INFO("Ensure serialized state is byte identical");
   {
     champ::Snapshot<K, V, H> snapshot_1(
-      map,
-      [](const K& k) { return sizeof(K); },
-      [](const V& v) { return sizeof(V); });
+      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
     const std::vector<uint8_t>& s_1 = snapshot_1.get_buffer();
 
     champ::Snapshot<K, V, H> snapshot_2(
-      map,
-      [](const K& k) { return sizeof(K); },
-      [](const V& v) { return sizeof(V); });
+      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
     const std::vector<uint8_t>& s_2 = snapshot_2.get_buffer();
 
     REQUIRE_EQ(s_1.size(), s_2.size());
