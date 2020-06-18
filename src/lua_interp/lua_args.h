@@ -8,7 +8,6 @@
 #include "node/rpc/json_handler.h"
 
 /**
- * @file luarpcargs.h
  * @brief Convert from RpcFrontend::RequestArgs to a lua table, giving named
  * access to RPC args and explicit errors on attempts to access missing keys.
  */
