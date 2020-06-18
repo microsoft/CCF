@@ -22,11 +22,6 @@ namespace ccf
       return true;
     }
 
-    bool open_network(kv::Tx& tx) override
-    {
-      return true;
-    }
-
     bool rekey_ledger(kv::Tx& tx) override
     {
       return true;

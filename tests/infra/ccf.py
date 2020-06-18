@@ -289,11 +289,11 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-
         if args.consensus != "pbft":
             self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
+
+        self.consortium.activate(primary)
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()

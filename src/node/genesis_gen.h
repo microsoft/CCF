@@ -112,28 +112,11 @@ namespace ccf
           "Member certificate already exists (member {})", member_id.value()));
       }
 
-      MemberStatus member_status = MemberStatus::ACCEPTED;
-      auto service_status = get_service_status();
-      if (!service_status.has_value())
-      {
-        throw std::logic_error("Failed to get active service");
-      }
-
-      // If the service is opening, members are added as ACTIVE
-      if (service_status.value() == ServiceStatus::OPENING)
-      {
-        if (get_active_members_count() >= max_active_members_count)
-        {
-          throw std::logic_error(fmt::format(
-            "No more than {} active members are allowed",
-            max_active_members_count));
-        }
-        member_status = MemberStatus::ACTIVE;
-      }
-
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
       m->put(
-        id, MemberInfo(member_cert_der, member_keyshare_pub, member_status));
+        id,
+        MemberInfo(
+          member_cert_der, member_keyshare_pub, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
       auto s = sig->get(0);
@@ -146,6 +129,29 @@ namespace ccf
         ma->put(id, MemberAck(s->root));
       }
       return id;
+    }
+
+    void activate_member(MemberId member_id)
+    {
+      auto members = tx.get_view(tables.members);
+      auto member = members->get(member_id);
+      if (!member.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Member {} cannot be activated as they do not exist", member_id));
+      }
+
+      if (member->status == MemberStatus::ACCEPTED)
+      {
+        member->status = MemberStatus::ACTIVE;
+        if (get_active_members_count() >= max_active_members_count)
+        {
+          throw std::logic_error(fmt::format(
+            "No more than {} active members are allowed",
+            max_active_members_count));
+        }
+      }
+      members->put(member_id, member.value());
     }
 
     bool retire_member(MemberId member_id)
@@ -419,35 +425,43 @@ namespace ccf
     {
       auto config_view = tx.get_view(tables.config);
 
-      // While waiting for recovery shares, the recovery threshold cannot be
-      // modified. Otherwise, the threshold could be passed without triggering
-      // the end of recovery procedure
-      if (
-        get_service_status().value() ==
-        ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
-      {
-        LOG_FAIL_FMT(
-          "Cannot set recovery threshold: service is currently waiting for "
-          "recovery shares");
-        return false;
-      }
-
       if (threshold == 0)
       {
         LOG_FAIL_FMT("Cannot set recovery threshold to 0");
         return false;
       }
 
-      auto active_members_count = get_active_members_count();
-      if (threshold > active_members_count)
+      auto service_status = get_service_status();
+      if (!service_status.has_value())
       {
-        LOG_FAIL_FMT(
-          "Cannot set recovery threshold to {} as it is greater than the "
-          "number of active members ({})",
-          threshold,
-          active_members_count);
+        LOG_FAIL_FMT("Failed to get active service");
         return false;
       }
+
+      if (service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      {
+        // While waiting for recovery shares, the recovery threshold cannot be
+        // modified. Otherwise, the threshold could be passed without triggering
+        // the end of recovery procedure
+        LOG_FAIL_FMT(
+          "Cannot set recovery threshold: service is currently waiting for "
+          "recovery shares");
+        return false;
+      }
+      else if (service_status.value() == ServiceStatus::OPEN)
+      {
+        auto active_members_count = get_active_members_count();
+        if (threshold > active_members_count)
+        {
+          LOG_FAIL_FMT(
+            "Cannot set recovery threshold to {} as it is greater than the "
+            "number of active members ({})",
+            threshold,
+            active_members_count);
+          return false;
+        }
+      }
+
       config_view->put(0, {threshold});
       return true;
     }

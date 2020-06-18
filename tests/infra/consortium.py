@@ -40,7 +40,6 @@ class Consortium:
                 new_member = infra.member.Member(
                     m_id, curve, common_dir, share_script, key_generator
                 )
-                new_member.set_active()
                 self.members.append(new_member)
             self.recovery_threshold = len(self.members)
         else:
@@ -80,6 +79,15 @@ class Consortium:
                     },
                 )
                 self.recovery_threshold = r.result["recovery_threshold"]
+
+    def activate(self, remote_node):
+        i = 0
+        for m in self.members:
+            if i > 3:
+                break
+            LOG.error(f"Activating member {m.member_id}")
+            m.ack(remote_node)
+            i += 1
 
     def generate_and_propose_new_member(self, remote_node, curve):
         # The Member returned by this function is in state ACCEPTED. The new Member

@@ -965,12 +965,6 @@ namespace ccf
       return sm.check(State::partOfPublicNetwork);
     }
 
-    bool open_network(kv::Tx& tx) override
-    {
-      GenesisGenerator g(network, tx);
-      return g.open_service();
-    }
-
     bool rekey_ledger(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);

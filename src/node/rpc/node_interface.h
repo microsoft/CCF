@@ -13,7 +13,6 @@ namespace ccf
   public:
     virtual ~AbstractNodeState() {}
     virtual bool accept_recovery(kv::Tx& tx) = 0;
-    virtual bool open_network(kv::Tx& tx) = 0;
     virtual bool rekey_ledger(kv::Tx& tx) = 0;
     virtual bool is_part_of_public_network() const = 0;
     virtual bool is_primary() const = 0;
