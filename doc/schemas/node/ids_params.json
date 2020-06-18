@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "host": {
+      "type": "string"
+    },
+    "port": {
+      "type": "string"
+    },
+    "retired": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "host",
+    "port"
+  ],
+  "title": "node/ids/params",
+  "type": "object"
+}
