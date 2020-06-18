@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_deprecated.h"
 #include "frontend.h"
 #include "node/client_signatures.h"
 #include "node/network_tables.h"
@@ -88,8 +89,9 @@ namespace ccf
     {}
   };
 
-  // TODO: Add using here. Maybe deprecated?
-  using UserHandlerRegistry = UserEndpointRegistry;
+  using UserHandlerRegistry CCF_DEPRECATED(
+    "Handlers have been renamed to Endpoints. Please use "
+    "UserEndpointRegistry") = UserEndpointRegistry;
 
   class SimpleUserRpcFrontend : public UserRpcFrontend
   {
