@@ -82,10 +82,10 @@ public:
   }
 };
 
-class TestMinimalHandleFunction : public SimpleUserRpcFrontend
+class TestMinimalEndpointFunction : public SimpleUserRpcFrontend
 {
 public:
-  TestMinimalHandleFunction(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  TestMinimalEndpointFunction(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
@@ -155,7 +155,7 @@ public:
   {
     open();
 
-    auto maybe_commit = [this](HandlerArgs& args) {
+    auto maybe_commit = [this](EndpointContext& args) {
       const auto parsed =
         jsonrpc::unpack(args.rpc_ctx->get_request_body(), default_pack);
 
@@ -184,12 +184,12 @@ public:
   {
     open();
 
-    auto command = [this](CommandHandlerArgs& args) {
+    auto command = [this](CommandEndpointContext& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_command_endpoint("command", HTTP_POST, command).install();
 
-    auto read_only = [this](ReadOnlyHandlerArgs& args) {
+    auto read_only = [this](ReadOnlyEndpointContext& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     make_read_only_endpoint("read_only", HTTP_POST, read_only).install();
@@ -247,7 +247,7 @@ public:
   std::vector<uint8_t> last_caller_cert;
   CallerId last_caller_id;
 
-  void record_ctx(HandlerArgs& args)
+  void record_ctx(EndpointContext& args)
   {
     last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session->caller_cert);
     last_caller_id = args.caller_id;
@@ -792,10 +792,10 @@ TEST_CASE("Member caller")
   }
 }
 
-TEST_CASE("MinimalHandleFunction")
+TEST_CASE("MinimalEndpointFunction")
 {
   prepare_callers();
-  TestMinimalHandleFunction frontend(*network.tables);
+  TestMinimalEndpointFunction frontend(*network.tables);
   for (const auto pack_type : {jsonrpc::Pack::Text, jsonrpc::Pack::MsgPack})
   {
     {

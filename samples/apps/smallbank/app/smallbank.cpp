@@ -45,7 +45,7 @@ namespace ccfapp
   private:
     SmallBankTables tables;
 
-    bool headers_unmatched(HandlerArgs& args)
+    bool headers_unmatched(EndpointContext& args)
     {
       const auto actual =
         args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
@@ -57,7 +57,7 @@ namespace ccfapp
       return false;
     }
 
-    void set_unmatched_header_status(HandlerArgs& args)
+    void set_unmatched_header_status(EndpointContext& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_UNSUPPORTED_MEDIA_TYPE);
       args.rpc_ctx->set_response_header(
@@ -69,7 +69,7 @@ namespace ccfapp
           .value_or("")));
     }
 
-    void set_error_status(HandlerArgs& args, int status, std::string&& message)
+    void set_error_status(EndpointContext& args, int status, std::string&& message)
     {
       args.rpc_ctx->set_response_status(status);
       args.rpc_ctx->set_response_header(
@@ -77,7 +77,7 @@ namespace ccfapp
       args.rpc_ctx->set_response_body(std::move(message));
     }
 
-    void set_ok_status(HandlerArgs& args)
+    void set_ok_status(EndpointContext& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       args.rpc_ctx->set_response_header(
@@ -85,7 +85,7 @@ namespace ccfapp
         http::headervalues::contenttype::OCTET_STREAM);
     }
 
-    void set_no_content_status(HandlerArgs& args)
+    void set_no_content_status(EndpointContext& args)
     {
       args.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
     }

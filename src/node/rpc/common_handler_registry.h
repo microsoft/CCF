@@ -45,7 +45,8 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           "Failed to get commit info from Consensus");
       };
-      make_command_endpoint("commit", HTTP_GET, json_command_adapter(get_commit))
+      make_command_endpoint(
+        "commit", HTTP_GET, json_command_adapter(get_commit))
         .set_execute_locally(true)
         .set_auto_schema<void, GetCommit::Out>()
         .install();

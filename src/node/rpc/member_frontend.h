@@ -593,7 +593,7 @@ namespace ccf
         .set_auto_schema<Script, nlohmann::json>()
         .install();
 
-      auto propose = [this](HandlerArgs& args, nlohmann::json&& params) {
+      auto propose = [this](EndpointContext& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -618,7 +618,7 @@ namespace ccf
         .set_auto_schema<Propose>()
         .install();
 
-      auto withdraw = [this](HandlerArgs& args, nlohmann::json&& params) {
+      auto withdraw = [this](EndpointContext& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -671,7 +671,7 @@ namespace ccf
         .set_require_client_signature(true)
         .install();
 
-      auto vote = [this](HandlerArgs& args, nlohmann::json&& params) {
+      auto vote = [this](EndpointContext& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -747,7 +747,7 @@ namespace ccf
         .install();
 
       //! A member acknowledges state
-      auto ack = [this](HandlerArgs& args, nlohmann::json&& params) {
+      auto ack = [this](EndpointContext& args, nlohmann::json&& params) {
         const auto signed_request = args.rpc_ctx->get_signed_request();
 
         auto [ma_view, sig_view] =
@@ -845,7 +845,7 @@ namespace ccf
         .install();
 
       auto get_encrypted_recovery_share = [this](
-                                            HandlerArgs& args,
+                                            EndpointContext& args,
                                             nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
@@ -872,7 +872,7 @@ namespace ccf
         .set_auto_schema<void, GetEncryptedRecoveryShare>()
         .install();
 
-      auto submit_recovery_share = [this](HandlerArgs& args) {
+      auto submit_recovery_share = [this](EndpointContext& args) {
         // Only active members can submit their shares for recovery
         if (!check_member_active(args.tx, args.caller_id))
         {

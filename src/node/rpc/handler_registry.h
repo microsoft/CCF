@@ -18,30 +18,32 @@
 
 namespace ccf
 {
-  struct HandlerArgs
+  struct EndpointContext
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     kv::Tx& tx;
     CallerId caller_id;
   };
-  using HandleFunction = std::function<void(HandlerArgs& args)>;
+  using EndpointFunction = std::function<void(EndpointContext& args)>;
 
-  // Read-only handlers can only get values from the kv, they cannot write
-  struct ReadOnlyHandlerArgs
+  // Read-only endpoints can only get values from the kv, they cannot write
+  struct ReadOnlyEndpointContext
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     kv::ReadOnlyTx& tx;
     CallerId caller_id;
   };
-  using ReadOnlyHandleFunction = std::function<void(ReadOnlyHandlerArgs& args)>;
+  using ReadOnlyEndpointFunction =
+    std::function<void(ReadOnlyEndpointContext& args)>;
 
   // Commands are endpoints which do not interact with the kv, even to read
-  struct CommandHandlerArgs
+  struct CommandEndpointContext
   {
     std::shared_ptr<enclave::RpcContext> rpc_ctx;
     CallerId caller_id;
   };
-  using CommandHandleFunction = std::function<void(CommandHandlerArgs& args)>;
+  using CommandEndpointFunction =
+    std::function<void(CommandEndpointContext& args)>;
 
   enum class ForwardingRequired
   {
@@ -74,7 +76,7 @@ namespace ccf
     struct Handler
     {
       std::string method;
-      HandleFunction func;
+      EndpointFunction func;
       HandlerRegistry* registry = nullptr;
 
       nlohmann::json params_schema = nullptr;
@@ -161,8 +163,11 @@ namespace ccf
 
       ForwardingRequired forwarding_required = ForwardingRequired::Always;
 
-      /** Override whether a handler is always forwarded, or whether it is safe
-       * to sometimes execute on followers
+      /** Overrides whether a handler is always forwarded, or whether it is safe
+       * to sometimes execute on followers.
+       * 
+       * @param fr Enum value with desired status
+       * @return The installed Handler for further modification
        */
       Handler& set_forwarding_required(ForwardingRequired fr)
       {
@@ -326,7 +331,7 @@ namespace ccf
      * @return The new Handler for further modification
      */
     Handler make_endpoint(
-      const std::string& method, http_method verb, const HandleFunction& f)
+      const std::string& method, http_method verb, const EndpointFunction& f)
     {
       Handler handler;
       handler.method = method;
@@ -343,14 +348,14 @@ namespace ccf
     Handler make_read_only_endpoint(
       const std::string& method,
       http_method verb,
-      const ReadOnlyHandleFunction& f)
+      const ReadOnlyEndpointFunction& f)
     {
       return make_endpoint(
                method,
                verb,
-               [f](HandlerArgs& args) {
+               [f](EndpointContext& args) {
                  kv::ReadOnlyTx ro_tx(args.tx);
-                 ReadOnlyHandlerArgs ro_args{
+                 ReadOnlyEndpointContext ro_args{
                    args.rpc_ctx, ro_tx, args.caller_id};
                  f(ro_args);
                })
@@ -365,13 +370,14 @@ namespace ccf
     Handler make_command_endpoint(
       const std::string& method,
       http_method verb,
-      const CommandHandleFunction& f)
+      const CommandEndpointFunction& f)
     {
       return make_endpoint(
                method,
                verb,
-               [f](HandlerArgs& args) {
-                 CommandHandlerArgs command_args{args.rpc_ctx, args.caller_id};
+               [f](EndpointContext& args) {
+                 CommandEndpointContext command_args{args.rpc_ctx,
+                                                     args.caller_id};
                  f(command_args);
                })
         .set_forwarding_required(ForwardingRequired::Sometimes);
@@ -395,7 +401,9 @@ namespace ccf
       "  .install()"
       "or make_read_only_endpoint(...")
     Handler& install(
-      const std::string& method, const HandleFunction& f, ReadWrite read_write)
+      const std::string& method,
+      const EndpointFunction& f,
+      ReadWrite read_write)
     {
       constexpr auto default_verb = HTTP_POST;
       make_endpoint(method, default_verb, f)
@@ -416,15 +424,15 @@ namespace ccf
       return installed_handlers[h.method][h.verb] = h;
     }
 
-    /** Set a default HandleFunction
+    /** Set a default EndpointFunction
      *
-     * The default HandleFunction is only invoked if no specific HandleFunction
-     * was found.
+     * The default EndpointFunction is only invoked if no specific
+     * EndpointFunction was found.
      *
      * @param f Method implementation
      * @return The installed Handler for further modification
      */
-    Handler& set_default(HandleFunction f)
+    Handler& set_default(EndpointFunction f)
     {
       default_handler = {"", f, this};
       return default_handler.value();

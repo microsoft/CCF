@@ -88,6 +88,8 @@ namespace ccf
     {}
   };
 
+  // TODO: Add using here. Maybe deprecated?
+
   class SimpleUserRpcFrontend : public UserRpcFrontend
   {
   protected:
