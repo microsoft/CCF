@@ -121,10 +121,11 @@ namespace ccf
         tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
       submitted_shares(tables->create<SubmittedShares>(
         Tables::SUBMITTED_SHARES, kv::SecurityDomain::PUBLIC)),
-      users(tables->create<Users>(Tables::USERS)),
+      users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
-      user_certs(tables->create<Certs>(Tables::USER_CERTS)),
+      user_certs(
+        tables->create<Certs>(Tables::USER_CERTS, kv::SecurityDomain::PUBLIC)),
       user_code_ids(tables->create<CodeIDs>(
         Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       user_client_signatures(
