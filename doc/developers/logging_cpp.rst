@@ -41,7 +41,7 @@ The Logging application simply has:
 RPC Handler
 -----------
 
-The handler returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::UserRpcFrontend`, providing an implementation of :cpp:class:`ccf::HandlerRegistry`:
+The handler returned by :cpp:func:`ccfapp::get_rpc_handler()` should subclass :cpp:class:`ccf::UserRpcFrontend`, providing an implementation of :cpp:class:`ccf::EndpointRegistry`:
 
 .. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
@@ -67,7 +67,7 @@ Each function is installed as the handler for a specific RPC ``method``, the nam
     :end-before: SNIPPET_END: install_get
     :dedent: 6
 
-The return value from ``install`` is a ``Handler&`` object which can be used to alter how the handler is executed. For example, the handler for ``LOG_get`` shown above sets a `schema` for the handler, which will be used in calls to the ``/getSchema`` endpoint. It also marks the handler as `GET-only`, so the framework will return a ``405 Method Not Allowed`` for any requests which are not HTTP ``GET``.
+The return value from ``install`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for ``LOG_get`` shown above sets a `schema` for the handler, which will be used in calls to the ``/getSchema`` endpoint. It also marks the handler as `GET-only`, so the framework will return a ``405 Method Not Allowed`` for any requests which are not HTTP ``GET``.
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``EndpointContext&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
