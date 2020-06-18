@@ -1836,6 +1836,77 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   }
 }
 
+DOCTEST_TEST_CASE("Open network sequence")
+{
+  // Setup original state
+  NetworkState network(ConsensusType::RAFT);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets->init();
+  network.encryption_key = std::make_unique<NetworkEncryptionKey>(
+    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
+
+  ShareManager share_manager(network);
+  auto node = StubNodeState(share_manager);
+  MemberRpcFrontend frontend(network, node, share_manager);
+  std::map<size_t, std::pair<ccf::Cert, std::vector<uint8_t>>> members;
+
+  size_t members_count = 4;
+  size_t recovery_threshold = 100;
+  DOCTEST_REQUIRE(members_count < recovery_threshold);
+
+  DOCTEST_INFO("Setup state");
+  {
+    kv::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
+    gen.init_values();
+    gen.create_service({});
+
+    // Adding accepted members
+    for (size_t i = 0; i < members_count; i++)
+    {
+      auto cert = get_cert_data(i, kp);
+      auto private_encryption_key =
+        tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
+      auto public_encryption_key = tls::PublicX25519::write(
+        crypto::BoxKey::public_from_private(private_encryption_key));
+      auto id = gen.add_member(cert, public_encryption_key.raw());
+      members[id] = {cert, private_encryption_key};
+    }
+    gen.set_recovery_threshold(recovery_threshold);
+    gen.finalize();
+    frontend.open();
+  }
+
+  DOCTEST_INFO("Opens fails as recovery threshold is too high");
+  {
+    kv::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
+
+    DOCTEST_REQUIRE_FALSE(gen.open_service());
+  }
+
+  DOCTEST_INFO("Activate all members - open still fails");
+  {
+    kv::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
+    for (auto const& m : members)
+    {
+      gen.activate_member(m.first);
+    }
+    DOCTEST_REQUIRE_FALSE(gen.open_service());
+    gen.finalize();
+  }
+
+  DOCTEST_INFO("Reduce recovery threshold");
+  {
+    kv::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
+    gen.set_recovery_threshold(members_count);
+
+    DOCTEST_REQUIRE(gen.open_service());
+  }
+}
+
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
 {

@@ -296,18 +296,6 @@ namespace ccf
            // On network open, the service checks that a sufficient number of
            // members have become active. If so, recovery shares are allocated
            // to each active member.
-           GenesisGenerator g(this->network, tx);
-           if (g.get_active_members_count() < g.get_recovery_threshold())
-           {
-             LOG_FAIL_FMT(
-               "Proposal {}: Cannot open network as number of active members "
-               "({}) is less than recovery threshold ({})",
-               proposal_id,
-               g.get_active_members_count(),
-               g.get_recovery_threshold());
-             return false;
-           }
-
            try
            {
              share_manager.issue_shares(tx);
@@ -322,6 +310,7 @@ namespace ccf
              return false;
            }
 
+           GenesisGenerator g(this->network, tx);
            const auto network_opened = g.open_service();
            if (!network_opened)
            {

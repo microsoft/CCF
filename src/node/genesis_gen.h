@@ -280,6 +280,16 @@ namespace ccf
     {
       auto service_view = tx.get_view(tables.service);
 
+      if (get_active_members_count() < get_recovery_threshold())
+      {
+        LOG_FAIL_FMT(
+          "Cannot open network as number of active members "
+          "({}) is less than recovery threshold ({})",
+          get_active_members_count(),
+          get_recovery_threshold());
+        return false;
+      }
+
       auto active_service = service_view->get(0);
       if (!active_service.has_value())
       {
