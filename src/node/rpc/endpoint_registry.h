@@ -26,7 +26,7 @@ namespace ccf
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
-  using HandlerArgs CCF_DEPRECATED(
+  using RequestArgs CCF_DEPRECATED(
     "Handlers have been renamed to Endpoints. Please use EndpointContext "
     "instead of HandlerArgs, and use 'auto' wherever possible") =
     EndpointContext;
