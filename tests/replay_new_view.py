@@ -67,7 +67,11 @@ def run(args):
 
         # check nodes have resumed normal execution before shutting down
         app.test_run_txs(
-            network=network, args=args, num_txs=len(network.get_joined_nodes())
+            network=network,
+            args=args,
+            num_txs=len(network.get_joined_nodes()),
+            timeout=30,
+            ignore_failures=True,
         )
 
         # assert that view changes actually did occur

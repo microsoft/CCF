@@ -31,8 +31,8 @@ def run(args):
         network.start_and_join(args)
         original_nodes = network.get_joined_nodes()
         view_info = {}
-        suspend.update_view_info(network, view_info)
 
+        suspend.update_view_info(network, view_info)
         app.test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
         suspend.update_view_info(network, view_info)
 
