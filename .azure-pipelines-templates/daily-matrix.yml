@@ -26,7 +26,7 @@ jobs:
       cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
       suffix: 'Coverage'
       artifact_name: 'NoSGX_Coverage'
-      ctest_filter: '-LE "benchmark|perf|suite" -E "replay_new_view_pbft"'
+      ctest_filter: '-LE "benchmark|perf|long_test"'
       ctest_timeout: '300'
 
   - template: common.yml
