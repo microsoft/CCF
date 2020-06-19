@@ -31,8 +31,8 @@ def run(args):
         network.start_and_join(args)
         original_nodes = network.get_joined_nodes()
         view_info = {}
-        suspend.update_view_info(network, view_info)
 
+        suspend.update_view_info(network, view_info)
         app.test_run_txs(network=network, args=args, num_txs=TOTAL_REQUESTS)
         suspend.update_view_info(network, view_info)
 
@@ -79,7 +79,10 @@ def run(args):
             network=network,
             args=args,
             num_txs=4 * TOTAL_REQUESTS,
+            timeout=30,
             ignore_failures=True,
+            # in the event of an early view change due to the late joiner this might
+            # take longer than usual to complete and we don't want the test to break here
         )
 
         suspend.update_view_info(network, view_info)
@@ -102,7 +105,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--seed",
             help="seed used to randomise the node suspension timeouts",
-            default=random.randint(1, 10),
+            default=42,
         )
 
     args = infra.e2e_args.cli_args(add)

@@ -262,8 +262,6 @@ namespace kv
       return Statistics();
     }
     virtual void enable_all_domains() {}
-    virtual void resume_replication() {}
-    virtual void suspend_replication(kv::Version) {}
 
     virtual void set_f(size_t f) = 0;
     virtual void emit_signature() = 0;

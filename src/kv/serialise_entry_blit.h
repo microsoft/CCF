@@ -2,25 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/nonstd.h"
 #include "serialised_entry.h"
 
 namespace kv::serialisers
 {
-  namespace
-  {
-    template <typename T>
-    struct is_std_array : std::false_type
-    {};
-
-    template <typename T, size_t N>
-    struct is_std_array<std::array<T, N>> : public std::true_type
-    {};
-
-    template <typename T>
-    struct dependent_false : public std::false_type
-    {};
-  }
-
   template <typename T>
   struct BlitSerialiser
   {
@@ -30,7 +16,7 @@ namespace kv::serialisers
       {
         return SerialisedEntry(t.begin(), t.end());
       }
-      else if constexpr (is_std_array<T>::value)
+      else if constexpr (nonstd::is_std_array<T>::value)
       {
         return SerialisedEntry(t.begin(), t.end());
       }
@@ -42,7 +28,8 @@ namespace kv::serialisers
       }
       else
       {
-        static_assert(dependent_false<T>::value, "Can't serialise this type");
+        static_assert(
+          nonstd::dependent_false<T>::value, "Can't serialise this type");
       }
     }
 
@@ -52,7 +39,7 @@ namespace kv::serialisers
       {
         return T(rep.begin(), rep.end());
       }
-      else if constexpr (is_std_array<T>::value)
+      else if constexpr (nonstd::is_std_array<T>::value)
       {
         return T(rep.begin(), rep.end());
       }
@@ -66,7 +53,8 @@ namespace kv::serialisers
       }
       else
       {
-        static_assert(dependent_false<T>::value, "Can't deserialise this type");
+        static_assert(
+          nonstd::dependent_false<T>::value, "Can't deserialise this type");
       }
     }
   };
