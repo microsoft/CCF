@@ -219,35 +219,68 @@ namespace kv
       return *result;
     }
 
-    std::unique_ptr<Snapshot> snapshot(Version v) override
-    {
+    void deserialize(std::unique_ptr<Snapshot>& snapshot) {
+
+
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      if (v > current_version())
-      {
-        throw ccf::ccf_logic_error(fmt::format(
-          "Attempting to snapshot at invalid version v:{}, current_version:{}",
-          v,
-          current_version()));
-      }
-
-      auto snapshot = std::make_unique<Snapshot>();
 
       for (auto& map : maps)
       {
         map.second->lock();
       }
 
-      for (auto& map : maps)
+      auto& snapshots = snapshot->get_snapshots();
+      CCF_ASSERT_FMT(maps.size() == snapshots.size(), "Number of maps does not match the snapshot, maps:{}, snapshots:{}", maps.size(), snapshots.size());
+      for (auto& s : snapshots)
       {
-        snapshot->add_snapshot(std::move(map.second->snapshot(v)));
+        auto search = maps.find(s->get_name());
+        if (search == maps.end())
+        {
+          throw ccf::ccf_logic_error(
+            fmt::format("Map does not exist - {}", s->get_name()));
+        }
+
+        search->second->apply(s);
       }
 
       for (auto& map : maps)
       {
         map.second->unlock();
       }
+    }
 
+    std::unique_ptr<Snapshot> snapshot(Version v) override
+    {
+      auto snapshot = std::make_unique<Snapshot>();
+
+      {
+        std::lock_guard<SpinLock> mguard(maps_lock);
+
+        if (v > current_version())
+        {
+          throw ccf::ccf_logic_error(fmt::format(
+            "Attempting to snapshot at invalid version v:{}, "
+            "current_version:{}",
+            v,
+            current_version()));
+        }
+
+        for (auto& map : maps)
+        {
+          map.second->lock();
+        }
+
+        for (auto& map : maps)
+        {
+          snapshot->add_snapshot(std::move(map.second->snapshot(v)));
+        }
+
+        for (auto& map : maps)
+        {
+          map.second->unlock();
+        }
+      }
       return std::move(snapshot);
     }
 

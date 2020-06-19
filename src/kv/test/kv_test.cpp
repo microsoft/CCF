@@ -1137,4 +1137,8 @@ TEST_CASE("Serialization")
     REQUIRE_EQ(s->get_is_replicated(), true);
     REQUIRE_GT(s->get_buffer().size(), 0);
   }
+
+  kv::Store new_store;
+  new_store.create<MapTypes::StringString>(map_name, security_domain);
+  new_store.deserialize(s);
 }

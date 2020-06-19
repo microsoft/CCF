@@ -291,6 +291,7 @@ namespace kv::untyped
       std::string name;
       const SecurityDomain security_domain;
       const bool replicated;
+      kv::Version version;
       champ::Snapshot<K, kv::VersionV<V>, H> map_snapshot;
 
     public:
@@ -298,10 +299,12 @@ namespace kv::untyped
         std::string name_,
         SecurityDomain security_domain_,
         bool replicated_,
+        kv::Version version_,
         champ::Snapshot<K, kv::VersionV<V>, H>&& map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
         replicated(replicated_),
+        version(version_),
         map_snapshot(std::move(map_snapshot_))
       {}
 
@@ -323,6 +326,11 @@ namespace kv::untyped
       bool get_is_replicated() override
       {
         return replicated;
+      }
+
+      kv::Version get_version() override
+      {
+        return version;
       }
     };
 
@@ -682,7 +690,44 @@ namespace kv::untyped
         snapshot(r->state, k_size, k_serialize, v_size, v_serialize);
 
       return std::move(std::make_unique<Snapshot>(
-        name, security_domain, replicated, std::move(snapshot)));
+        name, security_domain, replicated, r->version, std::move(snapshot)));
+    }
+
+    void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
+    {
+      auto r = roll.commits->get_head();
+      CCF_ASSERT(r != nullptr, "there must be at least 1 entry in the rolls");
+      CCF_ASSERT(
+        roll.commits->get_head() == roll.commits->get_tail(),
+        "We are apply a snapshot and there are pending commits");
+
+      std::function<SerialisedEntry(const uint8_t*& key, size_t&)> make_k =
+        [](const uint8_t*& data, size_t& size) -> SerialisedEntry {
+        uint64_t key_size = serialized::read<uint64_t>(data, size);
+        SerialisedEntry ret;
+        ret.assign(key_size, *data);
+        serialized::skip(data, size, key_size);
+        return std::move(ret);
+      };
+      std::function<kv::VersionV<SerialisedEntry>(const uint8_t*& key, size_t&)>
+        make_v = [](
+                   const uint8_t*& data,
+                   size_t& size) -> kv::VersionV<SerialisedEntry> {
+        kv::VersionV<SerialisedEntry> ret;
+        uint64_t value_size = serialized::read<uint64_t>(data, size);
+        kv::Version version = serialized::read<kv::Version>(
+            data,
+            size);
+        ret.version = version;
+        value_size -= sizeof(kv::Version);
+        ret.value.assign(value_size, *data);
+        serialized::skip(data, size, value_size);
+        return std::move(ret);
+      };
+
+      r->state = State::deserialize_map(s->get_buffer(), make_k, make_v);
+      r->version = s->get_version();
+      //r->version; // TODO: set the version here
     }
 
     void compact(Version v) override
