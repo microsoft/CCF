@@ -1139,6 +1139,9 @@ TEST_CASE("Serialization")
   }
 
   kv::Store new_store;
-  new_store.create<MapTypes::StringString>(map_name, security_domain);
+  auto& new_map =
+    new_store.create<MapTypes::StringString>(map_name, security_domain);
   new_store.deserialize(s);
+
+  REQUIRE_EQ(new_store.current_version(), 1);
 }

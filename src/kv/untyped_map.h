@@ -715,9 +715,7 @@ namespace kv::untyped
                    size_t& size) -> kv::VersionV<SerialisedEntry> {
         kv::VersionV<SerialisedEntry> ret;
         uint64_t value_size = serialized::read<uint64_t>(data, size);
-        kv::Version version = serialized::read<kv::Version>(
-            data,
-            size);
+        kv::Version version = serialized::read<kv::Version>(data, size);
         ret.version = version;
         value_size -= sizeof(kv::Version);
         ret.value.assign(value_size, *data);
@@ -727,7 +725,6 @@ namespace kv::untyped
 
       r->state = State::deserialize_map(s->get_buffer(), make_k, make_v);
       r->version = s->get_version();
-      //r->version; // TODO: set the version here
     }
 
     void compact(Version v) override

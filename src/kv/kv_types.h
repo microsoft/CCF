@@ -402,8 +402,11 @@ namespace kv
     {
     private:
       std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
+      kv::Version version;
 
     public:
+      Snapshot(kv::Version version_) : version(version_) {}
+      
       void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
       {
         snapshots.push_back(std::move(snapshot));
@@ -412,6 +415,11 @@ namespace kv
       std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
       {
         return snapshots;
+      }
+
+      kv::Version get_version() const
+      {
+        return version;
       }
     };
 

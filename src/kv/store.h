@@ -219,19 +219,27 @@ namespace kv
       return *result;
     }
 
-    void deserialize(std::unique_ptr<Snapshot>& snapshot) {
-
+    void deserialize(std::unique_ptr<Snapshot>& snapshot)
+    {
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        version = snapshot->get_version();
+        last_replicated = snapshot->get_version();
+        last_committable = snapshot->get_version();
+      }
 
       std::lock_guard<SpinLock> mguard(maps_lock);
-
-
       for (auto& map : maps)
       {
         map.second->lock();
       }
 
       auto& snapshots = snapshot->get_snapshots();
-      CCF_ASSERT_FMT(maps.size() == snapshots.size(), "Number of maps does not match the snapshot, maps:{}, snapshots:{}", maps.size(), snapshots.size());
+      CCF_ASSERT_FMT(
+        maps.size() == snapshots.size(),
+        "Number of maps does not match the snapshot, maps:{}, snapshots:{}",
+        maps.size(),
+        snapshots.size());
       for (auto& s : snapshots)
       {
         auto search = maps.find(s->get_name());
@@ -252,7 +260,7 @@ namespace kv
 
     std::unique_ptr<Snapshot> snapshot(Version v) override
     {
-      auto snapshot = std::make_unique<Snapshot>();
+      auto snapshot = std::make_unique<Snapshot>(v);
 
       {
         std::lock_guard<SpinLock> mguard(maps_lock);

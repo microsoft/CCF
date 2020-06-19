@@ -344,11 +344,13 @@ namespace champ
 
       while (size != 0)
       {
+        // Deserialize the key
         uint64_t key_size = size;
         K key = make_k(data, size);
         key_size -= size;
         serialized::skip(data, size, get_padding(key_size));
 
+        // Deserialize the value
         uint64_t value_size = size;
         V value = make_v(data, size);
         value_size -= size;
