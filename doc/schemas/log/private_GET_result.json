@@ -8,6 +8,6 @@
   "required": [
     "msg"
   ],
-  "title": "LOG_get/result",
+  "title": "log/private/result",
   "type": "object"
 }

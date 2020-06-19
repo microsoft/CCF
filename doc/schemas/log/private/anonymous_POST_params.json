@@ -5,11 +5,15 @@
       "maximum": 18446744073709551615,
       "minimum": 0,
       "type": "integer"
+    },
+    "msg": {
+      "type": "string"
     }
   },
   "required": [
-    "id"
+    "id",
+    "msg"
   ],
-  "title": "LOG_get/params",
+  "title": "log/private/anonymous/params",
   "type": "object"
 }
