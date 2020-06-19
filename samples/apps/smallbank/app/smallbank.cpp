@@ -69,7 +69,8 @@ namespace ccfapp
           .value_or("")));
     }
 
-    void set_error_status(EndpointContext& args, int status, std::string&& message)
+    void set_error_status(
+      EndpointContext& args, int status, std::string&& message)
     {
       args.rpc_ctx->set_response_status(status);
       args.rpc_ctx->set_response_header(
