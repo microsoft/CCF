@@ -406,7 +406,7 @@ namespace kv
 
     public:
       Snapshot(kv::Version version_) : version(version_) {}
-      
+
       void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
       {
         snapshots.push_back(std::move(snapshot));
