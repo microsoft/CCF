@@ -72,8 +72,8 @@ namespace loggingapp
       get_public_result_schema(nlohmann::json::parse(j_get_public_out))
     {
       // SNIPPET_START: record
-      // SNIPPET_START: macro_validation_record
       auto record = [this](kv::Tx& tx, nlohmann::json&& params) {
+        // SNIPPET_START: macro_validation_record
         const auto in = params.get<LoggingRecord::In>();
         // SNIPPET_END: macro_validation_record
 
@@ -89,6 +89,12 @@ namespace loggingapp
       };
       // SNIPPET_END: record
 
+      // SNIPPET_START: install_record
+      make_endpoint("LOG_record", HTTP_POST, ccf::json_adapter(record))
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+      // SNIPPET_START: install_record
+
       // SNIPPET_START: get
       auto get = [this](kv::Tx& tx, nlohmann::json&& params) {
         const auto in = params.get<LoggingGet::In>();
@@ -103,9 +109,15 @@ namespace loggingapp
       };
       // SNIPPET_END: get
 
+      // SNIPPET_START: install_get
+      make_endpoint("LOG_get", HTTP_GET, ccf::json_adapter(get))
+        .set_auto_schema<LoggingGet>()
+        .install();
+      // SNIPPET_END: install_get
+
       // SNIPPET_START: record_public
-      // SNIPPET_START: valijson_record_public
       auto record_public = [this](kv::Tx& tx, nlohmann::json&& params) {
+        // SNIPPET_START: valijson_record_public
         const auto validation_error =
           validate(params, record_public_params_schema);
 
@@ -113,9 +125,10 @@ namespace loggingapp
         {
           return ccf::make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
         }
-        // SNIPPET_END: valijson_record_public
 
         const auto msg = params["msg"].get<std::string>();
+        // SNIPPET_END: valijson_record_public
+
         if (msg.empty())
         {
           return ccf::make_error(
@@ -127,6 +140,11 @@ namespace loggingapp
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
+      make_endpoint(
+        "LOG_record_pub", HTTP_POST, ccf::json_adapter(record_public))
+        .set_params_schema(record_public_params_schema)
+        .set_result_schema(record_public_result_schema)
+        .install();
 
       // SNIPPET_START: get_public
       auto get_public = [this](kv::Tx& tx, nlohmann::json&& params) {
@@ -154,6 +172,10 @@ namespace loggingapp
           fmt::format("No such record: {}", id.dump()));
       };
       // SNIPPET_END: get_public
+      make_endpoint("LOG_get_pub", HTTP_GET, ccf::json_adapter(get_public))
+        .set_params_schema(get_public_params_schema)
+        .set_result_schema(get_public_result_schema)
+        .install();
 
       // SNIPPET_START: log_record_prefix_cert
       auto log_record_prefix_cert = [this](ccf::EndpointContext& args) {
@@ -188,6 +210,8 @@ namespace loggingapp
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         args.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
+      make_endpoint("LOG_record_prefix_cert", HTTP_POST, log_record_prefix_cert)
+        .install();
       // SNIPPET_END: log_record_prefix_cert
 
       auto log_record_anonymous =
@@ -204,6 +228,13 @@ namespace loggingapp
           view->put(in.id, log_line);
           return ccf::make_success(true);
         };
+      make_endpoint(
+        "LOG_record_anonymous",
+        HTTP_POST,
+        ccf::json_adapter(log_record_anonymous))
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .set_require_client_identity(false)
+        .install();
 
       // SNIPPET_START: log_record_text
       auto log_record_text = [this](auto& args) {
@@ -243,6 +274,8 @@ namespace loggingapp
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
+      make_endpoint("LOG_record_raw_text", HTTP_POST, log_record_text)
+        .install();
       // SNIPPET_END: log_record_text
 
       auto get_historical = [this](
@@ -316,38 +349,6 @@ namespace loggingapp
         return true;
       };
 
-      // SNIPPET_START: install_record
-      make_endpoint("LOG_record", HTTP_POST, ccf::json_adapter(record))
-        .set_auto_schema<LoggingRecord::In, bool>()
-        .install();
-      // SNIPPET_START: install_record
-      // SNIPPET_START: install_get
-      make_endpoint("LOG_get", HTTP_GET, ccf::json_adapter(get))
-        .set_auto_schema<LoggingGet>()
-        .install();
-      // SNIPPET_END: install_get
-
-      make_endpoint(
-        "LOG_record_pub", HTTP_POST, ccf::json_adapter(record_public))
-        .set_params_schema(record_public_params_schema)
-        .set_result_schema(record_public_result_schema)
-        .install();
-      make_endpoint("LOG_get_pub", HTTP_GET, ccf::json_adapter(get_public))
-        .set_params_schema(get_public_params_schema)
-        .set_result_schema(get_public_result_schema)
-        .install();
-
-      make_endpoint("LOG_record_prefix_cert", HTTP_POST, log_record_prefix_cert)
-        .install();
-      make_endpoint(
-        "LOG_record_anonymous",
-        HTTP_POST,
-        ccf::json_adapter(log_record_anonymous))
-        .set_auto_schema<LoggingRecord::In, bool>()
-        .set_require_client_identity(false)
-        .install();
-      make_endpoint("LOG_record_raw_text", HTTP_POST, log_record_text)
-        .install();
       make_endpoint(
         "LOG_get_historical",
         HTTP_GET,
