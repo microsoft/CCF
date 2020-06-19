@@ -90,7 +90,7 @@ namespace loggingapp
       // SNIPPET_END: record
 
       // SNIPPET_START: install_record
-      make_endpoint("LOG_record", HTTP_POST, ccf::json_adapter(record))
+      make_endpoint("log/private", HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
       // SNIPPET_START: install_record

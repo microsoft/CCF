@@ -16,7 +16,7 @@ export function setup()
 {
   const body = JSON.stringify({
     jsonrpc: "2.0",
-    method: "users/LOG_record",
+    method: "users/log/private",
     params: {
       id: 0,
       msg: "Unique message: d41d8cd98f00b204e9800998ecf8427e"
@@ -31,7 +31,7 @@ export function setup()
 }
 
 export default function(data) {
-  var r = http.post(baseURL + "users/LOG_record", data.body, data.params);
+  var r = http.post(baseURL + "users/log/private", data.body, data.params);
 
   check(r, {
     "status is 200": (r) => r.status === 200

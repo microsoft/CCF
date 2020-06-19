@@ -9,7 +9,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
+@reqs.supports_methods("log/private", "LOG_record_pub", "LOG_get", "LOG_get_pub")
 def test_run_txs(
     network,
     args,
@@ -102,7 +102,7 @@ class LoggingTxs:
                             )
                             pub_msg = f"Public message at index {self.next_pub_index}"
                             rep_priv = uc.rpc(
-                                "LOG_record",
+                                "log/private",
                                 {"id": self.next_priv_index, "msg": priv_msg,},
                             )
                             rep_pub = uc.rpc(

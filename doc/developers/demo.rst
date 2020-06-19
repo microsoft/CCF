@@ -53,7 +53,7 @@ The response to each transaction is printed at the ``DEBUG`` logging level, and 
 .. code-block:: json
 
     {
-      "method": "users/LOG_record",
+      "method": "users/log/private",
       "params": {
         "id": 42,
         "msg": "Hello world"
@@ -65,7 +65,7 @@ There should be a corresponding entry in the Python output, similar to:
 
 .. code-block:: text
 
-    | INFO     | infra.clients:log_request:122 - users/LOG_record {'id': 42, 'msg': 'Hello world'}
+    | INFO     | infra.clients:log_request:122 - users/log/private {'id': 42, 'msg': 'Hello world'}
     | DEBUG    | infra.clients:log_response:135 - {'status': 200, 'result': True, 'error': None, 'seqno': 23, 'view': 2}
 
 The ``e2e`` test script takes several additional parameters, documented by passing ``-h`` on the command line. To debug a node it may be useful to increase the node's verbosity by altering the ``--log-level`` option [#log_location]_, or to attach a debugger to a node at launch with the ``--debug-nodes`` option. If passed the ``--network-only`` option the script will keep the network alive, rather than closing immediately after transactions have completed, allowing additional transactions to be sent manually.
