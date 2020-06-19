@@ -239,6 +239,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(
     cchost.virtual PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${OE_INCLUDEDIR}
+                           ${CCF_GENERATED_DIR}
   )
   add_san(cchost.virtual)
   enable_coverage(cchost.virtual)

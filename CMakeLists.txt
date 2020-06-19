@@ -5,18 +5,43 @@ cmake_minimum_required(VERSION 3.11)
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 
+# Deduce project version from git environment
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+  execute_process(
+    COMMAND git describe --tags
+    OUTPUT_VARIABLE "CCF_VERSION"
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  execute_process(
+    COMMAND bash "-c" "git describe --tags --abbrev=0 | cut -d'-' -f1 | tr -d v"
+    OUTPUT_VARIABLE "CCF_RELEASE_VERSION" OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  # Check that git release tag follows semver
+  execute_process(
+    COMMAND
+      bash "-c"
+      "[[ ${CCF_RELEASE_VERSION} =~ ^([[:digit:]])+(\.([[:digit:]])+)*(-.*)?$ ]]"
+    RESULT_VARIABLE "TAG_IS_SEMVER"
+  )
+  if(NOT ${TAG_IS_SEMVER} STREQUAL "0")
+    message(
+      FATAL_ERROR "git tag \"${CCF_RELEASE_VERSION}\" does not follow semver"
+    )
+  endif()
+else()
+  set(CCF_VERSION "unknown")
+  set(CCF_RELEASE_VERSION "0.0")
+endif()
+
 project(
   ccf
-  VERSION 0.11
+  VERSION ${CCF_RELEASE_VERSION}
   LANGUAGES C CXX
 )
 
 set(ENV{BETTER_EXCEPTIONS} 1)
 
-set(CCF_PROJECT_NAME_SUFFIX "")
-set(CCF_PROJECT_NAME "${PROJECT_VERSION}${CCF_PROJECT_NAME_SUFFIX}")
-
-message(STATUS "CCF version=${CCF_PROJECT_NAME}")
+message(STATUS "CCF version=${CCF_VERSION}")
 
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
@@ -25,7 +50,7 @@ message(STATUS "CCF version=${CCF_PROJECT_NAME}")
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf/ccf-${CCF_PROJECT_NAME}"
+      "/opt/ccf/ccf-${CCF_VERSION}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
@@ -38,6 +63,10 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
+
+configure_file(
+  ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
+)
 
 set(CONSENSUSES raft pbft)
 

@@ -1,0 +1,13 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the Apache 2.0 License.
+#pragma once
+
+#include <string>
+
+namespace ccf
+{
+  inline static std::string get_ccf_version()
+  {
+    return "@CCF_VERSION@";
+  }
+}
