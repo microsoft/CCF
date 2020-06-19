@@ -17,7 +17,7 @@
         },
         {
           "verb": "GET",
-          "method": "LOG_get",
+          "method": "log/private",
           "params": {
             "id": 42
           },
@@ -40,7 +40,7 @@
         },
         {
           "verb": "GET",
-          "method": "LOG_get",
+          "method": "log/private",
           "params": {
             "id": 42
           },

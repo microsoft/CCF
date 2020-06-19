@@ -22,9 +22,9 @@ import websocket
 
 
 def truncate(string, max_len=256):
-    # if len(string) > max_len:
-    #     return string[: max_len - 3] + "..."
-    # else:
+    if len(string) > max_len:
+        return string[: max_len - 3] + "..."
+    else:
         return string
 
 
@@ -458,6 +458,14 @@ class CCFClient:
     def get(self, *args, **kwargs):
         return self.rpc(*args, http_verb="GET", **kwargs)
 
+    def post(self, *args, **kwargs):
+        return self.rpc(*args, http_verb="POST", **kwargs)
+
+    def put(self, *args, **kwargs):
+        return self.rpc(*args, http_verb="PUT", **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return self.rpc(*args, http_verb="DELETE", **kwargs)
 
 @contextlib.contextmanager
 def client(

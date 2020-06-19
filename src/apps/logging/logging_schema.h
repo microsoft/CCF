@@ -71,6 +71,7 @@ namespace loggingapp
   }
   )!!!";
 
+  // TODO: These titles are waaay wrong
   static const std::string j_get_public_in = R"!!!(
   {
     "$schema": "http://json-schema.org/draft-07/schema#",

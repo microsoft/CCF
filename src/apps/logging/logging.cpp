@@ -110,7 +110,7 @@ namespace loggingapp
       // SNIPPET_END: get
 
       // SNIPPET_START: install_get
-      make_endpoint("LOG_get", HTTP_GET, ccf::json_adapter(get))
+      make_endpoint("log/private", HTTP_GET, ccf::json_adapter(get))
         .set_auto_schema<LoggingGet>()
         .install();
       // SNIPPET_END: install_get
@@ -140,8 +140,7 @@ namespace loggingapp
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
-      make_endpoint(
-        "LOG_record_pub", HTTP_POST, ccf::json_adapter(record_public))
+      make_endpoint("log/public", HTTP_POST, ccf::json_adapter(record_public))
         .set_params_schema(record_public_params_schema)
         .set_result_schema(record_public_result_schema)
         .install();
@@ -172,7 +171,7 @@ namespace loggingapp
           fmt::format("No such record: {}", id.dump()));
       };
       // SNIPPET_END: get_public
-      make_endpoint("LOG_get_pub", HTTP_GET, ccf::json_adapter(get_public))
+      make_endpoint("log/public", HTTP_GET, ccf::json_adapter(get_public))
         .set_params_schema(get_public_params_schema)
         .set_result_schema(get_public_result_schema)
         .install();
@@ -210,7 +209,8 @@ namespace loggingapp
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         args.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
-      make_endpoint("LOG_record_prefix_cert", HTTP_POST, log_record_prefix_cert)
+      make_endpoint(
+        "log/private/prefix_cert", HTTP_POST, log_record_prefix_cert)
         .install();
       // SNIPPET_END: log_record_prefix_cert
 
@@ -229,7 +229,7 @@ namespace loggingapp
           return ccf::make_success(true);
         };
       make_endpoint(
-        "LOG_record_anonymous",
+        "log/private/anonymous",
         HTTP_POST,
         ccf::json_adapter(log_record_anonymous))
         .set_auto_schema<LoggingRecord::In, bool>()
@@ -274,7 +274,7 @@ namespace loggingapp
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
-      make_endpoint("LOG_record_raw_text", HTTP_POST, log_record_text)
+      make_endpoint("log/private/raw_text", HTTP_POST, log_record_text)
         .install();
       // SNIPPET_END: log_record_text
 
@@ -348,9 +348,8 @@ namespace loggingapp
 
         return true;
       };
-
       make_endpoint(
-        "LOG_get_historical",
+        "log/private/historical",
         HTTP_GET,
         ccf::historical::adapter(
           get_historical, context.get_historical_state(), is_tx_committed))
