@@ -47,7 +47,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     GetEncryptedRecoveryShare, encrypted_recovery_share, nonce)
 
-  class MemberHandlers : public CommonHandlerRegistry
+  class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
     Script get_script(kv::Tx& tx, std::string name)
@@ -293,7 +293,25 @@ namespace ccf
          }},
         {"open_network",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto network_opened = node.open_network(tx);
+           // On network open, the service checks that a sufficient number of
+           // members have become active. If so, recovery shares are allocated
+           // to each active member.
+           try
+           {
+             share_manager.issue_shares(tx);
+           }
+           catch (const std::logic_error& e)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: Issuing recovery shares failed when opening the "
+               "network: {}",
+               proposal_id,
+               e.what());
+             return false;
+           }
+
+           GenesisGenerator g(this->network, tx);
+           const auto network_opened = g.open_service();
            if (!network_opened)
            {
              LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
@@ -477,21 +495,23 @@ namespace ccf
       return get_proposal_info(proposal_id, proposal);
     }
 
-    bool check_member_active(kv::Tx& tx, MemberId id)
+    bool check_member_active(kv::ReadOnlyTx& tx, MemberId id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
     }
 
-    bool check_member_accepted(kv::Tx& tx, MemberId id)
+    bool check_member_accepted(kv::ReadOnlyTx& tx, MemberId id)
     {
       return check_member_status(
         tx, id, {MemberStatus::ACTIVE, MemberStatus::ACCEPTED});
     }
 
     bool check_member_status(
-      kv::Tx& tx, MemberId id, std::initializer_list<MemberStatus> allowed)
+      kv::ReadOnlyTx& tx,
+      MemberId id,
+      std::initializer_list<MemberStatus> allowed)
     {
-      auto member = tx.get_view(this->network.members)->get(id);
+      auto member = tx.get_read_only_view(this->network.members)->get(id);
       if (!member)
       {
         return false;
@@ -525,11 +545,11 @@ namespace ccf
     const lua::TxScriptRunner tsr;
 
   public:
-    MemberHandlers(
+    MemberEndpoints(
       NetworkTables& network,
       AbstractNodeState& node,
       ShareManager& share_manager) :
-      CommonHandlerRegistry(*network.tables, Tables::MEMBER_CERTS),
+      CommonEndpointRegistry(*network.tables, Tables::MEMBER_CERTS),
       network(network),
       node(node),
       share_manager(share_manager),
@@ -538,7 +558,7 @@ namespace ccf
 
     void init_handlers(kv::Store& tables_) override
     {
-      CommonHandlerRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers(tables_);
 
       auto read = [this](
                     kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
@@ -568,8 +588,12 @@ namespace ccf
 
         return make_success(value);
       };
-      install(MemberProcs::READ, json_adapter(read), Read)
-        .set_auto_schema<KVRead>();
+      make_endpoint("read", HTTP_POST, json_adapter(read))
+        // This can be executed locally, but can't currently take ReadOnlyTx due
+        // to restristions in our lua wrappers
+        .set_forwarding_required(ForwardingRequired::Sometimes)
+        .set_auto_schema<KVRead>()
+        .install();
 
       auto query =
         [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
@@ -582,10 +606,14 @@ namespace ccf
           return make_success(tsr.run<nlohmann::json>(
             tx, {script, {}, WlIds::MEMBER_CAN_READ, {}}));
         };
-      install(MemberProcs::QUERY, json_adapter(query), Read)
-        .set_auto_schema<Script, nlohmann::json>();
+      make_endpoint("query", HTTP_POST, json_adapter(query))
+        // This can be executed locally, but can't currently take ReadOnlyTx due
+        // to restristions in our lua wrappers
+        .set_forwarding_required(ForwardingRequired::Sometimes)
+        .set_auto_schema<Script, nlohmann::json>()
+        .install();
 
-      auto propose = [this](RequestArgs& args, nlohmann::json&& params) {
+      auto propose = [this](EndpointContext& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -606,10 +634,11 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
-      install(MemberProcs::PROPOSE, json_adapter(propose), Write)
-        .set_auto_schema<Propose>();
+      make_endpoint("propose", HTTP_POST, json_adapter(propose))
+        .set_auto_schema<Propose>()
+        .install();
 
-      auto withdraw = [this](RequestArgs& args, nlohmann::json&& params) {
+      auto withdraw = [this](EndpointContext& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -657,11 +686,12 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      install(MemberProcs::WITHDRAW, json_adapter(withdraw), Write)
+      make_endpoint("withdraw", HTTP_POST, json_adapter(withdraw))
         .set_auto_schema<ProposalAction, ProposalInfo>()
-        .set_require_client_signature(true);
+        .set_require_client_signature(true)
+        .install();
 
-      auto vote = [this](RequestArgs& args, nlohmann::json&& params) {
+      auto vote = [this](EndpointContext& args, nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -704,9 +734,10 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, vote.id, proposal.value()));
       };
-      install(MemberProcs::VOTE, json_adapter(vote), Write)
+      make_endpoint("vote", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
-        .set_require_client_signature(true);
+        .set_require_client_signature(true)
+        .install();
 
       auto complete =
         [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
@@ -730,12 +761,13 @@ namespace ccf
           return make_success(
             complete_proposal(tx, proposal_id, proposal.value()));
         };
-      install(MemberProcs::COMPLETE, json_adapter(complete), Write)
+      make_endpoint("complete", HTTP_POST, json_adapter(complete))
         .set_auto_schema<ProposalAction, ProposalInfo>()
-        .set_require_client_signature(true);
+        .set_require_client_signature(true)
+        .install();
 
       //! A member acknowledges state
-      auto ack = [this](RequestArgs& args, nlohmann::json&& params) {
+      auto ack = [this](EndpointContext& args, nlohmann::json&& params) {
         const auto signed_request = args.rpc_ctx->get_signed_request();
 
         auto [ma_view, sig_view] =
@@ -767,24 +799,19 @@ namespace ccf
         }
 
         // update member status to ACTIVE
-        auto members = args.tx.get_view(this->network.members);
-        auto member = members->get(args.caller_id);
-        if (member->status == MemberStatus::ACCEPTED)
+        GenesisGenerator g(this->network, args.tx);
+        g.activate_member(args.caller_id);
+
+        auto service_status = g.get_service_status();
+        if (!service_status.has_value())
         {
-          member->status = MemberStatus::ACTIVE;
+          throw std::logic_error("No service currently available");
+        }
 
-          GenesisGenerator g(this->network, args.tx);
-          if (g.get_active_members_count() >= max_active_members_count)
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              fmt::format(
-                "No more than {} active members are allowed",
-                max_active_members_count));
-          }
-          members->put(args.caller_id, *member);
-
-          // New active members are allocated a new recovery share
+        if (service_status.value() == ServiceStatus::OPEN)
+        {
+          // When the service is OPEN, new active members are allocated new
+          // recovery shares
           try
           {
             share_manager.issue_shares(args.tx);
@@ -793,14 +820,15 @@ namespace ccf
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              fmt::format("Error issuing new recovery shares {}: ", e.what()));
+              fmt::format("Error issuing new recovery shares: {}", e.what()));
           }
         }
         return make_success(true);
       };
-      install(MemberProcs::ACK, json_adapter(ack), Write)
+      make_endpoint("ack", HTTP_POST, json_adapter(ack))
         .set_auto_schema<StateDigest, bool>()
-        .set_require_client_signature(true);
+        .set_require_client_signature(true)
+        .install();
 
       //! A member asks for a fresher state digest
       auto update_state_digest =
@@ -826,14 +854,13 @@ namespace ccf
 
           return make_success(ma.value());
         };
-      install(
-        MemberProcs::UPDATE_ACK_STATE_DIGEST,
-        json_adapter(update_state_digest),
-        Write)
-        .set_auto_schema<void, StateDigest>();
+      make_endpoint(
+        "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
+        .set_auto_schema<void, StateDigest>()
+        .install();
 
       auto get_encrypted_recovery_share = [this](
-                                            RequestArgs& args,
+                                            EndpointContext& args,
                                             nlohmann::json&& params) {
         if (!check_member_active(args.tx, args.caller_id))
         {
@@ -855,14 +882,12 @@ namespace ccf
 
         return make_success(GetEncryptedRecoveryShare(encrypted_share.value()));
       };
-      install(
-        MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE,
-        json_adapter(get_encrypted_recovery_share),
-        Read)
+      make_endpoint(
+        "recovery_share", HTTP_GET, json_adapter(get_encrypted_recovery_share))
         .set_auto_schema<void, GetEncryptedRecoveryShare>()
-        .set_http_get_only();
+        .install();
 
-      auto submit_recovery_share = [this](ccf::RequestArgs& args) {
+      auto submit_recovery_share = [this](EndpointContext& args) {
         // Only active members can submit their shares for recovery
         if (!check_member_active(args.tx, args.caller_id))
         {
@@ -945,8 +970,9 @@ namespace ccf
           submitted_shares_count,
           g.get_recovery_threshold()));
       };
-      install(MemberProcs::SUBMIT_RECOVERY_SHARE, submit_recovery_share, Write)
-        .set_auto_schema<std::string, std::string>();
+      make_endpoint("recovery_share/submit", HTTP_POST, submit_recovery_share)
+        .set_auto_schema<std::string, std::string>()
+        .install();
 
       auto create = [this](kv::Tx& tx, nlohmann::json&& params) {
         LOG_DEBUG_FMT("Processing create RPC");
@@ -973,8 +999,6 @@ namespace ccf
         g.set_recovery_threshold(in.recovery_threshold);
 
         g.add_consensus(in.consensus_type);
-
-        share_manager.issue_shares(tx);
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,
@@ -1012,8 +1036,9 @@ namespace ccf
         LOG_INFO_FMT("Created service");
         return make_success(true);
       };
-      install(MemberProcs::CREATE, json_adapter(create), Write)
-        .set_require_client_identity(false);
+      make_endpoint("create", HTTP_POST, json_adapter(create))
+        .set_require_client_identity(false)
+        .install();
     }
   };
 
@@ -1025,7 +1050,7 @@ namespace ccf
       return "Could not find matching member certificate";
     }
 
-    MemberHandlers member_handlers;
+    MemberEndpoints member_endpoints;
     Members* members;
 
   public:
@@ -1034,8 +1059,8 @@ namespace ccf
       AbstractNodeState& node,
       ShareManager& share_manager) :
       RpcFrontend(
-        *network.tables, member_handlers, &network.member_client_signatures),
-      member_handlers(network, node, share_manager),
+        *network.tables, member_endpoints, &network.member_client_signatures),
+      member_endpoints(network, node, share_manager),
       members(&network.members)
     {}
 
