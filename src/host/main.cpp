@@ -49,7 +49,7 @@ int main(int argc, char** argv)
   app.set_config("--config", "", "Read an INI or TOML file", false);
   app.allow_config_extras(false);
 
-  app.add_flag("-v, --version", print_version, "Display CCF host version");
+  app.add_flag("-v, --version", print_version, "Display CCF host version and exit");
 
   app.require_subcommand(1, 1);
 
