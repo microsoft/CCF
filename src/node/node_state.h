@@ -737,6 +737,7 @@ namespace ccf
 
       network.tables->swap_private_maps(*recovery_store.get());
       recovery_store.reset();
+      reset_recovery_hook();
 
       // Raft should deserialise all security domains when network is opened
       consensus->enable_all_domains();
@@ -763,7 +764,6 @@ namespace ccf
         }
       }
 
-      reset_recovery_hook();
       reset_quote();
       sm.advance(State::partOfNetwork);
     }
@@ -973,12 +973,6 @@ namespace ccf
     bool is_part_of_public_network() const override
     {
       return sm.check(State::partOfPublicNetwork);
-    }
-
-    bool open_network(kv::Tx& tx) override
-    {
-      GenesisGenerator g(network, tx);
-      return g.open_service();
     }
 
     bool rekey_ledger(kv::Tx& tx) override
@@ -1460,6 +1454,8 @@ namespace ccf
 
     void setup_recovery_hook()
     {
+      static bool is_first_shares = true;
+
       network.shares.set_local_hook(
         [this](kv::Version version, const Shares::Write& w) {
           for (const auto& [k, opt_v] : w)
@@ -1473,11 +1469,12 @@ namespace ccf
             const auto& v = opt_v.value();
 
             kv::Version ledger_secret_version;
-            if (version == 1)
+            if (is_first_shares)
             {
-              // Special case for the genesis transaction, which is applicable
-              // from the very first transaction
+              // Special case for the first recovery share issuing (at network
+              // open), which is applicable from the very first transaction
               ledger_secret_version = 1;
+              is_first_shares = false;
             }
             else
             {
