@@ -335,8 +335,8 @@ namespace champ
 
     Map<K, V, H> static deserialize_map(
       const std::vector<uint8_t>& serialized_state,
-      std::function<const K&(const uint8_t*, uint32_t)> make_k,
-      std::function<const V&(const uint8_t*, uint32_t)> make_v)
+      std::function<K(const uint8_t*&, size_t&)> make_k,
+      std::function<V(const uint8_t*&, size_t&)> make_v)
     {
       Map<K, V, H> map;
       const uint8_t* data = serialized_state.data();
@@ -345,16 +345,17 @@ namespace champ
       while (size != 0)
       {
         // Deserialize the key
-        auto key_size = serialized::read<uint64_t>(data, size);
-        const uint8_t* key = data;
-        serialized::skip(data, size, key_size + get_padding(key_size));
+        size_t key_size = size;
+        K key = make_k(data, size);
+        key_size -= size;
+        serialized::skip(data, size, get_padding(key_size));
 
         // Deserialize the value
-        auto value_size = serialized::read<uint64_t>(data, size);
-        const uint8_t* value = data;
-        serialized::skip(data, size, value_size + get_padding(value_size));
-
-        map = map.put(make_k(key, key_size), make_v(value, value_size));
+        size_t value_size = size;
+        V value = make_v(data, size);
+        value_size -= size;
+        serialized::skip(data, size, get_padding(value_size));
+        map = map.put(key, value);
       }
       return map;
     }
