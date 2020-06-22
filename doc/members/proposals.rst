@@ -26,7 +26,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
     {
       "completed": false,
       "id": 1
@@ -55,11 +55,11 @@ In this case, a new proposal with id ``1`` has successfully been created and the
     }
 
     // Member 2 rejects the proposal (votes: 1/3)
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
     false
 
     // Member 3 accepts the proposal (votes: 2/3)
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     true
 
     // As a majority of members have accepted the proposal, member4 is added to the consortium
@@ -80,7 +80,7 @@ The details of pending proposals, including the proposer member id, proposal scr
       "text": "tables = ...; local proposals = {}; tables[\"ccf.proposals\"]:foreach( function(k, v) proposals[tostring(k)] = v; end ) return proposals;"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/query --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @display_proposals.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/query --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @display_proposals.json -H "content-type: application/json"
     {
       "1": {
         "parameter": [...],
@@ -119,7 +119,7 @@ At any stage during the voting process and before the proposal is completed, the
       "id": 0
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/withdraw --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @withdraw_0.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/withdraw --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @withdraw_0.json -H "content-type: application/json"
     true
 
 This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
