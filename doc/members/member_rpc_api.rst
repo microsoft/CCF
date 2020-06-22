@@ -44,7 +44,7 @@ read
     :language: json
 
 ack/update_state_digest
---------------------
+-----------------------
 
 .. literalinclude:: ../schemas/ack/update_state_digest_result.json
     :language: json
@@ -66,13 +66,13 @@ withdraw
     :language: json
 
 recovery_share
--------------------------
+--------------
 
 .. literalinclude:: ../schemas/recovery_share_result.json
     :language: json
 
 recovery_share/submit
--------------------
+---------------------
 
 .. literalinclude:: ../schemas/recovery_share/submit_params.json
     :language: json
