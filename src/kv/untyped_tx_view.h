@@ -10,14 +10,30 @@ namespace kv::untyped
 {
   using SerialisedEntry = kv::serialisers::SerialisedEntry;
   using SerialisedKeyHasher = std::hash<SerialisedEntry>;
-
   using VersionV = kv::VersionV<SerialisedEntry>;
+
+  struct k_size
+  {
+    uint32_t operator()(const SerialisedEntry& key)
+    {
+      return sizeof(uint64_t) + key.size();
+    };
+  };
+
+  struct v_size
+  {
+    uint32_t operator()(const kv::untyped::VersionV& value)
+    {
+      return sizeof(uint64_t) + sizeof(value.version) + value.value.size();
+    };
+  };
+
   using State =
-    kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+    kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher, k_size, v_size>;
   using Read = kv::Read<SerialisedEntry>;
   using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
   using ChangeSet =
-    kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+    kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher, k_size, v_size>;
 
   class TxView
   {

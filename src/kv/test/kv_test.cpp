@@ -22,6 +22,7 @@ struct MapTypes
   using StringNum = kv::Map<std::string, size_t>;
 };
 
+/*
 TEST_CASE("Map creation")
 {
   kv::Store kv_store;
@@ -1081,6 +1082,7 @@ TEST_CASE("Conflict resolution")
   REQUIRE_THROWS(tx1.commit());
   REQUIRE_THROWS(tx2.commit());
 }
+*/
 
 TEST_CASE("Serialization")
 {
@@ -1102,6 +1104,8 @@ TEST_CASE("Serialization")
 
   INFO("Simulate parallel execution by interleaving tx steps");
   {
+    std::cout << "aaskldfjasdklfj£" << std::endl;
+
     kv::Tx tx1;
     kv::Tx tx2;
 

@@ -140,9 +140,12 @@ TEST_CASE("persistent map operations")
 static const champ::Map<K, V, H> gen_map(size_t size)
 {
   champ::Map<K, V, H> map;
-  for (uint64_t i = 0; i < size; ++i)
+  for (uint32_t j = 0; j < 2; ++j)
   {
-    map = map.put(i, i);
+    for (uint64_t i = 0; i < size; ++i)
+    {
+      map = map.put(i, i);
+    }
   }
   return map;
 }
