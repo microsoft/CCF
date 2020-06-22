@@ -293,7 +293,25 @@ namespace ccf
          }},
         {"open_network",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto network_opened = node.open_network(tx);
+           // On network open, the service checks that a sufficient number of
+           // members have become active. If so, recovery shares are allocated
+           // to each active member.
+           try
+           {
+             share_manager.issue_shares(tx);
+           }
+           catch (const std::logic_error& e)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: Issuing recovery shares failed when opening the "
+               "network: {}",
+               proposal_id,
+               e.what());
+             return false;
+           }
+
+           GenesisGenerator g(this->network, tx);
+           const auto network_opened = g.open_service();
            if (!network_opened)
            {
              LOG_FAIL_FMT("Proposal {}: Open network failed", proposal_id);
@@ -781,24 +799,19 @@ namespace ccf
         }
 
         // update member status to ACTIVE
-        auto members = args.tx.get_view(this->network.members);
-        auto member = members->get(args.caller_id);
-        if (member->status == MemberStatus::ACCEPTED)
+        GenesisGenerator g(this->network, args.tx);
+        g.activate_member(args.caller_id);
+
+        auto service_status = g.get_service_status();
+        if (!service_status.has_value())
         {
-          member->status = MemberStatus::ACTIVE;
+          throw std::logic_error("No service currently available");
+        }
 
-          GenesisGenerator g(this->network, args.tx);
-          if (g.get_active_members_count() >= max_active_members_count)
-          {
-            return make_error(
-              HTTP_STATUS_FORBIDDEN,
-              fmt::format(
-                "No more than {} active members are allowed",
-                max_active_members_count));
-          }
-          members->put(args.caller_id, *member);
-
-          // New active members are allocated a new recovery share
+        if (service_status.value() == ServiceStatus::OPEN)
+        {
+          // When the service is OPEN, new active members are allocated new
+          // recovery shares
           try
           {
             share_manager.issue_shares(args.tx);
@@ -807,7 +820,7 @@ namespace ccf
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              fmt::format("Error issuing new recovery shares {}: ", e.what()));
+              fmt::format("Error issuing new recovery shares: {}", e.what()));
           }
         }
         return make_success(true);
@@ -986,8 +999,6 @@ namespace ccf
         g.set_recovery_threshold(in.recovery_threshold);
 
         g.add_consensus(in.consensus_type);
-
-        share_manager.issue_shares(tx);
 
         size_t self = g.add_node({in.node_info_network,
                                   in.node_cert,

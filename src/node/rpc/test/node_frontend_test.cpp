@@ -25,6 +25,9 @@ extern "C"
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
+auto kp = tls::make_key_pair();
+auto member_cert = kp -> self_sign("CN=name_member");
+
 void check_error(const TResponse& r, http_status expected)
 {
   CHECK(r.status == expected);
@@ -211,7 +214,9 @@ TEST_CASE("Add a node to an open service")
   network.encryption_key = std::make_unique<NetworkEncryptionKey>();
 
   gen.create_service({});
-  gen.open_service();
+  gen.set_recovery_threshold(1);
+  gen.activate_member(gen.add_member(member_cert, {}));
+  REQUIRE(gen.open_service());
   gen.finalize();
 
   // Node certificate

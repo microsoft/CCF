@@ -42,7 +42,9 @@ namespace ccf
       if (n == 0 || n > MAX_NUMBER_SHARES)
       {
         throw std::logic_error(fmt::format(
-          "Share creation failed: n not in 1-{} range", MAX_NUMBER_SHARES));
+          "Share creation failed: n ({}) not in 1-{} range",
+          n,
+          MAX_NUMBER_SHARES));
       }
 
       if (k == 0 || k > n)
