@@ -6,8 +6,5 @@
 
 namespace ccf
 {
-  inline static std::string get_ccf_version()
-  {
-    return "@CCF_VERSION@";
-  }
+  static constexpr auto ccf_version = "@CCF_VERSION@";
 }

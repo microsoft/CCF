@@ -34,7 +34,7 @@ using namespace std::chrono_literals;
 
 void print_version(size_t)
 {
-  std::cout << "CCF host: " << ccf::get_ccf_version() << std::endl;
+  std::cout << "CCF host: " << ccf::ccf_version << std::endl;
   exit(0);
 }
 
