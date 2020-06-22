@@ -73,3 +73,19 @@ Additionally, the `cchost` binary must be told that the enclave type is debug:
 .. code-block:: bash
 
     $ cchost --enclave-file liblua_generic.enclave.so.debuggable --enclave-type debug [args]
+
+Build Container
+---------------
+
+With every release of CCF, a base build container is provided to facilitate reproducible builds and continuous integration.
+It contains everything needed to build and test CCF applications.
+
+.. literalinclude:: ../../docker/app_ci
+   :language: dockerfile
+
+The pre-built container can be obtained from `ccfciteam/ccf-app-ci <https://hub.docker.com/r/ccfciteam/ccf-app-ci>`_ on hub.docker.com.
+
+.. code-block:: bash
+
+    docker pull ccfciteam/ccf-app-ci:latest # Latest CCF release
+    docker pull ccfciteam/ccf-app-ci:X.YZ   # Specific CCF release
