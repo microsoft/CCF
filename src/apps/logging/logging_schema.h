@@ -58,7 +58,7 @@ namespace loggingapp
       "id",
       "msg"
     ],
-    "title": "LOG_record_pub/params",
+    "title": "log/public/params",
     "type": "object"
   }
   )!!!";
@@ -66,12 +66,11 @@ namespace loggingapp
   static const std::string j_record_public_out = R"!!!(
   {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "LOG_record_pub/result",
+    "title": "log/public/result",
     "type": "bool"
   }
   )!!!";
 
-  // TODO: These titles are waaay wrong
   static const std::string j_get_public_in = R"!!!(
   {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -83,7 +82,7 @@ namespace loggingapp
     "required": [
       "id"
     ],
-    "title": "LOG_get_pub/params",
+    "title": "log/public/params",
     "type": "object"
   }
   )!!!";
@@ -99,7 +98,7 @@ namespace loggingapp
     "required": [
       "msg"
     ],
-    "title": "LOG_get_pub/result",
+    "title": "log/public/result",
     "type": "object"
   }
   )!!!";
