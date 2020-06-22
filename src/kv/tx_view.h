@@ -9,7 +9,7 @@
 namespace kv
 {
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
-  class TxView : public kv::untyped::Map::TxViewCommitter
+  class ReadOnlyTxView : public kv::untyped::Map::TxViewCommitter
   {
   protected:
     kv::untyped::TxView untyped_view;
@@ -18,7 +18,7 @@ namespace kv
     using KeyType = K;
     using ValueType = V;
 
-    TxView(
+    ReadOnlyTxView(
       kv::untyped::Map& m,
       size_t rollbacks,
       kv::untyped::State& current_state,
@@ -54,17 +54,6 @@ namespace kv
       return std::nullopt;
     }
 
-    bool put(const K& key, const V& value)
-    {
-      return untyped_view.put(
-        KSerialiser::to_serialised(key), VSerialiser::to_serialised(value));
-    }
-
-    bool remove(const K& key)
-    {
-      return untyped_view.remove(KSerialiser::to_serialised(key));
-    }
-
     template <class F>
     void foreach(F&& f)
     {
@@ -76,6 +65,27 @@ namespace kv
           VSerialiser::from_serialised(v_rep));
       };
       untyped_view.foreach(g);
+    }
+  };
+
+  template <typename K, typename V, typename KSerialiser, typename VSerialiser>
+  class TxView : public ReadOnlyTxView<K, V, KSerialiser, VSerialiser>
+  {
+  protected:
+    using ReadOnlyBase = ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
+
+  public:
+    using ReadOnlyBase::ReadOnlyBase;
+
+    bool put(const K& key, const V& value)
+    {
+      return ReadOnlyBase::untyped_view.put(
+        KSerialiser::to_serialised(key), VSerialiser::to_serialised(value));
+    }
+
+    bool remove(const K& key)
+    {
+      return ReadOnlyBase::untyped_view.remove(KSerialiser::to_serialised(key));
     }
   };
 }

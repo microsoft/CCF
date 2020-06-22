@@ -17,7 +17,6 @@
 #include "node/rpc/json_rpc.h"
 #include "node_to_node.h"
 #include "notifier.h"
-#include "rpc/consts.h"
 #include "rpc/frontend.h"
 #include "rpc/member_frontend.h"
 #include "rpc/serialization.h"
@@ -503,8 +502,7 @@ namespace ccf
 
       const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
 
-      http::Request r(
-        fmt::format("/{}/{}", ccf::Actors::NODES, ccf::NodeProcs::JOIN));
+      http::Request r(fmt::format("/{}/{}", ccf::Actors::NODES, "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
@@ -1013,11 +1011,11 @@ namespace ccf
     }
 
     void node_quotes(
-      kv::Tx& tx,
+      kv::ReadOnlyTx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {
-      auto nodes_view = tx.get_view(network.nodes);
+      auto nodes_view = tx.get_read_only_view(network.nodes);
 
       nodes_view->foreach([&result, &filter, this](
                             const NodeId& nid, const NodeInfo& ni) {
@@ -1190,7 +1188,7 @@ namespace ccf
       const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
       http::Request request(
-        fmt::format("/{}/{}", ccf::Actors::MEMBERS, ccf::MemberProcs::CREATE));
+        fmt::format("/{}/{}", ccf::Actors::MEMBERS, "create"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
@@ -1261,12 +1259,13 @@ namespace ccf
       }
 
       const auto actor = rpc_map->resolve(actor_opt.value());
-      auto handler = this->rpc_map->find(actor);
-      if (!handler.has_value())
+      auto frontend_opt = this->rpc_map->find(actor);
+      if (!frontend_opt.has_value())
       {
-        throw std::logic_error("Handler has no value");
+        throw std::logic_error(
+          "RpcMap::find returned invalid (empty) frontend");
       }
-      auto frontend = handler.value();
+      auto frontend = frontend_opt.value();
 
       const auto response = frontend->process(ctx);
       if (!response.has_value())
