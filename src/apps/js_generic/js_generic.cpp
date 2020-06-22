@@ -139,7 +139,7 @@ namespace ccfapp
     return r;
   }
 
-  class JSHandlers : public UserHandlerRegistry
+  class JSHandlers : public UserEndpointRegistry
   {
   private:
     NetworkTables& network;
@@ -147,13 +147,13 @@ namespace ccfapp
 
   public:
     JSHandlers(NetworkTables& network) :
-      UserHandlerRegistry(network),
+      UserEndpointRegistry(network),
       network(network),
       table(network.tables->create<Table>("data"))
     {
       auto& tables = *network.tables;
 
-      auto default_handler = [this](RequestArgs& args) {
+      auto default_handler = [this](EndpointContext& args) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
         if (local_method == UserScriptIds::ENV_HANDLER)
@@ -269,14 +269,14 @@ namespace ccfapp
         return;
       };
 
-      set_default(default_handler, Write);
+      set_default(default_handler);
     }
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
     void list_methods(kv::Tx& tx, ListMethods::Out& out) override
     {
-      UserHandlerRegistry::list_methods(tx, out);
+      UserEndpointRegistry::list_methods(tx, out);
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {

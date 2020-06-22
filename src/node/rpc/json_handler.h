@@ -3,7 +3,7 @@
 #pragma once
 
 #include "enclave/rpc_context.h"
-#include "handler_registry.h"
+#include "endpoint_registry.h"
 #include "http/http_consts.h"
 #include "node/rpc/json_rpc.h"
 
@@ -17,7 +17,7 @@ namespace ccf
    * fields, to reduce handler complexity and repetition.
    *
    * Rather than:
-   * auto foo = [](RequestArgs& args) {
+   * auto foo = [](auto& args) {
    *   nlohmann::json params;
    *   jsonrpc::Pack pack_type;
    *   if (<content-type is JSON>)
@@ -257,9 +257,9 @@ namespace ccf
   using HandlerTxOnly =
     std::function<jsonhandler::JsonAdapterResponse(kv::Tx& tx)>;
 
-  static HandleFunction json_adapter(const HandlerTxOnly& f)
+  static EndpointFunction json_adapter(const HandlerTxOnly& f)
   {
-    return [f](RequestArgs& args) {
+    return [f](EndpointContext& args) {
       const auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(f(args.tx), args.rpc_ctx, packing);
     };
@@ -268,9 +268,9 @@ namespace ccf
   using HandlerJsonParamsOnly = std::function<jsonhandler::JsonAdapterResponse(
     kv::Tx& tx, nlohmann::json&& params)>;
 
-  static HandleFunction json_adapter(const HandlerJsonParamsOnly& f)
+  static EndpointFunction json_adapter(const HandlerJsonParamsOnly& f)
   {
-    return [f](RequestArgs& args) {
+    return [f](EndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args.tx, std::move(params)), args.rpc_ctx, packing);
@@ -281,9 +281,9 @@ namespace ccf
     std::function<jsonhandler::JsonAdapterResponse(
       kv::Tx& tx, CallerId caller_id, nlohmann::json&& params)>;
 
-  static HandleFunction json_adapter(const HandlerJsonParamsAndCallerId& f)
+  static EndpointFunction json_adapter(const HandlerJsonParamsAndCallerId& f)
   {
-    return [f](RequestArgs& args) {
+    return [f](EndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args.tx, args.caller_id, std::move(params)), args.rpc_ctx, packing);
@@ -292,11 +292,38 @@ namespace ccf
 
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(
-      RequestArgs& args, nlohmann::json&& params)>;
+      EndpointContext& args, nlohmann::json&& params)>;
 
-  static HandleFunction json_adapter(const HandlerJsonParamsAndForward& f)
+  static EndpointFunction json_adapter(const HandlerJsonParamsAndForward& f)
   {
-    return [f](RequestArgs& args) {
+    return [f](EndpointContext& args) {
+      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
+      jsonhandler::set_response(
+        f(args, std::move(params)), args.rpc_ctx, packing);
+    };
+  }
+
+  using ReadOnlyHandlerWithJson =
+    std::function<jsonhandler::JsonAdapterResponse(
+      ReadOnlyEndpointContext& args, nlohmann::json&& params)>;
+
+  static ReadOnlyEndpointFunction json_read_only_adapter(
+    const ReadOnlyHandlerWithJson& f)
+  {
+    return [f](ReadOnlyEndpointContext& args) {
+      auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
+      jsonhandler::set_response(
+        f(args, std::move(params)), args.rpc_ctx, packing);
+    };
+  }
+
+  using CommandHandlerWithJson = std::function<jsonhandler::JsonAdapterResponse(
+    CommandEndpointContext& args, nlohmann::json&& params)>;
+
+  static CommandEndpointFunction json_command_adapter(
+    const CommandHandlerWithJson& f)
+  {
+    return [f](CommandEndpointContext& args) {
       auto [packing, params] = jsonhandler::get_json_params(args.rpc_ctx);
       jsonhandler::set_response(
         f(args, std::move(params)), args.rpc_ctx, packing);

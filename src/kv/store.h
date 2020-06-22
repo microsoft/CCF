@@ -219,28 +219,31 @@ namespace kv
       return *result;
     }
 
-    std::unique_ptr<Snapshot> snapshot(Version v) override
+    void deserialize(std::unique_ptr<Snapshot>& snapshot)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
-
-      if (v > current_version())
-      {
-        throw ccf::ccf_logic_error(fmt::format(
-          "Attempting to snapshot at invalid version v:{}, current_version:{}",
-          v,
-          current_version()));
-      }
-
-      auto snapshot = std::make_unique<Snapshot>();
 
       for (auto& map : maps)
       {
         map.second->lock();
       }
 
-      for (auto& map : maps)
+      auto& snapshots = snapshot->get_snapshots();
+      CCF_ASSERT_FMT(
+        maps.size() == snapshots.size(),
+        "Number of maps does not match the snapshot, maps:{}, snapshots:{}",
+        maps.size(),
+        snapshots.size());
+      for (auto& s : snapshots)
       {
-        snapshot->add_snapshot(std::move(map.second->snapshot(v)));
+        auto search = maps.find(s->get_name());
+        if (search == maps.end())
+        {
+          throw ccf::ccf_logic_error(
+            fmt::format("Map does not exist - {}", s->get_name()));
+        }
+
+        search->second->apply(s);
       }
 
       for (auto& map : maps)
@@ -248,6 +251,45 @@ namespace kv
         map.second->unlock();
       }
 
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        version = snapshot->get_version();
+        last_replicated = snapshot->get_version();
+        last_committable = snapshot->get_version();
+      }
+    }
+
+    std::unique_ptr<Snapshot> snapshot(Version v) override
+    {
+      auto snapshot = std::make_unique<Snapshot>(v);
+
+      {
+        std::lock_guard<SpinLock> mguard(maps_lock);
+
+        if (v < commit_version())
+        {
+          throw ccf::ccf_logic_error(fmt::format(
+            "Attempting to snapshot at invalid version v:{}, "
+            "commit_version:{}",
+            v,
+            commit_version()));
+        }
+
+        for (auto& map : maps)
+        {
+          map.second->lock();
+        }
+
+        for (auto& map : maps)
+        {
+          snapshot->add_snapshot(std::move(map.second->snapshot(v)));
+        }
+
+        for (auto& map : maps)
+        {
+          map.second->unlock();
+        }
+      }
       return std::move(snapshot);
     }
 
@@ -357,7 +399,7 @@ namespace kv
       const std::vector<uint8_t>& data,
       bool public_only = false,
       Term* term_ = nullptr,
-      ViewContainer* tx = nullptr)
+      AbstractViewContainer* tx = nullptr)
     {
       // If we pass in a transaction we don't want to commit, just deserialise
       // and put the views into that transaction.

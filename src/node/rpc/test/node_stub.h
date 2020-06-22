@@ -22,11 +22,6 @@ namespace ccf
       return true;
     }
 
-    bool open_network(kv::Tx& tx) override
-    {
-      return true;
-    }
-
     bool rekey_ledger(kv::Tx& tx) override
     {
       return true;
@@ -58,7 +53,7 @@ namespace ccf
     }
 
     void node_quotes(
-      kv::Tx& tx,
+      kv::ReadOnlyTx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {}

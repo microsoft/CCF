@@ -2,18 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consts.h"
-#include "handler_registry.h"
+#include "endpoint_registry.h"
 #include "json_handler.h"
 #include "metrics.h"
 
 namespace ccf
 {
   /*
-   * Extends the basic HandlerRegistry with methods which should be present
+   * Extends the basic EndpointRegistry with methods which should be present
    * on all frontends
    */
-  class CommonHandlerRegistry : public HandlerRegistry
+  class CommonEndpointRegistry : public EndpointRegistry
   {
   private:
     metrics::Metrics metrics;
@@ -24,18 +23,18 @@ namespace ccf
     kv::Store* tables = nullptr;
 
   public:
-    CommonHandlerRegistry(
+    CommonEndpointRegistry(
       kv::Store& store, const std::string& certs_table_name = "") :
-      HandlerRegistry(store, certs_table_name),
+      EndpointRegistry(store, certs_table_name),
       nodes(store.get<Nodes>(Tables::NODES)),
       tables(&store)
     {}
 
     void init_handlers(kv::Store& t) override
     {
-      HandlerRegistry::init_handlers(t);
+      EndpointRegistry::init_handlers(t);
 
-      auto get_commit = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_commit = [this](auto& args, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
           auto [view, seqno] = consensus->get_committed_txid();
@@ -46,8 +45,13 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR,
           "Failed to get commit info from Consensus");
       };
+      make_command_endpoint(
+        "commit", HTTP_GET, json_command_adapter(get_commit))
+        .set_execute_locally(true)
+        .set_auto_schema<void, GetCommit::Out>()
+        .install();
 
-      auto get_tx_status = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_tx_status = [this](auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetTxStatus::In>();
 
         if (consensus != nullptr)
@@ -65,13 +69,21 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Consensus is not yet configured");
       };
+      make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
+        .set_auto_schema<GetTxStatus>()
+        .install();
 
-      auto get_metrics = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_metrics = [this](auto& args, nlohmann::json&& params) {
         auto result = metrics.get_metrics();
         return make_success(result);
       };
+      make_command_endpoint(
+        "metrics", HTTP_GET, json_command_adapter(get_metrics))
+        .set_auto_schema<void, GetMetrics::Out>()
+        .set_execute_locally(true)
+        .install();
 
-      auto make_signature = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto make_signature = [this](auto& args, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
           if (consensus->type() == ConsensusType::RAFT)
@@ -92,21 +104,27 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to trigger signature");
       };
+      make_command_endpoint(
+        "mkSign", HTTP_POST, json_command_adapter(make_signature))
+        .set_auto_schema<void, bool>()
+        .install();
 
-      auto who =
-        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+      if (certs != nullptr)
+      {
+        auto who = [this](auto& args, nlohmann::json&& params) {
           if (certs == nullptr)
           {
             return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              fmt::format(
-                "This frontend does not support {}", GeneralProcs::WHO));
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              "This frontend does not support 'who'");
           }
+
+          auto caller_id = args.caller_id;
 
           if (!params.is_null())
           {
             const WhoIs::In in = params;
-            auto certs_view = tx.get_view(*certs);
+            auto certs_view = args.tx.get_read_only_view(*certs);
             auto caller_id_opt = certs_view->get(in.cert);
 
             if (!caller_id_opt.has_value())
@@ -120,14 +138,18 @@ namespace ccf
 
           return make_success(WhoAmI::Out{caller_id});
         };
+        make_read_only_endpoint("who", HTTP_GET, json_read_only_adapter(who))
+          .set_auto_schema<WhoIs::In, WhoAmI::Out>()
+          .install();
+      }
 
-      auto get_primary_info = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_primary_info = [this](auto& args, nlohmann::json&& params) {
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
           auto current_view = consensus->get_view();
 
-          auto nodes_view = tx.get_view(*nodes);
+          auto nodes_view = args.tx.get_read_only_view(*nodes);
           auto info = nodes_view->get(primary_id);
 
           if (info)
@@ -144,15 +166,19 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Primary unknown.");
       };
+      make_read_only_endpoint(
+        "primary_info", HTTP_GET, json_read_only_adapter(get_primary_info))
+        .set_auto_schema<void, GetPrimaryInfo::Out>()
+        .install();
 
-      auto get_network_info = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_network_info = [this](auto& args, nlohmann::json&& params) {
         GetNetworkInfo::Out out;
         if (consensus != nullptr)
         {
           out.primary_id = consensus->primary();
         }
 
-        auto nodes_view = tx.get_view(*nodes);
+        auto nodes_view = args.tx.get_read_only_view(*nodes);
         nodes_view->foreach([&out](const NodeId& nid, const NodeInfo& ni) {
           if (ni.status == ccf::NodeStatus::TRUSTED)
           {
@@ -163,13 +189,16 @@ namespace ccf
 
         return make_success(out);
       };
+      make_read_only_endpoint(
+        "network_info", HTTP_GET, json_read_only_adapter(get_network_info))
+        .set_auto_schema<void, GetNetworkInfo::Out>()
+        .install();
 
-      auto get_nodes_by_rpc_address = [this](
-                                        kv::Tx& tx, nlohmann::json&& params) {
+      auto get_nodes_by_rpc_address = [this](auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetNodesByRPCAddress::In>();
 
         GetNodesByRPCAddress::Out out;
-        auto nodes_view = tx.get_view(*nodes);
+        auto nodes_view = args.tx.get_read_only_view(*nodes);
         nodes_view->foreach([&in, &out](const NodeId& nid, const NodeInfo& ni) {
           if (ni.rpchost == in.host && ni.rpcport == in.port)
           {
@@ -183,6 +212,10 @@ namespace ccf
 
         return make_success(out);
       };
+      make_read_only_endpoint(
+        "node/ids", HTTP_GET, json_read_only_adapter(get_nodes_by_rpc_address))
+        .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
+        .install();
 
       auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
         ListMethods::Out out;
@@ -193,25 +226,43 @@ namespace ccf
 
         return make_success(out);
       };
+      make_endpoint("api", HTTP_GET, json_adapter(list_methods_fn))
+        .set_auto_schema<void, ListMethods::Out>()
+        .install();
 
-      auto get_schema = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_schema = [this](auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
-        const auto it = handlers.find(in.method);
-        if (it == handlers.end())
+        const auto it = installed_handlers.find(in.method);
+        if (it == installed_handlers.end())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             fmt::format("Method {} not recognised", in.method));
         }
 
-        const GetSchema::Out out{it->second.params_schema,
-                                 it->second.result_schema};
+        auto j = nlohmann::json::object();
 
-        return make_success(out);
+        for (auto& [verb, endpoint] : it->second)
+        {
+          std::string verb_name = http_method_str(verb);
+          std::transform(
+            verb_name.begin(),
+            verb_name.end(),
+            verb_name.begin(),
+            [](unsigned char c) { return std::tolower(c); });
+          j[verb_name] =
+            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+        }
+
+        return make_success(j);
       };
+      make_command_endpoint(
+        "api/schema", HTTP_GET, json_command_adapter(get_schema))
+        .set_auto_schema<GetSchema>()
+        .install();
 
-      auto get_receipt = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto get_receipt = [this](auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
         if (history != nullptr)
@@ -237,8 +288,12 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to produce receipt");
       };
+      make_command_endpoint(
+        "receipt", HTTP_GET, json_command_adapter(get_receipt))
+        .set_auto_schema<GetReceipt>()
+        .install();
 
-      auto verify_receipt = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto verify_receipt = [this](auto& args, nlohmann::json&& params) {
         const auto in = params.get<VerifyReceipt::In>();
 
         if (history != nullptr)
@@ -261,48 +316,10 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to verify receipt");
       };
-
-      install(GeneralProcs::GET_COMMIT, json_adapter(get_commit), Read)
-        .set_execute_locally(true)
-        .set_auto_schema<void, GetCommit::Out>();
-      install(GeneralProcs::GET_TX_STATUS, json_adapter(get_tx_status), Read)
-        .set_auto_schema<GetTxStatus>()
-        .set_http_get_only();
-      install(GeneralProcs::GET_METRICS, json_adapter(get_metrics), Read)
-        .set_auto_schema<void, GetMetrics::Out>()
-        .set_execute_locally(true)
-        .set_http_get_only();
-      install(GeneralProcs::MK_SIGN, json_adapter(make_signature), Write)
-        .set_auto_schema<void, bool>();
-      install(GeneralProcs::WHO, json_adapter(who), Read)
-        .set_auto_schema<WhoIs::In, WhoAmI::Out>()
-        .set_http_get_only();
-      install(
-        GeneralProcs::GET_PRIMARY_INFO, json_adapter(get_primary_info), Read)
-        .set_auto_schema<void, GetPrimaryInfo::Out>()
-        .set_http_get_only();
-      install(
-        GeneralProcs::GET_NETWORK_INFO, json_adapter(get_network_info), Read)
-        .set_auto_schema<void, GetNetworkInfo::Out>()
-        .set_http_get_only();
-      install(
-        GeneralProcs::GET_NODES_BY_RPC_ADDRESS,
-        json_adapter(get_nodes_by_rpc_address),
-        Read)
-        .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
-        .set_http_get_only();
-      install(
-        GeneralProcs::API_LIST_METHODS, json_adapter(list_methods_fn), Read)
-        .set_auto_schema<void, ListMethods::Out>()
-        .set_http_get_only();
-      install(GeneralProcs::API_GET_SCHEMA, json_adapter(get_schema), Read)
-        .set_auto_schema<GetSchema>()
-        .set_http_get_only();
-      install(GeneralProcs::GET_RECEIPT, json_adapter(get_receipt), Read)
-        .set_auto_schema<GetReceipt>()
-        .set_http_get_only();
-      install(GeneralProcs::VERIFY_RECEIPT, json_adapter(verify_receipt), Read)
-        .set_auto_schema<VerifyReceipt>();
+      make_command_endpoint(
+        "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))
+        .set_auto_schema<VerifyReceipt>()
+        .install();
     }
 
     void tick(
@@ -311,7 +328,7 @@ namespace ccf
     {
       metrics.track_tx_rates(elapsed, stats);
 
-      HandlerRegistry::tick(elapsed, stats);
+      EndpointRegistry::tick(elapsed, stats);
     }
   };
 }

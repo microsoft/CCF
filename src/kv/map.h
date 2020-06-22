@@ -26,6 +26,7 @@ namespace kv
 
     using CommitHook = CommitHook<Write>;
 
+    using ReadOnlyTxView = kv::ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
     using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
 
     template <typename... Ts>
@@ -80,6 +81,11 @@ namespace kv
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       return untyped_map.snapshot(v);
+    }
+
+    void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
+    {
+      untyped_map.apply(s);
     }
 
     void post_compact() override
