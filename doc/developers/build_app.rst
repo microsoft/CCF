@@ -87,4 +87,5 @@ The pre-built container can be obtained from `ccfciteam/ccf-app-ci <https://hub.
 
 .. code-block:: bash
 
-    docker pull ccfciteam/ccf-app-ci:0.11
+    docker pull ccfciteam/ccf-app-ci:latest # Latest CCF release
+    docker pull ccfciteam/ccf-app-ci:X.YZ   # Specific CCF release

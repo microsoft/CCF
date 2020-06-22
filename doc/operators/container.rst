@@ -20,4 +20,5 @@ The pre-built container can be obtained from `ccfciteam/ccf-app-run <https://hub
 
 .. code-block:: bash
 
-    docker pull ccfciteam/ccf-app-run:0.11
+    docker pull ccfciteam/ccf-app-run:latest # Latest CCF release
+    docker pull ccfciteam/ccf-app-run:X.YZ   # Specific CCF release

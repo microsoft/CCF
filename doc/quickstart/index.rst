@@ -8,7 +8,7 @@ The quickest way to get started building CCF applications is to use the :ref:`de
 
 .. code-block:: bash
 
-    sudo docker run -it ccfciteam/ccf-app-ci:0.11
+    sudo docker run -it ccfciteam/ccf-app-ci:latest
 
 That contains a release of CCF along with a complete build toolchain, and startup scripts. It can be run
 on hardware that does not support SGX, in which case you will want to use the virtual binaries, or build in `virtual mode`.
