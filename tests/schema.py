@@ -39,9 +39,14 @@ def run(args):
             )
 
             if schema_response.result is not None:
+                if len(schema_response.result) != 1:
+                    raise ValueError(
+                        f"This test currently only handles single-verb schema responses - can't handle {method}: {json.dumps(schema_response.result, indent=2)}"
+                    )
+                _, schema_element = schema_response.result.popitem()
                 for schema_type in ["params", "result"]:
                     element_name = "{}_schema".format(schema_type)
-                    element = schema_response.result[element_name]
+                    element = schema_element[element_name]
                     target_file = build_schema_file_path(
                         args.schema_dir, method, schema_type
                     )
