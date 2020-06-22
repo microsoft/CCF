@@ -249,10 +249,8 @@ namespace http
         }
 
         const auto& actor_s = actor_opt.value();
-        LOG_DEBUG_FMT("Processing {}", actor_s);
         std::string preferred_actor_s;
         auto actor = rpc_map->resolve(actor_s, preferred_actor_s);
-        LOG_DEBUG_FMT("Found preferred {}", preferred_actor_s);
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
