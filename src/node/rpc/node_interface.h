@@ -20,7 +20,7 @@ namespace ccf
     virtual bool is_reading_private_ledger() const = 0;
     virtual bool is_part_of_network() const = 0;
     virtual void node_quotes(
-      kv::Tx& tx,
+      kv::ReadOnlyTx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter = std::nullopt) = 0;
     virtual NodeId get_node_id() const = 0;

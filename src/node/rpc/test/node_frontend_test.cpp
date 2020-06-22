@@ -103,7 +103,7 @@ TEST_CASE("Add a node to an opening service")
     JoinNetworkNodeToNode::In join_input;
     join_input.consensus_type = ConsensusType::PBFT;
     const auto response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+      frontend_process(frontend, join_input, "join", caller);
 
     check_error(response, HTTP_STATUS_BAD_REQUEST);
     check_error_message(
@@ -119,7 +119,7 @@ TEST_CASE("Add a node to an opening service")
   {
     JoinNetworkNodeToNode::In join_input;
     const auto response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+      frontend_process(frontend, join_input, "join", caller);
 
     check_error(response, HTTP_STATUS_INTERNAL_SERVER_ERROR);
     check_error_message(response, "No service is available to accept new node");
@@ -132,8 +132,7 @@ TEST_CASE("Add a node to an opening service")
   {
     JoinNetworkNodeToNode::In join_input;
 
-    auto http_response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
     const auto response =
@@ -164,8 +163,7 @@ TEST_CASE("Add a node to an opening service")
   {
     JoinNetworkNodeToNode::In join_input;
 
-    auto http_response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
     const auto response =
@@ -189,8 +187,7 @@ TEST_CASE("Add a node to an opening service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
 
-    auto http_response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto http_response = frontend_process(frontend, join_input, "join", caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
     check_error_message(http_response, "A node with the same node host");
@@ -234,8 +231,7 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Add node once service is open");
   {
-    auto http_response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
     const auto response =
@@ -265,8 +261,7 @@ TEST_CASE("Add a node to an open service")
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
 
-    auto http_response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto http_response = frontend_process(frontend, join_input, "join", caller);
 
     check_error(http_response, HTTP_STATUS_BAD_REQUEST);
     check_error_message(http_response, "A node with the same node host");
@@ -274,8 +269,7 @@ TEST_CASE("Add a node to an open service")
 
   INFO("Try to join again without being trusted");
   {
-    auto http_response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
     const auto response =
@@ -293,8 +287,7 @@ TEST_CASE("Add a node to an open service")
     nodes_view->put(0, node_info.value());
     CHECK(tx.commit() == kv::CommitSuccess::OK);
 
-    auto http_response =
-      frontend_process(frontend, join_input, NodeProcs::JOIN, caller);
+    auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
 
     const auto response =

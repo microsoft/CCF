@@ -1679,8 +1679,8 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
   DOCTEST_INFO("Retrieve and decrypt recovery shares");
   {
-    const auto get_recovery_shares = create_request(
-      nullptr, MemberProcs::GET_ENCRYPTED_RECOVERY_SHARE, HTTP_GET);
+    const auto get_recovery_shares =
+      create_request(nullptr, "recovery_share", HTTP_GET);
 
     for (auto const& m : members)
     {
@@ -1703,8 +1703,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   {
     MemberId member_id = 0;
     const auto submit_recovery_share = create_text_request(
-      tls::b64_from_raw(retrieved_shares[member_id]),
-      MemberProcs::SUBMIT_RECOVERY_SHARE);
+      tls::b64_from_raw(retrieved_shares[member_id]), "recovery_share/submit");
 
     check_error(
       frontend_process(
@@ -1736,8 +1735,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
       auto bogus_recovery_share = retrieved_shares[m.first];
       bogus_recovery_share[0] = bogus_recovery_share[0] + 1;
       const auto submit_recovery_share = create_text_request(
-        tls::b64_from_raw(bogus_recovery_share),
-        MemberProcs::SUBMIT_RECOVERY_SHARE);
+        tls::b64_from_raw(bogus_recovery_share), "recovery_share/submit");
 
       auto rep =
         frontend_process(frontend, submit_recovery_share, m.second.first);
@@ -1763,8 +1761,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
     for (auto const& m : members)
     {
       const auto submit_recovery_share = create_text_request(
-        tls::b64_from_raw(retrieved_shares[m.first]),
-        MemberProcs::SUBMIT_RECOVERY_SHARE);
+        tls::b64_from_raw(retrieved_shares[m.first]), "recovery_share/submit");
 
       auto rep =
         frontend_process(frontend, submit_recovery_share, m.second.first);

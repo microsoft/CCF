@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_deprecated.h"
 #include "frontend.h"
 #include "node/client_signatures.h"
 #include "node/network_tables.h"
@@ -21,7 +22,7 @@ namespace ccf
     Users* users;
 
   public:
-    UserRpcFrontend(kv::Store& tables, HandlerRegistry& h) :
+    UserRpcFrontend(kv::Store& tables, EndpointRegistry& h) :
       RpcFrontend(
         tables,
         h,
@@ -49,31 +50,53 @@ namespace ccf
       return true;
     }
 
-    // This is simply so apps can write install(...); rather than
-    // handlers.install(...);
+    // Forward these methods so that apps can write foo(...); rather than
+    // endpoints.foo(...);
     template <typename... Ts>
-    ccf::HandlerRegistry::Handler& install(Ts&&... ts)
+    ccf::EndpointRegistry::Endpoint& install(Ts&&... ts)
     {
-      return handlers.install(std::forward<Ts>(ts)...);
+      return endpoints.install(std::forward<Ts>(ts)...);
+    }
+
+    template <typename... Ts>
+    ccf::EndpointRegistry::Endpoint make_endpoint(Ts&&... ts)
+    {
+      return endpoints.make_endpoint(std::forward<Ts>(ts)...);
+    }
+
+    template <typename... Ts>
+    ccf::EndpointRegistry::Endpoint make_read_only_endpoint(Ts&&... ts)
+    {
+      return endpoints.make_read_only_endpoint(std::forward<Ts>(ts)...);
+    }
+
+    template <typename... Ts>
+    ccf::EndpointRegistry::Endpoint make_command_endpoint(Ts&&... ts)
+    {
+      return endpoints.make_command_endpoint(std::forward<Ts>(ts)...);
     }
   };
 
-  class UserHandlerRegistry : public CommonHandlerRegistry
+  class UserEndpointRegistry : public CommonEndpointRegistry
   {
   public:
-    UserHandlerRegistry(kv::Store& store) :
-      CommonHandlerRegistry(store, Tables::USER_CERTS)
+    UserEndpointRegistry(kv::Store& store) :
+      CommonEndpointRegistry(store, Tables::USER_CERTS)
     {}
 
-    UserHandlerRegistry(NetworkTables& network) :
-      CommonHandlerRegistry(*network.tables, Tables::USER_CERTS)
+    UserEndpointRegistry(NetworkTables& network) :
+      CommonEndpointRegistry(*network.tables, Tables::USER_CERTS)
     {}
   };
+
+  using UserHandlerRegistry CCF_DEPRECATED(
+    "Handlers have been renamed to Endpoints. Please use "
+    "UserEndpointRegistry") = UserEndpointRegistry;
 
   class SimpleUserRpcFrontend : public UserRpcFrontend
   {
   protected:
-    UserHandlerRegistry common_handlers;
+    UserEndpointRegistry common_handlers;
 
   public:
     SimpleUserRpcFrontend(kv::Store& tables) :

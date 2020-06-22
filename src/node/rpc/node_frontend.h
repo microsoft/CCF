@@ -11,7 +11,7 @@
 
 namespace ccf
 {
-  class NodeHandlers : public CommonHandlerRegistry
+  class NodeEndpoints : public CommonEndpointRegistry
   {
   private:
     NetworkState& network;
@@ -137,19 +137,20 @@ namespace ccf
     }
 
   public:
-    NodeHandlers(NetworkState& network, AbstractNodeState& node) :
-      CommonHandlerRegistry(*network.tables),
+    NodeEndpoints(NetworkState& network, AbstractNodeState& node) :
+      CommonEndpointRegistry(*network.tables),
       network(network),
       node(node)
     {}
 
     void init_handlers(kv::Store& tables_) override
     {
-      CommonHandlerRegistry::init_handlers(tables_);
+      CommonEndpointRegistry::init_handlers(tables_);
 
       signatures = tables->get<Signatures>(Tables::SIGNATURES);
 
-      auto accept = [this](RequestArgs& args, const nlohmann::json& params) {
+      auto accept = [this](
+                      EndpointContext& args, const nlohmann::json& params) {
         const auto in = params.get<JoinNetworkNodeToNode::In>();
 
         if (
@@ -252,8 +253,9 @@ namespace ccf
           return add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING);
         }
       };
+      make_endpoint("join", HTTP_POST, json_adapter(accept)).install();
 
-      auto get_signed_index = [this](kv::Tx& tx) {
+      auto get_signed_index = [this](auto& args, nlohmann::json&& params) {
         GetSignedIndex::Out result;
         if (this->node.is_reading_public_ledger())
         {
@@ -277,7 +279,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST, "Network is not in recovery mode");
         }
 
-        auto sig_view = tx.get_view(*signatures);
+        auto sig_view = args.tx.get_read_only_view(*signatures);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
           result.signed_index = 0;
@@ -286,45 +288,46 @@ namespace ccf
 
         return make_success(result);
       };
+      make_read_only_endpoint(
+        "signed_index", HTTP_GET, json_read_only_adapter(get_signed_index))
+        .set_auto_schema<GetSignedIndex>()
+        .install();
 
-      auto get_quote = [this](kv::Tx& tx) {
+      auto get_quote = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
         std::set<NodeId> filter;
         filter.insert(this->node.get_node_id());
-        this->node.node_quotes(tx, result, filter);
+        this->node.node_quotes(args.tx, result, filter);
 
         return make_success(result);
       };
+      make_read_only_endpoint(
+        "quote", HTTP_GET, json_read_only_adapter(get_quote))
+        .set_auto_schema<GetQuotes>()
+        .install();
 
-      auto get_quotes = [this](kv::Tx& tx) {
+      auto get_quotes = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
-        this->node.node_quotes(tx, result);
+        this->node.node_quotes(args.tx, result);
 
         return make_success(result);
       };
-
-      install(NodeProcs::JOIN, json_adapter(accept), Write);
-      install(NodeProcs::GET_SIGNED_INDEX, json_adapter(get_signed_index), Read)
-        .set_auto_schema<GetSignedIndex>()
-        .set_http_get_only();
-      install(NodeProcs::GET_NODE_QUOTE, json_adapter(get_quote), Read)
+      make_read_only_endpoint(
+        "quotes", HTTP_GET, json_read_only_adapter(get_quotes))
         .set_auto_schema<GetQuotes>()
-        .set_http_get_only();
-      install(NodeProcs::GET_QUOTES, json_adapter(get_quotes), Read)
-        .set_auto_schema<GetQuotes>()
-        .set_http_get_only();
+        .install();
     }
   };
 
   class NodeRpcFrontend : public RpcFrontend
   {
   protected:
-    NodeHandlers node_handlers;
+    NodeEndpoints node_endpoints;
 
   public:
     NodeRpcFrontend(NetworkState& network, AbstractNodeState& node) :
-      RpcFrontend(*network.tables, node_handlers),
-      node_handlers(network, node)
+      RpcFrontend(*network.tables, node_endpoints),
+      node_endpoints(network, node)
     {}
   };
 }

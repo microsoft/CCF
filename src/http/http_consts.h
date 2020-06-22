@@ -18,7 +18,6 @@ namespace http
 
     static constexpr auto CCF_TX_SEQNO = "x-ccf-tx-seqno";
     static constexpr auto CCF_TX_VIEW = "x-ccf-tx-view";
-    static constexpr auto CCF_READ_ONLY = "x-ccf-read-only";
 
     // Deprecated, will be removed in a later release
     static constexpr auto CCF_GLOBAL_COMMIT = "x-ccf-global-commit";
