@@ -221,14 +221,12 @@ namespace kv
 
     void deserialize(std::unique_ptr<Snapshot>& snapshot)
     {
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        version = snapshot->get_version();
-        last_replicated = snapshot->get_version();
-        last_committable = snapshot->get_version();
-      }
-
+      std::lock_guard<SpinLock> vguard(version_lock);
       std::lock_guard<SpinLock> mguard(maps_lock);
+      version = snapshot->get_version();
+      last_replicated = snapshot->get_version();
+      last_committable = snapshot->get_version();
+
       for (auto& map : maps)
       {
         map.second->lock();

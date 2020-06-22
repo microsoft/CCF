@@ -707,7 +707,7 @@ namespace kv::untyped
         SerialisedEntry ret;
         ret.assign(key_size, *data);
         serialized::skip(data, size, key_size);
-        return std::move(ret);
+        return ret;
       };
       std::function<kv::VersionV<SerialisedEntry>(const uint8_t*& key, size_t&)>
         make_v = [](
@@ -720,7 +720,7 @@ namespace kv::untyped
         value_size -= sizeof(kv::Version);
         ret.value.assign(value_size, *data);
         serialized::skip(data, size, value_size);
-        return std::move(ret);
+        return ret;
       };
 
       r->state = State::deserialize_map(s->get_buffer(), make_k, make_v);
