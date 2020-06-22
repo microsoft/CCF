@@ -320,7 +320,7 @@ namespace client
         conn->create_key_pair(key);
       }
 
-      conn->set_prefix("users");
+      conn->set_prefix("app");
 
       // Report ciphersuite of first client (assume it is the same for each)
       if (is_first)
