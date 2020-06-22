@@ -249,13 +249,37 @@ namespace http
         }
 
         const auto& actor_s = actor_opt.value();
-        auto actor = rpc_map->resolve(actor_s);
+        LOG_DEBUG_FMT("Processing {}", actor_s);
+        std::string preferred_actor_s;
+        auto actor = rpc_map->resolve(actor_s, preferred_actor_s);
+        LOG_DEBUG_FMT("Found preferred {}", preferred_actor_s);
         auto search = rpc_map->find(actor);
         if (actor == ccf::ActorsType::unknown || !search.has_value())
         {
           send_raw(rpc_ctx->serialise_error(
             HTTP_STATUS_NOT_FOUND,
             fmt::format("Unknown session '{}'.\n", actor_s)));
+          return;
+        }
+
+        if (actor_s != preferred_actor_s)
+        {
+          auto response = http::Response(HTTP_STATUS_PERMANENT_REDIRECT);
+
+          const auto body = fmt::format(
+            "'{}' is deprecated. Please use '{}' instead",
+            actor_s,
+            preferred_actor_s);
+          response.set_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          response.set_body((const uint8_t*)body.data(), body.size());
+
+          auto redirect_url =
+            fmt::format("/{}/{}", preferred_actor_s, rpc_ctx->get_method());
+          response.set_header(http::headers::LOCATION, redirect_url);
+
+          LOG_DEBUG_FMT("Redirecting from deprected '{}' to '{}'", actor_s, redirect_url);
+          send_raw(response.build_response());
           return;
         }
 

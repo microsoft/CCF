@@ -26,13 +26,6 @@ namespace ccf
   static constexpr size_t CODE_DIGEST_BYTES = 256 / 8;
   using CodeDigest = std::array<uint8_t, CODE_DIGEST_BYTES>;
 
-  struct Actors
-  {
-    static constexpr auto MEMBERS = "members";
-    static constexpr auto USERS = "users";
-    static constexpr auto NODES = "nodes";
-  };
-
   enum class ActorsType : uint64_t
   {
     members = 0,
@@ -41,6 +34,29 @@ namespace ccf
     // not to be used
     unknown
   };
+  
+  constexpr auto get_actor_prefix(ActorsType at)
+  {
+    switch (at)
+    {
+      case ActorsType::members:
+      {
+        return "gov";
+      }
+      case ActorsType::users:
+      {
+        return "app";
+      }
+      case ActorsType::nodes:
+      {
+        return "node";
+      }
+      default:
+      {
+        return "";
+      }
+    }
+  }
 
   struct Tables
   {
