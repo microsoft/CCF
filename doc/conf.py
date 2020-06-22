@@ -50,6 +50,7 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.githubpages",
     "sphinx_multiversion",
+    "sphinx_copybutton",
 ]
 
 autosectionlabel_prefix_document = True
