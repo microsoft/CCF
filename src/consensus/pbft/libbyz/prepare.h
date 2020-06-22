@@ -23,8 +23,8 @@ struct Prepare_rep : public Message_rep
   View view;
   Seqno seqno;
   Digest digest;
-  int id; // id of the replica that generated the message.
   Digest hashed_nonce;
+  int id; // id of the replica that generated the message.
 #ifdef SIGN_BATCH
   size_t digest_sig_size;
   PbftSignature batch_digest_signature;
@@ -130,7 +130,7 @@ private:
 
 inline Prepare_rep& Prepare::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Prepare_rep*)msg);
 }
 
@@ -173,7 +173,7 @@ inline bool Prepare::is_proof() const
 
 inline bool Prepare::match(const Prepare* p) const
 {
-  PBFT_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
+  CCF_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
   return digest() == p->digest();
 }
 

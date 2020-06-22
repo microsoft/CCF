@@ -74,10 +74,6 @@ struct View_change_rep : public Message_rep
   std::array<uint8_t, padding_size> padding;
 #endif
 
-#ifdef USE_PKEY_VIEW_CHANGES
-  size_t vc_sig_size;
-#endif
-
   /*
      Followed by:
      Req_info req_info[n_reqs];
@@ -130,6 +126,7 @@ public:
 
 #ifdef SIGN_BATCH
   PbftSignature& signature();
+  size_t sig_size();
 #endif
 
   Seqno last_stable() const;
@@ -189,7 +186,7 @@ private:
 
 inline View_change_rep& View_change::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((View_change_rep*)msg);
 }
 
@@ -201,13 +198,13 @@ inline Req_info* View_change::req_info()
 
 inline void View_change::mark(int index)
 {
-  PBFT_ASSERT(index >= 0 && index < rep().prepared.size(), "Out of bounds");
+  CCF_ASSERT(index >= 0 && index < rep().prepared.size(), "Out of bounds");
   rep().prepared.set(index);
 }
 
 inline bool View_change::test(int index)
 {
-  PBFT_ASSERT(index >= 0 && index < rep().prepared.size(), "Out of bounds");
+  CCF_ASSERT(index >= 0 && index < rep().prepared.size(), "Out of bounds");
   return rep().prepared.test(index);
 }
 
@@ -231,6 +228,11 @@ inline PbftSignature& View_change::signature()
 {
   return rep().digest_signature;
 }
+
+inline size_t View_change::sig_size()
+{
+  return rep().digest_sig_size;
+}
 #endif
 
 inline Seqno View_change::last_stable() const
@@ -249,7 +251,7 @@ inline bool View_change::last_ckpt(Digest& d, Seqno& n)
   {
     d = rep().ckpts[rep().n_ckpts - 1];
     n = (rep().n_ckpts - 1) * checkpoint_interval + rep().last_stable_ckpt;
-    PBFT_ASSERT(d != Digest(), "Invalid state");
+    CCF_ASSERT(d != Digest(), "Invalid state");
 
     return true;
   }

@@ -3,8 +3,12 @@
 #include "../ds/address.h"
 #include "../mem/allocconfig.h"
 
+#include <execinfo.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 extern "C" int puts(const char* str);
 
@@ -34,12 +38,24 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = LazyCommit;
 
+    static void print_stack_trace()
+    {
+      constexpr int SIZE = 1024;
+      void* buffer[SIZE];
+      auto nptrs = backtrace(buffer, SIZE);
+      fflush(stdout);
+      backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+      puts("");
+      fflush(stdout);
+    }
+
     /**
      * Report a fatal error an exit.
      */
     static void error(const char* const str) noexcept
     {
       puts(str);
+      print_stack_trace();
       abort();
     }
 
@@ -75,15 +91,15 @@ namespace snmalloc
       SNMALLOC_ASSERT(
         is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
 
-      if constexpr (zero_mem == YesZero)
-        static_cast<OS*>(this)->template zero<true>(p, size);
-
 #ifdef USE_POSIX_COMMIT_CHECKS
       mprotect(p, size, PROT_READ | PROT_WRITE);
 #else
       UNUSED(p);
       UNUSED(size);
 #endif
+
+      if constexpr (zero_mem == YesZero)
+        static_cast<OS*>(this)->template zero<true>(p, size);
     }
 
     /**

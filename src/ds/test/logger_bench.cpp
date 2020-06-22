@@ -29,7 +29,7 @@ static void prepare_loggers()
   if constexpr ((LK & LoggerKind::JSON) != 0)
   {
     logger::config::loggers().emplace_back(
-      std::make_unique<logger::JsonLogger>("./custom_json_logger"));
+      std::make_unique<logger::JsonConsoleLogger>());
   }
 
   if constexpr (Absorb)
@@ -57,7 +57,7 @@ static void log_accepted(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  logger::config::level() = logger::DBG;
+  logger::config::level() = logger::DEBUG;
   {
     picobench::scope scope(s);
 
@@ -75,7 +75,7 @@ static void log_accepted_fmt(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  logger::config::level() = logger::DBG;
+  logger::config::level() = logger::DEBUG;
   {
     picobench::scope scope(s);
 

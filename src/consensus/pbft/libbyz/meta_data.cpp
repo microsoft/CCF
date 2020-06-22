@@ -5,10 +5,10 @@
 
 #include "meta_data.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "node.h"
 #include "partition.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
 
@@ -16,8 +16,8 @@ Meta_data::Meta_data(
   Request_id r, int l, size_t i, Seqno lu, Seqno lm, Digest& d) :
   Message(Meta_data_tag, Max_message_size)
 {
-  PBFT_ASSERT(l < PLevels, "Invalid argument");
-  PBFT_ASSERT(i < PLevelSize[l], "Invalid argument");
+  CCF_ASSERT(l < PLevels, "Invalid argument");
+  CCF_ASSERT(i < PLevelSize[l], "Invalid argument");
   rep().rid = r;
   rep().lu = lu;
   rep().lm = lm;
@@ -70,7 +70,7 @@ bool Meta_data::Sub_parts_iter::get(size_t& i, Digest& d)
         return true;
       }
 
-      PBFT_ASSERT(index == cur->i, "Invalid state");
+      CCF_ASSERT(index == cur->i, "Invalid state");
       d = cur->d;
       i = index;
       index++;

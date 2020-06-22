@@ -5,11 +5,15 @@ import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
+from infra.tx_status import TxStatus
 import inspect
 import http
 import ssl
 import socket
 import os
+from collections import defaultdict
+import time
+import infra.clients
 
 from loguru import logger as LOG
 
@@ -38,9 +42,9 @@ def test(network, args, notifications_queue=None, verify=True):
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
-    context = ssl.create_default_context(
-        cafile=os.path.join(network.common_dir, "networkcert.pem")
-    )
+    cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
+    context = ssl.create_default_context(cafile=cafile)
+    context.set_ecdh_curve(infra.clients.get_curve(cafile).name)
     context.load_cert_chain(
         certfile=os.path.join(network.common_dir, "user0_cert.pem"),
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
@@ -154,7 +158,7 @@ def test_anonymous_caller(network, args):
         primary, _ = network.find_primary()
 
         # Create a new user but do not record its identity
-        network.create_user(4, args.participants_curve)
+        network.create_user(4, args.participants_curve, record=False)
 
         log_id = 101
         msg = "This message is anonymous"
@@ -205,18 +209,91 @@ def test_raw_text(network, args):
     return network
 
 
+@reqs.description("Read historical state")
+@reqs.supports_methods("LOG_record", "LOG_get", "LOG_get_historical")
+def test_historical_query(network, args):
+    if args.consensus == "pbft":
+        LOG.warning("Skipping historical queries in PBFT")
+        return network
+
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        with primary.node_client() as nc:
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
+
+            with primary.user_client() as c:
+                log_id = 10
+                msg = "This tests historical queries"
+                record_response = c.rpc("LOG_record", {"id": log_id, "msg": msg})
+                check_commit(record_response, result=True)
+                view = record_response.view
+                seqno = record_response.seqno
+
+                msg2 = "This overwrites the original message"
+                check_commit(
+                    c.rpc("LOG_record", {"id": log_id, "msg": msg2}), result=True
+                )
+                check(c.get("LOG_get", {"id": log_id}), result={"msg": msg2})
+
+                timeout = 15
+                found = False
+                headers = {
+                    infra.clients.CCF_TX_VIEW_HEADER: str(view),
+                    infra.clients.CCF_TX_SEQNO_HEADER: str(seqno),
+                }
+                params = {"id": log_id}
+                end_time = time.time() + timeout
+
+                while time.time() < end_time:
+                    get_response = c.get("LOG_get_historical", params, headers=headers)
+                    if get_response.status == http.HTTPStatus.ACCEPTED:
+                        retry_after = get_response.headers.get("retry-after")
+                        if retry_after is None:
+                            raise ValueError(
+                                f"Response with status {get_response.status} is missing 'retry-after' header"
+                            )
+                        retry_after = int(retry_after)
+                        time.sleep(retry_after)
+                    elif get_response.status == http.HTTPStatus.OK:
+                        assert (
+                            get_response.result["msg"] == msg
+                        ), f"{get_response.result}"
+                        found = True
+                        break
+                    elif get_response.status == http.HTTPStatus.NO_CONTENT:
+                        raise ValueError(
+                            f"Historical query response claims there was no write to {log_id} at {view}.{seqno}"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Unexpected response status {get_response.status}: {get_response.error}"
+                        )
+
+                if not found:
+                    raise TimeoutError(
+                        f"Unable to handle historical query after {timeout}s"
+                    )
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+
+    return network
+
+
 @reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("mkSign")
+@reqs.supports_methods("tx")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.node_client() as nc:
         check_commit = infra.checker.Checker(nc)
-        with backup.node_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
-        with backup.member_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
+        ack = network.consortium.get_any_active_member().ack(backup)
+        check_commit(ack)
 
     return network
 
@@ -264,8 +341,163 @@ def test_update_lua(network, args):
     return network
 
 
+@reqs.description("Check for commit of every prior transaction")
+@reqs.supports_methods("commit", "tx")
+def test_view_history(network, args):
+    if args.consensus == "pbft":
+        # This appears to work in PBFT, but it is unacceptably slow:
+        # - Each /tx request is a write, with a non-trivial roundtrip response time
+        # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
+        #    there are too many IDs to test exhaustively
+        # We could rectify this by making this test non-exhaustive (bisecting for view changes,
+        # sampling within a view), but for now it is exhaustive and Raft-only
+        LOG.warning("Skipping view reconstruction in PBFT")
+        return network
+
+    check = infra.checker.Checker()
+
+    for node in network.get_joined_nodes():
+        with node.user_client() as c:
+            r = c.get("commit")
+            check(c)
+
+            commit_view = r.view
+            commit_seqno = r.global_commit
+
+            # Temporarily disable logging of RPCs for readability
+            rpc_loggers = c.rpc_loggers
+            c.rpc_loggers = ()
+            LOG.warning("RPC logging temporarily suppressed")
+
+            # Retrieve status for all possible Tx IDs
+            seqno_to_views = {}
+            for seqno in range(1, commit_seqno + 1):
+                views = []
+                for view in range(1, commit_view + 1):
+                    r = c.get("tx", {"view": view, "seqno": seqno})
+                    check(r)
+                    status = TxStatus(r.result["status"])
+                    if status == TxStatus.Committed:
+                        views.append(view)
+                seqno_to_views[seqno] = views
+
+            c.rpc_loggers = rpc_loggers
+            LOG.warning("RPC logging restored")
+
+            # Check we have exactly one Tx ID for each seqno
+            txs_ok = True
+            for seqno, views in seqno_to_views.items():
+                if len(views) != 1:
+                    txs_ok = False
+                    LOG.error(
+                        f"Node {node.node_id}: Found {len(views)} committed Tx IDs for seqno {seqno}"
+                    )
+
+            tx_ids_condensed = ", ".join(
+                " OR ".join(f"{view}.{seqno}" for view in views or ["UNKNOWN"])
+                for seqno, views in seqno_to_views.items()
+            )
+
+            if txs_ok:
+                LOG.success(
+                    f"Node {node.node_id}: Found a valid sequence of Tx IDs:\n{tx_ids_condensed}"
+                )
+            else:
+                LOG.error(
+                    f"Node {node.node_id}: Invalid sequence of Tx IDs:\n{tx_ids_condensed}"
+                )
+                raise RuntimeError(
+                    f"Node {node.node_id}: Incomplete or inconsistent view history"
+                )
+
+    return network
+
+
+class SentTxs:
+    # view -> seqno -> status
+    txs = defaultdict(lambda: defaultdict(lambda: TxStatus.Unknown))
+
+    @staticmethod
+    def update_status(view, seqno, status=None):
+        current_status = SentTxs.txs[view][seqno]
+        if status is None:
+            # If you don't know the current status, we exit here. Since we have
+            # accessed the value in the defaultdict, we have recorded this tx id
+            # so it will be returned by future calls to get_all_tx_ids()
+            return
+
+        if status != current_status:
+            valid = False
+            # Only valid transitions from Unknown to any, or Pending to Committed/Invalid
+            if current_status == TxStatus.Unknown:
+                valid = True
+            elif current_status == TxStatus.Pending and (
+                status == TxStatus.Committed or status == TxStatus.Invalid
+            ):
+                valid = True
+
+            if valid:
+                SentTxs.txs[view][seqno] = status
+            else:
+                raise ValueError(
+                    f"Transaction {view}.{seqno} making invalid transition from {current_status} to {status}"
+                )
+
+    @staticmethod
+    def get_all_tx_ids():
+        return [
+            (view, seqno)
+            for view, view_txs in SentTxs.txs.items()
+            for seqno, status in view_txs.items()
+        ]
+
+
+@reqs.description("Build a list of Tx IDs, check they transition states as expected")
+@reqs.supports_methods("LOG_record", "tx")
+def test_tx_statuses(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.user_client() as c:
+        check = infra.checker.Checker()
+        r = c.rpc("LOG_record", {"id": 0, "msg": "Ignored"})
+        check(r)
+        # Until this tx is globally committed, poll for the status of this and some other
+        # related transactions around it (and also any historical transactions we're tracking)
+        target_view = r.view
+        target_seqno = r.seqno
+        SentTxs.update_status(target_view, target_seqno)
+        SentTxs.update_status(target_view, target_seqno + 1)
+        SentTxs.update_status(target_view - 1, target_seqno, TxStatus.Invalid)
+
+        end_time = time.time() + 10
+        while True:
+            if time.time() > end_time:
+                raise TimeoutError(
+                    f"Took too long waiting for global commit of {target_view}.{target_seqno}"
+                )
+
+            done = False
+            for view, seqno in SentTxs.get_all_tx_ids():
+                r = c.get("tx", {"view": view, "seqno": seqno})
+                check(r)
+                status = TxStatus(r.result["status"])
+                SentTxs.update_status(view, seqno, status)
+                if (
+                    status == TxStatus.Committed
+                    and target_view == view
+                    and target_seqno == seqno
+                ):
+                    done = True
+
+            if done:
+                break
+            time.sleep(0.1)
+
+    return network
+
+
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications
@@ -296,6 +528,8 @@ def run(args):
             network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
             network = test_raw_text(network, args)
+            network = test_historical_query(network, args)
+            network = test_view_history(network, args)
 
 
 if __name__ == "__main__":

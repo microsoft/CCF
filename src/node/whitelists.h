@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "entities.h"
+
+#include "kv/map.h"
 
 #include <set>
 #include <string>
@@ -11,7 +12,7 @@ namespace ccf
   using WlId = uint8_t;
   using Whitelist = std::set<std::string>;
   // whitelists are sets of table names
-  using Whitelists = Store::Map<WlId, Whitelist>;
+  using Whitelists = kv::Map<WlId, Whitelist>;
 
   enum WlIds : WlId
   {

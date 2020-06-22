@@ -86,6 +86,9 @@ enum AdminMessage : ringbuffer::Message
   /// Stop processing messages. Host -> Enclave
   DEFINE_RINGBUFFER_MSG_TYPE(stop),
 
+  /// Stopped processing messages. Enclave -> Host
+  DEFINE_RINGBUFFER_MSG_TYPE(stopped),
+
   /// Send notification data. Enclave -> Host
   DEFINE_RINGBUFFER_MSG_TYPE(notification),
 
@@ -103,6 +106,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::stop);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::notification, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::tick, size_t);

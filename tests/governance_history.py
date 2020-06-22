@@ -8,7 +8,7 @@ import infra.crypto
 import infra.ledger
 from infra.proposal import ProposalState
 import http
-
+import os
 from loguru import logger as LOG
 
 
@@ -61,7 +61,11 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        ledger_filename = network.find_primary()[0].remote.ledger_path()
+        ledger_directory = network.find_primary()[0].remote.ledger_path()
+        # For now, this test only works with one ledger file
+        for l in os.listdir(ledger_directory):
+            if l.endswith("_1"):
+                ledger_filename = os.path.join(ledger_directory, l)
         ledger = infra.ledger.Ledger(ledger_filename)
         (
             original_proposals,

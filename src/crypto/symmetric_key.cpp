@@ -79,7 +79,7 @@ namespace crypto
     uint8_t* cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
-    auto ctx = ctxs[thread_ids[std::this_thread::get_id()]];
+    auto ctx = ctxs[threading::get_current_thread_id()];
     int rc = mbedtls_gcm_crypt_and_tag(
       ctx,
       MBEDTLS_GCM_ENCRYPT,
@@ -106,7 +106,7 @@ namespace crypto
     CBuffer aad,
     uint8_t* plain) const
   {
-    auto ctx = ctxs[thread_ids[std::this_thread::get_id()]];
+    auto ctx = ctxs[threading::get_current_thread_id()];
     return !mbedtls_gcm_auth_decrypt(
       ctx,
       cipher.n,

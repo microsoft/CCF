@@ -1,10 +1,19 @@
-FROM ccfciteam/ccf-ci-18.04-oe-0.9.0:latest
+# Application Continuous Integration image
+# Contains a CCF release, compile toolchain and Azure CLI tooling
 
-ARG VERSION=0.9.3
-ARG TARBALL=ccf.tar.gz
+FROM ubuntu:18.04
 
-RUN apt install wget \
-    && wget https://github.com/microsoft/CCF/releases/download/v$VERSION/$TARBALL \
-    && mkdir -p /opt/ccf/ccf-$VERSION \
-    && tar xf $TARBALL -C /opt/ccf/ccf-$VERSION --strip-components=1 \
-    && rm $TARBALL
+RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
+
+# Work-around for https://github.com/intel/linux-sgx/issues/395
+RUN mkdir -p /etc/init
+
+COPY getting_started/setup_vm/ /setup_vm/
+RUN apt update \
+    && apt install -y ansible software-properties-common bsdmainutils dnsutils \
+    && cd setup_vm \
+    && ansible-playbook app-dev.yml az-cli.yml \
+    && rm -rf /tmp/* \
+    && apt remove -y ansible software-properties-common \
+    && apt -y autoremove \
+    && apt -y clean

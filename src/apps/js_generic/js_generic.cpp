@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #include "enclave/app_interface.h"
+#include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
 #include "quickjs.h"
 
@@ -13,7 +14,7 @@ namespace ccfapp
   using namespace kv;
   using namespace ccf;
 
-  using Table = ccf::Store::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
+  using Table = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
 
   static JSValue js_print(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
@@ -77,7 +78,7 @@ namespace ccfapp
 
     size_t sz = 0;
     auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
-    auto v = table_view->get(std::vector<uint8_t>(k, k + sz));
+    auto v = table_view->get({k, k + sz});
     JS_FreeCString(ctx, k);
 
     if (v.has_value())
@@ -100,7 +101,7 @@ namespace ccfapp
 
     size_t sz = 0;
     auto k = JS_ToCStringLen(ctx, &sz, argv[0]);
-    auto v = table_view->remove(std::vector<uint8_t>(k, k + sz));
+    auto v = table_view->remove({k, k + sz});
     JS_FreeCString(ctx, k);
 
     if (v)
@@ -124,13 +125,11 @@ namespace ccfapp
 
     size_t k_sz = 0;
     auto k = JS_ToCStringLen(ctx, &k_sz, argv[0]);
-    std::vector<uint8_t> k_(k, k + k_sz);
 
     size_t v_sz = 0;
     auto v = JS_ToCStringLen(ctx, &v_sz, argv[1]);
-    std::vector<uint8_t> v_(v, v + v_sz);
 
-    if (!table_view->put(k_, v_))
+    if (!table_view->put({k, k + k_sz}, {v, v + v_sz}))
     {
       r = JS_ThrowRangeError(ctx, "Could not insert at key");
     }
@@ -140,7 +139,7 @@ namespace ccfapp
     return r;
   }
 
-  class JSHandlers : public UserHandlerRegistry
+  class JSHandlers : public UserEndpointRegistry
   {
   private:
     NetworkTables& network;
@@ -148,13 +147,13 @@ namespace ccfapp
 
   public:
     JSHandlers(NetworkTables& network) :
-      UserHandlerRegistry(network),
+      UserEndpointRegistry(network),
       network(network),
       table(network.tables->create<Table>("data"))
     {
       auto& tables = *network.tables;
 
-      auto default_handler = [this](RequestArgs& args) {
+      auto default_handler = [this](EndpointContext& args) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
         if (local_method == UserScriptIds::ENV_HANDLER)
@@ -270,14 +269,14 @@ namespace ccfapp
         return;
       };
 
-      set_default(default_handler, Write);
+      set_default(default_handler);
     }
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void list_methods(ccf::Store::Tx& tx, ListMethods::Out& out) override
+    void list_methods(kv::Tx& tx, ListMethods::Out& out) override
     {
-      UserHandlerRegistry::list_methods(tx, out);
+      UserEndpointRegistry::list_methods(tx, out);
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {
@@ -300,7 +299,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, AbstractNotifier& notifier)
+    NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
     return make_shared<JS>(network);
   }

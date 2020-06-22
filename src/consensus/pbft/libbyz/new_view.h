@@ -20,6 +20,8 @@
 struct VC_info
 {
   Digest d; // digest of view-change message
+  PbftSignature sig; // signature of view-change message
+  size_t sig_size; // signature size
 };
 
 struct New_view_rep : public Message_rep
@@ -73,7 +75,7 @@ public:
   // Effects: Creates a new (unsigned) New_view message with an empty
   // set of view change messages.
 
-  void add_view_change(int id, Digest& d);
+  void add_view_change(int id, Digest& d, PbftSignature& sig, size_t sig_size);
   // Requires: Only one view-change per id may be added and id must be
   // a valid replica id.
   // Effects: Adds information to the set of view changes in this.
@@ -138,7 +140,7 @@ private:
 
 inline New_view_rep& New_view::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((New_view_rep*)msg);
 }
 
@@ -177,7 +179,7 @@ inline Seqno New_view::max() const
 
 inline int New_view::which_picked(Seqno n)
 {
-  PBFT_ASSERT(n >= min() && n < max(), "Invalid argument");
+  CCF_ASSERT(n >= min() && n < max(), "Invalid argument");
   return (int)picked()[n - min()];
 }
 

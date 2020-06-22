@@ -75,7 +75,8 @@ namespace ccf
       }
       serialized::write(data_, size_, raw_request.data(), raw_request.size());
 
-      ForwardedHeader msg = {ForwardedMsg::forwarded_cmd, self};
+      ForwardedHeader msg = {
+        ForwardedMsg::forwarded_cmd, self, rpc_ctx->frame_format()};
 
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, to, plain, msg);
@@ -91,7 +92,8 @@ namespace ccf
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Invalid forwarded command: {}", err.what());
+        LOG_FAIL_FMT("Invalid forwarded command");
+        LOG_DEBUG_FMT("Invalid forwarded command: {}", err.what());
         return {};
       }
 
@@ -115,12 +117,14 @@ namespace ccf
 
       try
       {
-        auto context = enclave::make_rpc_context(session, raw_request);
+        auto context = enclave::make_fwd_rpc_context(
+          session, raw_request, r.first.frame_format);
         return std::make_tuple(context, r.first.from_node);
       }
       catch (const std::exception& err)
       {
-        LOG_FAIL_FMT("Invalid forwarded request: {}", err.what());
+        LOG_FAIL_FMT("Invalid forwarded request");
+        LOG_DEBUG_FMT("Invalid forwarded request: {}", err.what());
         return std::nullopt;
       }
     }
@@ -136,6 +140,8 @@ namespace ccf
       serialized::write(data_, size_, client_session_id);
       serialized::write(data_, size_, data.data(), data.size());
 
+      // frame_format is deliberately unset, the forwarder ignores it
+      // and expects the same format they forwarded.
       ForwardedHeader msg = {ForwardedMsg::forwarded_response, self};
 
       return n2n_channels->send_encrypted(
@@ -152,7 +158,8 @@ namespace ccf
       }
       catch (const std::logic_error& err)
       {
-        LOG_FAIL_FMT("Invalid forwarded response: {}", err.what());
+        LOG_FAIL_FMT("Invalid forwarded response");
+        LOG_DEBUG_FMT("Invalid forwarded response: {}", err.what());
         return {};
       }
 
@@ -189,7 +196,8 @@ namespace ccf
             const auto actor_opt = http::extract_actor(*ctx);
             if (!actor_opt.has_value())
             {
-              LOG_FAIL_FMT(
+              LOG_FAIL_FMT("Failed to extract actor from forwarded context.");
+              LOG_DEBUG_FMT(
                 "Failed to extract actor from forwarded context. Method is "
                 "'{}'",
                 ctx->get_method());
@@ -201,6 +209,8 @@ namespace ccf
             if (actor == ccf::ActorsType::unknown || !handler.has_value())
             {
               LOG_FAIL_FMT(
+                "Failed to process forwarded command: unknown actor");
+              LOG_DEBUG_FMT(
                 "Failed to process forwarded command: unknown actor {}",
                 actor_s);
               return;

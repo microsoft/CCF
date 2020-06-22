@@ -17,13 +17,8 @@
 
 typedef long long Time;
 
-#include "cycle_counter.h"
-
 extern long long clock_mhz;
 // Clock frequency in MHz
-
-extern void init_clock_mhz();
-// Effects: Initialize "clock_mhz".
 
 extern Time current_time();
 

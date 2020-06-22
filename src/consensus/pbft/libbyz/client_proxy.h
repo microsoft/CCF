@@ -5,6 +5,7 @@
 #pragma once
 
 #include "certificate.h"
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "ds/spin_lock.h"
 #include "ds/thread_messaging.h"
@@ -12,7 +13,6 @@
 #include "libbyz.h"
 #include "message.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "receive_message_base.h"
 #include "reply.h"
 #include "request.h"
@@ -32,6 +32,7 @@ class ClientProxy
 public:
   ClientProxy(
     IMessageReceiveBase& my_replica,
+    VerifyAndParseCommand verify_command_,
     int min_rtimeout = 2000,
     int max_rtimeout = 3000);
   // Effects: Creates a new ClientProxy object
@@ -61,7 +62,7 @@ public:
     ClientProxy<T, C>* self;
   };
   static void execute_request_cb(
-    std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg);
+    std::unique_ptr<threading::Tmsg<ExecuteRequestMsg>> msg);
   void execute_request(Request* request);
 
   void recv_reply(Reply* r);
@@ -71,6 +72,7 @@ private:
   IMessageReceiveBase& my_replica;
   View current_view;
   RequestIdGenerator request_id_generator;
+  VerifyAndParseCommand verify_command;
 
   struct RequestContext
   {
@@ -120,7 +122,7 @@ private:
     std::vector<uint8_t> data;
     ReplyCallback cb;
   };
-  static void send_reply(std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg);
+  static void send_reply(std::unique_ptr<threading::Tmsg<ReplyCbMsg>> msg);
 
   // list of outstanding requests used for retransmissions
   // (we only retransmit the request at the head of the queue)
@@ -140,8 +142,6 @@ private:
   void increase_retransmission_timeout();
   void decrease_retransmission_timeout();
 
-  Cycle_counter latency; // Used to measure latency.
-
   // Multiplier used to obtain retransmission timeout from avg_latency
   static const int Rtimeout_mult = 4;
 
@@ -157,11 +157,15 @@ private:
 
 template <class T, class C>
 ClientProxy<T, C>::ClientProxy(
-  IMessageReceiveBase& my_replica, int min_rtimeout_, int max_rtimeout_) :
+  IMessageReceiveBase& my_replica,
+  VerifyAndParseCommand verify_command_,
+  int min_rtimeout_,
+  int max_rtimeout_) :
   current_view(my_replica.view()),
   min_rtimeout(min_rtimeout_),
   max_rtimeout(max_rtimeout_),
   my_replica(my_replica),
+  verify_command(verify_command_),
   out_reqs(Max_outstanding),
   head(nullptr),
   tail(nullptr),
@@ -205,7 +209,7 @@ bool ClientProxy<T, C>::send_request(
   if (current_outstanding.fetch_add(1) >= Max_outstanding)
   {
     current_outstanding.fetch_sub(1);
-    LOG_FAIL << "Too many outstanding requests, rejecting!" << std::endl;
+    LOG_FAIL_FMT("Too many outstanding requests, rejecting");
     return false;
   }
 
@@ -230,13 +234,23 @@ bool ClientProxy<T, C>::send_request(
   req->authenticate(len, is_read_only);
 
   auto req_clone = req->clone();
+  try
+  {
+    req_clone->create_context(verify_command);
+  }
+  catch (const std::exception& e)
+  {
+    LOG_FAIL_FMT("Failed to parse arguments");
+    LOG_DEBUG_FMT("Failed to parse arguments, e.what:", e.what());
+    return false;
+  }
 
   auto ctx = std::make_unique<RequestContext>(
     my_replica,
     caller_rid,
     cb,
     owner,
-    thread_ids[std::this_thread::get_id()],
+    threading::get_current_thread_id(),
     milliseconds_since_start,
     std::move(req));
 
@@ -261,14 +275,14 @@ bool ClientProxy<T, C>::send_request(
   }
 
   auto msg =
-    std::make_unique<enclave::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
+    std::make_unique<threading::Tmsg<ExecuteRequestMsg>>(execute_request_cb);
   msg->data.self = this;
   msg->data.request.reset(std::move(req_clone));
 
-  if (enclave::ThreadMessaging::thread_count > 1)
+  if (threading::ThreadMessaging::thread_count > 1)
   {
-    enclave::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
-      enclave::ThreadMessaging::main_thread, std::move(msg));
+    threading::ThreadMessaging::thread_messaging.add_task<ExecuteRequestMsg>(
+      threading::ThreadMessaging::main_thread, std::move(msg));
   }
   else
   {
@@ -280,7 +294,7 @@ bool ClientProxy<T, C>::send_request(
 
 template <class T, class C>
 void ClientProxy<T, C>::execute_request_cb(
-  std::unique_ptr<enclave::Tmsg<ExecuteRequestMsg>> msg)
+  std::unique_ptr<threading::Tmsg<ExecuteRequestMsg>> msg)
 {
   auto self = msg->data.self;
   self->execute_request(msg->data.request.release());
@@ -290,8 +304,8 @@ template <class T, class C>
 void ClientProxy<T, C>::execute_request(Request* request)
 {
   if (
-    thread_ids[std::this_thread::get_id()] !=
-    enclave::ThreadMessaging::main_thread)
+    threading::get_current_thread_id() !=
+    threading::ThreadMessaging::main_thread)
   {
     throw std::logic_error("Execution on incorrect thread");
   }
@@ -314,7 +328,7 @@ void ClientProxy<T, C>::execute_request(Request* request)
 
 template <class T, class C>
 void ClientProxy<T, C>::send_reply(
-  std::unique_ptr<enclave::Tmsg<ReplyCbMsg>> msg)
+  std::unique_ptr<threading::Tmsg<ReplyCbMsg>> msg)
 {
   msg->data.cb(msg->data.owner, msg->data.caller_rid, 0, msg->data.data);
 }
@@ -339,14 +353,17 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
     current_statistics.count_num_samples++;
   }
 
-  LOG_TRACE << "Received reply msg, request_id:" << reply->request_id()
-            << " seqno: " << reply->seqno() << " view " << reply->view()
-            << " id: " << reply->id()
-            << " tentative: " << (reply->is_tentative() ? "true" : "false")
-            << " reps.is_complete: "
-            << (ctx->t_reps.is_complete() ? "true" : "false")
-            << " reply->full: " << (reply->full() ? "true" : "false")
-            << " reps.cvalue: " << (void*)ctx->t_reps.cvalue() << std::endl;
+  LOG_TRACE_FMT(
+    "Received reply msg, request_id:{} seqno:{}, view {} id:{}, tentative:{}, "
+    "reps.is_complete:{}, reply->full:{}, reps.cvalue: {}",
+    reply->request_id(),
+    reply->seqno(),
+    reply->view(),
+    reply->id(),
+    (reply->is_tentative() ? "true" : "false"),
+    (ctx->t_reps.is_complete() ? "true" : "false"),
+    (reply->full() ? "true" : "false"),
+    (void*)ctx->t_reps.cvalue());
 
   if (current_view < reply->view())
   {
@@ -395,19 +412,22 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
   int reply_len;
   uint8_t* reply_buffer = (uint8_t*)reply->reply(reply_len);
 
-  LOG_DEBUG << "Received complete reply request_id:" << reply->request_id()
-            << " client id: " << reply->id() << " seqno: " << reply->seqno()
-            << " view " << reply->view() << std::endl;
+  LOG_DEBUG_FMT(
+    "Received complete reply request_id:{}, client id:{}, seqno:{}, view{}",
+    reply->request_id(),
+    reply->id(),
+    reply->seqno(),
+    reply->view());
 
-  auto msg = std::make_unique<enclave::Tmsg<ReplyCbMsg>>(&send_reply);
+  auto msg = std::make_unique<threading::Tmsg<ReplyCbMsg>>(&send_reply);
   msg->data.owner = ctx->owner;
   msg->data.caller_rid = ctx->caller_rid;
   msg->data.cb = ctx->cb;
   msg->data.data.assign(reply_buffer, reply_buffer + reply_len);
 
-  if (enclave::ThreadMessaging::thread_count > 1)
+  if (threading::ThreadMessaging::thread_count > 1)
   {
-    enclave::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
+    threading::ThreadMessaging::thread_messaging.add_task<ReplyCbMsg>(
       ctx->reply_thread, std::move(msg));
   }
   else
@@ -421,7 +441,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
     if (ctx->prev == nullptr)
     {
-      PBFT_ASSERT(head == ctx, "Invalid state");
+      CCF_ASSERT(head == ctx, "Invalid state");
       head = ctx->next;
     }
     else
@@ -431,7 +451,7 @@ void ClientProxy<T, C>::recv_reply(Reply* reply)
 
     if (ctx->next == nullptr)
     {
-      PBFT_ASSERT(tail == ctx, "Invalid state");
+      CCF_ASSERT(tail == ctx, "Invalid state");
       tail = ctx->prev;
     }
     else
@@ -493,7 +513,6 @@ void ClientProxy<T, C>::retransmit()
     Request* out_req = ctx->req.get();
 
     LOG_INFO_FMT("Retransmitting req id: {}", out_req->request_id());
-    INCR_OP(req_retrans);
 
     n_retrans++;
     bool ro = out_req->is_read_only();
@@ -509,8 +528,8 @@ void ClientProxy<T, C>::retransmit()
       }
     }
 
-    LOG_DEBUG << "Client_proxy retransmitting request, rid:"
-              << out_req->request_id() << std::endl;
+    LOG_DEBUG_FMT(
+      "Client_proxy retransmitting request, rid:{}", out_req->request_id());
 
     if (
       out_req->is_read_only() || n_retrans > thresh ||
@@ -520,6 +539,7 @@ void ClientProxy<T, C>::retransmit()
       // thresh times, and big requests are multicast to all
       // replicas.
       auto req_clone = out_req->clone();
+      req_clone->create_context(verify_command);
       execute_request(req_clone);
     }
     else

@@ -2,14 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
     "seqno": {
-      "maximum": 4294967295,
-      "minimum": 0,
-      "type": "number"
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer"
     },
     "view": {
       "maximum": 18446744073709551615,
       "minimum": 0,
-      "type": "number"
+      "type": "integer"
     }
   },
   "required": [

@@ -19,26 +19,77 @@ from loguru import logger as LOG
 
 class Consortium:
     def __init__(
-        self, member_ids, curve, key_generator, common_dir, recovery_threshold=None
+        self,
+        common_dir,
+        key_generator,
+        share_script,
+        member_ids=None,
+        curve=None,
+        remote_node=None,
     ):
         self.common_dir = common_dir
         self.members = []
         self.key_generator = key_generator
-        self.common_dir = common_dir
-        for m_id in member_ids:
-            new_member = infra.member.Member(m_id, curve, key_generator, common_dir)
-            new_member.set_active()
-            self.members.append(new_member)
-        self.recovery_threshold = (
-            recovery_threshold if recovery_threshold is not None else len(self.members)
-        )
+        self.share_script = share_script
+        self.members = []
+        self.recovery_threshold = None
+        # If a list of member IDs is passed in, generate fresh member identities.
+        # Otherwise, recover the state of the consortium from the state of CCF.
+        if member_ids is not None:
+            for m_id in member_ids:
+                new_member = infra.member.Member(
+                    m_id, curve, common_dir, share_script, key_generator
+                )
+                self.members.append(new_member)
+            self.recovery_threshold = len(self.members)
+        else:
+            with remote_node.member_client() as mc:
+                r = mc.rpc(
+                    "query",
+                    {
+                        "text": """tables = ...
+                        non_retired_members = {}
+                        tables["ccf.members"]:foreach(function(member_id, details)
+                        if details["status"] ~= "RETIRED" then
+                            table.insert(non_retired_members, {member_id, details["status"]})
+                        end
+                        end)
+                        return non_retired_members
+                        """
+                    },
+                )
+                for m in r.result or []:
+                    new_member = infra.member.Member(
+                        m[0], curve, self.common_dir, share_script
+                    )
+                    if (
+                        infra.member.MemberStatus[m[1]]
+                        == infra.member.MemberStatus.ACTIVE
+                    ):
+                        new_member.set_active()
+                    self.members.append(new_member)
+                    LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
+
+                r = mc.rpc(
+                    "query",
+                    {
+                        "text": """tables = ...
+                        return tables["ccf.config"]:get(0)
+                        """
+                    },
+                )
+                self.recovery_threshold = r.result["recovery_threshold"]
+
+    def activate(self, remote_node):
+        for m in self.members:
+            m.ack(remote_node)
 
     def generate_and_propose_new_member(self, remote_node, curve):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
         new_member_id = len(self.members)
         new_member = infra.member.Member(
-            new_member_id, curve, self.key_generator, self.common_dir
+            new_member_id, curve, self.common_dir, self.share_script, self.key_generator
         )
 
         script = """
@@ -50,7 +101,7 @@ class Consortium:
         ) as cert:
             new_member_cert_pem = [ord(c) for c in cert.read()]
         with open(
-            os.path.join(self.common_dir, f"member{new_member_id}_enc_pub.pem")
+            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
         ) as keyshare:
             new_member_keyshare = [ord(k) for k in keyshare.read()]
 
@@ -74,7 +125,7 @@ class Consortium:
 
     def get_members_info(self):
         members_certs = [f"member{m.member_id}_cert.pem" for m in self.members]
-        members_enc_pub = [f"member{m.member_id}_enc_pub.pem" for m in self.members]
+        members_enc_pub = [f"member{m.member_id}_enc_pubk.pem" for m in self.members]
         return list(zip(members_certs, members_enc_pub))
 
     def get_active_members(self):
@@ -166,7 +217,7 @@ class Consortium:
         with remote_node.member_client(
             member_id=self.get_any_active_member().member_id
         ) as c:
-            r = c.request("read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
+            r = c.rpc("read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
             assert r.result["status"] == infra.node.NodeStatus.RETIRED.name
 
     def trust_node(self, remote_node, node_id):
@@ -276,30 +327,23 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, script)
         return self.vote_using_majority(remote_node, proposal)
 
-    def store_current_network_encryption_key(self):
-        cmd = [
-            "cp",
-            os.path.join(self.common_dir, "network_enc_pubk.pem"),
-            os.path.join(self.common_dir, "network_enc_pubk_orig.pem"),
-        ]
-        infra.proc.ccall(*cmd).check_returncode()
-
-    def recover_with_shares(self, remote_node):
+    def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
-        for m in self.get_active_members():
-            decrypted_share = m.get_and_decrypt_recovery_share(remote_node)
-            r = m.submit_recovery_share(remote_node, decrypted_share)
+        with remote_node.node_client() as nc:
+            check_commit = infra.checker.Checker(nc)
 
-            submitted_shares_count += 1
-            if submitted_shares_count >= self.recovery_threshold:
-                assert (
-                    r.result == True
-                ), "Shares should be combined when all members have submitted their shares"
-                break
-            else:
-                assert (
-                    r.result == False
-                ), "Shares should not be combined until all members have submitted their shares"
+            for m in self.get_active_members():
+                r = m.get_and_submit_recovery_share(
+                    remote_node, defunct_network_enc_pubk
+                )
+                submitted_shares_count += 1
+                check_commit(r)
+
+                if submitted_shares_count >= self.recovery_threshold:
+                    assert "End of recovery procedure initiated" in r.result
+                    break
+                else:
+                    assert "End of recovery procedure initiated" not in r.result
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         script = """
@@ -411,4 +455,10 @@ class Consortium:
             raise TimeoutError(
                 f"Node {node_id} has not yet been recorded in the store"
                 + getattr(node_status, f" with status {node_status.name}", "")
+            )
+
+    def wait_for_all_nodes_to_be_trusted(self, remote_node, nodes, timeout=3):
+        for n in nodes:
+            self.wait_for_node_to_exist_in_store(
+                remote_node, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
             )

@@ -3,6 +3,8 @@ Accepting Recovery and Submitting Shares
 
 .. note:: Before members can initiate the end of the recovery procedure, operators should have started a new network and recovered all public transactions. See :ref:`details for public recovery operator procedure <operators/recovery:Establishing a Recovered Public Network>`.
 
+.. note:: See :ref:`users/deploy_app:Recovering a Service` for an automated way to recover a defunct CCF service.
+
 Accepting Recovery
 ------------------
 
@@ -40,28 +42,27 @@ To restore private transactions and complete the recovery procedure, members sho
 
 .. note:: The members who submit their recovery shares do not necessarily have to be the members who previously accepted the recovery.
 
-First, members should retrieve their encrypted recovery shares via the ``getEncryptedRecoveryShare`` RPC [#recovery_share]_.
+The recovery share retrieval, decryption and submission steps are conveniently performed by the ``submit_recovery_share.sh`` script as follows:
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/members/getEncryptedRecoveryShare -X GET --cacert network_cert --key member1_privk --cert member1_cert -H "content-type: application/json"
+    $ ./submit_recovery_share.sh --rpc-address <ccf-node-address> --member-enc-privk member0_enc_privk.pem --network-enc-pubk network_enc_pubk --cert member0_cert
+    --key member0_privk --cacert network_cert
+    HTTP/1.1 200 OK
+    content-type: text/plain
+    x-ccf-tx-seqno: 28
+    x-ccf-tx-view: 4
+    1/2 recovery shares successfully submitted.
 
-Then, members should decrypt their shares using their private encryption key and the `previous` network public encryption key (output by the first node of the now-defunct service via the ``network-enc-pubk-file`` :ref:`command line option <operators/start_network:Starting the First Node>`) using `NaCl's public-key authenticated encryption <https://nacl.cr.yp.to/box.html>`_.
+    $ ./submit_recovery_share.sh --rpc-address <ccf-node-address> --member-enc-privk member1_enc_privk.pem --network-enc-pubk network_enc_pubk --cert member1_cert
+    --key member1_privk --cacert network_cert
+    HTTP/1.1 200 OK
+    content-type: text/plain
+    x-ccf-tx-seqno: 30
+    x-ccf-tx-view: 4
+    2/2 recovery shares successfully submitted. End of recovery procedure initiated.
 
-Finally, members should submit their decrypted share to CCF via the ``submitRecoveryShare`` RPC:
-
-.. code-block:: bash
-
-    $ cat submit_recovery_share.json
-    {"recovery_share": [<recovery_share_bytes>]}
-
-    $ curl https://<ccf-node-address>/members/submitRecoveryShare -X POST --data-binary @submit_recovery_share.json --cacert network_cert --key member1_privk --cert member1_cert -H "content-type: application/json"
-    false
-
-    $ curl https://<ccf-node-address>/members/submitRecoveryShare -X POST --data-binary @submit_recovery_share.json --cacert network_cert --key member2_privk --cert member2_cert -H "content-type: application/json"
-    true
-
-When the recovery threshold is reached, the ``submitRecoveryShare`` RPC returns ``true``. At this point, the private recovery procedure is started and the private ledger is being recovered.
+When the recovery threshold is reached, the ``recovery_share/submit`` RPC returns that the end of the recovery procedure is initiated and the private ledger is now being recovered.
 
 .. note:: While all nodes are recovering the private ledger, no new transaction can be executed by the network.
 
@@ -89,16 +90,16 @@ Summary Diagram
         Node 2-->>Member 1: State: ACCEPTED
         Note over Node 2, Node 3: accept_recovery proposal completes. Service is ready to accept recovery shares.
 
-        Member 0->>+Node 2: getEncryptedRecoveryShare
+        Member 0->>+Node 2: GET recovery_share
         Node 2-->>Member 0: Encrypted recovery share for Member 0
         Note over Member 0: Decrypts recovery share
-        Member 0->>+Node 2: submitRecoveryShare: {"recovery_share": ...}
+        Member 0->>+Node 2: POST recovery_share/submit: {"recovery_share": ...}
         Node 2-->>Member 0: False
 
-        Member 1->>+Node 2: getEncryptedRecoveryShare
+        Member 1->>+Node 2: GET recovery_share
         Node 2-->>Member 1: Encrypted recovery share for Member 1
         Note over Member 1: Decrypts recovery share
-        Member 1->>+Node 2: submitRecoveryShare: {"recovery_share": ...}
+        Member 1->>+Node 2: POST recovery_share/submit: {"recovery_share": ...}
         Node 2-->>Member 1: True
 
         Note over Node 2, Node 3: Reading Private Ledger...

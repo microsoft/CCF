@@ -90,6 +90,23 @@ if(BUILD_TESTS)
     )
 
     add_perf_test(
+      NAME small_bank_client_ws_test_${CONSENSUS}
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
+      CLIENT_BIN ./small_bank_client
+      VERIFICATION_FILE ${SMALL_BANK_VERIFICATION_FILE}
+      LABEL SB_WS
+      CONSENSUS ${CONSENSUS}
+      ADDITIONAL_ARGS
+        --transactions
+        ${SMALL_BANK_ITERATIONS}
+        --max-writes-ahead
+        1000
+        --metrics-file
+        small_bank_${CONSENSUS}_metrics.json
+        --use-websockets
+    )
+
+    add_perf_test(
       NAME small_bank_sigs_client_test_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/small_bank_client.py
       CLIENT_BIN ./small_bank_client

@@ -185,9 +185,9 @@ TEST_CASE("Signature")
     Signature sig;
     sig.sig.push_back(0);
     sig.node = 0;
-    sig.index = 1;
-    sig.term = 2;
-    sig.commit = 3;
+    sig.seqno = 1;
+    sig.view = 2;
+    sig.commit_seqno = 3;
     const auto converted = msgpack_roundtrip(sig);
     CHECK(sig == converted);
   }
@@ -197,9 +197,9 @@ TEST_CASE("Signature")
     Signature sig;
     fill_rand(sig.sig, 256);
     sig.node = rand();
-    sig.index = rand();
-    sig.term = rand();
-    sig.commit = rand();
+    sig.seqno = rand();
+    sig.view = rand();
+    sig.commit_seqno = rand();
     const auto converted = msgpack_roundtrip(sig);
     CHECK(sig == converted);
   }

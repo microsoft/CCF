@@ -5,18 +5,15 @@
 //#define USE_MPSCQ
 
 #include "ds/logger.h"
+#include "ds/thread_ids.h"
 #ifdef USE_MPSCQ
 #  include "snmalloc/src/ds/mpscq.h"
 #endif
 
 #include <atomic>
 #include <cstddef>
-#include <map>
-#include <thread>
 
-extern std::map<std::thread::id, uint16_t> thread_ids;
-
-namespace enclave
+namespace threading
 {
   struct ThreadMsg
   {
@@ -163,7 +160,7 @@ namespace enclave
 
     void run()
     {
-      Task& task = tasks[thread_ids[std::this_thread::get_id()]];
+      Task& task = tasks[get_current_thread_id()];
 
       while (!is_finished())
       {
@@ -189,17 +186,12 @@ namespace enclave
       task.add_task(reinterpret_cast<ThreadMsg*>(msg.release()));
     }
 
-    uint16_t get_thread_id()
-    {
-      return thread_ids[std::this_thread::get_id()];
-    }
-
     static uint16_t get_execution_thread(uint32_t i)
     {
       uint16_t tid = 0;
-      if (enclave::ThreadMessaging::thread_count > 1)
+      if (thread_count > 1)
       {
-        tid = (i % (enclave::ThreadMessaging::thread_count - 1));
+        tid = (i % (thread_count - 1));
         ++tid;
       }
 

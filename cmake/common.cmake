@@ -91,7 +91,7 @@ add_custom_command(
 
 # Copy utilities from tests directory
 set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh
-                  upload_pico_metrics.py scurl.sh
+                  upload_pico_metrics.py scurl.sh submit_recovery_share.sh
 )
 foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
@@ -101,7 +101,8 @@ endforeach()
 
 # Install specific utilities
 install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
-                 ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin
+                 ${CCF_DIR}/tests/sgxinfo.sh
+                 ${CCF_DIR}/tests/submit_recovery_share.sh DESTINATION bin
 )
 
 # Install getting_started scripts for VM creation and setup
@@ -168,15 +169,15 @@ include(${CCF_DIR}/cmake/sss.cmake)
 
 find_package(CURL REQUIRED)
 
+list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
+
 # Unit test wrapper
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
   target_compile_options(${name} PRIVATE -stdlib=libc++)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(
-    ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi -lc++fs ccfcrypto.host
-  )
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host)
   use_client_mbedtls(${name})
   add_san(${name})
 
@@ -194,6 +195,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
   use_client_mbedtls(cchost)
+  target_compile_options(cchost PRIVATE -stdlib=libc++)
   target_include_directories(
     cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CCF_GENERATED_DIR}
   )
@@ -206,7 +208,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             ${CRYPTO_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
-            openenclave::oehostapp
+            ${LINK_LIBCXX}
+            openenclave::oehost
             ccfcrypto.host
             evercrypt.host
             CURL::libcurl
@@ -246,10 +249,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
             ${CRYPTO_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
-            -lc++
-            -lc++abi
-            -lc++fs
-            -stdlib=libc++
+            ${LINK_LIBCXX}
             ccfcrypto.host
             evercrypt.host
             CURL::libcurl
@@ -454,6 +454,12 @@ function(add_perf_test)
       ENVIRONMENT
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
+  if(DEFINED DEFAULT_ENCLAVE_TYPE)
+    set_property(
+      TEST ${PARSED_ARGS_NAME} APPEND
+      PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
+    )
+  endif()
   set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
   set_property(
     TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}

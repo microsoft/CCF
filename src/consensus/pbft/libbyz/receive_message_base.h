@@ -36,7 +36,7 @@ public:
     rollback_handler_cb cb, pbft::RollbackInfo* ctx) = 0;
   virtual size_t num_correct_replicas() const = 0;
   virtual size_t f() const = 0;
-  virtual void set_f(ccf::NodeId f) = 0;
+  virtual void set_f(size_t f) = 0;
   virtual View view() const = 0;
   virtual bool is_primary() const = 0;
   virtual int primary() const = 0;
@@ -45,8 +45,9 @@ public:
   virtual Seqno get_last_executed() const = 0;
   virtual int my_id() const = 0;
   virtual void emit_signature_on_next_pp(int64_t version) = 0;
-  virtual void playback_pre_prepare(ccf::Store::Tx& tx) = 0;
-  virtual void playback_request(ccf::Store::Tx& tx) = 0;
+  virtual void playback_pre_prepare(kv::Tx& tx) = 0;
+  virtual void playback_new_view(kv::Tx& tx) = 0;
+  virtual void playback_request(kv::Tx& tx) = 0;
   virtual char* create_response_message(
     int client_id, Request_id rid, uint32_t size, uint64_t nonce) = 0;
   virtual bool IsExecutionPending() = 0;

@@ -1,0 +1,123 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Add Python 3.7 PPA
+  apt_repository:
+    repo: ppa:deadsnakes/ppa
+  become: true
+
+- name: Add LLVM repository key
+  apt_key:
+    url: "https://apt.llvm.org/llvm-snapshot.gpg.key"
+    state: present
+  become: yes
+
+- name: Add LLVM repository
+  apt_repository:
+    repo: "deb http://apt.llvm.org/{{ ansible_distribution_release }} llvm-toolchain-{{ ansible_distribution_release }}-8 main"
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Add CMake repository key
+  apt_key:
+    url: "https://apt.kitware.com/keys/kitware-archive-latest.asc"
+    state: present
+  become: yes
+
+- name: Add CMake repository
+  apt_repository:
+    repo: "deb https://apt.kitware.com/ubuntu/ {{ ansible_distribution_release }} main"
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Install debs
+  apt:
+    name: "{{ debs }}"
+    update_cache: yes
+  become: yes
+
+- name: Download mbedtls
+  get_url:
+    url: https://github.com/ARMmbed/mbedtls/archive/{{ mbedtls_src }}
+    dest: "{{ workspace }}/{{ mbedtls_src }}"
+  become: true
+
+- name: Remove existing mbedtls checkout
+  file:
+    path: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}"
+    state: absent
+
+- name: Expand mbedtls
+  unarchive:
+    src: "{{ workspace }}/{{ mbedtls_src }}"
+    dest: "{{ workspace }}"
+    copy: no
+    creates: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/CMakeLists.txt"
+
+- name: Make mbedtls build dir
+  file:
+    path: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
+    state: directory
+
+- name: Build mbedtls
+  shell: |
+    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON ..
+    make -j4
+  args:
+    chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
+
+- name: Install mbedtls
+  command: make install
+  args:
+    chdir: "{{ workspace }}/mbedtls-{{ mbedtls_dir }}/build"
+  become: true
+
+- name: Download FlatBuffers source
+  get_url:
+    url: "{{ flatbuffers_url }}"
+    dest: "{{ workspace }}/{{ flatbuffers_src }}"
+    force: yes
+  become: true
+
+- name: Remove Pre-existing FlatBuffers source on the remote
+  file:
+    path: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}"
+    state: absent
+  become: true
+
+- name: Create directory for FlatBuffers source
+  file:
+    path: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}"
+    state: directory
+  become: true
+
+- name: Expand FlatBuffers
+  unarchive:
+    src: "{{ workspace }}/{{ flatbuffers_src }}"
+    dest: "{{ fb_prefix }}"
+    copy: no
+    creates: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/CMakeLists.txt"
+  become: true
+
+- name: Build flatc
+  shell: |
+    CC=/usr/bin/clang-8 CXX=/usr/bin/clang++-8 cmake -GNinja .
+    ninja
+  args:
+    chdir: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}"
+  become: true
+
+- name: Install flatc
+  file:
+    src: "{{ fb_prefix }}/flatbuffers-{{ fb_ver }}/flatc"
+    dest: /usr/local/bin/flatc
+    mode: +x
+    state: link
+  become: true
+
+- name: Install step-cli
+  apt:
+    deb: "{{ step_cli }}"
+  become: true

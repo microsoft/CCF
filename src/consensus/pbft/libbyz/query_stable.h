@@ -57,7 +57,7 @@ private:
 
 inline Query_stable_rep& Query_stable::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Query_stable_rep*)msg);
 }
 

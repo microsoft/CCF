@@ -77,7 +77,7 @@ TEST_CASE("edge cases")
 
     // Node has heard about 2.10 locally, but has not committed to 10
     CHECK(get_tx_status(3, 10, 2, 2, 8) == TxStatus::Unknown);
-    // Impossible: remembering a later commit from an earlier term - should have
+    // Impossible: remembering a later commit from an earlier view - should have
     // been rolled back
     // CHECK(get_tx_status(3, 10, 2, 3, 8) == TxStatus::Unknown);
 

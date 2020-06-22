@@ -16,7 +16,7 @@ namespace ccfapp
   using namespace ccf;
   using namespace lua;
 
-  using GenericTable = ccf::Store::Map<nlohmann::json, nlohmann::json>;
+  using GenericTable = kv::Map<nlohmann::json, nlohmann::json>;
 
   class AppTsr : public TxScriptRunner
   {
@@ -69,9 +69,7 @@ namespace ccfapp
 
     const std::vector<GenericTable*> app_tables;
     void add_custom_tables(
-      lua::Interpreter& li,
-      ccf::Store::Tx& tx,
-      int& n_registered_tables) const override
+      lua::Interpreter& li, kv::Tx& tx, int& n_registered_tables) const override
     {
       n_registered_tables++;
       TableCreator<false>::create(li, tx, app_tables);
@@ -84,7 +82,7 @@ namespace ccfapp
     {}
   };
 
-  class LuaHandlers : public UserHandlerRegistry
+  class LuaHandlers : public UserEndpointRegistry
   {
   private:
     NetworkTables& network;
@@ -92,7 +90,7 @@ namespace ccfapp
 
   public:
     LuaHandlers(NetworkTables& network, const uint16_t n_tables = 8) :
-      UserHandlerRegistry(network),
+      UserEndpointRegistry(network),
       network(network)
     {
       auto& tables = *network.tables;
@@ -107,7 +105,7 @@ namespace ccfapp
       }
       tsr = std::make_unique<AppTsr>(network, app_tables);
 
-      auto default_handler = [this](RequestArgs& args, nlohmann::json&&) {
+      auto default_handler = [this](EndpointContext& args, nlohmann::json&&) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
         if (local_method == UserScriptIds::ENV_HANDLER)
@@ -177,14 +175,14 @@ namespace ccfapp
         }
       };
 
-      set_default(json_adapter(default_handler), Write);
+      set_default(json_adapter(default_handler));
     }
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void list_methods(ccf::Store::Tx& tx, ListMethods::Out& out) override
+    void list_methods(kv::Tx& tx, ListMethods::Out& out) override
     {
-      UserHandlerRegistry::list_methods(tx, out);
+      UserEndpointRegistry::list_methods(tx, out);
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {
@@ -210,7 +208,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, AbstractNotifier& notifier)
+    NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
     return std::make_shared<Lua>(network);
   }

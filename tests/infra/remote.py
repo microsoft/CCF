@@ -11,11 +11,14 @@ import uuid
 import ctypes
 import signal
 import re
+import stat
+import shutil
 from collections import deque
 
 from loguru import logger as LOG
 
 DBG = os.getenv("DBG", "cgdb")
+FILE_TIMEOUT = 60
 
 _libc = ctypes.CDLL("libc.so.6")
 
@@ -119,7 +122,7 @@ class SSHRemote(CmdMixin):
         label,
         common_dir,
         env=None,
-        json_log_path=None,
+        log_format_json=None,
     ):
         """
         Runs a command on a remote host, through an SSH connection. A temporary
@@ -170,20 +173,23 @@ class SSHRemote(CmdMixin):
         # files (ledger, secrets) are copied to the remote
         session = self.client.open_sftp()
         for path in self.exe_files:
-            src_path = path
             tgt_path = os.path.join(self.root, os.path.basename(path))
             LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
             session.put(path, tgt_path)
             stat = os.stat(path)
             session.chmod(tgt_path, stat.st_mode)
         for path in self.data_files:
-            src_path = os.path.join(self.common_dir, path)
-            tgt_path = os.path.join(self.root, os.path.basename(src_path))
-            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, src_path))
-            session.put(src_path, tgt_path)
+            tgt_path = os.path.join(self.root, os.path.basename(path))
+            if os.path.isdir(path):
+                session.mkdir(tgt_path)
+                for f in os.listdir(path):
+                    session.put(os.path.join(path, f), os.path.join(tgt_path, f))
+            else:
+                session.put(path, tgt_path)
+            LOG.info("[{}] copy {} from {}".format(self.hostname, tgt_path, path))
         session.close()
 
-    def get(self, file_name, dst_path, timeout=60, target_name=None):
+    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         """
         Get file called `file_name` under the root of the remote. If the
         file is missing, wait for timeout, and raise an exception.
@@ -200,10 +206,22 @@ class SSHRemote(CmdMixin):
             while time.time() < end_time:
                 try:
                     target_name = target_name or file_name
-                    session.get(
-                        os.path.join(self.root, file_name),
-                        os.path.join(dst_path, target_name),
-                    )
+                    fileattr = session.lstat(os.path.join(self.root, file_name))
+                    if stat.S_ISDIR(fileattr.st_mode):
+                        src_dir = os.path.join(self.root, file_name)
+                        dst_dir = os.path.join(dst_path, file_name)
+                        if os.path.exists(dst_dir):
+                            shutil.rmtree(dst_dir)
+                        os.makedirs(dst_dir)
+                        for f in session.listdir(src_dir):
+                            session.get(
+                                os.path.join(src_dir, f), os.path.join(dst_dir, f),
+                            )
+                    else:
+                        session.get(
+                            os.path.join(self.root, file_name),
+                            os.path.join(dst_path, target_name),
+                        )
                     LOG.debug(
                         "[{}] found {} after {}s".format(
                             self.hostname, file_name, int(time.time() - start_time)
@@ -215,7 +233,7 @@ class SSHRemote(CmdMixin):
             else:
                 raise ValueError(file_name)
 
-    def list_files(self, timeout=60):
+    def list_files(self, timeout=FILE_TIMEOUT):
         files = []
         with sftp_session(self.hostname) as session:
             end_time = time.time() + timeout
@@ -278,16 +296,13 @@ class SSHRemote(CmdMixin):
 
     def suspend(self):
         _, stdout, _ = self.proc_client.exec_command(f"kill -STOP {self.pid()}")
-        if stdout.channel.recv_exit_status() == 0:
-            LOG.info(f"Node {self.name} suspended...")
-        else:
-            raise RuntimeError(f"Node {self.name} could not be suspended")
+        if stdout.channel.recv_exit_status() != 0:
+            raise RuntimeError(f"Remote {self.name} could not be suspended")
 
     def resume(self):
         _, stdout, _ = self.proc_client.exec_command(f"kill -CONT {self.pid()}")
         if stdout.channel.recv_exit_status() != 0:
-            raise RuntimeError(f"Could not resume node {self.name} from suspension!")
-        LOG.info(f"Node {self.name} resuming from suspension...")
+            raise RuntimeError(f"Could not resume remote {self.name} from suspension!")
 
     def stop(self):
         """
@@ -372,7 +387,7 @@ class LocalRemote(CmdMixin):
         label,
         common_dir,
         env=None,
-        json_log_path=None,
+        log_format_json=None,
     ):
         """
         Local Equivalent to the SSHRemote
@@ -395,6 +410,20 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] {}".format(self.hostname, cmd))
         return subprocess.call(cmd, shell=True)
 
+    def _cp(self, src_path, dst_path):
+        if os.path.isdir(src_path):
+            assert (
+                self._rc(
+                    "rm -rf {}".format(
+                        os.path.join(dst_path, os.path.basename(src_path))
+                    )
+                )
+                == 0
+            )
+            assert self._rc("cp -r {} {}".format(src_path, dst_path)) == 0
+        else:
+            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+
     def _setup_files(self):
         assert self._rc("rm -rf {}".format(self.root)) == 0
         assert self._rc("mkdir -p {}".format(self.root)) == 0
@@ -403,11 +432,10 @@ class LocalRemote(CmdMixin):
             src_path = os.path.normpath(os.path.join(os.getcwd(), path))
             assert self._rc("ln -s {} {}".format(src_path, dst_path)) == 0
         for path in self.data_files:
-            dst_path = self.root
-            src_path = os.path.join(self.common_dir, path)
-            assert self._rc("cp {} {}".format(src_path, dst_path)) == 0
+            dst_path = os.path.join(self.root, os.path.basename(path))
+            self._cp(path, dst_path)
 
-    def get(self, file_name, dst_path, timeout=60, target_name=None):
+    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
         path = os.path.join(self.root, file_name)
         end_time = time.time() + timeout
         while time.time() < end_time:
@@ -417,14 +445,12 @@ class LocalRemote(CmdMixin):
         else:
             raise ValueError(path)
         target_name = target_name or file_name
-        assert (
-            self._rc("cp {} {}".format(path, os.path.join(dst_path, target_name))) == 0
-        )
+        self._cp(path, dst_path)
 
     def list_files(self):
         return os.listdir(self.root)
 
-    def start(self, timeout=10):
+    def start(self):
         """
         Start cmd. stdout and err are captured to file locally.
         """
@@ -442,11 +468,9 @@ class LocalRemote(CmdMixin):
 
     def suspend(self):
         self.proc.send_signal(signal.SIGSTOP)
-        LOG.info(f"Node {self.name} suspended...")
 
     def resume(self):
         self.proc.send_signal(signal.SIGCONT)
-        LOG.info(f"Node {self.name} resuming from suspension...")
 
     def stop(self):
         """
@@ -496,6 +520,12 @@ CCF_TO_OE_LOG_LEVEL = {
 }
 
 
+def make_address(host, port=None):
+    if port is not None:
+        return f"{host}:{port}"
+    return host
+
+
 class CCFRemote(object):
     BIN = "cchost"
     DEPS = []
@@ -527,31 +557,34 @@ class CCFRemote(object):
         memory_reserve_startup=0,
         notify_server=None,
         gov_script=None,
-        ledger_file=None,
-        json_log_path=None,
+        ledger_dir=None,
+        log_format_json=None,
         binary_dir=".",
+        ledger_chunk_max_bytes=(5 * 1024 * 1024),
+        domain=None,
     ):
         """
         Run a ccf binary on a remote host.
         """
         self.start_type = start_type
         self.local_node_id = local_node_id
-        self.host = host
-        self.pubhost = pubhost
-        self.node_port = node_port
-        self.rpc_port = rpc_port
-        self.pem = "{}.pem".format(local_node_id)
+        self.pem = f"{local_node_id}.pem"
+        self.node_address_path = f"{local_node_id}.node_address"
+        self.rpc_address_path = f"{local_node_id}.rpc_address"
         self.BIN = infra.path.build_bin_path(
             self.BIN, enclave_type, binary_dir=binary_dir
         )
-        self.ledger_file = ledger_file
-        self.ledger_file_name = (
-            os.path.basename(ledger_file) if ledger_file else f"{local_node_id}.ledger"
+
+        self.ledger_dir = os.path.normpath(ledger_dir) if ledger_dir else None
+        self.ledger_dir_name = (
+            os.path.basename(self.ledger_dir)
+            if self.ledger_dir
+            else f"{local_node_id}.ledger"
         )
         self.common_dir = common_dir
 
         exe_files = [self.BIN, lib_path] + self.DEPS
-        data_files = [self.ledger_file] if self.ledger_file else []
+        data_files = [self.ledger_dir] if self.ledger_dir else []
 
         # exe_files may be relative or absolute. The remote implementation should
         # copy (or symlink) to the target workspace, and then node will be able
@@ -569,10 +602,12 @@ class CCFRemote(object):
             bin_path,
             f"--enclave-file={enclave_path}",
             f"--enclave-type={enclave_type}",
-            f"--node-address={host}:{node_port}",
-            f"--rpc-address={host}:{rpc_port}",
-            f"--public-rpc-address={pubhost}:{rpc_port}",
-            f"--ledger-file={self.ledger_file_name}",
+            f"--node-address={make_address(host, node_port)}",
+            f"--node-address-file={self.node_address_path}",
+            f"--rpc-address={make_address(host, rpc_port)}",
+            f"--rpc-address-file={self.rpc_address_path}",
+            f"--public-rpc-address={make_address(pubhost, rpc_port)}",
+            f"--ledger-dir={self.ledger_dir_name}",
             f"--node-cert-file={self.pem}",
             f"--host-log-level={host_log_level}",
             election_timeout_arg,
@@ -580,9 +615,8 @@ class CCFRemote(object):
             f"--worker-threads={worker_threads}",
         ]
 
-        if json_log_path:
-            log_file = f"{label}_{local_node_id}"
-            cmd += [f"--json-log-path={os.path.join(json_log_path, log_file)}"]
+        if log_format_json:
+            cmd += ["--log-format-json"]
 
         if sig_max_tx:
             cmd += [f"--sig-max-tx={sig_max_tx}"]
@@ -592,6 +626,9 @@ class CCFRemote(object):
 
         if memory_reserve_startup:
             cmd += [f"--memory-reserve-startup={memory_reserve_startup}"]
+
+        if ledger_chunk_max_bytes:
+            cmd += [f"--ledger-chunk-max-bytes={ledger_chunk_max_bytes}"]
 
         if notify_server:
             notify_server_host, *notify_server_port = notify_server.split(":")
@@ -607,6 +644,9 @@ class CCFRemote(object):
                 f"--notify-server-address={notify_server_host}:{notify_server_port[0]}"
             ]
 
+        if domain:
+            cmd += [f"--domain={domain}"]
+
         if start_type == StartType.new:
             cmd += [
                 "start",
@@ -619,9 +659,9 @@ class CCFRemote(object):
                 )
             for mc, mk in members_info:
                 cmd += [f"--member-info={mc},{mk}"]
-                data_files.append(mc)
-                data_files.append(mk)
-            data_files += [os.path.basename(gov_script)]
+                data_files.append(os.path.join(self.common_dir, mc))
+                data_files.append(os.path.join(self.common_dir, mk))
+            data_files += [os.path.join(os.path.basename(self.common_dir), gov_script)]
         elif start_type == StartType.join:
             cmd += [
                 "join",
@@ -629,7 +669,7 @@ class CCFRemote(object):
                 f"--target-rpc-address={target_rpc_address}",
                 f"--join-timer={join_timer}",
             ]
-            data_files += ["networkcert.pem"]
+            data_files += [os.path.join(self.common_dir, "networkcert.pem")]
         elif start_type == StartType.recover:
             cmd += ["recover", "--network-cert-file=networkcert.pem"]
         else:
@@ -659,7 +699,7 @@ class CCFRemote(object):
             label,
             common_dir,
             env,
-            json_log_path,
+            log_format_json,
         )
 
     def setup(self):
@@ -676,6 +716,8 @@ class CCFRemote(object):
 
     def get_startup_files(self, dst_path):
         self.remote.get(self.pem, dst_path)
+        self.remote.get(self.node_address_path, dst_path)
+        self.remote.get(self.rpc_address_path, dst_path)
         if self.start_type in {StartType.new, StartType.recover}:
             self.remote.get("networkcert.pem", dst_path)
             self.remote.get("network_enc_pubk.pem", dst_path)
@@ -703,11 +745,11 @@ class CCFRemote(object):
         self.remote.set_perf()
 
     def get_ledger(self):
-        self.remote.get(self.ledger_file_name, self.common_dir)
-        return self.ledger_file_name
+        self.remote.get(self.ledger_dir_name, self.common_dir)
+        return os.path.join(self.common_dir, self.ledger_dir_name)
 
     def ledger_path(self):
-        return os.path.join(self.remote.root, self.ledger_file_name)
+        return os.path.join(self.remote.root, self.ledger_dir_name)
 
 
 @contextmanager

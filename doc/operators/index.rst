@@ -12,3 +12,5 @@ This section describes how :term:`Operators` manage the different nodes constitu
     node_output
     operator_rpc_api
     resource_usage
+    ledger
+    container

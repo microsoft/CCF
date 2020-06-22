@@ -6,7 +6,8 @@
 #include "ring_buffer.h"
 #include "serialized.h"
 
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <unordered_map>
 
 namespace oversized
@@ -258,6 +259,7 @@ namespace oversized
       auto next = underlying_writer->write_bytes(marker, bytes, write_size);
       bytes += write_size;
       size -= write_size;
+      fragment_progress->remainder -= write_size;
 
       // While there is more to write...
       while (size > 0)

@@ -32,9 +32,9 @@ parameters:
 
   test:
     NoSGX:
-      ctest_args: '-LE "benchmark|perf|suite|tlstest"'
+      ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
     SGX:
-      ctest_args: '-LE "benchmark|perf|suite|tlstest"'
+      ctest_args: '-LE "benchmark|perf|tlstest|long_test"'
     Release:
       ctest_args: '-LE "tlstest"'
     perf:
@@ -55,6 +55,7 @@ jobs:
         suffix: 'Debug'
         artifact_name: '${{ target }}_Debug'
         ctest_filter: '${{ parameters.test[target].ctest_args }}'
+        ctest_timeout: '240'
 
   # Performance
   - template: common.yml
@@ -65,9 +66,14 @@ jobs:
       suffix: 'Perf'
       artifact_name: 'SGX_Perf'
       ctest_filter: '${{ parameters.test.perf.ctest_args }}'
+      ctest_timeout: '240'
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
+    - template: release_checks.yml
+      parameters:
+        env: ${{ parameters.env.Hosted }}
+
     - template: common.yml
       parameters:
         target: SGX
@@ -76,6 +82,8 @@ jobs:
         suffix: 'Release'
         artifact_name: 'SGX_Release'
         install_prefix: '${{ parameters.build.install.install_prefix }}'
+        ctest_timeout: '240'
+        depends_on: 'Release_Checks'
 
     - template: release.yml
       parameters:

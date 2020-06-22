@@ -4,7 +4,8 @@
 #pragma once
 
 #include <arpa/inet.h> // For inet_addr()
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <optional>
 
 namespace ds

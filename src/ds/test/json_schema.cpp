@@ -134,7 +134,7 @@ TEST_CASE("schema generation")
       REQUIRE(property_it != properties_it->end());
 
       const auto type = property_it->at("type");
-      if (type == "number")
+      if (type == "integer")
       {
         j_min[required] = property_it->at("minimum");
         j_max[required] = property_it->at("maximum");
@@ -168,9 +168,9 @@ TEST_CASE("schema generation")
   }
 }
 
-TEST_CASE("schema types")
+TEST_CASE_TEMPLATE("schema types, integer", T, size_t, ssize_t)
 {
-  std::map<size_t, std::string> m;
+  std::map<T, std::string> m;
   const auto schema = ds::json::build_schema<decltype(m)>("Map");
 
   REQUIRE(schema["type"] == "array");
@@ -179,8 +179,23 @@ TEST_CASE("schema types")
   REQUIRE(schema["items"]["type"] == "array");
   REQUIRE(schema["items"]["items"].is_array());
   REQUIRE(schema["items"]["items"].size() == 2);
-  REQUIRE(schema["items"]["items"][0]["type"] == "number");
+  REQUIRE(schema["items"]["items"][0]["type"] == "integer");
   REQUIRE(schema["items"]["items"][1]["type"] == "string");
+}
+
+TEST_CASE_TEMPLATE("schema types, floating point", T, float, double)
+{
+  std::map<size_t, T> m;
+  const auto schema = ds::json::build_schema<decltype(m)>("Map");
+
+  REQUIRE(schema["type"] == "array");
+  REQUIRE(schema["items"].is_object());
+
+  REQUIRE(schema["items"]["type"] == "array");
+  REQUIRE(schema["items"]["items"].is_array());
+  REQUIRE(schema["items"]["items"].size() == 2);
+  REQUIRE(schema["items"]["items"][0]["type"] == "integer");
+  REQUIRE(schema["items"]["items"][1]["type"] == "number");
 }
 
 namespace custom

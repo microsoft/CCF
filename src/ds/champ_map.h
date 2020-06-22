@@ -2,6 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/ccf_assert.h"
+#include "ds/serialized.h"
+
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <optional>
@@ -89,6 +93,16 @@ namespace champ
     }
   };
 
+  uint32_t static get_padding(uint32_t size)
+  {
+    uint32_t padding = size % sizeof(uintptr_t);
+    if (padding != 0)
+    {
+      padding = sizeof(uintptr_t) - padding;
+    }
+    return padding;
+  }
+
   template <class K, class V, class H>
   using Node = std::shared_ptr<void>;
 
@@ -148,10 +162,10 @@ namespace champ
 
     SubNodes() {}
 
-    SubNodes(std::vector<Node<K, V, H>> ns) : nodes(ns) {}
+    SubNodes(std::vector<Node<K, V, H>>&& ns) : nodes(std::move(ns)) {}
 
-    SubNodes(std::vector<Node<K, V, H>> ns, Bitmap nm, Bitmap dm) :
-      nodes(ns),
+    SubNodes(std::vector<Node<K, V, H>>&& ns, Bitmap nm, Bitmap dm) :
+      nodes(std::move(ns)),
       node_map(nm),
       data_map(dm)
     {}
@@ -311,13 +325,40 @@ namespace champ
     std::shared_ptr<SubNodes<K, V, H>> root;
     size_t _size = 0;
 
-    Map(std::shared_ptr<SubNodes<K, V, H>> root_, size_t size_) :
-      root(root_),
+    Map(std::shared_ptr<SubNodes<K, V, H>>&& root_, size_t size_) :
+      root(std::move(root_)),
       _size(size_)
     {}
 
   public:
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
+
+    Map<K, V, H> static deserialize_map(
+      const std::vector<uint8_t>& serialized_state,
+      std::function<K(const uint8_t*&, size_t&)> make_k,
+      std::function<V(const uint8_t*&, size_t&)> make_v)
+    {
+      Map<K, V, H> map;
+      const uint8_t* data = serialized_state.data();
+      size_t size = serialized_state.size();
+
+      while (size != 0)
+      {
+        // Deserialize the key
+        size_t key_size = size;
+        K key = make_k(data, size);
+        key_size -= size;
+        serialized::skip(data, size, get_padding(key_size));
+
+        // Deserialize the value
+        size_t value_size = size;
+        V value = make_v(data, size);
+        value_size -= size;
+        serialized::skip(data, size, get_padding(value_size));
+        map = map.put(key, value);
+      }
+      return map;
+    }
 
     size_t size() const
     {
@@ -358,6 +399,98 @@ namespace champ
     bool foreach(F&& f) const
     {
       return root->foreach(0, std::forward<F>(f));
+    }
+  };
+
+  template <class K, class V, class H = std::hash<K>>
+  class Snapshot
+  {
+  private:
+    Map<K, V, H> map;
+
+    struct pair
+    {
+      K* k;
+      Hash h_k;
+      V* v;
+
+      pair(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
+    };
+    const uintptr_t padding = 0;
+    std::function<uint32_t(const K& key)> k_size;
+    std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
+      k_serialize;
+    std::function<uint32_t(const V& value)> v_size;
+    std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
+      v_serialize;
+
+    uint32_t add_padding(uint32_t data_size, uint8_t*& data, size_t& size)
+    {
+      uint32_t padding_size = get_padding(data_size);
+      if (padding_size != 0)
+      {
+        serialized::write(
+          data, size, reinterpret_cast<const uint8_t*>(&padding), padding_size);
+      }
+      return padding_size;
+    }
+
+  public:
+    Snapshot(
+      Map<K, V, H> map_,
+      std::function<uint32_t(const K& key)> k_size_,
+      std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
+        k_serialize_,
+      std::function<uint32_t(const V& value)> v_size_,
+      std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
+        v_serialize_) :
+      k_size(k_size_),
+      k_serialize(k_serialize_),
+      v_size(v_size_),
+      v_serialize(v_serialize_)
+    {
+      map = map_;
+    }
+
+    std::vector<uint8_t> get_buffer()
+    {
+      std::vector<uint8_t> serialized;
+      std::vector<pair> serialized_state;
+      serialized_state.reserve(map.size());
+      size_t size = 0;
+      map.foreach([&](auto& key, auto& value) {
+        K* k = &key;
+        V* v = &value;
+        uint32_t key_size = k_size(key) + get_padding(k_size(key));
+        uint32_t value_size = v_size(value) + get_padding(v_size(value));
+
+        size += (key_size + value_size);
+
+        serialized_state.emplace_back(k, static_cast<Hash>(H()(key)), v);
+
+        return true;
+      });
+      std::sort(
+        serialized_state.begin(), serialized_state.end(), [](pair& i, pair& j) {
+          return i.h_k < j.h_k;
+        });
+
+      serialized.resize(size);
+      uint8_t* data = serialized.data();
+      for (const auto& p : serialized_state)
+      {
+        // Serialize the key
+        uint32_t key_size = k_serialize(*p.k, data, size);
+        add_padding(key_size, data, size);
+
+        // Serialize the value
+        uint32_t value_size = v_serialize(*p.v, data, size);
+        add_padding(value_size, data, size);
+      }
+
+      CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
+
+      return std::move(serialized);
     }
   };
 }

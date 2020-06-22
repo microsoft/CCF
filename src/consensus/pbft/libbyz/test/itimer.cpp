@@ -5,10 +5,27 @@
 
 #include "itimer.h"
 
-#include "cycle_counter.h"
 #include "types.h"
 
 #include <signal.h>
+
+static inline long long rdtsc(void)
+{
+  union
+  {
+    struct
+    {
+      unsigned int l; /* least significant word */
+      unsigned int h; /* most significant word */
+    } w32;
+    unsigned long long w64;
+  } v;
+
+  __asm __volatile(".byte 0xf; .byte 0x31     # RDTSC instruction"
+                   : "=a"(v.w32.l), "=d"(v.w32.h)
+                   :);
+  return v.w64;
+}
 
 std::vector<ITimer*> ITimer::timers;
 Time ITimer::min_deadline = Long_max;

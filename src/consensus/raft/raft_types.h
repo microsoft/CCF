@@ -28,7 +28,8 @@ namespace raft
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
-    virtual void rollback(Index v) = 0;
+    virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
+    virtual void set_term(Term t) = 0;
   };
 
   template <typename T, typename S>
@@ -48,7 +49,6 @@ namespace raft
       auto p = x.lock();
       if (p)
         return p->deserialise(data, public_only, term);
-
       return S::FAILED;
     }
 
@@ -56,14 +56,23 @@ namespace raft
     {
       auto p = x.lock();
       if (p)
+      {
         p->compact(v);
+      }
     }
 
-    void rollback(Index v)
+    void rollback(Index v, std::optional<Term> t = std::nullopt)
     {
       auto p = x.lock();
       if (p)
-        p->rollback(v);
+        p->rollback(v, t);
+    }
+
+    void set_term(Term t)
+    {
+      auto p = x.lock();
+      if (p)
+        p->set_term(t);
     }
   };
 

@@ -1,0 +1,5 @@
+- hosts: localhost
+  tasks:
+    - import_role:
+        name: intel
+        tasks_from: sgx-driver.yml

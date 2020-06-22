@@ -20,28 +20,52 @@ namespace raft
 {
   class TermHistory
   {
+    // Entry i stores the first index in term i+1
+    // (term 0 doesn't exist, so we store nothing for it)
     std::vector<Index> terms;
 
   public:
+    static constexpr Term InvalidTerm = 0;
+
     void initialise(const std::vector<Index>& terms_)
     {
-      std::copy(terms_.begin(), terms_.end(), std::back_inserter(terms));
+      terms.clear();
+      for (size_t i = 0; i < terms_.size(); ++i)
+      {
+        update(terms_[i], i + 1);
+      }
+      LOG_DEBUG_FMT("Initialised terms: {}", fmt::join(terms, ", "));
     }
 
     void update(Index idx, Term term)
     {
       LOG_DEBUG_FMT("Updating term to: {} at index: {}", term, idx);
-      for (auto i = terms.size(); i <= term; ++i)
+      if (!terms.empty())
+      {
+        const auto current_latest_index = terms.back();
+        if (idx < current_latest_index)
+        {
+          throw std::logic_error(fmt::format(
+            "Index must not move backwards ({} < {})",
+            idx,
+            current_latest_index));
+        }
+      }
+
+      for (auto i = terms.size(); i < term; ++i)
         terms.push_back(idx);
+      LOG_DEBUG_FMT("Resulting terms: {}", fmt::join(terms, ", "));
     }
 
     Term term_at(Index idx)
     {
-      if (idx == 0)
-        return 0;
-
       auto it = upper_bound(terms.begin(), terms.end(), idx);
-      return (it - terms.begin()) - 1;
+
+      // Indices before the index of the first term are unknown
+      if (it == terms.begin())
+        return InvalidTerm;
+
+      return (it - terms.begin());
     }
   };
 
@@ -109,11 +133,6 @@ namespace raft
     // When this is set, only public domain is deserialised when receving append
     // entries
     bool public_only = false;
-
-    // In recovery mode, while a follower is reading the private ledger, no
-    // entries later than the index at which the network secrets are known
-    // should be replicated
-    std::optional<Index> recovery_max_index;
 
     // Randomness
     std::uniform_int_distribution<int> distrib;
@@ -185,25 +204,6 @@ namespace raft
       public_only = false;
     }
 
-    void suspend_replication(Index idx)
-    {
-      // Suspend replication of append entries up to a specific version
-      // Note that this should only be called when the raft lock is taken (e.g.
-      // from a commit hook on a follower)
-      LOG_INFO_FMT("Suspending replication for idx > {}", idx);
-      recovery_max_index = idx;
-    }
-
-    void resume_replication()
-    {
-      // Resume replication.
-      // Note that this should be called when the raft lock is not taken (e.g.
-      // after the ledger has been read)
-      std::lock_guard<SpinLock> guard(lock);
-      LOG_INFO_FMT("Resuming replication");
-      recovery_max_index.reset();
-    }
-
     void force_become_leader()
     {
       // This is unsafe and should only be called when the node is certain
@@ -272,36 +272,38 @@ namespace raft
       return current_term;
     }
 
+    std::pair<Term, Index> get_commit_term_and_idx()
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      return {get_term_internal(commit_idx), commit_idx};
+    }
+
     Term get_term(Index idx)
     {
       std::lock_guard<SpinLock> guard(lock);
       return get_term_internal(idx);
     }
 
-    void add_configuration(Index idx, std::unordered_set<NodeId> conf)
+    void add_configuration(Index idx, const std::unordered_set<NodeId>& conf)
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, move(conf)});
       create_and_remove_node_state();
     }
 
-    template <typename T>
-    size_t write_to_ledger(const T& data)
+    std::unordered_set<NodeId> get_latest_configuration() const
     {
-      ledger->put_entry(data->data(), data->size());
-      return data->size();
-    }
+      if (configurations.empty())
+      {
+        return {};
+      }
 
-    template <>
-    size_t write_to_ledger<std::vector<uint8_t>>(
-      const std::vector<uint8_t>& data)
-    {
-      ledger->put_entry(data);
-      return data.size();
+      return configurations.back().nodes;
     }
 
     template <typename T>
-    bool replicate(const std::vector<std::tuple<Index, T, bool>>& entries)
+    bool replicate(
+      const std::vector<std::tuple<Index, T, bool>>& entries, Term term)
     {
       std::lock_guard<SpinLock> guard(lock);
 
@@ -310,6 +312,16 @@ namespace raft
         LOG_FAIL_FMT(
           "Failed to replicate {} items: not leader", entries.size());
         rollback(last_idx);
+        return false;
+      }
+
+      if (term != current_term)
+      {
+        LOG_FAIL_FMT(
+          "Failed to replicate {} items at term {}, current term is {}",
+          entries.size(),
+          term,
+          current_term);
         return false;
       }
 
@@ -330,8 +342,8 @@ namespace raft
           committable_indices.push_back(index);
 
         last_idx = index;
-        auto s = write_to_ledger(*data);
-        entry_size_not_limited += s;
+        ledger->put_entry(*data, globally_committable);
+        entry_size_not_limited += data->size();
         entry_count++;
 
         term_history.update(index, current_term);
@@ -605,55 +617,33 @@ namespace raft
 
         LOG_DEBUG_FMT("Replicating on follower {}: {}", local_id, i);
 
-        // If replication is suspended during recovery, only accept entries if
-        // their index is less than the max recovery index
-        if (recovery_max_index.has_value() && i > recovery_max_index.value())
-        {
-          if (is_first_entry)
-          {
-            // If no entry was replicated in the batch, abort replication of the
-            // whole batch
-            LOG_INFO_FMT(
-              "Replication suspended: {} > {}", i, recovery_max_index.value());
-            send_append_entries_response(r.from_node, false);
-            return;
-          }
-          else
-          {
-            // If an entry was successfully replicated in the batch, deserialise
-            // up to that entry
-            LOG_INFO_FMT(
-              "Replication suspended up to {} but deserialised up to {}",
-              recovery_max_index.value(),
-              i - 1);
-            send_append_entries_response(r.from_node, true);
-            return;
-          }
-        }
-
         last_idx = i;
         is_first_entry = false;
-        auto ret = ledger->record_entry(data, size);
+        std::vector<uint8_t> entry;
 
-        if (!ret.second)
+        try
         {
-          // NB: This will currently never be triggered.
-          // This should only fail if there is malformed data. Truncate
-          // the log and reply false.
+          entry = ledger->get_entry(data, size);
+        }
+        catch (const std::logic_error& e)
+        {
+          // This should only fail if there is malformed data.
           LOG_FAIL_FMT(
-            "Recv append entries to {} from {} but the data is malformed",
+            "Recv append entries to {} from {} but the data is malformed: {}",
             local_id,
-            r.from_node);
-
+            r.from_node,
+            e.what());
           last_idx = r.prev_idx;
-          ledger->truncate(r.prev_idx);
           send_append_entries_response(r.from_node, false);
           return;
         }
 
         Term sig_term = 0;
         auto deserialise_success =
-          store->deserialise(ret.first, public_only, &sig_term);
+          store->deserialise(entry, public_only, &sig_term);
+
+        ledger->put_entry(
+          entry, deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
 
         switch (deserialise_success)
         {
@@ -856,7 +846,7 @@ namespace raft
       {
         // Reply false, since we already voted for someone else.
         LOG_DEBUG_FMT(
-          "Recv request vote to {} from {}: alredy voted for {}",
+          "Recv request vote to {} from {}: already voted for {}",
           local_id,
           r.from_node,
           voted_for);
@@ -1002,6 +992,11 @@ namespace raft
       {
         rollback(commit_idx);
       }
+      else
+      {
+        // but we still want the KV to know which term we're in
+        store->set_term(current_term);
+      }
 
       committable_indices.clear();
       state = Leader;
@@ -1138,6 +1133,7 @@ namespace raft
 
       LOG_DEBUG_FMT("Compacting...");
       store->compact(idx);
+      ledger->commit(idx);
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed
@@ -1167,7 +1163,8 @@ namespace raft
 
     void rollback(Index idx)
     {
-      store->rollback(idx);
+      store->rollback(idx, current_term);
+      LOG_DEBUG_FMT("Setting term in store to: {}", current_term);
       ledger->truncate(idx);
       last_idx = idx;
       LOG_DEBUG_FMT("Rolled back at {}", idx);

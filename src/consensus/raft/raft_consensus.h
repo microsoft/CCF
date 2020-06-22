@@ -49,14 +49,14 @@ namespace raft
       raft->force_become_leader(seqno, view, terms, commit_seqno);
     }
 
-    bool replicate(const kv::BatchVector& entries) override
+    bool replicate(const kv::BatchVector& entries, View view) override
     {
-      return raft->replicate(entries);
+      return raft->replicate(entries, view);
     }
 
-    View get_view() override
+    std::pair<View, SeqNo> get_committed_txid() override
     {
-      return raft->get_term();
+      return raft->get_commit_term_and_idx();
     }
 
     View get_view(SeqNo seqno) override
@@ -64,7 +64,12 @@ namespace raft
       return raft->get_term(seqno);
     }
 
-    SeqNo get_commit_seqno() override
+    View get_view() override
+    {
+      return raft->get_term();
+    }
+
+    SeqNo get_committed_seqno() override
     {
       return raft->get_commit_idx();
     }
@@ -81,10 +86,15 @@ namespace raft
 
     void add_configuration(
       SeqNo seqno,
-      std::unordered_set<NodeId> conf,
+      const std::unordered_set<NodeId>& conf,
       const NodeConf& node_conf = {}) override
     {
       raft->add_configuration(seqno, conf);
+    }
+
+    std::unordered_set<NodeId> get_latest_configuration() const override
+    {
+      return raft->get_latest_configuration();
     }
 
     void periodic(std::chrono::milliseconds elapsed) override
@@ -97,17 +107,7 @@ namespace raft
       raft->enable_all_domains();
     }
 
-    void resume_replication() override
-    {
-      raft->resume_replication();
-    }
-
-    void suspend_replication(kv::Version version) override
-    {
-      raft->suspend_replication(version);
-    }
-
-    void set_f(ccf::NodeId) override
+    void set_f(size_t) override
     {
       return;
     }

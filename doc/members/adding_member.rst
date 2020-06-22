@@ -14,16 +14,16 @@ The ``keygenerator.sh`` script can be used to generate the member’s certificat
 
 .. code-block:: bash
 
-    $ keygenerator.sh --name=member_name --gen-enc-key
+    $ keygenerator.sh --name member_name --gen-enc-key
     -- Generating identity private key and certificate for participant "member_name"...
     Identity curve: secp384r1
     Identity private key generated at:   member_name_privk.pem
     Identity certificate generated at:   member_name_cert.pem (to be registered in CCF)
     -- Generating encryption key pair for participant "member_name"...
-    Encryption private key generated at:  member_name_enc_priv.pem
-    Encryption public key generated at:   member_name_enc_pub.pem (to be registered in CCF)
+    Encryption private key generated at:  member_name_enc_privk.pem
+    Encryption public key generated at:   member_name_enc_pubk.pem (to be registered in CCF)
 
-The member’s private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_priv.pem``) should be stored on a trusted device while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pub.pem``) should be registered in CCF by members.
+The member’s private keys (e.g. ``member_name_privk.pem`` and ``member_name_enc_privk.pem``) should be stored on a trusted device while the certificate (e.g. ``member_name_cert.pem``) and public encryption key (e.g. ``member_name_enc_pubk.pem``) should be registered in CCF by members.
 
 .. note:: See :ref:`developers/cryptography:Algorithms and Curves` for the list of supported cryptographic curves for member identity.
 
@@ -39,17 +39,17 @@ Activating a New Member
 
 A new member who gets registered in CCF is not yet able to participate in governance operations. To do so, the new member should first acknowledge that they are satisfied with the state of the service (for example, after auditing the current constitution and the nodes currently trusted).
 
-First, the new member should update and retrieve the latest state digest via the ``members/updateAckStateDigest`` command. In doing so, the new member confirms that they are satisfied with the current state of the service.
+First, the new member should update and retrieve the latest state digest via the ``members/ack/update_state_digest`` command. In doing so, the new member confirms that they are satisfied with the current state of the service.
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/members/updateAckStateDigest  --cacert networkcert.pem --key new_member_privk.pem --cert new_member_cert.pem
+    $ curl https://<ccf-node-address>/members/ack/update_state_digest  --cacert networkcert.pem --key new_member_privk.pem --cert new_member_cert.pem
     {
         "state_digest": <...>
     }
 
 
-Then, the new member should sign the state digest returned by the ``members/updateAckStateDigest`` via the ``members/ack`` command, using the ``scurl.sh`` utility:
+Then, the new member should sign the state digest returned by the ``members/ack/update_state_digest`` via the ``members/ack`` command, using the ``scurl.sh`` utility:
 
 .. code-block:: bash
 

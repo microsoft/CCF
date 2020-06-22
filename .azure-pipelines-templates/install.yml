@@ -11,12 +11,23 @@ steps:
     source env/bin/activate
     python -m pip install -U -r ${{ parameters.install_prefix }}/bin/requirements.txt
     pip freeze > ${{ parameters.install_prefix }}/bin/requirements.txt
-    timeout --signal=SIGINT --kill-after=60s --preserve-status 60s \
+    timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
       python ${{ parameters.install_prefix }}/bin/start_network.py \
       -p ../../build/liblogging \
       -b ${{ parameters.install_prefix }}/bin \
-      -g ../../src/runtime_config/gov.lua \
+      -g $(pwd)/../../src/runtime_config/gov.lua \
       -v
+    cp -r ./workspace/start_network_0/0.ledger .
+    cp ./workspace/start_network_0/network_enc_pubk.pem .
+    timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
+      python ${{ parameters.install_prefix }}/bin/start_network.py \
+      -p ../../build/liblogging \
+      -b ${{ parameters.install_prefix }}/bin \
+      -v \
+      --recover \
+      --ledger-dir 0.ledger \
+      --network-enc-pubk network_enc_pubk.pem \
+      --common-dir ./workspace/start_network_common/
   displayName: Test installed CCF
 
 - script: |

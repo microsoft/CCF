@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include <cstdint>
-#include <map>
-#include <thread>
+#include "ds/thread_ids.h"
 
-std::map<std::thread::id, uint16_t> thread_ids;
+namespace threading
+{
+  std::map<std::thread::id, uint16_t> thread_ids;
+}

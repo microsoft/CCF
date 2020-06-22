@@ -23,7 +23,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/onqtam/doctest.git",
-          "commitHash": "f13a00cc27ed3c1ec4f755572ab7556c4cb01716"
+          "commitHash": "7d42bd0fab6c44010c8aed9338bd02bea5feba41"
         }
       }
     },
@@ -41,7 +41,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/CLIUtils/CLI11.git",
-          "commitHash": "49ac989a9527ee9bb496de9ded7b4872c2e0e5ca"
+          "commitHash": "dd0d8e4fe729e5b1110232c7a5c9566dad884686"
         }
       }
     },
@@ -68,7 +68,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "9e554999ce02cf86fcdfe74fe740c4fe3f5a56d5"
+          "commitHash": "9bdd1596cef1b57b9556f8bef32dc4a32322ef3e"
         }
       }
     },
@@ -77,7 +77,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "60e35eb58a0700fd3e0e973c07d3e4b38a8f9502"
+          "commitHash": "0abf633bc06571df51d9641eb485c7a4e5c97bdf"
         }
       }
     },
@@ -86,7 +86,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/nodejs/http-parser",
-          "commitHash": "5c17dad400e45c5a442a63f250fff2638d144682"
+          "commitHash": "2343fd6b5214b2ded2cdcf76de2bf60903bb90cd"
         }
       }
     },
@@ -105,7 +105,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/project-everest/hacl-star",
-          "commitHash": "9f592178e2e8e4b884f5605a3747ece2bb42663d"
+          "commitHash": "ed8c28dcbc1c4b6846145686f81b063e80f601b1"
         }
       }
     },
@@ -133,7 +133,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "8e3efcb1dcb27a5b43b66778a6c61681365f945f"
+          "commitHash": "2b92574123db1d1674f3df9c6dfb3ec10f05ebb3"
         }
       }
     },
@@ -146,6 +146,24 @@
         }
       }
     },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/thelink2012/SmallVector",
+          "commitHash": "febc8cb7b1a83d902b86dd1612feb7c86c690186"
+        }
+      }
+    },
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "repositoryUrl": "https://github.com/bombela/backward-cpp",
+          "commitHash": "83da75636cef3ee6e0c83cf8651e2929e1b87261"
+        }
+      }
+    }
   ],
   "Version": 1
 }

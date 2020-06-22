@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include "../encryptor.h"
+#include "node/encryptor.h"
 
-#include "../../kv/kv_types.h"
-#include "../entities.h"
-#include "../node/ledger_secrets.h"
+#include "kv/kv_types.h"
+#include "node/entities.h"
+#include "node/ledger_secrets.h"
 
 #include <doctest/doctest.h>
 #include <random>
@@ -20,7 +20,8 @@ TEST_CASE("Simple encryption/decryption")
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(node_id, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(node_id);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -39,12 +40,14 @@ TEST_CASE("Simple encryption/decryption")
   REQUIRE(plain == decrypted_cipher);
 }
 
-TEST_CASE("Two ciphers from same plaintext are different - RaftTxEncryptor")
+TEST_CASE(
+  "Subsequent ciphers from same plaintext are different - RaftTxEncryptor")
 {
   uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(node_id, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(node_id);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -64,9 +67,36 @@ TEST_CASE("Two ciphers from same plaintext are different - RaftTxEncryptor")
   REQUIRE(serialised_header != serialised_header2);
 }
 
+TEST_CASE(
+  "Different node ciphers from same plaintext are different - RaftTxEncryptor")
+{
+  auto secrets = std::make_shared<ccf::LedgerSecrets>();
+  secrets->init();
+  auto encryptor_0 = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  auto encryptor_1 = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor_0->set_iv_id(0);
+  encryptor_1->set_iv_id(1);
+
+  std::vector<uint8_t> plain(128, 0x42);
+  std::vector<uint8_t> cipher;
+  std::vector<uint8_t> cipher2;
+  std::vector<uint8_t> serialised_header;
+  std::vector<uint8_t> serialised_header2;
+  std::vector<uint8_t> additional_data; // No additional data
+  kv::Version version = 10;
+
+  encryptor_0->encrypt(
+    plain, additional_data, serialised_header, cipher, version);
+  encryptor_1->encrypt(
+    plain, additional_data, serialised_header2, cipher2, version);
+
+  // Cipher are different because IV is different
+  REQUIRE(cipher != cipher2);
+  REQUIRE(serialised_header != serialised_header2);
+}
+
 TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
 {
-  uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
   auto encryptor = std::make_shared<ccf::PbftTxEncryptor>(secrets);
@@ -81,7 +111,7 @@ TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
 
   encryptor->encrypt(
     plain, additional_data, serialised_header, cipher, version);
-  encryptor->set_view(1);
+  encryptor->set_iv_id(1);
   encryptor->encrypt(
     plain, additional_data, serialised_header2, cipher2, version);
 
@@ -93,10 +123,9 @@ TEST_CASE("Two ciphers from same plaintext are different - PbftTxEncryptor")
 TEST_CASE("Additional data")
 {
   // Setting 1 ledger secret, valid for version 1+
-  uint64_t node_id = 0;
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(node_id, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
 
   std::vector<uint8_t> plain(128, 0x42);
   std::vector<uint8_t> cipher;
@@ -131,7 +160,8 @@ TEST_CASE("Encryption/decryption with multiple ledger secrets")
   auto secrets = std::make_shared<ccf::LedgerSecrets>();
   secrets->init();
   secrets->add_new_secret(4, LedgerSecret());
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(node_id, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(node_id);
 
   INFO("Encryption with key at version 1");
   {

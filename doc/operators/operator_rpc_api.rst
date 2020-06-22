@@ -3,12 +3,12 @@ Operator RPC API
 
 As well as the following methods, :ref:`users/rpc_api:Common Methods` are also available to operators.
 
-getQuote
---------
+quote
+-----
 
 Retrieves quote of single contacted node.
 
-.. literalinclude:: ../schemas/getQuote_result.json
+.. literalinclude:: ../schemas/quote_result.json
     :language: json
 
 Example
@@ -26,12 +26,12 @@ Example
         ]
     }
 
-getQuotes
----------
+quotes
+------
 
 Retrieves quotes of all trusted nodes.
 
-.. literalinclude:: ../schemas/getQuotes_result.json
+.. literalinclude:: ../schemas/quotes_result.json
     :language: json
 
 Example
@@ -54,10 +54,10 @@ Example
         ]
     }
 
-getSignedIndex
---------------
+signed_index
+------------
 
-.. literalinclude:: ../schemas/getSignedIndex_result.json
+.. literalinclude:: ../schemas/signed_index_result.json
     :language: json
 
 Example

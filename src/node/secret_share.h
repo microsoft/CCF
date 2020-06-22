@@ -5,7 +5,8 @@
 #include "tls/entropy.h"
 
 #include <array>
-#include <fmt/format_header_only.h>
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <iostream>
 #include <optional>
 #include <vector>
@@ -40,13 +41,16 @@ namespace ccf
     {
       if (n == 0 || n > MAX_NUMBER_SHARES)
       {
-        throw std::logic_error(
-          fmt::format("n not in 1-{} range", MAX_NUMBER_SHARES));
+        throw std::logic_error(fmt::format(
+          "Share creation failed: n ({}) not in 1-{} range",
+          n,
+          MAX_NUMBER_SHARES));
       }
 
       if (k == 0 || k > n)
       {
-        throw std::logic_error(fmt::format("k not in 1-n range (n: {})", n));
+        throw std::logic_error(fmt::format(
+          "Share creation failed: k not in 1-n range (k: {}, n: {})", k, n));
       }
 
       std::vector<Share> shares(n);
@@ -64,8 +68,10 @@ namespace ccf
     {
       if (k == 0 || k > shares.size())
       {
-        throw std::logic_error(
-          fmt::format("k not in 1-n range (n: {})", shares.size()));
+        throw std::logic_error(fmt::format(
+          "Share combination failed: k not in 1-n range (k: {}, n: {})",
+          k,
+          shares.size()));
       }
 
       SplitSecret restored_secret;

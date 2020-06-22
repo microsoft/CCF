@@ -4,10 +4,10 @@
 // Licensed under the MIT license.
 #include "network_open.h"
 
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "message_tags.h"
 #include "node.h"
-#include "pbft_assert.h"
 
 Network_open::Network_open(int id) :
   Message(Network_open_tag, sizeof(Network_open_rep))
@@ -22,6 +22,6 @@ int Network_open::id() const
 
 Network_open_rep& Network_open::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Network_open_rep*)msg);
 }

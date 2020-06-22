@@ -57,6 +57,8 @@ def get_common_folder_name(workspace, label):
 
 class Network:
     KEY_GEN = "keygenerator.sh"
+    SHARE_SCRIPT = "submit_recovery_share.sh"
+    DEFUNCT_NETWORK_ENC_PUBK = "network_enc_pubk_orig.pem"
     node_args_to_forward = [
         "enclave_type",
         "host_log_level",
@@ -67,10 +69,12 @@ class Network:
         "consensus",
         "memory_reserve_startup",
         "notify_server",
-        "json_log_path",
+        "log_format_json",
         "gov_script",
         "join_timer",
         "worker_threads",
+        "ledger_chunk_max_bytes",
+        "domain",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -85,20 +89,21 @@ class Network:
         existing_network=None,
         txs=None,
     ):
-        if existing_network is None:
-            self.consortium = []
+        self.existing_network = existing_network
+        if self.existing_network is None:
+            self.consortium = None
             self.node_offset = 0
             self.txs = txs
         else:
-            self.consortium = existing_network.consortium
+            self.consortium = self.existing_network.consortium
             # When creating a new network from an existing one (e.g. for recovery),
             # the node id of the nodes of the new network should start from the node
             # id of the existing network, so that new nodes id match the ones in the
             # nodes KV table
             self.node_offset = (
-                len(existing_network.nodes) + existing_network.node_offset
+                len(self.existing_network.nodes) + self.existing_network.node_offset
             )
-            self.txs = existing_network.txs
+            self.txs = self.existing_network.txs
 
         self.ignoring_shutdown_errors = False
         self.nodes = []
@@ -107,7 +112,9 @@ class Network:
         self.status = ServiceStatus.CLOSED
         self.binary_dir = binary_dir
         self.common_dir = None
+        self.election_duration = None
         self.key_generator = os.path.join(binary_dir, self.KEY_GEN)
+        self.share_script = os.path.join(binary_dir, self.SHARE_SCRIPT)
         if not os.path.isfile(self.key_generator):
             raise FileNotFoundError(
                 f"Could not find key generator script at '{self.key_generator}' - is binary directory set correctly?"
@@ -123,6 +130,20 @@ class Network:
             return self.nodes[-1].node_id + 1
         return self.node_offset
 
+    def _adjust_local_node_ids(self, primary):
+        assert (
+            self.existing_network is None
+        ), "Cannot adjust local node IDs if the network was started from an existing network"
+
+        with primary.node_client() as nc:
+            r = nc.get("primary_info")
+            first_node_id = r.result["primary_id"]
+            assert (r.result["primary_host"] == primary.host) and (
+                int(r.result["primary_port"]) == primary.rpc_port
+            ), "Primary is not the node that just started"
+            for n in self.nodes:
+                n.node_id = n.node_id + first_node_id
+
     def create_node(self, host):
         node_id = self._get_next_local_node_id()
         debug = (
@@ -135,14 +156,16 @@ class Network:
         self.nodes.append(node)
         return node
 
-    def _add_node(self, node, lib_name, args, target_node=None):
+    def _add_node(self, node, lib_name, args, target_node=None, recovery=False):
         forwarded_args = {
             arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
         }
 
         # Contact primary if no target node is set
         if target_node is None:
-            target_node, _ = self.find_primary()
+            target_node, _ = self.find_primary(
+                timeout=args.ledger_recovery_timeout if recovery else 3
+            )
 
         node.join(
             lib_name=lib_name,
@@ -163,7 +186,7 @@ class Network:
                     raise
             node.network_state = infra.node.NodeNetworkState.joined
 
-    def _start_all_nodes(self, args, recovery=False, ledger_file=None):
+    def _start_all_nodes(self, args, recovery=False, ledger_dir=None):
         hosts = self.hosts
 
         if not args.package:
@@ -191,22 +214,38 @@ class Network:
                     else:
                         node.recover(
                             lib_name=args.package,
-                            ledger_file=ledger_file,
+                            ledger_dir=ledger_dir,
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
                             **forwarded_args,
                         )
+                        # When a recovery network in started without an existing network,
+                        # it is not possible to know the local node IDs before the first
+                        # node is started and has recovered the ledger. The local node IDs
+                        # are adjusted accordingly then.
+                        if self.existing_network is None:
+                            self.wait_for_state(
+                                node,
+                                "partOfPublicNetwork",
+                                timeout=args.ledger_recovery_timeout,
+                            )
+                            self._adjust_local_node_ids(node)
                 else:
-                    self._add_node(node, args.package, args)
+                    self._add_node(node, args.package, args, recovery=recovery)
             except Exception:
-                LOG.exception("Failed to start node {}".format(i))
+                LOG.exception("Failed to start node {}".format(node.node_id))
                 raise
-        LOG.info("All remotes started")
+
+        self.election_duration = (
+            args.pbft_view_change_timeout * 2 / 1000
+            if args.consensus == "pbft"
+            else args.raft_election_timeout * 2 / 1000
+        )
+
+        LOG.info("All nodes started")
 
         primary, _ = self.find_primary()
-        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
-
         return primary
 
     def _setup_common_folder(self, gov_script):
@@ -240,19 +279,21 @@ class Network:
 
         initial_member_ids = list(range(max(1, args.initial_member_count)))
         self.consortium = infra.consortium.Consortium(
+            self.common_dir,
+            self.key_generator,
+            self.share_script,
             initial_member_ids,
             args.participants_curve,
-            self.key_generator,
-            self.common_dir,
         )
         initial_users = list(range(max(0, args.initial_user_count)))
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-
         if args.consensus != "pbft":
             self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
+
+        self.consortium.activate(primary)
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
@@ -275,11 +316,64 @@ class Network:
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
 
-    def start_in_recovery(self, args, ledger_file):
-        self.common_dir = get_common_folder_name(args.workspace, args.label)
-        primary = self._start_all_nodes(args, recovery=True, ledger_file=ledger_file)
+    def start_in_recovery(
+        self, args, ledger_dir, common_dir=None,
+    ):
+        """
+        Starts a CCF network in recovery mode.
+        :param args: command line arguments to configure the CCF nodes.
+        :param ledger_dir: ledger directory to recover from.
+        :param common_dir: common directory containing member and user keys and certs.
+        """
+        self.common_dir = common_dir or get_common_folder_name(
+            args.workspace, args.label
+        )
+
+        primary = self._start_all_nodes(args, recovery=True, ledger_dir=ledger_dir)
+
+        # If a common directory was passed in, initialise the consortium from it
+        if common_dir is not None:
+            self.consortium = infra.consortium.Consortium(
+                common_dir, self.key_generator, self.share_script, remote_node=primary
+            )
+
+        for node in self.get_joined_nodes():
+            self.wait_for_state(
+                node, "partOfPublicNetwork", timeout=args.ledger_recovery_timeout
+            )
         self.wait_for_all_nodes_to_catch_up(primary)
-        LOG.success("All nodes joined recovered public network")
+        LOG.success("All nodes joined public network")
+
+    def recover(self, args, defunct_network_enc_pub):
+        """
+        Recovers a CCF network previously started in recovery mode.
+        :param args: command line arguments to configure the CCF nodes.
+        :param defunct_network_enc_pub: defunct network encryption public key.
+        """
+        primary, _ = self.find_primary()
+        self.consortium.check_for_service(primary, status=ServiceStatus.OPENING)
+        self.consortium.wait_for_all_nodes_to_be_trusted(primary, self.nodes)
+        self.consortium.accept_recovery(primary)
+        self.consortium.recover_with_shares(primary, defunct_network_enc_pub)
+
+        for node in self.get_joined_nodes():
+            self.wait_for_state(
+                node, "partOfNetwork", timeout=args.ledger_recovery_timeout
+            )
+
+        self.consortium.check_for_service(
+            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
+        )
+        LOG.success("***** Recovered network is now open *****")
+
+    def store_current_network_encryption_key(self):
+        cmd = [
+            "cp",
+            os.path.join(self.common_dir, "network_enc_pubk.pem"),
+            os.path.join(self.common_dir, self.DEFUNCT_NETWORK_ENC_PUBK),
+        ]
+        infra.proc.ccall(*cmd).check_returncode()
+        return os.path.join(self.common_dir, self.DEFUNCT_NETWORK_ENC_PUBK)
 
     def ignore_errors_on_shutdown(self):
         self.ignoring_shutdown_errors = True
@@ -291,7 +385,7 @@ class Network:
             if fatal_errors:
                 fatal_error_found = True
 
-        LOG.info("All remotes stopped...")
+        LOG.info("All nodes stopped...")
 
         if fatal_error_found:
             if self.ignoring_shutdown_errors:
@@ -362,15 +456,18 @@ class Network:
 
         return new_node
 
-    def create_user(self, user_id, curve):
+    def create_user(self, user_id, curve, record=True):
         infra.proc.ccall(
             self.key_generator,
-            f"--name=user{user_id}",
-            f"--curve={curve.name}",
+            "--name",
+            f"user{user_id}",
+            "--curve",
+            f"{curve.name}",
             path=self.common_dir,
             log_output=False,
         ).check_returncode()
-        self.user_ids.append(user_id)
+        if record:
+            self.user_ids.append(user_id)
 
     def create_users(self, user_ids, curve):
         for user_id in user_ids:
@@ -386,8 +483,8 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                with node.node_client() as c:
-                    r = c.get("getSignedIndex")
+                with node.node_client(connection_timeout=timeout) as c:
+                    r = c.get("signed_index")
                     if r.result["state"] == state:
                         break
             except ConnectionRefusedError:
@@ -400,37 +497,30 @@ class Network:
         if state == "partOfNetwork":
             self.status = ServiceStatus.OPEN
 
-    def wait_for_all_nodes_to_be_trusted(self, timeout=3):
-        primary, _ = self.find_primary()
-        for n in self.nodes:
-            self.consortium.wait_for_node_to_exist_in_store(
-                primary, n.node_id, timeout, infra.node.NodeStatus.TRUSTED
-            )
-
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
     def find_primary(self, timeout=3, request_timeout=3):
         """
         Find the identity of the primary in the network and return its identity
-        and the current term.
+        and the current view.
         """
         primary_id = None
-        term = None
+        view = None
 
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in self.get_joined_nodes():
                 with node.node_client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.get("getPrimaryInfo")
+                        res = c.get("primary_info")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
-                            term = res.term
+                            view = res.result["current_view"]
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
-                    except TimeoutError:
+                    except infra.clients.CCFConnectionException:
                         pass
             if primary_id is not None:
                 break
@@ -438,7 +528,7 @@ class Network:
 
         if primary_id is None:
             raise PrimaryNotFound
-        return (self._get_node_by_id(primary_id), term)
+        return (self._get_node_by_id(primary_id), view)
 
     def find_backups(self, primary=None, timeout=3):
         if primary is None:
@@ -461,22 +551,27 @@ class Network:
     def wait_for_all_nodes_to_catch_up(self, primary, timeout=3):
         """
         Wait for all nodes to have joined the network and globally replicated
-        all transactions executed on the primary (including the transactions
+        all transactions globally executed on the primary (including transactions
         which added the nodes).
         """
-        with primary.node_client() as c:
-            res = c.get("getCommit")
-            local_commit_leader = res.commit
-            term_leader = res.term
-
         end_time = time.time() + timeout
+        while time.time() < end_time:
+            with primary.node_client() as c:
+                resp = c.get("commit")
+                seqno = resp.result["seqno"]
+                view = resp.result["view"]
+                if seqno != 0:
+                    break
+            time.sleep(0.1)
+        assert (
+            seqno != 0
+        ), f"Primary {primary.node_id} has not made any progress yet (view: {view}, seqno: {seqno})"
+
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    resp = c.get(
-                        "tx", {"view": term_leader, "seqno": local_commit_leader},
-                    )
+                    resp = c.get("tx", {"view": view, "seqno": seqno})
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -485,7 +580,7 @@ class Network:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:
                         raise RuntimeError(
-                            f"Node {node.node_id} reports transaction ID {term_leader}.{local_commit_leader} is invalid and will never be committed"
+                            f"Node {node.node_id} reports transaction ID {view}.{seqno} is invalid and will never be committed"
                         )
                     else:
                         pass
@@ -507,18 +602,13 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.node_client() as c:
-                    r = c.get("getCommit")
-                    commits.append(r.commit)
+                    r = c.get("commit")
+                    commits.append(f"{r.view}.{r.seqno}")
             if [commits[0]] * len(commits) == commits:
                 break
             time.sleep(0.1)
-        # in pbft getCommit increments the commit version, so commits will not be the same
-        # but they should be in ascending order
-        assert (
-            [commits[0]] * len(commits) == commits
-            if consensus == "raft"
-            else sorted(commits) == commits
-        ), "All nodes in sync"
+        expected = [commits[0]] * len(commits)
+        assert expected == commits, f"{commits} != {expected}"
 
 
 @contextmanager

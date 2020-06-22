@@ -6,24 +6,12 @@
 
 namespace snmalloc
 {
-  inline void* lazy_replacement(void*);
-  using Alloc =
-    Allocator<GlobalVirtual, SNMALLOC_DEFAULT_CHUNKMAP, true, lazy_replacement>;
+  inline bool needs_initialisation(void*);
+  void* init_thread_allocator(function_ref<void*(void*)>);
 
-  template<class MemoryProvider>
-  class AllocPool : Pool<
-                      Allocator<
-                        MemoryProvider,
-                        SNMALLOC_DEFAULT_CHUNKMAP,
-                        true,
-                        lazy_replacement>,
-                      MemoryProvider>
+  template<class MemoryProvider, class Alloc>
+  class AllocPool : Pool<Alloc, MemoryProvider>
   {
-    using Alloc = Allocator<
-      MemoryProvider,
-      SNMALLOC_DEFAULT_CHUNKMAP,
-      true,
-      lazy_replacement>;
     using Parent = Pool<Alloc, MemoryProvider>;
 
   public:
@@ -165,19 +153,48 @@ namespace snmalloc
       UNUSED(result);
 #endif
     }
+
+    void debug_in_use(size_t count)
+    {
+      auto alloc = Parent::iterate();
+      while (alloc != nullptr)
+      {
+        if (alloc->debug_is_in_use())
+        {
+          if (count == 0)
+          {
+            error("ERROR: allocator in use.");
+          }
+          count--;
+        }
+        alloc = Parent::iterate(alloc);
+
+        if (count != 0)
+        {
+          error("Error: two few allocators in use.");
+        }
+      }
+    }
   };
 
-  inline AllocPool<GlobalVirtual>*& current_alloc_pool()
+  using Alloc = Allocator<
+    needs_initialisation,
+    init_thread_allocator,
+    GlobalVirtual,
+    SNMALLOC_DEFAULT_CHUNKMAP,
+    true>;
+
+  inline AllocPool<GlobalVirtual, Alloc>*& current_alloc_pool()
   {
     return Singleton<
-      AllocPool<GlobalVirtual>*,
-      AllocPool<GlobalVirtual>::make>::get();
+      AllocPool<GlobalVirtual, Alloc>*,
+      AllocPool<GlobalVirtual, Alloc>::make>::get();
   }
 
-  template<class MemoryProvider>
-  inline AllocPool<MemoryProvider>* make_alloc_pool(MemoryProvider& mp)
+  template<class MemoryProvider, class Alloc>
+  inline AllocPool<MemoryProvider, Alloc>* make_alloc_pool(MemoryProvider& mp)
   {
-    return AllocPool<MemoryProvider>::make(mp);
+    return AllocPool<MemoryProvider, Alloc>::make(mp);
   }
 
 } // namespace snmalloc

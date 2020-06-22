@@ -7,31 +7,43 @@
 namespace consensus
 {
   using Index = uint64_t;
+
+  enum LedgerRequestPurpose : uint8_t
+  {
+    Recovery,
+    HistoricalQuery,
+  };
+
   /// Consensus-related ringbuffer messages
   enum : ringbuffer::Message
   {
-    /// Request individual log entries. Enclave -> Host
+    /// Request individual ledger entries. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_get),
 
-    ///@{
-    /// Respond to log_get. Host -> Enclave
+    /// Respond to ledger_get. Host -> Enclave
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_entry),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_no_entry),
-    ///@}
 
-    ///@{
-    /// Modify the local log. Enclave -> Host
+    /// Modify the local ledger. Enclave -> Host
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_append),
     DEFINE_RINGBUFFER_MSG_TYPE(ledger_truncate),
-    ///@}
+    DEFINE_RINGBUFFER_MSG_TYPE(ledger_commit),
   };
 }
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_get, consensus::Index);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_entry, std::vector<uint8_t>);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_no_entry);
+  consensus::ledger_get, consensus::Index, consensus::LedgerRequestPurpose);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_append, std::vector<uint8_t>);
+  consensus::ledger_entry,
+  consensus::Index,
+  consensus::LedgerRequestPurpose,
+  std::vector<uint8_t>);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_no_entry,
+  consensus::Index,
+  consensus::LedgerRequestPurpose);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  consensus::ledger_append, bool /* committable */, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   consensus::ledger_truncate, consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_commit, consensus::Index);

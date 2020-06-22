@@ -1,13 +1,14 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 from enum import Enum
 import infra.remote
 import infra.net
 import infra.path
 import infra.clients
 import os
+import socket
 
 from loguru import logger as LOG
 
@@ -24,6 +25,15 @@ class NodeStatus(Enum):
     RETIRED = 2
 
 
+def is_addr_local(host, port):
+    with closing(socket.socket()) as s:
+        try:
+            s.bind((host, port or 0))
+            return True
+        except OSError:
+            return False
+
+
 class Node:
     def __init__(self, node_id, host, binary_dir=".", debug=False, perf=False):
         self.node_id = node_id
@@ -36,14 +46,15 @@ class Node:
 
         hosts, *port = host.split(":")
         self.host, *self.pubhost = hosts.split(",")
-        self.rpc_port = port[0] if port else None
+        self.rpc_port = int(port[0]) if port else None
+        self.node_port = None
 
         if self.host == "localhost":
             self.host = infra.net.expand_localhost()
-            self._set_ports(infra.net.probably_free_local_port)
+
+        if is_addr_local(self.host, self.rpc_port):
             self.remote_impl = infra.remote.LocalRemote
         else:
-            self._set_ports(infra.net.probably_free_remote_port)
             self.remote_impl = infra.remote.SSHRemote
 
         self.pubhost = self.pubhost[0] if self.pubhost else self.host
@@ -53,14 +64,6 @@ class Node:
 
     def __eq__(self, other):
         return self.node_id == other.node_id
-
-    def _set_ports(self, probably_free_function):
-        if self.rpc_port is None:
-            self.node_port, self.rpc_port = infra.net.two_different(
-                probably_free_function, self.host
-            )
-        else:
-            self.node_port = probably_free_function(self.host)
 
     def start(
         self,
@@ -180,7 +183,35 @@ class Node:
                 self.remote.set_perf()
             self.remote.start()
         self.remote.get_startup_files(self.common_dir)
-        LOG.info("Remote {} started".format(self.node_id))
+        self._read_ports()
+        LOG.info("Node {} started".format(self.node_id))
+
+    def _read_ports(self):
+        node_address_path = os.path.join(self.common_dir, self.remote.node_address_path)
+        with open(node_address_path, "r") as f:
+            node_host, node_port = f.read().splitlines()
+            node_port = int(node_port)
+            assert (
+                node_host == self.host
+            ), f"Unexpected change in node address from {self.host} to {node_host}"
+            if self.node_port is not None:
+                assert (
+                    node_port == self.node_port
+                ), f"Unexpected change in node port from {self.node_port} to {node_port}"
+            self.node_port = node_port
+
+        rpc_address_path = os.path.join(self.common_dir, self.remote.rpc_address_path)
+        with open(rpc_address_path, "r") as f:
+            rpc_host, rpc_port = f.read().splitlines()
+            rpc_port = int(rpc_port)
+            assert (
+                rpc_host == self.host
+            ), f"Unexpected change in RPC address from {self.host} to {rpc_host}"
+            if self.rpc_port is not None:
+                assert (
+                    rpc_port == self.rpc_port
+                ), f"Unexpected change in RPC port from {self.rpc_port} to {rpc_port}"
+            self.rpc_port = rpc_port
 
     def stop(self):
         if self.remote and self.network_state is not NodeNetworkState.stopped:
@@ -203,10 +234,10 @@ class Node:
         # is not yet endorsed by the network certificate
         try:
             with self.node_client(connection_timeout=timeout) as nc:
-                rep = nc.get("getCommit")
+                rep = nc.get("commit")
                 assert (
                     rep.error is None and rep.result is not None
-                ), f"An error occured after node {self.node_id} joined the network"
+                ), f"An error occured after node {self.node_id} joined the network: {rep.error}"
         except infra.clients.CCFConnectionException:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
@@ -215,7 +246,7 @@ class Node:
 
     def user_client(self, user_id=0, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=os.path.join(self.common_dir, f"user{user_id}_cert.pem"),
             key=os.path.join(self.common_dir, f"user{user_id}_privk.pem"),
@@ -226,9 +257,9 @@ class Node:
             **kwargs,
         )
 
-    def node_client(self, timeout=3, **kwargs):
+    def node_client(self, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=None,
             key=None,
@@ -241,7 +272,7 @@ class Node:
 
     def member_client(self, member_id=0, **kwargs):
         return infra.clients.client(
-            self.host,
+            self.pubhost,
             self.rpc_port,
             cert=os.path.join(self.common_dir, f"member{member_id}_cert.pem"),
             key=os.path.join(self.common_dir, f"member{member_id}_privk.pem"),
@@ -254,9 +285,11 @@ class Node:
 
     def suspend(self):
         self.remote.suspend()
+        LOG.info(f"Node {self.node_id} suspended...")
 
     def resume(self):
         self.remote.resume()
+        LOG.info(f"Node {self.node_id} has resumed from suspension.")
 
 
 @contextmanager

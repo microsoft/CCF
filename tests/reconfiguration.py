@@ -4,15 +4,21 @@ import infra.e2e_args
 import infra.ccf
 import infra.proc
 import suite.test_requirements as reqs
+import time
 
 from loguru import logger as LOG
 
 
-def check_can_progress(node):
-    with node.node_client() as mc:
-        check_commit = infra.checker.Checker(mc)
-        with node.node_client() as c:
-            check_commit(c.rpc("mkSign"), result=True)
+def check_can_progress(node, timeout=3):
+    with node.node_client() as c:
+        r = c.get("commit")
+        c.rpc("mkSign")
+        end_time = time.time() + timeout
+        while time.time() < end_time:
+            if c.get("commit").result["seqno"] > r.result["seqno"]:
+                return
+            time.sleep(0.1)
+        assert False, f"Stuck at {r}"
 
 
 @reqs.description("Adding a valid node from primary")
@@ -23,6 +29,7 @@ def test_add_node(network, args):
 
 
 @reqs.description("Adding a valid node from a backup")
+@reqs.at_least_n_nodes(2)
 def test_add_node_from_backup(network, args):
     backup = network.find_any_backup()
     new_node = network.create_and_trust_node(

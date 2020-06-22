@@ -60,23 +60,23 @@ namespace snmalloc
   {
     /**
      * Flag to protect the bump allocator
-     **/
+     */
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
 
     /**
      * Pointer to block being bump allocated
-     **/
+     */
     void* bump = nullptr;
 
     /**
      * Space remaining in this block being bump allocated
-     **/
+     */
     size_t remaining = 0;
 
     /**
      * Simple flag for checking if another instance of lazy-decommit is
      * running
-     **/
+     */
     std::atomic_flag lazy_decommit_guard = {};
 
   public:
@@ -87,7 +87,7 @@ namespace snmalloc
 
     /**
      * Make a new memory provide for this PAL.
-     **/
+     */
     static MemoryProviderStateMixin<PAL>* make() noexcept
     {
       // Temporary stack-based storage to start the allocator in.
@@ -125,6 +125,12 @@ namespace snmalloc
     {
       // Reserve the smallest large_class which is SUPERSLAB_SIZE
       void* r = reserve<false>(0);
+
+      if (r == nullptr)
+        Pal::error(
+          "Unrecoverable internal error: \
+          failed to allocator internal data structure.");
+
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
 
       bump = r;
@@ -179,25 +185,26 @@ namespace snmalloc
 
     void push_space(address_t start, size_t large_class)
     {
+      // All fresh pages so can use "NoZero"
       void* p = pointer_cast<void>(start);
       if (large_class > 0)
-        PAL::template notify_using<YesZero>(p, OS_PAGE_SIZE);
+        PAL::template notify_using<NoZero>(p, OS_PAGE_SIZE);
       else
       {
         if (decommit_strategy == DecommitSuperLazy)
         {
-          PAL::template notify_using<YesZero>(p, OS_PAGE_SIZE);
+          PAL::template notify_using<NoZero>(p, OS_PAGE_SIZE);
           p = new (p) Decommittedslab();
         }
         else
-          PAL::template notify_using<YesZero>(p, SUPERSLAB_SIZE);
+          PAL::template notify_using<NoZero>(p, SUPERSLAB_SIZE);
       }
       large_stack[large_class].push(reinterpret_cast<Largeslab*>(p));
     }
 
     /***
      * Method for callback object to perform lazy decommit.
-     **/
+     */
     static void process(PalNotificationObject* p)
     {
       // Unsafe downcast here. Don't want vtable and RTTI.
@@ -273,6 +280,9 @@ namespace snmalloc
         // large_stack
         size_t request = bits::max(size * 4, SUPERSLAB_SIZE * 8);
         void* p = PAL::template reserve<false>(request);
+
+        if (p == nullptr)
+          return nullptr;
 
         address_t p0 = address_cast(p);
         address_t start = bits::align_up(p0, align);
@@ -354,7 +364,10 @@ namespace snmalloc
       if (p == nullptr)
       {
         p = memory_provider.template reserve<false>(large_class);
-        memory_provider.template notify_using<zero_mem>(p, size);
+        if (p == nullptr)
+          return nullptr;
+        memory_provider.template notify_using<zero_mem>(
+          p, bits::align_up(size, OS_PAGE_SIZE));
       }
       else
       {

@@ -52,7 +52,7 @@ bool Req_queue::is_in_rqueue(Request* r)
 
 Request* Req_queue::remove()
 {
-  uint32_t tcount = enclave::ThreadMessaging::thread_count;
+  uint32_t tcount = threading::ThreadMessaging::thread_count;
   tcount = std::max(tcount, (uint32_t)1);
 
   bool found = false;
@@ -73,7 +73,7 @@ Request* Req_queue::remove()
 
   auto rn = rnodes[count % tcount].pop();
   Request* ret = rn->r.release();
-  PBFT_ASSERT(ret != 0, "Invalid state");
+  CCF_ASSERT(ret != 0, "Invalid state");
 
   nelems--;
   nbytes -= ret->size();
@@ -82,6 +82,7 @@ Request* Req_queue::remove()
   auto it = reqs[user_id].find({(size_t)ret->client_id(), ret->request_id()});
   reqs[user_id].erase(it);
 
+  count++;
   return ret;
 }
 
@@ -106,7 +107,7 @@ bool Req_queue::remove(int cid, Request_id rid, int user_id)
 
 void Req_queue::clear()
 {
-  uint32_t tcount = enclave::ThreadMessaging::thread_count;
+  uint32_t tcount = threading::ThreadMessaging::thread_count;
   // There is a corner case when we run the very first transaction that
   // thread_count can be 0. The use of std::max is a work around.
   tcount = std::max(tcount, (uint32_t)1);

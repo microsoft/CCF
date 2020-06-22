@@ -20,4 +20,5 @@ CURL_CLIENT=ON \
     python "${PATH_HERE}"/tests/start_network.py \
     --gov-script "${PATH_HERE}"/src/runtime_config/gov.lua \
     --label test_network \
+    --ledger-chunk-max-bytes 5MB \
     "$@"

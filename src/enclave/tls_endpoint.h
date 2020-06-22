@@ -5,6 +5,7 @@
 #include "ds/logger.h"
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
+#include "ds/thread_messaging.h"
 #include "endpoint.h"
 #include "tls/context.h"
 #include "tls/msg_types.h"
@@ -65,10 +66,10 @@ namespace enclave
       ctx(move(ctx_)),
       status(handshake)
     {
-      if (enclave::ThreadMessaging::thread_count > 1)
+      if (threading::ThreadMessaging::thread_count > 1)
       {
         execution_thread =
-          (session_id_ % (enclave::ThreadMessaging::thread_count - 1)) + 1;
+          (session_id_ % (threading::ThreadMessaging::thread_count - 1)) + 1;
       }
       else
       {
@@ -207,7 +208,7 @@ namespace enclave
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      if (threading::get_current_thread_id() != execution_thread)
       {
         throw std::exception();
       }
@@ -221,7 +222,7 @@ namespace enclave
       std::shared_ptr<Endpoint> self;
     };
 
-    static void send_raw_cb(std::unique_ptr<enclave::Tmsg<SendRecvMsg>> msg)
+    static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
       reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
         ->send_raw_thread(msg->data.data);
@@ -229,17 +230,17 @@ namespace enclave
 
     void send_raw(const std::vector<uint8_t>& data)
     {
-      auto msg = std::make_unique<enclave::Tmsg<SendRecvMsg>>(&send_raw_cb);
+      auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
       msg->data.self = this->shared_from_this();
       msg->data.data = data;
 
-      enclave::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
+      threading::ThreadMessaging::thread_messaging.add_task<SendRecvMsg>(
         execution_thread, std::move(msg));
     }
 
     void send_raw_thread(std::vector<uint8_t>& data)
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      if (threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("running from incorrect thread");
       }
@@ -264,7 +265,7 @@ namespace enclave
 
     void send_buffered(const std::vector<uint8_t>& data)
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      if (threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("running from incorrect thread");
       }
@@ -274,7 +275,7 @@ namespace enclave
 
     void flush()
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      if (threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("running from incorrect thread");
       }
@@ -496,7 +497,7 @@ namespace enclave
 
     int handle_recv(uint8_t* buf, size_t len)
     {
-      if (thread_ids[std::this_thread::get_id()] != execution_thread)
+      if (threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("running from incorrect thread");
       }

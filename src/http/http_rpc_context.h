@@ -5,6 +5,8 @@
 #include "enclave/rpc_context.h"
 #include "http_parser.h"
 #include "http_sig.h"
+#include "ws_parser.h"
+#include "ws_rpc_context.h"
 
 namespace http
 {
@@ -33,6 +35,19 @@ namespace http
     ctx.set_method(remaining_path);
     return actor;
   }
+
+  static std::vector<uint8_t> error(size_t code, const std::string& msg)
+  {
+    http_status status = (http_status)code;
+    std::vector<uint8_t> data(msg.begin(), msg.end());
+    auto response = http::Response(status);
+
+    response.set_header(
+      http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+    response.set_body(&data);
+
+    return response.build_response();
+  };
 
   class HttpRpcContext : public enclave::RpcContext
   {
@@ -171,9 +186,30 @@ namespace http
       }
     }
 
+    virtual enclave::FrameFormat frame_format() const override
+    {
+      return enclave::FrameFormat::http;
+    }
+
     virtual size_t get_request_index() const override
     {
       return request_index;
+    }
+
+    virtual void set_seqno(kv::Version sn) override
+    {
+      set_response_header(http::headers::CCF_TX_SEQNO, fmt::format("{}", sn));
+    }
+
+    virtual void set_view(kv::Consensus::View v) override
+    {
+      set_response_header(http::headers::CCF_TX_VIEW, fmt::format("{}", v));
+    }
+
+    virtual void set_global_commit(kv::Version gc) override
+    {
+      set_response_header(
+        http::headers::CCF_GLOBAL_COMMIT, fmt::format("{}", gc));
     }
 
     virtual const std::vector<uint8_t>& get_request_body() const override
@@ -291,6 +327,12 @@ namespace http
       http_response.set_body(&response_body);
       return http_response.build_response();
     }
+
+    virtual std::vector<uint8_t> serialise_error(
+      size_t code, const std::string& msg) const override
+    {
+      return error(code, msg);
+    }
   };
 }
 
@@ -338,5 +380,87 @@ namespace enclave
       msg.body,
       packed,
       raw_pbft);
+  }
+
+  inline std::shared_ptr<enclave::RpcContext> make_fwd_rpc_context(
+    std::shared_ptr<enclave::SessionContext> s,
+    const std::vector<uint8_t>& packed,
+    enclave::FrameFormat frame_format,
+    const std::vector<uint8_t>& raw_pbft = {})
+  {
+    http::SimpleRequestProcessor processor;
+
+    switch (frame_format)
+    {
+      case enclave::FrameFormat::http:
+      {
+        http::RequestParser parser(processor);
+        const auto parsed_count = parser.execute(packed.data(), packed.size());
+        if (parsed_count != packed.size())
+        {
+          const auto err_no = (http_errno)parser.get_raw_parser()->http_errno;
+          throw std::logic_error(fmt::format(
+            "Failed to fully parse HTTP request. Parsed only {} bytes. Error "
+            "code "
+            "{} ({}: {})",
+            parsed_count,
+            err_no,
+            http_errno_name(err_no),
+            http_errno_description(err_no)));
+        }
+
+        if (processor.received.size() != 1)
+        {
+          throw std::logic_error(fmt::format(
+            "Expected packed to contain a single complete HTTP message. "
+            "Actually "
+            "parsed {} messages",
+            processor.received.size()));
+        }
+
+        const auto& msg = processor.received.front();
+
+        return std::make_shared<http::HttpRpcContext>(
+          0,
+          s,
+          msg.method,
+          msg.path,
+          msg.query,
+          msg.headers,
+          msg.body,
+          packed,
+          raw_pbft);
+      }
+      case enclave::FrameFormat::ws:
+      {
+        ws::RequestParser parser(processor);
+
+        auto next_read = 2;
+        auto index = 0;
+        while (index < packed.size())
+        {
+          auto chunk = std::vector(
+            packed.begin() + index, packed.begin() + index + next_read);
+          index += next_read;
+          next_read = parser.consume(chunk);
+        }
+
+        if (processor.received.size() != 1)
+        {
+          throw std::logic_error(fmt::format(
+            "Expected packed to contain a single complete WS message. Actually "
+            "parsed {} messages",
+            processor.received.size()));
+        }
+
+        const auto& msg = processor.received.front();
+
+        return std::make_shared<ws::WsRpcContext>(
+          0, s, msg.path, msg.body, packed, raw_pbft);
+      }
+      default:
+        throw std::logic_error("Unknown Frame Format");
+    }
+    http::RequestParser parser(processor);
   }
 }

@@ -24,7 +24,7 @@ def run(args):
     methods_without_schema = set()
 
     def fetch_schema(client):
-        list_response = client.get("listMethods")
+        list_response = client.get("api")
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
@@ -32,22 +32,28 @@ def run(args):
 
         for method in methods:
             schema_found = False
-            schema_response = client.get("getSchema", params={"method": method})
+            schema_response = client.get("api/schema", params={"method": method})
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
             )
 
             if schema_response.result is not None:
+                if len(schema_response.result) != 1:
+                    raise ValueError(
+                        f"This test currently only handles single-verb schema responses - can't handle {method}: {json.dumps(schema_response.result, indent=2)}"
+                    )
+                _, schema_element = schema_response.result.popitem()
                 for schema_type in ["params", "result"]:
                     element_name = "{}_schema".format(schema_type)
-                    element = schema_response.result[element_name]
+                    element = schema_element[element_name]
                     target_file = build_schema_file_path(
                         args.schema_dir, method, schema_type
                     )
                     if element is not None and len(element) != 0:
                         schema_found = True
                         formatted_schema = json.dumps(element, indent=2)
+                        os.makedirs(os.path.dirname(target_file), exist_ok=True)
                         with open(target_file, "a+") as f:
                             f.seek(0)
                             previous = f.read()

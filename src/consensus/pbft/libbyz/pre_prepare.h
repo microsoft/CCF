@@ -20,9 +20,9 @@ class Prepared_cert;
 #pragma pack(1)
 struct IncludedSig
 {
+  Digest nonce;
   uint8_t pid;
   size_t sig_size;
-  Digest nonce;
   PbftSignature sig;
 };
 #pragma pack(pop)
@@ -201,11 +201,16 @@ public:
     // Requires: Pre_prepare is known to be valid
     // Effects: Return an iterator for the valid principal prepare proofs in "m
 
-    bool get(int& id, bool& is_valid_proof, Digest& prepare_digest);
+    bool get(
+      int& id,
+      bool& is_valid_proof,
+      Digest& prepare_digest,
+      bool is_null_op = false);
     // Effects: Updates "proofs" to "point" to the next proof's "IncludedSig"
     // pid in the Pre_prepare message and returns true. If there are no more
     // proofs left to process, it returns false. "is_valid_proof" indicates
-    // whether the proof is valid or not
+    // whether the proof is valid or not. Null ops are not signed, and therefore
+    // their signature is not checked
 
   private:
     Pre_prepare* msg;
@@ -287,21 +292,21 @@ private:
 
 inline Pre_prepare_rep& Pre_prepare::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((Pre_prepare_rep*)msg);
 }
 
 inline char* Pre_prepare::requests()
 {
   char* ret = contents() + sizeof(Pre_prepare_rep);
-  PBFT_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
   return ret;
 }
 
 inline Digest* Pre_prepare::big_reqs()
 {
   char* ret = requests() + rep().rset_size;
-  PBFT_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(ret), "Improperly aligned pointer");
   return (Digest*)ret;
 }
 
@@ -338,7 +343,7 @@ inline Seqno Pre_prepare::seqno() const
 
 inline bool Pre_prepare::match(const Prepare* p) const
 {
-  PBFT_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
+  CCF_ASSERT(view() == p->view() && seqno() == p->seqno(), "Invalid argument");
   return digest() == p->digest();
 }
 
@@ -354,7 +359,7 @@ inline int16_t Pre_prepare::num_big_reqs() const
 
 inline Digest& Pre_prepare::big_req_digest(int i)
 {
-  PBFT_ASSERT(i >= 0 && i < num_big_reqs(), "Invalid argument");
+  CCF_ASSERT(i >= 0 && i < num_big_reqs(), "Invalid argument");
   return *(big_reqs() + i);
 }
 

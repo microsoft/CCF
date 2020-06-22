@@ -6,6 +6,8 @@
 #include <cstdint>
 
 #define SNMALLOC_ASSERT assert
+#define ALWAYSINLINE __attribute__((always_inline))
+#define SNMALLOC_FAST_PATH inline ALWAYSINLINE
 
 namespace snmalloc
 {

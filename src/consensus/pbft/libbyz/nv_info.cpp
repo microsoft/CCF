@@ -127,7 +127,7 @@ View_change* NV_info::mark_stale(int id)
       New_view* nv = new New_view(ov);
       add(nv, vi);
 
-      PBFT_ASSERT(pres != 0, "Invalid state");
+      CCF_ASSERT(pres != 0, "Invalid state");
       if (can_add(pres.get()))
       {
         add(std::move(pres));
@@ -139,7 +139,7 @@ View_change* NV_info::mark_stale(int id)
 
 bool NV_info::add(New_view* m, View_info* parent)
 {
-  PBFT_ASSERT(parent != 0, "Invalid argument");
+  CCF_ASSERT(parent != 0, "Invalid argument");
 
   if (m->view() <= v)
   {
@@ -173,7 +173,7 @@ bool NV_info::add(New_view* m, View_info* parent)
 
 bool NV_info::can_add(View_change* m)
 {
-  PBFT_ASSERT(m->view() == v, "Invalid argument");
+  CCF_ASSERT(m->view() == v, "Invalid argument");
 
   int vcid = m->id();
   if (vcs[vcid].vc != 0 || is_complete)
@@ -208,13 +208,13 @@ void NV_info::add(std::unique_ptr<View_change> m)
 #ifdef USE_PKEY_VIEW_CHANGES
   if (is_primary)
   {
-    nv->add_view_change(vcid, vc->digest());
+    nv->add_view_change(vcid, vc->digest(), vc->signature(), vc->sig_size());
     summarize(vc);
   }
 #else
   if (is_primary && vcid == pbft::GlobalState::get_node().id())
   {
-    nv->add_view_change(vcid, vc->digest());
+    nv->add_view_change(vcid, vc->digest(), vc->signature(), vc->sig_size());
     summarize(vc);
   }
 #endif
@@ -226,15 +226,15 @@ void NV_info::add(std::unique_ptr<View_change> m)
     if (!check_new_view())
     {
       // Primary is faulty.
-      LOG_FAIL << "Primary " << pbft::GlobalState::get_node().primary(v)
-               << " is faulty" << std::endl;
+      LOG_FAIL_FMT(
+        "Primary {} is faulty", pbft::GlobalState::get_node().primary(v));
     }
   }
 }
 
 bool NV_info::add(View_change_ack* m)
 {
-  PBFT_ASSERT(m->verify() && m->view() == v, "Invalid argument");
+  CCF_ASSERT(m->verify() && m->view() == v, "Invalid argument");
 
   int vci = m->vc_id();
   int mid = m->id();
@@ -280,7 +280,7 @@ bool NV_info::add(View_change_ack* m)
     {
       // This view change has enough acks: add it to the new-view.
       auto vc = vcs[vci].vc.get();
-      nv->add_view_change(vci, vc->digest());
+      nv->add_view_change(vci, vc->digest(), vc->signature(), vc->sig_size());
       summarize(vc);
     }
   }
@@ -290,7 +290,7 @@ bool NV_info::add(View_change_ack* m)
 
 void NV_info::summarize(View_change* vc)
 {
-  PBFT_ASSERT(!is_complete, "Invalid state");
+  CCF_ASSERT(!is_complete, "Invalid state");
 
   int size = ckpts.size();
   bool was_chosen = chosen_ckpt >= 0;
@@ -391,14 +391,14 @@ void NV_info::summarize(View_change* vc)
 
 void NV_info::choose_ckpt(int index)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     pbft::GlobalState::get_node().primary(v) ==
       pbft::GlobalState::get_node().id(),
     "Invalid state");
-  PBFT_ASSERT(index >= 0 && index < ckpts.size(), "Out of bounds");
+  CCF_ASSERT(index >= 0 && index < ckpts.size(), "Out of bounds");
 
   Ckpt_sum& cur = ckpts[index];
-  PBFT_ASSERT(
+  CCF_ASSERT(
     cur.n_proofs >= pbft::GlobalState::get_node().f() + 1 &&
       cur.n_le >= pbft::GlobalState::get_node().num_correct_replicas(),
     "Invalid argument");
@@ -459,7 +459,7 @@ void NV_info::choose_ckpt(int index)
 
 void NV_info::check_comp(Req_sum& cur, Seqno i, int j)
 {
-  PBFT_ASSERT(!is_complete, "Invalid state");
+  CCF_ASSERT(!is_complete, "Invalid state");
 
   if (
     comp_reqs[i - base] < 0 &&
@@ -522,7 +522,7 @@ void NV_info::check_comp(Req_sum& cur, Seqno i, int j)
       auto vc = vcs[nv->which_picked(nv->min())].vc.get();
       Seqno n = vc->last_stable();
       vc->ckpt(n, d);
-      PBFT_ASSERT(!d.is_zero(), "Invalid state");
+      CCF_ASSERT(!d.is_zero(), "Invalid state");
       Seqno ks = known_stable();
       pbft::GlobalState::get_replica().process_new_view(n, d, nv->max(), ks);
     }
@@ -531,7 +531,7 @@ void NV_info::check_comp(Req_sum& cur, Seqno i, int j)
 
 Seqno NV_info::known_stable()
 {
-  PBFT_ASSERT(is_complete, "Invalid state");
+  CCF_ASSERT(is_complete, "Invalid state");
 
   Seqno* maxs = new Seqno[pbft::GlobalState::get_node().num_of_replicas()];
 
@@ -545,7 +545,7 @@ Seqno NV_info::known_stable()
     maxs,
     pbft::GlobalState::get_node().num_of_replicas(),
     Seqno_max);
-  PBFT_ASSERT(max_stable1 <= min, "Invalid state");
+  CCF_ASSERT(max_stable1 <= min, "Invalid state");
 
   for (int i = 0; i < pbft::GlobalState::get_node().num_of_replicas(); i++)
   {
@@ -597,7 +597,7 @@ void NV_info::get_proofs(Req_sum& cur, View_change* vc, Seqno i)
     {
       cur.n_proofs++;
       cur.n_pproofs++;
-      PBFT_ASSERT(
+      CCF_ASSERT(
         !cur.r_pproofs.test(vc->id()), "Counting pproof more than once");
       cur.r_pproofs.set(vc->id());
     }
@@ -608,7 +608,7 @@ void NV_info::get_proofs(Req_sum& cur, View_change* vc, Seqno i)
     {
       cur.n_proofs++;
       cur.n_pproofs++;
-      PBFT_ASSERT(
+      CCF_ASSERT(
         !cur.r_pproofs.test(vc->id()), "Counting pproof more than once");
       cur.r_pproofs.set(vc->id());
     }
@@ -621,9 +621,9 @@ void NV_info::get_proofs(Req_sum& cur, View_change* vc, Seqno i)
 
 void NV_info::summarize_reqs(View_change* vc)
 {
-  PBFT_ASSERT(vc != 0 && nv->view_change(vc->id()), "Invalid argument");
-  PBFT_ASSERT(!vcs[vc->id()].req_sum, "Invalid argument");
-  PBFT_ASSERT(!is_complete, "Invalid state");
+  CCF_ASSERT(vc != 0 && nv->view_change(vc->id()), "Invalid argument");
+  CCF_ASSERT(!vcs[vc->id()].req_sum, "Invalid argument");
+  CCF_ASSERT(!is_complete, "Invalid state");
 
   vcs[vc->id()].req_sum = true;
 
@@ -647,7 +647,7 @@ void NV_info::summarize_reqs(View_change* vc)
         match = true;
         cur.n_proofs++;
         cur.n_pproofs++;
-        PBFT_ASSERT(
+        CCF_ASSERT(
           !cur.r_pproofs.test(vc->id()), "Counting pproof more than once");
         cur.r_pproofs.set(vc->id());
         cur.n_le++;
@@ -700,12 +700,12 @@ void NV_info::summarize_reqs(View_change* vc)
 
 void NV_info::make_new_view()
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     pbft::GlobalState::get_node().primary(v) ==
       pbft::GlobalState::get_node().id(),
     "Invalid state");
-  PBFT_ASSERT(is_complete, "Invalid state");
-  PBFT_ASSERT(nv_sent == zero_time(), "Invalid state");
+  CCF_ASSERT(is_complete, "Invalid state");
+  CCF_ASSERT(nv_sent == zero_time(), "Invalid state");
 
   nv->set_min(min);
 
@@ -715,10 +715,10 @@ void NV_info::make_new_view()
   // Pick the requests.
   for (Seqno i = min + 1; i < max; i++)
   {
-    PBFT_ASSERT(comp_reqs[i - base] >= 0, "Invalid state");
+    CCF_ASSERT(comp_reqs[i - base] >= 0, "Invalid state");
     Req_sum& cur = reqs[i - base][comp_reqs[i - base]];
 
-    PBFT_ASSERT(cur.pp_info.is_complete() || cur.v == -1, "Invalid state");
+    CCF_ASSERT(cur.pp_info.is_complete() || cur.v == -1, "Invalid state");
     nv->pick(cur.id, i);
   }
 
@@ -734,7 +734,7 @@ void NV_info::make_new_view()
 
 bool NV_info::check_new_view()
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     pbft::GlobalState::get_node().primary(v) !=
       pbft::GlobalState::get_node().id(),
     "Invalid state");
@@ -871,8 +871,8 @@ bool NV_info::check_new_view()
 
 Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d, View& prev_view)
 {
-  PBFT_ASSERT(is_complete, "Invalid state");
-  PBFT_ASSERT(n > nv->min() && n < nv->max(), "Invalid arguments");
+  CCF_ASSERT(is_complete, "Invalid state");
+  CCF_ASSERT(n > nv->min() && n < nv->max(), "Invalid arguments");
 
   Pre_prepare* pp = 0;
   Digest null;
@@ -884,7 +884,7 @@ Pre_prepare* NV_info::fetch_request(Seqno n, Digest& d, View& prev_view)
     pp = reqs[n - base][comp_reqs[n - base]].pp_info.pre_prepare();
     reqs[n - base][comp_reqs[n - base]].pp_info.zero();
     prev_view = pv;
-    PBFT_ASSERT(pp != 0, "Invalid state");
+    CCF_ASSERT(pp != 0, "Invalid state");
   }
   else
   {
@@ -1046,7 +1046,7 @@ void NV_info::add_missing(Prepare* p)
           !cur.r_pproofs.test(p->id()))
         {
           cur.n_pproofs++;
-          PBFT_ASSERT(
+          CCF_ASSERT(
             !cur.r_pproofs.test(p->id()), "Counting pproof more than once");
           cur.r_pproofs.set(p->id());
           check_comp(cur, pn, j);

@@ -46,16 +46,13 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         choices=("trace", "debug", "info", "fail", "fatal"),
     )
     parser.add_argument(
-        "--json-log-path",
-        help="Path to directory where the json logger output will be sent to. \
-        The json logs will be dumped into a file named <json_log_path>/{label}_{node_id}",
-        default=os.getenv("JSON_LOG_PATH", None),
+        "--log-format-json",
+        help="Set node stdout log format to JSON",
+        action="store_true",
+        default=False,
     )
     parser.add_argument(
-        "-g",
-        "--gov-script",
-        help="Path to governance script",
-        default="../src/runtime_config/gov.lua",
+        "-g", "--gov-script", help="Path to governance script",
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")
@@ -121,8 +118,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     )
     parser.add_argument(
         "--domain",
-        help="Domain name used for node certificate verification",
-        default="example.com",
+        help="Domain name used for node certificate verification, eg. example.com",
     )
     parser.add_argument(
         "--participants-curve",
@@ -148,6 +144,17 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         help="Number of users when intializing the network",
         type=int,
         default=3,
+    )
+    parser.add_argument(
+        "--ledger-recovery-timeout",
+        help="On recovery, maximum timeout (s) while reading the ledger",
+        type=int,
+        default=10,
+    )
+    parser.add_argument(
+        "--ledger-chunk-max-bytes",
+        help="Minimum size (bytes) at which a new ledger chunk is created.",
+        default="20KB",
     )
 
     add(parser)

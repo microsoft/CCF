@@ -1,0 +1,5 @@
+workspace: "/tmp/"
+ccf_ver: "0.11"
+ccf_tarball: "ccf.tar.gz"
+ccf_url: "https://github.com/microsoft/CCF/releases/download/{{ ccf_ver }}/{{ ccf_tarball }}"
+ccf_prefix: "/opt/openenclave"

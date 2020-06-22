@@ -3,12 +3,14 @@
 #pragma once
 
 #include "ring_buffer.h"
+#include "thread_ids.h"
 
 #include <chrono>
 #include <cstring>
 #include <ctime>
-#include <fmt/format_header_only.h>
-#include <fmt/time.h>
+#define FMT_HEADER_ONLY
+#include <fmt/chrono.h>
+#include <fmt/format.h>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -19,14 +21,12 @@
 #include <string>
 #include <thread>
 
-extern std::map<std::thread::id, uint16_t> thread_ids;
-
 namespace logger
 {
   enum Level
   {
     TRACE = 0,
-    DBG, // events useful for debugging
+    DEBUG, // events useful for debugging
     INFO, // important events that should be logged even in release mode
     FAIL, // important failures that should always be logged
     FATAL, // fatal errors that lead to a termination of the program/enclave
@@ -78,11 +78,9 @@ namespace logger
     }
   };
 
-  class JsonLogger : public AbstractLogger
+  class JsonConsoleLogger : public AbstractLogger
   {
   public:
-    JsonLogger(std::string log_path) : AbstractLogger(log_path) {}
-
     std::string format(
       const std::string& file_name,
       size_t line_number,
@@ -129,9 +127,14 @@ namespace logger
         j["m"].dump());
     }
 
-    void write(const std::string& log_line) override
+    virtual void write(const std::string& log_line) override
     {
-      dump(log_line);
+      std::cout << log_line;
+    }
+
+    std::ostream& get_stream() override
+    {
+      return std::cout;
     }
   };
 
@@ -222,14 +225,22 @@ namespace logger
 
     static inline std::vector<std::unique_ptr<AbstractLogger>>& loggers()
     {
-      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
-      static bool initialized = false;
-      if (!initialized)
-      {
-        initialized = true;
-        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
-      }
+      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
+      try_initialize();
       return the_loggers;
+    }
+
+    static inline void initialize_with_json_console()
+    {
+      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
+      if (the_loggers.size() > 0)
+      {
+        the_loggers.front() = std::move(std::make_unique<JsonConsoleLogger>());
+      }
+      else
+      {
+        the_loggers.emplace_back(std::make_unique<JsonConsoleLogger>());
+      }
     }
 
     static inline Level& level()
@@ -296,6 +307,22 @@ namespace logger
     {
       return l >= level();
     }
+
+  private:
+    static inline void try_initialize()
+    {
+      std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
+      if (the_loggers.size() == 0)
+      {
+        the_loggers.emplace_back(std::make_unique<ConsoleLogger>());
+      }
+    }
+
+    static inline std::vector<std::unique_ptr<AbstractLogger>>& get_loggers()
+    {
+      static std::vector<std::unique_ptr<AbstractLogger>> the_loggers;
+      return the_loggers;
+    }
   };
 
   class LogLine
@@ -316,7 +343,7 @@ namespace logger
       line_number(line_number),
       log_level(ll),
 #ifdef INSIDE_ENCLAVE
-      thread_id(thread_ids[std::this_thread::get_id()])
+      thread_id(threading::get_current_thread_id())
 #else
       thread_id(100)
 #endif
@@ -486,8 +513,8 @@ namespace logger
 #define LOG_TRACE_FMT(...) LOG_TRACE << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_DEBUG \
-  logger::config::ok(logger::DBG) && \
-    logger::Out() == logger::LogLine(logger::DBG, __FILE__, __LINE__)
+  logger::config::ok(logger::DEBUG) && \
+    logger::Out() == logger::LogLine(logger::DEBUG, __FILE__, __LINE__)
 #define LOG_DEBUG_FMT(...) LOG_DEBUG << fmt::format(__VA_ARGS__) << std::endl
 
 #define LOG_INFO \

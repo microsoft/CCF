@@ -3,6 +3,7 @@
 #pragma once
 
 #include "entities.h"
+#include "kv/map.h"
 
 #include <map>
 #include <msgpack/msgpack.hpp>
@@ -39,6 +40,9 @@ namespace ccf
     MSGPACK_DEFINE(version, encrypted_data)
   };
 
+  DECLARE_JSON_TYPE(LatestLedgerSecret)
+  DECLARE_JSON_REQUIRED_FIELDS(LatestLedgerSecret, version, encrypted_data)
+
   struct RecoverySharesInfo
   {
     // Keeping track of the latest and penultimate ledger secret allows the
@@ -62,7 +66,14 @@ namespace ccf
       encrypted_shares);
   };
 
+  DECLARE_JSON_TYPE(RecoverySharesInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    RecoverySharesInfo,
+    wrapped_latest_ledger_secret,
+    encrypted_previous_ledger_secret,
+    encrypted_shares)
+
   // The key for this table will always be 0 since a live service never needs to
   // access historical recovery shares info.
-  using Shares = Store::Map<size_t, RecoverySharesInfo>;
+  using Shares = kv::Map<size_t, RecoverySharesInfo>;
 }

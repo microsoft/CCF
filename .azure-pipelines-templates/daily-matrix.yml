@@ -26,7 +26,8 @@ jobs:
       cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
       suffix: 'Coverage'
       artifact_name: 'NoSGX_Coverage'
-      ctest_filter: '-LE "perf|suite"'
+      ctest_filter: '-LE "benchmark|perf|long_test"'
+      ctest_timeout: '300'
 
   - template: common.yml
     parameters:
@@ -36,5 +37,6 @@ jobs:
       suffix: 'Release'
       artifact_name: 'SGX_Release'
       ctest_filter: '-LE "benchmark|perf"'
+      ctest_timeout: '240'
       install_prefix: '${{ parameters.build.install.install_prefix }}'
       tls_report: true

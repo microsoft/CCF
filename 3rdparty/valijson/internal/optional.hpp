@@ -1,6 +1,4 @@
 #pragma once
-#ifndef __VALIJSON_OPTIONAL_HPP
-#define __VALIJSON_OPTIONAL_HPP
 
 #if __cplusplus >= 201703
 // Visual C++ only supports __has_include in versions 14.12 and greater
@@ -13,6 +11,4 @@ namespace opt = std;
 #else
 #  include <compat/optional.hpp>
 namespace opt = std::experimental;
-#endif
-
 #endif

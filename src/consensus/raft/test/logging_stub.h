@@ -21,7 +21,7 @@ namespace raft
 
     LedgerStubProxy(NodeId id) : _id(id) {}
 
-    void put_entry(const std::vector<uint8_t>& data)
+    void put_entry(const std::vector<uint8_t>& data, bool globally_committable)
     {
 #ifdef STUB_LOG
       std::cout << "  Node" << _id << "->>Ledger" << _id
@@ -37,22 +37,14 @@ namespace raft
       ledger.push_back(buffer);
     }
 
-    std::pair<std::vector<uint8_t>, bool> record_entry(
-      const uint8_t*& data, size_t& size)
-    {
-#ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>Ledger" << _id
-                << ": record s: " << size << std::endl;
-#endif
-
-      auto buffer = std::make_shared<std::vector<uint8_t>>(data, data + size);
-      ledger.push_back(buffer);
-      return std::make_pair(*buffer, true);
-    }
-
     void skip_entry(const uint8_t*& data, size_t& size)
     {
       skip_count++;
+    }
+
+    std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
+    {
+      return {data, data + size};
     }
 
     void truncate(Index idx)
@@ -68,6 +60,8 @@ namespace raft
     {
       skip_count = 0;
     }
+
+    void commit(Index idx) {}
   };
 
   class ChannelStubProxy
@@ -140,10 +134,20 @@ namespace raft
 #endif
     }
 
-    virtual void rollback(Index i)
+    virtual void rollback(Index i, std::optional<Term> t = std::nullopt)
     {
 #ifdef STUB_LOG
-      std::cout << "  Node" << _id << "->>KV" << _id << ": rollback i: " << i
+      std::cout << "  Node" << _id << "->>KV" << _id << ": rollback i: " << i;
+      if (t.has_value())
+        std::cout << " term: " << t.value();
+      std::cout << std::endl;
+#endif
+    }
+
+    virtual void set_term(Term t)
+    {
+#ifdef STUB_LOG
+      std::cout << "  Node" << _id << "->>KV" << _id << ": set_term t: " << t
                 << std::endl;
 #endif
     }

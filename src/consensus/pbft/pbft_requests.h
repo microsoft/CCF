@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/json.h"
+#include "kv/map.h"
 #include "node/entities.h"
 
 #include <msgpack/msgpack.hpp>
@@ -15,14 +17,16 @@ namespace pbft
     std::vector<uint8_t> caller_cert;
     std::vector<uint8_t> raw;
     std::vector<uint8_t> pbft_raw;
+    uint8_t frame_format = enclave::FrameFormat::http;
 
-    MSGPACK_DEFINE(caller_id, caller_cert, raw, pbft_raw);
+    MSGPACK_DEFINE(caller_id, caller_cert, raw, pbft_raw, frame_format);
 
     std::vector<uint8_t> serialise()
     {
       bool include_caller = false;
       size_t size = sizeof(caller_id) + sizeof(bool) + sizeof(size_t) +
-        raw.size() + sizeof(size_t) + pbft_raw.size();
+        raw.size() + sizeof(size_t) + sizeof(enclave::FrameFormat) +
+        pbft_raw.size();
       if (!caller_cert.empty())
       {
         size += sizeof(size_t) + caller_cert.size();
@@ -43,6 +47,8 @@ namespace pbft
       serialized::write(data_, size_, raw.data(), raw.size());
       serialized::write(data_, size_, pbft_raw.size());
       serialized::write(data_, size_, pbft_raw.data(), pbft_raw.size());
+
+      serialized::write(data_, size_, frame_format);
       return serialized_req;
     }
 
@@ -59,14 +65,17 @@ namespace pbft
       raw = serialized::read(data_, size_, raw_size);
       auto pbft_raw_size = serialized::read<size_t>(data_, size_);
       pbft_raw = serialized::read(data_, size_, pbft_raw_size);
+
+      frame_format = serialized::read<enclave::FrameFormat>(data_, size_);
     }
   };
 
   DECLARE_JSON_TYPE(Request);
-  DECLARE_JSON_REQUIRED_FIELDS(Request, caller_id, caller_cert, raw, pbft_raw);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    Request, caller_id, caller_cert, raw, pbft_raw, frame_format);
 
   // size_t is used as the key of the table. This key will always be 0 since we
   // don't want to store the requests in the kv over time, we just want to get
   // them into the ledger
-  using RequestsMap = ccf::Store::Map<size_t, Request>;
+  using RequestsMap = kv::Map<size_t, Request>;
 }

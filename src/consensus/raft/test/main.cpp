@@ -85,7 +85,7 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     entry->push_back(2);
     entry->push_back(3);
 
-    r0.replicate(kv::BatchVector{{i, entry, true}});
+    r0.replicate(kv::BatchVector{{i, entry, true}}, 1);
     DOCTEST_REQUIRE(r0.get_last_idx() == i);
     DOCTEST_REQUIRE(r0.get_commit_idx() == i);
   }
@@ -338,10 +338,10 @@ DOCTEST_TEST_CASE(
   DOCTEST_INFO("Try to replicate on a follower, and fail");
   std::vector<uint8_t> entry = {1, 2, 3};
   auto data = std::make_shared<std::vector<uint8_t>>(entry);
-  DOCTEST_REQUIRE_FALSE(r1.replicate(kv::BatchVector{{1, data, true}}));
+  DOCTEST_REQUIRE_FALSE(r1.replicate(kv::BatchVector{{1, data, true}}, 1));
 
   DOCTEST_INFO("Tell the leader to replicate a message");
-  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true}}));
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true}}, 1));
   DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
   DOCTEST_REQUIRE(*r0.ledger->ledger.front() == entry);
   DOCTEST_INFO("The other nodes are not told about this yet");
@@ -440,7 +440,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
   std::vector<uint8_t> first_entry = {1, 2, 3};
   auto data = std::make_shared<std::vector<uint8_t>>(first_entry);
-  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true}}));
+  DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data, true}}, 1));
   r0.periodic(ms(10));
 
   DOCTEST_REQUIRE(
@@ -543,8 +543,8 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     std::vector<uint8_t> second_entry = {2, 2, 2};
     auto data_2 = std::make_shared<std::vector<uint8_t>>(second_entry);
 
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true}}));
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, data_1, true}}, 1));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, data_2, true}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -565,7 +565,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> third_entry = {3, 3, 3};
     auto data = std::make_shared<std::vector<uint8_t>>(third_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{3, data, true}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 3);
 
     // Simulate that the append entries was not deserialised successfully
@@ -594,7 +594,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fourth_entry = {4, 4, 4};
     auto data = std::make_shared<std::vector<uint8_t>>(fourth_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{4, data, true}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 4);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -607,7 +607,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   {
     std::vector<uint8_t> fifth_entry = {5, 5, 5};
     auto data = std::make_shared<std::vector<uint8_t>>(fifth_entry);
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{5, data, true}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 5);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 1);
@@ -706,7 +706,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   for (size_t i = 1; i <= num_big_entries; ++i)
   {
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, data, true}}, 1));
     DOCTEST_REQUIRE(
       msg_response ==
       dispatch_all_and_DOCTEST_CHECK(
@@ -724,7 +724,7 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   for (size_t i = num_big_entries + 1; i <= individual_entries; ++i)
   {
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, smaller_data, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{i, smaller_data, true}}, 1));
     dispatch_all(nodes, r0.channels->sent_append_entries);
   }
 
@@ -856,7 +856,7 @@ DOCTEST_TEST_CASE(
 
   DOCTEST_INFO("Node 0 compacts twice but Nodes 1 and 2 only once");
   {
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, first_entry, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{1, first_entry, true}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 1);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 2);
@@ -870,7 +870,7 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(
       1 == dispatch_all(nodes, r2.channels->sent_append_entries_response));
 
-    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}));
+    DOCTEST_REQUIRE(r0.replicate(kv::BatchVector{{2, second_entry, true}}, 1));
     DOCTEST_REQUIRE(r0.ledger->ledger.size() == 2);
     r0.periodic(ms(10));
     DOCTEST_REQUIRE(r0.channels->sent_append_entries.size() == 2);
@@ -963,7 +963,7 @@ DOCTEST_TEST_CASE(
     "Node 1 and Node 2 proceed to compact at idx 2, where Node 0 has "
     "compacted for a previous term");
   {
-    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{2, second_entry, true}}));
+    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{2, second_entry, true}}, 2));
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 2);
     r1.periodic(ms(10));
     DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 2);
@@ -980,7 +980,7 @@ DOCTEST_TEST_CASE(
     DOCTEST_REQUIRE(r0.channels->sent_append_entries_response.size() == 0);
 
     DOCTEST_INFO("Another entry from Node 1 so that Node 2 can also compact");
-    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}));
+    DOCTEST_REQUIRE(r1.replicate(kv::BatchVector{{3, third_entry, true}}, 2));
     DOCTEST_REQUIRE(r1.ledger->ledger.size() == 3);
     r1.periodic(ms(10));
     DOCTEST_REQUIRE(r1.channels->sent_append_entries.size() == 2);

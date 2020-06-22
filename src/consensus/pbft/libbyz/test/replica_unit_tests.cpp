@@ -7,8 +7,9 @@
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/pbft/pbft_types.h"
-#include "consensus/test/stub_consensus.h"
-#include "host/ledger.h"
+#include "ds/ccf_exception.h"
+#include "kv/store.h"
+#include "kv/test/stub_consensus.h"
 #include "message.h"
 #include "network_mock.h"
 #include "node.h"
@@ -19,8 +20,8 @@
 #include <cstdio>
 #include <doctest/doctest.h>
 
-enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 // power of 2 since ringbuffer circuit size depends on total_requests
 static constexpr size_t total_requests = 32;
@@ -42,7 +43,8 @@ public:
       ByzInfo& info,
       uint32_t num_requests,
       uint64_t nonce,
-      bool executed_single_threaded) {
+      bool executed_single_threaded,
+      View view) {
       for (uint32_t i = 0; i < num_requests; ++i)
       {
         std::unique_ptr<ExecCommandMsg>& msg = msgs[i];
@@ -53,7 +55,7 @@ public:
         uint8_t* req_start = msg->req_start;
         size_t req_size = msg->req_size;
         Seqno total_requests_executed = msg->total_requests_executed;
-        ccf::Store::Tx* tx = msg->tx;
+        kv::Tx* tx = msg->tx;
 
         // increase total number of commands executed to compare with fake_req
         command_counter++;
@@ -71,6 +73,28 @@ public:
         msg->cb(*msg.get(), info);
       }
       return 0;
+    };
+
+  struct RequestCtxImpl : public pbft::RequestCtx
+  {
+    std::shared_ptr<enclave::RpcContext> get_rpc_context() override
+    {
+      return nullptr;
+    }
+    std::shared_ptr<enclave::RpcHandler> get_rpc_handler() override
+    {
+      return nullptr;
+    }
+
+    bool get_does_exec_gov_req() override
+    {
+      return true;
+    }
+  };
+
+  VerifyAndParseCommand verify_command =
+    [this](Byz_req* inb, uint8_t* req_start, size_t req_size) {
+      return std::make_unique<RequestCtxImpl>();
     };
 };
 
@@ -117,6 +141,7 @@ NodeInfo create_replica(
   pbft::RequestsMap& pbft_requests_map,
   pbft::PrePreparesMap& pbft_pre_prepares_map,
   ccf::Signatures& signatures,
+  pbft::NewViewsMap& pbft_new_views_map,
   NodeId node_id = 0)
 {
   auto node_info = get_node_info(node_id);
@@ -129,6 +154,7 @@ NodeInfo create_replica(
     pbft_requests_map,
     pbft_pre_prepares_map,
     signatures,
+    pbft_new_views_map,
     store));
 
   pbft::GlobalState::get_replica().init_state();
@@ -139,7 +165,7 @@ Request* create_and_store_request(
   size_t index,
   pbft::PbftStore& store,
   pbft::RequestsMap& req_map,
-  ccf::Store::Map<std::string, std::string>* derived_map = nullptr)
+  kv::Map<std::string, std::string>* derived_map = nullptr)
 {
   Byz_req req;
   Byz_alloc_request(&req, sizeof(ExecutionMock::fake_req));
@@ -153,7 +179,7 @@ Request* create_and_store_request(
   request->request_id() = index;
   request->authenticate(req.size, false);
 
-  ccf::Store::Tx tx;
+  kv::Tx tx;
   auto req_view = tx.get_view(req_map);
 
   int command_size;
@@ -185,29 +211,30 @@ void populate_entries(
   while (true)
   {
     auto ret = consensus->pop_oldest_data();
-    if (!ret.second)
+    if (!ret.has_value())
     {
       break;
     }
-    entries.emplace_back(ret.first);
+    entries.emplace_back(ret.value());
   }
 }
 
 static constexpr int mem_size = 256;
 
-using PbftStoreType = pbft::Adaptor<ccf::Store, kv::DeserialiseSuccess>;
+using PbftStoreType = pbft::Adaptor<kv::Store, kv::DeserialiseSuccess>;
 struct PbftState
 {
-  std::shared_ptr<ccf::Store> store;
+  std::shared_ptr<kv::Store> store;
   std::unique_ptr<PbftStoreType> pbft_store;
   pbft::RequestsMap& pbft_requests_map;
   ccf::Signatures& signatures;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
+  pbft::NewViewsMap& pbft_new_views_map;
   std::vector<char> service_mem;
   ExecutionMock exec_mock;
 
   PbftState() :
-    store(std::make_shared<ccf::Store>(
+    store(std::make_shared<kv::Store>(
       pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
     pbft_store(std::make_unique<PbftStoreType>(store)),
     pbft_requests_map(store->create<pbft::RequestsMap>(
@@ -215,6 +242,8 @@ struct PbftState
     signatures(store->create<ccf::Signatures>(ccf::Tables::SIGNATURES)),
     pbft_pre_prepares_map(store->create<pbft::PrePreparesMap>(
       pbft::Tables::PBFT_PRE_PREPARES, kv::SecurityDomain::PUBLIC)),
+    pbft_new_views_map(store->create<pbft::NewViewsMap>(
+      pbft::Tables::PBFT_NEW_VIEWS, kv::SecurityDomain::PUBLIC)),
     service_mem(mem_size, 0),
     exec_mock(0)
   {}
@@ -228,16 +257,20 @@ NodeInfo init_test_state(PbftState& pbft_state, NodeId node_id = 0)
     pbft_state.pbft_requests_map,
     pbft_state.pbft_pre_prepares_map,
     pbft_state.signatures,
+    pbft_state.pbft_new_views_map,
     node_id);
   pbft::GlobalState::get_replica().register_exec(
     pbft_state.exec_mock.exec_command);
+  pbft::GlobalState::get_replica().register_verify(
+    pbft_state.exec_mock.verify_command);
+
   return node_info;
 }
 
 std::unique_ptr<Pre_prepare> deserialize_pre_prepare(
   std::vector<uint8_t>& pp_data, PbftState& pbft_state)
 {
-  ccf::Store::Tx tx;
+  kv::Tx tx;
   REQUIRE(
     pbft_state.store->deserialise_views(pp_data, false, nullptr, &tx) ==
     kv::DeserialiseSuccess::PASS_PRE_PREPARE);
@@ -254,10 +287,11 @@ TEST_CASE("Test Ledger Replay")
   // initiate replica with stub consensus to be used on replay
   auto write_consensus =
     std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
+  NodeInfo write_node_info;
   INFO("Create dummy pre-prepares and write them to ledger");
   {
     PbftState pbft_state;
-    init_test_state(pbft_state);
+    write_node_info = init_test_state(pbft_state);
 
     pbft_state.store->set_consensus(write_consensus);
     auto& write_derived_map =
@@ -293,7 +327,8 @@ TEST_CASE("Test Ledger Replay")
     LedgerWriter ledger_writer(
       *pbft_state.pbft_store,
       pbft_state.pbft_pre_prepares_map,
-      pbft_state.signatures);
+      pbft_state.signatures,
+      pbft_state.pbft_new_views_map);
 
     Req_queue rqueue;
     for (size_t i = 1; i < total_requests; i++)
@@ -314,6 +349,7 @@ TEST_CASE("Test Ledger Replay")
       info.replicated_state_merkle_root.data()[0] = i + 1;
 
       pp->set_merkle_roots_and_ctx(info.replicated_state_merkle_root, info.ctx);
+      pp->set_digest();
 
       ledger_writer.write_pre_prepare(pp.get());
     }
@@ -326,7 +362,12 @@ TEST_CASE("Test Ledger Replay")
     "corrupt, and in order");
   {
     PbftState pbft_state;
-    init_test_state(pbft_state);
+    NodeId node_id = 1;
+    init_test_state(pbft_state, node_id);
+    // let this node know about the node that signed the pre prepare
+    // otherwise we can't verify the pre prepare during playback
+    pbft::GlobalState::get_node().add_principal(
+      write_node_info.general_info.principal_info[0]);
 
     auto consensus = std::make_shared<kv::StubConsensus>(ConsensusType::PBFT);
     pbft_state.store->set_consensus(consensus);
@@ -362,7 +403,7 @@ TEST_CASE("Test Ledger Replay")
       pbft_state.store->deserialise(entries.back()) ==
       kv::DeserialiseSuccess::FAILED);
 
-    ccf::Store::Tx tx;
+    kv::Tx tx;
     auto req_view = tx.get_view(pbft_state.pbft_requests_map);
     auto req = req_view->get(0);
     REQUIRE(!req.has_value());
@@ -389,18 +430,18 @@ TEST_CASE("Test Ledger Replay")
         // odd entries are pre prepares
         // try to deserialise corrupt pre-prepare which should trigger a
         // rollback
-        ccf::Store::Tx tx;
+        kv::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(
             corrupt_entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
         REQUIRE_THROWS_AS(
           pbft::GlobalState::get_replica().playback_pre_prepare(tx),
-          std::logic_error);
+          ccf::ccf_logic_error);
         count_rollbacks++;
 
         // rolled back latest request so need to re-execute
-        ccf::Store::Tx re_exec_tx;
+        kv::Tx re_exec_tx;
         REQUIRE(
           pbft_state.store->deserialise_views(
             lastest_executed_request, false, nullptr, &re_exec_tx) ==
@@ -412,13 +453,13 @@ TEST_CASE("Test Ledger Replay")
       if (iterations % 2)
       {
         // odd entries are pre prepares
-        ccf::Store::Tx tx;
+        kv::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS_PRE_PREPARE);
         pbft::GlobalState::get_replica().playback_pre_prepare(tx);
 
-        ccf::Store::Tx read_tx;
+        kv::Tx read_tx;
         auto pp_view = read_tx.get_view(pbft_state.pbft_pre_prepares_map);
         auto pp = pp_view->get(0);
         REQUIRE(pp.has_value());
@@ -428,7 +469,7 @@ TEST_CASE("Test Ledger Replay")
       else
       {
         // even entries are requests
-        ccf::Store::Tx tx;
+        kv::Tx tx;
         REQUIRE(
           pbft_state.store->deserialise_views(entry, false, nullptr, &tx) ==
           kv::DeserialiseSuccess::PASS);
@@ -436,7 +477,7 @@ TEST_CASE("Test Ledger Replay")
         // pre-prepares are committed in playback_pre_prepare
         REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 
-        ccf::Store::Tx read_tx;
+        kv::Tx read_tx;
         lastest_executed_request = entry;
         // even entries are requests
         auto req_view = read_tx.get_view(pbft_state.pbft_requests_map);
@@ -446,7 +487,7 @@ TEST_CASE("Test Ledger Replay")
       }
 
       // no derived data should have gotten deserialised
-      ccf::Store::Tx read_tx;
+      kv::Tx read_tx;
       auto der_view = read_tx.get_view(derived_map);
       auto derived_val = der_view->get("key1");
       REQUIRE(!derived_val.has_value());
@@ -562,7 +603,8 @@ TEST_CASE("Verify prepare proof")
     LedgerWriter ledger_writer(
       *pbft_state.pbft_store,
       pbft_state.pbft_pre_prepares_map,
-      pbft_state.signatures);
+      pbft_state.signatures,
+      pbft_state.pbft_new_views_map);
 
     // let this node know about the node that signed the prepare
     // otherwise we can't add its prepare to the prepared cert
@@ -595,8 +637,8 @@ TEST_CASE("Verify prepare proof")
       prepare_node_info.general_info.principal_info[0]);
 
     auto ret = consensus->pop_oldest_data();
-    REQUIRE(ret.second); // deserialized OK
-    auto second_pre_prepare = deserialize_pre_prepare(ret.first, pbft_state);
+    REQUIRE(ret.has_value());
+    auto second_pre_prepare = deserialize_pre_prepare(ret.value(), pbft_state);
     // validate the signature in the proof here
 
     Prepared_cert new_node_prepared_cert;

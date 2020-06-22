@@ -12,6 +12,45 @@
 #include <thread>
 #include <vector>
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+#include <mbedtls/asn1.h>
+#include <valijson/validator.hpp>
+
+namespace timing
+{
+  struct Measure
+  {
+    size_t sample_count;
+    double average;
+    double variance;
+  };
+}
+
+namespace fmt
+{
+  template <>
+  struct formatter<timing::Measure>
+  {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+      return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const timing::Measure& e, FormatContext& ctx)
+    {
+      return format_to(
+        ctx.out(),
+        "sample_count: {}, average: {}, variance: {}",
+        e.sample_count,
+        e.average,
+        e.variance);
+    }
+  };
+}
+
 namespace timing
 {
   using namespace std;
@@ -30,9 +69,9 @@ namespace timing
 
   struct CommitIDs
   {
-    size_t local;
+    size_t seqno;
     size_t global;
-    size_t term;
+    size_t view;
   };
 
   struct ReceivedReply
@@ -42,17 +81,10 @@ namespace timing
     const optional<CommitIDs> commit;
   };
 
-  struct Measure
-  {
-    size_t sample_count;
-    double average;
-    double variance;
-  };
-
   struct CommitPoint
   {
-    size_t term;
-    size_t index;
+    size_t view;
+    size_t seqno;
   };
 
   std::string timestamp()
@@ -134,7 +166,7 @@ namespace timing
   static CommitIDs parse_commit_ids(const RpcTlsClient::Response& response)
   {
     const auto& h = response.headers;
-    const auto local_commit_it = h.find(http::headers::CCF_COMMIT);
+    const auto local_commit_it = h.find(http::headers::CCF_TX_SEQNO);
     if (local_commit_it == h.end())
     {
       throw std::logic_error("Missing commit response header");
@@ -146,19 +178,19 @@ namespace timing
       throw std::logic_error("Missing global commit response header");
     }
 
-    const auto term_it = h.find(http::headers::CCF_TERM);
-    if (term_it == h.end())
+    const auto view_it = h.find(http::headers::CCF_TX_VIEW);
+    if (view_it == h.end())
     {
-      throw std::logic_error("Missing term response header");
+      throw std::logic_error("Missing view response header");
     }
 
-    const auto local =
+    const auto seqno =
       std::strtoul(local_commit_it->second.c_str(), nullptr, 0);
     const auto global =
       std::strtoul(global_commit_it->second.c_str(), nullptr, 0);
-    const auto term = std::strtoul(term_it->second.c_str(), nullptr, 0);
+    const auto view = std::strtoul(view_it->second.c_str(), nullptr, 0);
 
-    return {local, global, term};
+    return {seqno, global, view};
   }
 
   class ResponseTimes
@@ -216,17 +248,17 @@ namespace timing
     // committed (or will never be committed), returns first confirming
     // response. Calls record_[send/response], if record is true.
     // Throws on errors, or if target is rolled back
-    RpcTlsClient::Response wait_for_global_commit(
+    CommitPoint wait_for_global_commit(
       const CommitPoint& target, bool record = true)
     {
       auto params = nlohmann::json::object();
-      params["view"] = target.term;
-      params["seqno"] = target.index;
+      params["view"] = target.view;
+      params["seqno"] = target.seqno;
 
       constexpr auto get_tx_status = "tx";
 
       LOG_INFO_FMT(
-        "Waiting for transaction ID {}.{}", target.term, target.index);
+        "Waiting for transaction ID {}.{}", target.view, target.seqno);
 
       while (true)
       {
@@ -264,20 +296,20 @@ namespace timing
         }
         else if (tx_status == "COMMITTED")
         {
-          LOG_INFO_FMT("Found global commit {}.{}", target.term, target.index);
+          LOG_INFO_FMT("Found global commit {}.{}", target.view, target.seqno);
           LOG_INFO_FMT(
-            " (headers term: {}, local: {}, global: {})",
-            commit_ids.term,
-            commit_ids.local,
+            " (headers view: {}, seqno: {}, global: {})",
+            commit_ids.view,
+            commit_ids.seqno,
             commit_ids.global);
-          return response;
+          return {commit_ids.view, commit_ids.seqno};
         }
         else if (tx_status == "INVALID")
         {
           throw std::logic_error(fmt::format(
             "Transaction {}.{} is now marked as invalid",
-            target.term,
-            target.index));
+            target.view,
+            target.seqno));
         }
         else
         {
@@ -411,18 +443,18 @@ namespace timing
               // commit time
               round_local_commit.push_back(tx_latency);
 
-              if (response_commit->global >= response_commit->local)
+              if (response_commit->global >= response_commit->seqno)
               {
                 // Global commit already already
                 round_global_commit.push_back(tx_latency);
               }
               else
               {
-                if (response_commit->local <= highest_local_commit)
+                if (response_commit->seqno <= highest_local_commit)
                 {
                   // Store expected global commit to find later
                   pending_global_commits.push_back(
-                    {send.send_time, response_commit->local});
+                    {send.send_time, response_commit->seqno});
                 }
                 else
                 {
@@ -430,7 +462,7 @@ namespace timing
                     "Ignoring request with ID {} because it committed too late "
                     "({} > {})",
                     send.rpc_id,
-                    response_commit->local,
+                    response_commit->seqno,
                     highest_local_commit);
                 }
               }
@@ -534,7 +566,7 @@ namespace timing
       ofstream recv_csv(recv_path, ofstream::out);
       if (recv_csv.is_open())
       {
-        recv_csv << "recv_sec,idx,has_commits,commit,term,global_commit"
+        recv_csv << "recv_sec,idx,has_commits,commit,view,global_commit"
                  << endl;
         for (const auto& reply : receives)
         {
@@ -544,8 +576,8 @@ namespace timing
 
           if (reply.commit.has_value())
           {
-            recv_csv << "," << reply.commit->local;
-            recv_csv << "," << reply.commit->term;
+            recv_csv << "," << reply.commit->seqno;
+            recv_csv << "," << reply.commit->view;
             recv_csv << "," << reply.commit->global;
           }
           else

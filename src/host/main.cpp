@@ -6,6 +6,7 @@
 #include "ds/net.h"
 #include "ds/non_blocking.h"
 #include "ds/oversized.h"
+#include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "node_connections.h"
@@ -34,6 +35,7 @@ int main(int argc, char** argv)
 {
   // ignore SIGPIPE
   signal(SIGPIPE, SIG_IGN);
+  stacktrace::init_sig_handlers();
 
   CLI::App app{"ccf"};
 
@@ -87,6 +89,13 @@ int main(int argc, char** argv)
     "Address on which to listen for TLS commands coming from other nodes")
     ->required();
 
+  std::string node_address_file = {};
+  app.add_option(
+    "--node-address-file",
+    node_address_file,
+    "Path to which the node's node-to-node address (including potentially "
+    "auto-assigned port) will be written. If empty (default), write nothing");
+
   cli::ParsedAddress rpc_address;
   cli::add_address_option(
     app,
@@ -94,6 +103,13 @@ int main(int argc, char** argv)
     "--rpc-address",
     "Address on which to listen for TLS commands coming from clients")
     ->required();
+
+  std::string rpc_address_file = {};
+  app.add_option(
+    "--rpc-address-file",
+    rpc_address_file,
+    "Path to which the node's RPC address (including potentially "
+    "auto-assigned port) will be written. If empty (default), write nothing");
 
   cli::ParsedAddress public_rpc_address;
   auto public_rpc_address_option = cli::add_address_option(
@@ -103,9 +119,18 @@ int main(int argc, char** argv)
     "Address to advertise publicly to clients (defaults to same as "
     "--rpc-address)");
 
-  std::string ledger_file("ccf.ledger");
-  app.add_option("--ledger-file", ledger_file, "Ledger file")
+  std::string ledger_dir("ledger");
+  app.add_option("--ledger-dir", ledger_dir, "Ledger directory")
     ->capture_default_str();
+
+  size_t ledger_chunk_threshold = 5'000'000;
+  app
+    .add_option(
+      "--ledger-chunk-max-bytes",
+      ledger_chunk_threshold,
+      "Minimum size (bytes) at which a new ledger chunk is created.")
+    ->capture_default_str()
+    ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
@@ -122,11 +147,9 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->transform(CLI::CheckedTransformer(level_map, CLI::ignore_case));
 
-  std::optional<std::string> json_log_path;
-  app.add_option(
-    "--json-log-path",
-    json_log_path,
-    "Path to file where the json logs will be written");
+  bool log_format_json = false;
+  app.add_flag(
+    "--log-format-json", log_format_json, "Set node stdout log format to JSON");
 
   std::string node_cert_file("nodecert.pem");
   app
@@ -235,8 +258,7 @@ int main(int argc, char** argv)
       max_fragment_size,
       "Determines maximum size of individual ringbuffer message fragments. "
       "Messages larger than this will be split into multiple fragments. Value "
-      "is "
-      "used as a shift factor, ie - given N, the limit is (1 << N)")
+      "is used as a shift factor, ie - given N, the limit is (1 << N)")
     ->capture_default_str();
 
   size_t tick_period_ms = 10;
@@ -373,6 +395,12 @@ int main(int argc, char** argv)
     public_rpc_address = rpc_address;
   }
 
+  // set json log formatter to write to std::out
+  if (log_format_json)
+  {
+    logger::config::initialize_with_json_console();
+  }
+
   uint32_t oe_flags = 0;
   try
   {
@@ -384,13 +412,15 @@ int main(int argc, char** argv)
         rpc_address.hostname));
     }
 
-    if (*start || *join)
+    if ((*start || *join) && files::exists(ledger_dir))
     {
-      if (files::exists(ledger_file))
-      {
-        throw std::logic_error(fmt::format(
-          "Ledger file {} is created by node on start/join", ledger_file));
-      }
+      throw std::logic_error(fmt::format(
+        "On start/join, ledger directory should not exist ({})", ledger_dir));
+    }
+    else if (*recover && !files::exists(ledger_dir))
+    {
+      throw std::logic_error(fmt::format(
+        "On recovery, ledger directory should exist ({}) ", ledger_dir));
     }
 
     if (*start)
@@ -447,12 +477,6 @@ int main(int argc, char** argv)
   // set the host log level
   logger::config::level() = host_log_level;
 
-  // set the custom log formatter path
-  if (json_log_path.has_value())
-  {
-    logger::config::loggers().emplace_back(
-      std::make_unique<logger::JsonLogger>(json_log_path.value()));
-  }
   // create the enclave
   host::Enclave enclave(enclave_file, oe_flags);
 
@@ -487,6 +511,38 @@ int main(int argc, char** argv)
 
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);
+
+  // write to a ledger
+  asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_threshold);
+  ledger.register_message_handlers(bp.get_dispatcher());
+
+  // Begin listening for node-to-node and RPC messages.
+  // This includes DNS resolution and potentially dynamic port assignment (if
+  // requesting port 0). The hostname and port may be modified - after calling
+  // it holds the final assigned values.
+  asynchost::NodeConnectionsTickingReconnect node(
+    20, //< Flush reconnections every 20ms
+    bp.get_dispatcher(),
+    ledger,
+    writer_factory,
+    node_address.hostname,
+    node_address.port);
+  if (!node_address_file.empty())
+  {
+    files::dump(
+      fmt::format("{}\n{}", node_address.hostname, node_address.port),
+      node_address_file);
+  }
+
+  asynchost::RPCConnections rpc(writer_factory);
+  rpc.register_message_handlers(bp.get_dispatcher());
+  rpc.listen(0, rpc_address.hostname, rpc_address.port);
+  if (!rpc_address_file.empty())
+  {
+    files::dump(
+      fmt::format("{}\n{}", rpc_address.hostname, rpc_address.port),
+      rpc_address_file);
+  }
 
   // Initialise the enclave and create a CCF node in it
   const size_t certificate_size = 4096;
@@ -566,26 +622,10 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("Created new node");
 
-  // ledger
-  asynchost::Ledger ledger(ledger_file, writer_factory);
-  ledger.register_message_handlers(bp.get_dispatcher());
-
-  asynchost::NodeConnectionsTickingReconnect node(
-    20, //< Flush reconnections every 20ms
-    bp.get_dispatcher(),
-    ledger,
-    writer_factory,
-    node_address.hostname,
-    node_address.port);
-
   asynchost::NotifyConnections report(
     bp.get_dispatcher(),
     notifications_address.hostname,
     notifications_address.port);
-
-  asynchost::RPCConnections rpc(writer_factory);
-  rpc.register_message_handlers(bp.get_dispatcher());
-  rpc.listen(0, rpc_address.hostname, rpc_address.port);
 
   // Write the node and network certs to disk.
   files::dump(node_cert, node_cert_file);

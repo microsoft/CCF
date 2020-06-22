@@ -7,14 +7,19 @@ git_tag=${git_tag#v}
 
 # Check if git tag looks like a semver value - ignore if not
 if [[ ${git_tag} =~ ^([[:digit:]])+(\.([[:digit:]])+)*(-.*)?$ ]]; then
-  cmake_version=$(grep CCF_VERSION CMakeLists.txt | grep -Po "(\d)+(\.(\d)+)*")
-  # Check git tag is <= CMake version. Use sort --version-sort to handle semver (0.9 < 0.10)
-  if echo "$git_tag $cmake_version" | tr " " "\n" | sort --version-sort -c ; then
-    echo "Git tag ($git_tag) is safely <= CMake version ($cmake_version)"
+  mkdir -p build
+  pushd build
+  cmake_version=$(cmake .. -L | grep "CCF version=")
+  cmake_version=${cmake_version#*=}
+  echo "Comparing git tag ($git_tag) with CMake version ($cmake_version)"
+  if [[ "${git_tag}" == "${cmake_version}" ]]; then
+    echo "Git tag ($git_tag) matches CMake version ($cmake_version)"
+    exit 0
   else
-    echo "Git tag ($git_tag) is later than CMake version ($cmake_version) - please update CMake version!"
+    echo "Git tag ($git_tag) does not match CMake version ($cmake_version) - please update CMake version"
     exit 1
   fi
 else
   echo "Skipping check - ${git_tag} doesn't look like semver"
+  exit 0
 fi

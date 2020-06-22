@@ -2,12 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "entities.h"
+#include "kv/map.h"
 
 #include <msgpack/msgpack.hpp>
 
 namespace ccf
 {
-  using ConsensusTable = Store::Map<ObjectId, ConsensusType>;
+  using ConsensusTable = kv::Map<ObjectId, ConsensusType>;
 }
 
 DECLARE_JSON_ENUM(

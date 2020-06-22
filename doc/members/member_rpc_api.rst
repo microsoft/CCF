@@ -43,10 +43,10 @@ read
 .. literalinclude:: ../schemas/read_result.json
     :language: json
 
-updateAckStateDigest
+ack/update_state_digest
 --------------------
 
-.. literalinclude:: ../schemas/updateAckStateDigest_result.json
+.. literalinclude:: ../schemas/ack/update_state_digest_result.json
     :language: json
 
 vote
@@ -65,20 +65,16 @@ withdraw
 .. literalinclude:: ../schemas/withdraw_result.json
     :language: json
 
-getEncryptedRecoveryShare
+recovery_share
 -------------------------
 
-.. warning:: Experimental
-
-.. literalinclude:: ../schemas/getEncryptedRecoveryShare_result.json
+.. literalinclude:: ../schemas/recovery_share_result.json
     :language: json
 
-submitRecoveryShare
+recovery_share/submit
 -------------------
 
-.. warning:: Experimental
-
-.. literalinclude:: ../schemas/submitRecoveryShare_params.json
+.. literalinclude:: ../schemas/recovery_share/submit_params.json
     :language: json
-.. literalinclude:: ../schemas/submitRecoveryShare_result.json
+.. literalinclude:: ../schemas/recovery_share/submit_result.json
     :language: json

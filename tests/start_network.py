@@ -26,9 +26,20 @@ def run(args):
     with infra.ccf.network(
         hosts=hosts, binary_directory=args.binary_dir, dbg_nodes=args.debug_nodes
     ) as network:
-        network.start_and_join(args)
-        primary, backups = network.find_nodes()
+        if args.recover:
+            args.label = args.label + "_recover"
+            LOG.info("Recovering network from:")
+            LOG.info(f" - Ledger: {args.ledger_dir}")
+            LOG.info(
+                f" - Defunct network public encryption key: {args.network_enc_pubk}"
+            )
+            LOG.info(f" - Common directory: {args.common_dir}")
+            network.start_in_recovery(args, args.ledger_dir, args.common_dir)
+            network.recover(args, args.network_enc_pubk)
+        else:
+            network.start_and_join(args)
 
+        primary, backups = network.find_nodes()
         LOG.info("Started CCF network with the following nodes:")
         LOG.info(
             "  Node [{:2d}] = {}:{}".format(
@@ -80,6 +91,33 @@ if __name__ == "__main__":
             action="store_true",
             default=False,
         )
+        parser.add_argument(
+            "-r",
+            "--recover",
+            help="Start a new network from an existing one",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--ledger-dir", help="Ledger directory to recover from",
+        )
+        parser.add_argument(
+            "--network-enc-pubk",
+            help="Defunct network public encryption key (used by members to decrypt recovery shares)",
+        )
+        parser.add_argument(
+            "--common-dir",
+            help="Directory containing previous network member identities and network encryption key",
+        )
 
     args = infra.e2e_args.cli_args(add)
+    if args.recover and (
+        args.ledger_dir is None
+        or args.common_dir is None
+        or args.network_enc_pubk is None
+    ):
+        print(
+            "Error: --recover requires --ledger, --network-enc-pubk and --common-dir arguments."
+        )
+        sys.exit(1)
     run(args)

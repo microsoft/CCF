@@ -3,13 +3,13 @@
 #pragma once
 #include "code_id.h"
 #include "entities.h"
+#include "kv/tx.h"
 #include "lua_interp/lua_interp.h"
 #include "lua_interp/lua_util.h"
 #include "members.h"
 #include "network_tables.h"
 #include "node_info_network.h"
 #include "nodes.h"
-#include "rpc/consts.h"
 #include "runtime_config/default_whitelists.h"
 #include "tls/verifier.h"
 #include "values.h"
@@ -24,7 +24,7 @@ namespace ccf
   {
     NetworkTables& tables;
 
-    Store::Tx& tx;
+    kv::Tx& tx;
 
     template <typename T>
     void set_scripts(
@@ -43,7 +43,7 @@ namespace ccf
     }
 
   public:
-    GenesisGenerator(NetworkTables& tables_, Store::Tx& tx_) :
+    GenesisGenerator(NetworkTables& tables_, kv::Tx& tx_) :
       tables(tables_),
       tx(tx_)
     {}
@@ -111,28 +111,11 @@ namespace ccf
           "Member certificate already exists (member {})", member_id.value()));
       }
 
-      MemberStatus member_status = MemberStatus::ACCEPTED;
-      auto service_status = get_service_status();
-      if (!service_status.has_value())
-      {
-        throw std::logic_error("Failed to get active service");
-      }
-
-      // If the service is opening, members are added as ACTIVE
-      if (service_status.value() == ServiceStatus::OPENING)
-      {
-        if (get_active_members_count() >= max_active_members_count)
-        {
-          throw std::logic_error(fmt::format(
-            "No more than {} active members are allowed",
-            max_active_members_count));
-        }
-        member_status = MemberStatus::ACTIVE;
-      }
-
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
       m->put(
-        id, MemberInfo(member_cert_der, member_keyshare_pub, member_status));
+        id,
+        MemberInfo(
+          member_cert_der, member_keyshare_pub, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
       auto s = sig->get(0);
@@ -147,6 +130,29 @@ namespace ccf
       return id;
     }
 
+    void activate_member(MemberId member_id)
+    {
+      auto members = tx.get_view(tables.members);
+      auto member = members->get(member_id);
+      if (!member.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Member {} cannot be activated as they do not exist", member_id));
+      }
+
+      if (member->status == MemberStatus::ACCEPTED)
+      {
+        member->status = MemberStatus::ACTIVE;
+        if (get_active_members_count() >= max_active_members_count)
+        {
+          throw std::logic_error(fmt::format(
+            "No more than {} active members are allowed",
+            max_active_members_count));
+        }
+      }
+      members->put(member_id, member.value());
+    }
+
     bool retire_member(MemberId member_id)
     {
       auto m = tx.get_view(tables.members);
@@ -158,10 +164,27 @@ namespace ccf
         return false;
       }
 
-      auto member_info = member_to_retire.value();
-      member_info.status = MemberStatus::RETIRED;
-      m->put(member_id, member_info);
+      if (member_to_retire->status == MemberStatus::ACTIVE)
+      {
+        // If the member was active, it had a recovery share. Check that
+        // the new number of active members is still sufficient for
+        // recovery.
+        auto active_members_count_after = get_active_members_count() - 1;
+        auto recovery_threshold = get_recovery_threshold();
+        if (active_members_count_after < recovery_threshold)
+        {
+          LOG_FAIL_FMT(
+            "Failed to retire member {}: number of active members ({}) "
+            "would be less than recovery threshold ({})",
+            member_id,
+            active_members_count_after,
+            recovery_threshold);
+          return false;
+        }
+      }
 
+      member_to_retire->status = MemberStatus::RETIRED;
+      m->put(member_id, member_to_retire.value());
       return true;
     }
 
@@ -255,6 +278,16 @@ namespace ccf
     bool open_service()
     {
       auto service_view = tx.get_view(tables.service);
+
+      if (get_active_members_count() < get_recovery_threshold())
+      {
+        LOG_FAIL_FMT(
+          "Cannot open network as number of active members "
+          "({}) is less than recovery threshold ({})",
+          get_active_members_count(),
+          get_recovery_threshold());
+        return false;
+      }
 
       auto active_service = service_view->get(0);
       if (!active_service.has_value())
@@ -397,10 +430,49 @@ namespace ccf
       shares_view->put(0, key_share_info);
     }
 
-    void set_recovery_threshold(size_t threshold)
+    bool set_recovery_threshold(size_t threshold)
     {
       auto config_view = tx.get_view(tables.config);
+
+      if (threshold == 0)
+      {
+        LOG_FAIL_FMT("Cannot set recovery threshold to 0");
+        return false;
+      }
+
+      auto service_status = get_service_status();
+      if (!service_status.has_value())
+      {
+        LOG_FAIL_FMT("Failed to get active service");
+        return false;
+      }
+
+      if (service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+      {
+        // While waiting for recovery shares, the recovery threshold cannot be
+        // modified. Otherwise, the threshold could be passed without triggering
+        // the end of recovery procedure
+        LOG_FAIL_FMT(
+          "Cannot set recovery threshold: service is currently waiting for "
+          "recovery shares");
+        return false;
+      }
+      else if (service_status.value() == ServiceStatus::OPEN)
+      {
+        auto active_members_count = get_active_members_count();
+        if (threshold > active_members_count)
+        {
+          LOG_FAIL_FMT(
+            "Cannot set recovery threshold to {} as it is greater than the "
+            "number of active members ({})",
+            threshold,
+            active_members_count);
+          return false;
+        }
+      }
+
       config_view->put(0, {threshold});
+      return true;
     }
 
     size_t get_recovery_threshold()

@@ -5,10 +5,10 @@
 
 #include "view_change_ack.h"
 
+#include "ds/ccf_assert.h"
 #include "ds/logger.h"
 #include "message_tags.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "principal.h"
 
 View_change_ack::View_change_ack(View v, int id, int vcid, Digest const& vcd) :

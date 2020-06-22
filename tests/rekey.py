@@ -3,28 +3,17 @@
 import infra.ccf
 import infra.notification
 import suite.test_requirements as reqs
+import infra.logging_app as app
 import infra.e2e_args
 
 
 @reqs.description("Rekey the ledger once")
-@reqs.supports_methods("mkSign")
+@reqs.supports_methods("primary_info")
 @reqs.at_least_n_nodes(1)
 def test(network, args):
     primary, _ = network.find_primary()
     network.consortium.rekey_ledger(primary)
     return network
-
-
-# Run some write transactions against the logging app
-def record_transactions(primary, txs_count=1):
-    with primary.node_client() as nc:
-        check_commit = infra.checker.Checker(nc)
-
-        with primary.user_client() as c:
-            for i in range(1, txs_count):
-                check_commit(
-                    c.rpc("LOG_record", {"id": i, "msg": f"entry #{i}"}), result=True
-                )
 
 
 def run(args):
@@ -34,11 +23,19 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
     ) as network:
         network.start_and_join(args)
-        primary, _ = network.find_primary()
 
-        record_transactions(primary)
-        test(network, args)
-        record_transactions(primary)
+        txs = app.LoggingTxs()
+        txs.issue(
+            network=network, number_txs=3, consensus=args.consensus,
+        )
+        txs.verify(network=network)
+
+        network = test(network, args)
+
+        txs.issue(
+            network=network, number_txs=3, consensus=args.consensus,
+        )
+        txs.verify(network=network)
 
 
 if __name__ == "__main__":

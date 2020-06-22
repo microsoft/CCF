@@ -5,8 +5,8 @@
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
 #include "http/http_rpc_context.h"
+#include "kv/test/null_encryptor.h"
 #include "lua_interp/lua_interp.h"
-#include "node/encryptor.h"
 #include "node/genesis_gen.h"
 #include "node/rpc/json_handler.h"
 #include "node/rpc/json_rpc.h"
@@ -37,7 +37,8 @@ namespace ccf
 }
 
 constexpr auto default_format = jsonrpc::Pack::MsgPack;
-constexpr auto content_type = details::pack_to_content_type(default_format);
+constexpr auto content_type =
+  ccf::jsonhandler::pack_to_content_type(default_format);
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
@@ -80,10 +81,10 @@ void set_whitelists(GenesisGenerator& gen)
     gen.set_whitelist(wl.first, wl.second);
 }
 
-class LuaLogger : public logger::JsonLogger
+class LuaLogger : public logger::JsonConsoleLogger
 {
 public:
-  LuaLogger() : JsonLogger("") {}
+  LuaLogger() : JsonConsoleLogger() {}
 
   void write(const std::string& log_line) override
   {
@@ -101,6 +102,22 @@ void set_lua_logger()
   logger::config::loggers().emplace_back(std::make_unique<LuaLogger>());
 }
 
+struct NodeContext : public ccfapp::AbstractNodeContext
+{
+  StubNotifier notifier;
+  ccf::historical::StubStateCache historical_state;
+
+  AbstractNotifier& get_notifier() override
+  {
+    return notifier;
+  }
+
+  ccf::historical::AbstractStateCache& get_historical_state() override
+  {
+    return historical_state;
+  }
+};
+
 auto user_caller = kp -> self_sign("CN=name");
 auto user_caller_der = tls::make_verifier(user_caller) -> der_cert_data();
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
@@ -108,7 +125,7 @@ std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 auto init_frontend(
   NetworkTables& network,
   GenesisGenerator& gen,
-  StubNotifier& notifier,
+  ccfapp::AbstractNodeContext& context,
   const int n_users,
   const int n_members)
 {
@@ -136,12 +153,12 @@ auto init_frontend(
 
   gen.set_app_scripts(lua::Interpreter().invoke<nlohmann::json>(env_script));
   gen.finalize();
-  return get_rpc_handler(network, notifier);
+  return get_rpc_handler(network, context);
 }
 
 void set_handler(NetworkTables& network, const string& method, const Script& h)
 {
-  Store::Tx tx;
+  kv::Tx tx;
   tx.get_view(network.app_scripts)->put(method, h);
   REQUIRE(tx.commit() == kv::CommitSuccess::OK);
 }
@@ -177,15 +194,15 @@ void check_store_load(F frontend, K k, V v)
 TEST_CASE("simple lua apps")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  StubNotifier notifier;
+  NodeContext context;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, context, 1, 3);
   set_lua_logger();
   auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
@@ -266,7 +283,7 @@ TEST_CASE("simple lua apps")
     );
 
     // (3) attempt to read non-existing key (set of integers)
-    const auto packed = make_pc("load", {{"k", set{5, 6, 7}}});
+    const auto packed = make_pc("load", {{"k", set<int>{5, 6, 7}}});
     auto rpc_ctx = enclave::make_rpc_context(user_session, packed);
     check_error(frontend->process(rpc_ctx).value(), HTTP_STATUS_BAD_REQUEST);
   }
@@ -296,15 +313,15 @@ TEST_CASE("simple lua apps")
     auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {
-      {"0", {{}, dummy_key_share, MemberStatus::ACTIVE}},
-      {"1", {{}, dummy_key_share, MemberStatus::ACTIVE}},
-      {"2", {{}, dummy_key_share, MemberStatus::ACTIVE}}};
+      {"0", {{}, dummy_key_share, MemberStatus::ACCEPTED}},
+      {"1", {{}, dummy_key_share, MemberStatus::ACCEPTED}},
+      {"2", {{}, dummy_key_share, MemberStatus::ACCEPTED}}};
     check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table
     const auto put_packed = make_pc(
       "put_member",
-      {{"k", 99}, {"v", MemberInfo{{}, {}, MemberStatus::ACTIVE}}});
+      {{"k", 99}, {"v", MemberInfo{{}, {}, MemberStatus::ACCEPTED}}});
     auto put_ctx = enclave::make_rpc_context(user_session, put_packed);
     check_error(
       frontend->process(put_ctx).value(), HTTP_STATUS_INTERNAL_SERVER_ERROR);
@@ -314,15 +331,15 @@ TEST_CASE("simple lua apps")
 TEST_CASE("simple bank")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  StubNotifier notifier;
+  NodeContext context;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, context, 1, 3);
   set_lua_logger();
   auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
@@ -431,15 +448,15 @@ TEST_CASE("simple bank")
 TEST_CASE("pre-populated environment")
 {
   NetworkTables network;
-  auto encryptor = std::make_shared<ccf::NullTxEncryptor>();
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
   gen.init_values();
   gen.create_service({});
-  StubNotifier notifier;
+  NodeContext context;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, gen, notifier, 1, 3);
+  auto frontend = init_frontend(network, gen, context, 1, 3);
   set_lua_logger();
   auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);

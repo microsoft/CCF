@@ -17,8 +17,6 @@
 using namespace messaging;
 using namespace ringbuffer;
 
-enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-
 template <typename Ex, typename F>
 void require_throws_with(
   F&& f,

@@ -57,6 +57,8 @@ namespace enclave
   public:
     std::shared_ptr<SessionContext> session;
 
+    virtual FrameFormat frame_format() const = 0;
+
     // raw pbft Request
     std::vector<uint8_t> pbft_raw = {};
 
@@ -96,6 +98,10 @@ namespace enclave
 
     virtual void set_response_status(int status) = 0;
 
+    virtual void set_seqno(kv::Version) = 0;
+    virtual void set_view(kv::Consensus::View) = 0;
+    virtual void set_global_commit(kv::Version) = 0;
+
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) = 0;
     virtual void set_response_header(const std::string_view& name, size_t n)
@@ -107,5 +113,8 @@ namespace enclave
     virtual bool should_apply_writes() const = 0;
 
     virtual std::vector<uint8_t> serialise_response() const = 0;
+
+    virtual std::vector<uint8_t> serialise_error(
+      size_t code, const std::string& msg) const = 0;
   };
 }

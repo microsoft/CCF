@@ -8,6 +8,7 @@
 #include "ds/logger.h"
 #include "entities.h"
 #include "kv/kv_types.h"
+#include "kv/store.h"
 #include "nodes.h"
 #include "signatures.h"
 #include "tls/tls.h"
@@ -89,13 +90,13 @@ namespace ccf
 
   class NullTxHistory : public kv::TxHistory
   {
-    Store& store;
+    kv::Store& store;
     NodeId id;
     Signatures& signatures;
 
   public:
     NullTxHistory(
-      Store& store_,
+      kv::Store& store_,
       NodeId id_,
       tls::KeyPair&,
       Signatures& signatures_,
@@ -120,14 +121,14 @@ namespace ccf
 
     void emit_signature() override
     {
-      auto version = store.next_version();
-      LOG_INFO_FMT("Issuing signature at {}", version);
+      auto txid = store.next_txid();
+      LOG_INFO_FMT("Issuing signature at {}.{}", txid.term, txid.version);
       store.commit(
-        version,
-        [version, this]() {
-          Store::Tx sig(version);
+        txid,
+        [txid, this]() {
+          kv::Tx sig(txid.version);
           auto sig_view = sig.get_view(signatures);
-          Signature sig_value(id, version);
+          Signature sig_value(id, txid.version);
           sig_view->put(0, sig_value);
           return sig.commit_reserved();
         },
@@ -138,7 +139,8 @@ namespace ccf
       kv::TxHistory::RequestID id,
       CallerId caller_id,
       const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request) override
+      const std::vector<uint8_t>& request,
+      uint8_t frame_format) override
     {
       return true;
     }
@@ -201,72 +203,85 @@ namespace ccf
     uint64_t index;
     uint32_t max_index;
     crypto::Sha256Hash root;
-    hash_vec* path;
+
+    struct Path
+    {
+      hash_vec* raw;
+
+      Path()
+      {
+        raw = init_path();
+      }
+
+      ~Path()
+      {
+        free_path(raw);
+      }
+    };
+
+    std::shared_ptr<Path> path;
 
   public:
     Receipt()
     {
-      path = init_path();
+      path = std::make_shared<Path>();
     }
 
-    static Receipt from_v(const std::vector<uint8_t>& v)
+    Receipt(const std::vector<uint8_t>& v)
     {
-      Receipt r;
+      path = std::make_shared<Path>();
       const uint8_t* buf = v.data();
       size_t s = v.size();
-      r.index = serialized::read<decltype(index)>(buf, s);
-      r.max_index = serialized::read<decltype(max_index)>(buf, s);
-      std::copy(buf, buf + r.root.h.size(), r.root.h.data());
-      buf += r.root.h.size();
-      s -= r.root.h.size();
-      for (size_t i = 0; i < s; i += r.root.SIZE)
+      index = serialized::read<decltype(index)>(buf, s);
+      max_index = serialized::read<decltype(max_index)>(buf, s);
+      std::copy(buf, buf + root.h.size(), root.h.data());
+      buf += root.h.size();
+      s -= root.h.size();
+      for (size_t i = 0; i < s; i += root.SIZE)
       {
-        path_insert(r.path, const_cast<uint8_t*>(buf + i));
+        path_insert(path->raw, const_cast<uint8_t*>(buf + i));
       }
-      return r;
     }
 
     Receipt(merkle_tree* tree, uint64_t index_)
     {
       index = index_;
-      path = init_path();
+      path = std::make_shared<Path>();
 
-      if (!mt_get_path_pre(tree, index, path, root.h.data()))
+      if (!mt_get_path_pre(tree, index, path->raw, root.h.data()))
       {
-        free_path(path);
         throw std::logic_error("Precondition to mt_get_path violated");
       }
 
-      max_index = mt_get_path(tree, index, path, root.h.data());
+      max_index = mt_get_path(tree, index, path->raw, root.h.data());
     }
+
+    Receipt(const Receipt&) = delete;
 
     bool verify(merkle_tree* tree) const
     {
-      if (!mt_verify_pre(tree, index, max_index, path, (uint8_t*)root.h.data()))
+      if (!mt_verify_pre(
+            tree, index, max_index, path->raw, (uint8_t*)root.h.data()))
       {
         throw std::logic_error("Precondition to mt_verify violated");
       }
 
-      return mt_verify(tree, index, max_index, path, (uint8_t*)root.h.data());
-    }
-
-    ~Receipt()
-    {
-      free_path(path);
+      return mt_verify(
+        tree, index, max_index, path->raw, (uint8_t*)root.h.data());
     }
 
     std::vector<uint8_t> to_v() const
     {
       size_t vs = sizeof(index) + sizeof(max_index) + root.h.size() +
-        (root.h.size() * path->sz);
+        (root.h.size() * path->raw->sz);
       std::vector<uint8_t> v(vs);
       uint8_t* buf = v.data();
       serialized::write(buf, vs, index);
       serialized::write(buf, vs, max_index);
       serialized::write(buf, vs, root.h.data(), root.h.size());
-      for (size_t i = 0; i < path->sz; ++i)
+      for (size_t i = 0; i < path->raw->sz; ++i)
       {
-        serialized::write(buf, vs, *(path->vs + i), root.h.size());
+        serialized::write(buf, vs, *(path->raw->vs + i), root.h.size());
       }
       return v;
     }
@@ -284,11 +299,9 @@ namespace ccf
       tree = mt_deserialize(serialised.data(), serialised.size());
     }
 
-    MerkleTreeHistory()
+    MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
     {
-      ::hash ih(init_hash());
-      tree = mt_create(ih);
-      free_hash(ih);
+      tree = mt_create(first_hash.h.data());
     }
 
     ~MerkleTreeHistory()
@@ -296,9 +309,9 @@ namespace ccf
       mt_free(tree);
     }
 
-    void append(const crypto::Sha256Hash& hash)
+    void append(crypto::Sha256Hash& hash)
     {
-      uint8_t* h = const_cast<uint8_t*>(hash.h.data());
+      uint8_t* h = hash.h.data();
       if (!mt_insert_pre(tree, h))
       {
         throw std::logic_error("Precondition to mt_insert violated");
@@ -345,6 +358,18 @@ namespace ccf
 
     Receipt get_receipt(uint64_t index)
     {
+      if (index < begin_index())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot produce receipt for {}: index is too old and has been "
+          "flushed from memory",
+          index));
+      }
+      if (index > end_index())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot produce receipt for {}: index is not yet known", index));
+      }
       return Receipt(tree, index);
     }
 
@@ -360,12 +385,54 @@ namespace ccf
       mt_serialize(tree, output.data(), output.capacity());
       return output;
     }
+
+    uint64_t begin_index()
+    {
+      return tree->offset + tree->i;
+    }
+
+    uint64_t end_index()
+    {
+      return tree->offset + tree->j - 1;
+    }
+
+    bool in_range(uint64_t index)
+    {
+      return index >= begin_index() && index <= end_index();
+    }
+
+    crypto::Sha256Hash get_leaf(uint64_t index)
+    {
+      if (!in_range(index))
+      {
+        throw std::logic_error("Cannot get leaf for out-of-range index");
+      }
+
+      const auto leaves = tree->hs.vs[0];
+
+      // We flush pairs of hashes, the offset to this leaf depends on the first
+      // index's parity
+      const auto first_index = begin_index();
+      const auto leaf_index =
+        index - first_index + (first_index % 2 == 0 ? 0 : 1);
+
+      if (leaf_index >= leaves.sz)
+      {
+        throw std::logic_error("Error in leaf offset calculation");
+      }
+
+      const auto leaf_data = leaves.vs[leaf_index];
+
+      crypto::Sha256Hash leaf;
+      std::memcpy(leaf.h.data(), leaf_data, leaf.h.size());
+      return leaf;
+    }
   };
 
   template <class T>
   class HashedTxHistory : public kv::TxHistory
   {
-    Store& store;
+    kv::Store& store;
     NodeId id;
     T replicated_state_tree;
 
@@ -399,7 +466,7 @@ namespace ccf
 
   public:
     HashedTxHistory(
-      Store& store_,
+      kv::Store& store_,
       NodeId id_,
       tls::KeyPair& kp_,
       Signatures& sig_,
@@ -463,7 +530,7 @@ namespace ccf
 
     bool verify(kv::Term* term = nullptr) override
     {
-      Store::Tx tx;
+      kv::Tx tx;
       auto [sig_tv, ni_tv] = tx.get_view(signatures, nodes);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
@@ -474,7 +541,7 @@ namespace ccf
       auto sig_value = sig.value();
       if (term)
       {
-        *term = sig_value.term;
+        *term = sig_value.view;
       }
 
       auto ni = ni_tv->get(sig_value.node);
@@ -504,6 +571,8 @@ namespace ccf
     void compact(kv::Version v) override
     {
       flush_pending();
+      // Receipts can only be retrieved to the flushed index. Keep a range of
+      // history so that a range of receipts are available.
       if (v > MAX_HISTORY_LEN)
       {
         replicated_state_tree.flush(v - MAX_HISTORY_LEN);
@@ -522,23 +591,26 @@ namespace ccf
 
       if (consensus->type() == ConsensusType::RAFT)
       {
-        auto version = store.next_version();
-        auto view = consensus->get_view();
-        auto commit = consensus->get_commit_seqno();
-        LOG_DEBUG_FMT("Issuing signature at {}", version);
+        auto txid = store.next_txid();
+        auto commit_txid = consensus->get_committed_txid();
         LOG_DEBUG_FMT(
-          "Signed at {} view: {} commit: {}", version, view, commit);
+          "Signed at {} in view: {} commit was: {}.{}",
+          txid.version,
+          txid.term,
+          commit_txid.first,
+          commit_txid.second);
         store.commit(
-          version,
-          [version, view, commit, this]() {
-            Store::Tx sig(version);
+          txid,
+          [txid, commit_txid, this]() {
+            kv::Tx sig(txid.version);
             auto sig_view = sig.get_view(signatures);
             crypto::Sha256Hash root = replicated_state_tree.get_root();
             Signature sig_value(
               id,
-              version,
-              view,
-              commit,
+              txid.version,
+              txid.term,
+              commit_txid.second,
+              commit_txid.first,
               root,
               kp.sign_hash(root.h.data(), root.h.size()),
               replicated_state_tree.serialise());
@@ -553,7 +625,8 @@ namespace ccf
       kv::TxHistory::RequestID id,
       CallerId caller_id,
       const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request) override
+      const std::vector<uint8_t>& request,
+      uint8_t frame_format) override
     {
       LOG_DEBUG_FMT("HISTORY: add_request {0}", id);
       requests[id] = request;
@@ -564,7 +637,8 @@ namespace ccf
         return false;
       }
 
-      return consensus->on_request({id, request, caller_id, caller_cert});
+      return consensus->on_request(
+        {id, request, caller_id, caller_cert, frame_format});
     }
 
     struct PendingInsert
@@ -684,7 +758,7 @@ namespace ccf
 
     bool verify_receipt(const std::vector<uint8_t>& v) override
     {
-      auto r = Receipt::from_v(v);
+      Receipt r(v);
       return replicated_state_tree.verify(r);
     }
   };

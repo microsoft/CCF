@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "../ds/logger.h"
-#include "../ds/spin_lock.h"
+#include "ds/logger.h"
+#include "ds/spin_lock.h"
+#include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "enclave_time.h"
 
@@ -17,8 +18,8 @@ std::atomic<std::chrono::milliseconds> logger::config::ms =
   std::chrono::milliseconds::zero();
 std::atomic<uint16_t> num_pending_threads = 0;
 
-enclave::ThreadMessaging enclave::ThreadMessaging::thread_messaging;
-std::atomic<uint16_t> enclave::ThreadMessaging::thread_count = 0;
+threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
+std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
 
 namespace enclave
 {
@@ -53,11 +54,13 @@ extern "C"
       return false;
     }
 
+    stacktrace::init_sig_handlers();
+
     num_pending_threads = (uint16_t)num_worker_threads + 1;
 
     if (
       num_pending_threads >
-      enclave::ThreadMessaging::thread_messaging.max_num_threads)
+      threading::ThreadMessaging::thread_messaging.max_num_threads)
     {
       return false;
     }
@@ -104,10 +107,10 @@ extern "C"
       {
         std::lock_guard<SpinLock> guard(create_lock);
 
-        tid = enclave::ThreadMessaging::thread_count.fetch_add(1);
-        num_pending_threads.fetch_sub(1);
-        thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
+        tid = threading::ThreadMessaging::thread_count.fetch_add(1);
+        threading::thread_ids.emplace(std::pair<std::thread::id, uint16_t>(
           std::this_thread::get_id(), tid));
+        num_pending_threads.fetch_sub(1);
 
         LOG_INFO_FMT("Starting thread: {}", tid);
       }

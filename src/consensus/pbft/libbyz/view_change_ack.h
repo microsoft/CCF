@@ -75,7 +75,7 @@ private:
 
 inline View_change_ack_rep& View_change_ack::rep() const
 {
-  PBFT_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(msg), "Improperly aligned pointer");
   return *((View_change_ack_rep*)msg);
 }
 
@@ -101,6 +101,6 @@ inline Digest& View_change_ack::vc_digest() const
 
 inline bool View_change_ack::match(const View_change_ack* p) const
 {
-  PBFT_ASSERT(view() == p->view(), "Invalid argument");
+  CCF_ASSERT(view() == p->view(), "Invalid argument");
   return vc_id() == p->vc_id() && vc_digest() == p->vc_digest();
 }

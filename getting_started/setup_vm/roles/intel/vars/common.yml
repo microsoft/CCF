@@ -5,3 +5,21 @@
 flc_enabled: true
 intel_sgx_w_flc_driver_url: "https://download.01.org/intel-sgx/sgx-dcap/1.6/linux/distro/ubuntuServer18.04/sgx_linux_x64_driver_1.33.bin"
 intel_sgx1_driver_url: "https://download.01.org/intel-sgx/sgx-linux/2.9.1/distro/ubuntu18.04-server/sgx_linux_x64_driver_1.33.bin"
+
+intel_sgx_packages:
+  - "libsgx-enclave-common"
+  - "libsgx-ae-qve"
+  - "libsgx-ae-pce"
+  - "libsgx-ae-qe3"
+  - "libsgx-qe3-logic"
+  - "libsgx-pce-logic"
+
+intel_sgx_dev_packages:
+  - "libsgx-enclave-common-dev"
+
+intel_dcap_packages:
+  - "libsgx-dcap-ql"
+  - "libsgx-urts"
+
+intel_dcap_dev_packages:
+  - "libsgx-dcap-ql-dev"

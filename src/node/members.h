@@ -76,7 +76,7 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, MemberPubInfo)
   DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
-  using Members = Store::Map<MemberId, MemberInfo>;
+  using Members = kv::Map<MemberId, MemberInfo>;
 
   /** Records a signed signature containing the last state digest and the next
    * state digest to sign
@@ -115,5 +115,5 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_BASE(MemberAck, StateDigest)
   DECLARE_JSON_REQUIRED_FIELDS(MemberAck, signed_req)
-  using MemberAcks = Store::Map<MemberId, MemberAck>;
+  using MemberAcks = kv::Map<MemberId, MemberAck>;
 }

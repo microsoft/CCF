@@ -91,7 +91,7 @@ inline void Pre_prepare_info::zero()
 
 inline void Pre_prepare_info::add_complete(Pre_prepare* p)
 {
-  PBFT_ASSERT(pp == 0, "Invalid state");
+  CCF_ASSERT(pp == 0, "Invalid state");
   pp = p;
   mreqs = 0;
   mrmap.set();

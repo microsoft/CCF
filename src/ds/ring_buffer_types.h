@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/nonstd.h"
 #include "hash.h"
 #include "serializer.h"
 
@@ -128,19 +129,12 @@ namespace ringbuffer
 #define DEFINE_RINGBUFFER_MSG_TYPE(NAME) \
   NAME = ds::fnv_1a<ringbuffer::Message>(#NAME)
 
-  /// Machinery for writing and reading typed messages
-  namespace
-  {
-    template <ringbuffer::Message m>
-    struct dependent_false : public std::false_type
-    {};
-  };
-
   template <ringbuffer::Message m>
   struct MessageSerializers
   {
     static_assert(
-      dependent_false<m>::value, "No payload specialization for this Message");
+      nonstd::dependent_false<ringbuffer::Message, m>::value,
+      "No payload specialization for this Message");
   };
 
 #define DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(MTYPE, ...) \

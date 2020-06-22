@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/nonstd.h"
 #include "serialized.h"
 
 #include <memory>
@@ -59,16 +60,6 @@ namespace serializer
       }
     }
 
-    // C++20
-    template <class T>
-    struct remove_cvref
-    {
-      typedef std::remove_cv_t<std::remove_reference_t<T>> type;
-    };
-
-    template <class T>
-    using remove_cvref_t = typename remove_cvref<T>::type;
-
     template <typename Tup>
     struct TupMatcher
     {
@@ -87,8 +78,8 @@ namespace serializer
       struct close_enough_at
       {
         using CanonTarget =
-          remove_cvref_t<typename std::tuple_element_t<I, Tup>>;
-        using CanonArgument = remove_cvref_t<T>;
+          nonstd::remove_cvref_t<typename std::tuple_element_t<I, Tup>>;
+        using CanonArgument = nonstd::remove_cvref_t<T>;
 
         // This determines what types a Serializer will accept as arguments to
         // serialize(...), relative to the declared param types.
@@ -311,8 +302,19 @@ namespace serializer
     template <typename T, typename... Ts>
     static auto deserialize_impl(const uint8_t* data, size_t size)
     {
-      const auto next = std::make_tuple(
-        deserialize_value(data, size, Tag<details::remove_cvref_t<T>>{}));
+      using StrippedT = nonstd::remove_cvref_t<T>;
+
+      if constexpr (
+        std::is_same_v<StrippedT, std::vector<uint8_t>> ||
+        std::is_same_v<StrippedT, ByteRange>)
+      {
+        static_assert(
+          sizeof...(Ts) == 0,
+          "Byte vectors must be the final element in message");
+      }
+
+      const auto next =
+        std::make_tuple(deserialize_value(data, size, Tag<StrippedT>{}));
 
       if constexpr (sizeof...(Ts) == 0)
       {

@@ -2,11 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #define DOCTEST_CONFIG_IMPLEMENT
 #include "consensus/pbft/pbft_requests.h"
-#include "consensus/test/stub_consensus.h"
 #include "ds/files.h"
 #include "ds/logger.h"
 #include "enclave/app_interface.h"
-#include "node/encryptor.h"
+#include "kv/map.h"
+#include "kv/test/null_encryptor.h"
+#include "kv/test/stub_consensus.h"
 #include "node/entities.h"
 #include "node/genesis_gen.h"
 #include "node/history.h"
@@ -37,67 +38,71 @@ static constexpr auto default_pack = jsonrpc::Pack::MsgPack;
 class TestUserFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestUserFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestUserFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("empty_function", empty_function, HandlerRegistry::Read);
+    make_endpoint("empty_function", HTTP_POST, empty_function)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .install();
 
-    auto empty_function_signed = [this](RequestArgs& args) {
+    auto empty_function_signed = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install(
-      "empty_function_signed", empty_function_signed, HandlerRegistry::Read)
-      .set_require_client_signature(true);
+    make_endpoint("empty_function_signed", HTTP_POST, empty_function_signed)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_require_client_signature(true)
+      .install();
 
-    auto empty_function_no_auth = [this](RequestArgs& args) {
+    auto empty_function_no_auth = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install(
-      "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Read)
-      .set_require_client_identity(false);
+    make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_require_client_identity(false)
+      .install();
   }
 };
 
 class TestReqNotStoredFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestReqNotStoredFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestReqNotStoredFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("empty_function", empty_function, HandlerRegistry::Read);
+    make_endpoint("empty_function", HTTP_POST, empty_function).install();
     disable_request_storing();
   }
 };
 
-class TestMinimalHandleFunction : public SimpleUserRpcFrontend
+class TestMinimalEndpointFunction : public SimpleUserRpcFrontend
 {
 public:
-  TestMinimalHandleFunction(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestMinimalEndpointFunction(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
-    auto echo_function = [this](Store::Tx& tx, nlohmann::json&& params) {
+    auto echo_function = [this](kv::Tx& tx, nlohmann::json&& params) {
       return make_success(std::move(params));
     };
-    install("echo", json_adapter(echo_function), HandlerRegistry::Read);
+    make_endpoint("echo", HTTP_POST, json_adapter(echo_function)).install();
 
     auto get_caller_function =
-      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         return make_success(caller_id);
       };
-    install(
-      "get_caller", json_adapter(get_caller_function), HandlerRegistry::Read);
+    make_endpoint("get_caller", HTTP_POST, json_adapter(get_caller_function))
+      .install();
 
     auto failable_function =
-      [this](Store::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+      [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
         const auto it = params.find("error");
         if (it != params.end())
         {
@@ -109,47 +114,48 @@ public:
 
         return make_success(true);
       };
-    install("failable", json_adapter(failable_function), HandlerRegistry::Read);
+    make_endpoint("failable", HTTP_POST, json_adapter(failable_function))
+      .install();
   }
 };
 
 class TestRestrictedVerbsFrontend : public SimpleUserRpcFrontend
 {
 public:
-  TestRestrictedVerbsFrontend(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestRestrictedVerbsFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
-    auto get_only = [this](RequestArgs& args) {
+    auto get_only = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("get_only", get_only, HandlerRegistry::Read).set_http_get_only();
+    make_endpoint("get_only", HTTP_GET, get_only).install();
 
-    auto post_only = [this](RequestArgs& args) {
+    auto post_only = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("post_only", post_only, HandlerRegistry::Read).set_http_post_only();
+    make_endpoint("post_only", HTTP_POST, post_only).install();
 
-    auto put_or_delete = [this](RequestArgs& args) {
+    auto put_or_delete = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install("put_or_delete", put_or_delete, HandlerRegistry::Read)
-      .set_allowed_verbs({HTTP_PUT, HTTP_DELETE});
+    make_endpoint("put_or_delete", HTTP_PUT, put_or_delete).install();
+    make_endpoint("put_or_delete", HTTP_DELETE, put_or_delete).install();
   }
 };
 
 class TestExplicitCommitability : public SimpleUserRpcFrontend
 {
 public:
-  Store::Map<size_t, size_t>& values;
+  kv::Map<size_t, size_t>& values;
 
-  TestExplicitCommitability(Store& tables) :
+  TestExplicitCommitability(kv::Store& tables) :
     SimpleUserRpcFrontend(tables),
     values(tables.create<size_t, size_t>("test_values"))
   {
     open();
 
-    auto maybe_commit = [this](RequestArgs& args) {
+    auto maybe_commit = [this](EndpointContext& args) {
       const auto parsed =
         jsonrpc::unpack(args.rpc_ctx->get_request_body(), default_pack);
 
@@ -167,41 +173,67 @@ public:
       const auto status = parsed["status"].get<http_status>();
       args.rpc_ctx->set_response_status(status);
     };
-    install("maybe_commit", maybe_commit, HandlerRegistry::Write);
+    make_endpoint("maybe_commit", HTTP_POST, maybe_commit).install();
+  }
+};
+
+class TestAlternativeHandlerTypes : public SimpleUserRpcFrontend
+{
+public:
+  TestAlternativeHandlerTypes(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  {
+    open();
+
+    auto command = [this](CommandEndpointContext& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_command_endpoint("command", HTTP_POST, command).install();
+
+    auto read_only = [this](ReadOnlyEndpointContext& args) {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_read_only_endpoint("read_only", HTTP_POST, read_only).install();
+    make_read_only_endpoint("read_only", HTTP_GET, read_only).install();
   }
 };
 
 class TestMemberFrontend : public MemberRpcFrontend
 {
 public:
-  TestMemberFrontend(ccf::NetworkState& network, ccf::StubNodeState& node) :
-    MemberRpcFrontend(network, node)
+  TestMemberFrontend(
+    ccf::NetworkState& network,
+    ccf::StubNodeState& node,
+    ccf::ShareManager& share_manager) :
+    MemberRpcFrontend(network, node, share_manager)
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    member_handlers.install(
-      "empty_function", empty_function, HandlerRegistry::Read);
+    member_endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .install();
   }
 };
 
 class TestNoCertsFrontend : public RpcFrontend
 {
-  HandlerRegistry handlers;
+  EndpointRegistry endpoints;
 
 public:
-  TestNoCertsFrontend(Store& tables) :
-    RpcFrontend(tables, handlers),
-    handlers(tables)
+  TestNoCertsFrontend(kv::Store& tables) :
+    RpcFrontend(tables, endpoints),
+    endpoints(tables)
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    handlers.install("empty_function", empty_function, HandlerRegistry::Read);
+    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .install();
   }
 };
 
@@ -215,7 +247,7 @@ public:
   std::vector<uint8_t> last_caller_cert;
   CallerId last_caller_id;
 
-  void record_ctx(RequestArgs& args)
+  void record_ctx(EndpointContext& args)
   {
     last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session->caller_cert);
     last_caller_id = args.caller_id;
@@ -226,25 +258,25 @@ class TestForwardingUserFrontEnd : public SimpleUserRpcFrontend,
                                    public RpcContextRecorder
 {
 public:
-  TestForwardingUserFrontEnd(Store& tables) : SimpleUserRpcFrontend(tables)
+  TestForwardingUserFrontEnd(kv::Store& tables) : SimpleUserRpcFrontend(tables)
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    install("empty_function", empty_function, HandlerRegistry::Write);
+    make_endpoint("empty_function", HTTP_POST, empty_function).install();
 
-    auto empty_function_no_auth = [this](RequestArgs& args) {
+    auto empty_function_no_auth = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
-    install(
-      "empty_function_no_auth", empty_function_no_auth, HandlerRegistry::Write)
-      .set_require_client_identity(false);
+    make_endpoint("empty_function_no_auth", HTTP_POST, empty_function_no_auth)
+      .set_require_client_identity(false)
+      .install();
   }
 };
 
@@ -258,13 +290,14 @@ public:
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.install("empty_function", empty_function, HandlerRegistry::Write);
+    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+      .install();
   }
 };
 
@@ -273,18 +306,22 @@ class TestForwardingMemberFrontEnd : public MemberRpcFrontend,
 {
 public:
   TestForwardingMemberFrontEnd(
-    Store& tables, ccf::NetworkState& network, ccf::StubNodeState& node) :
-    MemberRpcFrontend(network, node)
+    kv::Store& tables,
+    ccf::NetworkState& network,
+    ccf::StubNodeState& node,
+    ccf::ShareManager& share_manager) :
+    MemberRpcFrontend(network, node, share_manager)
   {
     open();
 
-    auto empty_function = [this](RequestArgs& args) {
+    auto empty_function = [this](auto& args) {
       record_ctx(args);
       args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
     };
     // Note that this a Write function so that a backup executing this command
     // will forward it to the primary
-    handlers.install("empty_function", empty_function, HandlerRegistry::Write);
+    endpoints.make_endpoint("empty_function", HTTP_POST, empty_function)
+      .install();
   }
 };
 
@@ -292,7 +329,7 @@ public:
 auto kp = tls::make_key_pair();
 NetworkState network;
 NetworkState network2;
-auto encryptor = std::make_shared<NullTxEncryptor>();
+auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
 NetworkState pbft_network(ConsensusType::PBFT);
 auto history_kp = tls::make_key_pair();
@@ -304,7 +341,8 @@ auto history = std::make_shared<NullTxHistory>(
   pbft_network.signatures,
   pbft_network.nodes);
 
-StubNodeState stub_node;
+ShareManager share_manager(network);
+StubNodeState stub_node(share_manager);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
@@ -312,7 +350,7 @@ auto create_simple_request(
 {
   http::Request request(method);
   request.set_header(
-    http::headers::CONTENT_TYPE, details::pack_to_content_type(pack));
+    http::headers::CONTENT_TYPE, ccf::jsonhandler::pack_to_content_type(pack));
   return request;
 }
 
@@ -354,7 +392,7 @@ nlohmann::json parse_response_body(
 
 std::optional<SignedReq> get_signed_req(CallerId caller_id)
 {
-  Store::Tx tx;
+  kv::Tx tx;
   auto client_sig_view = tx.get_view(network.user_client_signatures);
   return client_sig_view->get(caller_id);
 }
@@ -410,7 +448,7 @@ void prepare_callers()
   auto backup_consensus = std::make_shared<kv::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
-  Store::Tx tx;
+  kv::Tx tx;
   network.tables->set_encryptor(encryptor);
   network2.tables->set_encryptor(encryptor);
 
@@ -426,7 +464,7 @@ void prepare_callers()
 
 void add_callers_primary_store()
 {
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   network2.tables->clear();
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
@@ -438,7 +476,7 @@ void add_callers_primary_store()
 
 void add_callers_pbft_store()
 {
-  Store::Tx gen_tx;
+  kv::Tx gen_tx;
   pbft_network.tables->set_encryptor(encryptor);
   pbft_network.tables->clear();
   pbft_network.tables->set_history(history);
@@ -464,14 +502,15 @@ TEST_CASE("process_pbft")
   simple_call.set_body(&serialized_body);
 
   const auto serialized_call = simple_call.build_request();
-  pbft::Request request = {user_id, user_caller_der, serialized_call};
+  pbft::Request request = {
+    user_id, user_caller_der, serialized_call, {}, enclave::FrameFormat::http};
 
   auto session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_id, user_caller_der);
   auto ctx = enclave::make_rpc_context(session, request.raw);
   frontend.process_pbft(ctx);
 
-  Store::Tx tx;
+  kv::Tx tx;
   auto pbft_requests_map = tx.get_view(pbft_network.pbft_requests_map);
   auto request_value = pbft_requests_map->get(0);
   REQUIRE(request_value.has_value());
@@ -481,6 +520,8 @@ TEST_CASE("process_pbft")
   REQUIRE(deserialised_req.caller_id == user_id);
   REQUIRE(deserialised_req.caller_cert == user_caller_der);
   REQUIRE(deserialised_req.raw == serialized_call);
+  REQUIRE(deserialised_req.pbft_raw.empty());
+  REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);
 }
 
 TEST_CASE("SignedReq to and from json")
@@ -513,7 +554,7 @@ TEST_CASE("process with signatures")
     REQUIRE(response.status == HTTP_STATUS_NOT_FOUND);
   }
 
-  SUBCASE("handler does not require signature")
+  SUBCASE("endpoint does not require signature")
   {
     const auto simple_call = create_simple_request();
     const auto [signed_call, signed_req] = create_signed_request(simple_call);
@@ -548,7 +589,7 @@ TEST_CASE("process with signatures")
     }
   }
 
-  SUBCASE("handler requires signature")
+  SUBCASE("endpoint requires signature")
   {
     const auto simple_call = create_simple_request("empty_function_signed");
     const auto [signed_call, signed_req] = create_signed_request(simple_call);
@@ -613,7 +654,7 @@ TEST_CASE("process with caller")
   prepare_callers();
   TestUserFrontend frontend(*network.tables);
 
-  SUBCASE("handler does not require valid caller")
+  SUBCASE("endpoint does not require valid caller")
   {
     const auto simple_call = create_simple_request("empty_function_no_auth");
     const auto serialized_simple_call = simple_call.build_request();
@@ -652,7 +693,7 @@ TEST_CASE("process with caller")
     }
   }
 
-  SUBCASE("handler requires valid caller")
+  SUBCASE("endpoint requires valid caller")
   {
     const auto simple_call = create_simple_request("empty_function");
     const auto serialized_simple_call = simple_call.build_request();
@@ -729,7 +770,7 @@ TEST_CASE("Member caller")
   prepare_callers();
   auto simple_call = create_simple_request();
   std::vector<uint8_t> serialized_call = simple_call.build_request();
-  TestMemberFrontend frontend(network, stub_node);
+  TestMemberFrontend frontend(network, stub_node, share_manager);
 
   SUBCASE("valid caller")
   {
@@ -751,10 +792,10 @@ TEST_CASE("Member caller")
   }
 }
 
-TEST_CASE("MinimalHandleFunction")
+TEST_CASE("MinimalEndpointFunction")
 {
   prepare_callers();
-  TestMinimalHandleFunction frontend(*network.tables);
+  TestMinimalEndpointFunction frontend(*network.tables);
   for (const auto pack_type : {jsonrpc::Pack::Text, jsonrpc::Pack::MsgPack})
   {
     {
@@ -939,7 +980,7 @@ TEST_CASE("Explicit commitability")
   size_t next_value = 0;
 
   auto get_value = [&]() {
-    Store::Tx tx;
+    kv::Tx tx;
     auto view = tx.get_view(frontend.values);
     auto actual_v = view->get(0).value();
     return actual_v;
@@ -947,7 +988,7 @@ TEST_CASE("Explicit commitability")
 
   // Set initial value
   {
-    Store::Tx tx;
+    kv::Tx tx;
     tx.get_view(frontend.values)->put(0, next_value);
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
@@ -1028,6 +1069,32 @@ TEST_CASE("Explicit commitability")
   }
 }
 
+TEST_CASE("Alternative endpoints")
+{
+  prepare_callers();
+  TestAlternativeHandlerTypes frontend(*network.tables);
+
+  {
+    auto command = create_simple_request("command");
+    const auto serialized_command = command.build_request();
+
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_command);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+
+  for (auto verb : {HTTP_GET, HTTP_POST})
+  {
+    http::Request read_only("read_only", verb);
+    const auto serialized_read_only = read_only.build_request();
+
+    auto rpc_ctx =
+      enclave::make_rpc_context(user_session, serialized_read_only);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+  }
+}
+
 TEST_CASE("Signed read requests can be executed on backup")
 {
   prepare_callers();
@@ -1042,6 +1109,14 @@ TEST_CASE("Signed read requests can be executed on backup")
   auto rpc_ctx =
     enclave::make_rpc_context(user_session, serialized_signed_call);
   auto response = parse_response(frontend.process(rpc_ctx).value());
+  if (response.status != HTTP_STATUS_OK)
+  {
+    std::cout << std::string(
+                   serialized_signed_call.begin(), serialized_signed_call.end())
+              << std::endl;
+    std::cout << std::string(response.body.begin(), response.body.end())
+              << std::endl;
+  }
   CHECK(response.status == HTTP_STATUS_OK);
 }
 
@@ -1127,7 +1202,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 
   {
-    INFO("Unauthenticated handler");
+    INFO("Unauthenticated endpoint");
     auto simple_call_no_auth = create_simple_request("empty_function_no_auth");
     auto serialized_call_no_auth = simple_call_no_auth.build_request();
 
@@ -1237,7 +1312,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 
     user_frontend_primary.process_forwarded(fwd_ctx);
 
-    Store::Tx tx;
+    kv::Tx tx;
     auto client_sig_view = tx.get_view(network2.user_client_signatures);
     auto client_sig = client_sig_view->get(user_id);
     REQUIRE(client_sig.has_value());
@@ -1346,9 +1421,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   add_callers_primary_store();
 
   TestForwardingMemberFrontEnd member_frontend_backup(
-    *network.tables, network, stub_node);
+    *network.tables, network, stub_node, share_manager);
   TestForwardingMemberFrontEnd member_frontend_primary(
-    *network2.tables, network2, stub_node);
+    *network2.tables, network2, stub_node, share_manager);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
@@ -1381,6 +1456,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
   CHECK(member_frontend_primary.last_caller_id == 0);
 }
+
+TEST_CASE("Deprecated API" * doctest::test_suite("deprecated")) {}
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)

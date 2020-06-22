@@ -16,10 +16,6 @@ jobs:
       displayName: 'Shell Check'
       condition: succeededOrFailed()
 
-    - script: ./check-cmake-version-vs-tag.sh
-      displayName: 'Check project version in CMake against git tag'
-      condition: succeededOrFailed()
-
     - script: ./check-todo.sh src
       displayName: 'Check for TODOs'
       condition: succeededOrFailed()
@@ -40,10 +36,7 @@ jobs:
       displayName: 'Check Python code format'
       condition: succeededOrFailed()
 
-    - script: |
-        source env/bin/activate
-        pip install cmake_format
-        cmake-format --check CMakeLists.txt $(find ./cmake ./samples ./src ./tests -name "*.cmake" | tr "\n" " ")
+    - script: ./check-cmake-format.sh cmake samples src tests CMakeLists.txt
       displayName: 'Check CMake code format'
       condition: succeededOrFailed()
 

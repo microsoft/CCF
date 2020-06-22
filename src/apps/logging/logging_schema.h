@@ -3,7 +3,7 @@
 #pragma once
 #include "ds/json.h"
 
-namespace ccf
+namespace loggingapp
 {
   // Private record/get
   // Explicit target structs, macro-generated parsers + schema
@@ -38,6 +38,8 @@ namespace ccf
   DECLARE_JSON_TYPE(LoggingGet::Out);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingGet::Out, msg);
   // SNIPPET_END: macro_validation_macros
+
+  using LoggingGetHistorical = LoggingGet;
 
   // Public record/get
   // Manual schemas, verified then parsed in handler

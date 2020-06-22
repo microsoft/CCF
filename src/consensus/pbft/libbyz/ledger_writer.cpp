@@ -7,13 +7,15 @@
 LedgerWriter::LedgerWriter(
   pbft::PbftStore& store_,
   pbft::PrePreparesMap& pbft_pre_prepares_map_,
-  ccf::Signatures& signatures_) :
+  ccf::Signatures& signatures_,
+  pbft::NewViewsMap& pbft_new_views_map_) :
   store(store_),
   pbft_pre_prepares_map(pbft_pre_prepares_map_),
-  signatures(signatures_)
+  signatures(signatures_),
+  pbft_new_views_map(pbft_new_views_map_)
 {}
 
-kv::Version LedgerWriter::write_pre_prepare(ccf::Store::Tx& tx, Pre_prepare* pp)
+kv::Version LedgerWriter::write_pre_prepare(kv::Tx& tx, Pre_prepare* pp)
 {
   return store.commit_tx(
     tx,
@@ -51,21 +53,19 @@ kv::Version LedgerWriter::write_pre_prepare(Pre_prepare* pp)
     signatures);
 }
 
-void LedgerWriter::write_view_change(View_change* vc)
+void LedgerWriter::write_new_view(New_view* nv)
 {
-  View_change_ledger_header header(
-    vc->id(),
-    vc->max_seqno(),
-    vc->view()
-#ifdef SIGN_BATCH
-      ,
-    vc->digest(),
-    vc->signature()
-#endif
-  );
+  LOG_TRACE_FMT(
+    "Writing new view with view {} for node {}", nv->view(), nv->id());
+  store.commit_new_view(
+    {nv->view(),
+     nv->id(),
+     {(const uint8_t*)nv->contents(),
+      (const uint8_t*)nv->contents() + nv->size()}},
+    pbft_new_views_map);
+}
 
-  std::vector<uint8_t> entry(sizeof(View_change_ledger_header));
-  uint8_t* tdata = entry.data();
-  auto size = sizeof(View_change_ledger_header);
-  serialized::write(tdata, size, (uint8_t*)&header, size);
+void LedgerWriter::write_new_view(kv::Tx& tx)
+{
+  store.commit_tx(tx);
 }

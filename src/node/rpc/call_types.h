@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ds/json_schema.h"
+#include "kv/kv_types.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/nodes.h"
@@ -16,8 +17,8 @@ namespace ccf
   {
     struct Out
     {
-      uint64_t term;
-      int64_t commit;
+      kv::Consensus::View view;
+      kv::Consensus::SeqNo seqno;
     };
   };
 
@@ -25,8 +26,8 @@ namespace ccf
   {
     struct In
     {
-      uint64_t view;
-      uint32_t seqno;
+      kv::Consensus::View view;
+      kv::Consensus::SeqNo seqno;
     };
 
     struct Out
@@ -60,6 +61,7 @@ namespace ccf
       NodeId primary_id;
       std::string primary_host;
       std::string primary_port;
+      kv::Consensus::View current_view;
     };
   };
 

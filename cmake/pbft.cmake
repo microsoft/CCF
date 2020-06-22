@@ -10,45 +10,45 @@ if(SAN)
 endif()
 
 set(PBFT_SRC
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/global_state.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/replica.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/commit.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/message.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/reply.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/digest.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/node.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/request.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/checkpoint.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/pre_prepare.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/req_queue.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/prepare.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/status.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/prepared_cert.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/principal.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/meta_data.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/data.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/fetch.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/meta_data_cert.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/state.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/libbyz.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/view_change.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/new_view.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/view_change_ack.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/view_info.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/nv_info.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/rep_info.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/meta_data_d.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/query_stable.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/reply_stable.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/stable_estimator.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/big_req_table.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/pre_prepare_info.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/ledger_writer.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/key_format.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/request_id_gen.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/new_principal.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/network_open.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/append_entries.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/global_state.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/replica.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/commit.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/message.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/reply.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/digest.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/node.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/request.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/checkpoint.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/pre_prepare.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/req_queue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/prepare.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/status.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/prepared_cert.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/principal.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/meta_data.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/data.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/fetch.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/meta_data_cert.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/state.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/libbyz.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/view_change.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/new_view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/view_change_ack.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/view_info.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/nv_info.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/rep_info.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/meta_data_d.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/query_stable.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/reply_stable.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/stable_estimator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/big_req_table.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/pre_prepare_info.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/ledger_writer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/key_format.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/request_id_gen.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/new_principal.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/network_open.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/append_entries.cpp
 )
 
 if("sgx" IN_LIST COMPILE_TARGETS)
@@ -89,26 +89,26 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
   add_library(
     libcommontest STATIC
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/itimer.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/time_types.cpp
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/statistics.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/itimer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/time_types.cpp
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
 
   target_include_directories(
-    libcommontest PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
-                          ${CMAKE_SOURCE_DIR}/3rdparty ${EVERCRYPT_INC}
+    libcommontest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz
+                          ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty ${EVERCRYPT_INC}
   )
   target_compile_options(libcommontest PRIVATE -stdlib=libc++)
 
   add_library(
     libcommontest.mock STATIC
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks/network_mock.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks/network_mock.cpp
   )
   target_include_directories(
     libcommontest.mock
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
-            ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test ${EVERCRYPT_INC}
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test
+            ${EVERCRYPT_INC}
   )
 
   target_compile_options(libcommontest.mock PRIVATE -stdlib=libc++)
@@ -117,9 +117,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
 
     target_include_directories(
       ${name}
-      PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test
-              ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz
-              ${CMAKE_SOURCE_DIR}/src/pbft/crypto ${EVERCRYPT_INC}
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz
+              ${CMAKE_CURRENT_SOURCE_DIR}/src/pbft/crypto ${EVERCRYPT_INC}
     )
     target_link_libraries(
       ${name} PRIVATE byz.host libcommontest evercrypt.host
@@ -138,20 +138,18 @@ if("virtual" IN_LIST COMPILE_TARGETS)
     add_san(${name})
 
     target_compile_options(${name} PRIVATE -stdlib=libc++)
-    target_link_libraries(
-      ${name} PRIVATE -stdlib=libc++ -lc++ -lc++abi -lc++fs secp256k1.host
-    )
+    target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} secp256k1.host)
 
   endfunction()
 
   # Unit tests
   add_unit_test(
     replica_unit_tests
-    ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_unit_tests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/replica_unit_tests.cpp
   )
   target_include_directories(
     replica_unit_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/pbft/libbyz/test/mocks
   )
   target_link_libraries(replica_unit_tests PRIVATE libcommontest.mock)
   use_libbyz(replica_unit_tests)

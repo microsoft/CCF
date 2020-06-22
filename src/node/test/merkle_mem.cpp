@@ -15,7 +15,7 @@ extern "C"
 
 using namespace std;
 
-static constexpr size_t appends = 1000000;
+static constexpr size_t appends = 1'000'000;
 static constexpr size_t max_tree_size = 1000;
 static constexpr size_t flushes_without_retract = 10;
 
@@ -62,7 +62,14 @@ static int append_flush_and_retract()
       }
     }
     if (index % (appends / 10) == 0)
-      LOG_INFO_FMT("MAX RSS: {}Kb", get_maxrss());
+    {
+      LOG_INFO_FMT("At {}", index);
+      LOG_INFO_FMT("  MAX RSS: {}Kb", get_maxrss());
+      const auto serialised = t.serialise();
+      LOG_INFO_FMT("  SERIALISED: {}Kb", serialised.size() / 1024);
+      const auto receipt = t.get_receipt(t.end_index());
+      LOG_INFO_FMT("  SERIALISED RECEIPT: {}bytes", receipt.to_v().size());
+    }
   }
   LOG_INFO_FMT("MAX RSS: {}Kb", get_maxrss());
 

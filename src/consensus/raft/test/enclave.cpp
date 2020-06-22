@@ -20,8 +20,9 @@ TEST_CASE("Enclave put")
 
   auto enclave = LedgerEnclave(*writer_factory);
 
+  bool globally_committable = false;
   const std::vector<uint8_t> tx = {'a', 'b', 'c'};
-  enclave.put_entry(tx);
+  enclave.put_entry(tx, globally_committable);
   size_t num_msgs = 0;
   eio.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
@@ -30,6 +31,7 @@ TEST_CASE("Enclave put")
         case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
+          REQUIRE(serialized::read<bool>(data, size) == globally_committable);
           auto entry = std::vector<uint8_t>(data, data + size);
           REQUIRE(entry == tx);
         }
@@ -55,8 +57,9 @@ TEST_CASE("Enclave record")
   auto leader_ledger_enclave = LedgerEnclave(*writer_factory_leader);
   auto follower_ledger_enclave = LedgerEnclave(*writer_factory_follower);
 
+  bool globally_committable = false;
   const std::vector<uint8_t> tx = {'a', 'b', 'c'};
-  leader_ledger_enclave.put_entry(tx);
+  leader_ledger_enclave.put_entry(tx, globally_committable);
   size_t num_msgs = 0;
   std::vector<uint8_t> record;
   eio_leader.read_from_inside().read(
@@ -66,6 +69,7 @@ TEST_CASE("Enclave record")
         case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
+          REQUIRE(serialized::read<bool>(data, size) == globally_committable);
           copy(data, data + size, back_inserter(record));
         }
         break;
@@ -86,10 +90,9 @@ TEST_CASE("Enclave record")
   auto size_ = msg.size();
 
   num_msgs = 0;
-  auto r = follower_ledger_enclave.record_entry(data__, size_);
-
-  REQUIRE(r.second);
-  REQUIRE(r.first == tx);
+  auto r = follower_ledger_enclave.get_entry(data__, size_);
+  REQUIRE(r == tx);
+  follower_ledger_enclave.put_entry(r, globally_committable);
   eio_follower.read_from_inside().read(
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
@@ -97,6 +100,7 @@ TEST_CASE("Enclave record")
         case consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
+          REQUIRE(serialized::read<bool>(data, size) == globally_committable);
           auto entry = std::vector<uint8_t>(data, data + size);
           REQUIRE(entry == tx);
         }

@@ -3,7 +3,8 @@
 #pragma once
 
 #include "node/rpc/node_interface.h"
-#include "node/secret_share.h"
+#include "node/rpc/notifier_interface.h"
+#include "node/share_manager.h"
 
 namespace ccf
 {
@@ -11,24 +12,17 @@ namespace ccf
   {
   private:
     bool is_public = false;
-    std::shared_ptr<NetworkTables> network;
+    ShareManager& share_manager;
 
   public:
-    StubNodeState(std::shared_ptr<NetworkTables> network_ = nullptr) :
-      network(network_)
-    {}
+    StubNodeState(ShareManager& share_manager) : share_manager(share_manager) {}
 
-    bool accept_recovery(Store::Tx& tx) override
+    bool accept_recovery(kv::Tx& tx) override
     {
       return true;
     }
 
-    bool open_network(Store::Tx& tx) override
-    {
-      return true;
-    }
-
-    bool rekey_ledger(Store::Tx& tx) override
+    bool rekey_ledger(kv::Tx& tx) override
     {
       return true;
     }
@@ -59,43 +53,19 @@ namespace ccf
     }
 
     void node_quotes(
-      Store::Tx& tx,
+      kv::ReadOnlyTx& tx,
       GetQuotes::Out& result,
       const std::optional<std::set<NodeId>>& filter) override
     {}
 
-    bool split_ledger_secrets(Store::Tx& tx) override
+    void initiate_private_recovery(kv::Tx& tx) override
     {
-      auto [members_view, shares_view] =
-        tx.get_view(network->members, network->shares);
-      SecretSharing::SplitSecret secret_to_split = {};
-
-      GenesisGenerator g(*network.get(), tx);
-      auto active_member_count = g.get_active_members_count();
-      size_t threshold = g.get_recovery_threshold();
-
-      auto shares =
-        SecretSharing::split(secret_to_split, active_member_count, threshold);
-
-      // Here, shares are not encrypted but recorded in plain text
-      EncryptedSharesMap recorded_shares;
-      MemberId member_id = 0;
-      for (auto const& s : shares)
-      {
-        auto share_raw = std::vector<uint8_t>(s.begin(), s.end());
-        recorded_shares[member_id] = {{}, share_raw};
-        member_id++;
-      }
-      g.add_key_share_info({{}, {}, recorded_shares});
-
-      return true;
+      share_manager.restore_recovery_shares_info(tx, {});
     }
 
-    bool restore_ledger_secrets(
-      Store::Tx& tx, const std::vector<SecretSharing::Share>& shares) override
+    kv::Version get_last_recovered_commit_idx() override
     {
-      SecretSharing::combine(shares, shares.size());
-      return true;
+      return kv::NoVersion;
     }
 
     NodeId get_node_id() const override

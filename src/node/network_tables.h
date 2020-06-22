@@ -7,12 +7,15 @@
 #include "code_id.h"
 #include "config.h"
 #include "consensus.h"
+#include "consensus/pbft/pbft_new_views.h"
 #include "consensus/pbft/pbft_pre_prepares.h"
 #include "consensus/pbft/pbft_requests.h"
 #include "consensus/pbft/pbft_tables.h"
 #include "consensus/raft/raft_tables.h"
 #include "entities.h"
 #include "governance_history.h"
+#include "kv/map.h"
+#include "kv/store.h"
 #include "members.h"
 #include "nodes.h"
 #include "proposals.h"
@@ -21,6 +24,7 @@
 #include "service.h"
 #include "shares.h"
 #include "signatures.h"
+#include "submitted_shares.h"
 #include "users.h"
 #include "values.h"
 #include "whitelists.h"
@@ -32,7 +36,7 @@ namespace ccf
 {
   struct NetworkTables
   {
-    std::shared_ptr<Store> tables;
+    std::shared_ptr<kv::Store> tables;
 
     //
     // Governance tables
@@ -49,6 +53,7 @@ namespace ccf
     GovernanceHistory& governance_history;
     ClientSignatures& member_client_signatures;
     Shares& shares;
+    SubmittedShares& submitted_shares;
     Configuration& config;
 
     //
@@ -85,13 +90,14 @@ namespace ccf
     //
     pbft::RequestsMap& pbft_requests_map;
     pbft::PrePreparesMap& pbft_pre_prepares_map;
+    pbft::NewViewsMap& pbft_new_views_map;
 
     NetworkTables(const ConsensusType& consensus_type = ConsensusType::RAFT) :
       tables(
         (consensus_type == ConsensusType::RAFT) ?
-          std::make_shared<Store>(
+          std::make_shared<kv::Store>(
             raft::replicate_type_raft, raft::replicated_tables_raft) :
-          std::make_shared<Store>(
+          std::make_shared<kv::Store>(
             pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
       members(
         tables->create<Members>(Tables::MEMBERS, kv::SecurityDomain::PUBLIC)),
@@ -113,10 +119,13 @@ namespace ccf
         tables->create<ClientSignatures>(Tables::MEMBER_CLIENT_SIGNATURES)),
       shares(
         tables->create<Shares>(Tables::SHARES, kv::SecurityDomain::PUBLIC)),
-      users(tables->create<Users>(Tables::USERS)),
+      submitted_shares(tables->create<SubmittedShares>(
+        Tables::SUBMITTED_SHARES, kv::SecurityDomain::PUBLIC)),
+      users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
-      user_certs(tables->create<Certs>(Tables::USER_CERTS)),
+      user_certs(
+        tables->create<Certs>(Tables::USER_CERTS, kv::SecurityDomain::PUBLIC)),
       user_code_ids(tables->create<CodeIDs>(
         Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       user_client_signatures(
@@ -137,7 +146,9 @@ namespace ccf
       pbft_requests_map(
         tables->create<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       pbft_pre_prepares_map(
-        tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES))
+        tables->create<pbft::PrePreparesMap>(pbft::Tables::PBFT_PRE_PREPARES)),
+      pbft_new_views_map(
+        tables->create<pbft::NewViewsMap>(pbft::Tables::PBFT_NEW_VIEWS))
     {}
 
     /** Returns a tuple of all tables that are possibly accessible from scripts

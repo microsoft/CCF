@@ -4,11 +4,15 @@
 
 #include "ds/buffer.h"
 #include "kv_types.h"
+#include "serialised_entry.h"
 
 #include <optional>
 
 namespace kv
 {
+  using SerialisedKey = kv::serialisers::SerialisedEntry;
+  using SerialisedValue = kv::serialisers::SerialisedEntry;
+
   enum class KvOperationType : uint32_t
   {
     KOT_NOT_SUPPORTED = 0,
@@ -38,22 +42,6 @@ namespace kv
       static_cast<KotBase>(a) | static_cast<KotBase>(b));
   }
 
-  template <typename K, typename V, typename Version>
-  struct KeyValVersion
-  {
-    K key;
-    V value;
-    Version version;
-    bool is_remove;
-
-    KeyValVersion(K k, V v, Version ver, bool is_rem) :
-      key(k),
-      value(v),
-      version(ver),
-      is_remove(is_rem)
-    {}
-  };
-
   template <typename W>
   class GenericSerialiseWrapper
   {
@@ -74,10 +62,10 @@ namespace kv
       current_writer->append(std::forward<T>(t));
     }
 
-    template <typename T>
-    void serialise_internal_public(T&& t)
+    void serialise_internal_pre_serialised(
+      const kv::serialisers::SerialisedEntry& raw)
     {
-      public_writer.append(std::forward<T>(t));
+      current_writer->append_pre_serialised(raw);
     }
 
     void set_current_domain(SecurityDomain domain)
@@ -133,40 +121,36 @@ namespace kv
       serialise_internal(ctr);
     }
 
-    template <class K>
-    void serialise_read(const K& k, const Version& version)
+    void serialise_read(const SerialisedKey& k, const Version& version)
     {
-      serialise_internal(k);
+      serialise_internal_pre_serialised(k);
       serialise_internal(version);
     }
 
-    template <class K, class V>
-    void serialise_write(const K& k, const V& v)
+    void serialise_write(const SerialisedKey& k, const SerialisedValue& v)
     {
-      serialise_internal(k);
-      serialise_internal(v);
+      serialise_internal_pre_serialised(k);
+      serialise_internal_pre_serialised(v);
     }
 
-    template <class K, class V, class Version>
-    void serialise_write_version(const K& k, const V& v, const Version& version)
+    void serialise_write_version(
+      const SerialisedKey& k, const SerialisedValue& v, const Version& version)
     {
       serialise_internal(KvOperationType::KOT_WRITE_VERSION);
-      serialise_internal(k);
-      serialise_internal(v);
+      serialise_internal_pre_serialised(k);
+      serialise_internal_pre_serialised(v);
       serialise_internal(version);
     }
 
-    template <class K>
-    void serialise_remove_version(const K& k)
+    void serialise_remove_version(const SerialisedKey& k)
     {
       serialise_internal(KvOperationType::KOT_REMOVE_VERSION);
-      serialise_internal(k);
+      serialise_internal_pre_serialised(k);
     }
 
-    template <class K>
-    void serialise_remove(const K& k)
+    void serialise_remove(const SerialisedKey& k)
     {
-      serialise_internal(k);
+      serialise_internal_pre_serialised(k);
     }
 
     std::vector<uint8_t> get_raw_data()
@@ -348,7 +332,6 @@ namespace kv
       return true;
     }
 
-    template <class Version>
     Version deserialise_version()
     {
       version = current_reader->template read_next<Version>();
@@ -374,7 +357,6 @@ namespace kv
         current_reader->template read_next<std::string>()};
     }
 
-    template <class Version>
     Version deserialise_read_version()
     {
       return current_reader->template read_next<Version>();
@@ -385,10 +367,9 @@ namespace kv
       return current_reader->template read_next<uint64_t>();
     }
 
-    template <class K>
-    std::tuple<K, Version> deserialise_read()
+    std::tuple<SerialisedKey, Version> deserialise_read()
     {
-      return {current_reader->template read_next<K>(),
+      return {current_reader->read_next_pre_serialised(),
               current_reader->template read_next<Version>()};
     }
 
@@ -397,11 +378,10 @@ namespace kv
       return current_reader->template read_next<uint64_t>();
     }
 
-    template <class K, class V>
-    std::tuple<K, V> deserialise_write()
+    std::tuple<SerialisedKey, SerialisedValue> deserialise_write()
     {
-      return {current_reader->template read_next<K>(),
-              current_reader->template read_next<V>()};
+      return {current_reader->read_next_pre_serialised(),
+              current_reader->read_next_pre_serialised()};
     }
 
     uint64_t deserialise_remove_header()
@@ -409,39 +389,9 @@ namespace kv
       return current_reader->template read_next<uint64_t>();
     }
 
-    template <class K>
-    K deserialise_remove()
+    SerialisedKey deserialise_remove()
     {
-      return current_reader->template read_next<K>();
-    }
-
-    template <class K, class V, class Version>
-    std::optional<KeyValVersion<K, V, Version>> deserialise_write_version()
-    {
-      if (end())
-        return {};
-
-      auto curr_op = try_read_op_flag(
-        KvOperationType::KOT_WRITE_VERSION |
-        KvOperationType::KOT_REMOVE_VERSION);
-
-      switch (curr_op)
-      {
-        case KvOperationType::KOT_WRITE_VERSION:
-        {
-          K key = current_reader->template read_next<K>();
-          V value = current_reader->template read_next<V>();
-          Version version = current_reader->template read_next<Version>();
-          return {{key, value, version, false}};
-        }
-        case KvOperationType::KOT_REMOVE_VERSION:
-        {
-          K key = current_reader->template read_next<K>();
-          return {{key, V(), Version(), true}};
-        }
-        default:
-          return {};
-      }
+      return current_reader->read_next_pre_serialised();
     }
 
     bool end()

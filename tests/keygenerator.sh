@@ -20,27 +20,27 @@ generate_encryption_key=false
 
 function usage()
 {
+    echo "Usage:"
+    echo "  $0 --name participant_name [--curve $DEFAULT_CURVE] [--gen-enc-key]"
     echo "Generates identity private key and self-signed certificates for CCF participants."
     echo "Optionally generates a x25519 key pair for share encryption (required for consortium members)."
-    echo "Usage:"""
-    echo "  $0 --name=participant_name [--curve=$DEFAULT_CURVE] [--gen-enc-key]"
     echo ""
     echo "Supported curves are: $SUPPORTED_CURVES"
 }
 
 while [ "$1" != "" ]; do
-    PARAM=${1%=*}
-    VALUE=${1#*=}
-    case $PARAM in
+    case $1 in
         -h|-\?|--help)
             usage
             exit 0
             ;;
         -n|--name)
-            name="$VALUE"
+            name="$2"
+            shift
             ;;
         -c|--curve)
-            curve="$VALUE"
+            curve="$2"
+            shift
             ;;
         -g|--gen-enc-key)
             generate_encryption_key=true
@@ -53,7 +53,7 @@ done
 
 # Validate parameters
 if [ -z "$name" ]; then
-    echo "The name of the participant should be specified (e.g. member0 or user1)"
+    echo "Error: The name of the participant should be specified (e.g. member0 or user1)"
     exit 1
 fi
 
@@ -92,8 +92,8 @@ echo "Identity certificate generated at:   $cert (to be registered in CCF)"
 if "$generate_encryption_key"; then
     echo "-- Generating encryption key pair for participant \"$name\"..."
 
-    enc_priv="$name"_enc_priv.pem
-    enc_pub="$name"_enc_pub.pem
+    enc_priv="$name"_enc_privk.pem
+    enc_pub="$name"_enc_pubk.pem
 
     openssl genpkey -out "$enc_priv" -algorithm "$ENCRYPTION_CURVE"
     openssl pkey -in "$enc_priv" -pubout -out "$enc_pub"

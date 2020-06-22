@@ -16,7 +16,6 @@
 #include "ds/logger.h"
 #include "enclave/rpc_map.h"
 #include "enclave/rpc_sessions.h"
-#include "host/ledger.h"
 #include "kv/kv_types.h"
 #include "node/nodetypes.h"
 
@@ -119,17 +118,17 @@ namespace pbft
         nodes[to] = end_idx;
       }
 
-      auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedAEMsg>>(
+      auto tmsg = std::make_unique<threading::Tmsg<SendAuthenticatedAEMsg>>(
         &send_authenticated_ae_msg_cb,
         ae,
         this,
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      if (enclave::ThreadMessaging::thread_count > 1)
+      if (threading::ThreadMessaging::thread_count > 1)
       {
-        uint16_t tid = enclave::ThreadMessaging::get_execution_thread(to);
-        enclave::ThreadMessaging::thread_messaging
+        uint16_t tid = threading::ThreadMessaging::get_execution_thread(to);
+        threading::ThreadMessaging::thread_messaging
           .add_task<SendAuthenticatedAEMsg>(tid, std::move(tmsg));
       }
       else
@@ -193,7 +192,7 @@ namespace pbft
     };
 
     static void send_authenticated_ae_msg_cb(
-      std::unique_ptr<enclave::Tmsg<SendAuthenticatedAEMsg>> msg)
+      std::unique_ptr<threading::Tmsg<SendAuthenticatedAEMsg>> msg)
     {
       msg->data.self->n2n_channels->send_authenticated(
         msg->data.type, msg->data.to, msg->data.ae);
@@ -222,7 +221,7 @@ namespace pbft
     };
 
     static void send_authenticated_msg_cb(
-      std::unique_ptr<enclave::Tmsg<SendAuthenticatedMsg>> msg)
+      std::unique_ptr<threading::Tmsg<SendAuthenticatedMsg>> msg)
     {
       if (msg->data.should_encrypt)
       {
@@ -285,7 +284,7 @@ namespace pbft
         serialize_message(data_, space, msg);
       }
 
-      auto tmsg = std::make_unique<enclave::Tmsg<SendAuthenticatedMsg>>(
+      auto tmsg = std::make_unique<threading::Tmsg<SendAuthenticatedMsg>>(
         &send_authenticated_msg_cb,
         encrypt,
         std::move(serialized_msg),
@@ -293,11 +292,11 @@ namespace pbft
         ccf::NodeMsgType::consensus_msg,
         to);
 
-      if (enclave::ThreadMessaging::thread_count > 1)
+      if (threading::ThreadMessaging::thread_count > 1)
       {
-        uint16_t tid = enclave::ThreadMessaging::get_execution_thread(
+        uint16_t tid = threading::ThreadMessaging::get_execution_thread(
           ++execution_thread_counter);
-        enclave::ThreadMessaging::thread_messaging
+        threading::ThreadMessaging::thread_messaging
           .add_task<SendAuthenticatedMsg>(tid, std::move(tmsg));
       }
       else
@@ -364,6 +363,7 @@ namespace pbft
       pbft::RequestsMap& pbft_requests_map,
       pbft::PrePreparesMap& pbft_pre_prepares_map,
       ccf::Signatures& signatures,
+      pbft::NewViewsMap& pbft_new_views_map,
       const std::string& privk_pem,
       const std::vector<uint8_t>& cert,
       const consensus::Config& consensus_config) :
@@ -414,10 +414,12 @@ namespace pbft
         mem,
         mem_size,
         pbft_config->get_exec_command(),
+        pbft_config->get_verify_command(),
         pbft_network.get(),
         pbft_requests_map,
         pbft_pre_prepares_map,
         signatures,
+        pbft_new_views_map,
         *store,
         &message_receiver_base);
       LOG_INFO_FMT("PBFT setup for local_id: {}", local_id);
@@ -431,7 +433,10 @@ namespace pbft
       LOG_INFO_FMT("PBFT setting up client proxy");
       client_proxy =
         std::make_unique<ClientProxy<kv::TxHistory::RequestID, void>>(
-          *message_receiver_base, 5000, 10000);
+          *message_receiver_base,
+          pbft_config->get_verify_command(),
+          5000,
+          10000);
 
       auto reply_handler_cb = [](Reply* m, void* ctx) {
         auto cp =
@@ -462,10 +467,12 @@ namespace pbft
         {
           return;
         }
+
         *gb_info->global_commit_seqno = version;
 
         if (*gb_info->last_commit_view < view)
         {
+          *gb_info->last_commit_view = view;
           gb_info->view_change_list->emplace_back(view, version);
         }
         gb_info->store->compact(version);
@@ -496,7 +503,7 @@ namespace pbft
     bool on_request(const kv::TxHistory::RequestCallbackArgs& args) override
     {
       pbft::Request request = {
-        args.caller_id, args.caller_cert, args.request, {}};
+        args.caller_id, args.caller_cert, args.request, {}, args.frame_format};
       auto serialized_req = request.serialise();
 
       auto rep_cb = [&](
@@ -525,6 +532,16 @@ namespace pbft
 
     View get_view(SeqNo seqno) override
     {
+      // replicas reply to requests on prepare but globally commit (update
+      // view_change_list) on commit. Should get the view from the consensus
+      // if we are inquiring for a recent seqno since the view might have
+      // changed but view_change_list might not know about it yet.
+      auto last_vc_info = view_change_list.back();
+      if (last_vc_info.min_global_commit < seqno)
+      {
+        return get_view();
+      }
+
       for (auto rit = view_change_list.rbegin(); rit != view_change_list.rend();
            ++rit)
       {
@@ -537,7 +554,12 @@ namespace pbft
       throw std::logic_error("should never be here");
     }
 
-    SeqNo get_commit_seqno() override
+    std::pair<View, SeqNo> get_committed_txid() override
+    {
+      return {get_view(global_commit_seqno), global_commit_seqno};
+    }
+
+    SeqNo get_committed_seqno() override
     {
       return global_commit_seqno;
     }
@@ -559,7 +581,7 @@ namespace pbft
 
     void add_configuration(
       SeqNo seqno,
-      std::unordered_set<kv::NodeId> config,
+      const std::unordered_set<kv::NodeId>& config,
       const NodeConf& node_conf) override
     {
       if (node_conf.node_id == local_id)
@@ -580,6 +602,11 @@ namespace pbft
       nodes[node_conf.node_id] = 0;
     }
 
+    std::unordered_set<NodeId> get_latest_configuration() const override
+    {
+      throw std::logic_error("Unimplemented");
+    }
+
     void periodic(std::chrono::milliseconds elapsed) override
     {
       client_proxy->periodic(elapsed);
@@ -596,26 +623,11 @@ namespace pbft
       return client_proxy->get_statistics();
     }
 
-    template <typename T>
-    size_t write_to_ledger(const T& data)
-    {
-      ledger->put_entry(data->data(), data->size());
-      return data->size();
-    }
-
-    template <>
-    size_t write_to_ledger<std::vector<uint8_t>>(
-      const std::vector<uint8_t>& data)
-    {
-      ledger->put_entry(data);
-      return data.size();
-    }
-
-    bool replicate(const kv::BatchVector& entries) override
+    bool replicate(const kv::BatchVector& entries, View view) override
     {
       for (auto& [index, data, globally_committable] : entries)
       {
-        write_to_ledger(data);
+        ledger->put_entry(*data, globally_committable);
       }
       return true;
     }
@@ -639,7 +651,7 @@ namespace pbft
     };
 
     static void recv_authenticated_msg_cb(
-      std::unique_ptr<enclave::Tmsg<RecvAuthenticatedMsg>> msg)
+      std::unique_ptr<threading::Tmsg<RecvAuthenticatedMsg>> msg)
     {
       if (msg->data.should_decrypt)
       {
@@ -653,7 +665,8 @@ namespace pbft
         }
         catch (const std::logic_error& err)
         {
-          LOG_FAIL_FMT("Invalid encrypted pbft message: {}", err.what());
+          LOG_FAIL_FMT("Invalid encrypted pbft message");
+          LOG_DEBUG_FMT("Invalid encrypted pbft message: {}", err.what());
           return;
         }
       }
@@ -669,19 +682,20 @@ namespace pbft
         }
         catch (const std::logic_error& err)
         {
-          LOG_FAIL_FMT("Invalid pbft message: {}", err.what());
+          LOG_FAIL_FMT("Invalid pbft message");
+          LOG_DEBUG_FMT("Invalid pbft message: {}", err.what());
           return;
         }
       }
 
       msg->data.result = true;
-      enclave::ThreadMessaging::ChangeTmsgCallback(
+      threading::ThreadMessaging::ChangeTmsgCallback(
         msg, &recv_authenticated_msg_process_cb);
-      if (enclave::ThreadMessaging::thread_count > 1)
+      if (threading::ThreadMessaging::thread_count > 1)
       {
-        enclave::ThreadMessaging::thread_messaging
+        threading::ThreadMessaging::thread_messaging
           .add_task<RecvAuthenticatedMsg>(
-            enclave::ThreadMessaging::main_thread, std::move(msg));
+            threading::ThreadMessaging::main_thread, std::move(msg));
       }
       else
       {
@@ -690,7 +704,7 @@ namespace pbft
     }
 
     static void recv_authenticated_msg_process_cb(
-      std::unique_ptr<enclave::Tmsg<RecvAuthenticatedMsg>> msg)
+      std::unique_ptr<threading::Tmsg<RecvAuthenticatedMsg>> msg)
     {
       assert(msg->data.result);
       msg->data.self->message_receiver_base->receive_message(
@@ -708,7 +722,7 @@ namespace pbft
         case pbft_message:
         {
           bool should_decrypt = (hdr.msg == encrypted_pbft_message);
-          auto tmsg = std::make_unique<enclave::Tmsg<RecvAuthenticatedMsg>>(
+          auto tmsg = std::make_unique<threading::Tmsg<RecvAuthenticatedMsg>>(
             &recv_authenticated_msg_cb, should_decrypt, std::move(d), this);
 
           ccf::RecvNonce recv_nonce(0);
@@ -724,11 +738,11 @@ namespace pbft
               tmsg->data.d.data(), tmsg->data.d.size());
           }
 
-          if (enclave::ThreadMessaging::thread_count > 1)
+          if (threading::ThreadMessaging::thread_count > 1)
           {
-            enclave::ThreadMessaging::thread_messaging
+            threading::ThreadMessaging::thread_messaging
               .add_task<RecvAuthenticatedMsg>(
-                recv_nonce.tid % enclave::ThreadMessaging::thread_count,
+                recv_nonce.tid % threading::ThreadMessaging::thread_count,
                 std::move(tmsg));
           }
           else
@@ -742,8 +756,7 @@ namespace pbft
         {
           if (message_receiver_base->IsExecutionPending())
           {
-            LOG_FAIL << "Pending Execution, skipping append entries request"
-                     << std::endl;
+            LOG_FAIL_FMT("Pending Execution, skipping append entries request");
             return;
           }
 
@@ -758,7 +771,7 @@ namespace pbft
           }
           catch (const std::logic_error& err)
           {
-            LOG_FAIL_FMT(err.what());
+            LOG_FAIL_FMT("Failed to authenticate message: {}", err.what());
             return;
           }
 
@@ -804,24 +817,26 @@ namespace pbft
             }
             LOG_TRACE_FMT("Applying append entry for index {}", i);
 
-            auto ret = ledger->get_entry(data, size);
-
-            if (!ret.second)
+            std::vector<uint8_t> entry;
+            try
             {
-              // NB: This will currently never be triggered.
-              // This should only fail if there is malformed data. Truncate
-              // the log and reply false.
+              entry = ledger->get_entry(data, size);
+            }
+            catch (const std::logic_error& e)
+            {
+              // This should only fail if there is malformed data.
               LOG_FAIL_FMT(
-                "Recv append entries to {} from {} but the data is malformed",
+                "Recv append entries to {} from {} but the data is malformed: "
+                "{}",
                 local_id,
-                r.from_node);
-              ledger->truncate(r.prev_idx);
+                r.from_node,
+                e.what());
               return;
             }
 
-            ccf::Store::Tx tx;
+            kv::Tx tx;
             auto deserialise_success =
-              store->deserialise_views(ret.first, public_only, nullptr, &tx);
+              store->deserialise_views(entry, public_only, nullptr, &tx);
 
             switch (deserialise_success)
             {
@@ -840,6 +855,11 @@ namespace pbft
                 message_receiver_base->playback_pre_prepare(tx);
                 break;
               }
+              case kv::DeserialiseSuccess::PASS_NEW_VIEW:
+              {
+                message_receiver_base->playback_new_view(tx);
+                break;
+              }
               default:
                 throw std::logic_error("Unknown DeserialiseSuccess value");
             }
@@ -849,7 +869,7 @@ namespace pbft
       }
     }
 
-    void set_f(ccf::NodeId f) override
+    void set_f(size_t f) override
     {
       message_receiver_base->set_f(f);
     }

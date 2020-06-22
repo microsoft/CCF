@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "entities.h"
+
+#include "kv/map.h"
 
 #include <exception>
 
@@ -9,7 +10,7 @@ namespace ccf
 {
   using ValueId = uint8_t;
   using Value = uint64_t;
-  using Values = Store::Map<ValueId, Value>;
+  using Values = kv::Map<ValueId, Value>;
 
   enum ValueIds : ValueId
   {

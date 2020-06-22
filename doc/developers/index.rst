@@ -7,8 +7,6 @@ Applications can be written in C++ or Lua (see :ref:`developers/example:Example 
 
 These endpoints mutate the state of a unique :ref:`developers/kv/index:Key-Value Store` that represents the internal state of the application. Applications define a set of ``Maps`` (see :ref:`developers/kv/kv_how_to:Creating a Map`), mapping from a key to a value. When an application endpoint is triggered, the effects on the Store are committed atomically.
 
-.. warning:: Notifications to be described.
-
 .. toctree::
   :maxdepth: 2
   :caption: Contents:

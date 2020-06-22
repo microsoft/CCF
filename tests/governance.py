@@ -40,7 +40,7 @@ def run(args):
             ]
             expected_mrenclave = lines[0].strip().split("=")[1]
 
-            r = mc.get("getQuote")
+            r = mc.get("quote")
             quotes = r.result["quotes"]
             assert len(quotes) == 1
             primary_quote = quotes[0]
@@ -51,7 +51,7 @@ def run(args):
                 expected_mrenclave,
             )
 
-            r = mc.get("getQuotes")
+            r = mc.get("quotes")
             quotes = r.result["quotes"]
             assert len(quotes) == len(hosts)
             for quote in quotes:

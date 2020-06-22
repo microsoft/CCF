@@ -70,7 +70,7 @@ bool Meta_data_cert::add(Meta_data_d* m, bool mine)
 
   if (mine || m->verify())
   {
-    PBFT_ASSERT(
+    CCF_ASSERT(
       mine || m->id() != pbft::GlobalState::get_node().id(),
       "verify should return false for messages from self");
 
@@ -135,7 +135,7 @@ bool Meta_data_cert::add(Meta_data_d* m, bool mine)
           if (i < cur_size - 1)
           {
             val = vals[cur_size - 1];
-            PBFT_ASSERT(val.c >= 0, "Invalid state");
+            CCF_ASSERT(val.c >= 0, "Invalid state");
           }
           vals[cur_size - 1].clear();
           cur_size--;
@@ -159,7 +159,7 @@ bool Meta_data_cert::add(Meta_data_d* m, bool mine)
         !matched[(n - m->last_stable()) / checkpoint_interval] &&
         m->digest(n, d1))
       {
-        PBFT_ASSERT(cur_size < max_size, "Invalid state");
+        CCF_ASSERT(cur_size < max_size, "Invalid state");
         vals[cur_size].c = n;
         vals[cur_size].d = d1;
         vals[cur_size].count = 1;

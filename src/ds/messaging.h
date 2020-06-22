@@ -5,7 +5,6 @@
 #include "logger.h"
 #include "ring_buffer.h"
 #include "spin_lock.h"
-#include "thread_messaging.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -212,19 +211,12 @@ namespace messaging
       size_t total_read = 0;
       size_t consecutive_idles = 0u;
 
-      uint16_t tid = thread_ids[std::this_thread::get_id()];
-      enclave::Task& task =
-        enclave::ThreadMessaging::thread_messaging.get_task(tid);
-
       while (!finished.load())
       {
         auto num_read = read_n(-1, r);
         total_read += num_read;
 
-        bool task_run =
-          enclave::ThreadMessaging::thread_messaging.run_one(task);
-
-        if (num_read == 0 && !task_run)
+        if (num_read == 0)
         {
           idler(consecutive_idles++);
         }

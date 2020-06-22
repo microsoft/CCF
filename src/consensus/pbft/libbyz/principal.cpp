@@ -50,8 +50,6 @@ bool Principal::verify_signature(
     return false;
   }
 
-  INCR_OP(num_sig_ver);
-
   bool ret = verifier->verify((uint8_t*)src, src_len, sig, sig_size);
 
   return ret;

@@ -8,11 +8,11 @@ import time
 from infra.tx_status import TxStatus
 
 
-def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeout=3):
+def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
     """
-    Given a client to a CCF network and a commit_index/term pair, this function
+    Given a client to a CCF network and a seqno/view pair, this function
     waits for this specific commit index to be globally committed by the
-    network in this term.
+    network in this view.
     A TimeoutError exception is raised if the commit index is not globally
     committed within the given timeout.
     """
@@ -21,13 +21,13 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
     # Forcing a signature accelerates this process for common operations
     # (e.g. governance proposals)
     if mksign:
-        r = node_client.rpc("mkSign")
+        r = client.rpc("mkSign")
         if r.error is not None:
             raise RuntimeError(f"mkSign returned an error: {r.error}")
 
     end_time = time.time() + timeout
     while time.time() < end_time:
-        r = node_client.get("tx", {"view": term, "seqno": commit_index})
+        r = client.get("tx", {"view": view, "seqno": seqno})
         assert (
             r.status == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status}"
@@ -36,7 +36,7 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
             return
         elif status == TxStatus.Invalid:
             raise RuntimeError(
-                f"Transaction ID {term}.{commit_index} is marked invalid and will never be committed"
+                f"Transaction ID {view}.{seqno} is marked invalid and will never be committed"
             )
         else:
             time.sleep(0.1)
@@ -44,8 +44,8 @@ def wait_for_global_commit(node_client, commit_index, term, mksign=False, timeou
 
 
 class Checker:
-    def __init__(self, node_client=None, notification_queue=None):
-        self.node_client = node_client
+    def __init__(self, client=None, notification_queue=None):
+        self.client = client
         self.notification_queue = notification_queue
         self.notified_commit = 0
 
@@ -69,22 +69,22 @@ class Checker:
                     result, rpc_result.result
                 )
 
-            if self.node_client:
-                wait_for_global_commit(
-                    self.node_client, rpc_result.commit, rpc_result.term
-                )
+            assert rpc_result.seqno and rpc_result.view, rpc_result
 
-            if self.notification_queue:
-                end_time = time.time() + timeout
-                while time.time() < end_time:
-                    while self.notification_queue.not_empty:
-                        notification = self.notification_queue.get()
-                        n = json.loads(notification)["commit"]
-                        assert (
-                            n > self.notified_commit
-                        ), f"Received notification of commit {n} after commit {self.notified_commit}"
-                        self.notified_commit = n
-                        if n >= rpc_result.commit:
-                            return
-                    time.sleep(0.5)
-                raise TimeoutError("Timed out waiting for notification")
+        if self.client:
+            wait_for_global_commit(self.client, rpc_result.seqno, rpc_result.view)
+
+        if self.notification_queue:
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                while self.notification_queue.not_empty:
+                    notification = self.notification_queue.get()
+                    n = json.loads(notification)["commit"]
+                    assert (
+                        n > self.notified_commit
+                    ), f"Received notification of commit {n} after commit {self.notified_commit}"
+                    self.notified_commit = n
+                    if n >= rpc_result.seqno:
+                        return
+                time.sleep(0.5)
+            raise TimeoutError("Timed out waiting for notification")

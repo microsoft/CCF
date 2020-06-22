@@ -2,18 +2,40 @@
 // Licensed under the Apache 2.0 License.
 #define PICOBENCH_IMPLEMENT_WITH_MAIN
 
-#include "consensus/test/stub_consensus.h"
-#include "kv/kv.h"
+#include "kv/store.h"
+#include "kv/test/stub_consensus.h"
+#include "kv/tx.h"
 #include "node/encryptor.h"
 
+#include <msgpack/msgpack.hpp>
 #include <picobench/picobench.hpp>
 #include <string>
 
-using namespace ccf;
+using KeyType = kv::serialisers::SerialisedEntry;
+using ValueType = kv::serialisers::SerialisedEntry;
+using MapType = kv::untyped::Map;
 
 inline void clobber_memory()
 {
   asm volatile("" : : : "memory");
+}
+
+KeyType gen_key(size_t i, const std::string& suf = "")
+{
+  const auto s = "key" + std::to_string(i) + suf;
+  msgpack::sbuffer buf;
+  msgpack::pack(buf, s);
+  const auto raw = reinterpret_cast<const uint8_t*>(buf.data());
+  return KeyType(raw, raw + buf.size());
+}
+
+ValueType gen_value(size_t i)
+{
+  const auto s = "value" + std::to_string(i);
+  msgpack::sbuffer buf;
+  msgpack::pack(buf, s);
+  const auto raw = reinterpret_cast<const uint8_t*>(buf.data());
+  return ValueType(raw, raw + buf.size());
 }
 
 // Helper functions to use a dummy encryption key
@@ -32,21 +54,23 @@ static void serialise(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  Store kv_store;
+  kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<std::string, std::string>("map0", SD);
-  auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
-  Store::Tx tx;
+  auto& map0 = kv_store.create<MapType>("map0", SD);
+  auto& map1 = kv_store.create<MapType>("map1", SD);
+  kv::Tx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto key = "key" + std::to_string(i);
-    tx0->put(key, "value");
-    tx1->put(key, "value");
+    const auto key = gen_key(i);
+    const auto value = gen_value(i);
+    tx0->put(key, value);
+    tx1->put(key, value);
   }
 
   s.start_timer();
@@ -62,31 +86,33 @@ static void deserialise(picobench::state& s)
   logger::config::level() = logger::INFO;
 
   auto consensus = std::make_shared<kv::StubConsensus>();
-  Store kv_store(consensus);
-  Store kv_store2;
+  kv::Store kv_store(consensus);
+  kv::Store kv_store2;
 
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<std::string, std::string>("map0", SD);
-  auto& map1 = kv_store.create<std::string, std::string>("map1", SD);
-  auto& map0_ = kv_store2.create<std::string, std::string>("map0", SD);
-  auto& map1_ = kv_store2.create<std::string, std::string>("map1", SD);
-  Store::Tx tx;
+  auto& map0 = kv_store.create<MapType>("map0", SD);
+  auto& map1 = kv_store.create<MapType>("map1", SD);
+  auto& map0_ = kv_store2.create<MapType>("map0", SD);
+  auto& map1_ = kv_store2.create<MapType>("map1", SD);
+  kv::Tx tx;
   auto [tx0, tx1] = tx.get_view(map0, map1);
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    auto key = "key" + std::to_string(i);
-    tx0->put(key, "value");
-    tx1->put(key, "value");
+    const auto key = gen_key(i);
+    const auto value = gen_value(i);
+    tx0->put(key, value);
+    tx1->put(key, value);
   }
   tx.commit();
 
   s.start_timer();
-  auto rc = kv_store2.deserialise(consensus->get_latest_data().first);
+  auto rc = kv_store2.deserialise(consensus->get_latest_data().value());
   if (rc != kv::DeserialiseSuccess::PASS)
     throw std::logic_error(
       "Transaction deserialisation failed: " + std::to_string(rc));
@@ -98,23 +124,25 @@ static void commit_latency(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
 
-  Store kv_store;
+  kv::Store kv_store;
   auto secrets = create_ledger_secrets();
-  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(1, secrets);
+  auto encryptor = std::make_shared<ccf::RaftTxEncryptor>(secrets);
+  encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<std::string, std::string>("map0");
-  auto& map1 = kv_store.create<std::string, std::string>("map1");
+  auto& map0 = kv_store.create<MapType>("map0");
+  auto& map1 = kv_store.create<MapType>("map1");
 
   for (int i = 0; i < s.iterations(); i++)
   {
-    Store::Tx tx;
+    kv::Tx tx;
     auto [tx0, tx1] = tx.get_view(map0, map1);
     for (int iTx = 0; iTx < S; iTx++)
     {
-      auto key = "key" + std::to_string(i) + " - " + std::to_string(iTx);
-      tx0->put(key, "value");
-      tx1->put(key, "value");
+      const auto key = gen_key(i, std::to_string(iTx));
+      const auto value = gen_value(i);
+      tx0->put(key, value);
+      tx1->put(key, value);
     }
 
     auto rc = tx.commit();
@@ -151,3 +179,9 @@ PICOBENCH(deserialise<SD::PUBLIC>)
   .samples(sample_size)
   .baseline();
 PICOBENCH(deserialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+
+// int main(int argc, char* argv[])
+// {
+//   picobench::state s(1'000'000);
+//   serialise<SD::PUBLIC>(s);
+// }

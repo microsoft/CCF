@@ -15,7 +15,7 @@ Pre_prepare_info::~Pre_prepare_info()
 
 void Pre_prepare_info::add(Pre_prepare* p)
 {
-  PBFT_ASSERT(pp == 0, "Invalid state");
+  CCF_ASSERT(pp == 0, "Invalid state");
   pp = p;
   mreqs = p->num_big_reqs();
   mrmap.reset();
@@ -66,7 +66,7 @@ bool Pre_prepare_info::BRS_iter::get(Request*& r)
     {
       r = pbft::GlobalState::get_replica().big_reqs()->lookup(
         pp->big_req_digest(next));
-      PBFT_ASSERT(r != 0, "Invalid state");
+      CCF_ASSERT(r != 0, "Invalid state");
       next++;
       return true;
     }

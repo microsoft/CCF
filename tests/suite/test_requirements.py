@@ -50,7 +50,7 @@ def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
         with primary.user_client() as c:
-            response = c.get("listMethods")
+            response = c.get("api")
             supported_methods = response.result["methods"]
             missing = {*methods}.difference(supported_methods)
             if missing:
@@ -114,7 +114,10 @@ def recover(number_txs=5):
                 consensus=infra.e2e_args.get("consensus"),
             )
             new_network = func(*args, **kwargs)
-            new_network.txs.verify(network=new_network)
+            new_network.txs.verify(
+                network=new_network,
+                timeout=infra.e2e_args.get("ledger_recovery_timeout"),
+            )
             return new_network
 
         return wrapper

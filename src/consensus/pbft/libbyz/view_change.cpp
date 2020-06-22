@@ -5,9 +5,9 @@
 
 #include "view_change.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "parameters.h"
-#include "pbft_assert.h"
 #include "principal.h"
 #include "replica.h"
 
@@ -38,11 +38,7 @@ View_change::View_change(View v, Seqno ls, int id) :
   rep().digest_signature.fill(0);
   rep().padding.fill(0);
 #endif
-
-#ifdef USE_PKEY_VIEW_CHANGES
-  rep().vc_sig_size = 0;
-#endif
-  PBFT_ASSERT(ALIGNED(req_info()), "Improperly aligned pointer");
+  CCF_ASSERT(ALIGNED(req_info()), "Improperly aligned pointer");
 }
 
 void View_change::add_checkpoint(Seqno n, Digest& d)
@@ -59,9 +55,9 @@ void View_change::add_checkpoint(Seqno n, Digest& d)
 void View_change::add_request(
   Seqno n, View v, View lv, Digest& d, bool prepared)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     (last_stable() < n) && (n <= last_stable() + max_out), "Invalid argument");
-  PBFT_ASSERT(v < view() && lv < view(), "Invalid argument");
+  CCF_ASSERT(v < view() && lv < view(), "Invalid argument");
 
   int index = n - last_stable() - 1;
   if (prepared)
@@ -122,7 +118,7 @@ bool View_change::proofs(Seqno n, View& v, View& lv, Digest& d, bool& prepared)
 
 View View_change::req(Seqno n, Digest& d)
 {
-  PBFT_ASSERT(n > last_stable(), "Invalid argument");
+  CCF_ASSERT(n > last_stable(), "Invalid argument");
 
   int index = n - last_stable() - 1;
   if (index >= rep().n_reqs || !test(index))
@@ -139,16 +135,16 @@ View View_change::req(Seqno n, Digest& d)
 
 void View_change::re_authenticate(Principal* p)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     rep().n_reqs >= 0 && rep().n_reqs <= max_out && view() > 0,
     "Invalid state");
-  PBFT_ASSERT(
+  CCF_ASSERT(
     rep().n_ckpts >= 0 && rep().n_ckpts <= max_out / checkpoint_interval + 1,
     "Invalid state");
-  PBFT_ASSERT(
+  CCF_ASSERT(
     rep().n_ckpts == 0 || rep().ckpts[rep().n_ckpts - 1] != Digest(),
     "Invalid state");
-  PBFT_ASSERT(last_stable() >= 0, "Invalid state");
+  CCF_ASSERT(last_stable() >= 0, "Invalid state");
 
   if (rep().digest.is_zero())
   {
@@ -166,9 +162,6 @@ void View_change::re_authenticate(Principal* p)
     rep().digest_signature.fill(0);
 #endif
 
-#ifdef USE_PKEY_VIEW_CHANGES
-    rep().vc_sig_size = 0;
-#endif
     rep().digest = Digest(contents(), old_size);
 
 #ifdef SIGN_BATCH
@@ -178,10 +171,7 @@ void View_change::re_authenticate(Principal* p)
       rep().digest_signature);
 #endif
 
-#ifdef USE_PKEY_VIEW_CHANGES
-    rep().vc_sig_size = pbft::GlobalState::get_node().gen_signature(
-      contents(), old_size, contents() + old_size);
-#else
+#ifndef USE_PKEY_VIEW_CHANGES
     auth_type = Auth_type::out;
     auth_len = old_size;
     auth_dst_offset = old_size;
@@ -261,11 +251,6 @@ bool View_change::verify_digest()
   rep().digest_sig_size = 0;
 #endif
 
-#ifdef USE_PKEY_VIEW_CHANGES
-  auto previous_vc_sig_size = rep().vc_sig_size;
-  rep().vc_sig_size = 0;
-#endif
-
   bool verified =
     (d ==
      Digest(
@@ -275,9 +260,6 @@ bool View_change::verify_digest()
 #ifdef SIGN_BATCH
   rep().digest_signature = previous_digest_signature; // restore signature
   rep().digest_sig_size = previous_digest_sig_size; // restore signature size
-#endif
-#ifdef USE_PKEY_VIEW_CHANGES
-  rep().vc_sig_size = previous_vc_sig_size;
 #endif
   return verified;
 }

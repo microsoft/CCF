@@ -19,17 +19,15 @@ For example, to record a message at a specific id with the :ref:`developers/exam
     HTTP/1.1 200 OK
     content-length: 5
     content-type: application/json
-    x-ccf-commit: 23
-    x-ccf-global-commit: 22
-    x-ccf-term: 2
+    x-ccf-tx-seqno: 23
+    x-ccf-tx-view: 2
 
     true
 
 The HTTP response some CCF commit information in the headers:
 
-- ``"x-ccf-commit"`` is the unique version at which the request was executed
-- ``"x-ccf-global-commit"`` is the latest version agreed on by the network and forever committed to the ledger, at the time the request was executed, as seen by the contacted node
-- ``"x-ccf-term"`` indicates the consensus term at which the request was executed
+- ``"x-ccf-tx-seqno"`` is the unique version at which the request was executed
+- ``"x-ccf-tx-view"`` indicates the consensus view at which the request was executed
 
 The response body (the JSON value ``true``) indicates that the request was executed successfully. For many RPCs this will be a JSON object with more details about the execution result.
 
@@ -52,7 +50,7 @@ Checking for Commit
 
 Because of the decentralised nature of CCF, a request is committed to the ledger only once a number of nodes have agreed on that request.
 
-To guarantee that their request is successfully committed to the ledger, a user should issue a ``GET /tx`` request, specifying the version received in the response. This version is constructed from a view (also called term in some places) and a sequence number (or commit index).
+To guarantee that their request is successfully committed to the ledger, a user should issue a ``GET /tx`` request, specifying the version received in the response. This version is constructed from a view and a sequence number.
 
 .. code-block:: bash
 
@@ -60,9 +58,8 @@ To guarantee that their request is successfully committed to the ledger, a user 
     HTTP/1.1 200 OK
     content-length: 23
     content-type: application/json
-    x-ccf-commit: 42
-    x-ccf-global-commit: 40
-    x-ccf-term: 5
+    x-ccf-tx-seqno: 42
+    x-ccf-tx-view: 5
 
     {"status":"COMMITTED"}
 

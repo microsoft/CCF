@@ -1,27 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
+
+#include "ds/nonstd.h"
+
 #include <nlohmann/json.hpp>
 
 namespace ds
 {
   namespace json
   {
-    namespace
-    {
-      template <typename T, template <typename...> class U>
-      struct is_specialization : std::false_type
-      {};
-
-      template <template <typename...> class T, typename... Args>
-      struct is_specialization<T<Args...>, T> : std::true_type
-      {};
-
-      template <typename T>
-      struct dependent_false : public std::false_type
-      {};
-    };
-
     struct JsonSchema
     {
       static constexpr auto hyperschema =
@@ -43,7 +31,7 @@ namespace ds
     template <typename T>
     inline void fill_number_schema(nlohmann::json& schema)
     {
-      schema["type"] = "number";
+      schema["type"] = "integer";
       schema["minimum"] = std::numeric_limits<T>::min();
       schema["maximum"] = std::numeric_limits<T>::max();
     }
@@ -82,18 +70,18 @@ namespace ds
     template <typename T>
     inline void fill_schema(nlohmann::json& schema)
     {
-      if constexpr (is_specialization<T, std::optional>::value)
+      if constexpr (nonstd::is_specialization<T, std::optional>::value)
       {
         fill_schema<typename T::value_type>(schema);
       }
-      else if constexpr (is_specialization<T, std::vector>::value)
+      else if constexpr (nonstd::is_specialization<T, std::vector>::value)
       {
         schema["type"] = "array";
         schema["items"] = schema_element<typename T::value_type>();
       }
       else if constexpr (
-        is_specialization<T, std::map>::value ||
-        is_specialization<T, std::unordered_map>::value)
+        nonstd::is_specialization<T, std::map>::value ||
+        nonstd::is_specialization<T, std::unordered_map>::value)
       {
         // Nlohmann serialises maps to an array of (K, V) pairs
         schema["type"] = "array";
@@ -108,7 +96,7 @@ namespace ds
         }
         schema["items"] = items;
       }
-      else if constexpr (is_specialization<T, std::pair>::value)
+      else if constexpr (nonstd::is_specialization<T, std::pair>::value)
       {
         schema["type"] = "array";
         auto items = nlohmann::json::array();
@@ -132,6 +120,10 @@ namespace ds
       else if constexpr (std::is_integral<T>::value)
       {
         fill_number_schema<T>(schema);
+      }
+      else if constexpr (std::is_floating_point<T>::value)
+      {
+        schema["type"] = "number";
       }
       else if constexpr (std::is_same<T, JsonSchema>::value)
       {

@@ -8,6 +8,7 @@
 #include "enclave_time.h"
 #include "interface.h"
 #include "node/entities.h"
+#include "node/historical_queries.h"
 #include "node/network_state.h"
 #include "node/node_state.h"
 #include "node/nodetypes.h"
@@ -27,17 +28,38 @@ namespace enclave
     ringbuffer::WriterFactory basic_writer_factory;
     oversized::WriterFactory writer_factory;
     ccf::NetworkState network;
+    ccf::ShareManager share_manager;
     std::shared_ptr<ccf::NodeToNode> n2n_channels;
-    ccf::Notifier notifier;
     ccf::Timers timers;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpcsessions;
-    ccf::NodeState node;
+    std::unique_ptr<ccf::NodeState> node;
     std::shared_ptr<ccf::Forwarder<ccf::NodeToNode>> cmd_forwarder;
 
     CCFConfig ccf_config;
     StartType start_type;
     ConsensusType consensus_type;
+
+    struct NodeContext : public ccfapp::AbstractNodeContext
+    {
+      ccf::Notifier notifier;
+      ccf::historical::StateCache historical_state_cache;
+
+      NodeContext(ccf::Notifier&& n, ccf::historical::StateCache&& hsc) :
+        notifier(std::move(n)),
+        historical_state_cache(std::move(hsc))
+      {}
+
+      ccf::AbstractNotifier& get_notifier() override
+      {
+        return notifier;
+      }
+
+      ccf::historical::AbstractStateCache& get_historical_state() override
+      {
+        return historical_state_cache;
+      }
+    } context;
 
   public:
     Enclave(
@@ -50,27 +72,39 @@ namespace enclave
       writer_factory(basic_writer_factory, enclave_config->writer_config),
       network(consensus_type_),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
-      notifier(writer_factory),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
-      node(writer_factory, network, rpcsessions, notifier, timers),
+      share_manager(network),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
-      consensus_type(consensus_type_)
+      consensus_type(consensus_type_),
+      context(
+        ccf::Notifier(writer_factory),
+        ccf::historical::StateCache(
+          *network.tables, writer_factory.create_writer_to_outside()))
     {
       logger::config::msg() = AdminMessage::log_msg;
       logger::config::writer() = writer_factory.create_writer_to_outside();
 
+      node = std::make_unique<ccf::NodeState>(
+        writer_factory,
+        network,
+        rpcsessions,
+        context.notifier,
+        timers,
+        share_manager);
+
       REGISTER_FRONTEND(
         rpc_map,
         members,
-        std::make_unique<ccf::MemberRpcFrontend>(network, node));
+        std::make_unique<ccf::MemberRpcFrontend>(
+          network, *node, share_manager));
 
       REGISTER_FRONTEND(
-        rpc_map, users, ccfapp::get_rpc_handler(network, notifier));
+        rpc_map, users, ccfapp::get_rpc_handler(network, context));
 
       REGISTER_FRONTEND(
-        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, node));
+        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, *node));
 
       for (auto& [actor, fe] : rpc_map->get_map())
       {
@@ -79,7 +113,7 @@ namespace enclave
         fe->set_cmd_forwarder(cmd_forwarder);
       }
 
-      node.initialize(consensus_config, n2n_channels, rpc_map, cmd_forwarder);
+      node->initialize(consensus_config, n2n_channels, rpc_map, cmd_forwarder);
     }
 
     bool create_new_node(
@@ -102,7 +136,7 @@ namespace enclave
       start_type = start_type_;
       ccf_config = ccf_config_;
 
-      auto r = node.create({start_type, ccf_config});
+      auto r = node->create({start_type, ccf_config});
       if (!r.second)
         return false;
 
@@ -169,7 +203,7 @@ namespace enclave
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::stop, [&bp, this](const uint8_t*, size_t) {
             bp.set_finished();
-            enclave::ThreadMessaging::thread_messaging.set_finished();
+            threading::ThreadMessaging::thread_messaging.set_finished();
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -181,16 +215,18 @@ namespace enclave
             {
               std::chrono::milliseconds elapsed_ms(ms_count);
               logger::config::tick(elapsed_ms);
-              node.tick(elapsed_ms);
+              node->tick(elapsed_ms);
               timers.tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
-              // ledger is being read
-              if (!node.is_reading_public_ledger())
+              // public ledger is being read
+              if (!node->is_reading_public_ledger())
               {
                 for (auto& r : rpc_map->get_map())
+                {
                   r.second->tick(elapsed_ms);
+                }
               }
-              node.tick_end();
+              node->tick_end();
             }
           });
 
@@ -210,7 +246,7 @@ namespace enclave
             }
             else
             {
-              node.node_msg(std::move(body));
+              node->node_msg(std::move(body));
             }
           });
 
@@ -218,33 +254,66 @@ namespace enclave
           bp,
           consensus::ledger_entry,
           [this](const uint8_t* data, size_t size) {
-            auto [body] =
+            const auto [index, purpose, body] =
               ringbuffer::read_message<consensus::ledger_entry>(data, size);
-            if (node.is_reading_public_ledger())
-              node.recover_public_ledger_entry(body);
-            else if (node.is_reading_private_ledger())
-              node.recover_private_ledger_entry(body);
-            else
-              LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+            switch (purpose)
+            {
+              case consensus::LedgerRequestPurpose::Recovery:
+              {
+                if (node->is_reading_public_ledger())
+                  node->recover_public_ledger_entry(body);
+                else if (node->is_reading_private_ledger())
+                  node->recover_private_ledger_entry(body);
+                else
+                  LOG_FAIL_FMT("Cannot recover ledger entry: Unexpected state");
+                break;
+              }
+              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              {
+                context.historical_state_cache.handle_ledger_entry(index, body);
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+              }
+            }
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
           consensus::ledger_no_entry,
           [this](const uint8_t* data, size_t size) {
-            ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
-            node.recover_ledger_end();
+            const auto [index, purpose] =
+              ringbuffer::read_message<consensus::ledger_no_entry>(data, size);
+            switch (purpose)
+            {
+              case consensus::LedgerRequestPurpose::Recovery:
+              {
+                node->recover_ledger_end();
+                break;
+              }
+              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              {
+                context.historical_state_cache.handle_no_entry(index);
+                break;
+              }
+              default:
+              {
+                LOG_FAIL_FMT("Unhandled purpose: {}", purpose);
+              }
+            }
           });
 
         rpcsessions->register_message_handlers(bp.get_dispatcher());
 
         if (start_type == StartType::Join)
         {
-          node.join({ccf_config});
+          node->join({ccf_config});
         }
         else if (start_type == StartType::Recover)
         {
-          node.start_ledger_recovery();
+          node->start_ledger_recovery();
         }
 
         bp.run(circuit->read_from_outside(), [](size_t consecutive_idles) {
@@ -254,6 +323,22 @@ namespace enclave
           if (consecutive_idles == 0)
           {
             idling_start_time = time_now;
+          }
+
+          // If we have pending thread messages, handle them now (and don't
+          // sleep)
+          {
+            uint16_t tid = threading::get_current_thread_id();
+            threading::Task& task =
+              threading::ThreadMessaging::thread_messaging.get_task(tid);
+
+            bool task_run =
+              threading::ThreadMessaging::thread_messaging.run_one(task);
+
+            if (task_run)
+            {
+              return;
+            }
           }
 
           // Handle initial idles by pausing, eventually sleep (in host)
@@ -268,6 +353,11 @@ namespace enclave
             CCF_PAUSE();
           }
         });
+
+        auto w = writer_factory.create_writer_to_outside();
+        LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
+        RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, w);
+
         return true;
       }
 #ifndef VIRTUAL_ENCLAVE
@@ -286,7 +376,7 @@ namespace enclave
       uint64_t tid;
     };
 
-    static void init_thread_cb(std::unique_ptr<enclave::Tmsg<Msg>> msg)
+    static void init_thread_cb(std::unique_ptr<threading::Tmsg<Msg>> msg)
     {
       LOG_DEBUG_FMT("First thread CB:{}", msg->data.tid);
     }
@@ -298,12 +388,12 @@ namespace enclave
       try
 #endif
       {
-        auto msg = std::make_unique<enclave::Tmsg<Msg>>(&init_thread_cb);
-        msg->data.tid = thread_ids[std::this_thread::get_id()];
-        enclave::ThreadMessaging::thread_messaging.add_task<Msg>(
+        auto msg = std::make_unique<threading::Tmsg<Msg>>(&init_thread_cb);
+        msg->data.tid = threading::get_current_thread_id();
+        threading::ThreadMessaging::thread_messaging.add_task<Msg>(
           msg->data.tid, std::move(msg));
 
-        enclave::ThreadMessaging::thread_messaging.run();
+        threading::ThreadMessaging::thread_messaging.run();
       }
 #ifndef VIRTUAL_ENCLAVE
       catch (const std::exception& e)

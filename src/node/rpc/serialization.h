@@ -55,7 +55,8 @@ namespace ccf
     node_id,
     public_only,
     consensus_type)
-  DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JoinNetworkNodeToNode::Out, last_recovered_commit_idx, network_info)
 
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -72,7 +73,7 @@ namespace ccf
     recovery_threshold)
 
   DECLARE_JSON_TYPE(GetCommit::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, term, commit)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, view, seqno)
 
   DECLARE_JSON_TYPE(GetTxStatus::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::In, view, seqno)
@@ -87,7 +88,7 @@ namespace ccf
 
   DECLARE_JSON_TYPE(GetPrimaryInfo::Out)
   DECLARE_JSON_REQUIRED_FIELDS(
-    GetPrimaryInfo::Out, primary_id, primary_host, primary_port)
+    GetPrimaryInfo::Out, primary_id, primary_host, primary_port, current_view)
 
   DECLARE_JSON_TYPE(GetNetworkInfo::NodeInfo)
   DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::NodeInfo, node_id, host, port)
@@ -95,10 +96,10 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(GetNetworkInfo::Out, nodes, primary_id)
 
   DECLARE_JSON_TYPE(CallerInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id);
+  DECLARE_JSON_REQUIRED_FIELDS(CallerInfo, caller_id)
 
   DECLARE_JSON_TYPE(WhoIs::In)
-  DECLARE_JSON_REQUIRED_FIELDS(WhoIs::In, cert);
+  DECLARE_JSON_REQUIRED_FIELDS(WhoIs::In, cert)
 
   DECLARE_JSON_TYPE(ListMethods::Out)
   DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, methods)

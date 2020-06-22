@@ -6,7 +6,7 @@
 #pragma once
 
 #include "bits.h"
-#include "pbft_assert.h"
+#include "ds/ccf_assert.h"
 
 #include <stdio.h>
 
@@ -103,7 +103,7 @@ inline void Bitmap::clear()
 
 inline bool Bitmap::test(size_t i) const
 {
-  PBFT_ASSERT(i < num, "Index out of bounds\n");
+  CCF_ASSERT(i < num, "Index out of bounds");
   return (chunks[i / ChunkBits] & bitSelector(i)) != 0;
 }
 
@@ -114,13 +114,13 @@ inline size_t Bitmap::size() const
 
 inline void Bitmap::set(size_t i)
 {
-  PBFT_ASSERT(i < num, "Index out of bounds\n");
+  CCF_ASSERT(i < num, "Index out of bounds");
   chunks[i / ChunkBits] |= bitSelector(i);
 }
 
 inline void Bitmap::reset(size_t i)
 {
-  PBFT_ASSERT(i < num, "Index out of bounds\n");
+  CCF_ASSERT(i < num, "Index out of bounds");
   chunks[i / ChunkBits] &= (~bitSelector(i));
 }
 

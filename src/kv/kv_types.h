@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensus_types.h"
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
+#include "serialiser_declare.h"
 
 #include <array>
 #include <chrono>
@@ -16,16 +16,28 @@
 
 namespace kv
 {
-  // Version indexes modifications to the local kv store. Special value -1
-  // indicates deletion
+  // Version indexes modifications to the local kv store. Negative values
+  // indicate deletion
   using Version = int64_t;
+  static const Version NoVersion = std::numeric_limits<Version>::min();
+
+  static bool is_deleted(Version version)
+  {
+    return version < 0;
+  }
+
   // Term describes an epoch of Versions. It is incremented when global kv's
   // writer(s) changes. Term and Version combined give a unique identifier for
-  // all accepted kv modifications. Terms are handled by Raft via the
+  // all accepted kv modifications. Terms are handled by Consensus via the
   // TermHistory
   using Term = uint64_t;
   using NodeId = uint64_t;
-  static const Version NoVersion = std::numeric_limits<Version>::min();
+
+  struct TxID
+  {
+    Term term = 0;
+    Version version = 0;
+  };
 
   using BatchVector = std::vector<
     std::tuple<kv::Version, std::shared_ptr<std::vector<uint8_t>>, bool>>;
@@ -53,7 +65,8 @@ namespace kv
     FAILED = 0,
     PASS = 1,
     PASS_SIGNATURE = 2,
-    PASS_PRE_PREPARE = 3
+    PASS_PRE_PREPARE = 3,
+    PASS_NEW_VIEW = 4
   };
 
   enum ReplicateType
@@ -98,6 +111,7 @@ namespace kv
       std::vector<uint8_t> request;
       uint64_t caller_id;
       std::vector<uint8_t> caller_cert;
+      uint8_t frame_format;
     };
 
     struct ResultCallbackArgs
@@ -125,7 +139,8 @@ namespace kv
       kv::TxHistory::RequestID id,
       uint64_t caller_id,
       const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request) = 0;
+      const std::vector<uint8_t>& request,
+      uint8_t frame_format) = 0;
     virtual void add_result(
       RequestID id,
       kv::Version version,
@@ -213,18 +228,20 @@ namespace kv
       state = Primary;
     }
 
-    virtual bool replicate(const BatchVector& entries) = 0;
-    virtual View get_view() = 0;
+    virtual bool replicate(const BatchVector& entries, View view) = 0;
+    virtual std::pair<View, SeqNo> get_committed_txid() = 0;
 
     virtual View get_view(SeqNo seqno) = 0;
-    virtual SeqNo get_commit_seqno() = 0;
+    virtual View get_view() = 0;
+    virtual SeqNo get_committed_seqno() = 0;
     virtual NodeId primary() = 0;
 
     virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
       SeqNo seqno,
-      std::unordered_set<NodeId> conf,
+      const std::unordered_set<NodeId>& conf,
       const NodeConf& node_conf = {}) = 0;
+    virtual std::unordered_set<NodeId> get_latest_configuration() const = 0;
 
     virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
@@ -245,10 +262,8 @@ namespace kv
       return Statistics();
     }
     virtual void enable_all_domains() {}
-    virtual void resume_replication() {}
-    virtual void suspend_replication(kv::Version) {}
 
-    virtual void set_f(ccf::NodeId f) = 0;
+    virtual void set_f(size_t f) = 0;
     virtual void emit_signature() = 0;
     virtual ConsensusType type() = 0;
   };
@@ -322,61 +337,52 @@ namespace kv
       const std::vector<uint8_t>& serialised_header,
       std::vector<uint8_t>& plain,
       kv::Version version) = 0;
-    virtual void set_view(Consensus::View view) = 0;
+    virtual void set_iv_id(size_t id) = 0;
     virtual size_t get_header_length() = 0;
     virtual void update_encryption_key(
       Version version, const std::vector<uint8_t>& raw_ledger_key) = 0;
   };
 
-  class AbstractStore
-  {
-  public:
-    virtual ~AbstractStore() {}
-    virtual Version next_version() = 0;
-    virtual Version current_version() = 0;
-    virtual Version commit_version() = 0;
-    virtual std::shared_ptr<Consensus> get_consensus() = 0;
-    virtual std::shared_ptr<TxHistory> get_history() = 0;
-    virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
-    virtual DeserialiseSuccess deserialise(
-      const std::vector<uint8_t>& data,
-      bool public_only = false,
-      Term* term = nullptr) = 0;
-    virtual void compact(Version v) = 0;
-    virtual void rollback(Version v) = 0;
-    virtual CommitSuccess commit(
-      Version v, PendingTx pt, bool globally_committable) = 0;
-    virtual size_t commit_gap() = 0;
-  };
-
-  template <class S, class D>
   class AbstractTxView
   {
   public:
-    virtual ~AbstractTxView() {}
+    virtual ~AbstractTxView() = default;
+
     virtual bool has_writes() = 0;
     virtual bool has_changes() = 0;
     virtual bool prepare() = 0;
     virtual void commit(Version v) = 0;
     virtual void post_commit() = 0;
-    virtual void serialise(S& s, bool include_reads) = 0;
-    virtual bool deserialise(D& d, Version version) = 0;
-    virtual Version start_order() = 0;
-    virtual Version end_order() = 0;
-    virtual bool is_replicated() = 0;
   };
 
-  template <class S, class D>
+  class AbstractStore;
   class AbstractMap
   {
   public:
+    class Snapshot
+    {
+    public:
+      virtual ~Snapshot() = default;
+      virtual std::vector<uint8_t> get_buffer() = 0;
+      virtual std::string& get_name() = 0;
+      virtual SecurityDomain get_security_domain() = 0;
+      virtual bool get_is_replicated() = 0;
+      virtual kv::Version get_version() = 0;
+    };
+
     virtual ~AbstractMap() {}
-    virtual bool operator==(const AbstractMap<S, D>& that) const = 0;
-    virtual bool operator!=(const AbstractMap<S, D>& that) const = 0;
+    virtual bool operator==(const AbstractMap& that) const = 0;
+    virtual bool operator!=(const AbstractMap& that) const = 0;
 
     virtual AbstractStore* get_store() = 0;
-    virtual AbstractTxView<S, D>* create_view(Version version) = 0;
+    virtual void serialise(
+      const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
+    virtual AbstractTxView* deserialise(
+      KvStoreDeserialiser& d, Version version) = 0;
+    virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
+    virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
+    virtual void apply(std::unique_ptr<AbstractMap::Snapshot>& s) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;
     virtual void lock() = 0;
@@ -385,7 +391,63 @@ namespace kv
     virtual bool is_replicated() = 0;
     virtual void clear() = 0;
 
-    virtual AbstractMap<S, D>* clone(AbstractStore* store) = 0;
-    virtual void swap(AbstractMap<S, D>* map) = 0;
+    virtual AbstractMap* clone(AbstractStore* store) = 0;
+    virtual void swap(AbstractMap* map) = 0;
   };
+
+  class AbstractStore
+  {
+  public:
+    class Snapshot
+    {
+    private:
+      std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
+      kv::Version version;
+
+    public:
+      Snapshot(kv::Version version_) : version(version_) {}
+
+      void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
+      {
+        snapshots.push_back(std::move(snapshot));
+      }
+
+      std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
+      {
+        return snapshots;
+      }
+
+      kv::Version get_version() const
+      {
+        return version;
+      }
+    };
+
+    virtual ~AbstractStore() {}
+
+    virtual Version next_version() = 0;
+    virtual TxID next_txid() = 0;
+
+    virtual Version current_version() = 0;
+    virtual TxID current_txid() = 0;
+
+    virtual Version commit_version() = 0;
+
+    virtual std::shared_ptr<Consensus> get_consensus() = 0;
+    virtual std::shared_ptr<TxHistory> get_history() = 0;
+    virtual std::shared_ptr<AbstractTxEncryptor> get_encryptor() = 0;
+    virtual DeserialiseSuccess deserialise(
+      const std::vector<uint8_t>& data,
+      bool public_only = false,
+      Term* term = nullptr) = 0;
+    virtual void compact(Version v) = 0;
+    virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
+    virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
+    virtual void set_term(Term t) = 0;
+    virtual CommitSuccess commit(
+      const TxID& txid, PendingTx pt, bool globally_committable) = 0;
+
+    virtual size_t commit_gap() = 0;
+  };
+
 }

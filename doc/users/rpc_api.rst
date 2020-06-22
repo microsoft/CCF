@@ -3,57 +3,70 @@ RPC API
 
 The available RPC methods vary depending on your TLS connection identity. Some methods are common to all frontends, others are restricted to the member and node frontends, and the app logic is only exposed to users.
 
-The API can also be retrieved from a running service using the `listMethods`_ and `getSchema`_ methods. For example, using curl:
+The API can also be retrieved from a running service using the `api`_ and `api/schema`_ methods. For example, using curl:
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/users/listMethods --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    $ curl https://<ccf-node-address>/users/api --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
       "methods": [
-        "LOG_get",
-        "LOG_get_pub",
-        "LOG_record",
-        "LOG_record_anonymous",
-        "LOG_record_prefix_cert",
-        "LOG_record_pub",
-        "getCommit",
-        "getMetrics",
-        "getNetworkInfo",
-        "getPrimaryInfo",
-        "getReceipt",
-        "getSchema",
-        "listMethods",
+        "api",
+        "api/schema",
+        "commit",
+        "quote",
+        "quotes",
+        "signed_index",
+        "join",
+        "metrics",
         "mkSign",
-        "verifyReceipt",
-        "whoAmI",
-        "whoIs"
+        "network_info",
+        "primary_info",
+        "receipt",
+        "receipt/verify",
+        "tx",
+        "who"
       ]
     }
 
-    $ curl https://<ccf-node-address>/users/getSchema --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary '{"method": "getPrimaryInfo"}' -H "content-type: application/json"
+    $ curl https://127.78.96.224:36363/nodes/api/schema?method="tx" -X GET --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -H "Content-Type: application/json"
     {
-      "params_schema": {},
-      "result_schema": {
+      "params_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {
-          "primary_host": {
-            "type": "string"
+          "seqno": {
+            "maximum": 9223372036854776000,
+            "minimum": -9223372036854776000,
+            "type": "integer"
           },
-          "primary_id": {
-            "maximum": 18446744073709551615,
+          "view": {
+            "maximum": 18446744073709552000,
             "minimum": 0,
-            "type": "number"
-          },
-          "primary_port": {
-            "type": "string"
+            "type": "integer"
           }
         },
         "required": [
-          "primary_id",
-          "primary_host",
-          "primary_port"
+          "view",
+          "seqno"
         ],
-        "title": "getPrimaryInfo/result",
+        "title": "tx/params",
+        "type": "object"
+      },
+      "result_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "status": {
+            "enum": [
+              "UNKNOWN",
+              "PENDING",
+              "COMMITTED",
+              "INVALID"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "tx/result",
         "type": "object"
       }
     }
@@ -62,34 +75,44 @@ The API can also be retrieved from a running service using the `listMethods`_ an
 Common Methods
 --------------
 
-getCommit
-~~~~~~~~~
+commit
+~~~~~~
 
-.. literalinclude:: ../schemas/getCommit_result.json
+.. literalinclude:: ../schemas/commit_result.json
     :language: json
 
-getPrimaryInfo
-~~~~~~~~~~~~~~
+tx
+~~
 
-.. literalinclude:: ../schemas/getPrimaryInfo_result.json
+.. literalinclude:: ../schemas/tx_params.json
     :language: json
 
-getMetrics
+.. literalinclude:: ../schemas/tx_result.json
+    :language: json
+
+primary_info
+~~~~~~~~~~~~
+
+.. literalinclude:: ../schemas/primary_info_result.json
+    :language: json
+
+metrics
+~~~~~~~
+
+.. literalinclude:: ../schemas/metrics_result.json
+    :language: json
+
+api
+~~~
+
+.. literalinclude:: ../schemas/api_result.json
+    :language: json
+
+api/schema
 ~~~~~~~~~~
 
-.. literalinclude:: ../schemas/getMetrics_result.json
+.. literalinclude:: ../schemas/api/schema_params.json
+    :language: json
+.. literalinclude:: ../schemas/api/schema_result.json
     :language: json
 
-getSchema
-~~~~~~~~~
-
-.. literalinclude:: ../schemas/getSchema_params.json
-    :language: json
-.. literalinclude:: ../schemas/getSchema_result.json
-    :language: json
-
-listMethods
-~~~~~~~~~~~
-
-.. literalinclude:: ../schemas/listMethods_result.json
-    :language: json

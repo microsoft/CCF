@@ -19,6 +19,10 @@
 #endif
 
 #if !defined(__clang__) && defined(__GNUC__)
+#  define GCC_NOT_CLANG
+#endif
+
+#ifdef GCC_NOT_CLANG
 #  if __GNUC__ >= 8
 #    define GCC_VERSION_EIGHT_PLUS
 #  endif
@@ -36,6 +40,9 @@ namespace snmalloc
   void error(const char* const str);
 } // namespace snmalloc
 
+#define TOSTRING(expr) TOSTRING2(expr)
+#define TOSTRING2(expr) #expr
+
 #ifdef NDEBUG
 #  define SNMALLOC_ASSERT(expr) \
     {}
@@ -44,7 +51,8 @@ namespace snmalloc
     { \
       if (!(expr)) \
       { \
-        snmalloc::error("assert fail"); \
+        snmalloc::error("assert fail: " #expr " in " __FILE__ \
+                        " on " TOSTRING(__LINE__)); \
       } \
     }
 #endif
@@ -54,6 +62,12 @@ namespace snmalloc
 #else
 #  if __has_builtin(__builtin_assume)
 #    define SNMALLOC_ASSUME(x) __builtin_assume((x))
+#  elif defined(_MSC_VER)
+#    define SNMALLOC_ASSUME(x) __assume((x));
+#  elif defined(__GNUC__)
+#    define SNMALLOC_ASSUME(x) \
+      if (!(x)) \
+        __builtin_unreachable();
 #  else
 #    define SNMALLOC_ASSUME(x) \
       do \

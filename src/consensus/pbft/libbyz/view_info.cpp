@@ -6,9 +6,9 @@
 #include "view_info.h"
 
 #include "big_req_table.h"
+#include "ds/ccf_assert.h"
 #include "k_max.h"
 #include "new_view.h"
-#include "pbft_assert.h"
 #include "pre_prepare.h"
 #include "replica.h"
 #include "status.h"
@@ -55,10 +55,10 @@ View_info::~View_info()
 
 void View_info::add_complete(Pre_prepare* pp)
 {
-  PBFT_ASSERT(pp->view() == v, "Invalid argument");
+  CCF_ASSERT(pp->view() == v, "Invalid argument");
 
   OReq_info& ri = oplog.fetch(pp->seqno());
-  PBFT_ASSERT(pp->view() >= 0 && pp->view() > ri.v, "Invalid argument");
+  CCF_ASSERT(pp->view() >= 0 && pp->view() > ri.v, "Invalid argument");
 
   ri.clear();
   ri.v = pp->view();
@@ -156,8 +156,7 @@ Pre_prepare* View_info::pre_prepare(Seqno n, Digest& d)
     OReq_info& ri = oplog.fetch(n);
     if (ri.m && ri.d == d)
     {
-      PBFT_ASSERT(
-        ri.m->digest() == ri.d && ri.m->seqno() == n, "Invalid state");
+      CCF_ASSERT(ri.m->digest() == ri.d && ri.m->seqno() == n, "Invalid state");
       return ri.m;
     }
   }
@@ -172,7 +171,7 @@ Pre_prepare* View_info::pre_prepare(Seqno n, View v)
     OReq_info& ri = oplog.fetch(n);
     if (ri.m && ri.v >= v)
     {
-      PBFT_ASSERT(ri.m->seqno() == n, "Invalid state");
+      CCF_ASSERT(ri.m->seqno() == n, "Invalid state");
       return ri.m;
     }
   }
@@ -260,6 +259,12 @@ void View_info::discard_old_and_resize_if_needed()
   }
 }
 
+void View_info::set_new_view(View vi)
+{
+  v = vi;
+  last_nvs[pbft::GlobalState::get_node().primary(v)].make_complete(v);
+}
+
 void View_info::view_change(View vi, Seqno last_executed, State* state)
 {
   v = vi;
@@ -309,7 +314,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
   vc->re_authenticate();
   vc_sent = ITimer::current_time();
 
-  LOG_INFO << "Sending view change view: " << vc->view() << std::endl;
+  LOG_INFO_FMT("Sending view change view: {}", vc->view());
   pbft::GlobalState::get_node().send(vc.get(), Node::All_replicas);
 
   // Record that this message was sent.
@@ -331,8 +336,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
         View_change_ack* vack = new View_change_ack(v, id, i, lvc->digest());
         my_vacks[i] = vack;
 
-        LOG_INFO << "Sending view change ack for " << vack->view() << " from "
-                 << i << "\n";
+        LOG_INFO_FMT("Sending view change ack for {} from {}", vack->view(), i);
         pbft::GlobalState::get_node().send(vack, primv);
       }
     }
@@ -342,7 +346,7 @@ void View_info::view_change(View vi, Seqno last_executed, State* state)
   {
     // If we are the primary create new view info for "v"
     NV_info& n = last_nvs[id];
-    PBFT_ASSERT(n.view() <= v, "Invalid state");
+    CCF_ASSERT(n.view() <= v, "Invalid state");
 
     // Create an empty new-view message and add it to "n". Information
     // will later be added to "n/nv".
@@ -434,10 +438,9 @@ bool View_info::add(std::unique_ptr<View_change> vc)
       if (id != primv && vci != primv && vcv == v)
       {
         // Send view-change ack.
-        LOG_INFO << " Sending view change ack for " << v << " from " << vci
-                 << "\n";
+        LOG_INFO_FMT("Sending view change ack for {} from {}", v, vci);
         View_change_ack* vack = new View_change_ack(v, id, vci, vc->digest());
-        PBFT_ASSERT(my_vacks[vci] == 0, "Invalid state");
+        CCF_ASSERT(my_vacks[vci] == 0, "Invalid state");
 
         my_vacks[vci] = vack;
         pbft::GlobalState::get_node().send(vack, primv);
@@ -475,8 +478,8 @@ void View_info::add(New_view* nv)
     }
   }
 
-  LOG_INFO << "Rejected new view message for " << nv->view() << " from "
-           << nv->id() << "\n";
+  LOG_INFO_FMT(
+    "Rejected new view message for {} from {}", nv->view(), nv->id());
 
   delete nv;
 }
@@ -541,7 +544,7 @@ View View_info::max_maj_view() const
 
 void View_info::set_received_vcs(Status* m)
 {
-  PBFT_ASSERT(m->view() == v, "Invalid argument");
+  CCF_ASSERT(m->view() == v, "Invalid argument");
 
   NV_info& nvi = last_nvs[pbft::GlobalState::get_node().primary(v)];
   if (nvi.view() == v)
@@ -563,7 +566,7 @@ void View_info::set_received_vcs(Status* m)
 
 void View_info::set_missing_pps(Status* m)
 {
-  PBFT_ASSERT(m->view() == view(), "Invalid argument");
+  CCF_ASSERT(m->view() == view(), "Invalid argument");
 
   if (last_nvs[pbft::GlobalState::get_node().primary(view())].new_view())
   {
@@ -613,6 +616,11 @@ New_view* View_info::my_new_view()
 {
   Time t;
   return last_nvs[id].new_view(t);
+}
+
+New_view* View_info::new_view()
+{
+  return last_nvs[pbft::GlobalState::get_node().primary(view())].new_view();
 }
 
 void View_info::mark_stable(Seqno ls)
@@ -679,11 +687,11 @@ bool View_info::enforce_bound(Seqno b, Seqno ks, bool corrupt)
 
 void View_info::mark_stale()
 {
-  PBFT_ASSERT(last_vcs.size() == last_views.size(), "sizes do not match");
-  PBFT_ASSERT(last_vcs.size() == my_vacks.size(), "sizes do not match");
-  PBFT_ASSERT(last_vcs.size() == last_nvs.size(), "sizes do not match");
-  PBFT_ASSERT(last_vcs.size() == last_vcs.size(), "sizes do not match");
-  PBFT_ASSERT(last_vcs.size() == vacks.size(), "sizes do not match");
+  CCF_ASSERT(last_vcs.size() == last_views.size(), "sizes do not match");
+  CCF_ASSERT(last_vcs.size() == my_vacks.size(), "sizes do not match");
+  CCF_ASSERT(last_vcs.size() == last_nvs.size(), "sizes do not match");
+  CCF_ASSERT(last_vcs.size() == last_vcs.size(), "sizes do not match");
+  CCF_ASSERT(last_vcs.size() == vacks.size(), "sizes do not match");
 
   for (int i = 0; i < last_vcs.size(); i++)
   {

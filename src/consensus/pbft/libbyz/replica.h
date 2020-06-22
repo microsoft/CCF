@@ -59,6 +59,7 @@ public:
     pbft::RequestsMap& pbft_requests_map_,
     pbft::PrePreparesMap& pbft_pre_prepares_map_,
     ccf::Signatures& signatures,
+    pbft::NewViewsMap& pbft_new_views_map_,
     pbft::PbftStore& store_);
   // Requires: "mem" is vm page aligned and nbytes is a multiple of the
   // vm page size.
@@ -72,6 +73,7 @@ public:
   // Methods to register service specific functions. The expected
   // specifications for the functions are defined below.
   void register_exec(ExecCommand e);
+  void register_verify(VerifyAndParseCommand e);
   // Effects: Registers "e" as the exec_command function.
 
   int used_state_bytes() const;
@@ -93,7 +95,8 @@ public:
   // of a propagated request +1; and "ms" is the maximum sequence
   // number known to be stable.
 
-  void write_view_change_to_ledger();
+  void write_new_view_to_ledger();
+  // Effects: writes new view to ledger
 
   void send_view_change();
   // Effects: Send view-change message.
@@ -116,11 +119,16 @@ public:
 
   template <typename T>
   std::unique_ptr<T> create_message(
-    const uint8_t* message_data, size_t data_size);
+    const uint8_t* message_data, size_t data_size)
+  {
+    auto msg_type =
+      reinterpret_cast<T*>(create_message(message_data, data_size));
+    return std::unique_ptr<T>(msg_type);
+  }
 
   size_t num_correct_replicas() const;
   size_t f() const;
-  void set_f(ccf::NodeId f);
+  void set_f(size_t f);
   void emit_signature_on_next_pp(int64_t version);
   View view() const;
   bool is_primary() const;
@@ -180,6 +188,11 @@ public:
   static Message* create_message(const uint8_t* data, uint32_t size);
   // Effects: Creates a new message from a buffer
 
+  void update_gov_req_info(ByzInfo& info, Pre_prepare* pre_prepare);
+  // Effects: Updates info with the latest gov request seqno
+  // and then updates the gov request tracker with the pre prepare's seqno
+  // if the pre prepare holds any governance requests
+
   bool compare_execution_results(const ByzInfo& info, Pre_prepare* pre_prepare);
   // Compare the merkle root and batch ctx between the pre-prepare and the
   // the corresponding fields in info after execution
@@ -187,9 +200,9 @@ public:
   void init_state();
   void recv_start();
 
-  static bool pre_verify(Message* m);
+  bool pre_verify(Message* m);
   template <class T>
-  static bool gen_pre_verify(Message* m);
+  bool gen_pre_verify(Message* m);
 
   void handle(Request* m);
 
@@ -199,7 +212,7 @@ public:
   // passed to us.
 
   // Playback methods
-  void playback_request(ccf::Store::Tx& tx);
+  void playback_request(kv::Tx& tx);
   // Effects: Requests are executed
 
   void populate_certificates(Pre_prepare* pp);
@@ -218,9 +231,13 @@ public:
   // "prev_prepared_cert". Also creates and adds the "Prepare" message for the
   // caller
 
-  void playback_pre_prepare(ccf::Store::Tx& tx);
+  void playback_pre_prepare(kv::Tx& tx);
   // Effects: pre-prepare is verified, if merkle roots match
   // we update the pre-prepare related meta-data, if not we rollback
+
+  void playback_new_view(kv::Tx& tx);
+  // Effects: if the new-view message is verified then the replica enters
+  // the new view
 
   bool IsExecutionPending()
   {
@@ -354,8 +371,8 @@ private:
   std::unique_ptr<ExecCommandMsg> execute_tentative_request(
     Request& request,
     int64_t& max_local_commit_value,
-    bool include_markle_roots,
-    ccf::Store::Tx* tx = nullptr,
+    bool include_merkle_roots,
+    kv::Tx* tx = nullptr,
     Seqno seqno = -1);
   // Effects: called by execute_tentative or playback_request to execute the
   // request. seqno == -1 means we are running it from playback
@@ -491,7 +508,7 @@ private:
   // Latest byz info when we are in playback mode. Used to compare the latest
   // execution mt roots and version with the ones in the pre prepare we will get
   // while we are at playback mode
-  Seqno playback_pp_seqno = 0;
+  Seqno playback_pp_seqno = -1;
   // seqno of latest pre prepare executed in playback mode
   bool waiting_for_playback_pp = false;
   // indicates if we are in append entries playback mode and have executed a
@@ -512,6 +529,7 @@ private:
 
   pbft::RequestsMap& pbft_requests_map;
   pbft::PrePreparesMap& pbft_pre_prepares_map;
+  pbft::NewViewsMap& pbft_new_views_map;
 
   // used to callback when we have committed a batch
   global_commit_handler_cb global_commit_cb;
@@ -594,6 +612,7 @@ private:
   // Pointers to various functions.
   //
   ExecCommand exec_command;
+  VerifyAndParseCommand verify_command;
 
   //
   // Statistics to set pre_prepare batch info

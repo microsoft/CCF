@@ -42,7 +42,9 @@ def test_add_member(network, args):
     )
 
     try:
-        new_member.get_and_decrypt_recovery_share(primary)
+        new_member.get_and_decrypt_recovery_share(
+            primary, network.store_current_network_encryption_key()
+        )
         assert False, "New accepted members are not given recovery shares"
     except infra.member.NoRecoveryShareFound as e:
         assert e.response.error == "Only active members are given recovery shares"
@@ -76,9 +78,12 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
 
     recovery_threshold_before = network.consortium.recovery_threshold
     active_members_before = network.consortium.get_active_members()
-    network.consortium.store_current_network_encryption_key()
+    network.store_current_network_encryption_key()
     already_active_member = network.consortium.get_any_active_member()
-    saved_share = already_active_member.get_and_decrypt_recovery_share(primary)
+    defunct_network_enc_pubk = network.store_current_network_encryption_key()
+    saved_share = already_active_member.get_and_decrypt_recovery_share(
+        primary, defunct_network_enc_pubk
+    )
 
     if func is test_retire_member:
         # When retiring a member, the active member which retrieved their share
@@ -98,7 +103,9 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
         recovery_threshold_before != network.consortium.recovery_threshold
         or active_members_before != network.consortium.get_active_members
     ):
-        new_share = already_active_member.get_and_decrypt_recovery_share(primary)
+        new_share = already_active_member.get_and_decrypt_recovery_share(
+            primary, defunct_network_enc_pubk
+        )
         assert saved_share != new_share, "New recovery shares should have been issued"
 
 
@@ -264,6 +271,7 @@ def run(args):
             LOG.info("Retiring a member should not be possible")
             try:
                 assert_recovery_shares_update(test_retire_member, network, args)
+                assert False, "Retiring a member should not be possible"
             except infra.proposal.ProposalNotAccepted as e:
                 assert e.proposal.state == infra.proposal.ProposalState.Failed
 

@@ -5,11 +5,10 @@
 
 #include "reply.h"
 
+#include "ds/ccf_assert.h"
 #include "message_tags.h"
 #include "node.h"
-#include "pbft_assert.h"
 #include "principal.h"
-#include "statistics.h"
 
 Reply::Reply(
   View view,
@@ -57,10 +56,6 @@ Reply::Reply(
   rep().replica = replica;
   rep().reply_size = -1;
 
-  INCR_OP(reply_auth);
-  // p->gen_mac_out(contents(), sizeof(Reply_rep),
-  // contents()+sizeof(Reply_rep));
-
   auth_type = Auth_type::out;
   auth_len = sizeof(Reply_rep);
   auth_src_offset = 0;
@@ -83,7 +78,7 @@ char* Reply::store_reply(int& max_len)
 
 void Reply::authenticate(Principal* p, int act_len, bool tentative)
 {
-  PBFT_ASSERT(
+  CCF_ASSERT(
     (unsigned)act_len <= msize() - sizeof(Reply_rep) - MAC_size,
     "Invalid reply size");
 
@@ -96,8 +91,6 @@ void Reply::authenticate(Principal* p, int act_len, bool tentative)
   int old_size = sizeof(Reply_rep) + act_len;
   set_size(old_size + MAC_size);
 
-  INCR_OP(reply_auth);
-
   auth_type = Auth_type::out;
   auth_len = sizeof(Reply_rep);
   auth_src_offset = 0;
@@ -109,9 +102,6 @@ void Reply::authenticate(Principal* p, int act_len, bool tentative)
 void Reply::re_authenticate(Principal* p)
 {
   int old_size = sizeof(Reply_rep) + rep().reply_size;
-
-  INCR_OP(reply_auth);
-  // p->gen_mac_out(contents(), sizeof(Reply_rep), contents()+old_size);
 
   auth_type = Auth_type::out;
   auth_len = sizeof(Reply_rep);
@@ -152,8 +142,6 @@ bool Reply::pre_verify()
   }
 
   // Check signature.
-  INCR_OP(reply_auth_ver);
-
   std::shared_ptr<Principal> replica =
     pbft::GlobalState::get_node().get_principal(rep().replica);
   if (!replica)
