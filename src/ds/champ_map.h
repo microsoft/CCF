@@ -402,7 +402,22 @@ namespace champ
     }
   };
 
-  template <class K, class V, class H = std::hash<K>>
+  template<class T>
+  struct default_size
+  {
+    uint32_t operator()(T type) const
+    {
+      return sizeof(type) + sizeof(uint64_t);
+    }
+
+  };
+
+  template <
+    class K,
+    class V,
+    class H = std::hash<K>,
+    class k_size = default_size<K>,
+    class v_size = default_size<V>>
   class Snapshot
   {
   private:
@@ -417,10 +432,10 @@ namespace champ
       pair(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
     };
     const uintptr_t padding = 0;
-    std::function<uint32_t(const K& key)> k_size;
+    //std::function<uint32_t(const K& key)> k_size;
     std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
       k_serialize;
-    std::function<uint32_t(const V& value)> v_size;
+    //std::function<uint32_t(const V& value)> v_size;
     std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
       v_serialize;
 
@@ -438,15 +453,15 @@ namespace champ
   public:
     Snapshot(
       Map<K, V, H> map_,
-      std::function<uint32_t(const K& key)> k_size_,
+      //std::function<uint32_t(const K& key)> k_size_,
       std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
         k_serialize_,
-      std::function<uint32_t(const V& value)> v_size_,
+      //std::function<uint32_t(const V& value)> v_size_,
       std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
         v_serialize_) :
-      k_size(k_size_),
+      //k_size(k_size_),
       k_serialize(k_serialize_),
-      v_size(v_size_),
+      //v_size(v_size_),
       v_serialize(v_serialize_)
     {
       map = map_;
@@ -461,8 +476,8 @@ namespace champ
       map.foreach([&](auto& key, auto& value) {
         K* k = &key;
         V* v = &value;
-        uint32_t key_size = k_size(key) + get_padding(k_size(key));
-        uint32_t value_size = v_size(value) + get_padding(v_size(value));
+        uint32_t key_size = k_size()(key) + get_padding(k_size()(key));
+        uint32_t value_size = v_size()(value) + get_padding(v_size()(value));
 
         size += (key_size + value_size);
 

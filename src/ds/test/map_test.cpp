@@ -220,7 +220,7 @@ TEST_CASE("serialize map")
   INFO("Serialize map to array");
   {
     champ::Snapshot<K, V, H> snapshot(
-      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
+      map, /*fn_size_k,*/ fn_serialize_k, /*fn_size_v,*/ fn_serialize_v);
     const std::vector<uint8_t>& s = snapshot.get_buffer();
 
     champ::Map<K, V, H> new_map =
@@ -252,11 +252,13 @@ TEST_CASE("serialize map")
   INFO("Ensure serialized state is byte identical");
   {
     champ::Snapshot<K, V, H> snapshot_1(
-      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
+      //map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
+      map, /*fn_size_k,*/ fn_serialize_k, /*fn_size_v,*/ fn_serialize_v);
     const std::vector<uint8_t>& s_1 = snapshot_1.get_buffer();
 
     champ::Snapshot<K, V, H> snapshot_2(
-      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
+      //map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
+      map, /*fn_size_k,*/ fn_serialize_k, /*fn_size_v,*/ fn_serialize_v);
     const std::vector<uint8_t>& s_2 = snapshot_2.get_buffer();
 
     REQUIRE_EQ(s_1.size(), s_2.size());
