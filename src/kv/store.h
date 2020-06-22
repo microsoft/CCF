@@ -221,11 +221,7 @@ namespace kv
 
     void deserialize(std::unique_ptr<Snapshot>& snapshot)
     {
-      std::lock_guard<SpinLock> vguard(version_lock);
       std::lock_guard<SpinLock> mguard(maps_lock);
-      version = snapshot->get_version();
-      last_replicated = snapshot->get_version();
-      last_committable = snapshot->get_version();
 
       for (auto& map : maps)
       {
@@ -254,6 +250,13 @@ namespace kv
       {
         map.second->unlock();
       }
+
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        version = snapshot->get_version();
+        last_replicated = snapshot->get_version();
+        last_committable = snapshot->get_version();
+      }
     }
 
     std::unique_ptr<Snapshot> snapshot(Version v) override
@@ -263,13 +266,13 @@ namespace kv
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
 
-        if (v > current_version())
+        if (v < commit_version())
         {
           throw ccf::ccf_logic_error(fmt::format(
             "Attempting to snapshot at invalid version v:{}, "
-            "current_version:{}",
+            "commit_version:{}",
             v,
-            current_version()));
+            commit_version()));
         }
 
         for (auto& map : maps)
