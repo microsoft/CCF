@@ -7,7 +7,7 @@ include(${CCF_DIR}/cmake/preproject.cmake)
 
 # Deduce project version from git environment
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-  FIND_PACKAGE(Git)
+  find_package(Git)
   execute_process(
     COMMAND git describe --tags
     OUTPUT_VARIABLE "CCF_VERSION"
