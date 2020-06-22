@@ -710,9 +710,8 @@ namespace kv::untyped
         return ret;
       };
       std::function<kv::VersionV<SerialisedEntry>(const uint8_t*& key, size_t&)>
-        make_v = [](
-                   const uint8_t*& data,
-                   size_t& size) -> kv::untyped::VersionV {
+        make_v =
+          [](const uint8_t*& data, size_t& size) -> kv::untyped::VersionV {
         kv::untyped::VersionV ret;
         uint64_t value_size = serialized::read<uint64_t>(data, size);
         kv::Version version = serialized::read<kv::Version>(data, size);
