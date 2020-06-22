@@ -1877,7 +1877,7 @@ DOCTEST_TEST_CASE("Open network sequence")
     frontend.open();
   }
 
-  DOCTEST_INFO("Opens fails as recovery threshold is too high");
+  DOCTEST_INFO("Open fails as recovery threshold is too high");
   {
     kv::Tx gen_tx;
     GenesisGenerator gen(network, gen_tx);
