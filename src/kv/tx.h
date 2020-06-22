@@ -9,9 +9,11 @@
 
 namespace kv
 {
-  class Tx : public ViewContainer
+  // Manages a collection of TxViews. Derived implementations call get_tuple to
+  // retrieve views over target maps.
+  class BaseTx : public AbstractViewContainer
   {
-  private:
+  protected:
     OrderedViews view_list;
     bool committed = false;
     bool success = false;
@@ -90,9 +92,9 @@ namespace kv
     }
 
   public:
-    Tx() : view_list() {}
+    BaseTx() : view_list() {}
 
-    Tx(const Tx& that) = delete;
+    BaseTx(const BaseTx& that) = delete;
 
     void set_view_list(OrderedViews& view_list_, Term term_) override
     {
@@ -124,30 +126,6 @@ namespace kv
     Version get_term()
     {
       return term;
-    }
-
-    /** Get a transaction view on a map.
-     *
-     * This adds the map to the transaction set if it is not yet present.
-     *
-     * @param m Map
-     */
-    template <class M>
-    typename M::TxView* get_view(M& m)
-    {
-      return std::get<0>(get_tuple(m));
-    }
-
-    /** Get transaction views over multiple maps.
-     *
-     * @param m Map
-     * @param ms Map
-     */
-    template <class M, class... Ms>
-    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
-      M& m, Ms&... ms)
-    {
-      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
     }
 
     /** Commit transaction
@@ -307,7 +285,7 @@ namespace kv
     }
 
     // Used by frontend for reserved transactions
-    Tx(Version reserved) :
+    BaseTx(Version reserved) :
       view_list(),
       committed(false),
       success(false),
@@ -333,6 +311,66 @@ namespace kv
         throw std::logic_error("Failed to commit reserved transaction");
 
       return {CommitSuccess::OK, {0, 0, 0}, std::move(serialise())};
+    }
+  };
+
+  class ReadOnlyTx : public BaseTx
+  {
+  public:
+    using BaseTx::BaseTx;
+
+    /** Get a read-only transaction view on a map.
+     *
+     * This adds the map to the transaction set if it is not yet present.
+     *
+     * @param m Map
+     */
+    template <class M>
+    typename M::ReadOnlyTxView* get_read_only_view(M& m)
+    {
+      return std::get<0>(get_tuple(m));
+    }
+
+    /** Get read-only transaction views over multiple maps.
+     *
+     * @param m Map
+     * @param ms Map
+     */
+    template <class M, class... Ms>
+    std::tuple<typename M::ReadOnlyTxView*, typename Ms::ReadOnlyTxView*...>
+    get_read_only_view(M& m, Ms&... ms)
+    {
+      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
+    }
+  };
+
+  class Tx : public ReadOnlyTx
+  {
+  public:
+    using ReadOnlyTx::ReadOnlyTx;
+
+    /** Get a transaction view on a map.
+     *
+     * This adds the map to the transaction set if it is not yet present.
+     *
+     * @param m Map
+     */
+    template <class M>
+    typename M::TxView* get_view(M& m)
+    {
+      return std::get<0>(get_tuple(m));
+    }
+
+    /** Get transaction views over multiple maps.
+     *
+     * @param m Map
+     * @param ms Map
+     */
+    template <class M, class... Ms>
+    std::tuple<typename M::TxView*, typename Ms::TxView*...> get_view(
+      M& m, Ms&... ms)
+    {
+      return std::tuple_cat(get_tuple(m), get_tuple(ms...));
     }
   };
 }

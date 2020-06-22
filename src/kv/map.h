@@ -26,6 +26,7 @@ namespace kv
 
     using CommitHook = CommitHook<Write>;
 
+    using ReadOnlyTxView = kv::ReadOnlyTxView<K, V, KSerialiser, VSerialiser>;
     using TxView = kv::TxView<K, V, KSerialiser, VSerialiser>;
 
     template <typename... Ts>
