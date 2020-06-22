@@ -367,6 +367,7 @@ namespace kv
       virtual std::string& get_name() = 0;
       virtual SecurityDomain get_security_domain() = 0;
       virtual bool get_is_replicated() = 0;
+      virtual kv::Version get_version() = 0;
     };
 
     virtual ~AbstractMap() {}
@@ -381,6 +382,7 @@ namespace kv
     virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
+    virtual void apply(std::unique_ptr<AbstractMap::Snapshot>& s) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;
     virtual void lock() = 0;
@@ -400,8 +402,11 @@ namespace kv
     {
     private:
       std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
+      kv::Version version;
 
     public:
+      Snapshot(kv::Version version_) : version(version_) {}
+
       void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
       {
         snapshots.push_back(std::move(snapshot));
@@ -410,6 +415,11 @@ namespace kv
       std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
       {
         return snapshots;
+      }
+
+      kv::Version get_version() const
+      {
+        return version;
       }
     };
 
