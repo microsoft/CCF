@@ -217,7 +217,7 @@ auto init_frontend(
   for (uint8_t i = 0; i < n_members; i++)
   {
     member_certs.push_back(get_cert_data(i, kp));
-    gen.add_member(member_certs.back(), {});
+    gen.activate_member(gen.add_member(member_certs.back(), {}));
   }
 
   set_whitelists(gen);
@@ -343,8 +343,10 @@ DOCTEST_TEST_CASE("Proposer ballot")
 
   const auto proposer_cert = get_cert_data(0, kp);
   const auto proposer_id = gen.add_member(proposer_cert, {});
+  gen.activate_member(proposer_id);
   const auto voter_cert = get_cert_data(1, kp);
   const auto voter_id = gen.add_member(voter_cert, {});
+  gen.activate_member(voter_id);
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -452,12 +454,15 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   // add three initial active members
   // the proposer
   auto proposer_id = gen.add_member(member_cert, gen_public_encryption_key());
+  gen.activate_member(proposer_id);
 
   // the voters
   const auto voter_a_cert = get_cert_data(1, kp);
   auto voter_a = gen.add_member(voter_a_cert, gen_public_encryption_key());
+  gen.activate_member(voter_a);
   const auto voter_b_cert = get_cert_data(2, kp);
   auto voter_b = gen.add_member(voter_b_cert, gen_public_encryption_key());
+  gen.activate_member(voter_b);
 
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -656,6 +661,8 @@ DOCTEST_TEST_CASE("Accept node")
   const auto member_1_cert = get_cert_data(1, kp);
   const auto member_0 = gen.add_member(member_0_cert, {});
   const auto member_1 = gen.add_member(member_1_cert, {});
+  gen.activate_member(member_0);
+  gen.activate_member(member_1);
 
   // node to be tested
   // new node certificate
@@ -971,8 +978,8 @@ DOCTEST_TEST_CASE("Remove proposal")
 
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
-  gen.add_member(member_cert, {});
-  gen.add_member(cert, {});
+  gen.activate_member(gen.add_member(member_cert, {}));
+  gen.activate_member(gen.add_member(cert, {}));
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
@@ -1137,6 +1144,8 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   auto voter_a = gen.add_member(voter_a_cert, {});
   const auto voter_b_cert = get_cert_data(2, kp);
   auto voter_b = gen.add_member(voter_b_cert, {});
+  gen.activate_member(voter_a);
+  gen.activate_member(voter_b);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_veto_script_file));
   gen.finalize();
@@ -1187,7 +1196,7 @@ DOCTEST_TEST_CASE("Add user via proposed call")
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
   const auto member_cert = get_cert_data(0, kp);
-  gen.add_member(member_cert, {});
+  gen.activate_member(gen.add_member(member_cert, {}));
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();
@@ -1232,13 +1241,16 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
+  gen.activate_member(operator_id);
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, {})] = cert;
+    auto id = gen.add_member(cert, {});
+    gen.activate_member(id);
+    members[id] = cert;
   }
 
   set_whitelists(gen);
@@ -1347,13 +1359,16 @@ DOCTEST_TEST_CASE("Passing operator vote")
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
+  gen.activate_member(operator_id);
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, {})] = cert;
+    auto id = gen.add_member(cert, {});
+    gen.activate_member(id);
+    members[id] = cert;
   }
 
   set_whitelists(gen);
@@ -1434,13 +1449,16 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   // Operating member, as set in operator_gov.lua
   const auto operator_cert = get_cert_data(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
+  gen.activate_member(operator_id);
 
   // Non-operating members
   std::map<size_t, ccf::Cert> members;
   for (size_t i = 1; i < 4; i++)
   {
     auto cert = get_cert_data(i, kp);
-    members[gen.add_member(cert, {})] = cert;
+    auto id = gen.add_member(cert, {});
+    gen.activate_member(id);
+    members[id] = cert;
   }
 
   set_whitelists(gen);
@@ -1541,6 +1559,7 @@ DOCTEST_TEST_CASE("User data")
   gen.init_values();
   gen.create_service({});
   const auto member_id = gen.add_member(member_cert, {});
+  gen.activate_member(member_id);
   const auto user_id = gen.add_user(user_cert);
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -1648,8 +1667,9 @@ DOCTEST_TEST_CASE("Submit recovery shares")
         tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
       auto public_encryption_key = tls::PublicX25519::write(
         crypto::BoxKey::public_from_private(private_encryption_key));
-      members[gen.add_member(cert, public_encryption_key.raw())] = {
-        cert, private_encryption_key};
+      auto id = gen.add_member(cert, public_encryption_key.raw());
+      gen.activate_member(id);
+      members[id] = {cert, private_encryption_key};
     }
     gen.set_recovery_threshold(recovery_threshold);
     share_manager.issue_shares(gen_tx);
@@ -1774,78 +1794,113 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  DOCTEST_INFO("Service is opening");
+  std::map<size_t, ccf::Cert> members;
+
+  kv::Tx gen_tx;
+  GenesisGenerator gen(network, gen_tx);
+  gen.init_values();
+  gen.create_service({});
+
+  for (size_t i = 1; i < max_active_members_count + 1; i++)
+  {
+    auto cert = get_cert_data(i, kp);
+    members[gen.add_member(cert, {})] = cert;
+  }
+  gen.finalize();
+
+  for (auto const& m : members)
+  {
+    const auto state_digest_req =
+      create_request(nullptr, "ack/update_state_digest");
+    const auto ack = parse_response_body<StateDigest>(
+      frontend_process(frontend, state_digest_req, m.second));
+
+    StateDigest params;
+    params.state_digest = ack.state_digest;
+    const auto ack_req = create_signed_request(params, "ack", kp);
+    const auto resp = frontend_process(frontend, ack_req, m.second);
+
+    if (m.first >= max_active_members_count)
+    {
+      DOCTEST_CHECK(resp.status == HTTP_STATUS_FORBIDDEN);
+    }
+    else
+    {
+      DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
+      DOCTEST_CHECK(parse_response_body<bool>(resp));
+    }
+    break;
+  }
+}
+
+DOCTEST_TEST_CASE("Open network sequence")
+{
+  // Setup original state
+  NetworkState network(ConsensusType::RAFT);
+  network.ledger_secrets = std::make_shared<LedgerSecrets>();
+  network.ledger_secrets->init();
+  network.encryption_key = std::make_unique<NetworkEncryptionKey>(
+    tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE));
+
+  ShareManager share_manager(network);
+  auto node = StubNodeState(share_manager);
+  MemberRpcFrontend frontend(network, node, share_manager);
+  std::map<size_t, std::pair<ccf::Cert, std::vector<uint8_t>>> members;
+
+  size_t members_count = 4;
+  size_t recovery_threshold = 100;
+  DOCTEST_REQUIRE(members_count < recovery_threshold);
+
+  DOCTEST_INFO("Setup state");
   {
     kv::Tx gen_tx;
     GenesisGenerator gen(network, gen_tx);
     gen.init_values();
     gen.create_service({});
-    gen.set_recovery_threshold(1);
 
-    for (size_t i = 0; i < max_active_members_count + 1; i++)
+    // Adding accepted members
+    for (size_t i = 0; i < members_count; i++)
     {
       auto cert = get_cert_data(i, kp);
-      if (i == max_active_members_count)
-      {
-        DOCTEST_REQUIRE_THROWS_AS_MESSAGE(
-          gen.add_member(cert, gen_public_encryption_key()),
-          std::logic_error,
-          fmt::format(
-            "No more than {} active members are allowed",
-            max_active_members_count));
-      }
-      else
-      {
-        gen.add_member(cert, gen_public_encryption_key());
-      }
+      auto private_encryption_key =
+        tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
+      auto public_encryption_key = tls::PublicX25519::write(
+        crypto::BoxKey::public_from_private(private_encryption_key));
+      auto id = gen.add_member(cert, public_encryption_key.raw());
+      members[id] = {cert, private_encryption_key};
     }
+    gen.set_recovery_threshold(recovery_threshold);
+    gen.finalize();
+    frontend.open();
   }
 
-  DOCTEST_INFO("Service is open");
+  DOCTEST_INFO("Open fails as recovery threshold is too high");
   {
-    std::map<size_t, ccf::Cert> members;
-
     kv::Tx gen_tx;
     GenesisGenerator gen(network, gen_tx);
-    gen.init_values();
-    gen.create_service({});
-    // Add one member as ACTIVE so that recovery threshold can be set to 1
-    auto member0_cert = get_cert_data(0, kp);
-    members[gen.add_member(member0_cert, {})] = member0_cert;
-    gen.set_recovery_threshold(1);
-    gen.open_service();
 
-    // Service is open so members are added as ACCEPTED
-    for (size_t i = 1; i < max_active_members_count + 1; i++)
-    {
-      auto cert = get_cert_data(i, kp);
-      members[gen.add_member(cert, {})] = cert;
-    }
-    gen.finalize();
+    DOCTEST_REQUIRE_FALSE(gen.open_service());
+  }
 
+  DOCTEST_INFO("Activate all members - open still fails");
+  {
+    kv::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
     for (auto const& m : members)
     {
-      const auto state_digest_req =
-        create_request(nullptr, "ack/update_state_digest");
-      const auto ack = parse_response_body<StateDigest>(
-        frontend_process(frontend, state_digest_req, m.second));
-
-      StateDigest params;
-      params.state_digest = ack.state_digest;
-      const auto ack_req = create_signed_request(params, "ack", kp);
-      const auto resp = frontend_process(frontend, ack_req, m.second);
-
-      if (m.first >= max_active_members_count)
-      {
-        DOCTEST_CHECK(resp.status == HTTP_STATUS_FORBIDDEN);
-      }
-      else
-      {
-        DOCTEST_CHECK(resp.status == HTTP_STATUS_OK);
-        DOCTEST_CHECK(parse_response_body<bool>(resp));
-      }
-      break;
+      gen.activate_member(m.first);
     }
+    DOCTEST_REQUIRE_FALSE(gen.open_service());
+    gen.finalize();
+  }
+
+  DOCTEST_INFO("Reduce recovery threshold");
+  {
+    kv::Tx gen_tx;
+    GenesisGenerator gen(network, gen_tx);
+    gen.set_recovery_threshold(members_count);
+
+    DOCTEST_REQUIRE(gen.open_service());
   }
 }
 
