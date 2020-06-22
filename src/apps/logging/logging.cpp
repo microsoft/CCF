@@ -18,25 +18,11 @@ using namespace nlohmann;
 
 namespace loggingapp
 {
-  struct Procs
-  {
-    static constexpr auto LOG_RECORD = "LOG_record";
-    static constexpr auto LOG_GET = "LOG_get";
-
-    static constexpr auto LOG_RECORD_PUBLIC = "LOG_record_pub";
-    static constexpr auto LOG_GET_PUBLIC = "LOG_get_pub";
-
-    static constexpr auto LOG_RECORD_PREFIX_CERT = "LOG_record_prefix_cert";
-    static constexpr auto LOG_RECORD_ANONYMOUS_CALLER = "LOG_record_anonymous";
-    static constexpr auto LOG_RECORD_RAW_TEXT = "LOG_record_raw_text";
-    static constexpr auto LOG_GET_HISTORICAL = "LOG_get_historical";
-  };
-
   // SNIPPET: table_definition
   using Table = kv::Map<size_t, string>;
 
   // SNIPPET: inherit_frontend
-  class LoggerHandlers : public ccf::UserHandlerRegistry
+  class LoggerHandlers : public ccf::UserEndpointRegistry
   {
   private:
     Table& records;
@@ -73,7 +59,7 @@ namespace loggingapp
     // SNIPPET_START: constructor
     LoggerHandlers(
       ccf::NetworkTables& nwt, ccfapp::AbstractNodeContext& context) :
-      UserHandlerRegistry(nwt),
+      ccf::UserEndpointRegistry(nwt),
       records(
         nwt.tables->create<Table>("records", kv::SecurityDomain::PRIVATE)),
       public_records(nwt.tables->create<Table>(
@@ -170,7 +156,7 @@ namespace loggingapp
       // SNIPPET_END: get_public
 
       // SNIPPET_START: log_record_prefix_cert
-      auto log_record_prefix_cert = [this](ccf::RequestArgs& args) {
+      auto log_record_prefix_cert = [this](ccf::EndpointContext& args) {
         const auto body_j =
           nlohmann::json::parse(args.rpc_ctx->get_request_body());
 
@@ -205,7 +191,7 @@ namespace loggingapp
       // SNIPPET_END: log_record_prefix_cert
 
       auto log_record_anonymous =
-        [this](ccf::RequestArgs& args, nlohmann::json&& params) {
+        [this](ccf::EndpointContext& args, nlohmann::json&& params) {
           const auto in = params.get<LoggingRecord::In>();
           if (in.msg.empty())
           {
@@ -220,7 +206,7 @@ namespace loggingapp
         };
 
       // SNIPPET_START: log_record_text
-      auto log_record_text = [this](ccf::RequestArgs& args) {
+      auto log_record_text = [this](auto& args) {
         const auto expected = http::headervalues::contenttype::TEXT;
         const auto actual =
           args.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
@@ -260,7 +246,7 @@ namespace loggingapp
       // SNIPPET_END: log_record_text
 
       auto get_historical = [this](
-                              ccf::RequestArgs& args,
+                              ccf::EndpointContext& args,
                               ccf::historical::StorePtr historical_store,
                               kv::Consensus::View historical_view,
                               kv::Consensus::SeqNo historical_seqno) {
@@ -330,36 +316,44 @@ namespace loggingapp
         return true;
       };
 
-      install(Procs::LOG_RECORD, ccf::json_adapter(record), Write)
-        .set_auto_schema<LoggingRecord::In, bool>();
+      // SNIPPET_START: install_record
+      make_endpoint("LOG_record", HTTP_POST, ccf::json_adapter(record))
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+      // SNIPPET_START: install_record
       // SNIPPET_START: install_get
-      install(Procs::LOG_GET, ccf::json_adapter(get), Read)
+      make_endpoint("LOG_get", HTTP_GET, ccf::json_adapter(get))
         .set_auto_schema<LoggingGet>()
-        .set_http_get_only();
+        .install();
       // SNIPPET_END: install_get
 
-      install(Procs::LOG_RECORD_PUBLIC, ccf::json_adapter(record_public), Write)
+      make_endpoint(
+        "LOG_record_pub", HTTP_POST, ccf::json_adapter(record_public))
         .set_params_schema(record_public_params_schema)
-        .set_result_schema(record_public_result_schema);
-
-      install(Procs::LOG_GET_PUBLIC, ccf::json_adapter(get_public), Read)
+        .set_result_schema(record_public_result_schema)
+        .install();
+      make_endpoint("LOG_get_pub", HTTP_GET, ccf::json_adapter(get_public))
         .set_params_schema(get_public_params_schema)
         .set_result_schema(get_public_result_schema)
-        .set_http_get_only();
+        .install();
 
-      install(Procs::LOG_RECORD_PREFIX_CERT, log_record_prefix_cert, Write);
-      install(
-        Procs::LOG_RECORD_ANONYMOUS_CALLER,
-        ccf::json_adapter(log_record_anonymous),
-        Write)
+      make_endpoint("LOG_record_prefix_cert", HTTP_POST, log_record_prefix_cert)
+        .install();
+      make_endpoint(
+        "LOG_record_anonymous",
+        HTTP_POST,
+        ccf::json_adapter(log_record_anonymous))
         .set_auto_schema<LoggingRecord::In, bool>()
-        .set_require_client_identity(false);
-      install(Procs::LOG_RECORD_RAW_TEXT, log_record_text, Write);
-      install(
-        Procs::LOG_GET_HISTORICAL,
+        .set_require_client_identity(false)
+        .install();
+      make_endpoint("LOG_record_raw_text", HTTP_POST, log_record_text)
+        .install();
+      make_endpoint(
+        "LOG_get_historical",
+        HTTP_GET,
         ccf::historical::adapter(
-          get_historical, context.get_historical_state(), is_tx_committed),
-        Read);
+          get_historical, context.get_historical_state(), is_tx_committed))
+        .install();
 
       auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(

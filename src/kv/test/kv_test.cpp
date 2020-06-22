@@ -321,6 +321,62 @@ TEST_CASE("foreach")
   }
 }
 
+TEST_CASE("Read-only tx")
+{
+  kv::Store kv_store;
+  auto& map =
+    kv_store.create<MapTypes::StringString>("map", kv::SecurityDomain::PUBLIC);
+
+  constexpr auto k = "key";
+  constexpr auto invalid_key = "invalid_key";
+  constexpr auto v1 = "value1";
+
+  INFO("Write some keys");
+  {
+    kv::Tx tx;
+    auto view = tx.get_view(map);
+    auto v = view->get(k);
+    REQUIRE(!v.has_value());
+    view->put(k, v1);
+    auto va = view->get(k);
+    REQUIRE(va.has_value());
+    REQUIRE(va.value() == v1);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+
+  INFO("Do only reads with an overpowered Tx");
+  {
+    kv::Tx tx;
+    auto view = tx.get_read_only_view(map);
+    const auto v = view->get(k);
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == v1);
+
+    const auto invalid_v = view->get(invalid_key);
+    REQUIRE(!invalid_v.has_value());
+
+    // The following won't compile:
+    // view->put(k, v1);
+    // view->remove(k);
+  }
+
+  INFO("Read with read-only tx");
+  {
+    kv::ReadOnlyTx tx;
+    auto view = tx.get_read_only_view(map);
+    const auto v = view->get(k);
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == v1);
+
+    const auto invalid_v = view->get(invalid_key);
+    REQUIRE(!invalid_v.has_value());
+
+    // The following won't compile:
+    // view->put(k, v1);
+    // view->remove(k);
+  }
+}
+
 TEST_CASE("Rollback and compact")
 {
   kv::Store kv_store;

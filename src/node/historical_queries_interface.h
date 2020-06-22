@@ -4,7 +4,7 @@
 
 #include "consensus/ledger_enclave_types.h"
 #include "kv/store.h"
-#include "node/rpc/handler_registry.h"
+#include "node/rpc/endpoint_registry.h"
 
 #include <memory>
 
@@ -35,17 +35,17 @@ namespace ccf::historical
     std::string& error_reason)>;
 
   using HandleHistoricalQuery = std::function<void(
-    ccf::RequestArgs& args,
+    ccf::EndpointContext& args,
     StorePtr store,
     kv::Consensus::View view,
     kv::Consensus::SeqNo seqno)>;
 
-  static ccf::HandleFunction adapter(
+  static ccf::EndpointFunction adapter(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
     const CheckAvailability& available)
   {
-    return [f, &state_cache, available](RequestArgs& args) {
+    return [f, &state_cache, available](EndpointContext& args) {
       // Extract the requested transaction ID
       kv::Consensus::View target_view;
       kv::Consensus::SeqNo target_seqno;
