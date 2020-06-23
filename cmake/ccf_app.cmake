@@ -43,6 +43,8 @@ find_package(OpenEnclave 0.9 CONFIG REQUIRED)
 
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
+  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "INSTALL_LIBS")
+
   if(TARGET ${name})
     # Produce a debuggable variant. This doesn't need to be signed, but oesign
     # also stamps the other config (heap size etc) which _are_ needed
@@ -90,6 +92,15 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
       ${name}_signed ALL
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
     )
+
+    if(${PARSED_ARGS_INSTALL_LIBS})
+      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
+              DESTINATION lib
+      )
+      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
+              DESTINATION lib
+      )
+    endif()
   endif()
 endfunction()
 
@@ -148,7 +159,7 @@ function(add_ccf_app name)
 
   cmake_parse_arguments(
     PARSE_ARGV 1 PARSED_ARGS "" ""
-    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;DEPS"
+    "SRCS;INCLUDE_DIRS;LINK_LIBS_ENCLAVE;LINK_LIBS_VIRTUAL;DEPS;INSTALL_LIBS"
   )
   add_custom_target(${name} ALL)
 
@@ -203,6 +214,10 @@ function(add_ccf_app name)
     add_dependencies(${name} ${virt_name})
     if(PARSED_ARGS_DEPS)
       add_dependencies(${virt_name} ${PARSED_ARGS_DEPS})
+    endif()
+
+    if(${PARSED_ARGS_INSTALL_LIBS})
+      install(TARGETS ${virt_name} DESTINATION lib)
     endif()
   endif()
 endfunction()
