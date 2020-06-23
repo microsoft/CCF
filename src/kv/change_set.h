@@ -9,22 +9,7 @@
 
 namespace kv
 {
-  /*
-  template <typename V>
-  struct VersionV
-  {
-    Version version;
-    V value;
-
-    VersionV() = default;
-    VersionV(Version ver, V val) : version(ver), value(val) {}
-  };
-  */
-
-  template <
-    typename K,
-    typename V,
-    typename H>
+  template <typename K, typename V, typename H>
   using State = champ::Map<K, VersionV<V>, H>;
 
   template <typename K>
@@ -36,10 +21,7 @@ namespace kv
 
   // This is a container for a write-set + dependencies. It can be applied to a
   // given state, or used to track a set of operations on a state
-  template <
-    typename K,
-    typename V,
-    typename H>
+  template <typename K, typename V, typename H>
   struct ChangeSet
   {
   public:

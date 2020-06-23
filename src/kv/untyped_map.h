@@ -300,8 +300,7 @@ namespace kv::untyped
         SecurityDomain security_domain_,
         bool replicated_,
         kv::Version version_,
-        champ::Snapshot<K, kv::untyped::VersionV, H>
-          map_snapshot_) :
+        champ::Snapshot<K, kv::untyped::VersionV, H> map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
         replicated(replicated_),
@@ -640,55 +639,9 @@ namespace kv::untyped
         r = r->prev;
       }
 
-      std::function<uint32_t(
-        const SerialisedEntry& key, uint8_t*& data, size_t& size)>
-        k_serialize = [](
-                        const SerialisedEntry& key,
-                        uint8_t*& data,
-                        size_t& size) {
-          uint64_t key_size = key.size();
-          serialized::write(
-            data,
-            size,
-            reinterpret_cast<const uint8_t*>(&key_size),
-            sizeof(uint64_t));
-          serialized::write(
-            data, size, reinterpret_cast<const uint8_t*>(key.data()), key_size);
-          return sizeof(uint64_t) + key_size;
-        };
-
-      std::function<uint32_t(
-        const kv::VersionV<SerialisedEntry>& value,
-        uint8_t*& data,
-        size_t& size)>
-        v_serialize = [](
-                        const kv::VersionV<SerialisedEntry>& value,
-                        uint8_t*& data,
-                        size_t& size) {
-          uint64_t value_size = sizeof(value.version) + value.value.size();
-          serialized::write(
-            data,
-            size,
-            reinterpret_cast<const uint8_t*>(&value_size),
-            sizeof(uint64_t));
-          serialized::write(
-            data,
-            size,
-            reinterpret_cast<const uint8_t*>(&value.version),
-            sizeof(value.version));
-          serialized::write(
-            data,
-            size,
-            reinterpret_cast<const uint8_t*>(value.value.data()),
-            value.value.size());
-          return sizeof(uint64_t) + sizeof(value.version) + value.value.size();
-        };
-
-      champ::Snapshot<
-        SerialisedEntry,
-        kv::untyped::VersionV,
-        SerialisedKeyHasher>
-        snapshot(r->state, k_serialize, v_serialize);
+      champ::
+        Snapshot<SerialisedEntry, kv::untyped::VersionV, SerialisedKeyHasher>
+          snapshot(r->state);
 
       return std::move(std::make_unique<Snapshot>(
         name, security_domain, replicated, r->version, std::move(snapshot)));
@@ -702,29 +655,8 @@ namespace kv::untyped
         roll.commits->get_head() == roll.commits->get_tail(),
         "We are apply a snapshot and there are pending commits");
 
-      std::function<SerialisedEntry(const uint8_t*& key, size_t&)> make_k =
-        [](const uint8_t*& data, size_t& size) -> SerialisedEntry {
-        uint64_t key_size = serialized::read<uint64_t>(data, size);
-        SerialisedEntry ret;
-        ret.assign(key_size, *data);
-        serialized::skip(data, size, key_size);
-        return ret;
-      };
-      std::function<kv::VersionV<SerialisedEntry>(const uint8_t*& key, size_t&)>
-        make_v =
-          [](const uint8_t*& data, size_t& size) -> kv::untyped::VersionV {
-        kv::untyped::VersionV ret;
-        uint64_t value_size = serialized::read<uint64_t>(data, size);
-        kv::Version version = serialized::read<kv::Version>(data, size);
-        ret.version = version;
-        value_size -= sizeof(kv::Version);
-        ret.value.assign(value_size, *data);
-        serialized::skip(data, size, value_size);
-        return ret;
-      };
-
       const CBuffer& c = s->get_serialized_buffer();
-      r->state = State::deserialize_map(c, make_k, make_v);
+      r->state = State::deserialize_map(c);
       r->version = s->get_version();
     }
 

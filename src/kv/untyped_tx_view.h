@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/champ_map_serializers.h"
 #include "kv/change_set.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry.h"
-#include "ds/champ_map_serializers.h"
 
 namespace kv::untyped
 {
@@ -13,17 +13,12 @@ namespace kv::untyped
   using SerialisedKeyHasher = std::hash<SerialisedEntry>;
 
   using VersionV = kv::VersionV<SerialisedEntry>;
-
-  using State = kv::State<
-    SerialisedEntry,
-    SerialisedEntry,
-    SerialisedKeyHasher>;
+  using State =
+    kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
   using Read = kv::Read<SerialisedEntry>;
   using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
-  using ChangeSet = kv::ChangeSet<
-    SerialisedEntry,
-    SerialisedEntry,
-    SerialisedKeyHasher>;
+  using ChangeSet =
+    kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
 
   class TxView
   {
