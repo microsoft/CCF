@@ -369,7 +369,7 @@ namespace kv
       virtual SecurityDomain get_security_domain() = 0;
       virtual bool get_is_replicated() = 0;
       virtual kv::Version get_version() = 0;
-      virtual CBuffer& get_serialized_buffer() = 0;
+      virtual const CBuffer& get_serialized_buffer() = 0;
     };
 
     virtual ~AbstractMap() {}

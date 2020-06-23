@@ -4,7 +4,7 @@
 
 #include "ds/buffer.h"
 #include "ds/ccf_assert.h"
-#include "ds/serialized.h"
+#include "ds/champ_map_serializers.h"
 
 #include <algorithm>
 #include <array>
@@ -74,7 +74,7 @@ namespace champ
     }
   };
 
-  template <class K, class V, class H, class k_size, class v_size>
+  template <class K, class V, class H>
   struct SubNodes;
 
   template <class K, class V>
@@ -104,18 +104,18 @@ namespace champ
     return padding;
   }
 
-  template <class K, class V, class k_size, class v_size>
+  template <class K, class V>
   uint32_t static get_size_with_padding(const K& k, const V& v)
   {
-    uint32_t size_k = k_size()(k);
-    uint32_t size_v = v_size()(v);
+    uint32_t size_k = champ::get_size(k);
+    uint32_t size_v = champ::get_size(v);
     return size_k + get_padding(size_k) + size_v + get_padding(size_v);
   }
 
   template <class K, class V, class H>
   using Node = std::shared_ptr<void>;
 
-  template <class K, class V, class H, class k_size, class v_size>
+  template <class K, class V, class H>
   struct Collisions
   {
     std::array<std::vector<std::shared_ptr<Entry<K, V>>>, collision_bins> bins;
@@ -142,7 +142,7 @@ namespace champ
         if (k == entry->key)
         {
           bin[i] = std::make_shared<Entry<K, V>>(k, v);
-          return k_size()(k) + v_size()(v);
+          return champ::get_size<K>(k) + champ::get_size<V>(v);
         }
       }
       bin.push_back(std::make_shared<Entry<K, V>>(k, v));
@@ -162,7 +162,7 @@ namespace champ
     }
   };
 
-  template <class K, class V, class H, class k_size, class v_size>
+  template <class K, class V, class H>
   struct SubNodes
   {
     std::vector<Node<K, V, H>> nodes;
@@ -203,10 +203,10 @@ namespace champ
         return node_as<Entry<K, V>>(c_idx)->getp(k);
 
       if (depth == (collision_depth - 1))
-        return node_as<Collisions<K, V, H, k_size, v_size>>(c_idx)->getp(
+        return node_as<Collisions<K, V, H>>(c_idx)->getp(
           hash, k);
 
-      return node_as<SubNodes<K, V, H, k_size, v_size>>(c_idx)->getp(
+      return node_as<SubNodes<K, V, H>>(c_idx)->getp(
         depth + 1, hash, k);
     }
 
@@ -229,16 +229,16 @@ namespace champ
         size_t insert;
         if (depth < (collision_depth - 1))
         {
-          auto sn = *node_as<SubNodes<K, V, H, k_size, v_size>>(c_idx);
+          auto sn = *node_as<SubNodes<K, V, H>>(c_idx);
           insert = sn.put_mut(depth + 1, hash, k, v);
           nodes[c_idx] =
-            std::make_shared<SubNodes<K, V, H, k_size, v_size>>(std::move(sn));
+            std::make_shared<SubNodes<K, V, H>>(std::move(sn));
         }
         else
         {
-          auto sn = *node_as<Collisions<K, V, H, k_size, v_size>>(c_idx);
+          auto sn = *node_as<Collisions<K, V, H>>(c_idx);
           insert = sn.put_mut(hash, k, v);
-          nodes[c_idx] = std::make_shared<Collisions<K, V, H, k_size, v_size>>(
+          nodes[c_idx] = std::make_shared<Collisions<K, V, H>>(
             std::move(sn));
         }
         return insert;
@@ -248,7 +248,7 @@ namespace champ
       if (k == entry0->key)
       {
         nodes[c_idx] = std::make_shared<Entry<K, V>>(k, v);
-        return get_size_with_padding<K, V, k_size, v_size>(
+        return get_size_with_padding<K, V>(
           entry0->key, entry0->value);
       }
 
@@ -256,7 +256,7 @@ namespace champ
       {
         const auto hash0 = H()(entry0->key);
         const auto idx0 = mask(hash0, depth + 1);
-        auto sub_node = SubNodes<K, V, H, k_size, v_size>(
+        auto sub_node = SubNodes<K, V, H>(
           {entry0}, Bitmap(0), Bitmap(0).set(idx0));
         sub_node.put_mut(depth + 1, hash, k, v);
 
@@ -266,12 +266,12 @@ namespace champ
         c_idx = compressed_idx(idx);
         nodes.insert(
           nodes.begin() + c_idx,
-          std::make_shared<SubNodes<K, V, H, k_size, v_size>>(
+          std::make_shared<SubNodes<K, V, H>>(
             std::move(sub_node)));
       }
       else
       {
-        auto sub_node = Collisions<K, V, H, k_size, v_size>();
+        auto sub_node = Collisions<K, V, H>();
         const auto hash0 = H()(entry0->key);
         const auto idx0 = mask(hash0, collision_depth);
         sub_node.bins[idx0].push_back(entry0);
@@ -284,19 +284,19 @@ namespace champ
         c_idx = compressed_idx(idx);
         nodes.insert(
           nodes.begin() + c_idx,
-          std::make_shared<Collisions<K, V, H, k_size, v_size>>(
+          std::make_shared<Collisions<K, V, H>>(
             std::move(sub_node)));
       }
       return 0;
     }
 
-    std::pair<std::shared_ptr<SubNodes<K, V, H, k_size, v_size>>, uint32_t> put(
+    std::pair<std::shared_ptr<SubNodes<K, V, H>>, uint32_t> put(
       SmallIndex depth, Hash hash, const K& k, const V& v) const
     {
       auto node = *this;
       auto r = node.put_mut(depth, hash, k, v);
       return std::make_pair(
-        std::make_shared<SubNodes<K, V, H, k_size, v_size>>(std::move(node)),
+        std::make_shared<SubNodes<K, V, H>>(std::move(node)),
         r);
     }
 
@@ -314,13 +314,13 @@ namespace champ
       {
         if (depth == (collision_depth - 1))
         {
-          if (!node_as<Collisions<K, V, H, k_size, v_size>>(i)->foreach(
+          if (!node_as<Collisions<K, V, H>>(i)->foreach(
                 std::forward<F>(f)))
             return false;
         }
         else
         {
-          if (!node_as<SubNodes<K, V, H, k_size, v_size>>(i)->foreach(
+          if (!node_as<SubNodes<K, V, H>>(i)->foreach(
                 depth + 1, std::forward<F>(f)))
             return false;
         }
@@ -341,7 +341,9 @@ namespace champ
   {
     uint32_t operator()(T type) const
     {
-      return sizeof(type) + sizeof(uint64_t);
+      //return sizeof(type) + sizeof(uint64_t);
+      //std::cout << "aaaaaaaaaaaaaaaaaa" << std::endl;
+      return champ::get_size<T>(type);
     }
   };
 
@@ -350,18 +352,18 @@ namespace champ
   template <
     class K,
     class V,
-    class H = std::hash<K>,
-    class k_size = default_size<K>,
-    class v_size = default_size<V>>
+    class H = std::hash<K>>//,
+    //class k_size = default_size<K>,
+    //class v_size = default_size<V>>
   class Map
   {
   private:
-    std::shared_ptr<SubNodes<K, V, H, k_size, v_size>> root;
+    std::shared_ptr<SubNodes<K, V, H>> root;
     size_t _size = 0;
     size_t serialized_size = 0;
 
     Map(
-      std::shared_ptr<SubNodes<K, V, H, k_size, v_size>>&& root_,
+      std::shared_ptr<SubNodes<K, V, H>>&& root_,
       size_t size_,
       size_t serialized_size_) :
       root(std::move(root_)),
@@ -370,14 +372,14 @@ namespace champ
     {}
 
   public:
-    Map() : root(std::make_shared<SubNodes<K, V, H, k_size, v_size>>()) {}
+    Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
-    Map<K, V, H, k_size, v_size> static deserialize_map(
+    Map<K, V, H> static deserialize_map(
       CBuffer serialized_state,
       std::function<K(const uint8_t*&, size_t&)> make_k,
       std::function<V(const uint8_t*&, size_t&)> make_v)
     {
-      Map<K, V, H, k_size, v_size> map;
+      Map<K, V, H> map;
       const uint8_t* data = serialized_state.p;
       size_t size = serialized_state.rawSize();
 
@@ -429,7 +431,7 @@ namespace champ
       return root->getp(0, H()(key), key);
     }
 
-    const Map<K, V, H, k_size, v_size> put(const K& key, const V& value) const
+    const Map<K, V, H> put(const K& key, const V& value) const
     {
       auto r = root->put(0, H()(key), key, value);
       auto size_ = _size;
@@ -439,7 +441,7 @@ namespace champ
       }
 
       int32_t size_change =
-        get_size_with_padding<K, V, k_size, v_size>(key, value) - r.second;
+        get_size_with_padding<K, V>(key, value) - r.second;
       return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 
@@ -453,13 +455,11 @@ namespace champ
   template <
     class K,
     class V,
-    class H = std::hash<K>,
-    class k_size = default_size<K>,
-    class v_size = default_size<V>>
+    class H = std::hash<K>>
   class Snapshot
   {
   private:
-    Map<K, V, H, k_size, v_size> map;
+    Map<K, V, H> map;
     CBuffer serialized_buffer;
 
     struct pair
@@ -489,7 +489,7 @@ namespace champ
 
   public:
     Snapshot(
-      Map<K, V, H, k_size, v_size>& map_,
+      Map<K, V, H>& map_,
       std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
         k_serialize_,
       std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
@@ -521,8 +521,8 @@ namespace champ
       map.foreach([&](auto& key, auto& value) {
         K* k = &key;
         V* v = &value;
-        uint32_t ks = k_size()(key);
-        uint32_t vs = v_size()(value);
+        uint32_t ks = champ::get_size(key);
+        uint32_t vs = champ::get_size(value);
         uint32_t key_size = ks + get_padding(ks);
         uint32_t value_size = vs + get_padding(vs);
 

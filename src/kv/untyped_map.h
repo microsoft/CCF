@@ -319,7 +319,7 @@ namespace kv::untyped
         return map_snapshot.get_serialized_size();
       }
 
-      CBuffer& get_serialized_buffer() override
+      const CBuffer& get_serialized_buffer() override
       {
         return map_snapshot.get_serialized_buffer();
       }
@@ -725,8 +725,7 @@ namespace kv::untyped
         return ret;
       };
 
-      CBuffer& c = s->get_serialized_buffer();
-
+      const CBuffer& c = s->get_serialized_buffer();
       r->state = State::deserialize_map(c, make_k, make_v);
       r->version = s->get_version();
     }
