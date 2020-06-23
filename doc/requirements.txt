@@ -7,3 +7,4 @@ sphinx-autobuild
 sphinxcontrib-mermaid
 sphinx-multiversion
 pydata-sphinx-theme
+sphinx-copybutton

@@ -206,16 +206,25 @@ TEST_CASE("serialize map")
       return 2 * sizeof(V);
     };
 
+  std::function<K(const uint8_t*& key, size_t&)> make_k =
+    [](const uint8_t*& data, size_t& size) -> K {
+    size_t key_size = serialized::read<size_t>(data, size);
+    return serialized::read<K>(data, size);
+  };
+  std::function<V(const uint8_t*& key, size_t&)> make_v =
+    [](const uint8_t*& data, size_t& size) -> V {
+    size_t value_size = serialized::read<size_t>(data, size);
+    return serialized::read<V>(data, size);
+  };
+
   INFO("Serialize map to array");
   {
     champ::Snapshot<K, V, H> snapshot(
       map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
     const std::vector<uint8_t>& s = snapshot.get_buffer();
 
-    champ::Map<K, V, H> new_map = champ::Map<K, V, H>::deserialize_map(
-      s,
-      [](const uint8_t* key, uint32_t) -> K& { return *((K*)key); },
-      [](const uint8_t* value, uint32_t) -> V& { return *((V*)value); });
+    champ::Map<K, V, H> new_map =
+      champ::Map<K, V, H>::deserialize_map(s, make_k, make_v);
 
     std::set<K> keys;
     new_map.foreach([&keys](const auto& key, const auto& value) {
