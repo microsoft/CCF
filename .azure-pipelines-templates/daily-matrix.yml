@@ -19,7 +19,8 @@ parameters:
       cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
 
 jobs:
-  - job: 'Make Generator'
+  - job: 'Make'
+    displayName: 'Make generator'
     ${{ insert }}: '${{ parameters.env.NoSGX }}'
     variables:
       skipComponentGovernanceDetection: true
