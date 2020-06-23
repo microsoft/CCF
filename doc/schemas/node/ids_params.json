@@ -6,9 +6,6 @@
     },
     "port": {
       "type": "string"
-    },
-    "retired": {
-      "type": "boolean"
     }
   },
   "required": [

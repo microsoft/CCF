@@ -12,8 +12,8 @@
           "status": {
             "enum": [
               "PENDING",
-              "RETIRED",
-              "TRUSTED"
+              "TRUSTED",
+              "RETIRED"
             ]
           }
         },
