@@ -320,7 +320,7 @@ namespace loggingapp
       make_endpoint("LOG_record", HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
-      // SNIPPET_START: install_record
+      // SNIPPET_END: install_record
       // SNIPPET_START: install_get
       make_endpoint("LOG_get", HTTP_GET, ccf::json_adapter(get))
         .set_auto_schema<LoggingGet>()

@@ -24,7 +24,7 @@ propose
 
 .. literalinclude:: ../schemas/propose_POST_params.json
     :language: json
-.. literalinclude:: ../schemas/propose_result.json
+.. literalinclude:: ../schemas/propose_POST_result.json
     :language: json
 
 query
@@ -68,7 +68,7 @@ withdraw
 recovery_share
 --------------
 
-.. literalinclude:: ../schemas/recovery_share__GETresult.json
+.. literalinclude:: ../schemas/recovery_share_GET_result.json
     :language: json
 
 recovery_share/submit
