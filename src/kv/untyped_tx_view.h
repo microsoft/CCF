@@ -10,6 +10,7 @@ namespace kv::untyped
 {
   using SerialisedEntry = kv::serialisers::SerialisedEntry;
   using SerialisedKeyHasher = std::hash<SerialisedEntry>;
+
   using VersionV = kv::VersionV<SerialisedEntry>;
 
   struct k_size

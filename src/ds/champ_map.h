@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/buffer.h"
 #include "ds/ccf_assert.h"
 #include "ds/serialized.h"
-#include "ds/buffer.h"
 
 #include <algorithm>
 #include <array>
