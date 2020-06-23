@@ -329,11 +329,11 @@ add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE quickjs.enclave -lgcc
-  LINK_LIBS_VIRTUAL quickjs.host
+  LINK_LIBS_VIRTUAL quickjs.host INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem
+  ${CCF_DIR}/src/apps/sample_key.pem INSTALL_LIBS ON
 )
 
 # Samples
