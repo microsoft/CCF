@@ -63,7 +63,7 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
       COMMAND mv ${TMP_FOLDER}/lib${name}.so.signed
               ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
       COMMAND rm -rf ${TMP_FOLDER}
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${app_oe_conf_path}
+      DEPENDS ${name} ${app_oe_conf_path}
               ${enclave_sign_key_path}
     )
 
@@ -82,7 +82,7 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
       COMMAND
         openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
         ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so ${app_oe_conf_path}
+      DEPENDS ${name} ${app_oe_conf_path}
               ${enclave_sign_key_path}
     )
 
