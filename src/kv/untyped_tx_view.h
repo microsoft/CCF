@@ -5,6 +5,7 @@
 #include "kv/change_set.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry.h"
+#include "ds/champ_map_serializers.h"
 
 namespace kv::untyped
 {
@@ -13,36 +14,16 @@ namespace kv::untyped
 
   using VersionV = kv::VersionV<SerialisedEntry>;
 
-  struct k_size
-  {
-    uint32_t operator()(const SerialisedEntry& key)
-    {
-      return sizeof(uint64_t) + key.size();
-    };
-  };
-
-  struct v_size
-  {
-    uint32_t operator()(const kv::untyped::VersionV& value)
-    {
-      return sizeof(uint64_t) + sizeof(value.version) + value.value.size();
-    };
-  };
-
   using State = kv::State<
     SerialisedEntry,
     SerialisedEntry,
-    SerialisedKeyHasher,
-    k_size,
-    v_size>;
+    SerialisedKeyHasher>;
   using Read = kv::Read<SerialisedEntry>;
   using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
   using ChangeSet = kv::ChangeSet<
     SerialisedEntry,
     SerialisedEntry,
-    SerialisedKeyHasher,
-    k_size,
-    v_size>;
+    SerialisedKeyHasher>;
 
   class TxView
   {
