@@ -34,7 +34,7 @@ namespace ccf
     // not to be used
     unknown
   };
-  
+
   constexpr auto get_actor_prefix(ActorsType at)
   {
     switch (at)

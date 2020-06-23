@@ -276,7 +276,8 @@ namespace http
             fmt::format("/{}/{}", preferred_actor_s, rpc_ctx->get_method());
           response.set_header(http::headers::LOCATION, redirect_url);
 
-          LOG_DEBUG_FMT("Redirecting from deprecated '{}' to '{}'", actor_s, redirect_url);
+          LOG_DEBUG_FMT(
+            "Redirecting from deprecated '{}' to '{}'", actor_s, redirect_url);
           send_raw(response.build_response());
           return;
         }

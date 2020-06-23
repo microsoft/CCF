@@ -53,11 +53,11 @@ Other members are then allowed to vote for the proposal, using the proposal id r
 
 The user is successfully added once a the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body ``true``).
 
-The user can then make user RPCs, for example ``whoAmI`` to retrieve the unique caller ID assigned to them by CCF:
+The user can then make user RPCs, for example ``user_id`` to retrieve the unique caller ID assigned to them by CCF:
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/app/whoAmI --cacert network_cert --key new_user_privk --cert new_user_cert
+    $ curl https://<ccf-node-address>/app/user_id --cacert network_cert --key new_user_privk --cert new_user_cert
     {
         "caller_id": 4
     }

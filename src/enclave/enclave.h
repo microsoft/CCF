@@ -103,8 +103,7 @@ namespace enclave
         {"users"}, ccfapp::get_rpc_handler(network, context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
-        {"nodes"},
-        std::make_unique<ccf::NodeRpcFrontend>(network, *node));
+        {"nodes"}, std::make_unique<ccf::NodeRpcFrontend>(network, *node));
 
       for (auto& [actor, fe] : rpc_map->get_map())
       {
