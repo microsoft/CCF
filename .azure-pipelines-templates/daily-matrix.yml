@@ -19,15 +19,15 @@ parameters:
       cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
 
 jobs:
-  - template: common.yml
-    parameters:
-      target: NoSGX
-      env: '${{ parameters.env.NoSGX }}'
-      cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-      suffix: 'Coverage'
-      artifact_name: 'NoSGX_Coverage'
-      ctest_filter: '-LE "benchmark|perf|long_test"'
-      ctest_timeout: '300'
+  # - template: common.yml
+  #   parameters:
+  #     target: NoSGX
+  #     env: '${{ parameters.env.NoSGX }}'
+  #     cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
+  #     suffix: 'Coverage'
+  #     artifact_name: 'NoSGX_Coverage'
+  #     ctest_filter: '-LE "benchmark|perf|long_test"'
+  #     ctest_timeout: '300'
 
   - template: common.yml
     parameters:
@@ -36,7 +36,7 @@ jobs:
       cmake_args: '${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON'
       suffix: 'Release'
       artifact_name: 'SGX_Release'
-      ctest_filter: '-LE "benchmark|perf"'
+      ctest_filter: '--repeat-until-fail 10 -R election_test_raft'
       ctest_timeout: '240'
       install_prefix: '${{ parameters.build.install.install_prefix }}'
       tls_report: true
