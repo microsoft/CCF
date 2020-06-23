@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# If possible, deduce project version from git environment.
+unset(CCF_VERSION)
+unset(CCF_RELEASE_VERSION)
+
+# If possible, deduce project version from git environment
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   find_package(Git)
 
@@ -10,28 +13,13 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
     OUTPUT_VARIABLE "CCF_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-
   execute_process(
     COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags --abbrev=0 | tr -d v"
     OUTPUT_VARIABLE "CCF_RELEASE_VERSION" OUTPUT_STRIP_TRAILING_WHITESPACE
   )
+endif()
 
-  # Check that git release tag follows semver
-  execute_process(
-    COMMAND
-      "bash" "-c"
-      "[[ ${CCF_RELEASE_VERSION} =~ ^([[:digit:]])+(\.([[:digit:]])+)*$ ]]"
-    RESULT_VARIABLE "TAG_IS_SEMVER"
-  )
-
-  if(NOT ${TAG_IS_SEMVER} STREQUAL "0")
-    message(
-      WARNING
-        "git tag \"${CCF_RELEASE_VERSION}\" does not follow semver. Defaulting to project version 0.0.0"
-    )
-    set(CCF_RELEASE_VERSION "0.0.0")
-  endif()
-else()
+if(NOT CCF_RELEASE_VERSION)
   # If not in a git environment (e.g. release tarball), deduce version from the
   # source directory name
   execute_process(
@@ -51,4 +39,19 @@ else()
 
   set(CCF_RELEASE_VERSION ${CCF_VERSION})
   message(STATUS "CCF version deduced from sources directory: ${CCF_VERSION}")
+endif()
+
+# Check that release version is semver
+execute_process(
+  COMMAND "bash" "-c"
+          "[[ ${CCF_RELEASE_VERSION} =~ ^([[:digit:]])+(\.([[:digit:]])+)*$ ]]"
+  RESULT_VARIABLE "VERSION_IS_SEMVER"
+)
+
+if(NOT ${VERSION_IS_SEMVER} STREQUAL "0")
+  message(
+    WARNING
+      "Release version \"${CCF_RELEASE_VERSION}\" does not follow semver. Defaulting to project version 0.0.0"
+  )
+  set(CCF_RELEASE_VERSION "0.0.0")
 endif()
