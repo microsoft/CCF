@@ -131,7 +131,6 @@ namespace champ
       return nullptr;
     }
 
-    // TODO: we can return the size here
     size_t put_mut(Hash hash, const K& k, const V& v)
     {
       const auto idx = mask(hash, collision_depth);
