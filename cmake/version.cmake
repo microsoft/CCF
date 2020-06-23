@@ -6,13 +6,13 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   find_package(Git)
 
   execute_process(
-    COMMAND git describe --tags
+    COMMAND ${GIT_EXECUTABLE} describe --tags
     OUTPUT_VARIABLE "CCF_VERSION"
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 
   execute_process(
-    COMMAND "bash" "-c" "git describe --tags --abbrev=0 | tr -d v"
+    COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags --abbrev=0 | tr -d v"
     OUTPUT_VARIABLE "CCF_RELEASE_VERSION" OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 
