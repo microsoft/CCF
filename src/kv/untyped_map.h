@@ -300,7 +300,7 @@ namespace kv::untyped
         SecurityDomain security_domain_,
         bool replicated_,
         kv::Version version_,
-        champ::Snapshot<K, kv::untyped::VersionV, H> map_snapshot_) :
+        champ::Snapshot<K, kv::untyped::VersionV, H>&& map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
         replicated(replicated_),

@@ -7,7 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <small_vector/SmallVector.h>
 
-namespace kv
+namespace champ
 {
   using Version = int64_t;
 
@@ -28,13 +28,10 @@ namespace kv
 
   namespace untyped
   {
-    using SerialisedEntry = kv::serialisers::SerialisedEntry;
-    using VersionV = kv::VersionV<SerialisedEntry>;
+    using SerialisedEntry = champ::serialisers::SerialisedEntry;
+    using VersionV = champ::VersionV<SerialisedEntry>;
   }
-}
 
-namespace champ
-{
   template <class T>
   inline size_t get_size(const T& data)
   {
@@ -42,15 +39,15 @@ namespace champ
   }
 
   template <>
-  inline size_t get_size<kv::untyped::SerialisedEntry>(
-    const kv::untyped::SerialisedEntry& data)
+  inline size_t get_size<champ::untyped::SerialisedEntry>(
+    const champ::untyped::SerialisedEntry& data)
   {
     return sizeof(uint64_t) + data.size();
   }
 
   template <>
-  inline size_t get_size<kv::untyped::VersionV>(
-    const kv::untyped::VersionV& data)
+  inline size_t get_size<champ::untyped::VersionV>(
+    const champ::untyped::VersionV& data)
   {
     return sizeof(uint64_t) + sizeof(data.version) + data.value.size();
   }
@@ -67,8 +64,8 @@ namespace champ
   }
 
   template <>
-  inline size_t serialize<kv::untyped::SerialisedEntry>(
-    const kv::untyped::SerialisedEntry& t, uint8_t*& data, size_t& size)
+  inline size_t serialize<champ::untyped::SerialisedEntry>(
+    const champ::untyped::SerialisedEntry& t, uint8_t*& data, size_t& size)
   {
     uint64_t data_size = t.size();
     serialized::write(
@@ -82,8 +79,8 @@ namespace champ
   }
 
   template <>
-  inline size_t serialize<kv::untyped::VersionV>(
-    const kv::untyped::VersionV& t, uint8_t*& data, size_t& size)
+  inline size_t serialize<champ::untyped::VersionV>(
+    const champ::untyped::VersionV& t, uint8_t*& data, size_t& size)
   {
     uint64_t data_size = sizeof(t.version) + t.value.size();
     serialized::write(
@@ -114,25 +111,25 @@ namespace champ
   }
 
   template <>
-  inline kv::untyped::SerialisedEntry deserialize<kv::untyped::SerialisedEntry>(
-    const uint8_t*& data, size_t& size)
+  inline champ::untyped::SerialisedEntry deserialize<
+    champ::untyped::SerialisedEntry>(const uint8_t*& data, size_t& size)
   {
     uint64_t data_size = serialized::read<uint64_t>(data, size);
-    kv::untyped::SerialisedEntry ret;
+    champ::untyped::SerialisedEntry ret;
     ret.assign(data_size, *data);
     serialized::skip(data, size, data_size);
     return ret;
   }
 
   template <>
-  inline kv::untyped::VersionV deserialize<kv::untyped::VersionV>(
+  inline champ::untyped::VersionV deserialize<champ::untyped::VersionV>(
     const uint8_t*& data, size_t& size)
   {
-    kv::untyped::VersionV ret;
+    champ::untyped::VersionV ret;
     uint64_t data_size = serialized::read<uint64_t>(data, size);
-    kv::Version version = serialized::read<kv::Version>(data, size);
+    champ::Version version = serialized::read<champ::Version>(data, size);
     ret.version = version;
-    data_size -= sizeof(kv::Version);
+    data_size -= sizeof(champ::Version);
     ret.value.assign(data_size, *data);
     serialized::skip(data, size, data_size);
     return ret;

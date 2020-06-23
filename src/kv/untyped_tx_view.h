@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/champ_map_serializers.h"
 #include "kv/change_set.h"
 #include "kv/kv_types.h"
 #include "kv/serialised_entry.h"
