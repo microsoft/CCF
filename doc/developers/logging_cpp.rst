@@ -67,7 +67,7 @@ Each function is installed as the handler for a specific HTTP resource, defined 
     :end-before: SNIPPET_END: install_record
     :dedent: 6
 
-This example installs at ``"LOG_record", HTTP_POST``, so will be invoked for requests beginning ``POST /users/LOG_record``.
+This example installs at ``"LOG_record", HTTP_POST``, so will be invoked for requests beginning ``POST /app/LOG_record``.
 
 The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for ``LOG_record`` shown above sets a `schema` for the handler, declaring the types of its request and response bodies. These will be used in calls to the ``/api/schema`` endpoint to generate JSON documents describing the API. Since this is the only handler installed for ``"LOG_record"`` only HTTP ``POST``s will be accepted for this URI - the framework will return a ``405 Method Not Allowed`` for requests with any other verb.
 

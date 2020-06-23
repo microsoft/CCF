@@ -252,7 +252,7 @@ class Node:
             key=os.path.join(self.common_dir, f"user{user_id}_privk.pem"),
             ca=os.path.join(self.common_dir, "networkcert.pem"),
             description=f"node {self.node_id} (user {user_id})",
-            prefix="users",
+            prefix="app",
             binary_dir=self.binary_dir,
             **kwargs,
         )
@@ -265,7 +265,7 @@ class Node:
             key=None,
             ca=os.path.join(self.common_dir, "networkcert.pem"),
             description=f"node {self.node_id} (node)",
-            prefix="nodes",
+            prefix="node",
             binary_dir=self.binary_dir,
             **kwargs,
         )
@@ -278,7 +278,7 @@ class Node:
             key=os.path.join(self.common_dir, f"member{member_id}_privk.pem"),
             ca=os.path.join(self.common_dir, "networkcert.pem"),
             description=f"node {self.node_id} (member {member_id})",
-            prefix="members",
+            prefix="gov",
             binary_dir=self.binary_dir,
             **kwargs,
         )
