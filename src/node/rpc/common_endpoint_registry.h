@@ -111,19 +111,19 @@ namespace ccf
 
       if (certs != nullptr)
       {
-        auto who = [this](auto& args, nlohmann::json&& params) {
+        auto user_id = [this](auto& args, nlohmann::json&& params) {
           if (certs == nullptr)
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "This frontend does not support 'who'");
+              "This frontend does not support 'user_id'");
           }
 
           auto caller_id = args.caller_id;
 
           if (!params.is_null())
           {
-            const WhoIs::In in = params;
+            const GetUserId::In in = params;
             auto certs_view = args.tx.get_read_only_view(*certs);
             auto caller_id_opt = certs_view->get(in.cert);
 
@@ -136,10 +136,11 @@ namespace ccf
             caller_id = caller_id_opt.value();
           }
 
-          return make_success(WhoAmI::Out{caller_id});
+          return make_success(GetUserId::Out{caller_id});
         };
-        make_read_only_endpoint("who", HTTP_GET, json_read_only_adapter(who))
-          .set_auto_schema<WhoIs::In, WhoAmI::Out>()
+        make_read_only_endpoint(
+          "user_id", HTTP_GET, json_read_only_adapter(user_id))
+          .set_auto_schema<GetUserId::In, GetUserId::Out>()
           .install();
       }
 
