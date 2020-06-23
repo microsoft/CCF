@@ -83,6 +83,11 @@ namespace kv
       return untyped_map.snapshot(v);
     }
 
+    void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
+    {
+      untyped_map.apply(s);
+    }
+
     void post_compact() override
     {
       return untyped_map.post_compact();
