@@ -94,17 +94,16 @@ namespace enclave
         timers,
         share_manager);
 
-      REGISTER_FRONTEND(
-        rpc_map,
-        members,
+      rpc_map->register_frontend<ccf::ActorsType::members>(
+        {"members"},
         std::make_unique<ccf::MemberRpcFrontend>(
           network, *node, share_manager));
 
-      REGISTER_FRONTEND(
-        rpc_map, users, ccfapp::get_rpc_handler(network, context));
+      rpc_map->register_frontend<ccf::ActorsType::users>(
+        {"users"}, ccfapp::get_rpc_handler(network, context));
 
-      REGISTER_FRONTEND(
-        rpc_map, nodes, std::make_unique<ccf::NodeRpcFrontend>(network, *node));
+      rpc_map->register_frontend<ccf::ActorsType::nodes>(
+        {"nodes"}, std::make_unique<ccf::NodeRpcFrontend>(network, *node));
 
       for (auto& [actor, fe] : rpc_map->get_map())
       {
