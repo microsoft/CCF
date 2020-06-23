@@ -261,10 +261,6 @@ namespace ccf
 
       http_method verb = HTTP_POST;
 
-      /** Indicates which HTTP verb the endpoint should respond to.
-       *
-       * @return This Endpoint for further modification
-       */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: pass verb to "
         "install()")
@@ -274,10 +270,6 @@ namespace ccf
         return registry->reinstall(*this, method, previous_verb);
       }
 
-      /** Indicates that the endpoint is only accessible via the GET HTTP verb.
-       *
-       * @return This Endpoint for further modification
-       */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: use "
         "install(...HTTP_GET...)")
@@ -286,10 +278,6 @@ namespace ccf
         return set_allowed_verb(HTTP_GET);
       }
 
-      /** Indicates that the endpoint is only accessible via the POST HTTP verb.
-       *
-       * @return This Endpoint for further modification
-       */
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: use "
         "install(...HTTP_POST...)")

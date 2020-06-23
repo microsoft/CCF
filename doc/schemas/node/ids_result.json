@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "nodes": {
+      "items": {
+        "properties": {
+          "node_id": {
+            "maximum": 18446744073709551615,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "TRUSTED",
+              "RETIRED"
+            ]
+          }
+        },
+        "required": [
+          "node_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "nodes"
+  ],
+  "title": "node/ids/result",
+  "type": "object"
+}

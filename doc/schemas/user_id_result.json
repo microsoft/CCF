@@ -10,6 +10,6 @@
   "required": [
     "caller_id"
   ],
-  "title": "who/result",
+  "title": "user_id/result",
   "type": "object"
 }
