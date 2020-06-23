@@ -13,6 +13,6 @@
   "required": [
     "cert"
   ],
-  "title": "who/params",
+  "title": "user_id/params",
   "type": "object"
 }

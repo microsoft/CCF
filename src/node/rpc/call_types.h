@@ -107,12 +107,7 @@ namespace ccf
     CallerId caller_id;
   };
 
-  struct WhoAmI
-  {
-    using Out = CallerInfo;
-  };
-
-  struct WhoIs
+  struct GetUserId
   {
     struct In
     {
