@@ -1102,8 +1102,6 @@ TEST_CASE("Serialization")
 
   INFO("Simulate parallel execution by interleaving tx steps");
   {
-    std::cout << "aaskldfjasdklfj£" << std::endl;
-
     kv::Tx tx1;
     kv::Tx tx2;
 
@@ -1137,7 +1135,7 @@ TEST_CASE("Serialization")
     REQUIRE_EQ(s->get_name(), map_name);
     REQUIRE_EQ(s->get_security_domain(), security_domain);
     REQUIRE_EQ(s->get_is_replicated(), true);
-    REQUIRE_GT(s->get_buffer().size(), 0);
+    REQUIRE_GT(s->get_serialized_size(), 0);
   }
 
   kv::Store new_store;

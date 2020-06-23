@@ -290,6 +290,7 @@ namespace kv
           map.second->unlock();
         }
       }
+      snapshot->serialize();
       return std::move(snapshot);
     }
 

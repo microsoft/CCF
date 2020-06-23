@@ -28,12 +28,20 @@ namespace kv::untyped
     };
   };
 
-  using State =
-    kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher, k_size, v_size>;
+  using State = kv::State<
+    SerialisedEntry,
+    SerialisedEntry,
+    SerialisedKeyHasher,
+    k_size,
+    v_size>;
   using Read = kv::Read<SerialisedEntry>;
   using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
-  using ChangeSet =
-    kv::ChangeSet<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher, k_size, v_size>;
+  using ChangeSet = kv::ChangeSet<
+    SerialisedEntry,
+    SerialisedEntry,
+    SerialisedKeyHasher,
+    k_size,
+    v_size>;
 
   class TxView
   {

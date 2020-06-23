@@ -300,19 +300,28 @@ namespace kv::untyped
         SecurityDomain security_domain_,
         bool replicated_,
         kv::Version version_,
-        champ::Snapshot<K, kv::untyped::VersionV, H, k_size, v_size> map_snapshot_) :
+        champ::Snapshot<K, kv::untyped::VersionV, H, k_size, v_size>
+          map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
         replicated(replicated_),
         version(version_),
         map_snapshot(std::move(map_snapshot_))
+      {}
+
+      void serialize(uint8_t* data) override
       {
-        map_snapshot.print_sizes();
+        map_snapshot.serialize(data);
       }
 
-      std::vector<uint8_t> get_buffer() override
+      size_t get_serialized_size() override
       {
-        return map_snapshot.get_buffer();
+        return map_snapshot.get_serialized_size();
+      }
+
+      CBuffer& get_serialized_buffer() override
+      {
+        return map_snapshot.get_serialized_buffer();
       }
 
       std::string& get_name() override
@@ -610,8 +619,7 @@ namespace kv::untyped
       return !(*this == that);
     }
 
-    std::unique_ptr<AbstractMap::Snapshot>
-    snapshot(Version v) override
+    std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       auto r = roll.commits->get_head();
       while (r != nullptr)
@@ -632,13 +640,6 @@ namespace kv::untyped
         r = r->prev;
       }
 
-/*
-      std::function<uint32_t(const SerialisedEntry& key)> k_size =
-        [](const SerialisedEntry& key) {
-          return sizeof(uint64_t) + key.size();
-        };
-*/
-
       std::function<uint32_t(
         const SerialisedEntry& key, uint8_t*& data, size_t& size)>
         k_serialize = [](
@@ -655,13 +656,6 @@ namespace kv::untyped
             data, size, reinterpret_cast<const uint8_t*>(key.data()), key_size);
           return sizeof(uint64_t) + key_size;
         };
-
-/*
-      std::function<uint32_t(const kv::VersionV<SerialisedEntry>& value)>
-        v_size = [](const kv::VersionV<SerialisedEntry>& value) {
-          return sizeof(uint64_t) + sizeof(value.version) + value.value.size();
-        };
-*/
 
       std::function<uint32_t(
         const kv::VersionV<SerialisedEntry>& value,
@@ -690,19 +684,13 @@ namespace kv::untyped
           return sizeof(uint64_t) + sizeof(value.version) + value.value.size();
         };
 
-      std::cout<< "VVVV" << std::endl;
-      r->state.print_sizes();
-      std::cout<< "TTTT" << std::endl;
-
       champ::Snapshot<
         SerialisedEntry,
         kv::untyped::VersionV,
         SerialisedKeyHasher,
         k_size,
         v_size>
-        snapshot(r->state, /*k_size,*/ k_serialize, /*v_size,*/ v_serialize);
-      std::cout<< "TTTT" << std::endl;
-      r->state.print_sizes();
+        snapshot(r->state, k_serialize, v_serialize);
 
       return std::move(std::make_unique<Snapshot>(
         name, security_domain, replicated, r->version, std::move(snapshot)));
@@ -737,7 +725,9 @@ namespace kv::untyped
         return ret;
       };
 
-      r->state = State::deserialize_map(s->get_buffer(), make_k, make_v);
+      CBuffer& c = s->get_serialized_buffer();
+
+      r->state = State::deserialize_map(c, make_k, make_v);
       r->version = s->get_version();
     }
 

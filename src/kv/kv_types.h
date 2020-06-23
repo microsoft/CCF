@@ -363,11 +363,13 @@ namespace kv
     {
     public:
       virtual ~Snapshot() = default;
-      virtual std::vector<uint8_t> get_buffer() = 0;
+      virtual void serialize(uint8_t* data) = 0;
+      virtual size_t get_serialized_size() = 0;
       virtual std::string& get_name() = 0;
       virtual SecurityDomain get_security_domain() = 0;
       virtual bool get_is_replicated() = 0;
       virtual kv::Version get_version() = 0;
+      virtual CBuffer& get_serialized_buffer() = 0;
     };
 
     virtual ~AbstractMap() {}
@@ -403,18 +405,38 @@ namespace kv
     private:
       std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
       kv::Version version;
+      size_t serialized_size = 0;
+      std::vector<uint8_t> buffer;
 
     public:
       Snapshot(kv::Version version_) : version(version_) {}
 
       void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
       {
+        serialized_size += snapshot->get_serialized_size();
         snapshots.push_back(std::move(snapshot));
       }
 
       std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
       {
         return snapshots;
+      }
+
+      std::vector<uint8_t>& get_buffer()
+      {
+        buffer.resize(serialized_size);
+        return buffer;
+      }
+
+      void serialize()
+      {
+        uint8_t* buffer = get_buffer().data();
+        uint32_t position = 0;
+        for (auto& s : snapshots)
+        {
+          s->serialize(buffer);
+          buffer = buffer + s->get_serialized_size();
+        }
       }
 
       kv::Version get_version() const
