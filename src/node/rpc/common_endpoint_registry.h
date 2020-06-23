@@ -195,6 +195,30 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
+      auto get_nodes_by_rpc_address = [this](
+                                        auto& args, nlohmann::json&& params) {
+        const auto in = params.get<GetNodesByRPCAddress::In>();
+
+        GetNodesByRPCAddress::Out out;
+        auto nodes_view = args.tx.get_read_only_view(*nodes);
+        nodes_view->foreach([&in, &out](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.rpchost == in.host && ni.rpcport == in.port)
+          {
+            if (ni.status != ccf::NodeStatus::RETIRED || in.retired)
+            {
+              out.nodes.push_back({nid, ni.status});
+            }
+          }
+          return true;
+        });
+
+        return make_success(out);
+      };
+      make_read_only_endpoint(
+        "node/ids", HTTP_GET, json_read_only_adapter(get_nodes_by_rpc_address))
+        .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
+        .install();
+
       auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
         ListMethods::Out out;
 
