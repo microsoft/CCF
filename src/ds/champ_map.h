@@ -327,15 +327,6 @@ namespace champ
     }
   };
 
-  template <class T>
-  struct default_size
-  {
-    uint32_t operator()(T type) const
-    {
-      return champ::get_size<T>(type);
-    }
-  };
-
   template <class K, class V, class H = std::hash<K>>
   class Map
   {
