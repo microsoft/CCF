@@ -3,6 +3,8 @@
 #pragma once
 
 #include "endpoint_registry.h"
+#include "http/http_consts.h"
+#include "http/ws_consts.h"
 #include "json_handler.h"
 #include "metrics.h"
 
@@ -247,7 +249,7 @@ namespace ccf
 
         for (auto& [verb, endpoint] : it->second)
         {
-          std::string verb_name = http_method_str(verb);
+          std::string verb_name = verb.c_str();
           std::transform(
             verb_name.begin(),
             verb_name.end(),

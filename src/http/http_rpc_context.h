@@ -54,7 +54,7 @@ namespace http
   private:
     size_t request_index;
 
-    http_method verb;
+    ccf::RESTVerb verb;
     std::string whole_path = {};
     std::string path = {};
     std::string query = {};
@@ -135,7 +135,7 @@ namespace http
           "{} {}{} HTTP/1.1\r\n"
           "{}"
           "\r\n",
-          http_method_str(verb),
+          verb.c_str(),
           whole_path,
           query.empty() ? "" : fmt::format("?{}", query),
           http::get_header_string(request_headers));
@@ -222,7 +222,7 @@ namespace http
       return query;
     }
 
-    virtual size_t get_request_verb() const override
+    virtual const ccf::RESTVerb& get_request_verb() const override
     {
       return verb;
     }
@@ -239,7 +239,7 @@ namespace http
       if (!signed_request.has_value())
       {
         signed_request = http::HttpSignatureVerifier::parse(
-          std::string(http_method_str(verb)),
+          std::string(verb.c_str()),
           whole_path,
           query,
           request_headers,

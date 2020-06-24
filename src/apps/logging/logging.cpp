@@ -328,6 +328,11 @@ namespace loggingapp
       // SNIPPET_END: install_get
 
       make_endpoint(
+        "LOG_record", ws::Verb::WEBSOCKET, ccf::json_adapter(record))
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+
+      make_endpoint(
         "LOG_record_pub", HTTP_POST, ccf::json_adapter(record_public))
         .set_params_schema(record_public_params_schema)
         .set_result_schema(record_public_result_schema)

@@ -4,6 +4,7 @@
 
 #include "enclave/tls_endpoint.h"
 #include "http_proc.h"
+#include "ws_consts.h"
 
 #include <algorithm>
 #include <cctype>
@@ -12,11 +13,6 @@
 
 namespace ws
 {
-  static constexpr size_t INITIAL_READ = 2;
-  static constexpr size_t OUT_CCF_HEADER_SIZE =
-    sizeof(uint16_t) /* return code */ + sizeof(size_t) /* seqno */ +
-    sizeof(size_t) /* view */ + sizeof(size_t) /* global_commit */;
-
   static size_t in_header_size(const std::string& path)
   {
     return sizeof(uint16_t) + path.size();
