@@ -140,9 +140,12 @@ TEST_CASE("persistent map operations")
 static const champ::Map<K, V, H> gen_map(size_t size)
 {
   champ::Map<K, V, H> map;
-  for (uint64_t i = 0; i < size; ++i)
+  for (uint32_t j = 0; j < 2; ++j)
   {
-    map = map.put(i, i);
+    for (uint64_t i = 0; i < size; ++i)
+    {
+      map = map.put(i, i);
+    }
   }
   return map;
 }
@@ -181,50 +184,13 @@ TEST_CASE("serialize map")
     REQUIRE_EQ(num_elements, keys.size());
   }
 
-  std::function<uint32_t(const K& key)> fn_size_k = [](const K& k) {
-    return sizeof(K) + sizeof(uint64_t);
-  };
-  std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
-    fn_serialize_k = [](const K& k, uint8_t*& data, size_t& size) {
-      uint64_t key_size = sizeof(K);
-      serialized::write(
-        data, size, reinterpret_cast<const uint8_t*>(&key_size), sizeof(K));
-      serialized::write(
-        data, size, reinterpret_cast<const uint8_t*>(&k), sizeof(K));
-      return 2 * sizeof(K);
-    };
-  std::function<uint32_t(const V& value)> fn_size_v = [](const V& v) {
-    return sizeof(V) + sizeof(uint64_t);
-  };
-  std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
-    fn_serialize_v = [](const V& v, uint8_t*& data, size_t& size) {
-      uint64_t value_size = sizeof(V);
-      serialized::write(
-        data, size, reinterpret_cast<const uint8_t*>(&value_size), sizeof(V));
-      serialized::write(
-        data, size, reinterpret_cast<const uint8_t*>(&v), sizeof(V));
-      return 2 * sizeof(V);
-    };
-
-  std::function<K(const uint8_t*& key, size_t&)> make_k =
-    [](const uint8_t*& data, size_t& size) -> K {
-    size_t key_size = serialized::read<size_t>(data, size);
-    return serialized::read<K>(data, size);
-  };
-  std::function<V(const uint8_t*& key, size_t&)> make_v =
-    [](const uint8_t*& data, size_t& size) -> V {
-    size_t value_size = serialized::read<size_t>(data, size);
-    return serialized::read<V>(data, size);
-  };
-
   INFO("Serialize map to array");
   {
-    champ::Snapshot<K, V, H> snapshot(
-      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
-    const std::vector<uint8_t>& s = snapshot.get_buffer();
+    champ::Snapshot<K, V, H> snapshot(map);
+    std::vector<uint8_t> s(map.get_serialized_size());
+    snapshot.serialize(s.data());
 
-    champ::Map<K, V, H> new_map =
-      champ::Map<K, V, H>::deserialize_map(s, make_k, make_v);
+    champ::Map<K, V, H> new_map = champ::Map<K, V, H>::deserialize_map(s);
 
     std::set<K> keys;
     new_map.foreach([&keys](const auto& key, const auto& value) {
@@ -251,18 +217,14 @@ TEST_CASE("serialize map")
 
   INFO("Ensure serialized state is byte identical");
   {
-    champ::Snapshot<K, V, H> snapshot_1(
-      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
-    const std::vector<uint8_t>& s_1 = snapshot_1.get_buffer();
+    champ::Snapshot<K, V, H> snapshot_1(map);
+    std::vector<uint8_t> s_1(map.get_serialized_size());
+    snapshot_1.serialize(s_1.data());
 
-    champ::Snapshot<K, V, H> snapshot_2(
-      map, fn_size_k, fn_serialize_k, fn_size_v, fn_serialize_v);
-    const std::vector<uint8_t>& s_2 = snapshot_2.get_buffer();
+    champ::Snapshot<K, V, H> snapshot_2(map);
+    std::vector<uint8_t> s_2(map.get_serialized_size());
+    snapshot_2.serialize(s_2.data());
 
-    REQUIRE_EQ(s_1.size(), s_2.size());
-    for (uint32_t i = 0; i < s_1.size(); ++i)
-    {
-      REQUIRE_EQ(s_1[i], s_2[i]);
-    }
+    REQUIRE_EQ(s_1, s_2);
   }
 }
