@@ -19,7 +19,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("log/private", "log/public", "log/private", "log/public")
+@reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None, verify=True):
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
@@ -38,7 +38,7 @@ def test(network, args, notifications_queue=None, verify=True):
 
 
 @reqs.description("Protocol-illegal traffic")
-@reqs.supports_methods("log/private", "log/public", "log/private", "log/public")
+@reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
@@ -74,7 +74,7 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
 
 
 @reqs.description("Write/Read large messages on primary")
-@reqs.supports_methods("log/private", "log/private")
+@reqs.supports_methods("log/private")
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
@@ -96,7 +96,7 @@ def test_large_messages(network, args):
 
 
 @reqs.description("Write/Read/Delete messages on primary")
-@reqs.supports_methods("log/private", "log/private", "log/private")
+@reqs.supports_methods("log/private")
 def test_remove(network, args):
     supported_packages = ["libjs_generic", "liblogging"]
     if args.package in supported_packages:
@@ -221,7 +221,7 @@ def test_raw_text(network, args):
 
 
 @reqs.description("Read historical state")
-@reqs.supports_methods("log/private", "log/private", "log/private/historical")
+@reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
     if args.consensus == "pbft":
         LOG.warning("Skipping historical queries in PBFT")
@@ -525,24 +525,24 @@ def run(args):
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
-            # network = test(
-            #     network,
-            #     args,
-            #     notifications_queue,
-            #     verify=args.package is not "libjs_generic",
-            # )
-            # network = test_illegal(
-            #     network, args, verify=args.package is not "libjs_generic"
-            # )
-            # network = test_large_messages(network, args)
+            network = test(
+                network,
+                args,
+                notifications_queue,
+                verify=args.package is not "libjs_generic",
+            )
+            network = test_illegal(
+                network, args, verify=args.package is not "libjs_generic"
+            )
+            network = test_large_messages(network, args)
             network = test_remove(network, args)
-            # network = test_forwarding_frontends(network, args)
-            # network = test_update_lua(network, args)
-            # network = test_cert_prefix(network, args)
-            # network = test_anonymous_caller(network, args)
-            # network = test_raw_text(network, args)
-            # network = test_historical_query(network, args)
-            # network = test_view_history(network, args)
+            network = test_forwarding_frontends(network, args)
+            network = test_update_lua(network, args)
+            network = test_cert_prefix(network, args)
+            network = test_anonymous_caller(network, args)
+            network = test_raw_text(network, args)
+            network = test_historical_query(network, args)
+            network = test_view_history(network, args)
 
 
 if __name__ == "__main__":

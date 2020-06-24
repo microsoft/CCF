@@ -9,7 +9,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("log/private", "log/public", "log/private", "log/public")
+@reqs.supports_methods("log/private", "log/public")
 def test_run_txs(
     network,
     args,
