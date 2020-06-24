@@ -400,49 +400,17 @@ namespace kv
   class AbstractStore
   {
   public:
-    class Snapshot
+    class AbstractSnapshot
     {
-    private:
-      std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
-      kv::Version version;
-      size_t serialized_size = 0;
-      std::vector<uint8_t> buffer;
-
     public:
-      Snapshot(kv::Version version_) : version(version_) {}
-
-      void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
-      {
-        serialized_size += snapshot->get_serialized_size();
-        snapshots.push_back(std::move(snapshot));
-      }
-
-      std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
-      {
-        return snapshots;
-      }
-
-      std::vector<uint8_t>& get_buffer()
-      {
-        buffer.resize(serialized_size);
-        return buffer;
-      }
-
-      void serialize()
-      {
-        uint8_t* buffer = get_buffer().data();
-        uint32_t position = 0;
-        for (auto& s : snapshots)
-        {
-          s->serialize(buffer);
-          buffer = buffer + s->get_serialized_size();
-        }
-      }
-
-      kv::Version get_version() const
-      {
-        return version;
-      }
+      virtual ~AbstractSnapshot() = default;
+      virtual void add_snapshot(
+        std::unique_ptr<kv::AbstractMap::Snapshot> snapshot) = 0;
+      virtual std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>&
+      get_snapshots() = 0;
+      virtual std::vector<uint8_t>& get_buffer() = 0;
+      virtual void serialize() = 0;
+      virtual kv::Version get_version() const = 0;
     };
 
     virtual ~AbstractStore() {}
@@ -463,7 +431,7 @@ namespace kv
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
-    virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
+    virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual CommitSuccess commit(

@@ -105,7 +105,7 @@ namespace champ
   }
 
   template <class K, class V>
-  uint32_t static get_size_with_padding(const K& k, const V& v)
+  size_t static get_size_with_padding(const K& k, const V& v)
   {
     uint32_t size_k = champ::get_size(k);
     uint32_t size_v = champ::get_size(v);
@@ -283,7 +283,7 @@ namespace champ
       return 0;
     }
 
-    std::pair<std::shared_ptr<SubNodes<K, V, H>>, uint32_t> put(
+    std::pair<std::shared_ptr<SubNodes<K, V, H>>, size_t> put(
       SmallIndex depth, Hash hash, const K& k, const V& v) const
     {
       auto node = *this;
@@ -335,8 +335,6 @@ namespace champ
       return champ::get_size<T>(type);
     }
   };
-
-  static std::atomic<uint32_t> foobar = 0;
 
   template <class K, class V, class H = std::hash<K>>
   class Map
@@ -421,7 +419,7 @@ namespace champ
         size_++;
       }
 
-      int32_t size_change = get_size_with_padding<K, V>(key, value) - r.second;
+      int64_t size_change = get_size_with_padding<K, V>(key, value) - r.second;
       return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 

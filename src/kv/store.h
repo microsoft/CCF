@@ -6,6 +6,7 @@
 #include "kv_serialiser.h"
 #include "kv_types.h"
 #include "map.h"
+#include "snapshot.h"
 #include "view_containers.h"
 
 #include <fmt/format.h>
@@ -219,7 +220,7 @@ namespace kv
       return *result;
     }
 
-    void deserialize(std::unique_ptr<Snapshot>& snapshot)
+    void deserialize(std::unique_ptr<AbstractSnapshot>& snapshot)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -259,9 +260,10 @@ namespace kv
       }
     }
 
-    std::unique_ptr<Snapshot> snapshot(Version v) override
+    std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
-      auto snapshot = std::make_unique<Snapshot>(v);
+      std::unique_ptr<AbstractSnapshot> snapshot =
+        std::make_unique<StoreSnapshot>(v);
 
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
@@ -291,7 +293,7 @@ namespace kv
         }
       }
       snapshot->serialize();
-      return std::move(snapshot);
+      return snapshot;
     }
 
     void compact(Version v) override

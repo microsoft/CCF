@@ -59,7 +59,10 @@ namespace champ
   {
     uint64_t data_size = sizeof(T);
     serialized::write(
-      data, size, reinterpret_cast<const uint8_t*>(&data_size), sizeof(T));
+      data,
+      size,
+      reinterpret_cast<const uint8_t*>(&data_size),
+      sizeof(uint64_t));
     serialized::write(
       data, size, reinterpret_cast<const uint8_t*>(&t), sizeof(T));
     return sizeof(uint64_t) + sizeof(T);
@@ -118,7 +121,7 @@ namespace champ
   {
     uint64_t data_size = serialized::read<uint64_t>(data, size);
     champ::untyped::SerialisedEntry ret;
-    ret.assign(data_size, *data);
+    ret.append(data, data + data_size);
     serialized::skip(data, size, data_size);
     return ret;
   }
@@ -132,7 +135,7 @@ namespace champ
     champ::Version version = serialized::read<champ::Version>(data, size);
     ret.version = version;
     data_size -= sizeof(champ::Version);
-    ret.value.assign(data_size, *data);
+    ret.value.append(data, data + data_size);
     serialized::skip(data, size, data_size);
     return ret;
   }

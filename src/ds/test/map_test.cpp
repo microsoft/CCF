@@ -225,10 +225,6 @@ TEST_CASE("serialize map")
     std::vector<uint8_t> s_2(map.get_serialized_size());
     snapshot_2.serialize(s_2.data());
 
-    REQUIRE_EQ(s_1.size(), s_2.size());
-    for (uint32_t i = 0; i < s_1.size(); ++i)
-    {
-      REQUIRE_EQ(s_1[i], s_2[i]);
-    }
+    REQUIRE_EQ(s_1, s_2);
   }
 }

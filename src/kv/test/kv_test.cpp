@@ -1128,7 +1128,7 @@ TEST_CASE("Serialization")
   }
 
   // now we serialize the a KV that is in the mid point of the known versions
-  std::unique_ptr<kv::AbstractStore::Snapshot> s = kv_store.snapshot(1);
+  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> s = kv_store.snapshot(1);
   auto& vec_s = s->get_snapshots();
   for (auto& s : vec_s)
   {
