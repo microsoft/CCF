@@ -194,7 +194,7 @@ namespace loggingapp
 
         return ccf::make_success(LoggingRemove::Out{removed});
       };
-      make_endpoint("log/public", HTTP_DELETE, ccf::json_adapter(remove))
+      make_endpoint("log/public", HTTP_DELETE, ccf::json_adapter(remove_public))
         .set_auto_schema<LoggingRemove>()
         .install();
 

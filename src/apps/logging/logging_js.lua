@@ -31,7 +31,14 @@ return {
       for (kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
-          return {msg: tables.data.get(JSON.parse(v).toString())};
+          try
+          {
+            return {msg: tables.data.get(JSON.parse(v).toString())};
+          }
+          catch (err)
+          {
+            return {error: err.message}
+          }
         }
       }
       throw "Could not find 'id' in query";
