@@ -21,16 +21,16 @@ A member proposes to recover the network and other members can vote on the propo
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @accept_recovery.json -H "content-type: application/json"
     {
         "completed": false,
         "id": 1
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     false
 
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
     true
 
 Once the proposal to recover the network has passed under the rules of the :term:`Constitution`, the recovered service is ready for members to submit their recovery shares.

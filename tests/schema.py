@@ -22,7 +22,11 @@ def run(args):
     changed_files = []
     methods_with_schema = set()
     methods_without_schema = set()
-    old_schema = set(os.path.join(dir_path, filename) for dir_path, _, filenames in os.walk(args.schema_dir) for filename in filenames)
+    old_schema = set(
+        os.path.join(dir_path, filename)
+        for dir_path, _, filenames in os.walk(args.schema_dir)
+        for filename in filenames
+    )
 
     def fetch_schema(client):
         list_response = client.get("api")

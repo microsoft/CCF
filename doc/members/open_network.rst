@@ -19,7 +19,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
             "text": "tables, user_cert = ...; return Calls:call(\"new_user\", user_cert)"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
     {
         "completed": false,
         "id": 5
@@ -37,7 +37,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "id": 5
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
     false
 
     $ cat vote_conditional.json
@@ -48,16 +48,16 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         "id": 5
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
     true
 
 The user is successfully added once a the proposal has received enough votes under the rules of the :term:`Constitution` (indicated by the response body ``true``).
 
-The user can then make user RPCs, for example ``whoAmI`` to retrieve the unique caller ID assigned to them by CCF:
+The user can then make user RPCs, for example ``user_id`` to retrieve the unique caller ID assigned to them by CCF:
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/users/whoAmI --cacert network_cert --key new_user_privk --cert new_user_cert
+    $ curl https://<ccf-node-address>/app/user_id --cacert network_cert --key new_user_privk --cert new_user_cert
     {
         "caller_id": 4
     }
@@ -79,7 +79,7 @@ Registering the Lua Application
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @set_lua_app.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @set_lua_app.json -H "content-type: application/json"
     {
         "completed": false,
         "id": 1
@@ -103,7 +103,7 @@ Once users are added to the opening network, members should decide to make a pro
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/members/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/propose --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json -H "content-type: application/json"
     {
         "completed": false,
         "id": 2

@@ -93,7 +93,7 @@ namespace loggingapp
       make_endpoint("log/private", HTTP_POST, ccf::json_adapter(record))
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
-      // SNIPPET_START: install_record
+      // SNIPPET_END: install_record
 
       // SNIPPET_START: get
       auto get = [this](kv::Tx& tx, nlohmann::json&& params) {
