@@ -35,14 +35,20 @@ CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 
 class Request:
-    def __init__(self, method, params=None, http_verb="POST", headers=None):
+    def __init__(
+        self, method, params=None, http_verb="POST", headers=None, params_in_query=None
+    ):
         if headers is None:
             headers = {}
+
+        if params_in_query is None:
+            params_in_query = http_verb == "GET"
 
         self.method = method
         self.params = params
         self.http_verb = http_verb
         self.headers = headers
+        self.params_in_query = params_in_query
 
 
 def int_or_none(v):
@@ -229,8 +235,7 @@ class CurlClient:
 
             url = f"https://{self.host}:{self.port}/{request.method}"
 
-            is_get = request.http_verb == "GET"
-            if is_get:
+            if request.params_in_query:
                 if request.params is not None:
                     url += f"?{build_query_string(request.params)}"
 
@@ -242,7 +247,7 @@ class CurlClient:
                 f"-m {self.request_timeout}",
             ]
 
-            if not is_get:
+            if not request.params_in_query:
                 if request.params is None:
                     msg_bytes = bytes()
                 elif isinstance(request.params, bytes):
@@ -330,9 +335,8 @@ class RequestClient:
             "headers": extra_headers,
         }
 
-        is_get = request.http_verb == "GET"
         if request.params is not None:
-            if is_get:
+            if request.params_in_query:
                 request_args["params"] = build_query_string(request.params)
             else:
                 request_args["json"] = request.params
@@ -466,6 +470,7 @@ class CCFClient:
 
     def delete(self, *args, **kwargs):
         return self.rpc(*args, http_verb="DELETE", **kwargs)
+
 
 @contextlib.contextmanager
 def client(

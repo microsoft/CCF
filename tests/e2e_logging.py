@@ -109,13 +109,13 @@ def test_remove(network, args):
                 log_id = 44
                 msg = "Will be deleted"
                 check_commit(
-                    c.rpc("log/private", {"id": log_id, "msg": msg}),
-                    result=True,
+                    c.rpc("log/private", {"id": log_id, "msg": msg}), result=True,
                 )
+                check(c.get("log/private", {"id": log_id}), result={"msg": msg})
                 check(
-                    c.get("log/private", {"id": log_id}), result={"msg": msg}
+                    c.delete("log/private", {"id": log_id}, params_in_query=True),
+                    result=None,
                 )
-                check(c.delete("log/private", {"id": log_id}), result=None)
                 check(
                     c.get("log/private", {"id": log_id}),
                     result={"error": "No such key"},
