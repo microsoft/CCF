@@ -2,8 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ds/buffer.h"
 #include "ds/ccf_assert.h"
-#include "ds/serialized.h"
+#include "ds/champ_map_serializers.h"
 
 #include <algorithm>
 #include <array>
@@ -103,6 +104,14 @@ namespace champ
     return padding;
   }
 
+  template <class K, class V>
+  size_t static get_size_with_padding(const K& k, const V& v)
+  {
+    uint32_t size_k = champ::get_size(k);
+    uint32_t size_v = champ::get_size(v);
+    return size_k + get_padding(size_k) + size_v + get_padding(size_v);
+  }
+
   template <class K, class V, class H>
   using Node = std::shared_ptr<void>;
 
@@ -123,7 +132,7 @@ namespace champ
       return nullptr;
     }
 
-    bool put_mut(Hash hash, const K& k, const V& v)
+    size_t put_mut(Hash hash, const K& k, const V& v)
     {
       const auto idx = mask(hash, collision_depth);
       auto& bin = bins[idx];
@@ -133,11 +142,11 @@ namespace champ
         if (k == entry->key)
         {
           bin[i] = std::make_shared<Entry<K, V>>(k, v);
-          return false;
+          return champ::get_size<K>(k) + champ::get_size<V>(v);
         }
       }
       bin.push_back(std::make_shared<Entry<K, V>>(k, v));
-      return true;
+      return 0;
     }
 
     template <class F>
@@ -199,7 +208,7 @@ namespace champ
       return node_as<SubNodes<K, V, H>>(c_idx)->getp(depth + 1, hash, k);
     }
 
-    bool put_mut(SmallIndex depth, Hash hash, const K& k, const V& v)
+    size_t put_mut(SmallIndex depth, Hash hash, const K& k, const V& v)
     {
       const auto idx = mask(hash, depth);
       auto c_idx = compressed_idx(idx);
@@ -210,12 +219,12 @@ namespace champ
         c_idx = compressed_idx(idx);
         nodes.insert(
           nodes.begin() + c_idx, std::make_shared<Entry<K, V>>(k, v));
-        return true;
+        return 0;
       }
 
       if (node_map.check(idx))
       {
-        bool insert;
+        size_t insert;
         if (depth < (collision_depth - 1))
         {
           auto sn = *node_as<SubNodes<K, V, H>>(c_idx);
@@ -235,7 +244,7 @@ namespace champ
       if (k == entry0->key)
       {
         nodes[c_idx] = std::make_shared<Entry<K, V>>(k, v);
-        return false;
+        return get_size_with_padding<K, V>(entry0->key, entry0->value);
       }
 
       if (depth < (collision_depth - 1))
@@ -271,10 +280,10 @@ namespace champ
           nodes.begin() + c_idx,
           std::make_shared<Collisions<K, V, H>>(std::move(sub_node)));
       }
-      return true;
+      return 0;
     }
 
-    std::pair<std::shared_ptr<SubNodes<K, V, H>>, bool> put(
+    std::pair<std::shared_ptr<SubNodes<K, V, H>>, size_t> put(
       SmallIndex depth, Hash hash, const K& k, const V& v) const
     {
       auto node = *this;
@@ -324,35 +333,37 @@ namespace champ
   private:
     std::shared_ptr<SubNodes<K, V, H>> root;
     size_t _size = 0;
+    size_t serialized_size = 0;
 
-    Map(std::shared_ptr<SubNodes<K, V, H>>&& root_, size_t size_) :
+    Map(
+      std::shared_ptr<SubNodes<K, V, H>>&& root_,
+      size_t size_,
+      size_t serialized_size_) :
       root(std::move(root_)),
-      _size(size_)
+      _size(size_),
+      serialized_size(serialized_size_)
     {}
 
   public:
     Map() : root(std::make_shared<SubNodes<K, V, H>>()) {}
 
-    Map<K, V, H> static deserialize_map(
-      const std::vector<uint8_t>& serialized_state,
-      std::function<K(const uint8_t*&, size_t&)> make_k,
-      std::function<V(const uint8_t*&, size_t&)> make_v)
+    Map<K, V, H> static deserialize_map(CBuffer serialized_state)
     {
       Map<K, V, H> map;
-      const uint8_t* data = serialized_state.data();
-      size_t size = serialized_state.size();
+      const uint8_t* data = serialized_state.p;
+      size_t size = serialized_state.rawSize();
 
       while (size != 0)
       {
         // Deserialize the key
         size_t key_size = size;
-        K key = make_k(data, size);
+        K key = champ::deserialize<K>(data, size);
         key_size -= size;
         serialized::skip(data, size, get_padding(key_size));
 
         // Deserialize the value
         size_t value_size = size;
-        V value = make_v(data, size);
+        V value = champ::deserialize<V>(data, size);
         value_size -= size;
         serialized::skip(data, size, get_padding(value_size));
         map = map.put(key, value);
@@ -363,6 +374,11 @@ namespace champ
     size_t size() const
     {
       return _size;
+    }
+
+    size_t get_serialized_size() const
+    {
+      return serialized_size;
     }
 
     bool empty() const
@@ -389,10 +405,13 @@ namespace champ
     {
       auto r = root->put(0, H()(key), key, value);
       auto size_ = _size;
-      if (r.second)
+      if (r.second == 0)
+      {
         size_++;
+      }
 
-      return Map(std::move(r.first), size_);
+      int64_t size_change = get_size_with_padding<K, V>(key, value) - r.second;
+      return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 
     template <class F>
@@ -407,6 +426,7 @@ namespace champ
   {
   private:
     Map<K, V, H> map;
+    CBuffer serialized_buffer;
 
     struct pair
     {
@@ -417,14 +437,8 @@ namespace champ
       pair(K* k_, Hash h_k_, V* v_) : k(k_), h_k(h_k_), v(v_) {}
     };
     const uintptr_t padding = 0;
-    std::function<uint32_t(const K& key)> k_size;
-    std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
-      k_serialize;
-    std::function<uint32_t(const V& value)> v_size;
-    std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
-      v_serialize;
 
-    uint32_t add_padding(uint32_t data_size, uint8_t*& data, size_t& size)
+    uint32_t add_padding(uint32_t data_size, uint8_t*& data, size_t& size) const
     {
       uint32_t padding_size = get_padding(data_size);
       if (padding_size != 0)
@@ -436,33 +450,36 @@ namespace champ
     }
 
   public:
-    Snapshot(
-      Map<K, V, H> map_,
-      std::function<uint32_t(const K& key)> k_size_,
-      std::function<uint32_t(const K& key, uint8_t*& data, size_t& size)>
-        k_serialize_,
-      std::function<uint32_t(const V& value)> v_size_,
-      std::function<uint32_t(const V& value, uint8_t*& data, size_t& size)>
-        v_serialize_) :
-      k_size(k_size_),
-      k_serialize(k_serialize_),
-      v_size(v_size_),
-      v_serialize(v_serialize_)
+    Snapshot(Map<K, V, H>& map_)
     {
       map = map_;
     }
 
-    std::vector<uint8_t> get_buffer()
+    size_t get_serialized_size()
     {
-      std::vector<uint8_t> serialized;
+      return map.get_serialized_size();
+    }
+
+    CBuffer& get_serialized_buffer()
+    {
+      CCF_ASSERT(
+        serialized_buffer.rawSize() != 0,
+        "attempting to get buffer that was not serialized");
+      return serialized_buffer;
+    }
+
+    void serialize(uint8_t* data)
+    {
       std::vector<pair> serialized_state;
       serialized_state.reserve(map.size());
       size_t size = 0;
       map.foreach([&](auto& key, auto& value) {
         K* k = &key;
         V* v = &value;
-        uint32_t key_size = k_size(key) + get_padding(k_size(key));
-        uint32_t value_size = v_size(value) + get_padding(v_size(value));
+        uint32_t ks = champ::get_size(key);
+        uint32_t vs = champ::get_size(value);
+        uint32_t key_size = ks + get_padding(ks);
+        uint32_t value_size = vs + get_padding(vs);
 
         size += (key_size + value_size);
 
@@ -475,22 +492,28 @@ namespace champ
           return i.h_k < j.h_k;
         });
 
-      serialized.resize(size);
-      uint8_t* data = serialized.data();
+      CCF_ASSERT_FMT(
+        size == map.get_serialized_size(),
+        "size:{}, map->size:{} ==> count:{}, vect:{}",
+        size,
+        map.get_serialized_size(),
+        map.size(),
+        serialized_state.size());
+
+      serialized_buffer = CBuffer(data, map.get_serialized_size());
+
       for (const auto& p : serialized_state)
       {
         // Serialize the key
-        uint32_t key_size = k_serialize(*p.k, data, size);
+        uint32_t key_size = champ::serialize(*p.k, data, size);
         add_padding(key_size, data, size);
 
         // Serialize the value
-        uint32_t value_size = v_serialize(*p.v, data, size);
+        uint32_t value_size = champ::serialize(*p.v, data, size);
         add_padding(value_size, data, size);
       }
 
       CCF_ASSERT_FMT(size == 0, "buffer not filled, remaining:{}", size);
-
-      return std::move(serialized);
     }
   };
 }
