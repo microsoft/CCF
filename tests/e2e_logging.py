@@ -19,7 +19,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
+@reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None, verify=True):
     txs = app.LoggingTxs(notifications_queue=notifications_queue)
@@ -38,7 +38,7 @@ def test(network, args, notifications_queue=None, verify=True):
 
 
 @reqs.description("Protocol-illegal traffic")
-@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
+@reqs.supports_methods("log/private", "log/public")
 @reqs.at_least_n_nodes(2)
 def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
@@ -74,7 +74,7 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
 
 
 @reqs.description("Write/Read large messages on primary")
-@reqs.supports_methods("LOG_record", "LOG_get")
+@reqs.supports_methods("log/private")
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
@@ -87,18 +87,19 @@ def test_large_messages(network, args):
             for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
-                    c.rpc("LOG_record", {"id": log_id, "msg": long_msg}), result=True,
+                    c.rpc("log/private", {"id": log_id, "msg": long_msg}), result=True,
                 )
-                check(c.get("LOG_get", {"id": log_id}), result={"msg": long_msg})
+                check(c.get("log/private", {"id": log_id}), result={"msg": long_msg})
                 log_id += 1
 
     return network
 
 
 @reqs.description("Write/Read/Delete messages on primary")
-@reqs.supports_methods("LOG_record", "LOG_get", "LOG_remove")
+@reqs.supports_methods("log/private")
 def test_remove(network, args):
-    if args.package == "libjs_generic":
+    supported_packages = ["libjs_generic", "liblogging"]
+    if args.package in supported_packages:
         primary, _ = network.find_primary()
 
         with primary.node_client() as nc:
@@ -107,29 +108,39 @@ def test_remove(network, args):
 
             with primary.user_client() as c:
                 log_id = 44
-                for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
-                    long_msg = "X" * (2 ** p)
+                msg = "Will be deleted"
+
+                for table in ["private", "public"]:
+                    resource = f"log/{table}"
                     check_commit(
-                        c.rpc("LOG_record", {"id": log_id, "msg": long_msg}),
-                        result=True,
+                        c.rpc(resource, {"id": log_id, "msg": msg}), result=True,
                     )
-                    check(c.get("LOG_get", {"id": log_id}), result={"msg": long_msg})
-                    check(c.get("LOG_remove", {"id": log_id}), result=None)
+                    check(c.get(resource, {"id": log_id}), result={"msg": msg})
                     check(
-                        c.get("LOG_get", {"id": log_id}),
-                        result={"error": "No such key"},
+                        c.delete(resource, {"id": log_id}, params_in_query=True),
+                        result=None,
                     )
-                    log_id += 1
+                    get_r = c.get(resource, {"id": log_id})
+                    if args.package == "libjs_generic":
+                        check(
+                            get_r, result={"error": "No such key"},
+                        )
+                    else:
+                        check(
+                            get_r,
+                            error=lambda status, msg: status
+                            == http.HTTPStatus.BAD_REQUEST.value,
+                        )
     else:
         LOG.warning(
-            f"Skipping {inspect.currentframe().f_code.co_name} as application is not JS"
+            f"Skipping {inspect.currentframe().f_code.co_name} as application ({args.package}) is not in supported packages: {supported_packages}"
         )
 
     return network
 
 
 @reqs.description("Write/Read with cert prefix")
-@reqs.supports_methods("LOG_record_prefix_cert", "LOG_get")
+@reqs.supports_methods("log/private/prefix_cert", "log/private")
 def test_cert_prefix(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
@@ -138,8 +149,8 @@ def test_cert_prefix(network, args):
             with primary.user_client(user_id) as c:
                 log_id = 101
                 msg = "This message will be prefixed"
-                c.rpc("LOG_record_prefix_cert", {"id": log_id, "msg": msg})
-                r = c.get("LOG_get", {"id": log_id})
+                c.rpc("log/private/prefix_cert", {"id": log_id, "msg": msg})
+                r = c.get("log/private", {"id": log_id})
                 assert r.result is not None
                 assert f"CN=user{user_id}" in r.result["msg"]
 
@@ -152,7 +163,7 @@ def test_cert_prefix(network, args):
 
 
 @reqs.description("Write as anonymous caller")
-@reqs.supports_methods("LOG_record_anonymous", "LOG_get")
+@reqs.supports_methods("log/private/anonymous", "log/private")
 def test_anonymous_caller(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
@@ -163,15 +174,15 @@ def test_anonymous_caller(network, args):
         log_id = 101
         msg = "This message is anonymous"
         with primary.user_client(user_id=4) as c:
-            r = c.rpc("LOG_record_anonymous", {"id": log_id, "msg": msg})
+            r = c.rpc("log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.result == True
-            r = c.get("LOG_get", {"id": log_id})
+            r = c.get("log/private", {"id": log_id})
             assert (
                 r.error is not None
-            ), "Anonymous user is not authorised to call LOG_get"
+            ), "Anonymous user is not authorised to call log/private"
 
         with primary.user_client(user_id=0) as c:
-            r = c.get("LOG_get", {"id": log_id})
+            r = c.get("log/private", {"id": log_id})
             assert r.result is not None
             assert msg in r.result["msg"]
     else:
@@ -183,7 +194,7 @@ def test_anonymous_caller(network, args):
 
 
 @reqs.description("Write non-JSON body")
-@reqs.supports_methods("LOG_record_raw_text", "LOG_get")
+@reqs.supports_methods("log/private/raw_text", "log/private")
 def test_raw_text(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
@@ -192,12 +203,12 @@ def test_raw_text(network, args):
         msg = "This message is not in JSON"
         with primary.user_client() as c:
             r = c.rpc(
-                "LOG_record_raw_text",
+                "log/private/raw_text",
                 msg,
                 headers={"content-type": "text/plain", "x-log-id": str(log_id)},
             )
             assert r.status == http.HTTPStatus.OK.value
-            r = c.get("LOG_get", {"id": log_id})
+            r = c.get("log/private", {"id": log_id})
             assert r.result is not None
             assert msg in r.result["msg"]
 
@@ -210,7 +221,7 @@ def test_raw_text(network, args):
 
 
 @reqs.description("Read historical state")
-@reqs.supports_methods("LOG_record", "LOG_get", "LOG_get_historical")
+@reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
     if args.consensus == "pbft":
         LOG.warning("Skipping historical queries in PBFT")
@@ -226,16 +237,16 @@ def test_historical_query(network, args):
             with primary.user_client() as c:
                 log_id = 10
                 msg = "This tests historical queries"
-                record_response = c.rpc("LOG_record", {"id": log_id, "msg": msg})
+                record_response = c.rpc("log/private", {"id": log_id, "msg": msg})
                 check_commit(record_response, result=True)
                 view = record_response.view
                 seqno = record_response.seqno
 
                 msg2 = "This overwrites the original message"
                 check_commit(
-                    c.rpc("LOG_record", {"id": log_id, "msg": msg2}), result=True
+                    c.rpc("log/private", {"id": log_id, "msg": msg2}), result=True
                 )
-                check(c.get("LOG_get", {"id": log_id}), result={"msg": msg2})
+                check(c.get("log/private", {"id": log_id}), result={"msg": msg2})
 
                 timeout = 15
                 found = False
@@ -247,7 +258,9 @@ def test_historical_query(network, args):
                 end_time = time.time() + timeout
 
                 while time.time() < end_time:
-                    get_response = c.get("LOG_get_historical", params, headers=headers)
+                    get_response = c.get(
+                        "log/private/historical", params, headers=headers
+                    )
                     if get_response.status == http.HTTPStatus.ACCEPTED:
                         retry_after = get_response.headers.get("retry-after")
                         if retry_after is None:
@@ -326,10 +339,8 @@ def test_update_lua(network, args):
 
             LOG.debug("Check that former endpoints no longer exists")
             for endpoint in [
-                "LOG_record",
-                "LOG_record_pub",
-                "LOG_get",
-                "LOG_get_pub",
+                "log/private",
+                "log/public",
             ]:
                 check(
                     c.rpc(endpoint),
@@ -453,13 +464,13 @@ class SentTxs:
 
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
-@reqs.supports_methods("LOG_record", "tx")
+@reqs.supports_methods("log/private", "tx")
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
     with primary.user_client() as c:
         check = infra.checker.Checker()
-        r = c.rpc("LOG_record", {"id": 0, "msg": "Ignored"})
+        r = c.rpc("log/private", {"id": 0, "msg": "Ignored"})
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)

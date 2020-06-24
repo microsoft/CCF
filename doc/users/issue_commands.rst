@@ -15,7 +15,7 @@ For example, to record a message at a specific id with the :ref:`developers/exam
       "msg": "Hello There"
     }
 
-    $ curl https://<ccf-node-address>/app/LOG_record --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @request.json -H "content-type: application/json" -i
+    $ curl https://<ccf-node-address>/users/log/private --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @request.json -H "content-type: application/json" -i
     HTTP/1.1 200 OK
     content-length: 5
     content-type: application/json

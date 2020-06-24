@@ -1128,14 +1128,14 @@ TEST_CASE("Serialization")
   }
 
   // now we serialize the a KV that is in the mid point of the known versions
-  std::unique_ptr<kv::AbstractStore::Snapshot> s = kv_store.snapshot(1);
+  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> s = kv_store.snapshot(1);
   auto& vec_s = s->get_snapshots();
   for (auto& s : vec_s)
   {
     REQUIRE_EQ(s->get_name(), map_name);
     REQUIRE_EQ(s->get_security_domain(), security_domain);
     REQUIRE_EQ(s->get_is_replicated(), true);
-    REQUIRE_GT(s->get_buffer().size(), 0);
+    REQUIRE_GT(s->get_serialized_size(), 0);
   }
 
   kv::Store new_store;

@@ -29,24 +29,24 @@ return {
     end
   ]],
 
-  LOG_get = [[
+  ["GET log/private"] = [[
     -- SNIPPET_START: lua_params
     tables, gov_tables, args = ...
     -- SNIPPET_END: lua_params
     return env.get(tables.priv0)
   ]],
 
-  LOG_get_pub = [[
+  ["GET log/public"] = [[
     tables, gov_tables, args = ...
     return env.get(tables.pub0)
   ]],
 
-  LOG_record = [[
+  ["POST log/private"] = [[
     tables, gov_tables, args = ...
     return env.record(tables.priv0)
   ]],
 
-  LOG_record_pub = [[
+  ["POST log/public"] = [[
     tables, gov_tables, args = ...
     return env.record(tables.pub0)
   ]]
