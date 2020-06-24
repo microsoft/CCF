@@ -8,6 +8,6 @@
   "required": [
     "msg"
   ],
-  "title": "LOG_get_pub/result",
+  "title": "log/public/result",
   "type": "object"
 }

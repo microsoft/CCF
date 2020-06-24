@@ -8,6 +8,6 @@
   "required": [
     "id"
   ],
-  "title": "LOG_get_pub/params",
+  "title": "log/public/params",
   "type": "object"
 }

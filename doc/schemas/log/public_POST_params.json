@@ -12,6 +12,6 @@
     "id",
     "msg"
   ],
-  "title": "LOG_record_pub/params",
+  "title": "log/public/params",
   "type": "object"
 }
