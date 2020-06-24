@@ -4,27 +4,27 @@ Logging RPC API
 LOG_get
 -------
 
-.. literalinclude:: ../schemas/LOG_get_params.json
+.. literalinclude:: ../schemas/LOG_get_GET_params.json
     :language: json
-.. literalinclude:: ../schemas/LOG_get_result.json
+.. literalinclude:: ../schemas/LOG_get_GET_result.json
     :language: json
 
 LOG_record
 ----------
 
-.. literalinclude:: ../schemas/LOG_record_params.json
+.. literalinclude:: ../schemas/LOG_record_POST_params.json
     :language: json
 
 LOG_get_pub
 -----------
 
-.. literalinclude:: ../schemas/LOG_get_pub_params.json
+.. literalinclude:: ../schemas/LOG_get_pub_GET_params.json
     :language: json
-.. literalinclude:: ../schemas/LOG_get_pub_result.json
+.. literalinclude:: ../schemas/LOG_get_pub_GET_result.json
     :language: json
 
 LOG_record_pub
 --------------
 
-.. literalinclude:: ../schemas/LOG_record_pub_params.json
+.. literalinclude:: ../schemas/LOG_record_pub_POST_params.json
     :language: json

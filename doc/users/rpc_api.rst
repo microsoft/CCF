@@ -79,41 +79,41 @@ Common Methods
 commit
 ~~~~~~
 
-.. literalinclude:: ../schemas/commit_result.json
+.. literalinclude:: ../schemas/commit_GET_result.json
     :language: json
 
 tx
 ~~
 
-.. literalinclude:: ../schemas/tx_params.json
+.. literalinclude:: ../schemas/tx_GET_params.json
     :language: json
 
-.. literalinclude:: ../schemas/tx_result.json
+.. literalinclude:: ../schemas/tx_GET_result.json
     :language: json
 
 primary_info
 ~~~~~~~~~~~~
 
-.. literalinclude:: ../schemas/primary_info_result.json
+.. literalinclude:: ../schemas/primary_info_GET_result.json
     :language: json
 
 metrics
 ~~~~~~~
 
-.. literalinclude:: ../schemas/metrics_result.json
+.. literalinclude:: ../schemas/metrics_GET_result.json
     :language: json
 
 api
 ~~~
 
-.. literalinclude:: ../schemas/api_result.json
+.. literalinclude:: ../schemas/api_GET_result.json
     :language: json
 
 api/schema
 ~~~~~~~~~~
 
-.. literalinclude:: ../schemas/api/schema_params.json
+.. literalinclude:: ../schemas/api/schema_GET_params.json
     :language: json
-.. literalinclude:: ../schemas/api/schema_result.json
+.. literalinclude:: ../schemas/api/schema_GET_result.json
     :language: json
 
