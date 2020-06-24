@@ -248,11 +248,7 @@ namespace ccf
         for (auto& [verb, endpoint] : it->second)
         {
           std::string verb_name = http_method_str(verb);
-          std::transform(
-            verb_name.begin(),
-            verb_name.end(),
-            verb_name.begin(),
-            [](unsigned char c) { return std::tolower(c); });
+          nonstd::to_lower(verb_name);
           j[verb_name] =
             GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
         }

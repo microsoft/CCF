@@ -22,9 +22,7 @@ std::vector<uint8_t> s_to_v(char const* s)
 
 std::string to_lowercase(std::string s)
 {
-  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-    return std::tolower(c);
-  });
+  nonstd::to_lower(s);
   return s;
 }
 

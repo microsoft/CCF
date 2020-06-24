@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <string>
@@ -61,14 +62,14 @@ namespace nonstd
 
   /** converts strings to upper or lower case, in-place
    */
-  void to_upper(std::string& s)
+  static void to_upper(std::string& s)
   {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
       return std::toupper(c);
     });
   }
 
-  void to_lower(std::string& s)
+  static void to_lower(std::string& s)
   {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
       return std::tolower(c);

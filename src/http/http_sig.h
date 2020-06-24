@@ -33,10 +33,7 @@ namespace http
       if (f == auth::SIGN_HEADER_REQUEST_TARGET)
       {
         // Store verb as lowercase
-        std::transform(
-          verb.begin(), verb.end(), verb.begin(), [](unsigned char c) {
-            return std::tolower(c);
-          });
+        nonstd::to_lower(verb);
         value = fmt::format("{} {}", verb, path);
         if (!query.empty())
         {
