@@ -2,7 +2,7 @@
 -- Licensed under the Apache 2.0 License.
 
 return {
-  LOG_get = [[
+  ["GET log/private"] = [[
     function get(query)
     {
       const elements = query.split("&");
@@ -24,22 +24,7 @@ return {
     get(query)
   ]],
 
-  LOG_remove = [[
-    function remove(query)
-    {
-      const elements = query.split("&");
-      for (kv of elements) {
-        const [k, v] = kv.split("=");
-        if (k == "id") {
-          return tables.data.remove(JSON.parse(v).toString());
-        }
-      }
-      throw "Could not find 'id' in query";
-    }
-    remove(query)
-  ]],
-
-  LOG_get_pub = [[
+  ["GET log/public"] = [[
     function get(query)
     {
       const elements = query.split("&");
@@ -54,13 +39,7 @@ return {
     get(query)
   ]],
 
-  // TODO TODO TODO TODO
-  // TODO TODO TODO TODO
-  // TODO TODO TODO TODO
-  // TODO TODO TODO TODO
-  // TODO TODO TODO TODO
-
-  LOG_record = [[
+  ["POST log/private"] = [[
     function record(params)
     {
       tables.data.put(params.id.toString(), params.msg);
@@ -69,12 +48,42 @@ return {
     record(JSON.parse(body))
   ]],
 
-  LOG_record_pub = [[
+  ["POST log/public"] = [[
     function record(params)
     {
       tables.data.put(params.id.toString(), params.msg);
       return true;
     }
     record(JSON.parse(body))
+  ]],
+
+  ["DELETE log/public"] = [[
+    function remove(query)
+    {
+      const elements = query.split("&");
+      for (kv of elements) {
+        const [k, v] = kv.split("=");
+        if (k == "id") {
+          return tables.data.remove(JSON.parse(v).toString());
+        }
+      }
+      throw "Could not find 'id' in query";
+    }
+    remove(query)
+  ]],
+
+  ["DELETE log/private"] = [[
+    function remove(query)
+    {
+      const elements = query.split("&");
+      for (kv of elements) {
+        const [k, v] = kv.split("=");
+        if (k == "id") {
+          return tables.data.remove(JSON.parse(v).toString());
+        }
+      }
+      throw "Could not find 'id' in query";
+    }
+    remove(query)
   ]]
 }

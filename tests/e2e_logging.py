@@ -96,7 +96,7 @@ def test_large_messages(network, args):
 
 
 @reqs.description("Write/Read/Delete messages on primary")
-@reqs.supports_methods("log/private", "log/private", "LOG_remove")
+@reqs.supports_methods("log/private", "log/private", "log/private")
 def test_remove(network, args):
     if args.package == "libjs_generic":
         primary, _ = network.find_primary()
@@ -107,21 +107,20 @@ def test_remove(network, args):
 
             with primary.user_client() as c:
                 log_id = 44
-                for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
-                    long_msg = "X" * (2 ** p)
-                    check_commit(
-                        c.rpc("log/private", {"id": log_id, "msg": long_msg}),
-                        result=True,
-                    )
-                    check(
-                        c.get("log/private", {"id": log_id}), result={"msg": long_msg}
-                    )
-                    check(c.get("LOG_remove", {"id": log_id}), result=None)
-                    check(
-                        c.get("log/private", {"id": log_id}),
-                        result={"error": "No such key"},
-                    )
-                    log_id += 1
+                msg = "Will be deleted"
+                check_commit(
+                    c.rpc("log/private", {"id": log_id, "msg": msg}),
+                    result=True,
+                )
+                check(
+                    c.get("log/private", {"id": log_id}), result={"msg": msg}
+                )
+                check(c.delete("log/private", {"id": log_id}), result=None)
+                check(
+                    c.get("log/private", {"id": log_id}),
+                    result={"error": "No such key"},
+                )
+                log_id += 1
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not JS"
