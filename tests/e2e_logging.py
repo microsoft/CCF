@@ -341,8 +341,6 @@ def test_update_lua(network, args):
             for endpoint in [
                 "log/private",
                 "log/public",
-                "log/private",
-                "log/public",
             ]:
                 check(
                     c.rpc(endpoint),
