@@ -3,6 +3,8 @@
 #pragma once
 
 #include <array>
+#include <cctype>
+#include <string>
 #include <type_traits>
 
 /**
@@ -56,4 +58,20 @@ namespace nonstd
 
   template <class T>
   using remove_cvref_t = typename remove_cvref<T>::type;
+
+  /** converts strings to upper or lower case, in-place
+   */
+  void to_upper(std::string& s)
+  {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+      return std::toupper(c);
+    });
+  }
+
+  void to_lower(std::string& s)
+  {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+      return std::tolower(c);
+    });
+  }
 }
