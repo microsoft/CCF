@@ -96,21 +96,23 @@ namespace loggingapp
       // SNIPPET_END: install_record
 
       // SNIPPET_START: get
-      auto get = [this](kv::Tx& tx, nlohmann::json&& params) {
-        const auto in = params.get<LoggingGet::In>();
-        auto view = tx.get_view(records);
-        auto r = view->get(in.id);
+      auto get =
+        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
+          const auto in = params.get<LoggingGet::In>();
+          auto view = args.tx.get_read_only_view(records);
+          auto r = view->get(in.id);
 
-        if (r.has_value())
-          return ccf::make_success(LoggingGet::Out{r.value()});
+          if (r.has_value())
+            return ccf::make_success(LoggingGet::Out{r.value()});
 
-        return ccf::make_error(
-          HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
-      };
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST, fmt::format("No such record: {}", in.id));
+        };
       // SNIPPET_END: get
 
       // SNIPPET_START: install_get
-      make_endpoint("log/private", HTTP_GET, ccf::json_adapter(get))
+      make_read_only_endpoint(
+        "log/private", HTTP_GET, ccf::json_read_only_adapter(get))
         .set_auto_schema<LoggingGet>()
         .install();
       // SNIPPET_END: install_get
@@ -157,32 +159,34 @@ namespace loggingapp
         .install();
 
       // SNIPPET_START: get_public
-      auto get_public = [this](kv::Tx& tx, nlohmann::json&& params) {
-        const auto validation_error =
-          validate(params, get_public_params_schema);
+      auto get_public =
+        [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {
+          const auto validation_error =
+            validate(params, get_public_params_schema);
 
-        if (validation_error.has_value())
-        {
-          return ccf::make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
-        }
+          if (validation_error.has_value())
+          {
+            return ccf::make_error(HTTP_STATUS_BAD_REQUEST, *validation_error);
+          }
 
-        auto view = tx.get_view(public_records);
-        const auto id = params["id"];
-        auto r = view->get(id);
+          auto view = args.tx.get_read_only_view(public_records);
+          const auto id = params["id"];
+          auto r = view->get(id);
 
-        if (r.has_value())
-        {
-          auto result = nlohmann::json::object();
-          result["msg"] = r.value();
-          return ccf::make_success(result);
-        }
+          if (r.has_value())
+          {
+            auto result = nlohmann::json::object();
+            result["msg"] = r.value();
+            return ccf::make_success(result);
+          }
 
-        return ccf::make_error(
-          HTTP_STATUS_BAD_REQUEST,
-          fmt::format("No such record: {}", id.dump()));
-      };
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            fmt::format("No such record: {}", id.dump()));
+        };
       // SNIPPET_END: get_public
-      make_endpoint("log/public", HTTP_GET, ccf::json_adapter(get_public))
+      make_read_only_endpoint(
+        "log/public", HTTP_GET, ccf::json_read_only_adapter(get_public))
         .set_params_schema(get_public_params_schema)
         .set_result_schema(get_public_result_schema)
         .install();
