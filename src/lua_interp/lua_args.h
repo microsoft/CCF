@@ -44,7 +44,7 @@ namespace ccf
       lua_setfield(l, -2, "method");
 
       push_raw(l, args.rpc_ctx->get_request_verb());
-      lua_setfield(1, -2, "verb");
+      lua_setfield(l, -2, "verb");
       
       const auto [pack, params] =
         ccf::jsonhandler::get_json_params(args.rpc_ctx);
