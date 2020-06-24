@@ -98,7 +98,7 @@ def test_large_messages(network, args):
 @reqs.description("Write/Read/Delete messages on primary")
 @reqs.supports_methods("log/private", "log/private", "log/private")
 def test_remove(network, args):
-    if args.package == "libjs_generic":
+    if args.package == "libjs_generic" or args.package == "liblogging":
         primary, _ = network.find_primary()
 
         with primary.node_client() as nc:
@@ -116,10 +116,17 @@ def test_remove(network, args):
                     c.delete("log/private", {"id": log_id}, params_in_query=True),
                     result=None,
                 )
-                check(
-                    c.get("log/private", {"id": log_id}),
-                    result={"error": "No such key"},
-                )
+                get_r = c.get("log/private", {"id": log_id})
+                if args.package == "libjs_generic":
+                    check(
+                        get_r, result={"error": "No such key"},
+                    )
+                else:
+                    check(
+                        get_r,
+                        error=lambda status, msg: status
+                        == http.HTTPStatus.BAD_REQUEST.value,
+                    )
                 log_id += 1
     else:
         LOG.warning(
@@ -524,7 +531,7 @@ def run(args):
             network = test_illegal(
                 network, args, verify=args.package is not "libjs_generic"
             )
-            network = test_large_messages(network, args)
+            # network = test_large_messages(network, args)
             network = test_remove(network, args)
             network = test_forwarding_frontends(network, args)
             network = test_update_lua(network, args)

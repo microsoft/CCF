@@ -30,6 +30,13 @@ namespace loggingapp
     };
   };
 
+  struct LoggingRemove
+  {
+    using In = LoggingGet::In;
+
+    using Out = bool;
+  };
+
   DECLARE_JSON_TYPE(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
 

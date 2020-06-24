@@ -115,6 +115,17 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_get
 
+      auto remove = [this](kv::Tx& tx, nlohmann::json&& params) {
+        const auto in = params.get<LoggingRemove::In>();
+        auto view = tx.get_view(records);
+        auto removed = view->remove(in.id);
+
+        return ccf::make_success(LoggingRemove::Out{removed});
+      };
+      make_endpoint("log/private", HTTP_DELETE, ccf::json_adapter(remove))
+        .set_auto_schema<LoggingRemove>()
+        .install();
+
       // SNIPPET_START: record_public
       auto record_public = [this](kv::Tx& tx, nlohmann::json&& params) {
         // SNIPPET_START: valijson_record_public
@@ -174,6 +185,17 @@ namespace loggingapp
       make_endpoint("log/public", HTTP_GET, ccf::json_adapter(get_public))
         .set_params_schema(get_public_params_schema)
         .set_result_schema(get_public_result_schema)
+        .install();
+
+      auto remove_public = [this](kv::Tx& tx, nlohmann::json&& params) {
+        const auto in = params.get<LoggingRemove::In>();
+        auto view = tx.get_view(public_records);
+        auto removed = view->remove(in.id);
+
+        return ccf::make_success(LoggingRemove::Out{removed});
+      };
+      make_endpoint("log/public", HTTP_DELETE, ccf::json_adapter(remove))
+        .set_auto_schema<LoggingRemove>()
         .install();
 
       // SNIPPET_START: log_record_prefix_cert
