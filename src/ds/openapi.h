@@ -41,8 +41,7 @@ namespace ds
 
     struct MediaType
     {
-      // May be a full in-place schema, but is generally a string containing a
-      // reference to a schema stored elsewhere
+      // May be a full in-place schema, but is generally a reference object
       nlohmann::json schema;
 
       bool operator==(const MediaType& rhs) const
@@ -89,10 +88,30 @@ namespace ds
         return operations[s];
       }
     };
-    DECLARE_JSON_TYPE(PathItem);
-    DECLARE_JSON_REQUIRED_FIELDS(PathItem, operations);
+
+    // When converted to JSON, a PathItem is not an object containing an
+    // 'operations' field with an object value, it _is_ this operations object
+    // value
+    inline void to_json(nlohmann::json& j, const PathItem& pi)
+    {
+      j = pi.operations;
+    }
+
+    inline void from_json(const nlohmann::json& j, PathItem& pi)
+    {
+      pi.operations = j.get<decltype(pi.operations)>();
+    }
 
     using Paths = std::map<std::string, PathItem>;
+
+    void check_path_valid(const std::string& s)
+    {
+      if (s.rfind("/", 0) != 0)
+      {
+        throw std::logic_error(
+          fmt::format("'{}' is not a valid path - must begin with '/'", s));
+      }
+    }
 
     struct Components
     {
@@ -123,6 +142,8 @@ namespace ds
         const nlohmann::json& schema,
         const std::string& components_schema_name)
       {
+        check_path_valid(uri);
+
         const auto schema_it = components.schemas.find(components_schema_name);
         if (schema_it != components.schemas.end())
         {
@@ -144,8 +165,26 @@ namespace ds
           components.schemas.emplace(components_schema_name, schema);
         }
 
-        paths[uri][verb][status].content[content_type].schema =
+        auto& response_object = paths[uri][verb][status];
+        response_object.description = "Auto-generated";
+        auto schema_ref_object = nlohmann::json::object();
+        schema_ref_object["$ref"] =
           fmt::format("#/components/schemas/{}", components_schema_name);
+        response_object.content[content_type].schema = schema_ref_object;
+      }
+
+      template <typename T>
+      void add_response_schema(
+        const std::string& uri,
+        http_method verb,
+        http_status status,
+        const std::string& content_type,
+        const std::string& components_schema_name)
+      {
+        auto t_schema = nlohmann::json::object();
+        ds::json::fill_schema<T>(t_schema);
+        add_response_schema(
+          uri, verb, status, content_type, t_schema, components_schema_name);
       }
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Document);

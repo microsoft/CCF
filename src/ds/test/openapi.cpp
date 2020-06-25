@@ -2,8 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #include "ds/openapi.h"
 
+#include "http/http_consts.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+
+using namespace ds;
 
 void print_doc(const std::string& title, const nlohmann::json& doc)
 {
@@ -11,9 +15,35 @@ void print_doc(const std::string& title, const nlohmann::json& doc)
   std::cout << doc.dump(2) << std::endl;
 }
 
-TEST_CASE("Basic doc")
+#define REQUIRE_ELEMENT(j, name, type_fn) \
+  { \
+    const auto name##_it = j.find(#name); \
+    REQUIRE(name##_it != j.end()); \
+    REQUIRE(name##_it->type_fn()); \
+  }
+
+static constexpr auto server_url =
+  "https://not.a.real.server.example.com/testing_only";
+
+// TODO: Use some external verifier to do this properly. This is the basic
+// stuff for initial compatibility
+void required_doc_elements(const nlohmann::json& j)
 {
-  using namespace ds;
+  REQUIRE_ELEMENT(j, openapi, is_string);
+  REQUIRE_ELEMENT(j, info, is_object);
+  REQUIRE_ELEMENT(j, paths, is_object);
+}
+
+TEST_CASE("Required elements")
+{
+  openapi::Document doc;
+
+  const nlohmann::json j = doc;
+  required_doc_elements(j);
+}
+
+TEST_CASE("Manual construction")
+{
   openapi::Document doc;
   doc.info.title = "Test generated API";
   doc.info.description = "Some longer description enhanced with **Markdown**";
@@ -21,8 +51,7 @@ TEST_CASE("Basic doc")
 
   {
     openapi::Server mockup_server;
-    mockup_server.url =
-      "https://virtserver.swaggerhub.com/eddyashton/ccf-test/1.0.0";
+    mockup_server.url = server_url;
     doc.servers.push_back(mockup_server);
   }
 
@@ -30,5 +59,48 @@ TEST_CASE("Basic doc")
     doc.paths["/users/foo"][HTTP_GET][HTTP_STATUS_OK].description =
       "Indicates that everything went ok";
   }
+
+  const nlohmann::json j = doc;
+  required_doc_elements(j);
+
+  const auto& info_element = j["info"];
+  REQUIRE_ELEMENT(info_element, title, is_string);
+  REQUIRE_ELEMENT(info_element, description, is_string);
+  REQUIRE_ELEMENT(info_element, version, is_string);
+
+  REQUIRE_ELEMENT(j, servers, is_array);
+  const auto& servers_element = j["servers"];
+  REQUIRE(servers_element.size() == 1);
+  const auto& first_server = servers_element[0];
+  REQUIRE_ELEMENT(first_server, url, is_string);
+
   print_doc("PATHS", doc);
+}
+
+TEST_CASE("Schema population")
+{
+  openapi::Document doc;
+  doc.info.title = "Test generated API";
+  doc.info.description = "Some longer description enhanced with **Markdown**";
+  doc.info.version = "0.1.42";
+
+  {
+    openapi::Server mockup_server;
+    mockup_server.url = server_url;
+    doc.servers.push_back(mockup_server);
+  }
+
+  constexpr auto users_foo = "/users/foo";
+  constexpr auto foo_schema_name = "foo_str";
+  doc.add_response_schema<std::string>(
+    users_foo,
+    HTTP_GET,
+    HTTP_STATUS_OK,
+    http::headervalues::contenttype::TEXT,
+    foo_schema_name);
+
+  const nlohmann::json j = doc;
+  required_doc_elements(j);
+
+  print_doc("SCHEMA", doc);
 }
