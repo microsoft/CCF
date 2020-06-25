@@ -6,6 +6,7 @@
 #include "ds/json_schema.h"
 #include "enclave/rpc_context.h"
 #include "http/http_consts.h"
+#include "http/ws_consts.h"
 #include "kv/store.h"
 #include "kv/tx.h"
 #include "node/certs.h"
@@ -259,12 +260,12 @@ namespace ccf
         return *this;
       }
 
-      http_method verb = HTTP_POST;
+      RESTVerb verb = HTTP_POST;
 
       CCF_DEPRECATED(
         "HTTP Verb should not be changed after installation: pass verb to "
         "install()")
-      Endpoint& set_allowed_verb(http_method v)
+      Endpoint& set_allowed_verb(RESTVerb v)
       {
         const auto previous_verb = verb;
         return registry->reinstall(*this, method, previous_verb);
@@ -296,7 +297,7 @@ namespace ccf
 
   protected:
     std::optional<Endpoint> default_handler;
-    std::map<std::string, std::map<http_method, Endpoint>> installed_handlers;
+    std::map<std::string, std::map<RESTVerb, Endpoint>> installed_handlers;
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -326,7 +327,7 @@ namespace ccf
      * @return The new Endpoint for further modification
      */
     Endpoint make_endpoint(
-      const std::string& method, http_method verb, const EndpointFunction& f)
+      const std::string& method, RESTVerb verb, const EndpointFunction& f)
     {
       Endpoint endpoint;
       endpoint.method = method;
@@ -342,7 +343,7 @@ namespace ccf
      */
     Endpoint make_read_only_endpoint(
       const std::string& method,
-      http_method verb,
+      RESTVerb verb,
       const ReadOnlyEndpointFunction& f)
     {
       return make_endpoint(
@@ -363,7 +364,7 @@ namespace ccf
      */
     Endpoint make_command_endpoint(
       const std::string& method,
-      http_method verb,
+      RESTVerb verb,
       const CommandEndpointFunction& f)
     {
       return make_endpoint(
@@ -408,7 +409,7 @@ namespace ccf
 
     // Only needed to support deprecated functions
     Endpoint& reinstall(
-      const Endpoint& h, const std::string& prev_method, http_method prev_verb)
+      const Endpoint& h, const std::string& prev_method, RESTVerb prev_verb)
     {
       const auto handlers_it = installed_handlers.find(prev_method);
       if (handlers_it != installed_handlers.end())
@@ -448,7 +449,7 @@ namespace ccf
 
     virtual void init_handlers(kv::Store& tables) {}
 
-    virtual Endpoint* find_endpoint(const std::string& method, http_method verb)
+    virtual Endpoint* find_endpoint(const std::string& method, RESTVerb verb)
     {
       auto search = installed_handlers.find(method);
       if (search != installed_handlers.end())
@@ -469,10 +470,9 @@ namespace ccf
       return nullptr;
     }
 
-    virtual std::vector<http_method> get_allowed_verbs(
-      const std::string& method)
+    virtual std::vector<RESTVerb> get_allowed_verbs(const std::string& method)
     {
-      std::vector<http_method> verbs;
+      std::vector<RESTVerb> verbs;
       auto search = installed_handlers.find(method);
       if (search != installed_handlers.end())
       {

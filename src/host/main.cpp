@@ -15,6 +15,7 @@
 #include "sig_term.h"
 #include "ticker.h"
 #include "time_updater.h"
+#include "version.h"
 
 #include <CLI11/CLI11.hpp>
 #include <codecvt>
@@ -31,6 +32,12 @@ using namespace std::chrono_literals;
 
 ::timespec logger::config::start{0, 0};
 
+void print_version(size_t)
+{
+  std::cout << "CCF host: " << ccf::ccf_version << std::endl;
+  exit(0);
+}
+
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
@@ -41,6 +48,9 @@ int main(int argc, char** argv)
 
   app.set_config("--config", "", "Read an INI or TOML file", false);
   app.allow_config_extras(false);
+
+  app.add_flag(
+    "-v, --version", print_version, "Display CCF host version and exit");
 
   app.require_subcommand(1, 1);
 

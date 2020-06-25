@@ -95,6 +95,11 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_record
 
+      make_endpoint(
+        "log/private", ws::Verb::WEBSOCKET, ccf::json_adapter(record))
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+
       // SNIPPET_START: get
       auto get =
         [this](ccf::ReadOnlyEndpointContext& args, nlohmann::json&& params) {

@@ -203,8 +203,8 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto endpoint = endpoints.find_endpoint(
-        local_method, (http_method)ctx->get_request_verb());
+      auto endpoint =
+        endpoints.find_endpoint(local_method, ctx->get_request_verb());
       if (endpoint != nullptr && endpoint->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
@@ -220,8 +220,8 @@ namespace ccf
     {
       const auto method = ctx->get_method();
       const auto local_method = method.substr(method.find_first_not_of('/'));
-      const auto endpoint = endpoints.find_endpoint(
-        local_method, (http_method)ctx->get_request_verb());
+      const auto endpoint =
+        endpoints.find_endpoint(local_method, ctx->get_request_verb());
       if (endpoint == nullptr)
       {
         const auto allowed_verbs = endpoints.get_allowed_verbs(local_method);
@@ -239,7 +239,7 @@ namespace ccf
           std::vector<char const*> allowed_verb_strs;
           for (auto verb : allowed_verbs)
           {
-            allowed_verb_strs.push_back(http_method_str(verb));
+            allowed_verb_strs.push_back(verb.c_str());
           }
           const std::string allow_header_value =
             fmt::format("{}", fmt::join(allowed_verb_strs, ", "));
