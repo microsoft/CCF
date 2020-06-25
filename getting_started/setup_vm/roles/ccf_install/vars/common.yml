@@ -1,5 +1,6 @@
 workspace: "/tmp/"
-ccf_ver: "v0.11.1"
+ccf_ver: "latest"
 ccf_tarball: "ccf.tar.gz"
-ccf_url: "https://github.com/microsoft/CCF/releases/download/{{ ccf_ver }}/{{ ccf_tarball }}"
+ccf_suffix: "{{ 'latest/download' if ccf_ver == 'latest' else 'download/' + ccf_ver }}"
+ccf_url: "https://github.com/microsoft/CCF/releases/{{ ccf_suffix }}/{{ ccf_tarball }}"
 ccf_prefix: "/opt/openenclave"
