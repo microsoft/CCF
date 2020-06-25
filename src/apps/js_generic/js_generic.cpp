@@ -166,13 +166,24 @@ namespace ccfapp
 
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
+        // Try find script for method
+        // - First try a script called "foo"
+        // - If that fails, try a script called "POST foo"
         auto handler_script = scripts->get(local_method);
         if (!handler_script)
         {
-          args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
-          args.rpc_ctx->set_response_body(fmt::format(
-            "No handler script found for method '{}'", local_method));
-          return;
+          const auto verb_prefixed = fmt::format(
+            "{} {}",
+            http_method_str((http_method)args.rpc_ctx->get_request_verb()),
+            local_method);
+          handler_script = scripts->get(verb_prefixed);
+          if (!handler_script)
+          {
+            args.rpc_ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
+            args.rpc_ctx->set_response_body(fmt::format(
+              "No handler script found for method '{}'", verb_prefixed));
+            return;
+          }
         }
 
         JSRuntime* rt = JS_NewRuntime();

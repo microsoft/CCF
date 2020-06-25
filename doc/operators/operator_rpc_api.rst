@@ -8,7 +8,7 @@ quote
 
 Retrieves quote of single contacted node.
 
-.. literalinclude:: ../schemas/quote_result.json
+.. literalinclude:: ../schemas/quote_GET_result.json
     :language: json
 
 Example
@@ -31,7 +31,7 @@ quotes
 
 Retrieves quotes of all trusted nodes.
 
-.. literalinclude:: ../schemas/quotes_result.json
+.. literalinclude:: ../schemas/quotes_GET_result.json
     :language: json
 
 Example
@@ -57,7 +57,7 @@ Example
 signed_index
 ------------
 
-.. literalinclude:: ../schemas/signed_index_result.json
+.. literalinclude:: ../schemas/signed_index_GET_result.json
     :language: json
 
 Example

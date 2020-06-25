@@ -15,7 +15,7 @@ Some global values are pre-populated in the Lua environment, to be used by both 
 RPC Handler
 -----------
 
-The following shows an implementation of the Logging application, where each RPC method handler (e.g., ``LOG_get``) is a separate entry in *APP_SCRIPTS*:
+The following shows an implementation of the Logging application, where each RPC method handler (e.g., ``GET log/private``) is a separate entry in *APP_SCRIPTS*:
 
 .. literalinclude:: ../../src/apps/logging/logging.lua
     :language: lua

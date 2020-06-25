@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "msg": {
-      "type": "string"
+    "id": {
+      "type": "number"
     }
   },
   "required": [
-    "msg"
+    "id"
   ],
-  "title": "LOG_get/result",
+  "title": "log/public/params",
   "type": "object"
 }

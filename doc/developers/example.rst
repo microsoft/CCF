@@ -12,7 +12,7 @@ The repository contains equivalent C++ and a Lua implementations of a simple exa
 
 The Logging application implements a trivial protocol, made up of four transaction types:
 
-- ``"LOG_record"``, which writes a log at a given index. Note that the log message will be encrypted on the ledger and only readable by nodes on the network.
+- ``POST /log/private``, which writes a private log message at a given index. Note that the log message will be encrypted on the ledger and only readable by nodes on the network.
 
     Log a private message:
 
@@ -23,7 +23,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "msg": "A sample private log message"
         }
 
-- ``"LOG_get"``, which retrieves a log from a given index written by a previous ``"LOG_record"`` call.
+- ``GET /log/private``, which retrieves a private log message from a given index written by a previous ``POST /log/private`` call.
 
     Get a private message:
 
@@ -33,7 +33,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "id": 42
         }
 
-- ``"LOG_record_pub"``, which writes a log at a given index. Note that the log message will be not be encrypted and thus to anyone with access to the ledger.
+- ``POST /log/public``, which writes a public log message at a given index. Note that the log message will be not be encrypted and thus to anyone with access to the ledger.
 
     Log a public message:
 
@@ -44,7 +44,7 @@ The Logging application implements a trivial protocol, made up of four transacti
             "msg": "A sample public log message"
         }
 
-- ``"LOG_get_pub"``, which retrieves a public log from a given index written by a previous ``"LOG_record_pub"`` call.
+- ``GET /log/public``, which retrieves a public public log from a given index written by a previous ``POST /log/public`` call.
 
     Get a public message:
 

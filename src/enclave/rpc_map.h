@@ -12,23 +12,36 @@ namespace enclave
   private:
     std::unordered_map<ccf::ActorsType, std::shared_ptr<RpcHandler>> map;
     std::map<std::string, ccf::ActorsType> actors_map;
+    std::map<ccf::ActorsType, std::string> preferred_names;
 
   public:
     RPCMap() = default;
 
     template <ccf::ActorsType T>
     void register_frontend(
-      std::string name, std::shared_ptr<RpcHandler> handler_)
+      const std::vector<std::string>& redirect_names,
+      std::shared_ptr<RpcHandler> handler_)
     {
+      const auto name = get_actor_prefix(T);
       actors_map.emplace(name, T);
+      preferred_names.emplace(T, name);
+      for (const auto& redirect_name : redirect_names)
+      {
+        actors_map.emplace(redirect_name, T);
+      }
       map.emplace(T, handler_);
     }
 
-    ccf::ActorsType resolve(const std::string& name)
+    ccf::ActorsType resolve(
+      const std::string& name, std::string& preferred_name)
     {
       auto search = actors_map.find(name);
       if (search == actors_map.end())
         return ccf::ActorsType::unknown;
+
+      auto reverse_it = preferred_names.find(search->second);
+      if (reverse_it != preferred_names.end())
+        preferred_name = reverse_it->second;
 
       return search->second;
     }
@@ -47,7 +60,4 @@ namespace enclave
       return map;
     }
   };
-
-#define REGISTER_FRONTEND(rpc_map, name, fe) \
-  rpc_map->register_frontend<ccf::ActorsType::name>(#name, fe)
 }

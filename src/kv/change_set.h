@@ -10,15 +10,7 @@
 namespace kv
 {
   template <typename V>
-  struct VersionV
-  {
-    Version version;
-    V value;
-
-    VersionV() = default;
-    VersionV(Version ver, V val) : version(ver), value(val) {}
-  };
-
+  using VersionV = champ::VersionV<V>;
   template <typename K, typename V, typename H>
   using State = champ::Map<K, VersionV<V>, H>;
 

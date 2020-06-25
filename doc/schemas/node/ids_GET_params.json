@@ -1,13 +1,17 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "msg": {
+    "host": {
+      "type": "string"
+    },
+    "port": {
       "type": "string"
     }
   },
   "required": [
-    "msg"
+    "host",
+    "port"
   ],
-  "title": "LOG_get_pub/result",
+  "title": "node/ids/params",
   "type": "object"
 }
