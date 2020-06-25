@@ -447,9 +447,7 @@ namespace ccf
         auto& path_object = document.paths[full_path];
         for (const auto& [verb, handler] : verb_handlers)
         {
-          path_object.operations[verb]
-            .responses[HTTP_STATUS_OK]
-            .description = "Auto-generated";
+          path_object[verb][HTTP_STATUS_OK].description = "Auto-generated";
         }
       }
     }

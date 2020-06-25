@@ -46,95 +46,31 @@ namespace ds
     DECLARE_JSON_TYPE(Response);
     DECLARE_JSON_REQUIRED_FIELDS(Response, description);
 
-    inline void to_json(nlohmann::json& j, const http_status& status)
-    {
-      j = std::to_string(status);
-    }
-
-    inline void from_json(const nlohmann::json& j, http_status& status)
-    {
-      const auto s = j.get<std::string>();
-
-#define XX(num, name, string) \
-  if (s == #num) \
-  { \
-    status = HTTP_STATUS_##name; \
-  } \
-  else
-
-      HTTP_STATUS_MAP(XX)
-      // else
-      {
-        throw std::runtime_error(
-          fmt::format("Unrecognsied key in OpenAPI Responses Object: {}", s));
-      }
-#undef XX
-    }
-
-    inline void fill_enum_schema(nlohmann::json& j, const http_status&)
-    {
-      auto enums = nlohmann::json::array();
-
-#define XX(num, name, string) enums.push_back(std::to_string(num));
-      HTTP_STATUS_MAP(XX);
-#undef XX
-
-      j["enum"] = enums;
-    }
-
     struct Operation
     {
-      std::map<http_status, Response> responses;
+      std::map<std::string, Response> responses;
+
+      Response& operator[](http_status status)
+      {
+        // HTTP_STATUS_OK (aka an int with value 200) becomes the string "200"
+        const auto s = std::to_string(status);
+        return responses[s];
+      }
     };
     DECLARE_JSON_TYPE(Operation);
     DECLARE_JSON_REQUIRED_FIELDS(Operation, responses);
 
-    inline void to_json(nlohmann::json& j, const http_method& verb)
-    {
-      std::string verb_s = http_method_str(verb);
-      nonstd::to_lower(verb_s);
-      j = verb_s;
-    }
-
-    inline void from_json(const nlohmann::json& j, http_method& verb)
-    {
-      const auto s = j.get<std::string>();
-      if (s == "get")
-      {
-        verb = HTTP_GET;
-      }
-      else if (s == "put")
-      {
-        verb = HTTP_PUT;
-      }
-      else if (s == "post")
-      {
-        verb = HTTP_POST;
-      }
-      else if (s == "delete")
-      {
-        verb = HTTP_DELETE;
-      }
-      else
-      {
-        throw std::runtime_error(
-          fmt::format("Unexpected key in OpenAPI Path Item: {}", s));
-      }
-    }
-
-    inline void fill_enum_schema(nlohmann::json& j, const http_method&)
-    {
-      auto enums = nlohmann::json::array();
-      enums.push_back("get");
-      enums.push_back("put");
-      enums.push_back("post");
-      enums.push_back("delete");
-      j["enum"] = enums;
-    }
-
     struct PathItem
     {
-      std::map<http_method, Operation> operations;
+      std::map<std::string, Operation> operations;
+
+      Operation& operator[](http_method verb)
+      {
+        // HTTP_GET becomes the string "get"
+        std::string s = http_method_str(verb);
+        nonstd::to_lower(s);
+        return operations[s];
+      }
     };
     DECLARE_JSON_TYPE(PathItem);
     DECLARE_JSON_REQUIRED_FIELDS(PathItem, operations);

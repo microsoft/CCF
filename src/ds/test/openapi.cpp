@@ -27,10 +27,8 @@ TEST_CASE("Basic doc")
   }
 
   {
-    doc.paths["/users/foo"]
-      .operations[HTTP_GET]
-      .responses[HTTP_STATUS_OK]
-      .description = "Indicates that everything went ok";
+    doc.paths["/users/foo"][HTTP_GET][HTTP_STATUS_OK].description =
+      "Indicates that everything went ok";
   }
   print_doc("PATHS", doc);
 }
