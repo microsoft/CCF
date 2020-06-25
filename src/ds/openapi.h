@@ -39,12 +39,29 @@ namespace ds
     DECLARE_JSON_TYPE(Server);
     DECLARE_JSON_REQUIRED_FIELDS(Server, url);
 
+    struct MediaType
+    {
+      // May be a full in-place schema, but is generally a string containing a
+      // reference to a schema stored elsewhere
+      nlohmann::json schema;
+
+      bool operator==(const MediaType& rhs) const
+      {
+        return schema == rhs.schema;
+      }
+    };
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MediaType);
+    DECLARE_JSON_REQUIRED_FIELDS(MediaType);
+    DECLARE_JSON_OPTIONAL_FIELDS(MediaType, schema);
+
     struct Response
     {
       std::string description;
+      std::map<std::string, MediaType> content;
     };
-    DECLARE_JSON_TYPE(Response);
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Response);
     DECLARE_JSON_REQUIRED_FIELDS(Response, description);
+    DECLARE_JSON_OPTIONAL_FIELDS(Response, content);
 
     struct Operation
     {
@@ -77,15 +94,62 @@ namespace ds
 
     using Paths = std::map<std::string, PathItem>;
 
+    struct Components
+    {
+      std::map<std::string, nlohmann::json> schemas;
+
+      bool operator!=(const Components& rhs) const
+      {
+        return schemas != rhs.schemas;
+      }
+    };
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Components);
+    DECLARE_JSON_REQUIRED_FIELDS(Components);
+    DECLARE_JSON_OPTIONAL_FIELDS(Components, schemas);
+
     struct Document
     {
       std::string openapi = "3.0.0";
       Info info;
       std::vector<Server> servers;
       Paths paths;
+      Components components;
+
+      void add_response_schema(
+        const std::string& uri,
+        http_method verb,
+        http_status status,
+        const std::string& content_type,
+        const nlohmann::json& schema,
+        const std::string& components_schema_name)
+      {
+        const auto schema_it = components.schemas.find(components_schema_name);
+        if (schema_it != components.schemas.end())
+        {
+          // Check that the existing schema matches the new one being added with
+          // the same name
+          const auto& existing_schema = schema_it->second;
+          if (schema != existing_schema)
+          {
+            throw std::logic_error(fmt::format(
+              "Adding schema with name '{}'. Does not match previous schema "
+              "registered with this name: {} vs {}",
+              components_schema_name,
+              schema.dump(),
+              existing_schema.dump()));
+          }
+        }
+        else
+        {
+          components.schemas.emplace(components_schema_name, schema);
+        }
+
+        paths[uri][verb][status].content[content_type].schema =
+          fmt::format("#/components/schemas/{}", components_schema_name);
+      }
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Document);
     DECLARE_JSON_REQUIRED_FIELDS(Document, openapi, info, paths);
-    DECLARE_JSON_OPTIONAL_FIELDS(Document, servers);
+    DECLARE_JSON_OPTIONAL_FIELDS(Document, servers, components);
   }
 }
