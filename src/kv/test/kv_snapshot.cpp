@@ -35,9 +35,13 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+
+    kv::Tx tx3;
+    auto view_3 = tx1.get_view(map);
+    view_3->put("baz", "baz");
+    // Do not commit tx3
   }
 
-  // now we serialize the KV that is in the mid point of the known versions
   auto s_1 = kv_store.snapshot(1);
   auto s_2 = kv_store.snapshot(2);
 
@@ -70,6 +74,8 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 
     v = view->get("bar");
     REQUIRE(!v.has_value());
+    v = view->get("baz");
+    REQUIRE(!v.has_value());
   }
 
   INFO("Apply snapshot at 2 to new store");
@@ -90,5 +96,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     v = view->get("bar");
     REQUIRE(v.has_value());
     REQUIRE(v.value() == "bar");
+    v = view->get("baz");
+    REQUIRE(!v.has_value());
   }
 }
