@@ -11,7 +11,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("receipt", "receipt/verify", "LOG_get")
+@reqs.supports_methods("receipt", "receipt/verify", "log/private")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     primary, _ = network.find_primary_and_any_backup()
@@ -24,15 +24,15 @@ def test(network, args, notifications_queue=None):
 
         LOG.info("Write/Read on primary")
         with primary.user_client() as c:
-            r = c.rpc("LOG_record", {"id": 42, "msg": msg})
+            r = c.rpc("log/private", {"id": 42, "msg": msg})
             check_commit(r, result=True)
-            check(c.get("LOG_get", {"id": 42}), result={"msg": msg})
+            check(c.get("log/private", {"id": 42}), result={"msg": msg})
             for _ in range(10):
                 c.rpc(
-                    "LOG_record", {"id": 43, "msg": "Additional messages"},
+                    "log/private", {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
-                c.rpc("LOG_record", {"id": 43, "msg": "A final message"}), result=True,
+                c.rpc("log/private", {"id": 43, "msg": "A final message"}), result=True,
             )
             r = c.get("receipt", {"commit": r.seqno})
             check(

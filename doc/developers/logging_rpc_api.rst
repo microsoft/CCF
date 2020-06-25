@@ -1,30 +1,30 @@
 Logging RPC API
 ===============
 
-LOG_get
--------
+GET /log/private
+----------------
 
-.. literalinclude:: ../schemas/LOG_get_GET_params.json
+.. literalinclude:: ../schemas/log/private_GET_params.json
     :language: json
-.. literalinclude:: ../schemas/LOG_get_GET_result.json
-    :language: json
-
-LOG_record
-----------
-
-.. literalinclude:: ../schemas/LOG_record_POST_params.json
+.. literalinclude:: ../schemas/log/private_GET_result.json
     :language: json
 
-LOG_get_pub
------------
+POST /log/private
+-----------------
 
-.. literalinclude:: ../schemas/LOG_get_pub_GET_params.json
-    :language: json
-.. literalinclude:: ../schemas/LOG_get_pub_GET_result.json
+.. literalinclude:: ../schemas/log/private_POST_params.json
     :language: json
 
-LOG_record_pub
---------------
+GET /log/public
+----------------
 
-.. literalinclude:: ../schemas/LOG_record_pub_POST_params.json
+.. literalinclude:: ../schemas/log/public_GET_params.json
+    :language: json
+.. literalinclude:: ../schemas/log/public_GET_result.json
+    :language: json
+
+POST /log/public
+-----------------
+
+.. literalinclude:: ../schemas/log/public_POST_params.json
     :language: json
