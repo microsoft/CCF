@@ -24,76 +24,71 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
   auto& map =
     kv_store.create<MapTypes::StringString>(map_name, security_domain);
 
-  auto try_write = [&](kv::Tx& tx, const std::string& s) {
-    auto view = tx.get_view(map);
-
-    // Produce read-dependency
-    view->get("foo");
-    view->put("foo", s);
-
-    view->put(s, s);
-  };
-
-  INFO("Simulate parallel execution by interleaving tx steps");
+  INFO("Apply transactions to original store");
   {
-    kv::Tx tx1;
-    kv::Tx tx2;
+    kv::Tx tx1, tx2;
+    auto view_1 = tx1.get_view(map);
+    auto view_2 = tx2.get_view(map);
 
-    // First transaction tries to write a value, depending on initial version
-    try_write(tx1, "bar");
+    view_1->put("foo", "foo");
+    view_2->put("bar", "bar");
 
-    {
-      // A second transaction is committed, conflicting with the first
-      try_write(tx2, "baz");
-      const auto res2 = tx2.commit();
-      REQUIRE(res2 == kv::CommitSuccess::OK);
-    }
-
-    // Trying to commit first transaction produces a conflict
-    auto res1 = tx1.commit();
-    REQUIRE(res1 == kv::CommitSuccess::CONFLICT);
-
-    // First transaction is rerun with same object, producing different result
-    try_write(tx1, "buzz");
-
-    // Expected results are committed
-    res1 = tx1.commit();
-    REQUIRE(res1 == kv::CommitSuccess::OK);
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
   }
 
   // now we serialize the KV that is in the mid point of the known versions
-  std::unique_ptr<kv::AbstractStore::Snapshot> s = kv_store.snapshot(1);
+  auto s_1 = kv_store.snapshot(1);
+  auto s_2 = kv_store.snapshot(2);
 
   INFO("Verify content of snapshot");
   {
-    auto& vec_s = s->get_snapshots();
+    auto& vec_s = s_1->get_snapshots();
     for (auto& s : vec_s)
     {
       REQUIRE_EQ(s->get_name(), map_name);
       REQUIRE_EQ(s->get_security_domain(), security_domain);
       REQUIRE_EQ(s->get_is_replicated(), true);
-      REQUIRE_GT(s->get_buffer().size(), 0);
+      REQUIRE_GT(s->get_serialized_size(), 0);
     }
   }
 
-  kv::Store new_store;
-  auto& new_map =
-    new_store.create<MapTypes::StringString>(map_name, security_domain);
-
-  INFO("Apply snapshot to new store");
+  INFO("Apply snapshot at 1 to new store");
   {
-    new_store.deserialize(s);
+    kv::Store new_store;
+    auto& new_map =
+      new_store.create<MapTypes::StringString>(map_name, security_domain);
+    new_store.deserialize(s_1);
     REQUIRE_EQ(new_store.current_version(), 1);
 
     kv::Tx tx1;
     auto view = tx1.get_view(new_map);
 
-    auto v = view->get("baz");
+    auto v = view->get("foo");
     REQUIRE(v.has_value());
-    REQUIRE(v.value() == "baz");
+    REQUIRE(v.value() == "foo");
 
-    v = view->get("buzz");
+    v = view->get("bar");
+    REQUIRE(!v.has_value());
+  }
+
+  INFO("Apply snapshot at 2 to new store");
+  {
+    kv::Store new_store;
+    auto& new_map =
+      new_store.create<MapTypes::StringString>(map_name, security_domain);
+    new_store.deserialize(s_2);
+    REQUIRE_EQ(new_store.current_version(), 2);
+
+    kv::Tx tx1;
+    auto view = tx1.get_view(new_map);
+
+    auto v = view->get("foo");
     REQUIRE(v.has_value());
-    REQUIRE(v.value() == "buzz");
+    REQUIRE(v.value() == "foo");
+
+    v = view->get("bar");
+    REQUIRE(v.has_value());
+    REQUIRE(v.value() == "bar");
   }
 }

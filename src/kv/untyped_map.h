@@ -643,8 +643,8 @@ namespace kv::untyped
         Snapshot<SerialisedEntry, kv::untyped::VersionV, SerialisedKeyHasher>
           snapshot(r->state);
 
-      return std::move(std::make_unique<Snapshot>(
-        name, security_domain, replicated, r->version, std::move(snapshot)));
+      return std::make_unique<Snapshot>(
+        name, security_domain, replicated, r->version, std::move(snapshot));
     }
 
     void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
