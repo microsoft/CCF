@@ -448,7 +448,7 @@ namespace ccf
         for (const auto& [verb, handler] : verb_handlers)
         {
           path_object.operations[verb]
-            .responses[std::to_string(HTTP_STATUS_OK)]
+            .responses[HTTP_STATUS_OK]
             .description = "Auto-generated";
         }
       }

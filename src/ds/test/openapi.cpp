@@ -29,7 +29,7 @@ TEST_CASE("Basic doc")
   {
     doc.paths["/users/foo"]
       .operations[HTTP_GET]
-      .responses[std::to_string(HTTP_STATUS_OK)]
+      .responses[HTTP_STATUS_OK]
       .description = "Indicates that everything went ok";
   }
   print_doc("PATHS", doc);
