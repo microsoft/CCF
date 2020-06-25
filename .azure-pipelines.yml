@@ -33,9 +33,9 @@ resources:
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/ -v /lib/modules:/lib/modules:ro
 
 variables:
-  ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/v') }}:
+  ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
     perf_or_release: release
-  ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/v')) }}:
+  ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
     perf_or_release: perf
 
 jobs:
