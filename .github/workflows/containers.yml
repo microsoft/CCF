@@ -12,10 +12,10 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Build App CI container
-        run: docker build -f docker/app_ci . --build-arg="extra_vars=--extra-vars ccf_ver=$GITHUB_REF"
+        run: docker build -f docker/app_ci . --build-arg="extra_vars=--extra-vars ccf_ver=$GITHUB_REF" -t ccfciteam/ccf-app-ci:$GITHUB_REF
         
       - name: Build App Run container
-        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=$GITHUB_REF"
+        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=$GITHUB_REF" -t ccfciteam/ccf-app-run:$GITHUB_REF
 
       - name: Log in
         run: docker login -u amchamay -p ${{ secrets.DOCKER_HUB_TOKEN }}
