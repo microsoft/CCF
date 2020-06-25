@@ -50,7 +50,7 @@ jobs:
       cmake_args: '${{ parameters.build.install.cmake_args }} ${{ parameters.build.SGX.cmake_args }} -DTLS_TEST=ON -DSHUFFLE_SUITE=ON'
       suffix: 'Release'
       artifact_name: 'SGX_Release'
-      ctest_filter: '--repeat-until-fail 10 -R election_test_raft'
+      ctest_filter: '-LE "benchmark|perf"'
       ctest_timeout: '240'
       install_prefix: '${{ parameters.build.install.install_prefix }}'
       tls_report: true
