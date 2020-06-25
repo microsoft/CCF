@@ -5,7 +5,7 @@ Every transaction executed by the primary on its key-value store is serialised b
 
 Transactions on private :cpp:class:`kv::Map` are encrypted before being serialised while transactions on public :cpp:class:`kv::Map` are only integrity-protected and readable by anyone with access to the ledger.
 
-.. note:: Transactions are serialised using MessagePack_ and to which is prepended a header for integrity protection.
+.. note:: Transactions are serialised to MessagePack_ with a prepended header for integrity protection.
 
 Serialised Format
 -----------------
@@ -57,3 +57,5 @@ The following table describes the structure of a serialised KV Store transaction
 | | Private| **Optional**                                                                                                       |
 | | Domain | | Encrypted serialised private domain blob.                                                                        |
 +----------+--------------------------------------------------------------------------------------------------------------------+
+
+.. _MessagePack: https://msgpack.org/

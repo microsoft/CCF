@@ -341,7 +341,7 @@ struct CustomVerboseDumbSerialiser
 
 using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
 
-// SNIPPET_END: CustomSerialisedMap definition
+// SNIPPET_START: CustomSerialisedMap definition
 using CustomSerialisedMap =
   kv::TypedMap<CustomClass, CustomClass, CustomSerialiser, CustomSerialiser>;
 // SNIPPET_END: CustomSerialisedMap definition
