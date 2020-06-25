@@ -3,7 +3,7 @@ trigger:
   branches:
     include:
       - master
-      - 'refs/tags/v*'
+      - 'refs/tags/ccf-*'
 
 pr:
   autoCancel: true
