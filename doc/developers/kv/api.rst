@@ -21,20 +21,27 @@ Map
 .. doxygenvariable:: kv::NoVersion
    :project: CCF
 
-.. doxygenclass:: kv::Map
+.. doxygenclass:: kv::TypedMap
    :project: CCF
    :members: get_name, set_global_hook
+
+.. doxygenclass:: kv::Map
+   :project: CCF
 
 Transaction
 -----------
 
+.. doxygenclass:: kv::ReadOnlyTx
+   :project: CCF
+   :members: get_read_only_view
+
 .. doxygenclass:: kv::Tx
    :project: CCF
-   :members: get_view,
+   :members: get_view
 
 Transaction View
 ----------------
 
-.. doxygenclass:: kv::Map::TxView
+.. doxygenclass:: kv::TxView
    :project: CCF
    :members: get, put, remove, foreach
