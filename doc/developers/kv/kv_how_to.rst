@@ -139,32 +139,6 @@ The :cpp:class:`kv::Map::TxView::get_globally_committed` member function returns
 Miscellaneous
 -------------
 
-Custom key and value types
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-User-defined types can be used for both the key and value types of a :cpp:class:`kv::Map`. It must be possible to user the key type as the key of an ``std::map`` (so it must be copyable, assignable, and less-comparable), and both types must be serialisable. By default, when using a :cpp:class:`kv::Map`, serialisation converts to `MessagePack`_ using `msgpack-c`_. To add support to your custom types, it should usually be possible to use the ``MSGPACK_DEFINE`` macro:
-
-.. literalinclude:: ../../../src/kv/test/kv_serialisation.cpp
-    :language: cpp
-    :start-after: SNIPPET_START: CustomClass definition
-    :end-before: SNIPPET_END: CustomClass definition
-
-Custom serialisers can also be defined. The serialiser itself must be a type implementing ``to_serialised`` and ``from_serialised`` functions for the target type:
-
-.. literalinclude:: ../../../src/kv/test/kv_serialisation.cpp
-    :language: cpp
-    :start-after: SNIPPET_START: CustomSerialiser definition
-    :end-before: SNIPPET_END: CustomSerialiser definition
-
-To use these serialised for a specific map declare the map as a :cpp:class:`kv::TypedMap`, adding the appropriate serialiser types for the key and value types:
-
-.. literalinclude:: ../../../src/kv/test/kv_serialisation.cpp
-    :language: cpp
-    :start-after: SNIPPET_START: CustomSerialisedMap definition
-    :end-before: SNIPPET_END: CustomSerialisedMap definition
-
-.. note:: Any external tools which wish to parse the ledger will need to know the serialisation format of the tables they care about. It is recommended, though not enforced, that you size-prefix each entry so it can be skipped by tools which do not understand the serialised format.
-
 ``foreach()``
 ~~~~~~~~~~~~~
 
@@ -210,5 +184,3 @@ By default CCF decides which transactions are successful (so should be applied t
      // Apply this, even though it has an error response
     args.rpc_ctx->set_apply_writes(true);
 
-.. _MessagePack: https://msgpack.org/
-.. _msgpack-c: https://github.com/msgpack/msgpack-c
