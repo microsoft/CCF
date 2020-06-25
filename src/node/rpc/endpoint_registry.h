@@ -4,7 +4,7 @@
 
 #include "ds/ccf_deprecated.h"
 #include "ds/json_schema.h"
-#include "ds/openapi_schema.h"
+#include "ds/openapi.h"
 #include "enclave/rpc_context.h"
 #include "http/http_consts.h"
 #include "kv/store.h"
