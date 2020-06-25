@@ -220,14 +220,56 @@ TEST_CASE(
   }
 }
 
+// SNIPPET_START: CustomClass definition
 struct CustomClass
 {
   std::string s;
   size_t n;
 
-  // This macro allows the default serialiser to be used
+  // This macro allows the default msgpack serialiser to be used
   MSGPACK_DEFINE(s, n);
 };
+// SNIPPET_END: CustomClass definition
+
+// SNIPPET_START: CustomSerialiser definition
+struct CustomSerialiser
+{
+  /**
+   * Format:
+   * [ 8 bytes=n | 8 bytes=size_of_s | size_of_s bytes=s... ]
+   */
+
+  static constexpr auto size_of_n = 8;
+  static constexpr auto size_of_size_of_s = 8;
+  static kv::serialisers::SerialisedEntry to_serialised(const CustomClass& cc)
+  {
+    const auto s_size = cc.s.size();
+    const auto total_size = size_of_n + size_of_size_of_s + s_size;
+    kv::serialisers::SerialisedEntry serialised(total_size);
+    uint8_t* data = serialised.data();
+    memcpy(data, (const uint8_t*)&cc.n, size_of_n);
+    data += size_of_n;
+    memcpy(data, (const uint8_t*)&s_size, size_of_size_of_s);
+    data += size_of_size_of_s;
+    memcpy(data, (const uint8_t*)cc.s.data(), s_size);
+    return serialised;
+  }
+
+  static CustomClass from_serialised(
+    const kv::serialisers::SerialisedEntry& ser)
+  {
+    CustomClass cc;
+    const uint8_t* data = ser.data();
+    cc.n = *(const uint64_t*)data;
+    data += size_of_n;
+    const auto s_size = *(const uint64_t*)data;
+    data += size_of_size_of_s;
+    cc.s.resize(s_size);
+    std::memcpy(cc.s.data(), data, s_size);
+    return cc;
+  }
+};
+// SNIPPET_END: CustomSerialiser definition
 
 struct CustomJsonSerialiser
 {
@@ -298,6 +340,12 @@ struct CustomVerboseDumbSerialiser
 };
 
 using DefaultSerialisedMap = kv::Map<CustomClass, CustomClass>;
+
+// SNIPPET_END: CustomSerialisedMap definition
+using CustomSerialisedMap =
+  kv::TypedMap<CustomClass, CustomClass, CustomSerialiser, CustomSerialiser>;
+// SNIPPET_END: CustomSerialisedMap definition
+
 using CustomJsonMap = kv::TypedMap<
   CustomClass,
   CustomClass,
@@ -313,6 +361,7 @@ TEST_CASE_TEMPLATE(
   "Custom type serialisation test" * doctest::test_suite("serialisation"),
   MapType,
   DefaultSerialisedMap,
+  CustomSerialisedMap,
   CustomJsonMap,
   VerboseSerialisedMap)
 {

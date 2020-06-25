@@ -57,5 +57,3 @@ The following table describes the structure of a serialised KV Store transaction
 | | Private| **Optional**                                                                                                       |
 | | Domain | | Encrypted serialised private domain blob.                                                                        |
 +----------+--------------------------------------------------------------------------------------------------------------------+
-
-.. _MessagePack: https://github.com/msgpack/msgpack-c
