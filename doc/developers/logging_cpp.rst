@@ -67,9 +67,9 @@ Each function is installed as the handler for a specific HTTP resource, defined 
     :end-before: SNIPPET_END: install_record
     :dedent: 6
 
-This example installs at ``"LOG_record", HTTP_POST``, so will be invoked for requests beginning ``POST /app/LOG_record``.
+This example installs at ``"log/private", HTTP_POST``, so will be invoked for HTTP requests beginning ``POST /users/log/private``.
 
-The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for ``LOG_record`` shown above sets a `schema` for the handler, declaring the types of its request and response bodies. These will be used in calls to the ``/api/schema`` endpoint to generate JSON documents describing the API. Since this is the only handler installed for ``"LOG_record"`` only HTTP ``POST``s will be accepted for this URI - the framework will return a ``405 Method Not Allowed`` for requests with any other verb.
+The return value from ``make_endpoint`` is an ``Endpoint&`` object which can be used to alter how the handler is executed. For example, the handler for ``/log/private`` shown above sets a `schema` declaring the types of its request and response bodies. These will be used in calls to the ``/api/schema`` endpoint to generate JSON documents describing the API. There are other endpoints installed for the URI path ``/log/private`` with different verbs, to handle ``GET`` and ``DELETE`` requests. Any other verbs, without an installed endpoint, will not be accepted - the framework will return a ``405 Method Not Allowed`` response.
 
 To process the raw body directly, a handler should use the general lambda signature which takes a single ``EndpointContext&`` parameter. Examples of this are also included in the logging sample app. For instance the ``log_record_text`` handler takes a raw string as the request body:
 
@@ -99,7 +99,7 @@ If a handler makes no writes to the KV, it may be installed as read-only:
     :end-before: SNIPPET_END: install_get
     :dedent: 6
 
-This offers some additional type safety (accidental `put`s or `remove`s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
+This offers some additional type safety (accidental `put`\s or `remove`\s will be caught at compile-time) and also enables performance scaling since read-only operations can be executed on any receiving node, whereas writes must always be executed on the primary node.
 
 API Schema
 ~~~~~~~~~~
