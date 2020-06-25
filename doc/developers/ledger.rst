@@ -71,7 +71,7 @@ The following diagram describes how deltas committed by the leader are written t
 Reading and Verifing Ledger
 ---------------------------
 
-A Python implementation for parsing the ledger can be found in `ledger.py <https://github.com/microsoft/CCF/blob/master/tests/ledger.py>`_.
+A Python implementation for parsing the ledger can be found in `ledger.py <https://github.com/microsoft/CCF/blob/master/tests/infra/ledger.py>`_.
 
 The ``Ledger`` class is constructed using the path of the ledger. It then exposes an iterator for transaction data structures, where each transaction is composed of the following:
 
