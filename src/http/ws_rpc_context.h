@@ -31,6 +31,8 @@ namespace ws
   private:
     size_t request_index;
 
+    ccf::RESTVerb verb = ws::Verb::WEBSOCKET;
+
     std::string path = {};
     std::string method = {};
 
@@ -85,10 +87,9 @@ namespace ws
       return query;
     }
 
-    virtual size_t get_request_verb() const override
+    virtual const ccf::RESTVerb& get_request_verb() const override
     {
-      // Expedient for now
-      return http_method::HTTP_POST;
+      return verb;
     }
 
     virtual const std::vector<uint8_t>& get_serialised_request() override
