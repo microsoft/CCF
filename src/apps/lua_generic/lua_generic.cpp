@@ -124,9 +124,7 @@ namespace ccfapp
         if (!handler_script)
         {
           const auto verb_prefixed = fmt::format(
-            "{} {}",
-            http_method_str((http_method)args.rpc_ctx->get_request_verb()),
-            local_method);
+            "{} {}", args.rpc_ctx->get_request_verb().c_str(), local_method);
           handler_script = scripts->get(verb_prefixed);
           if (!handler_script)
           {

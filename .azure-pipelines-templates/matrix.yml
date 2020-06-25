@@ -70,10 +70,6 @@ jobs:
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
-    - template: release_checks.yml
-      parameters:
-        env: ${{ parameters.env.Hosted }}
-
     - template: common.yml
       parameters:
         target: SGX
@@ -83,7 +79,6 @@ jobs:
         artifact_name: 'SGX_Release'
         install_prefix: '${{ parameters.build.install.install_prefix }}'
         ctest_timeout: '240'
-        depends_on: 'Release_Checks'
 
     - template: release.yml
       parameters:
