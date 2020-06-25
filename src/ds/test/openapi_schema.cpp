@@ -16,10 +16,8 @@ TEST_CASE("Basic doc")
   using namespace ds;
   openapi::Document doc;
   doc.info.title = "Test generated API";
-  doc.info.description = "Some longer description enhance with **Markdown**";
+  doc.info.description = "Some longer description enhanced with **Markdown**";
   doc.info.version = "0.1.42";
-
-  print_doc("INITIAL", doc);
 
   {
     openapi::Server mockup_server;
@@ -27,7 +25,6 @@ TEST_CASE("Basic doc")
       "https://virtserver.swaggerhub.com/eddyashton/ccf-test/1.0.0";
     doc.servers.push_back(mockup_server);
   }
-  print_doc("SERVERS", doc);
 
   {
     doc.paths["/users/foo"]

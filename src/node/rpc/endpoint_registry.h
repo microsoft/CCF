@@ -4,6 +4,7 @@
 
 #include "ds/ccf_deprecated.h"
 #include "ds/json_schema.h"
+#include "ds/openapi_schema.h"
 #include "enclave/rpc_context.h"
 #include "http/http_consts.h"
 #include "kv/store.h"
@@ -67,6 +68,8 @@ namespace ccf
       Read,
       Write
     };
+
+    const std::string method_prefix;
 
     /** An Endpoint represents a user-defined resource that can be invoked by
      * authorised users via HTTP requests, over TLS. An Endpoint is accessible
@@ -305,7 +308,10 @@ namespace ccf
 
   public:
     EndpointRegistry(
-      kv::Store& tables, const std::string& certs_table_name = "")
+      const std::string& method_prefix_,
+      kv::Store& tables,
+      const std::string& certs_table_name = "") :
+      method_prefix(method_prefix_)
     {
       if (!certs_table_name.empty())
       {
@@ -432,17 +438,19 @@ namespace ccf
       return default_handler.value();
     }
 
-    /** Populate out with all supported methods
-     *
-     * This is virtual since the default endpoint may do its own dispatch
-     * internally, so derived implementations must be able to populate the list
-     * with the supported methods however it constructs them.
-     */
-    virtual void list_methods(kv::Tx& tx, ListMethods::Out& out)
+    // TODO: May want the entire rpc context, not just tx?
+    virtual void build_api(ds::openapi::Document& document, kv::Tx& tx)
     {
       for (const auto& [method, verb_handlers] : installed_handlers)
       {
-        out.methods.push_back(method);
+        const auto full_path = fmt::format("/{}/{}", method_prefix, method);
+        auto& path_object = document.paths[full_path];
+        for (const auto& [verb, handler] : verb_handlers)
+        {
+          path_object.operations[verb]
+            .responses[std::to_string(HTTP_STATUS_OK)]
+            .description = "Auto-generated";
+        }
       }
     }
 

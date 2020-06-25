@@ -117,12 +117,10 @@ namespace ccf
     using Out = CallerInfo;
   };
 
-  struct ListMethods
+  struct GetAPI
   {
-    struct Out
-    {
-      std::vector<std::string> methods;
-    };
+    // TODO: This is a ds::openapi::Document?
+    using Out = nlohmann::json;
   };
 
   struct GetSchema

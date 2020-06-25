@@ -138,7 +138,8 @@ namespace ccf
 
   public:
     NodeEndpoints(NetworkState& network, AbstractNodeState& node) :
-      CommonEndpointRegistry(*network.tables),
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::nodes), *network.tables),
       network(network),
       node(node)
     {}

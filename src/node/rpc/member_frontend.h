@@ -549,7 +549,10 @@ namespace ccf
       NetworkTables& network,
       AbstractNodeState& node,
       ShareManager& share_manager) :
-      CommonEndpointRegistry(*network.tables, Tables::MEMBER_CERTS),
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::members),
+        *network.tables,
+        Tables::MEMBER_CERTS),
       network(network),
       node(node),
       share_manager(share_manager),

@@ -189,18 +189,19 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void list_methods(kv::Tx& tx, ListMethods::Out& out) override
+    void build_api(ds::openapi::Document& document, kv::Tx& tx) override
     {
-      UserEndpointRegistry::list_methods(tx, out);
+      UserEndpointRegistry::build_api(document, tx);
 
-      auto scripts = tx.get_view(this->network.app_scripts);
-      scripts->foreach([&out](const auto& key, const auto&) {
-        if (key != UserScriptIds::ENV_HANDLER)
-        {
-          out.methods.push_back(key);
-        }
-        return true;
-      });
+      // TODO
+      // auto scripts = tx.get_view(this->network.app_scripts);
+      // scripts->foreach([&out](const auto& key, const auto&) {
+      //   if (key != UserScriptIds::ENV_HANDLER)
+      //   {
+      //     out.methods.push_back(key);
+      //   }
+      //   return true;
+      // });
     }
   };
 

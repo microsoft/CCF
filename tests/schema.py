@@ -33,6 +33,7 @@ def run(args):
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
+        LOG.warning(list_response)
         methods = list_response.result["methods"]
 
         for method in methods:

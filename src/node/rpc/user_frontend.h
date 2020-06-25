@@ -81,11 +81,12 @@ namespace ccf
   {
   public:
     UserEndpointRegistry(kv::Store& store) :
-      CommonEndpointRegistry(store, Tables::USER_CERTS)
+      CommonEndpointRegistry(
+        get_actor_prefix(ActorsType::users), store, Tables::USER_CERTS)
     {}
 
     UserEndpointRegistry(NetworkTables& network) :
-      CommonEndpointRegistry(*network.tables, Tables::USER_CERTS)
+      UserEndpointRegistry(*network.tables)
     {}
   };
 

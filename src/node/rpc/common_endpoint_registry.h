@@ -24,8 +24,10 @@ namespace ccf
 
   public:
     CommonEndpointRegistry(
-      kv::Store& store, const std::string& certs_table_name = "") :
-      EndpointRegistry(store, certs_table_name),
+      const std::string& method_prefix_,
+      kv::Store& store,
+      const std::string& certs_table_name = "") :
+      EndpointRegistry(method_prefix_, store, certs_table_name),
       nodes(store.get<Nodes>(Tables::NODES)),
       tables(&store)
     {}
@@ -219,17 +221,13 @@ namespace ccf
         .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
         .install();
 
-      auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
-        ListMethods::Out out;
-
-        list_methods(tx, out);
-
-        std::sort(out.methods.begin(), out.methods.end());
-
-        return make_success(out);
+      auto openapi = [this](kv::Tx& tx, nlohmann::json&& params) {
+        ds::openapi::Document document;
+        build_api(document, tx);
+        return make_success(document);
       };
-      make_endpoint("api", HTTP_GET, json_adapter(list_methods_fn))
-        .set_auto_schema<void, ListMethods::Out>()
+      make_endpoint("api", HTTP_GET, json_adapter(openapi))
+        .set_auto_schema<void, GetAPI::Out>()
         .install();
 
       auto get_schema = [this](auto& args, nlohmann::json&& params) {

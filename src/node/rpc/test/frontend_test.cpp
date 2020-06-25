@@ -224,7 +224,7 @@ class TestNoCertsFrontend : public RpcFrontend
 public:
   TestNoCertsFrontend(kv::Store& tables) :
     RpcFrontend(tables, endpoints),
-    endpoints(tables)
+    endpoints("test", tables)
   {
     open();
 
