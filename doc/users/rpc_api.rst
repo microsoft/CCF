@@ -7,7 +7,7 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/users/api --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    $ curl https://<ccf-node-address>/app/api --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
       "methods": [
         "api",
@@ -20,6 +20,7 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
         "metrics",
         "mkSign",
         "network_info",
+        "node/ids",
         "primary_info",
         "receipt",
         "receipt/verify",
@@ -28,7 +29,7 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
       ]
     }
 
-    $ curl https://127.78.96.224:36363/nodes/api/schema?method="tx" -X GET --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -H "Content-Type: application/json"
+    $ curl https://<ccf-node-address>/node/api/schema?method="tx" -X GET --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -H "Content-Type: application/json"
     {
       "params_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -78,41 +79,41 @@ Common Methods
 commit
 ~~~~~~
 
-.. literalinclude:: ../schemas/commit_result.json
+.. literalinclude:: ../schemas/commit_GET_result.json
     :language: json
 
 tx
 ~~
 
-.. literalinclude:: ../schemas/tx_params.json
+.. literalinclude:: ../schemas/tx_GET_params.json
     :language: json
 
-.. literalinclude:: ../schemas/tx_result.json
+.. literalinclude:: ../schemas/tx_GET_result.json
     :language: json
 
 primary_info
 ~~~~~~~~~~~~
 
-.. literalinclude:: ../schemas/primary_info_result.json
+.. literalinclude:: ../schemas/primary_info_GET_result.json
     :language: json
 
 metrics
 ~~~~~~~
 
-.. literalinclude:: ../schemas/metrics_result.json
+.. literalinclude:: ../schemas/metrics_GET_result.json
     :language: json
 
 api
 ~~~
 
-.. literalinclude:: ../schemas/api_result.json
+.. literalinclude:: ../schemas/api_GET_result.json
     :language: json
 
 api/schema
 ~~~~~~~~~~
 
-.. literalinclude:: ../schemas/api/schema_params.json
+.. literalinclude:: ../schemas/api/schema_GET_params.json
     :language: json
-.. literalinclude:: ../schemas/api/schema_result.json
+.. literalinclude:: ../schemas/api/schema_GET_result.json
     :language: json
 

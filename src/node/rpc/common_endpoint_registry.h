@@ -3,6 +3,8 @@
 #pragma once
 
 #include "endpoint_registry.h"
+#include "http/http_consts.h"
+#include "http/ws_consts.h"
 #include "json_handler.h"
 #include "metrics.h"
 
@@ -111,19 +113,19 @@ namespace ccf
 
       if (certs != nullptr)
       {
-        auto who = [this](auto& args, nlohmann::json&& params) {
+        auto user_id = [this](auto& args, nlohmann::json&& params) {
           if (certs == nullptr)
           {
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              "This frontend does not support 'who'");
+              "This frontend does not support 'user_id'");
           }
 
           auto caller_id = args.caller_id;
 
           if (!params.is_null())
           {
-            const WhoIs::In in = params;
+            const GetUserId::In in = params;
             auto certs_view = args.tx.get_read_only_view(*certs);
             auto caller_id_opt = certs_view->get(in.cert);
 
@@ -136,10 +138,11 @@ namespace ccf
             caller_id = caller_id_opt.value();
           }
 
-          return make_success(WhoAmI::Out{caller_id});
+          return make_success(GetUserId::Out{caller_id});
         };
-        make_read_only_endpoint("who", HTTP_GET, json_read_only_adapter(who))
-          .set_auto_schema<WhoIs::In, WhoAmI::Out>()
+        make_read_only_endpoint(
+          "user_id", HTTP_GET, json_read_only_adapter(user_id))
+          .set_auto_schema<GetUserId::In, GetUserId::Out>()
           .install();
       }
 
@@ -194,6 +197,30 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
+      auto get_nodes_by_rpc_address = [this](
+                                        auto& args, nlohmann::json&& params) {
+        const auto in = params.get<GetNodesByRPCAddress::In>();
+
+        GetNodesByRPCAddress::Out out;
+        auto nodes_view = args.tx.get_read_only_view(*nodes);
+        nodes_view->foreach([&in, &out](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.rpchost == in.host && ni.rpcport == in.port)
+          {
+            if (ni.status != ccf::NodeStatus::RETIRED || in.retired)
+            {
+              out.nodes.push_back({nid, ni.status});
+            }
+          }
+          return true;
+        });
+
+        return make_success(out);
+      };
+      make_read_only_endpoint(
+        "node/ids", HTTP_GET, json_read_only_adapter(get_nodes_by_rpc_address))
+        .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
+        .install();
+
       auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
         ListMethods::Out out;
 
@@ -222,7 +249,7 @@ namespace ccf
 
         for (auto& [verb, endpoint] : it->second)
         {
-          std::string verb_name = http_method_str(verb);
+          std::string verb_name = verb.c_str();
           std::transform(
             verb_name.begin(),
             verb_name.end(),

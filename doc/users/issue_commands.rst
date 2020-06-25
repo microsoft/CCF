@@ -15,7 +15,7 @@ For example, to record a message at a specific id with the :ref:`developers/exam
       "msg": "Hello There"
     }
 
-    $ curl https://<ccf-node-address>/users/LOG_record --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @request.json -H "content-type: application/json" -i
+    $ curl https://<ccf-node-address>/users/log/private --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @request.json -H "content-type: application/json" -i
     HTTP/1.1 200 OK
     content-length: 5
     content-type: application/json
@@ -54,7 +54,7 @@ To guarantee that their request is successfully committed to the ledger, a user 
 
 .. code-block:: bash
 
-    $ curl -X GET "https://<ccf-node-address>/users/tx?view=2&seqno=18" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -i
+    $ curl -X GET "https://<ccf-node-address>/app/tx?view=2&seqno=18" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -i
     HTTP/1.1 200 OK
     content-length: 23
     content-type: application/json
@@ -94,7 +94,7 @@ To obtain a receipt, a user needs to issue a ``getReceipt`` RPC for a particular
 
 .. code-block:: bash
 
-    $ curl -X GET "https://<ccf-node-address>/users/getReceipt?commit=23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    $ curl -X GET "https://<ccf-node-address>/app/getReceipt?commit=23" --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
       "receipt": [ ... ],
     }
@@ -108,7 +108,7 @@ Receipts can be verified with the ``verifyReceipt`` RPC:
       "receipt": [ ... ]
     }
 
-    $ curl https://<ccf-node-address>/users/verifyReceipt --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @verify_receipt.json
+    $ curl https://<ccf-node-address>/app/verifyReceipt --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem --data-binary @verify_receipt.json
     {
       "valid": true,
     }

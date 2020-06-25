@@ -30,6 +30,13 @@ namespace loggingapp
     };
   };
 
+  struct LoggingRemove
+  {
+    using In = LoggingGet::In;
+
+    using Out = bool;
+  };
+
   DECLARE_JSON_TYPE(LoggingRecord::In);
   DECLARE_JSON_REQUIRED_FIELDS(LoggingRecord::In, id, msg);
 
@@ -58,7 +65,7 @@ namespace loggingapp
       "id",
       "msg"
     ],
-    "title": "LOG_record_pub/params",
+    "title": "log/public/params",
     "type": "object"
   }
   )!!!";
@@ -66,7 +73,7 @@ namespace loggingapp
   static const std::string j_record_public_out = R"!!!(
   {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "LOG_record_pub/result",
+    "title": "log/public/result",
     "type": "bool"
   }
   )!!!";
@@ -82,7 +89,7 @@ namespace loggingapp
     "required": [
       "id"
     ],
-    "title": "LOG_get_pub/params",
+    "title": "log/public/params",
     "type": "object"
   }
   )!!!";
@@ -98,7 +105,7 @@ namespace loggingapp
     "required": [
       "msg"
     ],
-    "title": "LOG_get_pub/result",
+    "title": "log/public/result",
     "type": "object"
   }
   )!!!";

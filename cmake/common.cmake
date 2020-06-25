@@ -109,14 +109,8 @@ install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
 install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
 
 if("sgx" IN_LIST COMPILE_TARGETS)
-  # If OE was built with LINK_SGX=1, then we also need to link SGX
-  if(OE_SGX)
-    message(STATUS "Linking SGX")
-    set(SGX_LIBS sgx_enclave_common sgx_dcap_ql sgx_urts)
-
-    if(NOT DISABLE_QUOTE_VERIFICATION)
-      set(QUOTES_ENABLED ON)
-    endif()
+  if(NOT DISABLE_QUOTE_VERIFICATION)
+    set(QUOTES_ENABLED ON)
   endif()
 
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -204,7 +198,6 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_link_libraries(
     cchost
     PRIVATE uv
-            ${SGX_LIBS}
             ${CRYPTO_LIBRARY}
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
@@ -239,6 +232,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(
     cchost.virtual PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${OE_INCLUDEDIR}
+                           ${CCF_GENERATED_DIR}
   )
   add_san(cchost.virtual)
   enable_coverage(cchost.virtual)
@@ -328,11 +322,11 @@ add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
   LINK_LIBS_ENCLAVE quickjs.enclave -lgcc
-  LINK_LIBS_VIRTUAL quickjs.host
+  LINK_LIBS_VIRTUAL quickjs.host INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
-  ${CCF_DIR}/src/apps/sample_key.pem
+  ${CCF_DIR}/src/apps/sample_key.pem INSTALL_LIBS ON
 )
 
 # Samples

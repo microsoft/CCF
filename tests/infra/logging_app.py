@@ -9,7 +9,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("LOG_record", "LOG_record_pub", "LOG_get", "LOG_get_pub")
+@reqs.supports_methods("log/private", "log/public")
 def test_run_txs(
     network,
     args,
@@ -102,11 +102,11 @@ class LoggingTxs:
                             )
                             pub_msg = f"Public message at index {self.next_pub_index}"
                             rep_priv = uc.rpc(
-                                "LOG_record",
+                                "log/private",
                                 {"id": self.next_priv_index, "msg": priv_msg,},
                             )
                             rep_pub = uc.rpc(
-                                "LOG_record_pub",
+                                "log/public",
                                 {"id": self.next_pub_index, "msg": pub_msg,},
                             )
                             check_commit_n(rep_priv, result=True)
@@ -156,7 +156,7 @@ class LoggingTxs:
 
     def _verify_tx(self, node, idx, priv=True, timeout=5):
         txs = self.priv if priv else self.pub
-        cmd = "LOG_get" if priv else "LOG_get_pub"
+        cmd = "log/private" if priv else "log/public"
 
         end_time = time.time() + timeout
         while time.time() < end_time:

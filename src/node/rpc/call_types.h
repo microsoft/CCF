@@ -81,17 +81,33 @@ namespace ccf
     };
   };
 
+  struct GetNodesByRPCAddress
+  {
+    struct NodeInfo
+    {
+      NodeId node_id;
+      NodeStatus status;
+    };
+
+    struct In
+    {
+      std::string host;
+      std::string port;
+      bool retired = false;
+    };
+
+    struct Out
+    {
+      std::vector<NodeInfo> nodes = {};
+    };
+  };
+
   struct CallerInfo
   {
     CallerId caller_id;
   };
 
-  struct WhoAmI
-  {
-    using Out = CallerInfo;
-  };
-
-  struct WhoIs
+  struct GetUserId
   {
     struct In
     {

@@ -502,7 +502,8 @@ namespace ccf
 
       const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
 
-      http::Request r(fmt::format("/{}/{}", ccf::Actors::NODES, "join"));
+      http::Request r(fmt::format(
+        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
       r.set_body(&body);
@@ -1181,8 +1182,8 @@ namespace ccf
 
       const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
-      http::Request request(
-        fmt::format("/{}/{}", ccf::Actors::MEMBERS, "create"));
+      http::Request request(fmt::format(
+        "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::members), "create"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
 
@@ -1252,7 +1253,9 @@ namespace ccf
         throw std::logic_error("Unable to get actor for create request");
       }
 
-      const auto actor = rpc_map->resolve(actor_opt.value());
+      std::string preferred_actor_name;
+      const auto actor =
+        rpc_map->resolve(actor_opt.value(), preferred_actor_name);
       auto frontend_opt = this->rpc_map->find(actor);
       if (!frontend_opt.has_value())
       {

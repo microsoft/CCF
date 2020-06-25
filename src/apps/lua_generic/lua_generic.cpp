@@ -118,13 +118,20 @@ namespace ccfapp
         const auto scripts = args.tx.get_view(this->network.app_scripts);
 
         // try find script for method
+        // - First try a script called "foo"
+        // - If that fails, try a script called "POST foo"
         auto handler_script = scripts->get(local_method);
         if (!handler_script)
         {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            fmt::format(
-              "No handler script found for method '{}'", local_method));
+          const auto verb_prefixed = fmt::format(
+            "{} {}", args.rpc_ctx->get_request_verb().c_str(), local_method);
+          handler_script = scripts->get(verb_prefixed);
+          if (!handler_script)
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              fmt::format("No handler script found for '{}'", verb_prefixed));
+          }
         }
 
         auto response = tsr->run<nlohmann::json>(
