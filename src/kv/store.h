@@ -268,7 +268,6 @@ namespace kv
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
 
-        // TODO: Check that v is not greater than last version
         if (v < commit_version())
         {
           throw ccf::ccf_logic_error(fmt::format(
