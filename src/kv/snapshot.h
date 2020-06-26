@@ -37,7 +37,6 @@ namespace kv
     void serialize()
     {
       uint8_t* buffer = get_buffer().data();
-      uint32_t position = 0;
       for (auto& s : snapshots)
       {
         s->serialize(buffer);

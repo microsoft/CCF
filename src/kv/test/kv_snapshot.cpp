@@ -12,91 +12,108 @@ struct MapTypes
 {
   using StringString = kv::Map<std::string, std::string>;
   using NumNum = kv::Map<size_t, size_t>;
-  using NumString = kv::Map<size_t, std::string>;
-  using StringNum = kv::Map<std::string, size_t>;
 };
 
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
-  const char* map_name = "map";
-  kv::SecurityDomain security_domain = kv::SecurityDomain::PUBLIC;
-  kv::Store kv_store;
-  auto& map =
-    kv_store.create<MapTypes::StringString>(map_name, security_domain);
+  kv::Store store;
+  auto& string_map = store.create<MapTypes::StringString>(
+    "string_map", kv::SecurityDomain::PUBLIC);
+  auto& num_map =
+    store.create<MapTypes::NumNum>("num_map", kv::SecurityDomain::PUBLIC);
 
   INFO("Apply transactions to original store");
   {
     kv::Tx tx1, tx2;
-    auto view_1 = tx1.get_view(map);
-    auto view_2 = tx2.get_view(map);
+    auto view_1 = tx1.get_view(string_map);
+    auto view_2 = tx2.get_view(num_map);
 
-    view_1->put("foo", "foo");
-    view_2->put("bar", "bar");
+    view_1->put("foo", "bar");
+    view_2->put(42, 123);
 
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
 
     kv::Tx tx3;
-    auto view_3 = tx1.get_view(map);
-    view_3->put("baz", "baz");
+    auto view_3 = tx1.get_view(string_map);
+    view_3->put("key", "not committed");
     // Do not commit tx3
   }
 
-  auto s_1 = kv_store.snapshot(1);
-  auto s_2 = kv_store.snapshot(2);
+  auto s_1 = store.snapshot(1);
 
   INFO("Verify content of snapshot");
   {
     auto& vec_s = s_1->get_snapshots();
     for (auto& s : vec_s)
     {
-      REQUIRE_EQ(s->get_name(), map_name);
-      REQUIRE_EQ(s->get_security_domain(), security_domain);
+      REQUIRE_EQ(s->get_security_domain(), kv::SecurityDomain::PUBLIC);
       REQUIRE_EQ(s->get_is_replicated(), true);
-      REQUIRE_GT(s->get_serialized_size(), 0);
+
+      // Only string_map is committed at version 1
+      if (s->get_name() == "string_map")
+      {
+        REQUIRE_GT(s->get_serialized_size(), 0);
+      }
+      else
+      {
+        REQUIRE_EQ(s->get_name(), "num_map");
+        REQUIRE_EQ(s->get_serialized_size(), 0);
+      }
     }
   }
 
   INFO("Apply snapshot at 1 to new store");
   {
     kv::Store new_store;
-    auto& new_map =
-      new_store.create<MapTypes::StringString>(map_name, security_domain);
+    new_store.clone_schema(store);
+
     new_store.deserialize(s_1);
     REQUIRE_EQ(new_store.current_version(), 1);
 
-    kv::Tx tx1;
-    auto view = tx1.get_view(new_map);
+    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
+    auto new_num_map = new_store.get<MapTypes::NumNum>("num_map");
 
+    kv::Tx tx1;
+    auto view = tx1.get_view(*new_string_map);
     auto v = view->get("foo");
     REQUIRE(v.has_value());
-    REQUIRE(v.value() == "foo");
+    REQUIRE_EQ(v.value(), "bar");
 
-    v = view->get("bar");
-    REQUIRE(!v.has_value());
-    v = view->get("baz");
+    auto view_ = tx1.get_view(*new_num_map);
+    auto v_ = view_->get(42);
+    REQUIRE(!v_.has_value());
+
+    view = tx1.get_view(*new_string_map);
+    v = view->get("key");
     REQUIRE(!v.has_value());
   }
 
+  auto s_2 = store.snapshot(2);
   INFO("Apply snapshot at 2 to new store");
   {
     kv::Store new_store;
-    auto& new_map =
-      new_store.create<MapTypes::StringString>(map_name, security_domain);
+    new_store.clone_schema(store);
     new_store.deserialize(s_2);
     REQUIRE_EQ(new_store.current_version(), 2);
 
+    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
+    auto new_num_map = new_store.get<MapTypes::NumNum>("num_map");
+
     kv::Tx tx1;
-    auto view = tx1.get_view(new_map);
+    auto view = tx1.get_view(*new_string_map);
 
     auto v = view->get("foo");
     REQUIRE(v.has_value());
-    REQUIRE(v.value() == "foo");
+    REQUIRE_EQ(v.value(), "bar");
 
-    v = view->get("bar");
-    REQUIRE(v.has_value());
-    REQUIRE(v.value() == "bar");
-    v = view->get("baz");
+    auto view_ = tx1.get_view(*new_num_map);
+    auto v_ = view_->get(42);
+    REQUIRE(v_.has_value());
+    REQUIRE_EQ(v_.value(), 123);
+
+    view = tx1.get_view(*new_string_map);
+    v = view->get("key");
     REQUIRE(!v.has_value());
   }
 }
