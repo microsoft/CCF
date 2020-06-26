@@ -197,6 +197,22 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
+      auto get_code = [this](auto& args, nlohmann::json&& params) {
+        GetCode::Out out;
+
+        auto code_view = args.tx.get_read_only_view(node_code_ids);
+        code_view->foreach([&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& cs) {
+          out.versions.push_back({cd, cs});
+          return true;
+        });
+
+        return make_success(out);
+      };
+      make_read_only_endpoint(
+        "code", HTTP_GET, json_read_only_adapter(get_code))
+        .set_auto_schema<void, GetCode::Out>()
+        .install();
+
       auto get_nodes_by_rpc_address = [this](
                                         auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetNodesByRPCAddress::In>();

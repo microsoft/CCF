@@ -65,6 +65,20 @@ namespace ccf
     };
   };
 
+  struct GetCode
+  {
+    struct Version
+    {
+      ccf::CodeDigest digest;
+      ccf::CodeStatus status;
+    };
+
+    struct Out
+    {
+      std::vector<Version> versions = {};
+    };
+  };
+
   struct GetNetworkInfo
   {
     struct NodeInfo
