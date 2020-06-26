@@ -53,10 +53,33 @@ namespace ds
     DECLARE_JSON_REQUIRED_FIELDS(MediaType);
     DECLARE_JSON_OPTIONAL_FIELDS(MediaType, schema);
 
+    using ContentMap = std::map<std::string, MediaType>;
+
+    struct RequestBody
+    {
+      std::string description;
+      ContentMap content;
+      bool required = false;
+
+      bool operator==(const RequestBody& rhs) const
+      {
+        return description == rhs.description && content == rhs.content &&
+          required == rhs.required;
+      }
+
+      bool operator!=(const RequestBody& rhs) const
+      {
+        return !(*this == rhs);
+      }
+    };
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RequestBody);
+    DECLARE_JSON_REQUIRED_FIELDS(RequestBody, content);
+    DECLARE_JSON_OPTIONAL_FIELDS(RequestBody, description, required);
+
     struct Response
     {
       std::string description;
-      std::map<std::string, MediaType> content;
+      ContentMap content;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Response);
     DECLARE_JSON_REQUIRED_FIELDS(Response, description);
@@ -64,6 +87,7 @@ namespace ds
 
     struct Operation
     {
+      RequestBody requestBody;
       std::map<std::string, Response> responses;
 
       Response& operator[](http_status status)
@@ -73,8 +97,9 @@ namespace ds
         return responses[s];
       }
     };
-    DECLARE_JSON_TYPE(Operation);
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Operation);
     DECLARE_JSON_REQUIRED_FIELDS(Operation, responses);
+    DECLARE_JSON_OPTIONAL_FIELDS(Operation, requestBody);
 
     struct PathItem
     {
@@ -164,6 +189,33 @@ namespace ds
         return schema_ref_object;
       }
 
+      void add_request_body_schema(
+        const std::string& uri,
+        http_method verb,
+        const std::string& content_type,
+        const std::string& schema_name,
+        const nlohmann::json& schema)
+      {
+        check_path_valid(uri);
+
+        auto& request_body = paths[uri][verb].requestBody;
+        request_body.description = "Auto-generated request body schema";
+        request_body.content[content_type].schema =
+          add_schema_to_components(schema_name, schema);
+      }
+
+      template <typename T>
+      void add_request_body_schema(
+        const std::string& uri,
+        http_method verb,
+        const std::string& content_type)
+      {
+        auto t_schema = nlohmann::json::object();
+        ds::json::fill_schema<T>(t_schema);
+        add_request_body_schema(
+          uri, verb, content_type, ds::json::schema_name<T>(), t_schema);
+      }
+
       void add_response_schema(
         const std::string& uri,
         http_method verb,
@@ -175,7 +227,7 @@ namespace ds
         check_path_valid(uri);
 
         auto& response_object = paths[uri][verb][status];
-        response_object.description = "Auto-generated";
+        response_object.description = "Auto-generated response schema";
         response_object.content[content_type].schema =
           add_schema_to_components(schema_name, schema);
       }

@@ -98,6 +98,8 @@ TEST_CASE("Schema population")
     doc.servers.push_back(mockup_server);
   }
 
+  doc.add_request_body_schema<Foo>(
+    "/app/foo", HTTP_POST, http::headervalues::contenttype::JSON);
   doc.add_response_schema<Foo>(
     "/app/foo",
     HTTP_GET,

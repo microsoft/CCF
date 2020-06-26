@@ -390,6 +390,11 @@ namespace std
  *    std::string s = schema_name(t.foo);
  * // clang-format on
  *
+ * Optional fields will be inserted into the JSON object iff their value differs
+ * from the value in a default-constructed instance of T. So if optional fields
+ * are present, then T must be default-constructible and the optional fields
+ * must be distinguishable (have operator!= defined)
+ *
  * To use:
  *  - Declare struct as normal
  *  - Add DELARE_JSON_TYPE, or WITH_BASE or WITH_OPTIONAL variants as required
