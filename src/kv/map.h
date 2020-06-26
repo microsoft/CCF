@@ -215,8 +215,9 @@ namespace kv
   using MsgPackSerialisedMap =
     MapSerialisedWith<K, V, kv::serialisers::MsgPackSerialiser>;
 
-  // The default kv::Map will use msgpack serialisers. Custom types are
-  // supported through the MSGPACK_DEFINE macro
+  /** Short name for default-serialised maps, using msgpack serialisers. Support
+   * for custom types can be added through the MSGPACK_DEFINE macro
+   */
   template <typename K, typename V>
   using Map = MsgPackSerialisedMap<K, V>;
 }
