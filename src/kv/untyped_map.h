@@ -653,7 +653,7 @@ namespace kv::untyped
         name, security_domain, replicated, r->version, std::move(snapshot));
     }
 
-    void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
+    void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) override
     {
       // This discards all entries in the roll and applies the given
       // snapshot. The Map expects to be locked while applying the snapshot.

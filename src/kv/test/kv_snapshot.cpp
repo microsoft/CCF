@@ -49,7 +49,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 
   INFO("Verify content of snapshot");
   {
-    auto& vec_s = first_snapshot->get_snapshots();
+    auto& vec_s = first_snapshot->get_map_snapshots();
     for (auto& s : vec_s)
     {
       REQUIRE_EQ(s->get_security_domain(), kv::SecurityDomain::PUBLIC);
@@ -131,20 +131,22 @@ TEST_CASE(
   auto& string_map = store.create<MapTypes::StringString>(
     "string_map", kv::SecurityDomain::PUBLIC);
 
+  kv::Version snapshot_version = kv::NoVersion;
   INFO("Apply transactions to original store");
   {
-    kv::Tx tx1, tx2;
+    kv::Tx tx1;
     auto view_1 = tx1.get_view(string_map);
-    auto view_2 = tx2.get_view(string_map);
-
     view_1->put("foo", "foo");
-    view_2->put("bar", "bar");
-
     REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
+
+    kv::Tx tx2;
+    auto view_2 = tx2.get_view(string_map);
+    view_2->put("bar", "bar");
     REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
+    snapshot_version = tx2.commit_version();
   }
 
-  auto s_1 = store.snapshot(2);
+  auto snapshot = store.snapshot(snapshot_version);
 
   INFO("Apply snapshot while committing a transaction");
   {
@@ -152,23 +154,19 @@ TEST_CASE(
     new_store.clone_schema(store);
 
     auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
-    kv::Tx tx1, tx2;
-    auto view = tx1.get_view(*new_string_map);
-    view->put("baz", "baz");
-    REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
-
-    view = tx2.get_view(*new_string_map);
+    kv::Tx tx;
+    auto view = tx.get_view(*new_string_map);
     view->put("in", "flight");
-    // tx2 is not committed until the snapshot is deserialised
+    // tx is not committed until the snapshot is deserialised
 
-    new_store.deserialize(s_1);
+    new_store.deserialize(snapshot);
 
     // Transaction conflicts as snapshot was applied while transaction was in
     // flight
-    REQUIRE(tx2.commit() == kv::CommitSuccess::CONFLICT);
+    REQUIRE(tx.commit() == kv::CommitSuccess::CONFLICT);
 
-    view = tx2.get_view(*new_string_map);
+    view = tx.get_view(*new_string_map);
     view->put("baz", "baz");
-    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+    REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 }
