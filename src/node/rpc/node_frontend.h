@@ -316,6 +316,18 @@ namespace ccf
         "quotes", HTTP_GET, json_read_only_adapter(get_quotes))
         .set_auto_schema<GetQuotes>()
         .install();
+      auto network_status = [this](auto& args, nlohmann::json&&) {
+        auto service_view = args.tx.get_read_only_view(network.service);
+        auto service_state = service_view->get(0);
+        if (service_state.has_value())
+        {
+          return make_success(service_state.value().status);
+        }
+        return make_error(HTTP_STATUS_NOT_FOUND, "Network status is unknown");
+      };
+      make_read_only_endpoint(
+        "network", HTTP_GET, json_read_only_adapter(network_status))
+        .install();
     }
   };
 
