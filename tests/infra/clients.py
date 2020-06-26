@@ -481,7 +481,7 @@ def client(
     ca=None,
     description=None,
     log_file=None,
-    prefix="users",
+    prefix="app",
     binary_dir=".",
     connection_timeout=3,
     request_timeout=3,

@@ -6,6 +6,7 @@ import infra.notification
 import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
+import time
 
 from loguru import logger as LOG
 
@@ -22,6 +23,19 @@ def test(network, args, notifications_queue=None):
         for i in [1, 50, 500]:
             r = c.rpc("log/private", {"id": 42, "msg": msg * i})
             assert r.result == True, r.result
+
+    # Before we start sending transactions to the secondary,
+    # we want to wait for its app frontend to be open, which is
+    # when it's aware that the network is open.
+    end_time = time.time() + 10
+    with other.node_client() as nc:
+        while time.time() < end_time:
+            r = nc.get("network")
+            if r.result == "OPEN":
+                break
+            else:
+                time.sleep(0.1)
+        assert r.result == "OPEN", r
 
     LOG.info("Write on secondary through forwarding")
     with other.user_client(ws=True) as c:
