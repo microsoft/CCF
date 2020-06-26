@@ -376,16 +376,19 @@ namespace std
 #    FIELD \
   }
 
-/** Defines from_json, to_json, and fill_json_schema functions for struct/class
- * types, converting member fields to JSON elements. Missing elements will cause
- * errors to be raised. This assumes that from_json, to_json, and
- * fill_json_schema are implemented for each member field type, either manually
- * or through these macros.
+/** Defines from_json, to_json, fill_json_schema, and schema_name functions for
+ * struct/class types, converting member fields to JSON elements. Missing
+ * elements will cause errors to be raised. This assumes that from_json,
+ * to_json, and fill_json_schema are implemented for each member field type,
+ * either manually or through these macros.
+ * // clang-format off
  *  ie, the following must compile, for each foo in T:
  *    T t; nlohmann::json j, schema;
  *    j["foo"] = t.foo;
  *    t.foo = j["foo"].get<decltype(T::foo)>();
  *    fill_json_schema(schema, t);
+ *    std::string s = schema_name(t.foo);
+ * // clang-format on
  *
  * To use:
  *  - Declare struct as normal
@@ -498,6 +501,10 @@ namespace std
     PRE_FILL_SCHEMA; \
     fill_json_schema_required_fields(j, t); \
     POST_FILL_SCHEMA; \
+  } \
+  inline std::string schema_name(const TYPE& t) \
+  { \
+    return #TYPE; \
   }
 
 #define DECLARE_JSON_TYPE(TYPE) DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , )

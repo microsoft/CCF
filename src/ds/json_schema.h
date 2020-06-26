@@ -4,6 +4,8 @@
 
 #include "ds/nonstd.h"
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
 namespace ds
@@ -37,6 +39,9 @@ namespace ds
     }
 
     template <typename T>
+    std::string schema_name();
+
+    template <typename T>
     void fill_schema(nlohmann::json& schema);
 
     template <typename T>
@@ -53,6 +58,13 @@ namespace ds
     namespace adl
     {
       template <typename T>
+      std::string schema_name()
+      {
+        T t;
+        return schema_name(t);
+      }
+
+      template <typename T>
       void fill_schema(nlohmann::json& schema)
       {
         T t;
@@ -64,6 +76,91 @@ namespace ds
         {
           fill_json_schema(schema, t);
         }
+      }
+    }
+
+    template <typename T>
+    inline std::string schema_name()
+    {
+      if constexpr (nonstd::is_specialization<T, std::optional>::value)
+      {
+        return schema_name<typename T::value_type>();
+      }
+      else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+      {
+        return fmt::format("{}_array", schema_name<typename T::value_type>());
+      }
+      else if constexpr (
+        nonstd::is_specialization<T, std::map>::value ||
+        nonstd::is_specialization<T, std::unordered_map>::value)
+      {
+        return fmt::format(
+          "{}_to_{}",
+          schema_name<typename T::key_type>(),
+          schema_name<typename T::mapped_type>());
+      }
+      else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+      {
+        return fmt::format(
+          "{}_to_{}",
+          schema_name<typename T::first_type>(),
+          schema_name<typename T::second_type>());
+      }
+      else if constexpr (std::is_same<T, std::string>::value)
+      {
+        return "string";
+      }
+      else if constexpr (std::is_same<T, bool>::value)
+      {
+        return "boolean";
+      }
+      else if constexpr (std::is_same<T, uint8_t>::value)
+      {
+        return "uint8";
+      }
+      else if constexpr (std::is_same<T, uint16_t>::value)
+      {
+        return "uint16";
+      }
+      else if constexpr (std::is_same<T, uint32_t>::value)
+      {
+        return "uint32";
+      }
+      else if constexpr (std::is_same<T, uint64_t>::value)
+      {
+        return "uint64";
+      }
+      else if constexpr (std::is_same<T, int8_t>::value)
+      {
+        return "int8";
+      }
+      else if constexpr (std::is_same<T, int16_t>::value)
+      {
+        return "int16";
+      }
+      else if constexpr (std::is_same<T, int32_t>::value)
+      {
+        return "int32";
+      }
+      else if constexpr (std::is_same<T, int64_t>::value)
+      {
+        return "int64";
+      }
+      else if constexpr (std::is_same<T, float>::value)
+      {
+        return "float";
+      }
+      else if constexpr (std::is_same<T, double>::value)
+      {
+        return "double";
+      }
+      else if constexpr (std::is_same<T, nlohmann::json>::value)
+      {
+        return "json";
+      }
+      else
+      {
+        return adl::schema_name<T>();
       }
     }
 

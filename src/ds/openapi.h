@@ -104,7 +104,7 @@ namespace ds
 
     using Paths = std::map<std::string, PathItem>;
 
-    void check_path_valid(const std::string& s)
+    inline void check_path_valid(const std::string& s)
     {
       if (s.rfind("/", 0) != 0)
       {
@@ -134,17 +134,10 @@ namespace ds
       Paths paths;
       Components components;
 
-      void add_response_schema(
-        const std::string& uri,
-        http_method verb,
-        http_status status,
-        const std::string& content_type,
-        const nlohmann::json& schema,
-        const std::string& components_schema_name)
+      nlohmann::json add_schema_to_components(
+        const std::string& element_name, const nlohmann::json& schema)
       {
-        check_path_valid(uri);
-
-        const auto schema_it = components.schemas.find(components_schema_name);
+        const auto schema_it = components.schemas.find(element_name);
         if (schema_it != components.schemas.end())
         {
           // Check that the existing schema matches the new one being added with
@@ -155,22 +148,36 @@ namespace ds
             throw std::logic_error(fmt::format(
               "Adding schema with name '{}'. Does not match previous schema "
               "registered with this name: {} vs {}",
-              components_schema_name,
+              element_name,
               schema.dump(),
               existing_schema.dump()));
           }
         }
         else
         {
-          components.schemas.emplace(components_schema_name, schema);
+          components.schemas.emplace(element_name, schema);
         }
+
+        auto schema_ref_object = nlohmann::json::object();
+        schema_ref_object["$ref"] =
+          fmt::format("#/components/schemas/{}", element_name);
+        return schema_ref_object;
+      }
+
+      void add_response_schema(
+        const std::string& uri,
+        http_method verb,
+        http_status status,
+        const std::string& content_type,
+        const std::string& schema_name,
+        const nlohmann::json& schema)
+      {
+        check_path_valid(uri);
 
         auto& response_object = paths[uri][verb][status];
         response_object.description = "Auto-generated";
-        auto schema_ref_object = nlohmann::json::object();
-        schema_ref_object["$ref"] =
-          fmt::format("#/components/schemas/{}", components_schema_name);
-        response_object.content[content_type].schema = schema_ref_object;
+        response_object.content[content_type].schema =
+          add_schema_to_components(schema_name, schema);
       }
 
       template <typename T>
@@ -178,13 +185,17 @@ namespace ds
         const std::string& uri,
         http_method verb,
         http_status status,
-        const std::string& content_type,
-        const std::string& components_schema_name)
+        const std::string& content_type)
       {
         auto t_schema = nlohmann::json::object();
         ds::json::fill_schema<T>(t_schema);
         add_response_schema(
-          uri, verb, status, content_type, t_schema, components_schema_name);
+          uri,
+          verb,
+          status,
+          content_type,
+          ds::json::schema_name<T>(),
+          t_schema);
       }
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Document);

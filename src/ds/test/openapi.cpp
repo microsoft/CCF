@@ -77,6 +77,14 @@ TEST_CASE("Manual construction")
   print_doc("PATHS", doc);
 }
 
+struct Foo
+{
+  size_t n;
+  std::string s;
+};
+DECLARE_JSON_TYPE(Foo);
+DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
+
 TEST_CASE("Schema population")
 {
   openapi::Document doc;
@@ -90,14 +98,10 @@ TEST_CASE("Schema population")
     doc.servers.push_back(mockup_server);
   }
 
-  constexpr auto users_foo = "/users/foo";
-  constexpr auto foo_schema_name = "foo_str";
-  doc.add_response_schema<std::string>(
-    users_foo,
-    HTTP_GET,
-    HTTP_STATUS_OK,
-    http::headervalues::contenttype::TEXT,
-    foo_schema_name);
+  doc.add_response_schema<Foo>(
+    "/app/foo", HTTP_GET, HTTP_STATUS_OK, http::headervalues::contenttype::JSON);
+  doc.add_response_schema<std::map<std::string, Foo>>(
+    "/app/foos", HTTP_GET, HTTP_STATUS_OK, http::headervalues::contenttype::JSON);
 
   const nlohmann::json j = doc;
   required_doc_elements(j);
