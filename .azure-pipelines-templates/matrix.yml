@@ -79,7 +79,6 @@ jobs:
         artifact_name: 'SGX_Release'
         install_prefix: '${{ parameters.build.install.install_prefix }}'
         ctest_timeout: '240'
-        depends_on: 'Release_Checks'
 
     - template: release.yml
       parameters:
