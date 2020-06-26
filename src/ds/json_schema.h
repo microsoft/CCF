@@ -181,12 +181,15 @@ namespace ds
         nonstd::is_specialization<T, std::unordered_map>::value)
       {
         // Nlohmann serialises maps to an array of (K, V) pairs
+        // TODO: Unless the keys are strings!
         schema["type"] = "array";
         auto items = nlohmann::json::object();
         {
           items["type"] = "array";
 
           auto sub_items = nlohmann::json::array();
+          // TODO: OpenAPI doesn't like this tuple for "items", even though its
+          // valid JSON schema. Maybe fixed in a newer spec version?
           sub_items.push_back(schema_element<typename T::key_type>());
           sub_items.push_back(schema_element<typename T::mapped_type>());
           items["items"] = sub_items;

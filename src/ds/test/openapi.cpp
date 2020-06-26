@@ -99,9 +99,15 @@ TEST_CASE("Schema population")
   }
 
   doc.add_response_schema<Foo>(
-    "/app/foo", HTTP_GET, HTTP_STATUS_OK, http::headervalues::contenttype::JSON);
-  doc.add_response_schema<std::map<std::string, Foo>>(
-    "/app/foos", HTTP_GET, HTTP_STATUS_OK, http::headervalues::contenttype::JSON);
+    "/app/foo",
+    HTTP_GET,
+    HTTP_STATUS_OK,
+    http::headervalues::contenttype::JSON);
+  doc.add_response_schema<std::vector<Foo>>(
+    "/app/foos",
+    HTTP_GET,
+    HTTP_STATUS_OK,
+    http::headervalues::contenttype::JSON);
 
   const nlohmann::json j = doc;
   required_doc_elements(j);
