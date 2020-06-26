@@ -3,7 +3,7 @@ trigger:
   branches:
     include:
       - master
-      - 'refs/tags/v*'
+      - 'refs/tags/ccf-*'
 
 jobs:
 - job: build_and_publish_docs
