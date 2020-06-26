@@ -1,0 +1,32 @@
+name: "Build and Publish Release Containers"
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: "Build Containers"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Truncate ref
+        run:
+          echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/}"
+        id: tref
+
+      - name: Build App CI container
+        run: docker build -f docker/app_ci . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t ccfciteam/ccf-app-ci:${{steps.tref.outputs.tag}}
+        
+      - name: Build App Run container
+        run: docker build -f docker/app_run . --build-arg="extra_vars=--extra-vars ccf_ver=${{steps.tref.outputs.tag}}" -t ccfciteam/ccf-app-run:${{steps.tref.outputs.tag}}
+
+      - name: Log in
+        run: docker login -u amchamay -p ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Push App CI container
+        run: docker push ccfciteam/ccf-app-ci:${{steps.tref.outputs.tag}}
+
+      - name: Build App Run container
+        run: docker push ccfciteam/ccf-app-run:${{steps.tref.outputs.tag}}
