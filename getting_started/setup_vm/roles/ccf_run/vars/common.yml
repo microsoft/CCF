@@ -1,4 +1,6 @@
 workspace: "/tmp/"
 debs:
+  - libc++abi1
+  - libc++1
   - libuv1
   - libcurl4

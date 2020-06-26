@@ -3,7 +3,7 @@ Key-Value Store API
 
 This page presents the API that a CCF application must use to read and mutate the replicated key-value store.
 
-A CCF application should define one or multiple public or private :cpp:class:`kv::Map`. Then, each :cpp:class:`ccf::EndpointRegistry::Endpoint` should use the :cpp:class:`kv::Tx` transaction object to read and write to specific :cpp:class:`kv::Map`.
+A CCF application should define one or multiple public or private :cpp:type:`kv::Map`. Then, each :cpp:class:`ccf::EndpointRegistry::Endpoint` should use the :cpp:class:`kv::Tx` transaction object to read and write to specific :cpp:type:`kv::Map`.
 
 Store
 -----
@@ -21,20 +21,27 @@ Map
 .. doxygenvariable:: kv::NoVersion
    :project: CCF
 
-.. doxygenclass:: kv::Map
+.. doxygenclass:: kv::TypedMap
    :project: CCF
    :members: get_name, set_global_hook
+
+.. doxygentypedef:: kv::Map
+   :project: CCF
 
 Transaction
 -----------
 
+.. doxygenclass:: kv::ReadOnlyTx
+   :project: CCF
+   :members: get_read_only_view
+
 .. doxygenclass:: kv::Tx
    :project: CCF
-   :members: get_view,
+   :members: get_view
 
 Transaction View
 ----------------
 
-.. doxygenclass:: kv::Map::TxView
+.. doxygenclass:: kv::TxView
    :project: CCF
    :members: get, put, remove, foreach

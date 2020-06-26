@@ -183,7 +183,7 @@ breathe_default_project = "CCF"
 
 # Set up multiversion extension
 
-smv_tag_whitelist = r"^v.*$"
+smv_tag_whitelist = r"^(v|ccf-).*$"
 smv_branch_whitelist = r"^master$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
