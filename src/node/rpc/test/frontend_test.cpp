@@ -1464,7 +1464,7 @@ public:
 
   TestConflictFrontend(kv::Store& tables) :
     SimpleUserRpcFrontend(tables),
-    values(tables.create<size_t, size_t>("test_values"))
+    values(tables.create<size_t, size_t>("test_values_conflict"))
   {
     open();
 
