@@ -83,7 +83,7 @@ namespace kv
       return untyped_map.snapshot(v);
     }
 
-    void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) override
+    void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
     {
       untyped_map.apply(s);
     }

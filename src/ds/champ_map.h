@@ -462,6 +462,9 @@ namespace champ
 
     CBuffer& get_serialized_buffer()
     {
+      CCF_ASSERT(
+        serialized_buffer.rawSize() != 0,
+        "attempting to get buffer that was not serialized");
       return serialized_buffer;
     }
 

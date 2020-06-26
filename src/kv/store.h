@@ -220,7 +220,7 @@ namespace kv
       return *result;
     }
 
-    void deserialize(const std::unique_ptr<AbstractSnapshot>& snapshot)
+    void deserialize(std::unique_ptr<AbstractSnapshot>& snapshot)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
@@ -229,7 +229,7 @@ namespace kv
         map.second->lock();
       }
 
-      const auto& snapshots = snapshot->get_map_snapshots();
+      auto& snapshots = snapshot->get_snapshots();
       CCF_ASSERT_FMT(
         maps.size() == snapshots.size(),
         "Number of maps does not match the snapshot, maps:{}, snapshots:{}",
@@ -284,7 +284,7 @@ namespace kv
 
         for (auto& map : maps)
         {
-          snapshot->add_map_snapshot(std::move(map.second->snapshot(v)));
+          snapshot->add_snapshot(std::move(map.second->snapshot(v)));
         }
 
         for (auto& map : maps)

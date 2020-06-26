@@ -384,7 +384,7 @@ namespace kv
     virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
-    virtual void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) = 0;
+    virtual void apply(std::unique_ptr<AbstractMap::Snapshot>& s) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;
     virtual void lock() = 0;
@@ -404,10 +404,11 @@ namespace kv
     {
     public:
       virtual ~AbstractSnapshot() = default;
-      virtual void add_map_snapshot(
+      virtual void add_snapshot(
         std::unique_ptr<kv::AbstractMap::Snapshot> snapshot) = 0;
-      virtual const std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>&
-      get_map_snapshots() = 0;
+      virtual std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>&
+      get_snapshots() = 0;
+      virtual std::vector<uint8_t>& get_buffer() = 0;
       virtual void serialize() = 0;
       virtual kv::Version get_version() const = 0;
     };
