@@ -655,7 +655,7 @@ namespace kv::untyped
 
     void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
     {
-      // This discards all entries in the roll and adds applies the given
+      // This discards all entries in the roll and applies the given
       // snapshot. The Map expects to be locked while applying the snapshot.
       roll.reset_commits();
       roll.rollback_counter++;
