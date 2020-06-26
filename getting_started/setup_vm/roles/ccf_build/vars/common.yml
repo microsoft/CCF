@@ -9,6 +9,7 @@ debs:
   - python3.7-venv
   - llvm-8
   - clang-8
+  - clang-format8
   - expect
   - xsltproc
   - git
