@@ -1457,7 +1457,72 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(member_frontend_primary.last_caller_id == 0);
 }
 
-TEST_CASE("Deprecated API" * doctest::test_suite("deprecated")) {}
+class TestConflictFrontend : public SimpleUserRpcFrontend
+{
+public:
+  kv::Map<size_t, size_t>& values;
+
+  TestConflictFrontend(kv::Store& tables) :
+    SimpleUserRpcFrontend(tables),
+    values(tables.create<size_t, size_t>("test_values"))
+  {
+    open();
+
+    auto conflict_once = [this](auto& args) {
+      static bool conflict_next = true;
+      if (conflict_next)
+      {
+        // Warning: Never do this in a real application!
+        // Create another transaction that conflicts with the frontend one
+        kv::Tx tx;
+        auto view = tx.get_view(values);
+        view->put(0, 42);
+        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+        conflict_next = false;
+      }
+
+      auto view = args.tx.get_view(values);
+      view->get(0); // Record a read dependency
+      view->put(0, 0);
+
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_endpoint("conflict_once", HTTP_POST, conflict_once).install();
+  }
+};
+
+TEST_CASE("Signature is stored even after conflicts")
+{
+  prepare_callers();
+  add_callers_primary_store();
+
+  TestConflictFrontend frontend(*network.tables);
+
+  INFO("Check that no client signatures have been recorded");
+  {
+    kv::Tx tx;
+    auto client_signatures_view = tx.get_view(network.user_client_signatures);
+    REQUIRE_FALSE(client_signatures_view->get(0).has_value());
+  }
+
+  const auto unsigned_call = create_simple_request("conflict_once");
+  const auto [signed_call, signed_req] = create_signed_request(unsigned_call);
+  const auto serialized_signed_call = signed_call.build_request();
+
+  auto rpc_ctx =
+    enclave::make_rpc_context(user_session, serialized_signed_call);
+
+  const auto serialized_response = frontend.process(rpc_ctx).value();
+  auto response = parse_response(serialized_response);
+  REQUIRE(response.status == HTTP_STATUS_OK);
+
+  INFO("Check that a client signatures have been recorded");
+  {
+    kv::Tx tx;
+    auto client_signatures_view = tx.get_view(network.user_client_signatures);
+    REQUIRE(client_signatures_view->get(0).has_value());
+  }
+}
 
 // We need an explicit main to initialize kremlib and EverCrypt
 int main(int argc, char** argv)
