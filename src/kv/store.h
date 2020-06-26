@@ -224,7 +224,6 @@ namespace kv
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      // TODO: Clear the store first
       for (auto& map : maps)
       {
         map.second->lock();

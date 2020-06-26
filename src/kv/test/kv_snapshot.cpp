@@ -117,3 +117,53 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     REQUIRE(!v.has_value());
   }
 }
+
+TEST_CASE(
+  "Commit transaction while applying snapshot" *
+  doctest::test_suite("snapshot"))
+{
+  kv::Store store;
+  auto& string_map = store.create<MapTypes::StringString>(
+    "string_map", kv::SecurityDomain::PUBLIC);
+
+  INFO("Apply transactions to original store");
+  {
+    kv::Tx tx1, tx2;
+    auto view_1 = tx1.get_view(string_map);
+    auto view_2 = tx2.get_view(string_map);
+
+    view_1->put("foo", "foo");
+    view_2->put("bar", "bar");
+
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK); // Committed at 2
+  }
+
+  auto s_1 = store.snapshot(2);
+
+  INFO("Apply snapshot while committing a transaction");
+  {
+    kv::Store new_store;
+    new_store.clone_schema(store);
+
+    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
+    kv::Tx tx1, tx2;
+    auto view = tx1.get_view(*new_string_map);
+    view->put("baz", "baz");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK); // Committed at 1
+
+    view = tx2.get_view(*new_string_map);
+    view->put("in", "flight");
+    // tx2 is not committed until the snapshot is deserialised
+
+    new_store.deserialize(s_1);
+
+    // Transaction conflicts as snapshot was applied while transaction was in
+    // flight
+    REQUIRE(tx2.commit() == kv::CommitSuccess::CONFLICT);
+
+    view = tx2.get_view(*new_string_map);
+    view->put("baz", "baz");
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+  }
+}
