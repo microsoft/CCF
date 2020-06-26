@@ -3,7 +3,7 @@ KV Serialisation
 
 Every transaction executed by the primary on its key-value store is serialised before being replicated to all backups of the CCF network and written to the ledger.
 
-Writes to private :cpp:class:`kv::Map`\s are encrypted before being serialised, and can only be decrypted by other nodes within the service. Writes to public :cpp:class:`kv::Map`\s are only integrity-protected; they are readable by anyone with access to the ledger.
+Writes to private :cpp:class:`kv::Map`\s are encrypted before being written to the ledger, and can only be decrypted by other nodes within the service. Writes to public :cpp:class:`kv::Map`\s are only integrity-protected; they are readable by anyone with access to the ledger.
 
 .. note:: Transactions are serialised to MessagePack_ with a prepended header for integrity protection.
 
