@@ -1210,6 +1210,7 @@ namespace raft
 
       for (auto node_id : to_remove)
       {
+        channels->close_channel(node_id);
         nodes.erase(node_id);
         LOG_INFO_FMT("Removed node {}", node_id);
       }

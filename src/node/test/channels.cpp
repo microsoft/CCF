@@ -8,6 +8,8 @@
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+ringbuffer::Circuit eio(1024);
+auto wf = ringbuffer::WriterFactory(eio);
 
 using namespace ccf;
 
@@ -180,9 +182,9 @@ TEST_CASE("Channel manager")
   auto network_pkey = kp->private_key_pem();
   auto other_pkey = kp_other->private_key_pem();
 
-  ChannelManager primary_n2n_channel_manager(network_pkey);
-  ChannelManager backup_n2n_channel_manager(network_pkey);
-  ChannelManager other_n2n_channel_manager(other_pkey);
+  ChannelManager primary_n2n_channel_manager(wf, network_pkey);
+  ChannelManager backup_n2n_channel_manager(wf, network_pkey);
+  ChannelManager other_n2n_channel_manager(wf, other_pkey);
 
   INFO("Compute shared secret");
   {
@@ -224,23 +226,25 @@ TEST_CASE("Channel manager")
 
   auto& primary_channel_with_backup =
     primary_n2n_channel_manager.get(backup_id);
+  REQUIRE(primary_channel_with_backup.has_value());
   auto& backup_channel_with_primary =
     backup_n2n_channel_manager.get(primary_id);
+  REQUIRE(backup_channel_with_primary.has_value());
 
   INFO("Protect integrity of message (primary -> backup)");
   {
     std::vector<uint8_t> msg(128, 0x42);
     GcmHdr hdr;
-    primary_channel_with_backup.tag(hdr, msg);
-    REQUIRE(backup_channel_with_primary.verify(hdr, msg));
+    primary_channel_with_backup->tag(hdr, msg);
+    REQUIRE(backup_channel_with_primary->verify(hdr, msg));
   }
 
   INFO("Protect integrity of message (backup -> primary)");
   {
     std::vector<uint8_t> msg(128, 0x42);
     GcmHdr hdr;
-    backup_channel_with_primary.tag(hdr, msg);
-    REQUIRE(primary_channel_with_backup.verify(hdr, msg));
+    backup_channel_with_primary->tag(hdr, msg);
+    REQUIRE(primary_channel_with_backup->verify(hdr, msg));
   }
 
   INFO("Encrypt message (primary -> backup)");
@@ -250,8 +254,8 @@ TEST_CASE("Channel manager")
     std::vector<uint8_t> decrypted(128);
     ccf::GcmHdr hdr;
 
-    primary_channel_with_backup.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(backup_channel_with_primary.decrypt(hdr, {}, cipher, decrypted));
+    primary_channel_with_backup->encrypt(hdr, {}, plain, cipher);
+    REQUIRE(backup_channel_with_primary->decrypt(hdr, {}, cipher, decrypted));
     REQUIRE(plain == decrypted);
   }
 
@@ -262,8 +266,8 @@ TEST_CASE("Channel manager")
     std::vector<uint8_t> decrypted(128);
     ccf::GcmHdr hdr;
 
-    backup_channel_with_primary.encrypt(hdr, {}, plain, cipher);
-    REQUIRE(primary_channel_with_backup.decrypt(hdr, {}, cipher, decrypted));
+    backup_channel_with_primary->encrypt(hdr, {}, plain, cipher);
+    REQUIRE(primary_channel_with_backup->decrypt(hdr, {}, cipher, decrypted));
     REQUIRE(plain == decrypted);
   }
 }

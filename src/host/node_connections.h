@@ -324,7 +324,7 @@ namespace asynchost
         return false;
       }
 
-      LOG_DEBUG_FMT("Adding node {} {}:{}", node, host, service);
+      LOG_FAIL_FMT("Adding node {} {}:{}", node, host, service);
 
       TCP s;
       s->set_behaviour(std::make_unique<OutgoingBehaviour>(*this, node));
@@ -360,7 +360,7 @@ namespace asynchost
 
     bool remove_node(ccf::NodeId node)
     {
-      LOG_DEBUG_FMT("removing node {}", node);
+      LOG_FAIL_FMT("removing node {}", node);
 
       if (outgoing.erase(node) < 1)
       {

@@ -19,48 +19,68 @@ namespace ccf
     NodeId self;
     std::unique_ptr<ChannelManager> channels;
     ringbuffer::WriterPtr to_host;
+    ringbuffer::AbstractWriterFactory& writer_factory;
 
-    void establish_channel(NodeId to)
-    {
-      // If the channel is not yet established, replace all sent messages with
-      // a key exchange message. In the case of raft, this is acceptable since
-      // append entries and vote requests are re-sent after a short timeout
-      auto signed_public = channels->get_signed_public(to);
-      if (!signed_public.has_value())
-      {
-        return;
-      }
-
-      LOG_DEBUG_FMT("node2node channel with {} initiated", to);
-
-      ChannelHeader msg = {ChannelMsg::key_exchange, self};
-      to_host->write(
-        node_outbound,
-        to,
-        NodeMsgType::channel_msg,
-        msg,
-        signed_public.value());
-    }
-
-    bool try_established_channel(NodeId id, Channel& channel)
+    bool try_establish_channel(NodeId peer_id, Channel& channel)
     {
       if (channel.get_status() != ChannelStatus::ESTABLISHED)
       {
-        establish_channel(id);
+        // If the channel is not yet established, replace all sent messages with
+        // a key exchange message. In the case of raft, this is acceptable since
+        // append entries and vote requests are re-sent after a short timeout
+        // https://github.com/microsoft/CCF/issues/1015
+        auto signed_public = channels->get_signed_public(peer_id);
+        if (!signed_public.has_value())
+        {
+          return false;
+        }
+
+        ChannelHeader msg = {ChannelMsg::key_exchange, self};
+        to_host->write(
+          node_outbound,
+          peer_id,
+          NodeMsgType::channel_msg,
+          msg,
+          signed_public.value());
+
+        LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
         return false;
       }
+
       return true;
     }
 
   public:
     NodeToNode(ringbuffer::AbstractWriterFactory& writer_factory_) :
+      writer_factory(writer_factory_),
       to_host(writer_factory_.create_writer_to_outside())
     {}
 
-    void initialize(NodeId id, const tls::Pem& network_pkey)
+    void initialize(NodeId self_id, const tls::Pem& network_pkey)
     {
-      self = id;
-      channels = std::make_unique<ChannelManager>(network_pkey);
+      self = self_id;
+      channels = std::make_unique<ChannelManager>(writer_factory, network_pkey);
+    }
+
+    void create_channel(
+      NodeId peer_id, const std::string& hostname, const std::string& service)
+    {
+      if (peer_id == self)
+      {
+        return;
+      }
+
+      channels->create_channel(peer_id, hostname, service);
+    }
+
+    void close_channel(NodeId peer_id)
+    {
+      if (peer_id == self)
+      {
+        return;
+      }
+
+      channels->close_channel(peer_id);
     }
 
     template <class T>
@@ -68,14 +88,23 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_established_channel(to, n2n_channel))
+      if (!n2n_channel.has_value())
+      {
+        LOG_FAIL_FMT(
+          "Cannot send authenticated message to node {}: channel no longer "
+          "exists",
+          to);
+        return false;
+      }
+
+      if (!try_establish_channel(to, n2n_channel.value()))
       {
         return false;
       }
 
       // The secure channel between self and to has already been established
       GcmHdr hdr;
-      n2n_channel.tag(hdr, asCb(data));
+      n2n_channel->tag(hdr, asCb(data));
 
       to_host->write(node_outbound, to, msg_type, data, hdr);
       return true;
@@ -86,14 +115,23 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_established_channel(to, n2n_channel))
+      if (!n2n_channel.has_value())
+      {
+        LOG_FAIL_FMT(
+          "Cannot send authenticated message to node {}: channel no longer "
+          "exists",
+          to);
+        return false;
+      }
+
+      if (!try_establish_channel(to, n2n_channel.value()))
       {
         return false;
       }
 
       // The secure channel between self and to has already been established
       GcmHdr hdr;
-      n2n_channel.tag(hdr, data);
+      n2n_channel->tag(hdr, data);
 
       to_host->write(node_outbound, to, msg_type, data, hdr);
       return true;
@@ -106,8 +144,15 @@ namespace ccf
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
       auto& n2n_channel = channels->get(t.from_node);
+      if (!n2n_channel.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot recv authenticated message from node {}: channel no longer "
+          "exists",
+          t.from_node));
+      }
 
-      if (!n2n_channel.verify(hdr, asCb(t)))
+      if (!n2n_channel->verify(hdr, asCb(t)))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",
@@ -148,8 +193,15 @@ namespace ccf
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
       auto& n2n_channel = channels->get(t.from_node);
+      if (!n2n_channel.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot recv authenticated message from node {}: channel no longer "
+          "exists",
+          t.from_node));
+      }
 
-      if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
+      if (!n2n_channel->verify(hdr, {payload_data, payload_size}))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",
@@ -169,14 +221,23 @@ namespace ccf
       const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_established_channel(to, n2n_channel))
+      if (!n2n_channel.has_value())
+      {
+        LOG_FAIL_FMT(
+          "Cannot send encrypted message to node {}: channel no longer "
+          "exists",
+          to);
+        return false;
+      }
+
+      if (!try_establish_channel(to, n2n_channel.value()))
       {
         return false;
       }
 
       GcmHdr hdr;
       std::vector<uint8_t> cipher(data.size());
-      n2n_channel.encrypt(hdr, asCb(msg_hdr), data, cipher);
+      n2n_channel->encrypt(hdr, asCb(msg_hdr), data, cipher);
 
       to_host->write(node_outbound, to, msg_type, msg_hdr, hdr, cipher);
 
@@ -192,7 +253,15 @@ namespace ccf
       std::vector<uint8_t> plain(size);
 
       auto& n2n_channel = channels->get(t.from_node);
-      if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
+      if (!n2n_channel.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Cannot recv encrypted message from node {}: channel no longer "
+          "exists",
+          t.from_node));
+      }
+
+      if (!n2n_channel->decrypt(hdr, asCb(t), {data, size}, plain))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",

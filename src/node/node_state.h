@@ -1322,26 +1322,6 @@ namespace ccf
 
     void setup_basic_hooks()
     {
-      // When a transaction that changes the configuration commits globally,
-      // inform the host of any nodes that no longer need to be tracked.
-      network.nodes.set_global_hook(
-        [this](kv::Version version, const Nodes::Write& w) {
-          for (const auto& [node_id, opt_ni] : w)
-          {
-            if (!opt_ni.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Unexpected: removal from nodes table ({})", node_id));
-            }
-
-            const auto& ni = opt_ni.value();
-            if (ni.status == NodeStatus::RETIRED)
-            {
-              remove_node(node_id);
-            }
-          }
-        });
-
       network.service.set_global_hook(
         [this](kv::Version version, const Service::Write& w) {
           const auto it = w.find(0);
@@ -1571,7 +1551,7 @@ namespace ccf
               }
               case NodeStatus::TRUSTED:
               {
-                add_node(node_id, ni.nodehost, ni.nodeport);
+                n2n_channels->create_channel(node_id, ni.nodehost, ni.nodeport);
                 configuration.insert(node_id);
                 configure = true;
                 break;
@@ -1657,24 +1637,6 @@ namespace ccf
       }
     }
 
-    void add_node(
-      NodeId node, const std::string& hostname, const std::string& service)
-    {
-      if (node != self)
-      {
-        RINGBUFFER_WRITE_MESSAGE(
-          ccf::add_node, to_host, node, hostname, service);
-      }
-    }
-
-    void remove_node(NodeId node)
-    {
-      if (node != self)
-      {
-        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, node);
-      }
-    }
-
     void read_ledger_idx(consensus::Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(
@@ -1727,10 +1689,30 @@ namespace ccf
             }
 
             const auto& ni = opt_ni.value();
-            add_node(node_id, ni.nodehost, ni.nodeport);
+            n2n_channels->create_channel(node_id, ni.nodehost, ni.nodeport);
 
             consensus->add_configuration(
               version, {}, {node_id, ni.nodehost, ni.nodeport, ni.cert});
+          }
+        });
+
+      // This should be done inside PBFT directly once network reconfigurations
+      // are handled by the protocol
+      network.nodes.set_global_hook(
+        [this](kv::Version version, const Nodes::Write& w) {
+          for (const auto& [node_id, opt_ni] : w)
+          {
+            if (!opt_ni.has_value())
+            {
+              throw std::logic_error(fmt::format(
+                "Unexpected: removal from nodes table ({})", node_id));
+            }
+
+            const auto& ni = opt_ni.value();
+            if (ni.status == NodeStatus::RETIRED)
+            {
+              n2n_channels->close_channel(node_id);
+            }
           }
         });
 

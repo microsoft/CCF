@@ -5,6 +5,7 @@
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "entities.h"
+#include "nodetypes.h"
 #include "tls/key_exchange.h"
 #include "tls/key_pair.h"
 
@@ -48,6 +49,10 @@ namespace ccf
     // Used for key exchange
     tls::KeyExchangeContext ctx;
     ChannelStatus status;
+
+    // Indicates a channel with a node not yet known by the local store (e.g.
+    // when a new node joins the network)
+    bool known_by_local_store;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
@@ -120,16 +125,15 @@ namespace ccf
     }
 
   public:
-    Channel() : status(INITIATED) {}
+    Channel(bool known_by_local_store_ = true) :
+      status(INITIATED),
+      known_by_local_store(known_by_local_store_)
+    {}
 
-    std::optional<std::vector<uint8_t>> get_public()
+    // TODO: Delete me
+    ~Channel()
     {
-      if (status == ESTABLISHED)
-      {
-        return {};
-      }
-
-      return ctx.get_own_public();
+      LOG_FAIL_FMT("Channel destroyed!");
     }
 
     void set_status(ChannelStatus status_)
@@ -140,6 +144,26 @@ namespace ccf
     ChannelStatus get_status()
     {
       return status;
+    }
+
+    bool is_known_by_local_store()
+    {
+      return known_by_local_store;
+    }
+
+    void set_known_by_local_store()
+    {
+      known_by_local_store = true;
+    }
+
+    std::optional<std::vector<uint8_t>> get_public()
+    {
+      if (status == ESTABLISHED)
+      {
+        return {};
+      }
+
+      return ctx.get_own_public();
     }
 
     bool load_peer_public(const uint8_t* bytes, size_t size)
@@ -218,33 +242,93 @@ namespace ccf
   class ChannelManager
   {
   private:
-    std::unordered_map<NodeId, std::unique_ptr<Channel>> channels;
+    // A std::nullopt value indicates a channel that no longer exists
+    std::unordered_map<NodeId, std::optional<Channel>> channels;
+    ringbuffer::WriterPtr to_host;
     tls::KeyPairPtr network_kp;
 
   public:
-    ChannelManager(const tls::Pem& network_pkey) :
+    ChannelManager(
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      const tls::Pem& network_pkey) :
+      to_host(writer_factory.create_writer_to_outside()),
       network_kp(tls::make_key_pair(network_pkey))
     {}
 
-    Channel& get(NodeId peer_id)
+    void create_channel(
+      NodeId peer_id, const std::string& hostname, const std::string& service)
     {
       auto search = channels.find(peer_id);
       if (search != channels.end())
       {
-        return *search->second;
+        if (
+          search->second.has_value() &&
+          !search->second->is_known_by_local_store())
+        {
+          search->second->set_known_by_local_store();
+          return;
+        }
+
+        throw std::logic_error(fmt::format(
+          "Cannot create node channel with {}: channel already exists",
+          peer_id));
       }
 
-      auto channel = std::make_unique<Channel>();
-      channels.emplace(peer_id, std::move(channel));
-      return *channels[peer_id];
+      // Odd emplace syntax here as Channel is non-copyable and Channel() needs
+      // to be differentiated from std::nullopt
+      channels[peer_id].emplace();
+
+      // Notify host to create an outgoing connection to the peer
+      RINGBUFFER_WRITE_MESSAGE(
+        ccf::add_node, to_host, peer_id, hostname, service);
+    }
+
+    void close_channel(NodeId peer_id)
+    {
+      auto search = channels.find(peer_id);
+      if (search == channels.end())
+      {
+        LOG_FAIL_FMT(
+          "Cannot close node channel with {}: channel does not exist", peer_id);
+        return;
+      }
+
+      LOG_INFO_FMT("Node channel with {} is now closed", peer_id);
+
+      // Record that the channel is closed, keeping track of closed channels so
+      // that they are not re-used
+      search->second = std::nullopt;
+
+      // Notify host to remove outgoing connection to the peer
+      RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+    }
+
+    std::optional<Channel>& get(NodeId peer_id)
+    {
+      auto search = channels.find(peer_id);
+      if (search != channels.end())
+      {
+        return search->second;
+      }
+
+      // Creating temporary channel that is not yet known by the local store
+      channels.emplace(peer_id, false);
+
+      return channels[peer_id];
     }
 
     std::optional<std::vector<uint8_t>> get_signed_public(NodeId peer_id)
     {
-      const auto own_public_for_peer_ = get(peer_id).get_public();
+      auto& channel = get(peer_id);
+      if (!channel.has_value())
+      {
+        return std::nullopt;
+      }
+
+      const auto own_public_for_peer_ = channel->get_public();
       if (!own_public_for_peer_.has_value())
       {
-        return {};
+        return std::nullopt;
       }
 
       const auto& own_public_for_peer = own_public_for_peer_.value();
@@ -270,6 +354,13 @@ namespace ccf
       NodeId peer_id, const std::vector<uint8_t>& peer_signed_public)
     {
       auto& channel = get(peer_id);
+      if (!channel.has_value())
+      {
+        LOG_FAIL_FMT(
+          "Cannot load peer signed public: node channel with {} does not exist",
+          peer_id);
+        return false;
+      }
 
       // Verify signature
       auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
@@ -325,15 +416,15 @@ namespace ccf
       }
 
       // Load peer public
-      if (!channel.load_peer_public(peer_public_start, peer_public_size))
+      if (!channel->load_peer_public(peer_public_start, peer_public_size))
       {
         return false;
       }
 
       // Channel can be established
-      channel.establish();
+      channel->establish();
 
-      LOG_INFO_FMT("node2node channel with {} is now established", peer_id);
+      LOG_INFO_FMT("node channel with {} is now established", peer_id);
 
       return true;
     }
