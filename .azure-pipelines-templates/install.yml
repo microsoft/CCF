@@ -1,6 +1,12 @@
+variables:
+- name: install_prefix
+  value: /opt/ccf-noversion
+
 steps:
 - script: |
     ninja install
+    INSTALL_PREFIX=`cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2`
+    echo '##vso[task.setvariable variable=install_prefix]$INSTALL_PREFIX'
   workingDirectory: build
   displayName: 'Install'
 
@@ -9,20 +15,20 @@ steps:
     cd nested/run
     python3.7 -m venv env
     source env/bin/activate
-    python -m pip install -U -r ${{ parameters.install_prefix }}/bin/requirements.txt
-    pip freeze > ${{ parameters.install_prefix }}/bin/requirements.txt
+    python -m pip install -U -r ${{ variables.install_prefix }}/bin/requirements.txt
+    pip freeze > ${{ variables.install_prefix }}/bin/requirements.txt
     timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
-      python ${{ parameters.install_prefix }}/bin/start_network.py \
+      python ${{ variables.install_prefix }}/bin/start_network.py \
       -p ../../build/liblogging \
-      -b ${{ parameters.install_prefix }}/bin \
+      -b ${{ variables.install_prefix }}/bin \
       -g $(pwd)/../../src/runtime_config/gov.lua \
       -v
     cp -r ./workspace/start_network_0/0.ledger .
     cp ./workspace/start_network_0/network_enc_pubk.pem .
     timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
-      python ${{ parameters.install_prefix }}/bin/start_network.py \
+      python ${{ variables.install_prefix }}/bin/start_network.py \
       -p ../../build/liblogging \
-      -b ${{ parameters.install_prefix }}/bin \
+      -b ${{ variables.install_prefix }}/bin \
       -v \
       --recover \
       --ledger-dir 0.ledger \
@@ -31,12 +37,12 @@ steps:
   displayName: Test installed CCF
 
 - script: |
-    cp -r /opt/openenclave ${{ parameters.install_prefix }}
+    cp -r /opt/openenclave ${{ variables.install_prefix }}
   displayName: Copy OE into install dir
 
 - task: ArchiveFiles@2
   inputs:
-    rootFolderOrFile: ${{ parameters.install_prefix }}
+    rootFolderOrFile: ${{ variables.install_prefix }}
     archiveType: 'tar'
     tarCompression: 'gz'
     archiveFile: '$(Build.ArtifactStagingDirectory)/ccf.tar.gz'
