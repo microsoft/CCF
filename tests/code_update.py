@@ -71,11 +71,15 @@ def run(args):
 
         with primary.user_client() as uc:
             r = uc.get("code")
-            versions = set(r.result["versions"])
-            assert {
-                {"digest": first_code_id, "status": "ACCEPTED"},
-                {"digest": new_code_id, "status": "ACCEPTED"},
-            } == versions, versions
+            versions = sorted(r.result["versions"], key=lambda x: x["digest"])
+            expected = sorted(
+                [
+                    {"digest": first_code_id, "status": "ACCEPTED"},
+                    {"digest": new_code_id, "status": "ACCEPTED"},
+                ],
+                key=lambda x: x["digest"],
+            )
+            assert versions == expected, versions
 
         new_nodes = set()
         old_nodes_count = len(network.nodes)
