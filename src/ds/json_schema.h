@@ -90,7 +90,14 @@ namespace ds
       nlohmann::json add_schema_to_components(TDoc& doc)
       {
         T t;
-        return add_schema_components(doc, t);
+        const auto name = schema_name(t);
+        const auto ib = doc.components.schemas.try_emplace(name);
+        if (ib.second)
+        {
+          auto& j = ib.first->second;
+          return add_schema_components(doc, j, t);
+        }
+        return ib.first->second;
       }
     }
 

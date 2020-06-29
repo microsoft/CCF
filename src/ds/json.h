@@ -549,10 +549,10 @@ namespace std
     return #TYPE; \
   } \
   template <typename T> \
-  nlohmann::json add_schema_components(T& doc, const TYPE& t) \
+  nlohmann::json add_schema_components( \
+    T& doc, nlohmann::json& j, const TYPE& t) \
   { \
     PRE_ADD_SCHEMA; \
-    auto& j = doc.components.schemas[#TYPE]; \
     add_schema_components_required_fields(doc, j, t); \
     POST_ADD_SCHEMA; \
     auto schema_ref_object = nlohmann::json::object(); \
@@ -574,7 +574,7 @@ namespace std
     , \
     fill_json_schema(j, static_cast<const BASE&>(t)), \
     , \
-    add_schema_components(doc, static_cast<const BASE&>(t)), )
+    add_schema_components(doc, j, static_cast<const BASE&>(t)), )
 
 #define DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(TYPE) \
   DECLARE_JSON_TYPE_IMPL( \
@@ -597,7 +597,7 @@ namespace std
     from_json_optional_fields(j, t), \
     fill_json_schema(j, static_cast<const BASE&>(t)), \
     fill_json_schema_optional_fields(j, t), \
-    add_schema_components(doc, static_cast<const BASE&>(t)), \
+    add_schema_components(doc, j, static_cast<const BASE&>(t)), \
     add_schema_components_optional_fields(doc, j, t))
 
 #define DECLARE_JSON_REQUIRED_FIELDS(TYPE, ...) \
