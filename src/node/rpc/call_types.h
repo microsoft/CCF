@@ -3,6 +3,7 @@
 #pragma once
 #include "ds/json_schema.h"
 #include "kv/kv_types.h"
+#include "node/code_id.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
 #include "node/nodes.h"
@@ -69,13 +70,13 @@ namespace ccf
   {
     struct Version
     {
-      ccf::CodeDigest digest;
+      std::string digest;
       ccf::CodeStatus status;
     };
 
     struct Out
     {
-      std::vector<Version> versions = {};
+      std::vector<GetCode::Version> versions = {};
     };
   };
 

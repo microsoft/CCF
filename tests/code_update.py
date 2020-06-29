@@ -33,6 +33,16 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_nodes()
 
+        first_code_id = get_code_id(
+            infra.path.build_lib_path(args.package, args.enclave_type)
+        )
+
+        with primary.user_client() as uc:
+            r = uc.get("code")
+            assert r.result == {
+                "versions": [{"digest": first_code_id, "status": "ACCEPTED"}],
+            }, r.result
+
         LOG.info("Adding a new node")
         new_node = network.create_and_trust_node(args.package, "localhost", args)
         assert new_node
@@ -58,6 +68,15 @@ def run(args):
         primary, _ = network.find_primary()
 
         network.consortium.add_new_code(primary, new_code_id)
+
+        with primary.user_client() as uc:
+            r = uc.get("code")
+            assert r.result == {
+                "versions": [
+                    {"digest": first_code_id, "status": "ACCEPTED"},
+                    {"digest": new_code_id, "status": "ACCEPTED"},
+                ]
+            }, r.result
 
         new_nodes = set()
         old_nodes_count = len(network.nodes)
