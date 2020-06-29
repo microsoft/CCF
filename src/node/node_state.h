@@ -351,10 +351,6 @@ namespace ccf
 
           setup_recovery_hook();
 
-          // Accept members connections for members to finish recovery once
-          // the public ledger has been read
-          open_member_frontend();
-
           accept_network_tls_connections(args.config);
 
           sm.advance(State::readingPublicLedger);
@@ -672,6 +668,8 @@ namespace ccf
           "Could not commit transaction when starting recovered public "
           "network");
       }
+
+      open_member_frontend();
 
       sm.advance(State::partOfPublicNetwork);
     }
