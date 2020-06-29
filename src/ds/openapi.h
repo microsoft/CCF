@@ -210,10 +210,12 @@ namespace ds
         http_method verb,
         const std::string& content_type)
       {
-        auto t_schema = nlohmann::json::object();
-        ds::json::fill_schema<T>(t_schema);
-        add_request_body_schema(
-          uri, verb, content_type, ds::json::schema_name<T>(), t_schema);
+        check_path_valid(uri);
+
+        auto& request_body = paths[uri][verb].requestBody;
+        request_body.description = "Auto-generated request body schema";
+        request_body.content[content_type].schema =
+          add_schema_component<T>();
       }
 
       void add_response_schema(
@@ -239,15 +241,61 @@ namespace ds
         http_status status,
         const std::string& content_type)
       {
-        auto t_schema = nlohmann::json::object();
-        ds::json::fill_schema<T>(t_schema);
-        add_response_schema(
-          uri,
-          verb,
-          status,
-          content_type,
-          ds::json::schema_name<T>(),
-          t_schema);
+        check_path_valid(uri);
+
+        auto& response_object = paths[uri][verb][status];
+        response_object.description = "Auto-generated response schema";
+        response_object.content[content_type].schema =
+          add_schema_component<T>();
+      }
+
+      template <typename T>
+      inline nlohmann::json add_schema_component()
+      {
+        nlohmann::json j;
+        // if constexpr (nonstd::is_specialization<T, std::optional>::value)
+        // {
+        //   return schema_name<typename T::value_type>();
+        // }
+        // else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+        // {
+        //   return fmt::format("{}_array", schema_name<typename
+        //   T::value_type>());
+        // }
+        // else if constexpr (
+        //   nonstd::is_specialization<T, std::map>::value ||
+        //   nonstd::is_specialization<T, std::unordered_map>::value)
+        // {
+        //   return fmt::format(
+        //     "{}_to_{}",
+        //     schema_name<typename T::key_type>(),
+        //     schema_name<typename T::mapped_type>());
+        // }
+        // else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+        // {
+        //   return fmt::format(
+        //     "{}_to_{}",
+        //     schema_name<typename T::first_type>(),
+        //     schema_name<typename T::second_type>());
+        // }
+        // else
+        if constexpr (
+          std::is_same<T, std::string>::value || std::is_same<T, bool>::value ||
+          std::is_same<T, uint8_t>::value || std::is_same<T, uint16_t>::value ||
+          std::is_same<T, uint32_t>::value ||
+          std::is_same<T, uint64_t>::value || std::is_same<T, int8_t>::value ||
+          std::is_same<T, int16_t>::value || std::is_same<T, int32_t>::value ||
+          std::is_same<T, int64_t>::value || std::is_same<T, float>::value ||
+          std::is_same<T, double>::value ||
+          std::is_same<T, nlohmann::json>::value)
+        {
+          ds::json::fill_schema<T>(j);
+          return add_schema_to_components(ds::json::schema_name<T>(), j);
+        }
+        else
+        {
+          return ds::json::adl::add_schema_to_components<T>(*this);
+        }
       }
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Document);

@@ -55,6 +55,14 @@ namespace ds
       return element;
     }
 
+    template <typename T, typename Doc>
+    nlohmann::json schema_element()
+    {
+      auto element = nlohmann::json::object();
+      fill_schema<T>(element);
+      return element;
+    }
+
     namespace adl
     {
       template <typename T>
@@ -76,6 +84,13 @@ namespace ds
         {
           fill_json_schema(schema, t);
         }
+      }
+
+      template <typename T, typename TDoc>
+      nlohmann::json add_schema_to_components(TDoc& doc)
+      {
+        T t;
+        return add_schema_components(doc, t);
       }
     }
 
