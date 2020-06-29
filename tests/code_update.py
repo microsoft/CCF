@@ -71,12 +71,11 @@ def run(args):
 
         with primary.user_client() as uc:
             r = uc.get("code")
-            assert r.result == {
-                "versions": [
-                    {"digest": first_code_id, "status": "ACCEPTED"},
-                    {"digest": new_code_id, "status": "ACCEPTED"},
-                ]
-            }, r.result
+            versions = set(r.result["versions"])
+            assert {
+                {"digest": first_code_id, "status": "ACCEPTED"},
+                {"digest": new_code_id, "status": "ACCEPTED"},
+            } == versions, versions
 
         new_nodes = set()
         old_nodes_count = len(network.nodes)
