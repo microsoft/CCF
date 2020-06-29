@@ -676,7 +676,7 @@ namespace std
     T& doc, nlohmann::json& j, const TYPE& t) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
-    (POP1)(ADD_SCHEMA_COMPONENTS_REQUIRED, TYPE, ##__VA_ARGS__); \
+    (POP1)(ADD_SCHEMA_COMPONENTS_OPTIONAL, TYPE, ##__VA_ARGS__); \
   }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(TYPE, ...) \
