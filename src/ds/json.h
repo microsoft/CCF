@@ -560,6 +560,9 @@ namespace std
     return schema_ref_object; \
   }
 
+// TODO: PRE_ADD_SCHEMA isn't right for adding base elements, think it adds them
+// with the wrong name?
+
 #define DECLARE_JSON_TYPE(TYPE) DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , , , )
 
 #define DECLARE_JSON_TYPE_WITH_BASE(TYPE, BASE) \
@@ -653,6 +656,14 @@ namespace std
     j["type"] = "object"; \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(FILL_SCHEMA_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+  } \
+  template <typename T> \
+  void add_schema_components_required_fields( \
+    T& doc, nlohmann::json& j, const TYPE& t) \
+  { \
+    j["type"] = "object"; \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(ADD_SCHEMA_COMPONENTS_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
   }
 
 #define DECLARE_JSON_OPTIONAL_FIELDS(TYPE, ...) \
@@ -696,6 +707,13 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(FILL_SCHEMA_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
+  } \
+  template <typename T> \
+  void add_schema_components_optional_fields( \
+    T& doc, nlohmann::json& j, const TYPE& t) \
+  { \
+    _FOR_JSON_COUNT_NN(__VA_ARGS__) \
+    (POP2)(ADD_SCHEMA_COMPONENTS_OPTIONAL_WITH_RENAMES, TYPE, ##__VA_ARGS__); \
   }
 
 #define DECLARE_JSON_ENUM(TYPE, ...) \

@@ -104,6 +104,17 @@ DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Baz, Bar);
 DECLARE_JSON_REQUIRED_FIELDS(Baz, n);
 DECLARE_JSON_OPTIONAL_FIELDS(Baz, x, y);
 
+struct Buzz : public Baz
+{
+  Foo required_and_only_in_c;
+  uint16_t optional_and_only_in_c;
+};
+DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Buzz, Baz);
+DECLARE_JSON_REQUIRED_FIELDS_WITH_RENAMES(
+  Buzz, required_and_only_in_c, RequiredJsonField);
+DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
+  Buzz, optional_and_only_in_c, OptionalJsonField);
+
 TEST_CASE("Schema population")
 {
   openapi::Document doc;
@@ -124,6 +135,11 @@ TEST_CASE("Schema population")
     HTTP_POST,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
+  // doc.add_response_schema<std::vector<Foo>>(
+  //   "/app/foos",
+  //   HTTP_GET,
+  //   HTTP_STATUS_OK,
+  //   http::headervalues::contenttype::JSON);
   doc.add_response_schema<Bar>(
     "/app/bar",
     HTTP_GET,
@@ -134,11 +150,11 @@ TEST_CASE("Schema population")
     HTTP_GET,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
-  // doc.add_response_schema<std::vector<Foo>>(
-  //   "/app/foos",
-  //   HTTP_GET,
-  //   HTTP_STATUS_OK,
-  //   http::headervalues::contenttype::JSON);
+  doc.add_response_schema<Buzz>(
+    "/app/buzz",
+    HTTP_GET,
+    HTTP_STATUS_OK,
+    http::headervalues::contenttype::JSON);
 
   const nlohmann::json j = doc;
   required_doc_elements(j);
