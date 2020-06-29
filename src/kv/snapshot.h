@@ -17,35 +17,31 @@ namespace kv
   public:
     StoreSnapshot(kv::Version version_) : version(version_) {}
 
-    void add_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
+    void add_map_snapshot(
+      std::unique_ptr<kv::AbstractMap::Snapshot> snapshot) override
     {
       serialized_size += snapshot->get_serialized_size();
       snapshots.push_back(std::move(snapshot));
     }
 
-    std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>& get_snapshots()
+    const std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>&
+    get_map_snapshots() override
     {
       return snapshots;
     }
 
-    std::vector<uint8_t>& get_buffer()
+    void serialize() override
     {
       buffer.resize(serialized_size);
-      return buffer;
-    }
-
-    void serialize()
-    {
-      uint8_t* buffer = get_buffer().data();
-      uint32_t position = 0;
+      uint8_t* buffer_ = buffer.data();
       for (auto& s : snapshots)
       {
-        s->serialize(buffer);
-        buffer = buffer + s->get_serialized_size();
+        s->serialize(buffer_);
+        buffer_ = buffer_ + s->get_serialized_size();
       }
     }
 
-    kv::Version get_version() const
+    kv::Version get_version() const override
     {
       return version;
     }
