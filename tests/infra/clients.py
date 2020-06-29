@@ -409,7 +409,6 @@ class WSClient:
 
 class CCFClient:
     def __init__(self, *args, **kwargs):
-        self.prefix = kwargs.pop("prefix")
         self.description = kwargs.pop("description")
         self.connection_timeout = kwargs.pop("connection_timeout")
         self.rpc_loggers = (RPCLogger(),)
@@ -430,7 +429,7 @@ class CCFClient:
     # pylint: disable=method-hidden
     def _just_rpc(self, method, *args, **kwargs):
         is_signed = "signed" in kwargs and kwargs.pop("signed")
-        r = Request(f"{self.prefix}/{method}", *args, **kwargs)
+        r = Request(method, *args, **kwargs)
 
         description = ""
         if self.description:
@@ -481,7 +480,6 @@ def client(
     ca=None,
     description=None,
     log_file=None,
-    prefix="app",
     binary_dir=".",
     connection_timeout=3,
     request_timeout=3,
@@ -494,7 +492,6 @@ def client(
         key=key,
         ca=ca,
         description=description,
-        prefix=prefix,
         binary_dir=binary_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,

@@ -33,7 +33,7 @@ def run(args):
 
         primary, backups = network.find_nodes()
 
-        with primary.node_client() as mc:
+        with primary.client() as mc:
 
             check = infra.checker.Checker()
             check_commit = infra.checker.Checker(mc)

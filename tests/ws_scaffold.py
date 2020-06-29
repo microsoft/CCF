@@ -28,7 +28,7 @@ def test(network, args, notifications_queue=None):
     # we want to wait for its app frontend to be open, which is
     # when it's aware that the network is open.
     end_time = time.time() + 10
-    with other.node_client() as nc:
+    with other.client() as nc:
         while time.time() < end_time:
             r = nc.get("network")
             if r.result == "OPEN":

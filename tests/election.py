@@ -23,7 +23,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
     for _ in range(infra.ccf.Network.replication_delay * 10):
         up_to_date_f = []
         for f in nodes:
-            with f.node_client() as c:
+            with f.client() as c:
                 r = c.get("tx", {"view": view, "seqno": seqno})
                 assert (
                     r.status == http.HTTPStatus.OK

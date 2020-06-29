@@ -113,7 +113,7 @@ def run(args):
             )
 
         # As permissioned manager, register regulator and banks
-        with primary.node_client() as mc:
+        with primary.client() as mc:
             check_commit = infra.checker.Checker(mc)
 
             with primary.user_client(user_id=manager.name) as c:
@@ -242,7 +242,7 @@ def run(args):
                 )
 
         # regulator poll for transactions that are flagged
-        with primary.node_client() as mc:
+        with primary.client() as mc:
             with primary.user_client(user_id=regulator.name) as c:
                 # assert that the flagged txs that we poll for are correct
                 resp = c.rpc("REG_poll_flagged")

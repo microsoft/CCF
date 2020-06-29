@@ -78,7 +78,7 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
 def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
-    with primary.node_client() as nc:
+    with primary.client() as nc:
         check_commit = infra.checker.Checker(nc)
         check = infra.checker.Checker()
 
@@ -102,7 +102,7 @@ def test_remove(network, args):
     if args.package in supported_packages:
         primary, _ = network.find_primary()
 
-        with primary.node_client() as nc:
+        with primary.client() as nc:
             check_commit = infra.checker.Checker(nc)
             check = infra.checker.Checker()
 
@@ -230,7 +230,7 @@ def test_historical_query(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
 
-        with primary.node_client() as nc:
+        with primary.client() as nc:
             check_commit = infra.checker.Checker(nc)
             check = infra.checker.Checker()
 
@@ -303,7 +303,7 @@ def test_historical_query(network, args):
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
-    with primary.node_client() as nc:
+    with primary.client() as nc:
         check_commit = infra.checker.Checker(nc)
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)

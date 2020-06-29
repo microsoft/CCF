@@ -16,7 +16,7 @@ from loguru import logger as LOG
 def test(network, args, notifications_queue=None):
     primary, _ = network.find_primary_and_any_backup()
 
-    with primary.node_client() as mc:
+    with primary.client() as mc:
         check_commit = infra.checker.Checker(mc, notifications_queue)
         check = infra.checker.Checker()
 

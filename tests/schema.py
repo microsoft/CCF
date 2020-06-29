@@ -92,11 +92,11 @@ def run(args):
             LOG.info("user frontend")
             fetch_schema(user_client)
 
-        with primary.node_client() as node_client:
+        with primary.client() as node_client:
             LOG.info("node frontend")
             fetch_schema(node_client)
 
-        with primary.member_client() as member_client:
+        with primary.client("member0") as member_client:
             LOG.info("member frontend")
             fetch_schema(member_client)
 

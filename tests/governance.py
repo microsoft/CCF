@@ -22,7 +22,7 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_nodes()
 
-        with primary.node_client() as mc:
+        with primary.client() as mc:
             oed = subprocess.run(
                 [
                     args.oesign,

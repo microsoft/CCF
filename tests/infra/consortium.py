@@ -43,9 +43,9 @@ class Consortium:
                 self.members.append(new_member)
             self.recovery_threshold = len(self.members)
         else:
-            with remote_node.member_client() as mc:
+            with remote_node.client("member0") as mc:
                 r = mc.rpc(
-                    "query",
+                    "gov/query",
                     {
                         "text": """tables = ...
                         non_retired_members = {}
@@ -71,7 +71,7 @@ class Consortium:
                     LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
 
                 r = mc.rpc(
-                    "query",
+                    "gov/query",
                     {
                         "text": """tables = ...
                         return tables["ccf.config"]:get(0)
@@ -183,10 +183,8 @@ class Consortium:
         """
 
         proposals = []
-        with remote_node.member_client(
-            member_id=self.get_any_active_member().member_id
-        ) as c:
-            r = c.rpc("query", {"text": script})
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+            r = c.rpc("gov/query", {"text": script})
             assert r.status == http.HTTPStatus.OK.value
             for proposal_id, attr in r.result.items():
                 has_proposer_voted_for = False
@@ -214,10 +212,8 @@ class Consortium:
         )
         self.vote_using_majority(remote_node, proposal)
 
-        with remote_node.member_client(
-            member_id=self.get_any_active_member().member_id
-        ) as c:
-            r = c.rpc("read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+            r = c.rpc("gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
             assert r.result["status"] == infra.node.NodeStatus.RETIRED.name
 
     def trust_node(self, remote_node, node_id):
@@ -329,7 +325,7 @@ class Consortium:
 
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
-        with remote_node.node_client() as nc:
+        with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_members():
@@ -386,12 +382,11 @@ class Consortium:
         """
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
-        with remote_node.member_client(
-            member_id=self.get_any_active_member().member_id,
+        with remote_node.client(f"member{self.get_any_active_member().member_id}",
             request_timeout=(30 if pbft_open else 3),
         ) as c:
             r = c.rpc(
-                "query",
+                "gov/query",
                 {
                     "text": """tables = ...
                     service = tables["ccf.service"]:get(0)
@@ -426,10 +421,8 @@ class Consortium:
             ), f"Service status {current_status} (expected {status.name})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
-        with remote_node.member_client(
-            member_id=self.get_any_active_member().member_id
-        ) as c:
-            r = c.rpc("read", {"table": "ccf.nodes", "key": node_id})
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+            r = c.rpc("gov/read", {"table": "ccf.nodes", "key": node_id})
 
             if r.error is not None or (
                 node_status and r.result["status"] != node_status.name

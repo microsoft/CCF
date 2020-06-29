@@ -88,7 +88,7 @@ class LoggingTxs:
         timeout=3,
     ):
         LOG.success(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
-        with remote_node.node_client() as mc:
+        with remote_node.client() as mc:
             check_commit = infra.checker.Checker(mc)
             check_commit_n = infra.checker.Checker(mc, self.notifications_queue)
 
