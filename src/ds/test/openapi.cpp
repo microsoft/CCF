@@ -85,6 +85,25 @@ struct Foo
 DECLARE_JSON_TYPE(Foo);
 DECLARE_JSON_REQUIRED_FIELDS(Foo, n, s);
 
+struct Bar
+{
+  std::string name;
+  double f;
+};
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Bar);
+DECLARE_JSON_REQUIRED_FIELDS(Bar, name);
+DECLARE_JSON_OPTIONAL_FIELDS(Bar, f);
+
+struct Baz : public Bar
+{
+  uint16_t n;
+  double x;
+  double y;
+};
+DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(Baz, Bar);
+DECLARE_JSON_REQUIRED_FIELDS(Baz, n);
+DECLARE_JSON_OPTIONAL_FIELDS(Baz, x, y);
+
 TEST_CASE("Schema population")
 {
   openapi::Document doc;
@@ -105,8 +124,13 @@ TEST_CASE("Schema population")
     HTTP_POST,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
-  doc.add_response_schema<uint32_t>(
+  doc.add_response_schema<Bar>(
     "/app/bar",
+    HTTP_GET,
+    HTTP_STATUS_OK,
+    http::headervalues::contenttype::JSON);
+  doc.add_response_schema<Baz>(
+    "/app/baz",
     HTTP_GET,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
