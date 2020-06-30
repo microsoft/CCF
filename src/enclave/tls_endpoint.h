@@ -274,30 +274,11 @@ namespace enclave
       pending_write.insert(pending_write.end(), data.begin(), data.end());
     }
 
-    struct EmptyMsg
-    {
-      std::shared_ptr<Endpoint> self;
-    };
-
-    static void flush_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
-    {
-      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())->flush_thread();
-    }
-
     void flush()
-    {
-      auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&flush_cb);
-      msg->data.self = this->shared_from_this();
-
-      threading::ThreadMessaging::thread_messaging.add_task<EmptyMsg>(
-        execution_thread, std::move(msg));
-    }
-
-    void flush_thread()
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::runtime_error("Called flush_thread from incorrect thread");
+        throw std::runtime_error("Called flush from incorrect thread");
       }
 
       do_handshake();
@@ -325,6 +306,11 @@ namespace enclave
         }
       }
     }
+
+    struct EmptyMsg
+    {
+      std::shared_ptr<Endpoint> self;
+    };
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
     {
