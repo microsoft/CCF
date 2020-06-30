@@ -52,7 +52,10 @@ namespace ccf
 
     // Indicates a channel with a node not yet known by the local store (e.g.
     // when a new node joins the network)
-    bool known_by_local_store;
+    bool known_by_local_store; // TODO: Unused now
+
+    // Only use for incoming messages (e.g. follower only)
+    bool incoming_only;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
@@ -125,9 +128,10 @@ namespace ccf
     }
 
   public:
-    Channel(bool known_by_local_store_ = true) :
+    Channel(bool incoming_only_ = false) :
       status(INITIATED),
-      known_by_local_store(known_by_local_store_)
+      known_by_local_store(true),
+      incoming_only(incoming_only_)
     {}
 
     // TODO: Delete me
@@ -144,6 +148,17 @@ namespace ccf
     ChannelStatus get_status()
     {
       return status;
+    }
+
+    bool is_incoming_only()
+    {
+      return incoming_only;
+    }
+
+    void set_incoming_only()
+    {
+      // TODO: Naming is bad
+      incoming_only = false;
     }
 
     bool is_known_by_local_store()
@@ -258,26 +273,59 @@ namespace ccf
     void create_channel(
       NodeId peer_id, const std::string& hostname, const std::string& service)
     {
+      LOG_FAIL_FMT("Creating a channel with {}...", peer_id);
+
       auto search = channels.find(peer_id);
       if (search != channels.end())
       {
-        if (
-          search->second.has_value() &&
-          !search->second->is_known_by_local_store())
+        // if (
+        //   search->second.has_value() &&
+        //   !search->second->is_known_by_local_store())
+        // {
+        //   LOG_FAIL_FMT(
+        //     "Channel already exists but is not known by local store");
+        //   search->second->set_known_by_local_store();
+        //   return;
+        // }
+
+        // throw std::logic_error(fmt::format(
+        //   "Cannot create node channel with {}: channel already exists",
+        //   peer_id));
+
+        if (search->second.has_value())
         {
-          search->second->set_known_by_local_store();
-          return;
+          if (search->second->is_incoming_only())
+          {
+            LOG_FAIL_FMT(
+              "Channel with {} exists but is incoming only. Create host "
+              "connection.", peer_id);
+
+            // Notify host to create an outgoing connection to the peer
+            RINGBUFFER_WRITE_MESSAGE(
+              ccf::add_node, to_host, peer_id, hostname, service);
+            search->second->set_incoming_only();
+            return;
+          }
+          else
+          {
+            LOG_FAIL_FMT("Channel with already exists. Use it.");
+            return;
+          }
+        }
+        else
+        {
+          throw std::logic_error(
+            "Cannot create a channel with a node that has been deleted!");
         }
 
-        throw std::logic_error(fmt::format(
-          "Cannot create node channel with {}: channel already exists",
-          peer_id));
+        return;
       }
 
       // Odd emplace syntax here as Channel is non-copyable and Channel() needs
       // to be differentiated from std::nullopt
       channels[peer_id].emplace();
 
+      // TODO: Move messaging to host to Channel class instead
       // Notify host to create an outgoing connection to the peer
       RINGBUFFER_WRITE_MESSAGE(
         ccf::add_node, to_host, peer_id, hostname, service);
@@ -311,8 +359,10 @@ namespace ccf
         return search->second;
       }
 
-      // Creating temporary channel that is not yet known by the local store
-      channels.emplace(peer_id, false);
+      LOG_FAIL_FMT("Creating temporary channel with {}", peer_id);
+
+      // Creating temporary channel that is incoming only
+      channels.emplace(peer_id, true);
 
       return channels[peer_id];
     }

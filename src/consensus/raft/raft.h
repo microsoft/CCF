@@ -88,6 +88,19 @@ namespace raft
       Index match_idx;
       // the highest index sent to the node
       Index sent_idx;
+
+      Configuration::NodeInfo node_info;
+
+      NodeState() = default;
+
+      NodeState(
+        Index match_idx_,
+        Index sent_idx_,
+        const Configuration::NodeInfo& node_info_) :
+        match_idx(match_idx_),
+        sent_idx(sent_idx_),
+        node_info(node_info_)
+      {}
     };
 
     SpinLock lock;
@@ -976,7 +989,11 @@ namespace raft
       LOG_INFO_FMT("Becoming candidate {}: {}", local_id, current_term);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      {
+        channels->create_channel(
+          it->first, it->second.node_info.hostname, it->second.node_info.port);
         send_request_vote(it->first);
+      }
     }
 
     void become_leader()
@@ -1246,7 +1263,8 @@ namespace raft
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = last_idx + 1;
-          nodes[node_info.first] = {0, index};
+          nodes.try_emplace(node_info.first, 0, index, node_info.second);
+          // nodes[node_info.first] = {0, index, node_info};
 
           if (state == Leader)
           {

@@ -174,6 +174,8 @@ namespace asynchost
 
     Ledger& ledger;
     TCP listener;
+
+    // The lifetime of outgoing connections is handled by the enclave
     std::unordered_map<ccf::NodeId, TCP> outgoing;
     std::unordered_map<size_t, TCP> incoming;
     std::unordered_map<ccf::NodeId, TCP> associated;

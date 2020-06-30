@@ -205,9 +205,17 @@ namespace kv
         std::string port;
         std::vector<uint8_t> cert = {};
 
+        NodeInfo() = default;
+
         NodeInfo(const std::string& hostname_, const std::string& port_) :
           hostname(hostname_),
           port(port_)
+        {}
+
+        NodeInfo(const NodeInfo& other) :
+          hostname(other.hostname),
+          port(other.port),
+          cert(other.cert)
         {}
       };
 
