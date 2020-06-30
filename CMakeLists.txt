@@ -24,7 +24,7 @@ message(STATUS "CCF release version=${CCF_RELEASE_VERSION}")
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf/${CCF_VERSION}"
+      "/opt/${CCF_VERSION}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
