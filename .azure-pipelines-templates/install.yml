@@ -2,30 +2,30 @@ steps:
 - script: |
     sudo chmod a+w /opt
     ninja install
-    INSTALL_PREFIX=`cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2`
-    echo '##vso[task.setvariable variable=install_prefix]$INSTALL_PREFIX'
+    cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
   workingDirectory: build
   displayName: 'Install'
 
 - script: |
+    cat /tmp/install_prefix > INSTALL_PREFIX
     mkdir -p nested/run
     cd nested/run
     python3.7 -m venv env
     source env/bin/activate
-    python -m pip install -U -r ${{ variables.install_prefix }}/bin/requirements.txt
-    pip freeze > ${{ variables.install_prefix }}/bin/requirements.txt
+    python -m pip install -U -r $INSTALL_PREFIX/bin/requirements.txt
+    pip freeze > $INSTALL_PREFIX/bin/requirements.txt
     timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
-      python ${{ variables.install_prefix }}/bin/start_network.py \
+      python $INSTALL_PREFIX/bin/start_network.py \
       -p ../../build/liblogging \
-      -b ${{ variables.install_prefix }}/bin \
+      -b $INSTALL_PREFIX/bin \
       -g $(pwd)/../../src/runtime_config/gov.lua \
       -v
     cp -r ./workspace/start_network_0/0.ledger .
     cp ./workspace/start_network_0/network_enc_pubk.pem .
     timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
-      python ${{ variables.install_prefix }}/bin/start_network.py \
+      python $INSTALL_PREFIX/bin/start_network.py \
       -p ../../build/liblogging \
-      -b ${{ variables.install_prefix }}/bin \
+      -b $INSTALL_PREFIX/bin \
       -v \
       --recover \
       --ledger-dir 0.ledger \
@@ -34,17 +34,13 @@ steps:
   displayName: Test installed CCF
 
 - script: |
-    cp -r /opt/openenclave ${{ variables.install_prefix }}
+    cat /tmp/install_prefix > INSTALL_PREFIX
+    cp -r /opt/openenclave $INSTALL_PREFIX
   displayName: Copy OE into install dir
 
-- task: ArchiveFiles@2
-  inputs:
-    rootFolderOrFile: ${{ variables.install_prefix }}
-    archiveType: 'tar'
-    tarCompression: 'gz'
-    archiveFile: '$(Build.ArtifactStagingDirectory)/ccf.tar.gz'
-    verbose: true
-  displayName: 'Create Install Tarball'
+- script: |
+    tar czf $(Build.ArtifactStagingDirectory)/ccf.tar.gz $INSTALL_PREFIX
+  displayName: Copy OE into install dir
 
 - task: PublishPipelineArtifact@1
   inputs:
