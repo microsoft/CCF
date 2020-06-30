@@ -40,9 +40,9 @@ def run(args):
 
             for connection in scenario["connections"]:
                 with (
-                    primary.user_client()
+                    primary.client("user0")
                     if not connection.get("on_backup")
-                    else random.choice(backups).user_client()
+                    else random.choice(backups).client("user0")
                 ) as client:
                     txs = connection.get("transactions", [])
 
