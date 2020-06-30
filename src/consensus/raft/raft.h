@@ -1220,16 +1220,23 @@ namespace raft
 
       for (auto node_id : to_remove)
       {
-        channels->close_channel(node_id);
+        if (state == Leader)
+        {
+          channels->close_channel(node_id);
+        }
         nodes.erase(node_id);
         LOG_INFO_FMT("Removed node {}", node_id);
       }
 
+      // Add all active nodes that are not already present in the node state.
       bool self_is_active = false;
+
       for (auto node_info : active_nodes)
       {
         if (node_info.first == local_id)
         {
+          // TODO: Delete
+          LOG_FAIL_FMT("Raft: not adding self !", local_id);
           self_is_active = true;
           continue;
         }

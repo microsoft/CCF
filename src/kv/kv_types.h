@@ -203,7 +203,7 @@ namespace kv
       {
         std::string hostname;
         std::string port;
-        // std::vector<uint8_t> cert = {};
+        std::vector<uint8_t> cert = {};
 
         NodeInfo(const std::string& hostname_, const std::string& port_) :
           hostname(hostname_),
