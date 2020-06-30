@@ -36,15 +36,15 @@ fi
 
 # If the first letter of the request is @, consider it a filename
 if [ "$(echo "$request" | cut -c1)" == "@" ]; then
-    request="${request:1}"
-    request=$(cat "$request")
+    request_path="${request:1}"
+    req_digest=$(openssl dgst -sha256 -binary "$request_path" | openssl base64)
+    content_length=$(wc -c "$request_path" | awk '{print $1}' )
+else
+    req_digest=$(printf "%s" "$request" | openssl dgst -sha256 -binary | openssl base64)
+    content_length=${#request}
 fi
 
 date=$(date "+%a, %d %b %Y %H:%M:%S %Z")
-
-req_digest=$(echo -n "$request" | openssl dgst -sha256 -binary | openssl base64)
-
-content_length=${#request}
 
 # Construct string to sign
 string_to_sign="date: $date
