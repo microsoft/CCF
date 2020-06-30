@@ -328,7 +328,7 @@ namespace enclave
 
     static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
     {
-      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())->flush_thread();
+      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())->close_thread();
     }
 
     void close()
