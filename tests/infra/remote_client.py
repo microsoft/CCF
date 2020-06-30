@@ -82,8 +82,7 @@ class CCFRemoteClient(object):
             if csv == "perf_summary.csv":
                 with open("perf_summary.csv", "a") as l:
                     with open(os.path.join(self.common_dir, remote_file_dst), "r") as r:
-                        for line in r.readlines():
-                            l.write(line)
+                        l.write(r.read())
 
     def check_done(self):
         return self.remote.check_done()
