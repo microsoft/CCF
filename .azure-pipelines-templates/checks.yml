@@ -1,50 +1,14 @@
 jobs:
 - job: Checks
-  displayName: 'Formatting and License Checks'
+  displayName: 'Formatting, License and Lint Checks'
 
   ${{ insert }}: ${{ parameters.env }}
-
-  variables:
-    python_files: tests/ notice-check.py
 
   steps:
     - checkout: self
       clean: true
       submodules: true
 
-    - script: find . -type f -regex ".*\.sh$" | egrep -v "^./3rdparty/" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091
-      displayName: 'Shell Check'
-      condition: succeededOrFailed()
-
-    - script: ./check-todo.sh src
-      displayName: 'Check for TODOs'
-      condition: succeededOrFailed()
-
-    - script: ./check-format.sh src samples
-      displayName: 'Check C++ code format'
-      condition: succeededOrFailed()
-
-    - script: python3.7 notice-check.py
-      displayName: 'Check CCF copyright notices'
-      condition: succeededOrFailed()
-
-    - script: |
-        python3.7 -m venv env
-        source env/bin/activate
-        pip install black
-        black --check $(python_files)
-      displayName: 'Check Python code format'
-      condition: succeededOrFailed()
-
-    - script: ./check-cmake-format.sh cmake samples src tests CMakeLists.txt
-      displayName: 'Check CMake code format'
-      condition: succeededOrFailed()
-
-    - script: |
-        python3.7 -m venv env
-        source env/bin/activate
-        pip install -U -r tests/requirements.txt
-        pip install pylint
-        find $(python_files) -type f -name "*.py" | xargs python -m pylint
-      displayName: 'Run pylint'
+    - script: ./scripts/ci-checks.sh
+      displayName: 'Checks'
       condition: succeededOrFailed()
