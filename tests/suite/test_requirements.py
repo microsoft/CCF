@@ -49,8 +49,8 @@ def ensure_reqs(check_reqs):
 def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.user_client() as c:
-            response = c.get("api")
+        with primary.client("user0") as c:
+            response = c.get("app/api")
             supported_methods = response.result["methods"]
             missing = {*methods}.difference(supported_methods)
             if missing:

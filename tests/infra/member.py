@@ -146,7 +146,7 @@ class Member:
             return r
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
-        with remote_node.mclient(f"member{self.member_id}") as mc:
+        with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.get("gov/recovery_share")
             if r.status != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)

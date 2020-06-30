@@ -35,7 +35,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
         pre_submit = time.time()
         check(
             c.rpc(
-                "BATCH_submit",
+                "app/BATCH_submit",
                 {
                     "entries": messages,
                     "write_key_divisor": write_key_divisor,
@@ -49,7 +49,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
             f"Submitting {batch_size} new keys took {post_submit - pre_submit}s"
         )
 
-        fetch_response = c.rpc("BATCH_fetch", message_ids)
+        fetch_response = c.rpc("app/BATCH_fetch", message_ids)
 
         if write_key_divisor == 1 and write_size_multiplier == 1:
             check(fetch_response, result=messages)

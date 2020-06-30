@@ -259,9 +259,6 @@ class Node:
             **akwargs
         )
 
-    def user_client(self, user_id=0, **kwargs):
-        return self.client(f"user{user_id}")
-
     def suspend(self):
         self.remote.suspend()
         LOG.info(f"Node {self.node_id} suspended...")
