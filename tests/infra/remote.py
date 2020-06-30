@@ -445,7 +445,7 @@ class LocalRemote(CmdMixin):
         else:
             raise ValueError(path)
         target_name = target_name or file_name
-        self._cp(path, dst_path)
+        self._cp(path, os.path.join(dst_path, target_name))
 
     def list_files(self):
         return os.listdir(self.root)
