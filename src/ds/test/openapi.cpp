@@ -45,32 +45,36 @@ TEST_CASE("Required elements")
 
 TEST_CASE("Manual construction")
 {
-  openapi::Document doc;
-  doc.info.title = "Test generated API";
-  doc.info.description = "Some longer description enhanced with **Markdown**";
-  doc.info.version = "0.1.42";
+  auto doc = openapi::create_document(
+    "Test generated API",
+    "Some longer description enhanced with **Markdown**",
+    "0.1.42");
 
-  {
-    openapi::Server mockup_server;
-    mockup_server.url = server_url;
-    doc.servers.push_back(mockup_server);
-  }
+  openapi::server(doc, server_url);
 
-  {
-    doc.paths["/users/foo"][HTTP_GET][HTTP_STATUS_OK].description =
-      "Indicates that everything went ok";
-  }
+  const auto string_schema = nlohmann::json{{"type", "string"}};
 
-  const nlohmann::json j = doc;
-  required_doc_elements(j);
+  auto& foo = openapi::path(doc, "/users/foo");
+  auto& foo_post = openapi::path_operation(foo, HTTP_POST);
+  auto& foo_post_request = openapi::request_body(foo_post);
+  auto& foo_post_request_json = openapi::media_type(
+    foo_post_request, http::headervalues::contenttype::JSON);
+  foo_post_request_json["schema"] = string_schema;
+  auto& foo_post_response_ok = openapi::response(
+    foo_post, HTTP_STATUS_OK, "Indicates that everything went ok");
+  auto& foo_post_response_ok_json = openapi::media_type(
+    foo_post_response_ok, http::headervalues::contenttype::JSON);
+  foo_post_response_ok_json["schema"] = string_schema;
 
-  const auto& info_element = j["info"];
+  required_doc_elements(doc);
+
+  const auto& info_element = doc["info"];
   REQUIRE_ELEMENT(info_element, title, is_string);
   REQUIRE_ELEMENT(info_element, description, is_string);
   REQUIRE_ELEMENT(info_element, version, is_string);
 
-  REQUIRE_ELEMENT(j, servers, is_array);
-  const auto& servers_element = j["servers"];
+  REQUIRE_ELEMENT(doc, servers, is_array);
+  const auto& servers_element = doc["servers"];
   REQUIRE(servers_element.size() == 1);
   const auto& first_server = servers_element[0];
   REQUIRE_ELEMENT(first_server, url, is_string);

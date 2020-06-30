@@ -12,12 +12,97 @@
 namespace ds
 {
   /**
-   * These structs contain the required fields to build the corresponding
-   * OpenAPI objects. They do not contain every field, but should be trivially
-   * extensible with any which are desired.
+   * This namespace contains helper functions, structs, and templates for
+   * modifying an OpenAPI JSON document. They do not set every field, but should
+   * fill every _required_ field, and the resulting object can be further
+   * modified by hand as required.
    */
   namespace openapi
   {
+    namespace access
+    {
+      nlohmann::json& get_object(nlohmann::json& j, const std::string& k)
+      {
+        const auto ib = j.emplace(k, nlohmann::json::object());
+        return ib.first.value();
+      }
+
+      nlohmann::json& get_array(nlohmann::json& j, const std::string& k)
+      {
+        const auto ib = j.emplace(k, nlohmann::json::array());
+        return ib.first.value();
+      }
+    }
+
+    nlohmann::json create_document(
+      const std::string& title,
+      const std::string& description,
+      const std::string& document_version)
+    {
+      // TODO: Check document_version looks valid?
+      return nlohmann::json{{"openapi", "3.0.0"},
+                            {"info",
+                             {{"title", title},
+                              {"description", description},
+                              {"version", document_version}}},
+                            {"servers", nlohmann::json::array()},
+                            {"paths", nlohmann::json::object()}};
+    }
+
+    nlohmann::json& server(nlohmann::json& document, const std::string& url)
+    {
+      auto& servers = access::get_object(document, "servers");
+      servers.push_back({{"url", url}});
+      return servers.back();
+    }
+
+    nlohmann::json& path(nlohmann::json& document, const std::string& path)
+    {
+      // TODO: Check that path starts with /?
+      auto& paths = access::get_object(document, "paths");
+      return access::get_object(paths, path);
+    }
+
+    nlohmann::json& path_operation(nlohmann::json& path, http_method verb)
+    {
+      // HTTP_GET becomes the string "get"
+      std::string s = http_method_str(verb);
+      nonstd::to_lower(s);
+      return access::get_object(path, s);
+    }
+
+    nlohmann::json& response(
+      nlohmann::json& path_operation,
+      http_status status,
+      const std::string& description = "Default response description")
+    {
+      auto& responses = access::get_object(path_operation, "responses");
+      // HTTP_STATUS_OK (aka an int-enum with value 200) becomes the string
+      // "200"
+      const auto s = std::to_string(status);
+      auto& response = access::get_object(responses, s);
+      response["description"] = description;
+      return response;
+    }
+
+    nlohmann::json& request_body(
+      nlohmann::json& path_operation
+    )
+    {
+      auto& request_body = access::get_object(path_operation, "requestBody");
+      access::get_object(request_body, "content");
+      return request_body;
+    }
+
+    nlohmann::json& media_type(
+      nlohmann::json& j,
+      const std::string& mt
+    )
+    {
+      auto& content = access::get_object(j, "content");
+      return access::get_object(content, mt);
+    }
+
     struct Info
     {
       std::string title;
