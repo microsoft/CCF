@@ -298,7 +298,7 @@ def test_historical_query(network, args):
 
 
 @reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("tx")
+@reqs.supports_methods("node/tx")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
@@ -353,7 +353,7 @@ def test_update_lua(network, args):
 
 
 @reqs.description("Check for commit of every prior transaction")
-@reqs.supports_methods("commit", "tx")
+@reqs.supports_methods("node/commit", "node/tx")
 def test_view_history(network, args):
     if args.consensus == "pbft":
         # This appears to work in PBFT, but it is unacceptably slow:
@@ -385,7 +385,7 @@ def test_view_history(network, args):
             for seqno in range(1, commit_seqno + 1):
                 views = []
                 for view in range(1, commit_view + 1):
-                    r = c.get("tx", {"view": view, "seqno": seqno})
+                    r = c.get("node/tx", {"view": view, "seqno": seqno})
                     check(r)
                     status = TxStatus(r.result["status"])
                     if status == TxStatus.Committed:
@@ -464,13 +464,13 @@ class SentTxs:
 
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
-@reqs.supports_methods("log/private", "tx")
+@reqs.supports_methods("app/log/private", "node/tx")
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
     with primary.user_client() as c:
         check = infra.checker.Checker()
-        r = c.rpc("log/private", {"id": 0, "msg": "Ignored"})
+        r = c.rpc("app/log/private", {"id": 0, "msg": "Ignored"})
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
         # related transactions around it (and also any historical transactions we're tracking)
@@ -489,7 +489,7 @@ def test_tx_statuses(network, args):
 
             done = False
             for view, seqno in SentTxs.get_all_tx_ids():
-                r = c.get("tx", {"view": view, "seqno": seqno})
+                r = c.get("node/tx", {"view": view, "seqno": seqno})
                 check(r)
                 status = TxStatus(r.result["status"])
                 SentTxs.update_status(view, seqno, status)
