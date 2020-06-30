@@ -23,7 +23,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
     primary, _ = network.find_primary()
 
     # Set extended timeout, since some of these successful transactions will take many seconds
-    with primary.user_client(request_timeout=30) as c:
+    with primary.client("user0", request_timeout=30) as c:
         check = infra.checker.Checker()
 
         message_ids = [next(id_gen) for _ in range(batch_size)]
