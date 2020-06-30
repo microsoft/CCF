@@ -23,8 +23,15 @@ def file_to_byte_array(f):
     return [ord(c) for c in f.read()]
 
 
+def array_as_lua_literal(a):
+    return str(a).replace("[", "{").replace("]", "}")
+
+
+PROPOSAL_ID_PLACEHOLDER = "<replace with desired proposal_id>"
+
+
 def script_to_vote_object(script):
-    return {"ballot": {"text": script}}
+    return {"ballot": {"text": script}, "id": PROPOSAL_ID_PLACEHOLDER}
 
 
 def new_member_proposal(member_cert_file, member_keyshare_encryptor_file):
@@ -58,11 +65,26 @@ def new_member_proposal(member_cert_file, member_keyshare_encryptor_file):
       return false
     end
 
-    if call.args.cert ~= {member_cert} then
+    function equal_arrays(a, b)
+      if #a ~= #b then
+        return false
+      else
+        for k, v in ipairs(a) do
+          if b[k] ~= v then
+            return false
+          end
+        end
+        return true
+      end
+    end
+
+    expected_cert = {array_as_lua_literal(member_cert)}
+    if not equal_arrays(call.args.cert, expected_cert) then
       return false
     end
 
-    if call.args.keyshare ~= {member_keyshare_encryptor} then
+    expected_keyshare = {array_as_lua_literal(member_keyshare_encryptor)}
+    if not equal_arrays(call.args.keyshare, expected_keyshare) then
       return false
     end
 
@@ -70,7 +92,10 @@ def new_member_proposal(member_cert_file, member_keyshare_encryptor_file):
     """
 
     # Vote object (request body for /gov/vote)
-    verifying_vote = {"ballot": {"text": verifying_vote_script}}
+    verifying_vote = {
+        "ballot": {"text": verifying_vote_script},
+        "id": PROPOSAL_ID_PLACEHOLDER,
+    }
 
     return proposal, verifying_vote
 
