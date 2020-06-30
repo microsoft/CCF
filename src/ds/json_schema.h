@@ -95,9 +95,13 @@ namespace ds
         if (ib.second)
         {
           auto& j = ib.first->second;
-          return add_schema_components(doc, j, t);
+          add_schema_components(doc, j, t);
         }
-        return ib.first->second;
+
+        auto schema_ref_object = nlohmann::json::object();
+        schema_ref_object["$ref"] =
+          fmt::format("#/components/schemas/{}", name);
+        return schema_ref_object;
       }
     }
 

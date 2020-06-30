@@ -214,8 +214,7 @@ namespace ds
 
         auto& request_body = paths[uri][verb].requestBody;
         request_body.description = "Auto-generated request body schema";
-        request_body.content[content_type].schema =
-          add_schema_component<T>();
+        request_body.content[content_type].schema = add_schema_component<T>();
       }
 
       void add_response_schema(
@@ -252,34 +251,49 @@ namespace ds
       template <typename T>
       inline nlohmann::json add_schema_component()
       {
-        nlohmann::json j;
-        // if constexpr (nonstd::is_specialization<T, std::optional>::value)
-        // {
-        //   return schema_name<typename T::value_type>();
-        // }
-        // else if constexpr (nonstd::is_specialization<T, std::vector>::value)
-        // {
-        //   return fmt::format("{}_array", schema_name<typename
-        //   T::value_type>());
-        // }
-        // else if constexpr (
-        //   nonstd::is_specialization<T, std::map>::value ||
-        //   nonstd::is_specialization<T, std::unordered_map>::value)
-        // {
-        //   return fmt::format(
-        //     "{}_to_{}",
-        //     schema_name<typename T::key_type>(),
-        //     schema_name<typename T::mapped_type>());
-        // }
-        // else if constexpr (nonstd::is_specialization<T, std::pair>::value)
-        // {
-        //   return fmt::format(
-        //     "{}_to_{}",
-        //     schema_name<typename T::first_type>(),
-        //     schema_name<typename T::second_type>());
-        // }
-        // else
-        if constexpr (
+        nlohmann::json schema;
+        if constexpr (nonstd::is_specialization<T, std::optional>::value)
+        {
+          return add_schema_component<typename T::value_type>();
+        }
+        else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+        {
+          schema["type"] = "array";
+          schema["items"] = add_schema_component<typename T::value_type>();
+          return schema;
+        }
+        else if constexpr (
+          nonstd::is_specialization<T, std::map>::value ||
+          nonstd::is_specialization<T, std::unordered_map>::value)
+        {
+          // Nlohmann serialises maps to an array of (K, V) pairs
+          // TODO: Unless the keys are strings!
+          schema["type"] = "array";
+          auto items = nlohmann::json::object();
+          {
+            items["type"] = "array";
+
+            auto sub_items = nlohmann::json::array();
+            // TODO: OpenAPI doesn't like this tuple for "items", even though
+            // its valid JSON schema. Maybe fixed in a newer spec version?
+            sub_items.push_back(add_schema_component<typename T::key_type>());
+            sub_items.push_back(
+              add_schema_component<typename T::mapped_type>());
+            items["items"] = sub_items;
+          }
+          schema["items"] = items;
+          return schema;
+        }
+        else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+        {
+          schema["type"] = "array";
+          auto items = nlohmann::json::array();
+          items.push_back(add_schema_component<typename T::first_type>());
+          items.push_back(add_schema_component<typename T::second_type>());
+          schema["items"] = items;
+          return schema;
+        }
+        else if constexpr (
           std::is_same<T, std::string>::value || std::is_same<T, bool>::value ||
           std::is_same<T, uint8_t>::value || std::is_same<T, uint16_t>::value ||
           std::is_same<T, uint32_t>::value ||
@@ -289,8 +303,8 @@ namespace ds
           std::is_same<T, double>::value ||
           std::is_same<T, nlohmann::json>::value)
         {
-          ds::json::fill_schema<T>(j);
-          return add_schema_to_components(ds::json::schema_name<T>(), j);
+          ds::json::fill_schema<T>(schema);
+          return add_schema_to_components(ds::json::schema_name<T>(), schema);
         }
         else
         {

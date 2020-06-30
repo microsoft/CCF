@@ -135,11 +135,11 @@ TEST_CASE("Schema population")
     HTTP_POST,
     HTTP_STATUS_OK,
     http::headervalues::contenttype::JSON);
-  // doc.add_response_schema<std::vector<Foo>>(
-  //   "/app/foos",
-  //   HTTP_GET,
-  //   HTTP_STATUS_OK,
-  //   http::headervalues::contenttype::JSON);
+  doc.add_response_schema<std::vector<Foo>>(
+    "/app/foos",
+    HTTP_GET,
+    HTTP_STATUS_OK,
+    http::headervalues::contenttype::JSON);
   doc.add_response_schema<Bar>(
     "/app/bar",
     HTTP_GET,
