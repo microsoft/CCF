@@ -31,7 +31,6 @@ PREFIXES_CCF.append(
 
 
 def has_notice(path, prefixes):
-    # print(f"Reading {path}")
     with open(path) as f:
         text = f.read()
         for prefix in prefixes:
