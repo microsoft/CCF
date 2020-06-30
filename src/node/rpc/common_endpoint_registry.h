@@ -7,6 +7,7 @@
 #include "http/ws_consts.h"
 #include "json_handler.h"
 #include "metrics.h"
+#include "node/code_id.h"
 
 namespace ccf
 {
@@ -18,8 +19,8 @@ namespace ccf
   {
   private:
     metrics::Metrics metrics;
-
     Nodes* nodes = nullptr;
+    CodeIDs* node_code_ids = nullptr;
 
   protected:
     kv::Store* tables = nullptr;
@@ -29,6 +30,7 @@ namespace ccf
       kv::Store& store, const std::string& certs_table_name = "") :
       EndpointRegistry(store, certs_table_name),
       nodes(store.get<Nodes>(Tables::NODES)),
+      node_code_ids(store.get<CodeIDs>(Tables::NODE_CODE_IDS)),
       tables(&store)
     {}
 
@@ -195,6 +197,24 @@ namespace ccf
       make_read_only_endpoint(
         "network_info", HTTP_GET, json_read_only_adapter(get_network_info))
         .set_auto_schema<void, GetNetworkInfo::Out>()
+        .install();
+
+      auto get_code = [this](auto& args, nlohmann::json&& params) {
+        GetCode::Out out;
+
+        auto code_view = args.tx.get_read_only_view(*node_code_ids);
+        code_view->foreach(
+          [&out](const ccf::CodeDigest& cd, const ccf::CodeStatus& cs) {
+            auto digest = fmt::format("{:02x}", fmt::join(cd, ""));
+            out.versions.push_back({digest, cs});
+            return true;
+          });
+
+        return make_success(out);
+      };
+      make_read_only_endpoint(
+        "code", HTTP_GET, json_read_only_adapter(get_code))
+        .set_auto_schema<void, GetCode::Out>()
         .install();
 
       auto get_nodes_by_rpc_address = [this](
