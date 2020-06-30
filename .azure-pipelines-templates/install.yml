@@ -1,6 +1,6 @@
 steps:
 - script: |
-    sudo chmod +w /opt
+    sudo chmod a+w /opt
     ninja install
     INSTALL_PREFIX=`cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2`
     echo '##vso[task.setvariable variable=install_prefix]$INSTALL_PREFIX'
