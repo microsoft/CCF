@@ -31,7 +31,7 @@ PREFIXES_CCF.append(
 
 
 def has_notice(path, prefixes):
-    print(f"Reading {path}")
+    # print(f"Reading {path}")
     with open(path) as f:
         text = f.read()
         for prefix in prefixes:
@@ -58,7 +58,7 @@ def submodules():
 
 def check_ccf():
     missing = []
-    excluded = ["3rdparty", ".git", "build"] + submodules()
+    excluded = ["3rdparty", ".git", "build", "env"] + submodules()
     for root, dirs, files in os.walk("."):
         for edir in excluded:
             if edir in dirs:

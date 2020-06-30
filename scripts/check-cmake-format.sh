@@ -28,13 +28,13 @@ else
   echo "Checking file format in" "$@"
 fi
 
-if [ ! -f "env/bin/activate" ]
+if [ ! -f "scripts/env/bin/activate" ]
     then
-        python3.7 -m venv env
+        python3.7 -m venv scripts/env
 fi
 
-source env/bin/activate
-pip install cmake_format
+source scripts/env/bin/activate
+pip install --disable-pip-version-check cmake_format 1>/dev/null
 
 unformatted_files=""
 for file in $(find "$@" -name "*.cmake" -o -name "CMakeLists.txt"); do
