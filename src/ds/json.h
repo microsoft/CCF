@@ -549,16 +549,12 @@ namespace std
     return #TYPE; \
   } \
   template <typename T> \
-  void add_schema_components( \
-    T& doc, nlohmann::json& j, const TYPE& t) \
+  void add_schema_components(T& doc, nlohmann::json& j, const TYPE& t) \
   { \
     PRE_ADD_SCHEMA; \
     add_schema_components_required_fields(doc, j, t); \
     POST_ADD_SCHEMA; \
   }
-
-// TODO: PRE_ADD_SCHEMA isn't right for adding base elements, think it adds them
-// with the wrong name?
 
 #define DECLARE_JSON_TYPE(TYPE) DECLARE_JSON_TYPE_IMPL(TYPE, , , , , , , , )
 

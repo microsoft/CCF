@@ -119,7 +119,6 @@ namespace ccf
 
   struct GetAPI
   {
-    // TODO: This is a ds::openapi::Document?
     using Out = nlohmann::json;
   };
 
