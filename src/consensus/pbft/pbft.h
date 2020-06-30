@@ -331,6 +331,8 @@ namespace pbft
   class Pbft : public kv::Consensus
   {
   private:
+    using Configuration = kv::Consensus::Configuration;
+
     NodesMap nodes;
 
     std::shared_ptr<ChannelProxy> channels;
@@ -581,7 +583,7 @@ namespace pbft
 
     void add_configuration(
       SeqNo seqno,
-      const std::unordered_set<kv::NodeId>& config,
+      Configuration::Nodes&& config,
       const NodeConf& node_conf) override
     {
       if (node_conf.node_id == local_id)
@@ -602,7 +604,7 @@ namespace pbft
       nodes[node_conf.node_id] = 0;
     }
 
-    std::unordered_set<NodeId> get_latest_configuration() const override
+    Configuration::Nodes get_latest_configuration() const override
     {
       throw std::logic_error("Unimplemented");
     }

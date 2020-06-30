@@ -172,6 +172,8 @@ TEST_CASE("Replay and out-of-order")
   }
 }
 
+// TODO: Test closing of channels!
+
 TEST_CASE("Channel manager")
 {
   NodeId primary_id = 1;

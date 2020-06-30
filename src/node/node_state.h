@@ -1528,9 +1528,8 @@ namespace ccf
       // can add a new active configuration.
       network.nodes.set_local_hook(
         [this](kv::Version version, const Nodes::Write& w) {
-          auto configure = false;
-          std::unordered_set<NodeId> configuration =
-            consensus->get_latest_configuration();
+          bool configure = false;
+          auto configuration = consensus->get_latest_configuration();
 
           for (const auto& [node_id, opt_ni] : w)
           {
@@ -1551,8 +1550,7 @@ namespace ccf
               }
               case NodeStatus::TRUSTED:
               {
-                n2n_channels->create_channel(node_id, ni.nodehost, ni.nodeport);
-                configuration.insert(node_id);
+                configuration.try_emplace(node_id, ni.nodehost, ni.nodeport);
                 configure = true;
                 break;
               }
@@ -1569,7 +1567,7 @@ namespace ccf
 
           if (configure)
           {
-            consensus->add_configuration(version, configuration);
+            consensus->add_configuration(version, std::move(configuration));
           }
         });
 

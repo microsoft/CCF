@@ -188,12 +188,33 @@ namespace kv
     // primary changes
     using View = uint64_t;
 
+    // TODO: Delete this whenever possible
     struct NodeConf
     {
       NodeId node_id;
       std::string host_name;
       std::string port;
       std::vector<uint8_t> cert;
+    };
+
+    struct Configuration
+    {
+      struct NodeInfo
+      {
+        std::string hostname;
+        std::string port;
+        // std::vector<uint8_t> cert = {};
+
+        NodeInfo(const std::string& hostname_, const std::string& port_) :
+          hostname(hostname_),
+          port(port_)
+        {}
+      };
+
+      using Nodes = std::unordered_map<NodeId, NodeInfo>;
+
+      SeqNo idx;
+      Nodes nodes;
     };
 
     Consensus(NodeId id) : local_id(id), state(Backup){};
@@ -239,9 +260,9 @@ namespace kv
     virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
       SeqNo seqno,
-      const std::unordered_set<NodeId>& conf,
+      Configuration::Nodes&& conf,
       const NodeConf& node_conf = {}) = 0;
-    virtual std::unordered_set<NodeId> get_latest_configuration() const = 0;
+    virtual Configuration::Nodes get_latest_configuration() const = 0;
 
     virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
     {
