@@ -10,6 +10,7 @@ debs:
   - llvm-8
   - clang-8
   - clang-format-8
+  - clang-tools-8
   - expect
   - xsltproc
   - git
