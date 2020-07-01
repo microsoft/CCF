@@ -257,7 +257,9 @@ class Consortium:
     def add_users(self, remote_node, users):
         for u in users:
             user_cert = []
-            proposal, vote = Proposals.new_user_proposal(os.path.join(self.common_dir, f"user{u}_cert.pem"))
+            proposal, vote = Proposals.new_user_proposal(
+                os.path.join(self.common_dir, f"user{u}_cert.pem")
+            )
 
             proposal = self.get_any_active_member().propose(remote_node, proposal)
             self.vote_using_majority(remote_node, proposal)
