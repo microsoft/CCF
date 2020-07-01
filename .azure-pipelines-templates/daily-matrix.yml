@@ -35,8 +35,8 @@ jobs:
       target: NoSGX
       env: '${{ parameters.env.NoSGX }}'
       cmake_args: '${{ parameters.build.debug.cmake_args }} ${{ parameters.build.NoSGX.cmake_args }}'
-      suffix: 'Coverage'
-      artifact_name: 'NoSGX_Coverage'
+      suffix: 'Instrumented'
+      artifact_name: 'NoSGX_Instrumented'
       ctest_filter: '-LE "benchmark|perf|long_test"'
       ctest_timeout: '300'
 
