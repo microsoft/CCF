@@ -68,16 +68,22 @@ def add_arg_checks(lines, arg, arg_name="args"):
         lines.append(f"if not {arg_name} == {arg} then return false end")
 
 
-def build_proposal(proposed_call, args):
-    proposal_script_lines = [
-        "tables, args = ...",
-        f'return Calls:call("{proposed_call}", args)',
-    ]
+def build_proposal(proposed_call, args=None):
+    LOG.warning(f"Generating {proposed_call} proposal")
+
+    proposal_script_lines = []
+    if args is None:
+        proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
+    else:
+        proposal_script_lines.append("tables, args = ...")
+        proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
+
     proposal_script_text = "; ".join(proposal_script_lines)
     proposal = {
-        "parameter": args,
         "script": {"text": proposal_script_text},
     }
+    if args is not None:
+        proposal["parameter"] = args
 
     vote_lines = [
         "tables, calls = ...",
@@ -86,7 +92,8 @@ def build_proposal(proposed_call, args):
         f'if not call.func == "{proposed_call}" then return false end',
         LUA_FUNCTION_EQUAL_ARRAYS,
     ]
-    add_arg_checks(vote_lines, args)
+    if args is not None:
+        add_arg_checks(vote_lines, args)
     vote_lines.append("return true")
     vote_text = "; ".join(vote_lines)
     vote = {
@@ -103,7 +110,7 @@ def build_proposal(proposed_call, args):
 def new_member_proposal(
     member_cert_file, member_keyshare_encryptor_file, proposer_vote_for=True
 ):
-    LOG.warning("Generating new member proposal")
+    LOG.warning("Generating new_member proposal")
 
     # Convert certs to byte arrays
     member_cert = file_to_byte_array(member_cert_file)
@@ -161,20 +168,17 @@ def new_member_proposal(
     return proposal, verifying_vote
 
 
-def retire_member_proposal():
-    pass
+def retire_member_proposal(member_id):
+    return build_proposal("retire_member", member_id)
 
 
 def new_user_proposal(usert_cert_file):
-    LOG.warning("Generating new user proposal")
-
     user_cert = file_to_byte_array(usert_cert_file)
-
     return build_proposal("new_user", user_cert)
 
 
 def set_user_data_proposal():
-    pass
+    return build_proposal("set_user_data", None)  # TODO
 
 
 def set_lua_app_proposal():
@@ -202,19 +206,19 @@ def new_user_code_proposal():
 
 
 def accept_recovery_proposal():
-    pass
+    return build_proposal("accept_recovery")
 
 
 def open_network_proposal():
-    pass
+    return build_proposal("open_network")
 
 
 def rekey_ledger_proposal():
-    pass
+    return build_proposal("rekey_ledger")
 
 
 def update_recovery_shares_proposal():
-    pass
+    return build_proposal("update_recovery_shares")
 
 
 def set_recovery_threshold_proposal():

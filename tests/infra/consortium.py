@@ -253,30 +253,21 @@ class Consortium:
         proposal and make members vote to transition the network to state
         OPEN.
         """
-        script = """
-        tables = ...
-        return Calls:call("open_network")
-        """
-        proposal = self.get_any_active_member().propose(remote_node, script)
+        proposal_body, vote = infra.proposal_generator.open_network_proposal()
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, wait_for_global_commit=(not pbft_open)
         )
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, remote_node):
-        script = """
-        tables = ...
-        return Calls:call("rekey_ledger")
-        """
-        proposal = self.get_any_active_member().propose(remote_node, script)
+        proposal_body, vote = infra.proposal_generator.rekey_ledger_proposal()
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def update_recovery_shares(self, remote_node):
-        script = """
-        tables = ...
-        return Calls:call("update_recovery_shares")
-        """
-        proposal = self.get_any_active_member().propose(remote_node, script)
+        proposal_body, vote = infra.proposal_generator.update_recovery_shares_proposal()
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def add_users(self, remote_node, users):
@@ -311,11 +302,8 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal)
 
     def accept_recovery(self, remote_node):
-        script = """
-        tables = ...
-        return Calls:call("accept_recovery")
-        """
-        proposal = self.get_any_active_member().propose(remote_node, script)
+        proposal_body, vote = infra.proposal_generator.open_network_proposal()
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
