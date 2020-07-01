@@ -33,20 +33,4 @@ We rely on several open source third-party components, attributed under [THIRD_P
 
 ## Contributing
 
-This project welcomes contributions and suggestions. Most contributions require you to
-agree to a Contributor License Agreement (CLA) declaring that you have the right to,
-and actually do, grant us the rights to use your contribution. For details, visit
-https://cla.microsoft.com.
-
-When you submit a pull request, a CLA-bot will automatically determine whether you need
-to provide a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the
-instructions provided by the bot. You will only need to do this once across all repositories using our CLA.
-
-All pull requests must pass a suite of CI tests before they will be merged.
-The test commands are defined in [`test.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/test.yml), so you can locally repeat any tests which fail.
-Code must also conform with formatting and linting standards defined and enforced by [`checks.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/checks.yml). You can run those locally with `scripts/ci-checks.sh`, and some categories of issues can be fixed automatically by running `scripts/ci-checks.sh -f`.
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
-or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
+This project welcomes contributions and suggestions. Please see the [Contribution guidelines](.github/CONTRIBUTING.md).
