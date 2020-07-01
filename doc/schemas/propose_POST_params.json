@@ -36,8 +36,7 @@
     }
   },
   "required": [
-    "script",
-    "parameter"
+    "script"
   ],
   "title": "propose/params",
   "type": "object"
