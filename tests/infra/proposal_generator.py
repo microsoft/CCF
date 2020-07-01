@@ -177,32 +177,37 @@ def new_user_proposal(usert_cert_file):
     return build_proposal("new_user", user_cert)
 
 
-def set_user_data_proposal():
-    return build_proposal("set_user_data", None)  # TODO
+def set_user_data_proposal(user_id, user_data):
+    proposal_args = {"user_id": user_id, "user_data": user_data}
+    return build_proposal("set_user_data", proposal_args)
 
 
-def set_lua_app_proposal():
-    pass
+def set_lua_app_proposal(app_script):
+    return build_proposal("set_lua_app", app_script)
 
 
-def set_js_app_proposal():
-    pass
+def set_js_app_proposal(app_script):
+    return build_proposal("set_js_app", app_script)
 
 
-def trust_node_proposal():
-    pass
+def trust_node_proposal(node_id):
+    return build_proposal("trust_node", node_id)
 
 
-def retire_node_proposal():
-    pass
+def retire_node_proposal(node_id):
+    return build_proposal("retire_node", node_id)
 
 
-def new_node_code_proposal():
-    pass
+def new_node_code_proposal(code_digest):
+    if isinstance(code_digest):
+        code_digest = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_node_code", code_digest)
 
 
-def new_user_code_proposal():
-    pass
+def new_user_code_proposal(code_digest):
+    if isinstance(code_digest):
+        code_digest = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_user_code", code_digest)
 
 
 def accept_recovery_proposal():
@@ -221,8 +226,8 @@ def update_recovery_shares_proposal():
     return build_proposal("update_recovery_shares")
 
 
-def set_recovery_threshold_proposal():
-    pass
+def set_recovery_threshold_proposal(threshold):
+    return build_proposal("set_recovery_threshold", threshold)
 
 
 if __name__ == "__main__":
