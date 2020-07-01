@@ -96,15 +96,10 @@ class Consortium:
             new_member_id, curve, self.common_dir, self.share_script, self.key_generator
         )
 
-        with open(
-            os.path.join(self.common_dir, f"member{new_member_id}_cert.pem")
-        ) as cert:
-            with open(
-                os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
-            ) as keyshare:
-                proposal, vote = infra.proposal_generator.new_member_proposal(
-                    cert, keyshare
-                )
+        proposal, vote = infra.proposal_generator.new_member_proposal(
+            os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
+            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem"),
+        )
 
         return (
             self.get_any_active_member().propose2(remote_node, proposal),

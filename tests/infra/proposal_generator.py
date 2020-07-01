@@ -19,12 +19,13 @@ def dump_vote(output_path, vote, dump_args):
         json.dump(vote, f, **dump_args)
 
 
-def file_to_byte_array(f):
-    return [ord(c) for c in f.read()]
+def file_to_byte_array(path):
+    with open(path, "r") as f:
+        return [ord(c) for c in f.read()]
 
 
-def list_as_lua_literal(a):
-    return str(a).replace("[", "{").replace("]", "}")
+def list_as_lua_literal(l):
+    return str(l).replace("[", "{").replace("]", "}")
 
 
 TRIVIAL_YES_BALLOT = {"text": "return true"}
@@ -108,13 +109,13 @@ def build_proposal(proposed_call, args=None):
 
 
 def new_member_proposal(
-    member_cert_file, member_keyshare_encryptor_file, proposer_vote_for=True
+    member_cert_path, member_keyshare_encryptor_path, proposer_vote_for=True
 ):
     LOG.warning("Generating new_member proposal")
 
     # Convert certs to byte arrays
-    member_cert = file_to_byte_array(member_cert_file)
-    member_keyshare_encryptor = file_to_byte_array(member_keyshare_encryptor_file)
+    member_cert = file_to_byte_array(member_cert_path)
+    member_keyshare_encryptor = file_to_byte_array(member_keyshare_encryptor_path)
 
     # Script which proposes adding a new member
     proposal_script_text = """
@@ -172,8 +173,8 @@ def retire_member_proposal(member_id):
     return build_proposal("retire_member", member_id)
 
 
-def new_user_proposal(usert_cert_file):
-    user_cert = file_to_byte_array(usert_cert_file)
+def new_user_proposal(user_cert_path):
+    user_cert = file_to_byte_array(user_cert_path)
     return build_proposal("new_user", user_cert)
 
 
@@ -246,30 +247,23 @@ if __name__ == "__main__":
     )
 
     new_member = subparsers.add_parser("new_member")
+    new_member.add_argument("-c", "--new-member-cert", required=True)
     new_member.add_argument(
-        "-c", "--new-member-cert", type=argparse.FileType("r"), required=True
-    )
-    new_member.add_argument(
-        "-ks",
-        "--new-member-keyshare-encryptor",
-        type=argparse.FileType("r"),
-        required=True,
+        "-ks", "--new-member-keyshare-encryptor", required=True,
     )
 
     new_user = subparsers.add_parser("new_user")
-    new_user.add_argument(
-        "-c", "--new-user-cert", type=argparse.FileType("r"), required=True
-    )
+    new_user.add_argument("-c", "--new-user-cert", required=True)
 
     args = parser.parse_args()
 
     if args.proposal_kind == "new_member":
         proposal, vote = new_member_proposal(
-            member_cert_file=args.new_member_cert,
-            member_keyshare_encryptor_file=args.new_member_keyshare_encryptor,
+            member_cert_path=args.new_member_cert,
+            member_keyshare_encryptor_path=args.new_member_keyshare_encryptor,
         )
     elif args.proposal_kind == "new_user":
-        proposal, vote = new_user_proposal(usert_cert_file=args.new_user_cert)
+        proposal, vote = new_user_proposal(user_cert_path=args.new_user_cert)
     else:
         raise ValueError(f"Unsupported proposal '{args.proposal_kind}'")
 
