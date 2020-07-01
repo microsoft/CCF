@@ -372,8 +372,8 @@ def test_view_history(network, args):
             r = c.get("node/commit")
             check(c)
 
-            commit_view = r.view
-            commit_seqno = r.global_commit
+            commit_view = r.result["view"]
+            commit_seqno = r.result["seqno"]
 
             # Temporarily disable logging of RPCs for readability
             rpc_loggers = c.rpc_loggers
