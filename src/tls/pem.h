@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../ds/buffer.h"
+#include "ds/buffer.h"
+#include "ds/json.h"
 #include "tls.h"
 
 #include <cstring>
@@ -59,4 +60,26 @@ namespace tls
       return {data(), data() + size()};
     }
   };
+
+  inline void to_json(nlohmann::json& j, const Pem& p)
+  {
+    j = p.str();
+  }
+
+  inline void from_json(const nlohmann::json& j, Pem& p)
+  {
+    if (j.is_string())
+    {
+      p = Pem(j.get<std::string>());
+    }
+    else if (j.is_array())
+    {
+      p = Pem(j.get<std::vector<uint8_t>>());
+    }
+    else
+    {
+      throw std::runtime_error(
+        fmt::format("Unable to parse pem from this JSON: {}", j.dump()));
+    }
+  }
 }
