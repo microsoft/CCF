@@ -282,8 +282,7 @@ namespace ccf
   class ChannelManager
   {
   private:
-    // A std::nullopt value indicates a channel that no longer exists
-    std::unordered_map<NodeId, std::optional<Channel>> channels;
+    std::unordered_map<NodeId, Channel> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
     tls::KeyPairPtr network_kp;
 
@@ -301,37 +300,17 @@ namespace ccf
       LOG_FAIL_FMT("Creating a channel with {}...", peer_id);
 
       auto search = channels.find(peer_id);
-      if (search != channels.end())
+      if (search != channels.end() && !search->second.is_outgoing())
       {
-        if (search->second.has_value())
-        {
-          if (!search->second->is_outgoing())
-          {
-            LOG_FAIL_FMT(
-              "Channel with {} exists but is incoming only. Create host "
-              "connection.",
-              peer_id);
-            search->second->set_outgoing(hostname, service);
-            return;
-          }
-          else
-          {
-            LOG_FAIL_FMT("Channel with already exists. Use it.");
-            return;
-          }
-        }
-        else
-        {
-          throw std::logic_error(
-            "Cannot create a channel with a node that has been deleted!");
-        }
-
+        LOG_FAIL_FMT(
+          "Channel with {} exists but is incoming only. Create host "
+          "connection.",
+          peer_id);
+        search->second.set_outgoing(hostname, service);
         return;
       }
 
-      // Odd emplace syntax here as Channel is non-copyable so we emplace
-      // std::nullopt first and then replace it with the Channel
-      channels[peer_id].emplace(writer_factory, peer_id, hostname, service);
+      channels.try_emplace(peer_id, writer_factory, peer_id, hostname, service);
     }
 
     void destroy_channel(NodeId peer_id)
@@ -347,42 +326,23 @@ namespace ccf
 
       LOG_INFO_FMT("Node channel with {} is now destroyed", peer_id);
 
-      // TODO: Not sure this is great anymore!!
-      // Record that the channel is closed, keeping track of closed channels so
-      // that they are not re-used
-      search->second = std::nullopt;
-    }
-
-    void close_outgoing(NodeId peer_id)
-    {
-      auto search = channels.find(peer_id);
-      if (search == channels.end())
-      {
-        LOG_FAIL_FMT(
-          "Cannot close outgoing node channel with {}: channel does not exist",
-          peer_id);
-        return;
-      }
-
-      LOG_INFO_FMT("Node outgoing channel with {} is now closed", peer_id);
-
-      search->second->reset_outgoing();
+      channels.erase(peer_id);
     }
 
     void close_all_outgoing()
     {
       LOG_FAIL_FMT("Closing all outgoing channels...");
-      for (auto const& c : channels)
+      for (auto& c : channels)
       {
-        if (c.second.has_value() && c.second->is_outgoing())
+        if (c.second.is_outgoing())
         {
           LOG_FAIL_FMT("Closing outgoing channel with {}", c.first);
-          close_outgoing(c.first);
+          c.second.reset_outgoing();
         }
       }
     }
 
-    std::optional<Channel>& get(NodeId peer_id)
+    Channel& get(NodeId peer_id)
     {
       auto search = channels.find(peer_id);
       if (search != channels.end())
@@ -393,20 +353,14 @@ namespace ccf
       LOG_FAIL_FMT("Creating incoming channel with {}", peer_id);
 
       // Creating temporary channel that is not outgoing
-      channels[peer_id].emplace(writer_factory, peer_id);
+      channels.try_emplace(peer_id, writer_factory, peer_id);
 
-      return channels[peer_id];
+      return channels.at(peer_id);
     }
 
     std::optional<std::vector<uint8_t>> get_signed_public(NodeId peer_id)
     {
-      auto& channel = get(peer_id);
-      if (!channel.has_value())
-      {
-        return std::nullopt;
-      }
-
-      const auto own_public_for_peer_ = channel->get_public();
+      const auto own_public_for_peer_ = get(peer_id).get_public();
       if (!own_public_for_peer_.has_value())
       {
         return std::nullopt;
@@ -435,13 +389,6 @@ namespace ccf
       NodeId peer_id, const std::vector<uint8_t>& peer_signed_public)
     {
       auto& channel = get(peer_id);
-      if (!channel.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Cannot load peer signed public: node channel with {} does not exist",
-          peer_id);
-        return false;
-      }
 
       // Verify signature
       auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
@@ -496,14 +443,12 @@ namespace ccf
         return false;
       }
 
-      // Load peer public
-      if (!channel->load_peer_public(peer_public_start, peer_public_size))
+      if (!channel.load_peer_public(peer_public_start, peer_public_size))
       {
         return false;
       }
 
-      // Channel can be established
-      channel->establish();
+      channel.establish();
 
       LOG_INFO_FMT("node channel with {} is now established", peer_id);
 

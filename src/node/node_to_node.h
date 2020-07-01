@@ -93,23 +93,14 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!n2n_channel.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Cannot send authenticated message to node {}: channel no longer "
-          "exists",
-          to);
-        return false;
-      }
-
-      if (!try_establish_channel(to, n2n_channel.value()))
+      if (!try_establish_channel(to, n2n_channel))
       {
         return false;
       }
 
       // The secure channel between self and to has already been established
       GcmHdr hdr;
-      n2n_channel->tag(hdr, asCb(data));
+      n2n_channel.tag(hdr, asCb(data));
 
       to_host->write(node_outbound, to, msg_type, data, hdr);
       return true;
@@ -120,23 +111,14 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!n2n_channel.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Cannot send authenticated message to node {}: channel no longer "
-          "exists",
-          to);
-        return false;
-      }
-
-      if (!try_establish_channel(to, n2n_channel.value()))
+      if (!try_establish_channel(to, n2n_channel))
       {
         return false;
       }
 
       // The secure channel between self and to has already been established
       GcmHdr hdr;
-      n2n_channel->tag(hdr, data);
+      n2n_channel.tag(hdr, data);
 
       to_host->write(node_outbound, to, msg_type, data, hdr);
       return true;
@@ -149,15 +131,7 @@ namespace ccf
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
       auto& n2n_channel = channels->get(t.from_node);
-      if (!n2n_channel.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot recv authenticated message from node {}: channel no longer "
-          "exists",
-          t.from_node));
-      }
-
-      if (!n2n_channel->verify(hdr, asCb(t)))
+      if (!n2n_channel.verify(hdr, asCb(t)))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",
@@ -198,15 +172,8 @@ namespace ccf
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
       auto& n2n_channel = channels->get(t.from_node);
-      if (!n2n_channel.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot recv authenticated message from node {}: channel no longer "
-          "exists",
-          t.from_node));
-      }
 
-      if (!n2n_channel->verify(hdr, {payload_data, payload_size}))
+      if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",
@@ -226,23 +193,14 @@ namespace ccf
       const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
-      if (!n2n_channel.has_value())
-      {
-        LOG_FAIL_FMT(
-          "Cannot send encrypted message to node {}: channel no longer "
-          "exists",
-          to);
-        return false;
-      }
-
-      if (!try_establish_channel(to, n2n_channel.value()))
+      if (!try_establish_channel(to, n2n_channel))
       {
         return false;
       }
 
       GcmHdr hdr;
       std::vector<uint8_t> cipher(data.size());
-      n2n_channel->encrypt(hdr, asCb(msg_hdr), data, cipher);
+      n2n_channel.encrypt(hdr, asCb(msg_hdr), data, cipher);
 
       to_host->write(node_outbound, to, msg_type, msg_hdr, hdr, cipher);
 
@@ -258,15 +216,7 @@ namespace ccf
       std::vector<uint8_t> plain(size);
 
       auto& n2n_channel = channels->get(t.from_node);
-      if (!n2n_channel.has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot recv encrypted message from node {}: channel no longer "
-          "exists",
-          t.from_node));
-      }
-
-      if (!n2n_channel->decrypt(hdr, asCb(t), {data, size}, plain))
+      if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message from node {} (size: {})",
