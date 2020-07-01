@@ -266,15 +266,13 @@ if __name__ == "__main__":
         "-po",
         "--proposal-output-file",
         type=str,
-        help=f"Path where proposal JSON object (request body for /gov/propose)"
-        "will be dumped. Default is {default_proposal_output}",
+        help=f"Path where proposal JSON object (request body for /gov/propose) will be dumped. Default is {default_proposal_output}",
     )
     parser.add_argument(
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for /gov/vote) will be"
-        "dumped. Default is {default_vote_output}",
+        help=f"Path where vote JSON object (request body for /gov/vote) will be dumped. Default is {default_vote_output}",
     )
     parser.add_argument(
         "-pp",
