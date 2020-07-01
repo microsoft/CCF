@@ -84,6 +84,19 @@ class Member:
                 has_proposer_voted_for=vote_for,
             )
 
+    def propose2(self, remote_node, proposal):
+        with remote_node.member_client(self.member_id) as mc:
+            r = mc.rpc("propose", proposal, signed=True,)
+            if r.status != http.HTTPStatus.OK.value:
+                raise infra.proposal.ProposalNotCreated(r)
+
+            return infra.proposal.Proposal(
+                proposer_id=self.member_id,
+                proposal_id=r.result["proposal_id"],
+                state=infra.proposal.ProposalState(r.result["state"]),
+                has_proposer_voted_for=True, # TODO: This may be wrong?
+            )
+
     def vote(
         self,
         remote_node,

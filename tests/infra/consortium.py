@@ -12,9 +12,13 @@ import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
+import infra.proposal_generator
 from infra.proposal import ProposalState
 
 from loguru import logger as LOG
+
+# Votes are currently produced but unused, so temporarily disable this pylint warning throughout this file
+# pylint: disable=unused-variable
 
 
 class Consortium:
@@ -92,25 +96,18 @@ class Consortium:
             new_member_id, curve, self.common_dir, self.share_script, self.key_generator
         )
 
-        script = """
-        tables, member_info = ...
-        return Calls:call("new_member", member_info)
-        """
         with open(
             os.path.join(self.common_dir, f"member{new_member_id}_cert.pem")
         ) as cert:
-            new_member_cert_pem = [ord(c) for c in cert.read()]
-        with open(
-            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
-        ) as keyshare:
-            new_member_keyshare = [ord(k) for k in keyshare.read()]
+            with open(
+                os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
+            ) as keyshare:
+                proposal, vote = infra.proposal_generator.new_member_proposal(
+                    cert, keyshare
+                )
 
         return (
-            self.get_any_active_member().propose(
-                remote_node,
-                script,
-                {"cert": new_member_cert_pem, "keyshare": new_member_keyshare},
-            ),
+            self.get_any_active_member().propose2(remote_node, proposal),
             new_member,
         )
 
@@ -286,15 +283,9 @@ class Consortium:
         for u in users:
             user_cert = []
             with open(os.path.join(self.common_dir, f"user{u}_cert.pem")) as cert:
-                user_cert = [ord(c) for c in cert.read()]
+                proposal, vote = infra.proposal_generator.new_user_proposal(cert)
 
-            script = """
-            tables, user_cert = ...
-            return Calls:call("new_user", user_cert)
-            """
-            proposal = self.get_any_active_member().propose(
-                remote_node, script, user_cert
-            )
+            proposal = self.get_any_active_member().propose2(remote_node, proposal)
             self.vote_using_majority(remote_node, proposal)
 
     def set_lua_app(self, remote_node, app_script):
