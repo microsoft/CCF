@@ -202,13 +202,10 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
-        script = """
-        tables, node_id = ...
-        return Calls:call("retire_node", node_id)
-        """
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, node_to_retire.node_id
+        proposal_body, vote = infra.proposal_generator.retire_node_proposal(
+            node_to_retire.node_id
         )
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
 
         with remote_node.member_client(
@@ -223,12 +220,9 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        script = """
-        tables, node_id = ...
-        return Calls:call("trust_node", node_id)
-        """
+        proposal_body, vote = infra.proposal_generator.trust_node_proposal(node_id)
 
-        proposal = self.get_any_active_member().propose(remote_node, script, node_id)
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
 
         if not self._check_node_exists(
@@ -237,13 +231,10 @@ class Consortium:
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def retire_member(self, remote_node, member_to_retire):
-        script = """
-        tables, member_id = ...
-        return Calls:call("retire_member", member_id)
-        """
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, member_to_retire.member_id
+        proposal_body, vote = infra.proposal_generator.retire_member_proposal(
+            member_to_retire.member_id
         )
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
         member_to_retire.status = infra.member.MemberStatus.RETIRED
 
@@ -262,7 +253,7 @@ class Consortium:
 
     def rekey_ledger(self, remote_node):
         proposal_body, vote = infra.proposal_generator.rekey_ledger_proposal()
-        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def update_recovery_shares(self, remote_node):
@@ -279,26 +270,18 @@ class Consortium:
             proposal = self.get_any_active_member().propose2(remote_node, proposal)
             self.vote_using_majority(remote_node, proposal)
 
-    def set_lua_app(self, remote_node, app_script):
-        script = """
-        tables, app = ...
-        return Calls:call("set_lua_app", app)
-        """
-        with open(app_script) as app:
-            new_lua_app = app.read()
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, new_lua_app
+    def set_lua_app(self, remote_node, app_script_path):
+        proposal_body, vote = infra.proposal_generator.set_lua_app_proposal(
+            app_script_path
         )
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
-    def set_js_app(self, remote_node, app_script):
-        script = """
-        tables, app = ...
-        return Calls:call("set_js_app", app)
-        """
-        with open(app_script) as app:
-            new_js_app = app.read()
-        proposal = self.get_any_active_member().propose(remote_node, script, new_js_app)
+    def set_js_app(self, remote_node, app_script_path):
+        proposal_body, vote = infra.proposal_generator.set_js_app_proposal(
+            app_script_path
+        )
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def accept_recovery(self, remote_node):
@@ -325,36 +308,25 @@ class Consortium:
                     assert "End of recovery procedure initiated" not in r.result
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
-        script = """
-        tables, recovery_threshold = ...
-        return Calls:call("set_recovery_threshold", recovery_threshold)
-        """
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, recovery_threshold
+        proposal_body, vote = infra.proposal_generator.set_recovery_threshold_proposal(
+            recovery_threshold
         )
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         self.recovery_threshold = recovery_threshold
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_code(self, remote_node, new_code_id):
-        script = """
-        tables, code_digest = ...
-        return Calls:call("new_node_code", code_digest)
-        """
-        code_digest = list(bytearray.fromhex(new_code_id))
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, code_digest
+        proposal_body, vote = infra.proposal_generator.new_node_code_proposal(
+            new_code_id
         )
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_user_code(self, remote_node, new_code_id):
-        script = """
-        tables, code_digest = ...
-        return Calls:call("new_user_code", code_digest)
-        """
-        code_digest = list(bytearray.fromhex(new_code_id))
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, code_digest
+        proposal_body, vote = infra.proposal_generator.new_user_code_proposal(
+            new_code_id
         )
+        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def check_for_service(self, remote_node, status, pbft_open=False):

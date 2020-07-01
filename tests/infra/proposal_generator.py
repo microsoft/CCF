@@ -182,11 +182,15 @@ def set_user_data_proposal(user_id, user_data):
     return build_proposal("set_user_data", proposal_args)
 
 
-def set_lua_app_proposal(app_script):
+def set_lua_app_proposal(app_script_path):
+    with open(app_script_path) as f:
+        app_script = f.read()
     return build_proposal("set_lua_app", app_script)
 
 
-def set_js_app_proposal(app_script):
+def set_js_app_proposal(app_script_path):
+    with open(app_script_path) as f:
+        app_script = f.read()
     return build_proposal("set_js_app", app_script)
 
 
