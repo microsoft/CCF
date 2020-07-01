@@ -45,5 +45,3 @@ jobs:
           tls_report: ${{ parameters.tls_report }}
 
       - template: install.yml
-        parameters:
-          install_prefix: ${{ parameters.install_prefix }}
