@@ -82,14 +82,14 @@ def test_large_messages(network, args):
         check_commit = infra.checker.Checker(nc)
         check = infra.checker.Checker()
 
-        with primary.user_client() as c:
+        with primary.client("user0") as c:
             log_id = 44
             for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
-                    c.rpc("log/private", {"id": log_id, "msg": long_msg}), result=True,
+                    c.rpc("app/log/private", {"id": log_id, "msg": long_msg}), result=True,
                 )
-                check(c.get("log/private", {"id": log_id}), result={"msg": long_msg})
+                check(c.get("app/log/private", {"id": log_id}), result={"msg": long_msg})
                 log_id += 1
 
     return network
@@ -106,12 +106,12 @@ def test_remove(network, args):
             check_commit = infra.checker.Checker(nc)
             check = infra.checker.Checker()
 
-            with primary.user_client() as c:
+            with primary.client("user0") as c:
                 log_id = 44
                 msg = "Will be deleted"
 
                 for table in ["private", "public"]:
-                    resource = f"log/{table}"
+                    resource = f"app/log/{table}"
                     check_commit(
                         c.rpc(resource, {"id": log_id, "msg": msg}), result=True,
                     )
@@ -146,11 +146,11 @@ def test_cert_prefix(network, args):
         primary, _ = network.find_primary()
 
         for user_id in network.user_ids:
-            with primary.user_client(user_id) as c:
+            with primary.client(f"user{user_id}") as c:
                 log_id = 101
                 msg = "This message will be prefixed"
-                c.rpc("log/private/prefix_cert", {"id": log_id, "msg": msg})
-                r = c.get("log/private", {"id": log_id})
+                c.rpc("app/log/private/prefix_cert", {"id": log_id, "msg": msg})
+                r = c.get("app/log/private", {"id": log_id})
                 assert r.result is not None
                 assert f"CN=user{user_id}" in r.result["msg"]
 
@@ -173,16 +173,16 @@ def test_anonymous_caller(network, args):
 
         log_id = 101
         msg = "This message is anonymous"
-        with primary.user_client(user_id=4) as c:
-            r = c.rpc("log/private/anonymous", {"id": log_id, "msg": msg})
+        with primary.client("user4") as c:
+            r = c.rpc("app/log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.result == True
-            r = c.get("log/private", {"id": log_id})
+            r = c.get("app/log/private", {"id": log_id})
             assert (
                 r.error is not None
             ), "Anonymous user is not authorised to call log/private"
 
-        with primary.user_client(user_id=0) as c:
-            r = c.get("log/private", {"id": log_id})
+        with primary.client("user0") as c:
+            r = c.get("app/log/private", {"id": log_id})
             assert r.result is not None
             assert msg in r.result["msg"]
     else:
@@ -201,14 +201,14 @@ def test_raw_text(network, args):
 
         log_id = 101
         msg = "This message is not in JSON"
-        with primary.user_client() as c:
+        with primary.client("client0") as c:
             r = c.rpc(
-                "log/private/raw_text",
+                "app/log/private/raw_text",
                 msg,
                 headers={"content-type": "text/plain", "x-log-id": str(log_id)},
             )
             assert r.status == http.HTTPStatus.OK.value
-            r = c.get("log/private", {"id": log_id})
+            r = c.get("app/log/private", {"id": log_id})
             assert r.result is not None
             assert msg in r.result["msg"]
 
@@ -234,19 +234,19 @@ def test_historical_query(network, args):
             check_commit = infra.checker.Checker(nc)
             check = infra.checker.Checker()
 
-            with primary.user_client() as c:
+            with primary.client("user0") as c:
                 log_id = 10
                 msg = "This tests historical queries"
-                record_response = c.rpc("log/private", {"id": log_id, "msg": msg})
+                record_response = c.rpc("app/log/private", {"id": log_id, "msg": msg})
                 check_commit(record_response, result=True)
                 view = record_response.view
                 seqno = record_response.seqno
 
                 msg2 = "This overwrites the original message"
                 check_commit(
-                    c.rpc("log/private", {"id": log_id, "msg": msg2}), result=True
+                    c.rpc("app/log/private", {"id": log_id, "msg": msg2}), result=True
                 )
-                check(c.get("log/private", {"id": log_id}), result={"msg": msg2})
+                check(c.get("app/log/private", {"id": log_id}), result={"msg": msg2})
 
                 timeout = 15
                 found = False
@@ -259,7 +259,7 @@ def test_historical_query(network, args):
 
                 while time.time() < end_time:
                     get_response = c.get(
-                        "log/private/historical", params, headers=headers
+                        "app/log/private/historical", params, headers=headers
                     )
                     if get_response.status == http.HTTPStatus.ACCEPTED:
                         retry_after = get_response.headers.get("retry-after")
@@ -368,8 +368,8 @@ def test_view_history(network, args):
     check = infra.checker.Checker()
 
     for node in network.get_joined_nodes():
-        with node.user_client() as c:
-            r = c.get("commit")
+        with node.client("user0") as c:
+            r = c.get("node/commit")
             check(c)
 
             commit_view = r.view
@@ -464,11 +464,11 @@ class SentTxs:
 
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
-@reqs.supports_methods("app/log/private", "node/tx")
+@reqs.supports_methods("log/private", "node/tx")
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
-    with primary.user_client() as c:
+    with primary.client("user0") as c:
         check = infra.checker.Checker()
         r = c.rpc("app/log/private", {"id": 0, "msg": "Ignored"})
         check(r)
