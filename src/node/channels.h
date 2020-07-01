@@ -50,12 +50,9 @@ namespace ccf
     tls::KeyExchangeContext ctx;
     ChannelStatus status;
 
-    // Indicates a channel with a node not yet known by the local store (e.g.
-    // when a new node joins the network)
-    bool known_by_local_store; // TODO: Unused now
-
-    // Only use for incoming messages (e.g. follower only)
-    bool incoming_only;
+    // Indicates that the channel was used to send messages to other nodes (e.g.
+    // Raft candidate)
+    bool outgoing;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
@@ -128,11 +125,7 @@ namespace ccf
     }
 
   public:
-    Channel(bool incoming_only_ = false) :
-      status(INITIATED),
-      known_by_local_store(true),
-      incoming_only(incoming_only_)
-    {}
+    Channel(bool outgoing_ = true) : status(INITIATED), outgoing(outgoing_) {}
 
     // TODO: Delete me
     ~Channel()
@@ -150,25 +143,19 @@ namespace ccf
       return status;
     }
 
-    bool is_incoming_only()
+    bool is_outgoing() const
     {
-      return incoming_only;
+      return outgoing;
     }
 
-    void set_incoming_only()
+    void set_outgoing()
     {
-      // TODO: Naming is bad
-      incoming_only = false;
+      outgoing = true;
     }
 
-    bool is_known_by_local_store()
+    void reset_outgoing()
     {
-      return known_by_local_store;
-    }
-
-    void set_known_by_local_store()
-    {
-      known_by_local_store = true;
+      outgoing = false;
     }
 
     std::optional<std::vector<uint8_t>> get_public()
@@ -278,32 +265,18 @@ namespace ccf
       auto search = channels.find(peer_id);
       if (search != channels.end())
       {
-        // if (
-        //   search->second.has_value() &&
-        //   !search->second->is_known_by_local_store())
-        // {
-        //   LOG_FAIL_FMT(
-        //     "Channel already exists but is not known by local store");
-        //   search->second->set_known_by_local_store();
-        //   return;
-        // }
-
-        // throw std::logic_error(fmt::format(
-        //   "Cannot create node channel with {}: channel already exists",
-        //   peer_id));
-
         if (search->second.has_value())
         {
-          if (search->second->is_incoming_only())
+          if (!search->second->is_outgoing())
           {
             LOG_FAIL_FMT(
               "Channel with {} exists but is incoming only. Create host "
-              "connection.", peer_id);
+              "connection.",
+              peer_id);
 
-            // Notify host to create an outgoing connection to the peer
             RINGBUFFER_WRITE_MESSAGE(
               ccf::add_node, to_host, peer_id, hostname, service);
-            search->second->set_incoming_only();
+            search->second->set_outgoing();
             return;
           }
           else
@@ -323,32 +296,64 @@ namespace ccf
 
       // Odd emplace syntax here as Channel is non-copyable and Channel() needs
       // to be differentiated from std::nullopt
-      channels[peer_id].emplace();
+      channels.emplace(peer_id, true);
 
-      // TODO: Move messaging to host to Channel class instead
-      // Notify host to create an outgoing connection to the peer
       RINGBUFFER_WRITE_MESSAGE(
         ccf::add_node, to_host, peer_id, hostname, service);
     }
 
-    void close_channel(NodeId peer_id)
+    void destroy_channel(NodeId peer_id)
     {
       auto search = channels.find(peer_id);
       if (search == channels.end())
       {
         LOG_FAIL_FMT(
-          "Cannot close node channel with {}: channel does not exist", peer_id);
+          "Cannot destroy node channel with {}: channel does not exist",
+          peer_id);
         return;
       }
 
-      LOG_INFO_FMT("Node channel with {} is now closed", peer_id);
+      LOG_INFO_FMT("Node channel with {} is now destroyed", peer_id);
 
+      // TODO: Not sure this is great anymore!!
       // Record that the channel is closed, keeping track of closed channels so
       // that they are not re-used
       search->second = std::nullopt;
 
       // Notify host to remove outgoing connection to the peer
       RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+    }
+
+    void close_outgoing(NodeId peer_id)
+    {
+      auto search = channels.find(peer_id);
+      if (search == channels.end())
+      {
+        LOG_FAIL_FMT(
+          "Cannot close outgoing node channel with {}: channel does not exist",
+          peer_id);
+        return;
+      }
+
+      LOG_INFO_FMT("Node outgoing channel with {} is now closed", peer_id);
+
+      search->second->reset_outgoing();
+
+      // Notify host to remove outgoing connection to the peer
+      RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+    }
+
+    void close_all_outgoing()
+    {
+      LOG_FAIL_FMT("Closing all outgoing channels...");
+      for (auto const& c : channels)
+      {
+        if (c.second.has_value() && c.second->is_outgoing())
+        {
+          LOG_FAIL_FMT("Closing outgoing channel with {}", c.first);
+          close_outgoing(c.first);
+        }
+      }
     }
 
     std::optional<Channel>& get(NodeId peer_id)
@@ -359,10 +364,10 @@ namespace ccf
         return search->second;
       }
 
-      LOG_FAIL_FMT("Creating temporary channel with {}", peer_id);
+      LOG_FAIL_FMT("Creating incoming channel with {}", peer_id);
 
-      // Creating temporary channel that is incoming only
-      channels.emplace(peer_id, true);
+      // Creating temporary channel that is not outgoing
+      channels.emplace(peer_id, false);
 
       return channels[peer_id];
     }

@@ -73,14 +73,19 @@ namespace ccf
       channels->create_channel(peer_id, hostname, service);
     }
 
-    void close_channel(NodeId peer_id)
+    void destroy_channel(NodeId peer_id)
     {
       if (peer_id == self)
       {
         return;
       }
 
-      channels->close_channel(peer_id);
+      channels->destroy_channel(peer_id);
+    }
+
+    void close_all_outgoing()
+    {
+      channels->close_all_outgoing();
     }
 
     template <class T>

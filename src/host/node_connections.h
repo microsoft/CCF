@@ -102,7 +102,7 @@ namespace asynchost
 
       void on_disconnect()
       {
-        LOG_DEBUG_FMT("node incoming disconnect {}, from {}", id, node);
+        LOG_FAIL_FMT("node incoming disconnect {}, from {}", id, node);
 
         parent.incoming.erase(id);
 
@@ -177,6 +177,7 @@ namespace asynchost
 
     // The lifetime of outgoing connections is handled by the enclave
     std::unordered_map<ccf::NodeId, TCP> outgoing;
+
     std::unordered_map<size_t, TCP> incoming;
     std::unordered_map<ccf::NodeId, TCP> associated;
     size_t next_id = 1;

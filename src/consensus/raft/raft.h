@@ -986,10 +986,12 @@ namespace raft
       restart_election_timeout();
       add_vote_for_me(local_id);
 
-      LOG_INFO_FMT("Becoming candidate {}: {}", local_id, current_term);
+      LOG_FAIL_FMT("Becoming candidate {}: {}", local_id, current_term);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
+        // TODO: Do we need to create a channel here or let sending the vote
+        // create one??
         channels->create_channel(
           it->first, it->second.node_info.hostname, it->second.node_info.port);
         send_request_vote(it->first);
@@ -1054,7 +1056,11 @@ namespace raft
       rollback(commit_idx);
       committable_indices.clear();
 
-      LOG_INFO_FMT("Becoming follower {}: {}", local_id, current_term);
+      // TODO: Close all outgoing connections
+      // TODO: Perhaps move this to configuration
+      LOG_FAIL_FMT("Becoming follower {}: {}", local_id, current_term);
+      channels->close_all_outgoing();
+
     }
 
     void add_vote_for_me(NodeId from)
@@ -1239,7 +1245,7 @@ namespace raft
       {
         if (state == Leader)
         {
-          channels->close_channel(node_id);
+          channels->destroy_channel(node_id);
         }
         nodes.erase(node_id);
         LOG_INFO_FMT("Removed node {}", node_id);
@@ -1252,8 +1258,6 @@ namespace raft
       {
         if (node_info.first == local_id)
         {
-          // TODO: Delete
-          LOG_FAIL_FMT("Raft: not adding self !", local_id);
           self_is_active = true;
           continue;
         }

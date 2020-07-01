@@ -1710,7 +1710,7 @@ namespace ccf
             const auto& ni = opt_ni.value();
             if (ni.status == NodeStatus::RETIRED)
             {
-              n2n_channels->close_channel(node_id);
+              n2n_channels->destroy_channel(node_id);
             }
           }
         });
