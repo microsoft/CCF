@@ -41,11 +41,11 @@ suites["membership_recovery"] = suite_membership_recovery
 
 # This suite tests that nodes addition, deletion and primary changes can be interleaved
 suite_reconfiguration = [
-    reconfiguration.test_add_node, #3 (2 nodes at least)
+    reconfiguration.test_add_node,  # 3 (2 nodes at least)
     election.test_kill_primary,  # 2 (2 nodes at least)
-    reconfiguration.test_add_node, # 3 (2 nodes at least)
-    reconfiguration.test_add_node, # 4 (2 nodes at least)
-    reconfiguration.test_retire_node, # 3 (2 nodes at least)
+    reconfiguration.test_add_node,  # 3 (2 nodes at least)
+    reconfiguration.test_add_node,  # 4 (2 nodes at least)
+    reconfiguration.test_retire_node,  # 3 (2 nodes at least)
     election.test_kill_primary,
 ]
 suites["reconfiguration"] = suite_reconfiguration
