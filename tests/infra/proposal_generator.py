@@ -66,7 +66,7 @@ def add_arg_construction(lines, arg, arg_name="args"):
     elif isinstance(arg, str):
         lines.append(f'{arg_name} = "{arg}"')
     else:
-        lines.append(f"{arg.name} = {arg}")
+        lines.append(f"{arg_name} = {arg}")
 
 
 def add_arg_checks(lines, arg, arg_name="args"):
@@ -97,13 +97,13 @@ def build_proposal(proposed_call, args=None, inline_args=False):
             add_arg_construction(proposal_script_lines, args)
         else:
             proposal_script_lines.append("tables, args = ...")
-            proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
+        proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
 
     proposal_script_text = "; ".join(proposal_script_lines)
     proposal = {
         "script": {"text": proposal_script_text},
     }
-    if args is not None:
+    if args is not None and not inline_args:
         proposal["parameter"] = args
 
     vote_lines = [
@@ -188,70 +188,70 @@ class Proposals:
         return proposal, verifying_vote
 
     @staticmethod
-    def retire_member_proposal(member_id):
-        return build_proposal("retire_member", member_id)
+    def retire_member_proposal(member_id, **kwargs):
+        return build_proposal("retire_member", member_id, **kwargs)
 
     @staticmethod
-    def new_user_proposal(user_cert_path):
+    def new_user_proposal(user_cert_path, **kwargs):
         user_cert = file_to_byte_array(user_cert_path)
-        return build_proposal("new_user", user_cert)
+        return build_proposal("new_user", user_cert, **kwargs)
 
     @staticmethod
-    def set_user_data_proposal(user_id, user_data):
+    def set_user_data_proposal(user_id, user_data, **kwargs):
         proposal_args = {"user_id": user_id, "user_data": user_data}
-        return build_proposal("set_user_data", proposal_args)
+        return build_proposal("set_user_data", proposal_args, **kwargs)
 
     @staticmethod
-    def set_lua_app_proposal(app_script_path):
+    def set_lua_app_proposal(app_script_path, **kwargs):
         with open(app_script_path) as f:
             app_script = f.read()
-        return build_proposal("set_lua_app", app_script)
+        return build_proposal("set_lua_app", app_script, **kwargs)
 
     @staticmethod
-    def set_js_app_proposal(app_script_path):
+    def set_js_app_proposal(app_script_path, **kwargs):
         with open(app_script_path) as f:
             app_script = f.read()
-        return build_proposal("set_js_app", app_script)
+        return build_proposal("set_js_app", app_script, **kwargs)
 
     @staticmethod
-    def trust_node_proposal(node_id):
-        return build_proposal("trust_node", node_id)
+    def trust_node_proposal(node_id, **kwargs):
+        return build_proposal("trust_node", node_id, **kwargs)
 
     @staticmethod
-    def retire_node_proposal(node_id):
-        return build_proposal("retire_node", node_id)
+    def retire_node_proposal(node_id, **kwargs):
+        return build_proposal("retire_node", node_id, **kwargs)
 
     @staticmethod
-    def new_node_code_proposal(code_digest):
+    def new_node_code_proposal(code_digest, **kwargs):
         if isinstance(code_digest):
             code_digest = list(bytearray.fromhex(code_digest))
-        return build_proposal("new_node_code", code_digest)
+        return build_proposal("new_node_code", code_digest, **kwargs)
 
     @staticmethod
-    def new_user_code_proposal(code_digest):
+    def new_user_code_proposal(code_digest, **kwargs):
         if isinstance(code_digest):
             code_digest = list(bytearray.fromhex(code_digest))
-        return build_proposal("new_user_code", code_digest)
+        return build_proposal("new_user_code", code_digest, **kwargs)
 
     @staticmethod
-    def accept_recovery_proposal():
-        return build_proposal("accept_recovery")
+    def accept_recovery_proposal(**kwargs):
+        return build_proposal("accept_recovery", **kwargs)
 
     @staticmethod
-    def open_network_proposal():
-        return build_proposal("open_network")
+    def open_network_proposal(**kwargs):
+        return build_proposal("open_network", **kwargs)
 
     @staticmethod
-    def rekey_ledger_proposal():
-        return build_proposal("rekey_ledger")
+    def rekey_ledger_proposal(**kwargs):
+        return build_proposal("rekey_ledger", **kwargs)
 
     @staticmethod
-    def update_recovery_shares_proposal():
-        return build_proposal("update_recovery_shares")
+    def update_recovery_shares_proposal(**kwargs):
+        return build_proposal("update_recovery_shares", **kwargs)
 
     @staticmethod
-    def set_recovery_threshold_proposal(threshold):
-        return build_proposal("set_recovery_threshold", threshold)
+    def set_recovery_threshold_proposal(threshold, **kwargs):
+        return build_proposal("set_recovery_threshold", threshold, **kwargs)
 
 
 if __name__ == "__main__":
@@ -266,15 +266,30 @@ if __name__ == "__main__":
         "-po",
         "--proposal-output-file",
         type=str,
-        help=f"Path where proposal json object (request body for /gov/propose) will be dumped. Default is {default_proposal_output}",
+        help=f"Path where proposal JSON object (request body for /gov/propose)"
+        "will be dumped. Default is {default_proposal_output}",
     )
     parser.add_argument(
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote json object (request body for /gov/vote) will be dumped. Default is {default_vote_output}",
+        help=f"Path where vote JSON object (request body for /gov/vote) will be"
+        "dumped. Default is {default_vote_output}",
     )
-    parser.add_argument("-pp", "--pretty-print", action="store_true")
+    parser.add_argument(
+        "-pp",
+        "--pretty-print",
+        action="store_true",
+        help="Pretty-print the JSON output",
+    )
+    parser.add_argument(
+        "-i",
+        "--inline-args",
+        action="store_true",
+        help="Create a fixed proposal script with the call arguments as literalsinside"
+        "the script. When not inlined, the parameters are passed separately and could"
+        "be replaced in the resulting object",
+    )
 
     # Auto-generate CLI args based on the inspected generator signatures
     proposal_generators = inspect.getmembers(Proposals, predicate=inspect.isfunction)
@@ -290,15 +305,20 @@ if __name__ == "__main__":
         sub_func_name = func_name[: -len(suffix)]
 
         subparser = subparsers.add_parser(sub_func_name)
-        arg_names = inspect.signature(func).parameters.keys()
-        for arg_name in arg_names:
-            subparser.add_argument(arg_name)
-        subparser.set_defaults(func=func, func_arg_names=arg_names)
+        parameters = inspect.signature(func).parameters
+        func_param_names = []
+        for param_name, param in parameters.items():
+            if param.kind == param.VAR_POSITIONAL or param.kind == param.VAR_KEYWORD:
+                continue
+            subparser.add_argument(param_name)
+            func_param_names.append(param_name)
+        subparser.set_defaults(func=func, param_names=func_param_names)
 
     args = parser.parse_args()
 
     proposal, vote = args.func(
-        **{name: getattr(args, name) for name in args.func_arg_names}
+        **{name: getattr(args, name) for name in args.param_names},
+        inline_args=args.inline_args,
     )
 
     dump_args = {}
