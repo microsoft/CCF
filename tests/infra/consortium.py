@@ -102,7 +102,7 @@ class Consortium:
         )
 
         return (
-            self.get_any_active_member().propose2(remote_node, proposal),
+            self.get_any_active_member().propose(remote_node, proposal),
             new_member,
         )
 
@@ -198,7 +198,7 @@ class Consortium:
 
     def retire_node(self, remote_node, node_to_retire):
         proposal_body, vote = Proposals.retire_node_proposal(node_to_retire.node_id)
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
 
         with remote_node.member_client(
@@ -215,7 +215,7 @@ class Consortium:
 
         proposal_body, vote = Proposals.trust_node_proposal(node_id)
 
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
 
         if not self._check_node_exists(
@@ -227,7 +227,7 @@ class Consortium:
         proposal_body, vote = Proposals.retire_member_proposal(
             member_to_retire.member_id
         )
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
         member_to_retire.status = infra.member.MemberStatus.RETIRED
 
@@ -238,7 +238,7 @@ class Consortium:
         OPEN.
         """
         proposal_body, vote = Proposals.open_network_proposal()
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, wait_for_global_commit=(not pbft_open)
         )
@@ -246,12 +246,12 @@ class Consortium:
 
     def rekey_ledger(self, remote_node):
         proposal_body, vote = Proposals.rekey_ledger_proposal()
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def update_recovery_shares(self, remote_node):
         proposal_body, vote = Proposals.update_recovery_shares_proposal()
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def add_users(self, remote_node, users):
@@ -259,22 +259,22 @@ class Consortium:
             user_cert = []
             proposal, vote = Proposals.new_user_proposal(os.path.join(self.common_dir, f"user{u}_cert.pem"))
 
-            proposal = self.get_any_active_member().propose2(remote_node, proposal)
+            proposal = self.get_any_active_member().propose(remote_node, proposal)
             self.vote_using_majority(remote_node, proposal)
 
     def set_lua_app(self, remote_node, app_script_path):
         proposal_body, vote = Proposals.set_lua_app_proposal(app_script_path)
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def set_js_app(self, remote_node, app_script_path):
         proposal_body, vote = Proposals.set_js_app_proposal(app_script_path)
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def accept_recovery(self, remote_node):
         proposal_body, vote = Proposals.open_network_proposal()
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
@@ -299,18 +299,18 @@ class Consortium:
         proposal_body, vote = Proposals.set_recovery_threshold_proposal(
             recovery_threshold
         )
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.recovery_threshold = recovery_threshold
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_code(self, remote_node, new_code_id):
         proposal_body, vote = Proposals.new_node_code_proposal(new_code_id)
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_user_code(self, remote_node, new_code_id):
         proposal_body, vote = Proposals.new_user_code_proposal(new_code_id)
-        proposal = self.get_any_active_member().propose2(remote_node, proposal_body)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def check_for_service(self, remote_node, status, pbft_open=False):

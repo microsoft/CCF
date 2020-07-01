@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.ccf
+from infra.proposal_generator import Proposals
 
 import logging
 from time import gmtime, strftime
@@ -76,22 +77,12 @@ def run(args):
                 transactions.append(json_tx)
 
         # Manager is granted special privileges by members, which is later read by app to enforce access restrictions
+        proposal_body, _ = Proposals.set_user_data_proposal(
+            manager.ccf_id,
+            {"privileges": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
+        )  # TODO: Support inlining parameters!?
         proposal = network.consortium.get_any_active_member().propose(
-            primary,
-            f"""
-            return Calls:call(
-                "set_user_data",
-                {{
-                    user_id = {manager.ccf_id},
-                    user_data = {{
-                        privileges = {{
-                            REGISTER_REGULATORS = true,
-                            REGISTER_BANKS = true,
-                        }}
-                    }}
-                }}
-            )
-            """,
+            primary, proposal_body
         )
         network.consortium.vote_using_majority(primary, proposal)
 
