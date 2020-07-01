@@ -435,8 +435,8 @@ class LocalRemote(CmdMixin):
             dst_path = os.path.join(self.root, os.path.basename(path))
             self._cp(path, dst_path)
 
-    def get(self, file_name, dst_path, timeout=FILE_TIMEOUT, target_name=None):
-        path = os.path.join(self.root, file_name)
+    def get(self, src_path, dst_path, timeout=FILE_TIMEOUT, target_name=None):
+        path = os.path.join(self.root, src_path)
         end_time = time.time() + timeout
         while time.time() < end_time:
             if os.path.exists(path):
@@ -444,8 +444,10 @@ class LocalRemote(CmdMixin):
             time.sleep(0.1)
         else:
             raise ValueError(path)
-        target_name = target_name or file_name
-        self._cp(path, dst_path)
+        if target_name is not None:
+            self._cp(path, os.path.join(dst_path, target_name))
+        else:
+            self._cp(path, dst_path)
 
     def list_files(self):
         return os.listdir(self.root)

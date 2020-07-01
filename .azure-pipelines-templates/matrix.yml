@@ -24,9 +24,6 @@ parameters:
       cmake_args: '-DCOMPILE_TARGETS=sgx'
     debug:
       cmake_args: '-DCMAKE_BUILD_TYPE=Debug -DBUILD_SMALLBANK=OFF'
-    install:
-      install_prefix: '/tmp/ccf-install'
-      cmake_args: '-DCMAKE_INSTALL_PREFIX=/tmp/ccf-install'
     perf:
       cmake_args: '-DBUILD_UNIT_TESTS=OFF -DDISTRIBUTE_PERF_TESTS="`../.nodes.sh`"'
 
@@ -74,10 +71,9 @@ jobs:
       parameters:
         target: SGX
         env: ${{ parameters.env.SGX }}
-        cmake_args: '${{ parameters.build.common.cmake_args }} ${{ parameters.build.install.cmake_args }}'
+        cmake_args: '${{ parameters.build.common.cmake_args }}'
         suffix: 'Release'
         artifact_name: 'SGX_Release'
-        install_prefix: '${{ parameters.build.install.install_prefix }}'
         ctest_timeout: '240'
 
     - template: release.yml
