@@ -44,9 +44,7 @@ instructions provided by the bot. You will only need to do this once across all 
 
 All pull requests must pass a suite of CI tests before they will be merged.
 The test commands are defined in [`test.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/test.yml), so you can locally repeat any tests which fail.
-You should at least run the code format checking scripts defined in
-[`checks.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/checks.yml) before creating a pull request, ensuring all of your code is correctly formatted.
-The test commands will only report misformatted files - to _reformat_ the files, pass `-f` to the `check-format.sh ...` command and remove `--check` from the `black ...` command.
+Code must also conform with formatting and linting standards defined and enforced by [`checks.yml`](https://github.com/microsoft/CCF/blob/master/.azure-pipelines-templates/checks.yml). You can run those locally with `scripts/ci-checks.sh`, and some categories of issues can be fixed automatically by running `scripts/ci-checks.sh -f`.
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
