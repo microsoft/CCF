@@ -23,13 +23,15 @@ namespace tls
 
     Pem(const std::string& s_) : s(s_) {}
 
-    Pem(CBuffer b)
+    Pem(const CBuffer& b)
     {
       if (b.n == 0)
         throw std::logic_error("Got PEM of size 0.");
 
       s.assign(reinterpret_cast<const char*>(b.p), b.n);
     }
+
+    Pem(const std::vector<uint8_t>& v) : Pem(CBuffer{v}) {}
 
     const std::string& str() const
     {
