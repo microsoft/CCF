@@ -1557,6 +1557,7 @@ namespace ccf
               }
               case NodeStatus::RETIRED:
               {
+                LOG_FAIL_FMT("Hook: node retired {}", node_id);
                 configuration.erase(node_id);
                 configure = true;
                 break;

@@ -102,7 +102,7 @@ namespace asynchost
 
       void on_disconnect()
       {
-        LOG_FAIL_FMT("node incoming disconnect {}, from {}", id, node);
+        LOG_FAIL_FMT("node incoming disconnect {} with node {}", id, node);
 
         parent.incoming.erase(id);
 

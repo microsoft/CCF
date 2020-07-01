@@ -1268,7 +1268,6 @@ namespace raft
           // have prior data, it will communicate that back to the leader.
           auto index = last_idx + 1;
           nodes.try_emplace(node_info.first, 0, index, node_info.second);
-          // nodes[node_info.first] = {0, index, node_info};
 
           if (state == Leader)
           {

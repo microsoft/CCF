@@ -48,10 +48,13 @@ namespace ccf
   private:
     // Used for key exchange
     tls::KeyExchangeContext ctx;
-    ChannelStatus status;
+    ChannelStatus status = INITIATED;
 
-    // Indicates that the channel was used to send messages to other nodes (e.g.
-    // Raft candidate)
+    // Notifies the host to create a new outgoing connection
+    ringbuffer::WriterPtr to_host;
+    NodeId peer_id;
+    std::string peer_hostname;
+    std::string peer_service;
     bool outgoing;
 
     // Used for AES GCM authentication/encryption
@@ -125,12 +128,32 @@ namespace ccf
     }
 
   public:
-    Channel(bool outgoing_ = true) : status(INITIATED), outgoing(outgoing_) {}
+    Channel(
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      NodeId peer_id_,
+      const std::string& peer_hostname_,
+      const std::string& peer_service_) :
+      to_host(writer_factory.create_writer_to_outside()),
+      peer_id(peer_id_),
+      peer_hostname(peer_hostname_),
+      peer_service(peer_service_),
+      outgoing(true)
+    {
+      RINGBUFFER_WRITE_MESSAGE(
+        ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
+    }
 
-    // TODO: Delete me
+    Channel(
+      ringbuffer::AbstractWriterFactory& writer_factory, NodeId peer_id_) :
+      to_host(writer_factory.create_writer_to_outside()),
+      peer_id(peer_id_),
+      outgoing(false)
+    {}
+
     ~Channel()
     {
       LOG_FAIL_FMT("Channel destroyed!");
+      RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
     }
 
     void set_status(ChannelStatus status_)
@@ -148,13 +171,28 @@ namespace ccf
       return outgoing;
     }
 
-    void set_outgoing()
+    void set_outgoing(
+      const std::string& peer_hostname_, const std::string& peer_service_)
     {
+      peer_hostname = peer_hostname_;
+      peer_service = peer_service_;
+
+      if (!outgoing)
+      {
+        LOG_FAIL_FMT("Set outgoing");
+        RINGBUFFER_WRITE_MESSAGE(
+          ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
+      }
       outgoing = true;
     }
 
     void reset_outgoing()
     {
+      if (outgoing)
+      {
+        LOG_FAIL_FMT("Reset outgoing");
+        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+      }
       outgoing = false;
     }
 
@@ -246,14 +284,14 @@ namespace ccf
   private:
     // A std::nullopt value indicates a channel that no longer exists
     std::unordered_map<NodeId, std::optional<Channel>> channels;
-    ringbuffer::WriterPtr to_host;
+    ringbuffer::AbstractWriterFactory& writer_factory;
     tls::KeyPairPtr network_kp;
 
   public:
     ChannelManager(
-      ringbuffer::AbstractWriterFactory& writer_factory,
+      ringbuffer::AbstractWriterFactory& writer_factory_,
       const tls::Pem& network_pkey) :
-      to_host(writer_factory.create_writer_to_outside()),
+      writer_factory(writer_factory_),
       network_kp(tls::make_key_pair(network_pkey))
     {}
 
@@ -273,10 +311,7 @@ namespace ccf
               "Channel with {} exists but is incoming only. Create host "
               "connection.",
               peer_id);
-
-            RINGBUFFER_WRITE_MESSAGE(
-              ccf::add_node, to_host, peer_id, hostname, service);
-            search->second->set_outgoing();
+            search->second->set_outgoing(hostname, service);
             return;
           }
           else
@@ -294,12 +329,9 @@ namespace ccf
         return;
       }
 
-      // Odd emplace syntax here as Channel is non-copyable and Channel() needs
-      // to be differentiated from std::nullopt
-      channels.emplace(peer_id, true);
-
-      RINGBUFFER_WRITE_MESSAGE(
-        ccf::add_node, to_host, peer_id, hostname, service);
+      // Odd emplace syntax here as Channel is non-copyable so we emplace
+      // std::nullopt first and then replace it with the Channel
+      channels[peer_id].emplace(writer_factory, peer_id, hostname, service);
     }
 
     void destroy_channel(NodeId peer_id)
@@ -319,9 +351,6 @@ namespace ccf
       // Record that the channel is closed, keeping track of closed channels so
       // that they are not re-used
       search->second = std::nullopt;
-
-      // Notify host to remove outgoing connection to the peer
-      RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
     }
 
     void close_outgoing(NodeId peer_id)
@@ -338,9 +367,6 @@ namespace ccf
       LOG_INFO_FMT("Node outgoing channel with {} is now closed", peer_id);
 
       search->second->reset_outgoing();
-
-      // Notify host to remove outgoing connection to the peer
-      RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
     }
 
     void close_all_outgoing()
@@ -367,7 +393,7 @@ namespace ccf
       LOG_FAIL_FMT("Creating incoming channel with {}", peer_id);
 
       // Creating temporary channel that is not outgoing
-      channels.emplace(peer_id, false);
+      channels[peer_id].emplace(writer_factory, peer_id);
 
       return channels[peer_id];
     }
