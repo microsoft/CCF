@@ -4,18 +4,19 @@
 import argparse
 import inspect
 import json
+import os
 
 from loguru import logger as LOG
 
 
 def dump_proposal(output_path, proposal, dump_args):
-    LOG.debug(f"Writing proposal to {output_path}")
+    LOG.info(f"Writing proposal to {output_path}")
     with open(output_path, "w") as f:
         json.dump(proposal, f, **dump_args)
 
 
 def dump_vote(output_path, vote, dump_args):
-    LOG.debug(f"Writing vote to {output_path}")
+    LOG.info(f"Writing vote to {output_path}")
     with open(output_path, "w") as f:
         json.dump(vote, f, **dump_args)
 
@@ -55,6 +56,19 @@ end
 PROPOSAL_ID_PLACEHOLDER = "<replace with desired proposal_id>"
 
 
+def add_arg_construction(lines, arg, arg_name="args"):
+    if isinstance(arg, list):
+        lines.append(f"{arg_name} = {list_as_lua_literal(arg)}")
+    elif isinstance(arg, dict):
+        lines.append(f"{arg_name} = {{}}")
+        for k, v in args.items():
+            add_arg_construction(lines, v, arg_name=f"{arg_name}.{k}")
+    elif isinstance(arg, str):
+        lines.append(f'{arg_name} = "{arg}"')
+    else:
+        lines.append(f"{arg.name} = {arg}")
+
+
 def add_arg_checks(lines, arg, arg_name="args"):
     lines.append(f"if {arg_name} == nil then return false")
     if isinstance(arg, list):
@@ -66,19 +80,24 @@ def add_arg_checks(lines, arg, arg_name="args"):
     elif isinstance(arg, dict):
         for k, v in arg.items():
             add_arg_checks(lines, v, arg_name=f"{arg_name}.{k}")
+    elif isinstance(arg, str):
+        lines.append(f'if not {arg_name} == "{arg}" then return false end')
     else:
         lines.append(f"if not {arg_name} == {arg} then return false end")
 
 
-def build_proposal(proposed_call, args=None):
-    LOG.warning(f"Generating {proposed_call} proposal")
+def build_proposal(proposed_call, args=None, inline_args=False):
+    LOG.debug(f"Generating {proposed_call} proposal")
 
     proposal_script_lines = []
     if args is None:
         proposal_script_lines.append(f'return Calls:call("{proposed_call}")')
     else:
-        proposal_script_lines.append("tables, args = ...")
-        proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
+        if inline_args:
+            add_arg_construction(proposal_script_lines, args)
+        else:
+            proposal_script_lines.append("tables, args = ...")
+            proposal_script_lines.append(f'return Calls:call("{proposed_call}", args)')
 
     proposal_script_text = "; ".join(proposal_script_lines)
     proposal = {
@@ -103,8 +122,8 @@ def build_proposal(proposed_call, args=None):
         "id": PROPOSAL_ID_PLACEHOLDER,
     }
 
-    LOG.warning(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
-    LOG.warning(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
+    LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
+    LOG.trace(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
 
     return proposal, vote
 
@@ -112,7 +131,7 @@ def build_proposal(proposed_call, args=None):
 class Proposals:
     @staticmethod
     def new_member_proposal(member_cert_path, member_keyshare_encryptor_path):
-        LOG.warning("Generating new_member proposal")
+        LOG.debug("Generating new_member proposal")
 
         # Convert certs to byte arrays
         member_cert = file_to_byte_array(member_cert_path)
@@ -163,8 +182,8 @@ class Proposals:
             "id": PROPOSAL_ID_PLACEHOLDER,
         }
 
-        LOG.warning(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
-        LOG.warning(f"Accompanying vote:\n{json.dumps(verifying_vote, indent=2)}")
+        LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
+        LOG.trace(f"Accompanying vote:\n{json.dumps(verifying_vote, indent=2)}")
 
         return proposal, verifying_vote
 
@@ -241,19 +260,19 @@ if __name__ == "__main__":
     )
 
     default_proposal_output = "{proposal_type}.json"
-    default_vote_output = "vote_for_{proposal_type}.json"
+    default_vote_output = "vote_for_{proposal_output}.json"
 
     parser.add_argument(
         "-po",
         "--proposal-output-file",
         type=str,
-        help=f"Path where proposal json object will be dumped. Default is {default_proposal_output}",
+        help=f"Path where proposal json object (request body for /gov/propose) will be dumped. Default is {default_proposal_output}",
     )
     parser.add_argument(
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote json object will be dumped. Default is {default_vote_output}",
+        help=f"Path where vote json object (request body for /gov/vote) will be dumped. Default is {default_vote_output}",
     )
     parser.add_argument("-pp", "--pretty-print", action="store_true")
 
@@ -278,7 +297,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    LOG.warning(args)
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.func_arg_names}
     )
@@ -293,6 +311,6 @@ if __name__ == "__main__":
     dump_proposal(proposal_output_path, proposal, dump_args)
 
     vote_output_path = args.vote_output_file or default_vote_output.format(
-        proposal_type=args.proposal_type
+        proposal_output=os.path.splitext(proposal_output_path)[0]
     )
     dump_vote(vote_output_path, vote, dump_args)
