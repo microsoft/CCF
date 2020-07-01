@@ -1020,7 +1020,7 @@ namespace raft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
-      LOG_INFO_FMT("Becoming leader {}: {}", local_id, current_term);
+      LOG_FAIL_FMT("Becoming leader {}: {}", local_id, current_term);
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)

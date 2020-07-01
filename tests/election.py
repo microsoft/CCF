@@ -6,6 +6,7 @@ import infra.ccf
 import infra.proc
 import infra.e2e_args
 import http
+import suite.test_requirements as reqs
 
 from infra.tx_status import TxStatus
 from loguru import logger as LOG
@@ -14,6 +15,18 @@ from loguru import logger as LOG
 # a transaction, stops the current primary, waits for an election and repeats
 # this process until no progress can be made (i.e. no primary can be elected
 # as F > N/2).
+
+
+@reqs.description("Stopping current primary and waiting for a new one to be elected")
+@reqs.can_kill_n_nodes(1)
+def test_kill_primary(network, args):
+    primary, _ = network.find_primary()
+    primary.stop()
+    LOG.debug(
+        f"Waiting {network.election_duration}s for a new primary to be elected..."
+    )
+    time.sleep(network.election_duration)
+    return network
 
 
 def wait_for_seqno_to_commit(seqno, view, nodes):
@@ -90,13 +103,7 @@ def run(args):
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
-            LOG.debug("Stopping primary")
-            primary.stop()
-
-            LOG.debug(
-                f"Waiting {network.election_duration}s for a new primary to be elected..."
-            )
-            time.sleep(network.election_duration)
+            test_kill_primary(network, args)
 
         # More than F nodes have been stopped, trying to commit any message
         LOG.debug(
@@ -120,4 +127,5 @@ if __name__ == "__main__":
 
     args = infra.e2e_args.cli_args()
     args.package = "liblogging"
+    args.enforce_reqs = True
     run(args)

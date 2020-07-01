@@ -5,6 +5,7 @@ import infra.ccf
 import functools
 
 from loguru import logger as LOG
+from math import ceil
 
 
 class TestRequirementsNotMet(Exception):
@@ -82,6 +83,36 @@ def sufficient_member_count():
                 f" ({len(network.consortium.get_active_members()) - 1}) would be less than"
                 f" the recovery threshold ({network.consortium.recovery_threshold})"
             )
+
+    return ensure_reqs(check)
+
+
+def can_kill_n_nodes(n):
+    def check(network, args, *nargs, **kwargs):
+        primary, _ = network.find_primary()
+        with primary.member_client() as c:
+            r = c.rpc(
+                "query",
+                {
+                    "text": """tables = ...
+                        trusted_nodes_count = 0
+                        tables["ccf.nodes"]:foreach(function(node_id, details)
+                            if details["status"] == "TRUSTED" then
+                                trusted_nodes_count = trusted_nodes_count + 1
+                            end
+                        end)
+                        return trusted_nodes_count
+                        """
+                },
+            )
+
+            trusted_nodes_count = r.result
+            running_nodes_count = len(network.get_joined_nodes())
+            if running_nodes_count - n < ceil(trusted_nodes_count / 2):
+                raise TestRequirementsNotMet(
+                    f"Cannot kill {n} node(s) as the network would not be able to make progress"
+                    f" (trusted nodes {trusted_nodes_count}, current active nodes {running_nodes_count}) "
+                )
 
     return ensure_reqs(check)
 
