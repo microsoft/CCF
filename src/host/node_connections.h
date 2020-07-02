@@ -102,7 +102,7 @@ namespace asynchost
 
       void on_disconnect()
       {
-        LOG_FAIL_FMT("node incoming disconnect {} with node {}", id, node);
+        LOG_DEBUG_FMT("node incoming disconnect {} with node {}", id, node);
 
         parent.incoming.erase(id);
 
@@ -309,11 +309,10 @@ namespace asynchost
       for (const auto node : local_queue)
       {
         LOG_DEBUG_FMT("reconnecting node {}", node);
-        auto s = find(node);
-
-        if (s)
+        auto s = outgoing.find(node);
+        if (s != outgoing.end())
         {
-          s.value()->reconnect();
+          s->second->reconnect();
         }
       }
     }
@@ -324,7 +323,7 @@ namespace asynchost
     {
       if (outgoing.find(node) != outgoing.end())
       {
-        LOG_FAIL_FMT("Cannot add node {}: already in use", node);
+        LOG_FAIL_FMT("Cannot add node connection {}: already in use", node);
         return false;
       }
 
@@ -339,7 +338,7 @@ namespace asynchost
 
       outgoing.emplace(node, s);
 
-      LOG_FAIL_FMT(
+      LOG_DEBUG_FMT(
         "Added node connection with {} ({}:{})", node, host, service);
       return true;
     }
@@ -359,7 +358,7 @@ namespace asynchost
           return s->second;
       }
 
-      LOG_FAIL_FMT("Unknown node {}", node);
+      LOG_FAIL_FMT("Unknown node connection {}", node);
       return {};
     }
 
@@ -367,11 +366,11 @@ namespace asynchost
     {
       if (outgoing.erase(node) < 1)
       {
-        LOG_FAIL_FMT("Cannot remove node {}: does not exist", node);
+        LOG_FAIL_FMT("Cannot remove node connection {}: does not exist", node);
         return false;
       }
 
-      LOG_FAIL_FMT("Removed node connection with {}", node);
+      LOG_DEBUG_FMT("Removed node connection with {}", node);
 
       return true;
     }
