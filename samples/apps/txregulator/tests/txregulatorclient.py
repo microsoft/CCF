@@ -80,7 +80,7 @@ def run(args):
         proposal_body, _ = Proposals.set_user_data_proposal(
             manager.ccf_id,
             {"privileges": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
-        )  # TODO: Support inlining parameters!?
+        )
         proposal = network.consortium.get_any_active_member().propose(
             primary, proposal_body
         )
