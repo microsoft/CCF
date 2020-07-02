@@ -585,6 +585,12 @@ namespace pbft
     void add_configuration(
       SeqNo seqno, const Configuration::Nodes& config) override
     {
+      if (config.size() != 1)
+      {
+        throw std::logic_error(
+          "PBFT configuration should add one node at a time");
+      }
+
       auto new_node_id = config.begin()->first;
       auto new_node_info = config.begin()->second;
 
