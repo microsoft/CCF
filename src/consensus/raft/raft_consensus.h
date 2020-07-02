@@ -17,8 +17,6 @@ namespace raft
   class RaftConsensus : public kv::Consensus
   {
   private:
-    using Configuration = kv::Consensus::Configuration;
-
     std::unique_ptr<Raft<LedgerProxy, ChannelProxy>> raft;
 
   public:
@@ -88,10 +86,10 @@ namespace raft
 
     void add_configuration(
       SeqNo seqno,
-      Configuration::Nodes&& conf,
+      const Configuration::Nodes& conf,
       const NodeConf& node_conf = {}) override
     {
-      raft->add_configuration(seqno, std::move(conf));
+      raft->add_configuration(seqno, conf);
     }
 
     Configuration::Nodes get_latest_configuration() const override

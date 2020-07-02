@@ -18,6 +18,8 @@
 
 namespace raft
 {
+  using Configuration = kv::Consensus::Configuration;
+
   class TermHistory
   {
     // Entry i stores the first index in term i+1
@@ -73,8 +75,6 @@ namespace raft
   class Raft
   {
   private:
-    using Configuration = kv::Consensus::Configuration;
-
     enum State
     {
       Leader,
@@ -293,7 +293,7 @@ namespace raft
       return get_term_internal(idx);
     }
 
-    void add_configuration(Index idx, Configuration::Nodes&& conf)
+    void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
       // This should only be called when the spin lock is held.
       configurations.push_back({idx, std::move(conf)});
@@ -1060,7 +1060,6 @@ namespace raft
       // TODO: Perhaps move this to configuration
       LOG_FAIL_FMT("Becoming follower {}: {}", local_id, current_term);
       channels->close_all_outgoing();
-
     }
 
     void add_vote_for_me(NodeId from)

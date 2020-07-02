@@ -108,7 +108,9 @@ def can_kill_n_nodes(n):
 
             trusted_nodes_count = r.result
             running_nodes_count = len(network.get_joined_nodes())
-            if running_nodes_count - n < ceil(trusted_nodes_count / 2):
+            if args.consensus == "raft" and running_nodes_count - n < ceil(
+                trusted_nodes_count / 2
+            ):
                 raise TestRequirementsNotMet(
                     f"Cannot kill {n} node(s) as the network would not be able to make progress"
                     f" (trusted nodes {trusted_nodes_count}, current active nodes {running_nodes_count}) "

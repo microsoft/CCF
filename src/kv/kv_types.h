@@ -268,7 +268,7 @@ namespace kv
     virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
       SeqNo seqno,
-      Configuration::Nodes&& conf,
+      const Configuration::Nodes& conf,
       const NodeConf& node_conf = {}) = 0;
     virtual Configuration::Nodes get_latest_configuration() const = 0;
 

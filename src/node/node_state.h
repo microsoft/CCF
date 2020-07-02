@@ -1569,7 +1569,7 @@ namespace ccf
 
           if (configure)
           {
-            consensus->add_configuration(version, std::move(configuration));
+            consensus->add_configuration(version, configuration);
           }
         });
 

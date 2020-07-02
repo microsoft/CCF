@@ -153,7 +153,10 @@ namespace ccf
     ~Channel()
     {
       LOG_FAIL_FMT("Channel destroyed!");
-      RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+      if (outgoing)
+      {
+        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+      }
     }
 
     void set_status(ChannelStatus status_)

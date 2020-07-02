@@ -116,11 +116,11 @@ namespace kv
 
     void add_configuration(
       SeqNo seqno,
-      const std::unordered_set<NodeId>& conf,
+      const Configuration::Nodes& conf,
       const NodeConf& node_conf) override
     {}
 
-    std::unordered_set<NodeId> get_latest_configuration() const override
+    Configuration::Nodes get_latest_configuration() const override
     {
       return {};
     }

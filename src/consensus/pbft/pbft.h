@@ -583,7 +583,7 @@ namespace pbft
 
     void add_configuration(
       SeqNo seqno,
-      Configuration::Nodes&& config,
+      const Configuration::Nodes& config,
       const NodeConf& node_conf) override
     {
       if (node_conf.node_id == local_id)
