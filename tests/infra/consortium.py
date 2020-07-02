@@ -275,7 +275,7 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal)
 
     def accept_recovery(self, remote_node):
-        proposal_body, vote = Proposals.open_network_proposal()
+        proposal_body, vote = Proposals.accept_recovery_proposal()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
