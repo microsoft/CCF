@@ -6,6 +6,7 @@ import collections
 import inspect
 import json
 import os
+import sys
 
 from loguru import logger as LOG
 
@@ -300,6 +301,7 @@ if __name__ == "__main__":
         "the script. When not inlined, the parameters are passed separately and could"
         "be replaced in the resulting object",
     )
+    parser.add_argument("-v", "--verbose", action="store_true")
 
     # Auto-generate CLI args based on the inspected signatures of generator functions
     module = inspect.getmodule(inspect.currentframe())
@@ -327,6 +329,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    LOG.remove()
+    LOG.add(
+        sys.stdout,
+        format="<level>[{time:YYYY-MM-DD HH:mm:ss.SSS}] {level} | {message}</level>",
+        level="TRACE" if args.verbose else "INFO",
+    )
+
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
         inline_args=args.inline_args,
@@ -339,11 +348,11 @@ if __name__ == "__main__":
     proposal_output_path = args.proposal_output_file or default_proposal_output.format(
         proposal_type=args.proposal_type
     )
-    LOG.info(f"Writing proposal to {proposal_output_path}")
+    LOG.success(f"Writing proposal to {proposal_output_path}")
     dump_to_file(proposal_output_path, proposal, dump_args)
 
     vote_output_path = args.vote_output_file or default_vote_output.format(
         proposal_output=os.path.splitext(proposal_output_path)[0]
     )
-    LOG.info(f"Writing vote to {vote_output_path}")
+    LOG.success(f"Writing vote to {vote_output_path}")
     dump_to_file(vote_output_path, vote, dump_args)
