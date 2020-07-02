@@ -129,12 +129,12 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def new_member(member_cert_path, member_keyshare_encryptor_path):
+def new_member(member_cert_path, member_enc_pubk_path):
     LOG.debug("Generating new_member proposal")
 
     # Convert certs to byte arrays
     member_cert = file_to_byte_array(member_cert_path)
-    member_keyshare_encryptor = file_to_byte_array(member_keyshare_encryptor_path)
+    member_keyshare_encryptor = file_to_byte_array(member_enc_pubk_path)
 
     # Script which proposes adding a new member
     proposal_script_text = """
