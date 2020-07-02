@@ -196,12 +196,12 @@ namespace tls
    * format
    */
   inline VerifierUniquePtr make_unique_verifier(
-    const std::vector<uint8_t>& cert_pem,
+    const Pem& pem,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
-    int rc = mbedtls_x509_crt_parse(&cert, cert_pem.data(), cert_pem.size());
+    int rc = mbedtls_x509_crt_parse(&cert, pem.data(), pem.size());
     if (rc)
     {
       mbedtls_x509_crt_free(&cert);
@@ -222,10 +222,10 @@ namespace tls
   }
 
   inline VerifierPtr make_verifier(
-    const std::vector<uint8_t>& cert_pem,
+    const Pem& cert,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
-    return make_unique_verifier(cert_pem, use_bitcoin_impl);
+    return make_unique_verifier(cert, use_bitcoin_impl);
   }
 
   inline std::vector<uint8_t> cert_der_to_pem(

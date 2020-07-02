@@ -171,9 +171,8 @@ namespace ccf
       auto v = verifiers.find(caller_id);
       if (v == verifiers.end())
       {
-        std::vector<uint8_t> caller_cert(caller);
         verifiers.emplace(
-          std::make_pair(caller_id, tls::make_verifier(caller_cert)));
+          std::make_pair(caller_id, tls::make_verifier(caller)));
       }
       if (!verifiers[caller_id]->verify(
             signed_request.req, signed_request.sig, signed_request.md))

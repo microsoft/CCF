@@ -97,10 +97,7 @@ namespace ccf
         tables.member_acks,
         tables.signatures);
 
-      auto member_cert_der =
-        tls::make_verifier(
-          {member_cert.data(), member_cert.data() + member_cert.size()})
-          ->der_cert_data();
+      auto member_cert_der = tls::make_verifier(member_cert)->der_cert_data();
 
       auto member_id = mc->get(member_cert_der);
       if (member_id.has_value())
@@ -203,10 +200,7 @@ namespace ccf
       auto [u, uc, v] =
         tx.get_view(tables.users, tables.user_certs, tables.values);
 
-      auto user_cert_der =
-        tls::make_verifier(
-          {user_cert.data(), user_cert.data() + user_cert.size()})
-          ->der_cert_data();
+      auto user_cert_der = tls::make_verifier(user_cert)->der_cert_data();
 
       // Cert should be unique
       auto user_id = uc->get(user_cert_der);
