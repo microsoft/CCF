@@ -10,16 +10,9 @@ import os
 from loguru import logger as LOG
 
 
-def dump_proposal(output_path, proposal, dump_args):
-    LOG.info(f"Writing proposal to {output_path}")
+def dump_to_file(output_path, obj, dump_args):
     with open(output_path, "w") as f:
-        json.dump(proposal, f, **dump_args)
-
-
-def dump_vote(output_path, vote, dump_args):
-    LOG.info(f"Writing vote to {output_path}")
-    with open(output_path, "w") as f:
-        json.dump(vote, f, **dump_args)
+        json.dump(obj, f, **dump_args)
 
 
 def file_to_byte_array(path):
@@ -346,9 +339,11 @@ if __name__ == "__main__":
     proposal_output_path = args.proposal_output_file or default_proposal_output.format(
         proposal_type=args.proposal_type
     )
-    dump_proposal(proposal_output_path, proposal, dump_args)
+    LOG.info(f"Writing proposal to {proposal_output_path}")
+    dump_to_file(proposal_output_path, proposal, dump_args)
 
     vote_output_path = args.vote_output_file or default_vote_output.format(
         proposal_output=os.path.splitext(proposal_output_path)[0]
     )
-    dump_vote(vote_output_path, vote, dump_args)
+    LOG.info(f"Writing vote to {vote_output_path}")
+    dump_to_file(vote_output_path, vote, dump_args)
