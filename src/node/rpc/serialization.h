@@ -3,6 +3,7 @@
 #pragma once
 #include "ds/json.h"
 #include "enclave/interface.h"
+#include "node/code_id.h"
 #include "node/rpc/call_types.h"
 
 namespace ccf
@@ -125,4 +126,9 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::In, receipt)
   DECLARE_JSON_TYPE(VerifyReceipt::Out)
   DECLARE_JSON_REQUIRED_FIELDS(VerifyReceipt::Out, valid)
+
+  DECLARE_JSON_TYPE(GetCode::Version)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCode::Version, digest, status);
+  DECLARE_JSON_TYPE(GetCode::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetCode::Out, versions)
 }
