@@ -41,7 +41,7 @@ def update_view_info(network, view_info):
 
 def get_node_local_commit(node):
     with node.client() as c:
-        r = c.get("commit")
+        r = c.get("node/commit")
         return r.result["seqno"], r.global_commit
 
 

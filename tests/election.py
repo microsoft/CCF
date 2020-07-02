@@ -76,9 +76,9 @@ def run(args):
                     primary.node_id, current_view
                 )
             )
-            with primary.user_client() as c:
+            with primary.client("user0") as c:
                 res = c.rpc(
-                    "log/private",
+                    "app/log/private",
                     {
                         "id": current_view,
                         "msg": "This log is committed in view {}".format(current_view),

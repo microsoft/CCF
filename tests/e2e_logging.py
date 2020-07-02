@@ -201,7 +201,7 @@ def test_raw_text(network, args):
 
         log_id = 101
         msg = "This message is not in JSON"
-        with primary.client("client0") as c:
+        with primary.client("user0") as c:
             r = c.rpc(
                 "app/log/private/raw_text",
                 msg,
@@ -334,13 +334,13 @@ def test_update_lua(network, args):
             )
 
         network.consortium.set_lua_app(remote_node=primary, app_script=new_app_file)
-        with primary.user_client() as c:
-            check(c.rpc("ping"), result="pong")
+        with primary.client("user0") as c:
+            check(c.rpc("app/ping"), result="pong")
 
             LOG.debug("Check that former endpoints no longer exists")
             for endpoint in [
-                "log/private",
-                "log/public",
+                "app/log/private",
+                "app/log/public",
             ]:
                 check(
                     c.rpc(endpoint),

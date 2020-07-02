@@ -249,7 +249,7 @@ class Node:
             "cert": os.path.join(self.common_dir, f"{identity}_cert.pem") if identity else None,
             "key": os.path.join(self.common_dir, f"{identity}_privk.pem") if identity else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
-            "description": f"node {self.node_id} as {identity}",
+            "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
             "binary_dir": self.binary_dir,
         }
         akwargs.update(kwargs)
