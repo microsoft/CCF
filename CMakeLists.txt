@@ -538,6 +538,8 @@ if(BUILD_TESTS)
       --enforce-reqs
       --test-suite
       all
+      --raft-election-timeout
+      4000
   )
 
   add_e2e_test(
