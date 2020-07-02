@@ -19,13 +19,17 @@ from loguru import logger as LOG
 
 @reqs.description("Stopping current primary and waiting for a new one to be elected")
 @reqs.can_kill_n_nodes(1)
-def test_kill_primary(network, args):
+def test_kill_primary(network, args, find_new_primary=True):
     primary, _ = network.find_primary()
     primary.stop()
     LOG.debug(
         f"Waiting {network.election_duration}s for a new primary to be elected..."
     )
     time.sleep(network.election_duration)
+    if find_new_primary:
+        new_primary, new_term = network.find_primary()
+        LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+
     return network
 
 
@@ -103,7 +107,7 @@ def run(args):
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
-            test_kill_primary(network, args)
+            test_kill_primary(network, args, find_new_primary=False)
 
         # More than F nodes have been stopped, trying to commit any message
         LOG.debug(
