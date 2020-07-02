@@ -382,7 +382,8 @@ class Consortium:
         """
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
-        with remote_node.client(f"member{self.get_any_active_member().member_id}",
+        with remote_node.client(
+            f"member{self.get_any_active_member().member_id}",
             request_timeout=(30 if pbft_open else 3),
         ) as c:
             r = c.rpc(

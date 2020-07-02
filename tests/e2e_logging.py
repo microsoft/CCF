@@ -87,9 +87,12 @@ def test_large_messages(network, args):
             for p in range(14, 20) if args.consensus == "raft" else range(10, 13):
                 long_msg = "X" * (2 ** p)
                 check_commit(
-                    c.rpc("app/log/private", {"id": log_id, "msg": long_msg}), result=True,
+                    c.rpc("app/log/private", {"id": log_id, "msg": long_msg}),
+                    result=True,
                 )
-                check(c.get("app/log/private", {"id": log_id}), result={"msg": long_msg})
+                check(
+                    c.get("app/log/private", {"id": log_id}), result={"msg": long_msg}
+                )
                 log_id += 1
 
     return network

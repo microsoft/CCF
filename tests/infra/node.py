@@ -246,18 +246,18 @@ class Node:
 
     def client(self, identity=None, **kwargs):
         akwargs = {
-            "cert": os.path.join(self.common_dir, f"{identity}_cert.pem") if identity else None,
-            "key": os.path.join(self.common_dir, f"{identity}_privk.pem") if identity else None,
+            "cert": os.path.join(self.common_dir, f"{identity}_cert.pem")
+            if identity
+            else None,
+            "key": os.path.join(self.common_dir, f"{identity}_privk.pem")
+            if identity
+            else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
             "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
             "binary_dir": self.binary_dir,
         }
         akwargs.update(kwargs)
-        return infra.clients.client(
-            self.pubhost,
-            self.rpc_port,
-            **akwargs
-        )
+        return infra.clients.client(self.pubhost, self.rpc_port, **akwargs)
 
     def suspend(self):
         self.remote.suspend()

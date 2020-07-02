@@ -32,7 +32,8 @@ def test(network, args, notifications_queue=None):
                     "app/log/private", {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
-                c.rpc("app/log/private", {"id": 43, "msg": "A final message"}), result=True,
+                c.rpc("app/log/private", {"id": 43, "msg": "A final message"}),
+                result=True,
             )
             r = c.get("app/receipt", {"commit": r.seqno})
             check(
@@ -42,7 +43,8 @@ def test(network, args, notifications_queue=None):
             invalid = r.result["receipt"]
             invalid[-3] += 1
             check(
-                c.rpc("app/receipt/verify", {"receipt": invalid}), result={"valid": False}
+                c.rpc("app/receipt/verify", {"receipt": invalid}),
+                result={"valid": False},
             )
 
     return network

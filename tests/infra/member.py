@@ -140,7 +140,9 @@ class Member:
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.rpc("gov/ack", params={"state_digest": list(state_digest)}, signed=True)
+            r = mc.rpc(
+                "gov/ack", params={"state_digest": list(state_digest)}, signed=True
+            )
             assert r.error is None, f"Error ACK: {r.error}"
             self.status = MemberStatus.ACTIVE
             return r
