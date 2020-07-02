@@ -10,6 +10,7 @@ debs:
   - llvm-8
   - clang-8
   - clang-format-8
+  - clang-tools-8
   - expect
   - xsltproc
   - git
@@ -20,6 +21,7 @@ debs:
   - cmake
   - libssl-dev
   - jq
+  - sudo
 
 mbedtls_ver: "2.16.6"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"

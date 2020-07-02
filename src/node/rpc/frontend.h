@@ -282,6 +282,7 @@ namespace ccf
 
       // By default, signed requests are verified and recorded, even on
       // endpoints that do not require client signatures
+      bool should_record_client_signature = false;
       if (signed_request.has_value())
       {
         // For forwarded requests (raft only), skip verification as it is
@@ -300,7 +301,7 @@ namespace ccf
 
         if (is_primary)
         {
-          record_client_signature(tx, caller_id, signed_request.value());
+          should_record_client_signature = true;
         }
       }
 
@@ -340,6 +341,12 @@ namespace ccf
           {
             pre_exec(tx, *ctx.get(), *this);
           }
+
+          if (should_record_client_signature)
+          {
+            record_client_signature(tx, caller_id, signed_request.value());
+          }
+
           func(args);
 
           if (!ctx->should_apply_writes())

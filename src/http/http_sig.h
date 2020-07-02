@@ -192,27 +192,31 @@ namespace http
     }
 
     static bool verify_digest(
-      const http::HeaderMap& headers, const std::vector<uint8_t>& body)
+      const http::HeaderMap& headers,
+      const std::vector<uint8_t>& body,
+      std::string& error_reason)
     {
       // First, retrieve digest from header
       auto digest = headers.find(headers::DIGEST);
       if (digest == headers.end())
       {
-        LOG_FAIL_FMT("HTTP header does not contain {}", headers::DIGEST);
+        error_reason = fmt::format("Missing {} header", headers::DIGEST);
         return false;
       }
 
       auto equal_pos = digest->second.find("=");
       if (equal_pos == std::string::npos)
       {
-        LOG_FAIL_FMT("{} header does not contain key=value", headers::DIGEST);
+        error_reason =
+          fmt::format("{} header does not contain key=value", headers::DIGEST);
         return false;
       }
 
       auto sha_key = digest->second.substr(0, equal_pos);
       if (sha_key != auth::DIGEST_SHA256)
       {
-        LOG_FAIL_FMT("Only {} digest is supported", auth::DIGEST_SHA256);
+        error_reason =
+          fmt::format("Only {} digest is supported", auth::DIGEST_SHA256);
         return false;
       }
 
@@ -224,7 +228,11 @@ namespace http
 
       if (raw_digest != body_digest)
       {
-        LOG_FAIL_FMT("Request body does not match {} header", headers::DIGEST);
+        error_reason = fmt::format(
+          "Request body does not match {} header, calculated body "
+          "digest = {:02x}",
+          headers::DIGEST,
+          fmt::join(body_digest, ""));
         return false;
       }
 
@@ -346,10 +354,13 @@ namespace http
             auth::AUTH_SCHEME));
         }
 
-        if (!verify_digest(headers, body))
+        std::string verify_error_reason;
+        if (!verify_digest(headers, body, verify_error_reason))
         {
-          throw std::logic_error(
-            fmt::format("Error verifying HTTP {} header", headers::DIGEST));
+          throw std::logic_error(fmt::format(
+            "Error verifying HTTP {} header: {}",
+            headers::DIGEST,
+            verify_error_reason));
         }
 
         auto parsed_sign_params = parse_signature_params(authz_header);

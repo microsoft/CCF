@@ -24,7 +24,7 @@ message(STATUS "CCF release version=${CCF_RELEASE_VERSION}")
 #
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX
-      "/opt/ccf/${CCF_VERSION}"
+      "/opt/${CCF_VERSION}"
       CACHE PATH "Default install prefix" FORCE
   )
 endif()
@@ -249,9 +249,11 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      kv_test ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
+      kv_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_contention.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_serialisation.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/kv/test/kv_snapshot.cpp
     )
     use_client_mbedtls(kv_test)
     target_link_libraries(

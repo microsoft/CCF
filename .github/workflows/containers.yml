@@ -13,7 +13,7 @@ jobs:
 
       - name: Truncate ref
         run:
-          echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/}"
+          echo "##[set-output name=tag;]${GITHUB_REF#refs/tags/ccf-}"
         id: tref
 
       - name: Build App CI container

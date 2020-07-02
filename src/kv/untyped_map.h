@@ -69,6 +69,30 @@ namespace kv::untyped
   {
     std::unique_ptr<LocalCommits> commits;
     size_t rollback_counter;
+
+    LocalCommits empty_commits;
+
+    void reset_commits()
+    {
+      commits->clear();
+      commits->insert_back(create_new_local_commit(0, State(), Write()));
+    }
+
+    template <typename... Args>
+    LocalCommit* create_new_local_commit(Args&&... args)
+    {
+      LocalCommit* c = empty_commits.pop();
+      if (c == nullptr)
+      {
+        c = new LocalCommit(std::forward<Args>(args)...);
+      }
+      else
+      {
+        c->~LocalCommit();
+        new (c) LocalCommit(std::forward<Args>(args)...);
+      }
+      return c;
+    }
   };
 
   class Map : public AbstractMap
@@ -90,24 +114,6 @@ namespace kv::untyped
     SpinLock sl;
     const SecurityDomain security_domain;
     const bool replicated;
-
-    LocalCommits empty_commits;
-
-    template <typename... Args>
-    LocalCommit* create_new_local_commit(Args&&... args)
-    {
-      LocalCommit* c = empty_commits.pop();
-      if (c == nullptr)
-      {
-        c = new LocalCommit(std::forward<Args>(args)...);
-      }
-      else
-      {
-        c->~LocalCommit();
-        new (c) LocalCommit(std::forward<Args>(args)...);
-      }
-      return c;
-    }
 
   public:
     class TxViewCommitter : public AbstractTxView
@@ -238,7 +244,7 @@ namespace kv::untyped
 
           if (changes)
           {
-            map.roll.commits->insert_back(map.create_new_local_commit(
+            map.roll.commits->insert_back(map.roll.create_new_local_commit(
               v, std::move(state), change_set.writes));
           }
         }
@@ -358,7 +364,7 @@ namespace kv::untyped
       security_domain(security_domain_),
       replicated(replicated_)
     {
-      roll.commits->insert_back(create_new_local_commit(0, State(), Write()));
+      roll.reset_commits();
     }
 
     Map(const Map& that) = delete;
@@ -643,19 +649,20 @@ namespace kv::untyped
         Snapshot<SerialisedEntry, kv::untyped::VersionV, SerialisedKeyHasher>
           snapshot(r->state);
 
-      return std::move(std::make_unique<Snapshot>(
-        name, security_domain, replicated, r->version, std::move(snapshot)));
+      return std::make_unique<Snapshot>(
+        name, security_domain, replicated, r->version, std::move(snapshot));
     }
 
-    void apply(std::unique_ptr<AbstractMap::Snapshot>& s) override
+    void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) override
     {
-      auto r = roll.commits->get_head();
-      CCF_ASSERT(r != nullptr, "there must be at least 1 entry in the rolls");
-      CCF_ASSERT(
-        roll.commits->get_head() == roll.commits->get_tail(),
-        "We are apply a snapshot and there are pending commits");
+      // This discards all entries in the roll and applies the given
+      // snapshot. The Map expects to be locked while applying the snapshot.
+      roll.reset_commits();
+      roll.rollback_counter++;
 
-      const CBuffer& c = s->get_serialized_buffer();
+      auto r = roll.commits->get_head();
+
+      const auto& c = s->get_serialized_buffer();
       r->state = State::deserialize_map(c);
       r->version = s->get_version();
     }
@@ -692,7 +699,7 @@ namespace kv::untyped
           return;
 
         auto c = roll.commits->pop();
-        empty_commits.insert(c);
+        roll.empty_commits.insert(c);
       }
 
       // There is only one roll. We may need to call the commit hook.
@@ -734,7 +741,7 @@ namespace kv::untyped
 
         advance = true;
         auto c = roll.commits->pop_tail();
-        empty_commits.insert(c);
+        roll.empty_commits.insert(c);
       }
 
       if (advance)
@@ -743,10 +750,9 @@ namespace kv::untyped
 
     void clear() override
     {
-      // This discards all entries in the roll and resets the compacted value
-      // and rollback counter. The Map expects to be locked before clearing it.
-      roll.commits->clear();
-      roll.commits->insert_back(create_new_local_commit(0, State(), Write()));
+      // This discards all entries in the roll and resets the rollback counter.
+      // The Map expects to be locked before clearing it.
+      roll.reset_commits();
       roll.rollback_counter = 0;
     }
 
