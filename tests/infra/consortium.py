@@ -99,11 +99,11 @@ class Consortium:
         with open(
             os.path.join(self.common_dir, f"member{new_member_id}_cert.pem")
         ) as cert:
-            new_member_cert_pem = [ord(c) for c in cert.read()]
+            new_member_cert_pem = cert.read()
         with open(
             os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
         ) as keyshare:
-            new_member_keyshare = [ord(k) for k in keyshare.read()]
+            new_member_keyshare = keyshare.read()
 
         return (
             self.get_any_active_member().propose(

@@ -642,6 +642,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       const auto mi = parse_response_body<MemberInfo>(
         frontend_process(frontend, read_status_req, new_member->cert));
       DOCTEST_CHECK(mi.status == MemberStatus::ACTIVE);
+      DOCTEST_CHECK(mi.cert == new_member->cert);
     }
   }
 }

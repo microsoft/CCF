@@ -9,6 +9,7 @@
 #include <cstring>
 #include <exception>
 #include <memory>
+#include <msgpack/msgpack.hpp>
 #include <vector>
 
 namespace tls
@@ -34,6 +35,11 @@ namespace tls
 
     Pem(const std::vector<uint8_t>& v) : Pem(CBuffer{v}) {}
 
+    bool operator==(const Pem& rhs) const
+    {
+      return s == rhs.s;
+    }
+
     const std::string& str() const
     {
       return s;
@@ -55,10 +61,12 @@ namespace tls
       return s.size() + 1;
     }
 
-    std::vector<uint8_t> raw()
+    std::vector<uint8_t> raw() const
     {
       return {data(), data() + size()};
     }
+
+    MSGPACK_DEFINE(s);
   };
 
   inline void to_json(nlohmann::json& j, const Pem& p)

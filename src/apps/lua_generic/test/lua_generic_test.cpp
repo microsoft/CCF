@@ -28,14 +28,6 @@ using namespace nlohmann;
 
 auto kp = tls::make_key_pair();
 
-namespace ccf
-{
-  bool operator==(const MemberInfo& mi0, const MemberInfo& mi1)
-  {
-    return mi0.status == mi1.status && mi0.keyshare == mi1.keyshare;
-  }
-}
-
 constexpr auto default_format = jsonrpc::Pack::MsgPack;
 constexpr auto content_type =
   ccf::jsonhandler::pack_to_content_type(default_format);

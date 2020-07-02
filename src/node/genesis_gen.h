@@ -87,8 +87,7 @@ namespace ccf
     }
 
     auto add_member(
-      const tls::Pem& member_cert,
-      const std::vector<uint8_t>& member_keyshare_pub)
+      const tls::Pem& member_cert, const tls::Pem& member_keyshare_pub)
     {
       auto [m, mc, v, ma, sig] = tx.get_view(
         tables.members,
@@ -401,7 +400,7 @@ namespace ccf
     auto get_active_members_keyshare()
     {
       auto members_view = tx.get_view(tables.members);
-      std::map<MemberId, std::vector<uint8_t>> active_members_info;
+      std::map<MemberId, tls::Pem> active_members_info;
 
       members_view->foreach(
         [&active_members_info](const MemberId& mid, const MemberInfo& mi) {
