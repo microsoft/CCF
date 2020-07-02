@@ -207,9 +207,13 @@ namespace kv
 
         NodeInfo() = default;
 
-        NodeInfo(const std::string& hostname_, const std::string& port_) :
+        NodeInfo(
+          const std::string& hostname_,
+          const std::string& port_,
+          const std::vector<uint8_t>& cert_ = {}) :
           hostname(hostname_),
-          port(port_)
+          port(port_),
+          cert(cert_)
         {}
 
         NodeInfo(const NodeInfo& other) :
@@ -267,9 +271,7 @@ namespace kv
 
     virtual void recv_message(OArray&& oa) = 0;
     virtual void add_configuration(
-      SeqNo seqno,
-      const Configuration::Nodes& conf,
-      const NodeConf& node_conf = {}) = 0;
+      SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() const = 0;
 
     virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)

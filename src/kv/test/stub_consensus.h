@@ -115,9 +115,7 @@ namespace kv
     void recv_message(OArray&& oa) override {}
 
     void add_configuration(
-      SeqNo seqno,
-      const Configuration::Nodes& conf,
-      const NodeConf& node_conf) override
+      SeqNo seqno, const Configuration::Nodes& conf) override
     {}
 
     Configuration::Nodes get_latest_configuration() const override

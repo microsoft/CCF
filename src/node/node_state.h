@@ -1676,8 +1676,6 @@ namespace ccf
 
       notifier.set_consensus(consensus);
 
-      // When a node is added, even locally, inform the host so that it can
-      // map the node id to a hostname and service and inform pbft
       network.nodes.set_local_hook(
         [this](kv::Version version, const Nodes::Write& w) {
           for (const auto& [node_id, opt_ni] : w)
@@ -1691,28 +1689,9 @@ namespace ccf
             const auto& ni = opt_ni.value();
             n2n_channels->create_channel(node_id, ni.nodehost, ni.nodeport);
 
-            consensus->add_configuration(
-              version, {}, {node_id, ni.nodehost, ni.nodeport, ni.cert});
-          }
-        });
-
-      // This should be done inside PBFT directly once network reconfigurations
-      // are handled by the protocol
-      network.nodes.set_global_hook(
-        [this](kv::Version version, const Nodes::Write& w) {
-          for (const auto& [node_id, opt_ni] : w)
-          {
-            if (!opt_ni.has_value())
-            {
-              throw std::logic_error(fmt::format(
-                "Unexpected: removal from nodes table ({})", node_id));
-            }
-
-            const auto& ni = opt_ni.value();
-            if (ni.status == NodeStatus::RETIRED)
-            {
-              n2n_channels->destroy_channel(node_id);
-            }
+            pbft::Configuration::Nodes configuration;
+            configuration[node_id] = {ni.nodehost, ni.nodeport, ni.cert};
+            consensus->add_configuration(version, configuration);
           }
         });
 

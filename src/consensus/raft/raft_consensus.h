@@ -85,9 +85,7 @@ namespace raft
     }
 
     void add_configuration(
-      SeqNo seqno,
-      const Configuration::Nodes& conf,
-      const NodeConf& node_conf = {}) override
+      SeqNo seqno, const Configuration::Nodes& conf) override
     {
       raft->add_configuration(seqno, conf);
     }
