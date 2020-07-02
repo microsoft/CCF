@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import argparse
+import collections
 import inspect
 import json
 import os
@@ -57,31 +58,31 @@ PROPOSAL_ID_PLACEHOLDER = "<replace with desired proposal_id>"
 
 
 def add_arg_construction(lines, arg, arg_name="args"):
-    if isinstance(arg, list):
+    if isinstance(arg, str):
+        lines.append(f'{arg_name} = "{arg}"')
+    elif isinstance(arg, collections.abc.Sequence):
         lines.append(f"{arg_name} = {list_as_lua_literal(arg)}")
-    elif isinstance(arg, dict):
+    elif isinstance(arg, collections.abc.Mapping):
         lines.append(f"{arg_name} = {{}}")
         for k, v in args.items():
             add_arg_construction(lines, v, arg_name=f"{arg_name}.{k}")
-    elif isinstance(arg, str):
-        lines.append(f'{arg_name} = "{arg}"')
     else:
         lines.append(f"{arg_name} = {arg}")
 
 
 def add_arg_checks(lines, arg, arg_name="args"):
     lines.append(f"if {arg_name} == nil then return false")
-    if isinstance(arg, list):
+    if isinstance(arg, str):
+        lines.append(f'if not {arg_name} == "{arg}" then return false end')
+    elif isinstance(arg, collections.abc.Sequence):
         expected_name = arg_name.replace(".", "_")
         lines.append(f"{expected_name} = {list_as_lua_literal(arg)}")
         lines.append(
             f"if not equal_arrays({arg_name}, {expected_name}) then return false end"
         )
-    elif isinstance(arg, dict):
+    elif isinstance(arg, collections.abc.Mapping):
         for k, v in arg.items():
             add_arg_checks(lines, v, arg_name=f"{arg_name}.{k}")
-    elif isinstance(arg, str):
-        lines.append(f'if not {arg_name} == "{arg}" then return false end')
     else:
         lines.append(f"if not {arg_name} == {arg} then return false end")
 
@@ -235,14 +236,14 @@ def retire_node(node_id, **kwargs):
 
 @cli_proposal
 def new_node_code(code_digest, **kwargs):
-    if isinstance(code_digest):
+    if isinstance(code_digest, str):
         code_digest = list(bytearray.fromhex(code_digest))
     return build_proposal("new_node_code", code_digest, **kwargs)
 
 
 @cli_proposal
 def new_user_code(code_digest, **kwargs):
-    if isinstance(code_digest):
+    if isinstance(code_digest, str):
         code_digest = list(bytearray.fromhex(code_digest))
     return build_proposal("new_user_code", code_digest, **kwargs)
 
