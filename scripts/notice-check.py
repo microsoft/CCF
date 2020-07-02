@@ -55,6 +55,11 @@ def submodules():
     ]
 
 
+def gitignored(path):
+    r = subprocess.run(["git", "check-ignore", path], capture_output=True, check=False)
+    return r.returncode == 0  # Returns 0 for files which _are_ ignored
+
+
 def check_ccf():
     missing = []
     excluded = ["3rdparty", ".git", "build", "env"] + submodules()
@@ -67,8 +72,9 @@ def check_ccf():
                 continue
             if is_src(name):
                 path = os.path.join(root, name)
-                if not has_notice(path, PREFIXES_CCF):
-                    missing.append(path)
+                if not gitignored(path):
+                    if not has_notice(path, PREFIXES_CCF):
+                        missing.append(path)
     return missing
 
 
