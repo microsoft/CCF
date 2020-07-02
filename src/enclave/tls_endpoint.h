@@ -242,7 +242,8 @@ namespace enclave
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::runtime_error("running from incorrect thread");
+        throw std::runtime_error(
+          "Called send_raw_thread from incorrect thread");
       }
       // Writes as much of the data as possible. If the data cannot all
       // be written now, we store the remainder. We
@@ -267,7 +268,7 @@ namespace enclave
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::runtime_error("running from incorrect thread");
+        throw std::runtime_error("Called send_buffered from incorrect thread");
       }
 
       pending_write.insert(pending_write.end(), data.begin(), data.end());
@@ -277,7 +278,7 @@ namespace enclave
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::runtime_error("running from incorrect thread");
+        throw std::runtime_error("Called flush from incorrect thread");
       }
 
       do_handshake();
@@ -306,8 +307,32 @@ namespace enclave
       }
     }
 
+    struct EmptyMsg
+    {
+      std::shared_ptr<Endpoint> self;
+    };
+
+    static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
+    {
+      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())->close_thread();
+    }
+
     void close()
     {
+      auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
+      msg->data.self = this->shared_from_this();
+
+      threading::ThreadMessaging::thread_messaging.add_task<EmptyMsg>(
+        execution_thread, std::move(msg));
+    }
+
+    void close_thread()
+    {
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        throw std::runtime_error("Called close_thread from incorrect thread");
+      }
+
       switch (status)
       {
         case handshake:
@@ -499,7 +524,7 @@ namespace enclave
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::runtime_error("running from incorrect thread");
+        throw std::runtime_error("Called handle_recv from incorrect thread");
       }
       if (pending_read.size() > 0)
       {
