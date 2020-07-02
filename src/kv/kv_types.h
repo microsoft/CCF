@@ -188,15 +188,6 @@ namespace kv
     // primary changes
     using View = uint64_t;
 
-    // TODO: Delete this whenever possible
-    struct NodeConf
-    {
-      NodeId node_id;
-      std::string host_name;
-      std::string port;
-      std::vector<uint8_t> cert;
-    };
-
     struct Configuration
     {
       struct NodeInfo

@@ -703,7 +703,6 @@ namespace kv
           LOG_DEBUG_FMT(
             "Batching {} ({})", last_replicated + offset, data_shared->size());
 
-          // TODO: Encryptor
           batch.emplace_back(
             last_replicated + offset, data_shared, committable_);
           pending_txs.erase(search);
