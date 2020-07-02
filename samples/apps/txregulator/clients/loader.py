@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.ccf
-from infra.proposal_generator import Proposals
+import infra.proposal_generator
 import os
 import logging
 from time import gmtime, strftime, perf_counter
@@ -47,7 +47,7 @@ def run(args):
 
         # Give regulators permissions to register regulators and banks
         for regulator in regulators:
-            proposal_body, _ = Proposals.set_user_data_proposal(
+            proposal_body, _ = infra.proposal_generator.set_user_data(
                 regulator.ccf_id,
                 {"proposals": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
             )

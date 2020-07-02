@@ -128,130 +128,148 @@ def build_proposal(proposed_call, args=None, inline_args=False):
     return proposal, vote
 
 
-class Proposals:
-    @staticmethod
-    def new_member_proposal(member_cert_path, member_keyshare_encryptor_path):
-        LOG.debug("Generating new_member proposal")
+def cli_proposal(func):
+    func.is_cli_proposal = True
+    return func
 
-        # Convert certs to byte arrays
-        member_cert = file_to_byte_array(member_cert_path)
-        member_keyshare_encryptor = file_to_byte_array(member_keyshare_encryptor_path)
 
-        # Script which proposes adding a new member
-        proposal_script_text = """
-        tables, args = ...
-        return Calls:call("new_member", args)
-        """
+@cli_proposal
+def new_member(member_cert_path, member_keyshare_encryptor_path):
+    LOG.debug("Generating new_member proposal")
 
-        # Proposal object (request body for /gov/propose) containing this member's info as parameter
-        proposal = {
-            "parameter": {"cert": member_cert, "keyshare": member_keyshare_encryptor},
-            "script": {"text": proposal_script_text},
-        }
+    # Convert certs to byte arrays
+    member_cert = file_to_byte_array(member_cert_path)
+    member_keyshare_encryptor = file_to_byte_array(member_keyshare_encryptor_path)
 
-        # Sample vote script which checks the expected member is being added, and no other actions are being taken
-        verifying_vote_text = f"""
-        tables, calls = ...
-        if #calls ~= 1 then
-        return false
-        end
+    # Script which proposes adding a new member
+    proposal_script_text = """
+    tables, args = ...
+    return Calls:call("new_member", args)
+    """
 
-        call = calls[1]
-        if call.func ~= "new_member" then
-        return false
-        end
+    # Proposal object (request body for /gov/propose) containing this member's info as parameter
+    proposal = {
+        "parameter": {"cert": member_cert, "keyshare": member_keyshare_encryptor},
+        "script": {"text": proposal_script_text},
+    }
 
-        {LUA_FUNCTION_EQUAL_ARRAYS}
+    # Sample vote script which checks the expected member is being added, and no other actions are being taken
+    verifying_vote_text = f"""
+    tables, calls = ...
+    if #calls ~= 1 then
+    return false
+    end
 
-        expected_cert = {list_as_lua_literal(member_cert)}
-        if not equal_arrays(call.args.cert, expected_cert) then
-        return false
-        end
+    call = calls[1]
+    if call.func ~= "new_member" then
+    return false
+    end
 
-        expected_keyshare = {list_as_lua_literal(member_keyshare_encryptor)}
-        if not equal_arrays(call.args.keyshare, expected_keyshare) then
-        return false
-        end
+    {LUA_FUNCTION_EQUAL_ARRAYS}
 
-        return true
-        """
+    expected_cert = {list_as_lua_literal(member_cert)}
+    if not equal_arrays(call.args.cert, expected_cert) then
+    return false
+    end
 
-        # Vote object (request body for /gov/vote)
-        verifying_vote = {
-            "ballot": {"text": verifying_vote_text},
-            "id": PROPOSAL_ID_PLACEHOLDER,
-        }
+    expected_keyshare = {list_as_lua_literal(member_keyshare_encryptor)}
+    if not equal_arrays(call.args.keyshare, expected_keyshare) then
+    return false
+    end
 
-        LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
-        LOG.trace(f"Accompanying vote:\n{json.dumps(verifying_vote, indent=2)}")
+    return true
+    """
 
-        return proposal, verifying_vote
+    # Vote object (request body for /gov/vote)
+    verifying_vote = {
+        "ballot": {"text": verifying_vote_text},
+        "id": PROPOSAL_ID_PLACEHOLDER,
+    }
 
-    @staticmethod
-    def retire_member_proposal(member_id, **kwargs):
-        return build_proposal("retire_member", member_id, **kwargs)
+    LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
+    LOG.trace(f"Accompanying vote:\n{json.dumps(verifying_vote, indent=2)}")
 
-    @staticmethod
-    def new_user_proposal(user_cert_path, **kwargs):
-        user_cert = file_to_byte_array(user_cert_path)
-        return build_proposal("new_user", user_cert, **kwargs)
+    return proposal, verifying_vote
 
-    @staticmethod
-    def set_user_data_proposal(user_id, user_data, **kwargs):
-        proposal_args = {"user_id": user_id, "user_data": user_data}
-        return build_proposal("set_user_data", proposal_args, **kwargs)
 
-    @staticmethod
-    def set_lua_app_proposal(app_script_path, **kwargs):
-        with open(app_script_path) as f:
-            app_script = f.read()
-        return build_proposal("set_lua_app", app_script, **kwargs)
+@cli_proposal
+def retire_member(member_id, **kwargs):
+    return build_proposal("retire_member", member_id, **kwargs)
 
-    @staticmethod
-    def set_js_app_proposal(app_script_path, **kwargs):
-        with open(app_script_path) as f:
-            app_script = f.read()
-        return build_proposal("set_js_app", app_script, **kwargs)
 
-    @staticmethod
-    def trust_node_proposal(node_id, **kwargs):
-        return build_proposal("trust_node", node_id, **kwargs)
+@cli_proposal
+def new_user(user_cert_path, **kwargs):
+    user_cert = file_to_byte_array(user_cert_path)
+    return build_proposal("new_user", user_cert, **kwargs)
 
-    @staticmethod
-    def retire_node_proposal(node_id, **kwargs):
-        return build_proposal("retire_node", node_id, **kwargs)
 
-    @staticmethod
-    def new_node_code_proposal(code_digest, **kwargs):
-        if isinstance(code_digest):
-            code_digest = list(bytearray.fromhex(code_digest))
-        return build_proposal("new_node_code", code_digest, **kwargs)
+@cli_proposal
+def set_user_data(user_id, user_data, **kwargs):
+    proposal_args = {"user_id": user_id, "user_data": user_data}
+    return build_proposal("set_user_data", proposal_args, **kwargs)
 
-    @staticmethod
-    def new_user_code_proposal(code_digest, **kwargs):
-        if isinstance(code_digest):
-            code_digest = list(bytearray.fromhex(code_digest))
-        return build_proposal("new_user_code", code_digest, **kwargs)
 
-    @staticmethod
-    def accept_recovery_proposal(**kwargs):
-        return build_proposal("accept_recovery", **kwargs)
+@cli_proposal
+def set_lua_app(app_script_path, **kwargs):
+    with open(app_script_path) as f:
+        app_script = f.read()
+    return build_proposal("set_lua_app", app_script, **kwargs)
 
-    @staticmethod
-    def open_network_proposal(**kwargs):
-        return build_proposal("open_network", **kwargs)
 
-    @staticmethod
-    def rekey_ledger_proposal(**kwargs):
-        return build_proposal("rekey_ledger", **kwargs)
+@cli_proposal
+def set_js_app(app_script_path, **kwargs):
+    with open(app_script_path) as f:
+        app_script = f.read()
+    return build_proposal("set_js_app", app_script, **kwargs)
 
-    @staticmethod
-    def update_recovery_shares_proposal(**kwargs):
-        return build_proposal("update_recovery_shares", **kwargs)
 
-    @staticmethod
-    def set_recovery_threshold_proposal(threshold, **kwargs):
-        return build_proposal("set_recovery_threshold", threshold, **kwargs)
+@cli_proposal
+def trust_node(node_id, **kwargs):
+    return build_proposal("trust_node", node_id, **kwargs)
+
+
+@cli_proposal
+def retire_node(node_id, **kwargs):
+    return build_proposal("retire_node", node_id, **kwargs)
+
+
+@cli_proposal
+def new_node_code(code_digest, **kwargs):
+    if isinstance(code_digest):
+        code_digest = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_node_code", code_digest, **kwargs)
+
+
+@cli_proposal
+def new_user_code(code_digest, **kwargs):
+    if isinstance(code_digest):
+        code_digest = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_user_code", code_digest, **kwargs)
+
+
+@cli_proposal
+def accept_recovery(**kwargs):
+    return build_proposal("accept_recovery", **kwargs)
+
+
+@cli_proposal
+def open_network(**kwargs):
+    return build_proposal("open_network", **kwargs)
+
+
+@cli_proposal
+def rekey_ledger(**kwargs):
+    return build_proposal("rekey_ledger", **kwargs)
+
+
+@cli_proposal
+def update_recovery_shares(**kwargs):
+    return build_proposal("update_recovery_shares", **kwargs)
+
+
+@cli_proposal
+def set_recovery_threshold(threshold, **kwargs):
+    return build_proposal("set_recovery_threshold", threshold, **kwargs)
 
 
 if __name__ == "__main__":
@@ -289,20 +307,21 @@ if __name__ == "__main__":
         "be replaced in the resulting object",
     )
 
-    # Auto-generate CLI args based on the inspected generator signatures
-    proposal_generators = inspect.getmembers(Proposals, predicate=inspect.isfunction)
+    # Auto-generate CLI args based on the inspected signatures of generator functions
+    module = inspect.getmodule(inspect.currentframe())
+    proposal_generators = inspect.getmembers(module, predicate=inspect.isfunction)
     subparsers = parser.add_subparsers(
         title="Possible proposals", dest="proposal_type", required=True
     )
 
     for func_name, func in proposal_generators:
-        suffix = "_proposal"
-        if not func_name.endswith(suffix):
+        # Only generate for decorated functions
+        try:
+            getattr(func, "is_cli_proposal")
+        except AttributeError:
             continue
 
-        sub_func_name = func_name[: -len(suffix)]
-
-        subparser = subparsers.add_parser(sub_func_name)
+        subparser = subparsers.add_parser(func_name)
         parameters = inspect.signature(func).parameters
         func_param_names = []
         for param_name, param in parameters.items():
