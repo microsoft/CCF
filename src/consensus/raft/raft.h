@@ -986,12 +986,10 @@ namespace raft
       restart_election_timeout();
       add_vote_for_me(local_id);
 
-      LOG_FAIL_FMT("Becoming candidate {}: {}", local_id, current_term);
+      LOG_INFO_FMT("Becoming candidate {}: {}", local_id, current_term);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
       {
-        // TODO: Do we need to create a channel here or let sending the vote
-        // create one??
         channels->create_channel(
           it->first, it->second.node_info.hostname, it->second.node_info.port);
         send_request_vote(it->first);
@@ -1020,7 +1018,7 @@ namespace raft
       using namespace std::chrono_literals;
       timeout_elapsed = 0ms;
 
-      LOG_FAIL_FMT("Becoming leader {}: {}", local_id, current_term);
+      LOG_INFO_FMT("Becoming leader {}: {}", local_id, current_term);
 
       // Immediately commit if there are no other nodes.
       if (nodes.size() == 0)
@@ -1056,9 +1054,7 @@ namespace raft
       rollback(commit_idx);
       committable_indices.clear();
 
-      // TODO: Close all outgoing connections
-      // TODO: Perhaps move this to configuration
-      LOG_FAIL_FMT("Becoming follower {}: {}", local_id, current_term);
+      LOG_INFO_FMT("Becoming follower {}: {}", local_id, current_term);
       channels->close_all_outgoing();
     }
 
@@ -1247,7 +1243,7 @@ namespace raft
           channels->destroy_channel(node_id);
         }
         nodes.erase(node_id);
-        LOG_INFO_FMT("Removed node {}", node_id);
+        LOG_INFO_FMT("Removed raft node {}", node_id);
       }
 
       // Add all active nodes that are not already present in the node state.
@@ -1277,13 +1273,13 @@ namespace raft
             send_append_entries(node_info.first, index);
           }
 
-          LOG_INFO_FMT("Added node {}", node_info.first);
+          LOG_INFO_FMT("Added raft node {}", node_info.first);
         }
       }
 
       if (!self_is_active)
       {
-        LOG_INFO_FMT("Removed self {}", local_id);
+        LOG_INFO_FMT("Removed raft self {}", local_id);
       }
     }
   };

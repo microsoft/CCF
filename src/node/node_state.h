@@ -1550,14 +1550,12 @@ namespace ccf
               }
               case NodeStatus::TRUSTED:
               {
-                LOG_FAIL_FMT("Hook: new trusted node {}", node_id);
                 configuration.try_emplace(node_id, ni.nodehost, ni.nodeport);
                 configure = true;
                 break;
               }
               case NodeStatus::RETIRED:
               {
-                LOG_FAIL_FMT("Hook: node retired {}", node_id);
                 configuration.erase(node_id);
                 configure = true;
                 break;

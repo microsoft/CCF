@@ -152,7 +152,6 @@ namespace ccf
 
     ~Channel()
     {
-      LOG_FAIL_FMT("Channel destroyed!");
       if (outgoing)
       {
         RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
@@ -182,7 +181,6 @@ namespace ccf
 
       if (!outgoing)
       {
-        LOG_FAIL_FMT("Set outgoing");
         RINGBUFFER_WRITE_MESSAGE(
           ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
       }
@@ -193,7 +191,6 @@ namespace ccf
     {
       if (outgoing)
       {
-        LOG_FAIL_FMT("Reset outgoing");
         RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
       }
       outgoing = false;
@@ -300,15 +297,11 @@ namespace ccf
     void create_channel(
       NodeId peer_id, const std::string& hostname, const std::string& service)
     {
-      LOG_FAIL_FMT("Creating a channel with {}...", peer_id);
-
       auto search = channels.find(peer_id);
       if (search != channels.end() && !search->second.is_outgoing())
       {
-        LOG_FAIL_FMT(
-          "Channel with {} exists but is incoming only. Create host "
-          "connection.",
-          peer_id);
+        // Channel with peer already exists but is incoming. Create host
+        // outgoing connection.
         search->second.set_outgoing(hostname, service);
         return;
       }
@@ -327,19 +320,15 @@ namespace ccf
         return;
       }
 
-      LOG_INFO_FMT("Node channel with {} is now destroyed", peer_id);
-
       channels.erase(peer_id);
     }
 
     void close_all_outgoing()
     {
-      LOG_FAIL_FMT("Closing all outgoing channels...");
       for (auto& c : channels)
       {
         if (c.second.is_outgoing())
         {
-          LOG_FAIL_FMT("Closing outgoing channel with {}", c.first);
           c.second.reset_outgoing();
         }
       }
@@ -352,8 +341,6 @@ namespace ccf
       {
         return search->second;
       }
-
-      LOG_FAIL_FMT("Creating incoming channel with {}", peer_id);
 
       // Creating temporary channel that is not outgoing
       channels.try_emplace(peer_id, writer_factory, peer_id);
@@ -442,7 +429,7 @@ namespace ccf
             signature_size))
       {
         LOG_FAIL_FMT(
-          "node2node peer signature verification failed {}", peer_id);
+          "node channel peer signature verification failed {}", peer_id);
         return false;
       }
 
