@@ -299,8 +299,6 @@ namespace kv
       if (committed)
         throw std::logic_error("Transaction already committed");
 
-      committed = true;
-
       if (view_list.empty())
         throw std::logic_error("Reserved transaction cannot be empty");
 
@@ -310,6 +308,7 @@ namespace kv
       if (!success)
         throw std::logic_error("Failed to commit reserved transaction");
 
+      committed = true;
       return {CommitSuccess::OK, {0, 0, 0}, std::move(serialise())};
     }
   };
