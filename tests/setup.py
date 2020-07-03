@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="ccftools",
-    version="0.11.7",
+    version="0.11.9",
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -26,7 +26,9 @@ setup(
     install_requires=[
         "msgpack",
         "loguru",
+        "requests",
+        "requests-http-signature",
         "websocket-client",
-        # "requests-http-signature",
+        "cryptography",
     ],
 )
