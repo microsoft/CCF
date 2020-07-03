@@ -8,12 +8,15 @@
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
+ringbuffer::Circuit eio(1024);
+auto wf = ringbuffer::WriterFactory(eio);
 
 using namespace ccf;
 
 TEST_CASE("Client/Server key exchange")
 {
-  Channel channel1, channel2;
+  auto channel1 = Channel(wf, 2);
+  auto channel2 = Channel(wf, 1);
   SeqNo iv_seq1 = 1;
 
   INFO("Trying to tag/verify before channel establishment");
@@ -114,7 +117,8 @@ TEST_CASE("Client/Server key exchange")
 
 TEST_CASE("Replay and out-of-order")
 {
-  Channel channel1, channel2;
+  auto channel1 = Channel(wf, 2);
+  auto channel2 = Channel(wf, 1);
 
   INFO("Compute shared secret");
   {
@@ -180,9 +184,9 @@ TEST_CASE("Channel manager")
   auto network_pkey = kp->private_key_pem();
   auto other_pkey = kp_other->private_key_pem();
 
-  ChannelManager primary_n2n_channel_manager(network_pkey);
-  ChannelManager backup_n2n_channel_manager(network_pkey);
-  ChannelManager other_n2n_channel_manager(other_pkey);
+  ChannelManager primary_n2n_channel_manager(wf, network_pkey);
+  ChannelManager backup_n2n_channel_manager(wf, network_pkey);
+  ChannelManager other_n2n_channel_manager(wf, other_pkey);
 
   INFO("Compute shared secret");
   {
