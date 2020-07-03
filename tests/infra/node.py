@@ -257,7 +257,7 @@ class Node:
             "binary_dir": self.binary_dir,
         }
         akwargs.update(kwargs)
-        return infra.clients.client(self.pubhost, self.rpc_port, **akwargs)
+        return ccftools.clients.client(self.pubhost, self.rpc_port, **akwargs)
 
     def suspend(self):
         self.remote.suspend()
