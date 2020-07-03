@@ -234,7 +234,7 @@ class Node:
         # is not yet endorsed by the network certificate
         try:
             with self.client(connection_timeout=timeout) as nc:
-                rep = nc.get("node/commit")
+                rep = nc.get("/node/commit")
                 assert (
                     rep.error is None and rep.result is not None
                 ), f"An error occured after node {self.node_id} joined the network: {rep.error}"

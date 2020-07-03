@@ -66,7 +66,7 @@ class Member:
     def propose(self, remote_node, script=None, params=None, vote_for=True):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc(
-                "gov/propose",
+                "/gov/propose",
                 {
                     "parameter": params,
                     "script": {"text": script},
@@ -98,7 +98,7 @@ class Member:
         """
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc(
-                "gov/vote",
+                "/gov/vote",
                 {"ballot": {"text": ballot}, "id": proposal.proposal_id},
                 signed=not force_unsigned,
             )
@@ -126,14 +126,14 @@ class Member:
 
     def withdraw(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as c:
-            r = c.rpc("gov/withdraw", {"id": proposal.proposal_id}, signed=True)
+            r = c.rpc("/gov/withdraw", {"id": proposal.proposal_id}, signed=True)
             if r.status == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
 
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.rpc("gov/ack/update_state_digest")
+            r = mc.rpc("/gov/ack/update_state_digest")
             assert r.error is None, f"Error ack/update_state_digest: {r.error}"
             return bytearray(r.result["state_digest"])
 
@@ -141,7 +141,7 @@ class Member:
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc(
-                "gov/ack", params={"state_digest": list(state_digest)}, signed=True
+                "/gov/ack", params={"state_digest": list(state_digest)}, signed=True
             )
             assert r.error is None, f"Error ACK: {r.error}"
             self.status = MemberStatus.ACTIVE
@@ -149,7 +149,7 @@ class Member:
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.get("gov/recovery_share")
+            r = mc.get("/gov/recovery_share")
             if r.status != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 

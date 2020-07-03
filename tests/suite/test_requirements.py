@@ -50,7 +50,7 @@ def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
-            response = c.get("app/api")
+            response = c.get("/app/api")
             supported_methods = response.result["methods"]
             missing = {*methods}.difference(supported_methods)
             if missing:

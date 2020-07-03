@@ -24,26 +24,26 @@ def test(network, args, notifications_queue=None):
 
         LOG.info("Write/Read on primary")
         with primary.client("user0") as c:
-            r = c.rpc("app/log/private", {"id": 42, "msg": msg})
+            r = c.rpc("/app/log/private", {"id": 42, "msg": msg})
             check_commit(r, result=True)
-            check(c.get("app/log/private", {"id": 42}), result={"msg": msg})
+            check(c.get("/app/log/private", {"id": 42}), result={"msg": msg})
             for _ in range(10):
                 c.rpc(
-                    "app/log/private", {"id": 43, "msg": "Additional messages"},
+                    "/app/log/private", {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
-                c.rpc("app/log/private", {"id": 43, "msg": "A final message"}),
+                c.rpc("/app/log/private", {"id": 43, "msg": "A final message"}),
                 result=True,
             )
-            r = c.get("app/receipt", {"commit": r.seqno})
+            r = c.get("/app/receipt", {"commit": r.seqno})
             check(
-                c.rpc("app/receipt/verify", {"receipt": r.result["receipt"]}),
+                c.rpc("/app/receipt/verify", {"receipt": r.result["receipt"]}),
                 result={"valid": True},
             )
             invalid = r.result["receipt"]
             invalid[-3] += 1
             check(
-                c.rpc("app/receipt/verify", {"receipt": invalid}),
+                c.rpc("/app/receipt/verify", {"receipt": invalid}),
                 result={"valid": False},
             )
 

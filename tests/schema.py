@@ -29,7 +29,7 @@ def run(args):
     )
 
     def fetch_schema(client, prefix):
-        list_response = client.get(f"{prefix}/api")
+        list_response = client.get(f"/{prefix}/api")
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
@@ -38,7 +38,7 @@ def run(args):
         for method in methods:
             schema_found = False
             schema_response = client.get(
-                f"{prefix}/api/schema", params={"method": method}
+                f"/{prefix}/api/schema", params={"method": method}
             )
             check(
                 schema_response,

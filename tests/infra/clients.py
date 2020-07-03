@@ -157,7 +157,7 @@ def human_readable_size(n):
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
-            f"{name} {request.http_verb} /{request.method}"
+            f"{name} {request.http_verb} {request.method}"
             + (truncate(f" {request.params}") if request.params is not None else "")
             + f"{description}"
         )
@@ -172,7 +172,7 @@ class RPCFileLogger(RPCLogger):
 
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
-            f.write(f">> Request: {request.http_verb} /{request.method}" + os.linesep)
+            f.write(f">> Request: {request.http_verb} {request.method}" + os.linesep)
             json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
@@ -233,7 +233,7 @@ class CurlClient:
             else:
                 cmd = ["curl"]
 
-            url = f"https://{self.host}:{self.port}/{request.method}"
+            url = f"https://{self.host}:{self.port}{request.method}"
 
             if request.params_in_query:
                 if request.params is not None:
@@ -330,7 +330,7 @@ class RequestClient:
 
         request_args = {
             "method": request.http_verb,
-            "url": f"https://{self.host}:{self.port}/{request.method}",
+            "url": f"https://{self.host}:{self.port}{request.method}",
             "auth": auth_value,
             "headers": extra_headers,
         }
@@ -385,7 +385,7 @@ class WSClient:
             except Exception as exc:
                 raise CCFConnectionException from exc
         payload = json.dumps(request.params).encode()
-        path = ("/" + request.method).encode()
+        path = (request.method).encode()
         header = struct.pack("<h", len(path)) + path
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
         frame = websocket.ABNF(

@@ -136,7 +136,7 @@ class Network:
         ), "Cannot adjust local node IDs if the network was started from an existing network"
 
         with primary.client() as nc:
-            r = nc.get("node/primary_info")
+            r = nc.get("/node/primary_info")
             first_node_id = r.result["primary_id"]
             assert (r.result["primary_host"] == primary.host) and (
                 int(r.result["primary_port"]) == primary.rpc_port
@@ -484,7 +484,7 @@ class Network:
         while time.time() < end_time:
             try:
                 with node.client(connection_timeout=timeout) as c:
-                    r = c.get("node/signed_index")
+                    r = c.get("/node/signed_index")
                     if r.result["state"] == state:
                         break
             except ConnectionRefusedError:
@@ -513,7 +513,7 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.get("node/primary_info")
+                        res = c.get("/node/primary_info")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
                             view = res.result["current_view"]
@@ -557,7 +557,7 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             with primary.client() as c:
-                resp = c.get("node/commit")
+                resp = c.get("/node/commit")
                 seqno = resp.result["seqno"]
                 view = resp.result["view"]
                 if seqno != 0:
@@ -571,7 +571,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    resp = c.get("node/tx", {"view": view, "seqno": seqno})
+                    resp = c.get("/node/tx", {"view": view, "seqno": seqno})
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -602,7 +602,7 @@ class Network:
             commits = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    r = c.get("node/commit")
+                    r = c.get("/node/commit")
                     commits.append(f"{r.view}.{r.seqno}")
             if [commits[0]] * len(commits) == commits:
                 break

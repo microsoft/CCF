@@ -38,7 +38,7 @@ def run(args):
         )
 
         with primary.client() as uc:
-            r = uc.get("node/code")
+            r = uc.get("/node/code")
             assert r.result == {
                 "versions": [{"digest": first_code_id, "status": "ACCEPTED"}],
             }, r.result
@@ -70,7 +70,7 @@ def run(args):
         network.consortium.add_new_code(primary, new_code_id)
 
         with primary.client() as uc:
-            r = uc.get("node/code")
+            r = uc.get("/node/code")
             versions = sorted(r.result["versions"], key=lambda x: x["digest"])
             expected = sorted(
                 [

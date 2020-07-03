@@ -102,11 +102,11 @@ class LoggingTxs:
                             )
                             pub_msg = f"Public message at index {self.next_pub_index}"
                             rep_priv = uc.rpc(
-                                "app/log/private",
+                                "/app/log/private",
                                 {"id": self.next_priv_index, "msg": priv_msg,},
                             )
                             rep_pub = uc.rpc(
-                                "app/log/public",
+                                "/app/log/public",
                                 {"id": self.next_pub_index, "msg": pub_msg,},
                             )
                             check_commit_n(rep_priv, result=True)
@@ -156,7 +156,7 @@ class LoggingTxs:
 
     def _verify_tx(self, node, idx, priv=True, timeout=5):
         txs = self.priv if priv else self.pub
-        cmd = "app/log/private" if priv else "app/log/public"
+        cmd = "/app/log/private" if priv else "/app/log/public"
 
         end_time = time.time() + timeout
         while time.time() < end_time:
