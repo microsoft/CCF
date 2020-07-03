@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.ccf
+import infra.proposal_generator
 
 import logging
 from time import gmtime, strftime
@@ -22,8 +23,8 @@ class AppUser:
         network.create_users([self.name], curve)
         network.consortium.add_users(primary, [self.name])
 
-        with primary.user_client(user_id=self.name) as client:
-            self.ccf_id = client.get("user_id").result["caller_id"]
+        with primary.client(f"user{self.name}") as client:
+            self.ccf_id = client.get("/app/user_id").result["caller_id"]
 
     def __str__(self):
         return f"{self.ccf_id} ({self.name})"
@@ -76,50 +77,40 @@ def run(args):
                 transactions.append(json_tx)
 
         # Manager is granted special privileges by members, which is later read by app to enforce access restrictions
+        proposal_body, _ = infra.proposal_generator.set_user_data(
+            manager.ccf_id,
+            {"privileges": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
+        )
         proposal = network.consortium.get_any_active_member().propose(
-            primary,
-            f"""
-            return Calls:call(
-                "set_user_data",
-                {{
-                    user_id = {manager.ccf_id},
-                    user_data = {{
-                        privileges = {{
-                            REGISTER_REGULATORS = true,
-                            REGISTER_BANKS = true,
-                        }}
-                    }}
-                }}
-            )
-            """,
+            primary, proposal_body
         )
         network.consortium.vote_using_majority(primary, proposal)
 
         # Check permissions are enforced
-        with primary.user_client(user_id=regulator.name) as c:
+        with primary.client(f"user{regulator.name}") as c:
             check(
-                c.rpc("REG_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("/app/REG_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
-                c.rpc("BK_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("/app/BK_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
-        with primary.user_client(user_id=banks[0].name) as c:
+        with primary.client(f"user{banks[0].name}") as c:
             check(
-                c.rpc("REG_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("/app/REG_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
             check(
-                c.rpc("BK_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
+                c.rpc("/app/BK_register"), error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
         # As permissioned manager, register regulator and banks
-        with primary.node_client() as mc:
+        with primary.client() as mc:
             check_commit = infra.checker.Checker(mc)
 
-            with primary.user_client(user_id=manager.name) as c:
+            with primary.client(f"user{manager.name}") as c:
                 check(
                     c.rpc(
-                        "REG_register",
+                        "/app/REG_register",
                         {
                             "regulator_id": regulator.ccf_id,
                             "country": regulator.country,
@@ -129,13 +120,13 @@ def run(args):
                     result=regulator.ccf_id,
                 )
                 check(
-                    c.rpc("REG_get", {"id": regulator.ccf_id}),
+                    c.rpc("/app/REG_get", {"id": regulator.ccf_id}),
                     result=[regulator.country, script],
                 )
 
                 check(
                     c.rpc(
-                        "BK_register",
+                        "/app/BK_register",
                         {"bank_id": regulator.ccf_id, "country": regulator.country},
                     ),
                     error=check_status(http.HTTPStatus.BAD_REQUEST),
@@ -145,16 +136,16 @@ def run(args):
                 for bank in banks:
                     check(
                         c.rpc(
-                            "BK_register",
+                            "/app/BK_register",
                             {"bank_id": bank.ccf_id, "country": bank.country},
                         ),
                         result=bank.ccf_id,
                     )
-                    check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
+                    check(c.rpc("/app/BK_get", {"id": bank.ccf_id}), result=bank.country)
 
                     check(
                         c.rpc(
-                            "REG_register",
+                            "/app/REG_register",
                             {"regulator_id": bank.ccf_id, "country": bank.country},
                         ),
                         error=check_status(http.HTTPStatus.BAD_REQUEST),
@@ -172,15 +163,15 @@ def run(args):
         flagged_amt = 200000
 
         for i, bank in enumerate(banks):
-            with primary.user_client(user_id=bank.name) as c:
+            with primary.client(f"user{bank.name}") as c:
                 # Destination account is the next one in the list of banks
                 for transaction in transactions:
                     print(transaction)
                     amount = transaction["amt"]
 
-                    check(c.rpc("TX_record", transaction), result=tx_id)
+                    check(c.rpc("/app/TX_record", transaction), result=tx_id)
                     check(
-                        c.rpc("TX_get", {"tx_id": tx_id}),
+                        c.rpc("/app/TX_get", {"tx_id": tx_id}),
                         result={
                             "amt": amount,
                             "bank_id": bank.ccf_id,
@@ -194,7 +185,7 @@ def run(args):
                     )
                     if float(amount) > flagged_amt:
                         check(
-                            c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
+                            c.rpc("/app/FLAGGED_TX_get", {"tx_id": tx_id}),
                             result=[regulator.ccf_id, False, transaction["timestamp"]],
                         )
                         flagged_tx = {
@@ -212,7 +203,7 @@ def run(args):
                         flagged_txs[tx_id] = flagged_tx
                     else:
                         check(
-                            c.rpc("FLAGGED_TX_get", {"tx_id": tx_id}),
+                            c.rpc("/app/FLAGGED_TX_get", {"tx_id": tx_id}),
                             error=check_status(http.HTTPStatus.BAD_REQUEST),
                         )
                         non_flagged_ids.append(tx_id)
@@ -221,31 +212,31 @@ def run(args):
         LOG.success(f"{tx_id} transactions have been successfully issued")
 
         # bank that issued first flagged transaction
-        with primary.user_client(user_id=bank.name) as c:
+        with primary.client(f"user{bank.name}") as c:
             # try to poll flagged but fail as you are not a regulator
             check(
-                c.rpc("REG_poll_flagged"),
+                c.rpc("/app/REG_poll_flagged"),
                 error=check_status(http.HTTPStatus.FORBIDDEN),
             )
 
             # bank reveal some transactions that were flagged
             for i, tx_id in enumerate(flagged_ids):
                 if i % 2 == 0:
-                    check(c.rpc("TX_reveal", {"tx_id": tx_id}), result=True)
+                    check(c.rpc("/app/TX_reveal", {"tx_id": tx_id}), result=True)
                     revealed_tx_ids.append(tx_id)
 
             # bank try to reveal non flagged txs
             for tx_id in non_flagged_ids:
                 check(
-                    c.rpc("TX_reveal", {"tx_id": tx_id}),
+                    c.rpc("/app/TX_reveal", {"tx_id": tx_id}),
                     error=check_status(http.HTTPStatus.BAD_REQUEST),
                 )
 
         # regulator poll for transactions that are flagged
-        with primary.node_client() as mc:
-            with primary.user_client(user_id=regulator.name) as c:
+        with primary.client() as mc:
+            with primary.client(f"user{regulator.name}") as c:
                 # assert that the flagged txs that we poll for are correct
-                resp = c.rpc("REG_poll_flagged")
+                resp = c.rpc("/app/REG_poll_flagged")
                 poll_flagged_ids = []
                 for poll_flagged in resp.result:
                     # poll flagged is a list [tx_id, regulator_id]
@@ -257,14 +248,14 @@ def run(args):
                     # get from flagged txs, try to get the flagged one that was not revealed
                     if tx_id not in revealed_tx_ids:
                         check(
-                            c.rpc("REG_get_revealed", {"tx_id": tx_id}),
+                            c.rpc("/app/REG_get_revealed", {"tx_id": tx_id}),
                             error=check_status(http.HTTPStatus.BAD_REQUEST),
                         )
 
                 # get from flagged txs, try to get the flagged ones that were revealed
                 for tx_id in revealed_tx_ids:
                     check(
-                        c.rpc("REG_get_revealed", {"tx_id": tx_id}),
+                        c.rpc("/app/REG_get_revealed", {"tx_id": tx_id}),
                         result=flagged_txs[tx_id],
                     )
 

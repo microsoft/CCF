@@ -77,6 +77,16 @@ namespace raft
 
     ChannelStubProxy() {}
 
+    void create_channel(
+      NodeId peer_id,
+      const std::string& peer_hostname,
+      const std::string& peer_service)
+    {}
+
+    void destroy_channel(NodeId peer_id) {}
+
+    void close_all_outgoing() {}
+
     void send_authenticated(
       const ccf::NodeMsgType& msg_type, NodeId to, const RequestVote& data)
     {

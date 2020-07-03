@@ -28,8 +28,8 @@ def run(args):
         for filename in filenames
     )
 
-    def fetch_schema(client):
-        list_response = client.get("api")
+    def fetch_schema(client, prefix):
+        list_response = client.get(f"/{prefix}/api")
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
@@ -37,7 +37,9 @@ def run(args):
 
         for method in methods:
             schema_found = False
-            schema_response = client.get("api/schema", params={"method": method})
+            schema_response = client.get(
+                f"/{prefix}/api/schema", params={"method": method}
+            )
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
@@ -88,17 +90,17 @@ def run(args):
 
         check = infra.checker.Checker()
 
-        with primary.user_client() as user_client:
+        with primary.client("user0") as user_client:
             LOG.info("user frontend")
-            fetch_schema(user_client)
+            fetch_schema(user_client, "app")
 
-        with primary.node_client() as node_client:
+        with primary.client() as node_client:
             LOG.info("node frontend")
-            fetch_schema(node_client)
+            fetch_schema(node_client, "node")
 
-        with primary.member_client() as member_client:
+        with primary.client("member0") as member_client:
             LOG.info("member frontend")
-            fetch_schema(member_client)
+            fetch_schema(member_client, "gov")
 
     if len(methods_without_schema) > 0:
         LOG.info("The following methods have no schema:")

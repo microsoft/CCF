@@ -9,7 +9,7 @@ if [ "$#" -eq 0 ]; then
   exit 1
 fi
 
-TODOS=$(grep -r TODO "$@")
+TODOS=$(grep -rn TODO "$@")
 
 if [ "$TODOS" == "" ]; then
   echo "No TODOs found"

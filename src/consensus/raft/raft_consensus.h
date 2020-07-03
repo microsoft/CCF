@@ -85,14 +85,12 @@ namespace raft
     }
 
     void add_configuration(
-      SeqNo seqno,
-      const std::unordered_set<NodeId>& conf,
-      const NodeConf& node_conf = {}) override
+      SeqNo seqno, const Configuration::Nodes& conf) override
     {
       raft->add_configuration(seqno, conf);
     }
 
-    std::unordered_set<NodeId> get_latest_configuration() const override
+    Configuration::Nodes get_latest_configuration() const override
     {
       return raft->get_latest_configuration();
     }

@@ -12,9 +12,13 @@ import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
+import infra.proposal_generator
 from infra.proposal import ProposalState
 
 from loguru import logger as LOG
+
+# Votes are currently produced but unused, so temporarily disable this pylint warning throughout this file
+# pylint: disable=unused-variable
 
 
 class Consortium:
@@ -43,9 +47,9 @@ class Consortium:
                 self.members.append(new_member)
             self.recovery_threshold = len(self.members)
         else:
-            with remote_node.member_client() as mc:
+            with remote_node.client("member0") as mc:
                 r = mc.rpc(
-                    "query",
+                    "/gov/query",
                     {
                         "text": """tables = ...
                         non_retired_members = {}
@@ -71,7 +75,7 @@ class Consortium:
                     LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
 
                 r = mc.rpc(
-                    "query",
+                    "/gov/query",
                     {
                         "text": """tables = ...
                         return tables["ccf.config"]:get(0)
@@ -92,25 +96,13 @@ class Consortium:
             new_member_id, curve, self.common_dir, self.share_script, self.key_generator
         )
 
-        script = """
-        tables, member_info = ...
-        return Calls:call("new_member", member_info)
-        """
-        with open(
-            os.path.join(self.common_dir, f"member{new_member_id}_cert.pem")
-        ) as cert:
-            new_member_cert_pem = [ord(c) for c in cert.read()]
-        with open(
-            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem")
-        ) as keyshare:
-            new_member_keyshare = [ord(k) for k in keyshare.read()]
+        proposal, vote = infra.proposal_generator.new_member(
+            os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
+            os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem"),
+        )
 
         return (
-            self.get_any_active_member().propose(
-                remote_node,
-                script,
-                {"cert": new_member_cert_pem, "keyshare": new_member_keyshare},
-            ),
+            self.get_any_active_member().propose(remote_node, proposal),
             new_member,
         )
 
@@ -183,10 +175,8 @@ class Consortium:
         """
 
         proposals = []
-        with remote_node.member_client(
-            member_id=self.get_any_active_member().member_id
-        ) as c:
-            r = c.rpc("query", {"text": script})
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+            r = c.rpc("/gov/query", {"text": script})
             assert r.status == http.HTTPStatus.OK.value
             for proposal_id, attr in r.result.items():
                 has_proposer_voted_for = False
@@ -205,19 +195,16 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
-        script = """
-        tables, node_id = ...
-        return Calls:call("retire_node", node_id)
-        """
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, node_to_retire.node_id
+        proposal_body, vote = infra.proposal_generator.retire_node(
+            node_to_retire.node_id
         )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
 
-        with remote_node.member_client(
-            member_id=self.get_any_active_member().member_id
-        ) as c:
-            r = c.rpc("read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+            r = c.rpc(
+                "/gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
+            )
             assert r.result["status"] == infra.node.NodeStatus.RETIRED.name
 
     def trust_node(self, remote_node, node_id):
@@ -226,12 +213,9 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        script = """
-        tables, node_id = ...
-        return Calls:call("trust_node", node_id)
-        """
+        proposal_body, vote = infra.proposal_generator.trust_node(node_id)
 
-        proposal = self.get_any_active_member().propose(remote_node, script, node_id)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
 
         if not self._check_node_exists(
@@ -240,13 +224,10 @@ class Consortium:
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def retire_member(self, remote_node, member_to_retire):
-        script = """
-        tables, member_id = ...
-        return Calls:call("retire_member", member_id)
-        """
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, member_to_retire.member_id
+        proposal_body, vote = infra.proposal_generator.retire_member(
+            member_to_retire.member_id
         )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
         member_to_retire.status = infra.member.MemberStatus.RETIRED
 
@@ -256,80 +237,51 @@ class Consortium:
         proposal and make members vote to transition the network to state
         OPEN.
         """
-        script = """
-        tables = ...
-        return Calls:call("open_network")
-        """
-        proposal = self.get_any_active_member().propose(remote_node, script)
+        proposal_body, vote = infra.proposal_generator.open_network()
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, wait_for_global_commit=(not pbft_open)
         )
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, remote_node):
-        script = """
-        tables = ...
-        return Calls:call("rekey_ledger")
-        """
-        proposal = self.get_any_active_member().propose(remote_node, script)
+        proposal_body, vote = infra.proposal_generator.rekey_ledger()
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def update_recovery_shares(self, remote_node):
-        script = """
-        tables = ...
-        return Calls:call("update_recovery_shares")
-        """
-        proposal = self.get_any_active_member().propose(remote_node, script)
+        proposal_body, vote = infra.proposal_generator.update_recovery_shares()
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def add_users(self, remote_node, users):
         for u in users:
             user_cert = []
-            with open(os.path.join(self.common_dir, f"user{u}_cert.pem")) as cert:
-                user_cert = [ord(c) for c in cert.read()]
-
-            script = """
-            tables, user_cert = ...
-            return Calls:call("new_user", user_cert)
-            """
-            proposal = self.get_any_active_member().propose(
-                remote_node, script, user_cert
+            proposal, vote = infra.proposal_generator.new_user(
+                os.path.join(self.common_dir, f"user{u}_cert.pem")
             )
+
+            proposal = self.get_any_active_member().propose(remote_node, proposal)
             self.vote_using_majority(remote_node, proposal)
 
-    def set_lua_app(self, remote_node, app_script):
-        script = """
-        tables, app = ...
-        return Calls:call("set_lua_app", app)
-        """
-        with open(app_script) as app:
-            new_lua_app = app.read()
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, new_lua_app
-        )
+    def set_lua_app(self, remote_node, app_script_path):
+        proposal_body, vote = infra.proposal_generator.set_lua_app(app_script_path)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
-    def set_js_app(self, remote_node, app_script):
-        script = """
-        tables, app = ...
-        return Calls:call("set_js_app", app)
-        """
-        with open(app_script) as app:
-            new_js_app = app.read()
-        proposal = self.get_any_active_member().propose(remote_node, script, new_js_app)
+    def set_js_app(self, remote_node, app_script_path):
+        proposal_body, vote = infra.proposal_generator.set_js_app(app_script_path)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def accept_recovery(self, remote_node):
-        script = """
-        tables = ...
-        return Calls:call("accept_recovery")
-        """
-        proposal = self.get_any_active_member().propose(remote_node, script)
+        proposal_body, vote = infra.proposal_generator.accept_recovery()
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
-        with remote_node.node_client() as nc:
+        with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_members():
@@ -346,36 +298,21 @@ class Consortium:
                     assert "End of recovery procedure initiated" not in r.result
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
-        script = """
-        tables, recovery_threshold = ...
-        return Calls:call("set_recovery_threshold", recovery_threshold)
-        """
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, recovery_threshold
+        proposal_body, vote = infra.proposal_generator.set_recovery_threshold(
+            recovery_threshold
         )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.recovery_threshold = recovery_threshold
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_code(self, remote_node, new_code_id):
-        script = """
-        tables, code_digest = ...
-        return Calls:call("new_node_code", code_digest)
-        """
-        code_digest = list(bytearray.fromhex(new_code_id))
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, code_digest
-        )
+        proposal_body, vote = infra.proposal_generator.new_node_code(new_code_id)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_user_code(self, remote_node, new_code_id):
-        script = """
-        tables, code_digest = ...
-        return Calls:call("new_user_code", code_digest)
-        """
-        code_digest = list(bytearray.fromhex(new_code_id))
-        proposal = self.get_any_active_member().propose(
-            remote_node, script, code_digest
-        )
+        proposal_body, vote = infra.proposal_generator.new_user_code(new_code_id)
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def check_for_service(self, remote_node, status, pbft_open=False):
@@ -386,12 +323,12 @@ class Consortium:
         """
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
-        with remote_node.member_client(
-            member_id=self.get_any_active_member().member_id,
+        with remote_node.client(
+            f"member{self.get_any_active_member().member_id}",
             request_timeout=(30 if pbft_open else 3),
         ) as c:
             r = c.rpc(
-                "query",
+                "/gov/query",
                 {
                     "text": """tables = ...
                     service = tables["ccf.service"]:get(0)
@@ -426,10 +363,8 @@ class Consortium:
             ), f"Service status {current_status} (expected {status.name})"
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
-        with remote_node.member_client(
-            member_id=self.get_any_active_member().member_id
-        ) as c:
-            r = c.rpc("read", {"table": "ccf.nodes", "key": node_id})
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+            r = c.rpc("/gov/read", {"table": "ccf.nodes", "key": node_id})
 
             if r.error is not None or (
                 node_status and r.result["status"] != node_status.name

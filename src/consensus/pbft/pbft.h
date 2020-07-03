@@ -28,6 +28,7 @@ namespace pbft
 {
   using SeqNo = kv::Consensus::SeqNo;
   using View = kv::Consensus::View;
+  using Configuration = kv::Consensus::Configuration;
 
   struct ViewChangeInfo
   {
@@ -331,6 +332,8 @@ namespace pbft
   class Pbft : public kv::Consensus
   {
   private:
+    using Configuration = kv::Consensus::Configuration;
+
     NodesMap nodes;
 
     std::shared_ptr<ChannelProxy> channels;
@@ -580,29 +583,37 @@ namespace pbft
     }
 
     void add_configuration(
-      SeqNo seqno,
-      const std::unordered_set<kv::NodeId>& config,
-      const NodeConf& node_conf) override
+      SeqNo seqno, const Configuration::Nodes& config) override
     {
-      if (node_conf.node_id == local_id)
+      if (config.size() != 1)
+      {
+        throw std::logic_error(
+          "PBFT configuration should add one node at a time");
+      }
+
+      auto new_node_id = config.begin()->first;
+      auto new_node_info = config.begin()->second;
+
+      if (new_node_id == local_id)
       {
         return;
       }
 
       PrincipalInfo info;
-      info.id = node_conf.node_id;
-      info.port = short(atoi(node_conf.port.c_str()));
+      info.id = new_node_id;
+      info.port = short(atoi(new_node_info.port.c_str()));
       info.ip = "256.256.256.256"; // Invalid
-      info.cert = node_conf.cert;
-      info.host_name = node_conf.host_name;
+      info.cert = new_node_info.cert;
+      info.host_name = new_node_info.hostname;
       info.is_replica = true;
+
       Byz_add_principal(info);
       LOG_INFO_FMT("PBFT added node, id: {}", info.id);
 
-      nodes[node_conf.node_id] = 0;
+      nodes[new_node_id] = 0;
     }
 
-    std::unordered_set<NodeId> get_latest_configuration() const override
+    Configuration::Nodes get_latest_configuration() const override
     {
       throw std::logic_error("Unimplemented");
     }

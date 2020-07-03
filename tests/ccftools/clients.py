@@ -33,6 +33,9 @@ CCF_TX_VIEW_HEADER = "x-ccf-tx-view"
 # Deprecated, will be removed
 CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
+DEFAULT_CONNECTION_TIMEOUT_SEC = 3
+DEFAULT_REQUEST_TIMEOUT_SEC = 3
+
 
 class Request:
     def __init__(
@@ -157,7 +160,7 @@ def human_readable_size(n):
 class RPCLogger:
     def log_request(self, request, name, description):
         LOG.info(
-            f"{name} {request.http_verb} /{request.method}"
+            f"{name} {request.http_verb} {request.method}"
             + (truncate(f" {request.params}") if request.params is not None else "")
             + f"{description}"
         )
@@ -172,7 +175,7 @@ class RPCFileLogger(RPCLogger):
 
     def log_request(self, request, name, description):
         with open(self.path, "a") as f:
-            f.write(f">> Request: {request.http_verb} /{request.method}" + os.linesep)
+            f.write(f">> Request: {request.http_verb} {request.method}" + os.linesep)
             json.dump(request.params, f, indent=2)
             f.write(os.linesep)
 
@@ -233,7 +236,7 @@ class CurlClient:
             else:
                 cmd = ["curl"]
 
-            url = f"https://{self.host}:{self.port}/{request.method}"
+            url = f"https://{self.host}:{self.port}{request.method}"
 
             if request.params_in_query:
                 if request.params is not None:
@@ -330,7 +333,7 @@ class RequestClient:
 
         request_args = {
             "method": request.http_verb,
-            "url": f"https://{self.host}:{self.port}/{request.method}",
+            "url": f"https://{self.host}:{self.port}{request.method}",
             "auth": auth_value,
             "headers": extra_headers,
         }
@@ -385,7 +388,7 @@ class WSClient:
             except Exception as exc:
                 raise CCFConnectionException from exc
         payload = json.dumps(request.params).encode()
-        path = ("/" + request.method).encode()
+        path = (request.method).encode()
         header = struct.pack("<h", len(path)) + path
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
         frame = websocket.ABNF(
@@ -409,10 +412,14 @@ class WSClient:
 
 class CCFClient:
     def __init__(self, *args, **kwargs):
-        # TODO: Sensible default for those and cert, key and request_timeout as well
-        self.prefix = kwargs.pop("prefix")
-        self.description = kwargs.pop("description")
-        self.connection_timeout = kwargs.pop("connection_timeout")
+        self.description = (
+            kwargs.pop("description") if "description" in kwargs else None
+        )
+        self.connection_timeout = (
+            kwargs.pop("connection_timeout")
+            if "connection_timeout" in kwargs
+            else DEFAULT_CONNECTION_TIMEOUT_SEC
+        )
         self.rpc_loggers = (RPCLogger(),)
         self.name = "[{}:{}]".format(kwargs.get("host"), kwargs.get("port"))
 
@@ -431,7 +438,7 @@ class CCFClient:
     # pylint: disable=method-hidden
     def _just_rpc(self, method, *args, **kwargs):
         is_signed = "signed" in kwargs and kwargs.pop("signed")
-        r = Request(f"{self.prefix}/{method}", *args, **kwargs)
+        r = Request(method, *args, **kwargs)
 
         description = ""
         if self.description:
@@ -482,10 +489,9 @@ def client(
     ca=None,
     description=None,
     log_file=None,
-    prefix="app",
     binary_dir=".",
-    connection_timeout=3,
-    request_timeout=3,
+    connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
+    request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
     ws=False,
 ):
     c = CCFClient(
@@ -495,7 +501,6 @@ def client(
         key=key,
         ca=ca,
         description=description,
-        prefix=prefix,
         binary_dir=binary_dir,
         connection_timeout=connection_timeout,
         request_timeout=request_timeout,

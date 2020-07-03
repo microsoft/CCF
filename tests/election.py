@@ -6,6 +6,7 @@ import infra.ccf
 import infra.proc
 import infra.e2e_args
 import http
+import suite.test_requirements as reqs
 
 from infra.tx_status import TxStatus
 from loguru import logger as LOG
@@ -16,6 +17,22 @@ from loguru import logger as LOG
 # as F > N/2).
 
 
+@reqs.description("Stopping current primary and waiting for a new one to be elected")
+@reqs.can_kill_n_nodes(1)
+def test_kill_primary(network, args, find_new_primary=True):
+    primary, _ = network.find_primary()
+    primary.stop()
+    LOG.debug(
+        f"Waiting {network.election_duration}s for a new primary to be elected..."
+    )
+    time.sleep(network.election_duration)
+    if find_new_primary:
+        new_primary, new_term = network.find_primary()
+        LOG.debug(f"New primary is {new_primary.node_id} in term {new_term}")
+
+    return network
+
+
 def wait_for_seqno_to_commit(seqno, view, nodes):
     """
     Wait for a specific seqno at a specific view to be committed on all nodes.
@@ -23,8 +40,8 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
     for _ in range(infra.ccf.Network.replication_delay * 10):
         up_to_date_f = []
         for f in nodes:
-            with f.node_client() as c:
-                r = c.get("tx", {"view": view, "seqno": seqno})
+            with f.client() as c:
+                r = c.get("/node/tx", {"view": view, "seqno": seqno})
                 assert (
                     r.status == http.HTTPStatus.OK
                 ), f"tx request returned HTTP status {r.status}"
@@ -76,9 +93,9 @@ def run(args):
                     primary.node_id, current_view
                 )
             )
-            with primary.user_client() as c:
+            with primary.client("user0") as c:
                 res = c.rpc(
-                    "log/private",
+                    "/app/log/private",
                     {
                         "id": current_view,
                         "msg": "This log is committed in view {}".format(current_view),
@@ -90,13 +107,7 @@ def run(args):
             LOG.debug("Waiting for transaction to be committed by all nodes")
             wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
-            LOG.debug("Stopping primary")
-            primary.stop()
-
-            LOG.debug(
-                f"Waiting {network.election_duration}s for a new primary to be elected..."
-            )
-            time.sleep(network.election_duration)
+            test_kill_primary(network, args, find_new_primary=False)
 
         # More than F nodes have been stopped, trying to commit any message
         LOG.debug(

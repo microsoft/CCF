@@ -5,6 +5,7 @@ import infra.ccf
 import functools
 
 from loguru import logger as LOG
+from math import ceil
 
 
 class TestRequirementsNotMet(Exception):
@@ -49,8 +50,8 @@ def ensure_reqs(check_reqs):
 def supports_methods(*methods):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.user_client() as c:
-            response = c.get("api")
+        with primary.client("user0") as c:
+            response = c.get("/app/api")
             supported_methods = response.result["methods"]
             missing = {*methods}.difference(supported_methods)
             if missing:
@@ -82,6 +83,40 @@ def sufficient_member_count():
                 f" ({len(network.consortium.get_active_members()) - 1}) would be less than"
                 f" the recovery threshold ({network.consortium.recovery_threshold})"
             )
+
+    return ensure_reqs(check)
+
+
+def can_kill_n_nodes(nodes_to_kill_count):
+    def check(network, args, *nargs, **kwargs):
+        primary, _ = network.find_primary()
+        with primary.member_client() as c:
+            r = c.rpc(
+                "query",
+                {
+                    "text": """tables = ...
+                        trusted_nodes_count = 0
+                        tables["ccf.nodes"]:foreach(function(node_id, details)
+                            if details["status"] == "TRUSTED" then
+                                trusted_nodes_count = trusted_nodes_count + 1
+                            end
+                        end)
+                        return trusted_nodes_count
+                        """
+                },
+            )
+
+            trusted_nodes_count = r.result
+            running_nodes_count = len(network.get_joined_nodes())
+            would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
+            minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
+            if args.consensus == "raft" and (
+                would_leave_nodes_count < minimum_nodes_to_run_count
+            ):
+                raise TestRequirementsNotMet(
+                    f"Cannot kill {nodes_to_kill_count} node(s) as the network would not be able to make progress"
+                    f" (would leave {would_leave_nodes_count} nodes but requires {minimum_nodes_to_run_count} nodes to make progress) "
+                )
 
     return ensure_reqs(check)
 

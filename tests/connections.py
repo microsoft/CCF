@@ -36,13 +36,13 @@ def run(args):
         with contextlib.ExitStack() as es:
             for i in range(nb_conn):
                 try:
-                    clients.append(es.enter_context(primary.user_client()))
+                    clients.append(es.enter_context(primary.client("user0")))
                     LOG.info(f"Connected client {i}")
                 except OSError:
                     LOG.error(f"Failed to connect client {i}")
 
             c = clients[int(random.random() * len(clients))]
-            check(c.rpc("log/private", {"id": 42, "msg": "foo"}), result=True)
+            check(c.rpc("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
 
             assert (
                 len(clients) >= max_fds - num_fds - 1
@@ -59,11 +59,11 @@ def run(args):
         clients = []
         with contextlib.ExitStack() as es:
             for i in range(max_fds - num_fds):
-                clients.append(es.enter_context(primary.user_client()))
+                clients.append(es.enter_context(primary.client("user0")))
                 LOG.info(f"Connected client {i}")
 
             c = clients[int(random.random() * len(clients))]
-            check(c.rpc("log/private", {"id": 42, "msg": "foo"}), result=True)
+            check(c.rpc("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
 
             assert (
                 len(clients) >= max_fds - num_fds - 1

@@ -63,17 +63,9 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, script=None, params=None, vote_for=True):
-        with remote_node.member_client(self.member_id) as mc:
-            r = mc.rpc(
-                "propose",
-                {
-                    "parameter": params,
-                    "script": {"text": script},
-                    "ballot": {"text": ("return true" if vote_for else "return false")},
-                },
-                signed=True,
-            )
+    def propose(self, remote_node, proposal):
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.rpc("/gov/propose", proposal, signed=True,)
             if r.status != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
@@ -81,7 +73,7 @@ class Member:
                 proposer_id=self.member_id,
                 proposal_id=r.result["proposal_id"],
                 state=infra.proposal.ProposalState(r.result["state"]),
-                has_proposer_voted_for=vote_for,
+                has_proposer_voted_for=True,
             )
 
     def vote(
@@ -96,9 +88,9 @@ class Member:
         tables, changes = ...
         return true
         """
-        with remote_node.member_client(member_id=self.member_id) as mc:
+        with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc(
-                "vote",
+                "/gov/vote",
                 {"ballot": {"text": ballot}, "id": proposal.proposal_id},
                 signed=not force_unsigned,
             )
@@ -113,7 +105,7 @@ class Member:
             r.result["state"] == infra.proposal.ProposalState.Accepted.value
             and wait_for_global_commit
         ):
-            with remote_node.node_client() as mc:
+            with remote_node.client() as mc:
                 # If we vote in a new node, which becomes part of quorum, the transaction
                 # can only commit after it has successfully joined and caught up.
                 # Given that the retry timer on join RPC is 4 seconds, anything less is very
@@ -125,29 +117,31 @@ class Member:
         return r
 
     def withdraw(self, remote_node, proposal):
-        with remote_node.member_client(member_id=self.member_id) as c:
-            r = c.rpc("withdraw", {"id": proposal.proposal_id}, signed=True)
+        with remote_node.client(f"member{self.member_id}") as c:
+            r = c.rpc("/gov/withdraw", {"id": proposal.proposal_id}, signed=True)
             if r.status == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
 
     def update_ack_state_digest(self, remote_node):
-        with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc("ack/update_state_digest")
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.rpc("/gov/ack/update_state_digest")
             assert r.error is None, f"Error ack/update_state_digest: {r.error}"
             return bytearray(r.result["state_digest"])
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
-        with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.rpc("ack", params={"state_digest": list(state_digest)}, signed=True)
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.rpc(
+                "/gov/ack", params={"state_digest": list(state_digest)}, signed=True
+            )
             assert r.error is None, f"Error ACK: {r.error}"
             self.status = MemberStatus.ACTIVE
             return r
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
-        with remote_node.member_client(member_id=self.member_id) as mc:
-            r = mc.get("recovery_share")
+        with remote_node.client(f"member{self.member_id}") as mc:
+            r = mc.get("/gov/recovery_share")
             if r.status != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 

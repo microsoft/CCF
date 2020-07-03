@@ -18,6 +18,8 @@
 
 namespace raft
 {
+  using Configuration = kv::Consensus::Configuration;
+
   class TermHistory
   {
     // Entry i stores the first index in term i+1
@@ -86,12 +88,19 @@ namespace raft
       Index match_idx;
       // the highest index sent to the node
       Index sent_idx;
-    };
 
-    struct Configuration
-    {
-      Index idx;
-      std::unordered_set<NodeId> nodes;
+      Configuration::NodeInfo node_info;
+
+      NodeState() = default;
+
+      NodeState(
+        Index match_idx_,
+        Index sent_idx_,
+        const Configuration::NodeInfo& node_info_) :
+        match_idx(match_idx_),
+        sent_idx(sent_idx_),
+        node_info(node_info_)
+      {}
     };
 
     SpinLock lock;
@@ -284,14 +293,14 @@ namespace raft
       return get_term_internal(idx);
     }
 
-    void add_configuration(Index idx, const std::unordered_set<NodeId>& conf)
+    void add_configuration(Index idx, const Configuration::Nodes& conf)
     {
       // This should only be called when the spin lock is held.
-      configurations.push_back({idx, move(conf)});
+      configurations.push_back({idx, std::move(conf)});
       create_and_remove_node_state();
     }
 
-    std::unordered_set<NodeId> get_latest_configuration() const
+    Configuration::Nodes get_latest_configuration() const
     {
       if (configurations.empty())
       {
@@ -980,7 +989,11 @@ namespace raft
       LOG_INFO_FMT("Becoming candidate {}: {}", local_id, current_term);
 
       for (auto it = nodes.begin(); it != nodes.end(); ++it)
+      {
+        channels->create_channel(
+          it->first, it->second.node_info.hostname, it->second.node_info.port);
         send_request_vote(it->first);
+      }
     }
 
     void become_leader()
@@ -1042,6 +1055,7 @@ namespace raft
       committable_indices.clear();
 
       LOG_INFO_FMT("Becoming follower {}: {}", local_id, current_term);
+      channels->close_all_outgoing();
     }
 
     void add_vote_for_me(NodeId from)
@@ -1069,17 +1083,23 @@ namespace raft
 
         for (auto node : c.nodes)
         {
-          if (node == local_id)
+          if (node.first == local_id)
+          {
             match.push_back(last_idx);
+          }
           else
-            match.push_back(nodes.at(node).match_idx);
+          {
+            match.push_back(nodes.at(node.first).match_idx);
+          }
         }
 
         sort(match.begin(), match.end());
         auto confirmed = match.at((match.size() - 1) / 2);
 
         if (confirmed < new_commit_idx)
+        {
           new_commit_idx = confirmed;
+        }
       }
 
       LOG_DEBUG_FMT(
@@ -1158,7 +1178,9 @@ namespace raft
       }
 
       if (changed)
+      {
         create_and_remove_node_state();
+      }
     }
 
     void rollback(Index idx)
@@ -1184,58 +1206,80 @@ namespace raft
       }
 
       if (changed)
+      {
         create_and_remove_node_state();
+      }
     }
 
     void create_and_remove_node_state()
     {
       // Find all nodes present in any active configuration.
-      std::unordered_set<NodeId> active_nodes;
+      Configuration::Nodes active_nodes;
 
       for (auto& conf : configurations)
       {
-        for (auto node_id : conf.nodes)
-          active_nodes.insert(node_id);
+        for (auto node : conf.nodes)
+        {
+          active_nodes.emplace(node.first, node.second);
+        }
       }
 
-      // Find all nodes in the node state that are not present in any active
+      // Remove all nodes in the node state that are not present in any active
       // configuration.
       std::vector<NodeId> to_remove;
 
       for (auto& node : nodes)
       {
         if (active_nodes.find(node.first) == active_nodes.end())
+        {
           to_remove.push_back(node.first);
+        }
       }
 
       for (auto node_id : to_remove)
       {
+        if (state == Leader)
+        {
+          channels->destroy_channel(node_id);
+        }
         nodes.erase(node_id);
-        LOG_INFO_FMT("Removed node {}", node_id);
+        LOG_INFO_FMT("Removed raft node {}", node_id);
       }
 
-      for (auto node_id : active_nodes)
-      {
-        if (node_id == local_id)
-          continue;
+      // Add all active nodes that are not already present in the node state.
+      bool self_is_active = false;
 
-        if (nodes.find(node_id) == nodes.end())
+      for (auto node_info : active_nodes)
+      {
+        if (node_info.first == local_id)
+        {
+          self_is_active = true;
+          continue;
+        }
+
+        if (nodes.find(node_info.first) == nodes.end())
         {
           // A new node is sent only future entries initially. If it does not
           // have prior data, it will communicate that back to the leader.
           auto index = last_idx + 1;
-          nodes[node_id] = {0, index};
+          nodes.try_emplace(node_info.first, 0, index, node_info.second);
 
           if (state == Leader)
-            send_append_entries(node_id, index);
+          {
+            channels->create_channel(
+              node_info.first,
+              node_info.second.hostname,
+              node_info.second.port);
+            send_append_entries(node_info.first, index);
+          }
 
-          LOG_INFO_FMT("Added node {}", node_id);
+          LOG_INFO_FMT("Added raft node {}", node_info.first);
         }
       }
 
-      if (active_nodes.find(local_id) == active_nodes.end())
+      if (!self_is_active)
       {
-        LOG_INFO_FMT("Removed self {}", local_id);
+        LOG_INFO_FMT("Removed raft self {}", local_id);
       }
     }
   };

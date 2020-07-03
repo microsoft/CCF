@@ -135,8 +135,8 @@ class Network:
             self.existing_network is None
         ), "Cannot adjust local node IDs if the network was started from an existing network"
 
-        with primary.node_client() as nc:
-            r = nc.get("primary_info")
+        with primary.client() as nc:
+            r = nc.get("/node/primary_info")
             first_node_id = r.result["primary_id"]
             assert (r.result["primary_host"] == primary.host) and (
                 int(r.result["primary_port"]) == primary.rpc_port
@@ -297,14 +297,16 @@ class Network:
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
-            self.consortium.set_lua_app(remote_node=primary, app_script=args.app_script)
+            self.consortium.set_lua_app(
+                remote_node=primary, app_script_path=args.app_script
+            )
 
         if args.js_app_script:
             infra.proc.ccall(
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                remote_node=primary, app_script=args.js_app_script
+                remote_node=primary, app_script_path=args.js_app_script
             )
 
         self.consortium.add_users(primary, initial_users)
@@ -483,8 +485,8 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             try:
-                with node.node_client(connection_timeout=timeout) as c:
-                    r = c.get("signed_index")
+                with node.client(connection_timeout=timeout) as c:
+                    r = c.get("/node/signed_index")
                     if r.result["state"] == state:
                         break
             except ConnectionRefusedError:
@@ -511,9 +513,9 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in self.get_joined_nodes():
-                with node.node_client(request_timeout=request_timeout) as c:
+                with node.client(request_timeout=request_timeout) as c:
                     try:
-                        res = c.get("primary_info")
+                        res = c.get("/node/primary_info")
                         if res.error is None:
                             primary_id = res.result["primary_id"]
                             view = res.result["current_view"]
@@ -556,8 +558,8 @@ class Network:
         """
         end_time = time.time() + timeout
         while time.time() < end_time:
-            with primary.node_client() as c:
-                resp = c.get("commit")
+            with primary.client() as c:
+                resp = c.get("/node/commit")
                 seqno = resp.result["seqno"]
                 view = resp.result["view"]
                 if seqno != 0:
@@ -570,8 +572,8 @@ class Network:
         while time.time() < end_time:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
-                with node.node_client() as c:
-                    resp = c.get("tx", {"view": view, "seqno": seqno})
+                with node.client() as c:
+                    resp = c.get("/node/tx", {"view": view, "seqno": seqno})
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break
@@ -601,8 +603,8 @@ class Network:
         while time.time() < end_time:
             commits = []
             for node in self.get_joined_nodes():
-                with node.node_client() as c:
-                    r = c.get("commit")
+                with node.client() as c:
+                    r = c.get("/node/commit")
                     commits.append(f"{r.view}.{r.seqno}")
             if [commits[0]] * len(commits) == commits:
                 break

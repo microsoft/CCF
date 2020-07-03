@@ -37,11 +37,11 @@ def count_governance_operations(ledger):
                 request_body = signed_request[0][2]
                 digest = signed_request[0][3]
                 infra.crypto.verify_request_sig(cert, sig, req, request_body, digest)
-                if "gov/propose" in req.decode():
+                if "/gov/propose" in req.decode():
                     verified_proposals += 1
-                elif "gov/vote" in req.decode():
+                elif "/gov/vote" in req.decode():
                     verified_votes += 1
-                elif "gov/withdraw" in req.decode():
+                elif "/gov/withdraw" in req.decode():
                     verified_withdrawals += 1
 
     return (verified_proposals, verified_votes, verified_withdrawals)

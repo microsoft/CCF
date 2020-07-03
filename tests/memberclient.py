@@ -5,6 +5,7 @@ import http
 import infra.e2e_args
 import infra.ccf
 import infra.consortium
+import infra.proposal_generator
 from infra.proposal import ProposalState
 import random
 
@@ -188,12 +189,9 @@ def run(args):
         assert response.status == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
-        script = """
-        tables, node_id = ...
-        return Calls:call("trust_node", node_id)
-        """
+        proposal_trust_0, _ = infra.proposal_generator.trust_node(0)
         try:
-            new_member.propose(primary, script, 0)
+            new_member.propose(primary, proposal_trust_0)
             assert (
                 False
             ), "New non-active member should get insufficient rights response"
@@ -204,14 +202,15 @@ def run(args):
         new_member.ack(primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        trust_node_proposal = new_member.propose(primary, script, 0, vote_for=True)
+        trust_node_proposal_0 = new_member.propose(primary, proposal_trust_0)
 
         LOG.debug("Members vote to accept the accept node proposal")
-        network.consortium.vote_using_majority(primary, trust_node_proposal)
-        assert trust_node_proposal.state == infra.proposal.ProposalState.Accepted
+        network.consortium.vote_using_majority(primary, trust_node_proposal_0)
+        assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
 
         LOG.info("New member makes a new proposal")
-        trust_node_proposal = new_member.propose(primary, script, 1)
+        proposal_trust_1, _ = infra.proposal_generator.trust_node(1)
+        trust_node_proposal = new_member.propose(primary, proposal_trust_1)
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
         response = network.consortium.get_member_by_id(1).withdraw(
@@ -254,7 +253,7 @@ def run(args):
             LOG.debug("Retired member cannot make a new proposal")
             try:
                 response = network.consortium.get_member_by_id(0).propose(
-                    primary, script, 0
+                    primary, proposal_trust_0
                 )
                 assert False, "Retired member cannot make a new proposal"
             except infra.proposal.ProposalNotCreated as e:
@@ -262,7 +261,7 @@ def run(args):
                 assert e.response.error == "Member is not active"
 
             LOG.debug("New member should still be able to make a new proposal")
-            new_proposal = new_member.propose(primary, script, 0)
+            new_proposal = new_member.propose(primary, proposal_trust_0)
             assert new_proposal.state == ProposalState.Open
 
             LOG.info(

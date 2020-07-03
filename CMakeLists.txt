@@ -513,6 +513,21 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
+    NAME reconfiguration_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    CONSENSUS raft
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration
+      150
+      --enforce-reqs
+      --test-suite
+      reconfiguration
+      --raft-election-timeout
+      4000
+  )
+
+  add_e2e_test(
     NAME full_test_suite
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
     CONSENSUS raft
@@ -525,6 +540,8 @@ if(BUILD_TESTS)
       --enforce-reqs
       --test-suite
       all
+      --raft-election-timeout
+      4000
   )
 
   add_e2e_test(
