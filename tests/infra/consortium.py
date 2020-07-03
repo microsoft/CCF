@@ -202,7 +202,9 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal)
 
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc("/gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id})
+            r = c.rpc(
+                "/gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
+            )
             assert r.result["status"] == infra.node.NodeStatus.RETIRED.name
 
     def trust_node(self, remote_node, node_id):
