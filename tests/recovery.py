@@ -42,7 +42,7 @@ def test_share_resilience(network, args):
     # submitted after a new primary is found.
     submitted_shares_count = 0
     for m in recovered_network.consortium.get_active_members():
-        with primary.node_client() as nc:
+        with primary.client() as nc:
             if (
                 submitted_shares_count
                 >= recovered_network.consortium.recovery_threshold - 1
