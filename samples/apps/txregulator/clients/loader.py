@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.ccf
+import infra.proposal_generator
 import os
 import logging
 from time import gmtime, strftime, perf_counter
@@ -46,23 +47,15 @@ def run(args):
 
         # Give regulators permissions to register regulators and banks
         for regulator in regulators:
-            proposal_result, error = network.consortium.propose(
-                0,
-                primary,
-                f"""
-                return Calls:call(
-                    "set_user_data",
-                    {{
-                        user_id = {regulator.ccf_id},
-                        user_data = {{
-                            privileges = {{
-                                REGISTER_REGULATORS = true,
-                                REGISTER_BANKS = true,
-                            }}
-                        }}
-                    }}
-                )
-                """,
+            proposal_body, _ = infra.proposal_generator.set_user_data(
+                regulator.ccf_id,
+                {"proposals": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
+            )
+            (
+                proposal_result,
+                error,
+            ) = network.consortium.get_any_active_member().propose(
+                primary, proposal_body
             )
             network.consortium.vote_using_majority(primary, proposal_result["id"])
 
