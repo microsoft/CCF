@@ -7,6 +7,7 @@ import receipts
 import reconfiguration
 import recovery
 import rekey
+import election
 
 from inspect import signature, Parameter
 
@@ -38,6 +39,18 @@ suite_membership_recovery = [
 ]
 suites["membership_recovery"] = suite_membership_recovery
 
+# This suite tests that nodes addition, deletion and primary changes can be interleaved
+suite_reconfiguration = [
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
+    reconfiguration.test_add_node,
+    reconfiguration.test_add_node,
+    reconfiguration.test_retire_node,
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
+]
+suites["reconfiguration"] = suite_reconfiguration
+
 all_tests_suite = [
     # e2e_logging:
     e2e_logging.test,
@@ -68,6 +81,9 @@ all_tests_suite = [
     recovery.test,
     # rekey:
     rekey.test,
+    # election:
+    reconfiguration.test_add_node,
+    election.test_kill_primary,
 ]
 suites["all"] = all_tests_suite
 

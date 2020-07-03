@@ -5,6 +5,7 @@
 #include "crypto/symmetric_key.h"
 #include "ds/logger.h"
 #include "entities.h"
+#include "nodetypes.h"
 #include "tls/key_exchange.h"
 #include "tls/key_pair.h"
 
@@ -47,7 +48,14 @@ namespace ccf
   private:
     // Used for key exchange
     tls::KeyExchangeContext ctx;
-    ChannelStatus status;
+    ChannelStatus status = INITIATED;
+
+    // Notifies the host to create a new outgoing connection
+    ringbuffer::WriterPtr to_host;
+    NodeId peer_id;
+    std::string peer_hostname;
+    std::string peer_service;
+    bool outgoing;
 
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
@@ -120,16 +128,34 @@ namespace ccf
     }
 
   public:
-    Channel() : status(INITIATED) {}
-
-    std::optional<std::vector<uint8_t>> get_public()
+    Channel(
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      NodeId peer_id_,
+      const std::string& peer_hostname_,
+      const std::string& peer_service_) :
+      to_host(writer_factory.create_writer_to_outside()),
+      peer_id(peer_id_),
+      peer_hostname(peer_hostname_),
+      peer_service(peer_service_),
+      outgoing(true)
     {
-      if (status == ESTABLISHED)
-      {
-        return {};
-      }
+      RINGBUFFER_WRITE_MESSAGE(
+        ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
+    }
 
-      return ctx.get_own_public();
+    Channel(
+      ringbuffer::AbstractWriterFactory& writer_factory, NodeId peer_id_) :
+      to_host(writer_factory.create_writer_to_outside()),
+      peer_id(peer_id_),
+      outgoing(false)
+    {}
+
+    ~Channel()
+    {
+      if (outgoing)
+      {
+        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+      }
     }
 
     void set_status(ChannelStatus status_)
@@ -140,6 +166,44 @@ namespace ccf
     ChannelStatus get_status()
     {
       return status;
+    }
+
+    bool is_outgoing() const
+    {
+      return outgoing;
+    }
+
+    void set_outgoing(
+      const std::string& peer_hostname_, const std::string& peer_service_)
+    {
+      peer_hostname = peer_hostname_;
+      peer_service = peer_service_;
+
+      if (!outgoing)
+      {
+        RINGBUFFER_WRITE_MESSAGE(
+          ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
+      }
+      outgoing = true;
+    }
+
+    void reset_outgoing()
+    {
+      if (outgoing)
+      {
+        RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
+      }
+      outgoing = false;
+    }
+
+    std::optional<std::vector<uint8_t>> get_public()
+    {
+      if (status == ESTABLISHED)
+      {
+        return {};
+      }
+
+      return ctx.get_own_public();
     }
 
     bool load_peer_public(const uint8_t* bytes, size_t size)
@@ -218,25 +282,70 @@ namespace ccf
   class ChannelManager
   {
   private:
-    std::unordered_map<NodeId, std::unique_ptr<Channel>> channels;
+    std::unordered_map<NodeId, Channel> channels;
+    ringbuffer::AbstractWriterFactory& writer_factory;
     tls::KeyPairPtr network_kp;
 
   public:
-    ChannelManager(const tls::Pem& network_pkey) :
+    ChannelManager(
+      ringbuffer::AbstractWriterFactory& writer_factory_,
+      const tls::Pem& network_pkey) :
+      writer_factory(writer_factory_),
       network_kp(tls::make_key_pair(network_pkey))
     {}
+
+    void create_channel(
+      NodeId peer_id, const std::string& hostname, const std::string& service)
+    {
+      auto search = channels.find(peer_id);
+      if (search != channels.end() && !search->second.is_outgoing())
+      {
+        // Channel with peer already exists but is incoming. Create host
+        // outgoing connection.
+        search->second.set_outgoing(hostname, service);
+        return;
+      }
+
+      channels.try_emplace(peer_id, writer_factory, peer_id, hostname, service);
+    }
+
+    void destroy_channel(NodeId peer_id)
+    {
+      auto search = channels.find(peer_id);
+      if (search == channels.end())
+      {
+        LOG_FAIL_FMT(
+          "Cannot destroy node channel with {}: channel does not exist",
+          peer_id);
+        return;
+      }
+
+      channels.erase(peer_id);
+    }
+
+    void close_all_outgoing()
+    {
+      for (auto& c : channels)
+      {
+        if (c.second.is_outgoing())
+        {
+          c.second.reset_outgoing();
+        }
+      }
+    }
 
     Channel& get(NodeId peer_id)
     {
       auto search = channels.find(peer_id);
       if (search != channels.end())
       {
-        return *search->second;
+        return search->second;
       }
 
-      auto channel = std::make_unique<Channel>();
-      channels.emplace(peer_id, std::move(channel));
-      return *channels[peer_id];
+      // Creating temporary channel that is not outgoing
+      channels.try_emplace(peer_id, writer_factory, peer_id);
+
+      return channels.at(peer_id);
     }
 
     std::optional<std::vector<uint8_t>> get_signed_public(NodeId peer_id)
@@ -244,7 +353,7 @@ namespace ccf
       const auto own_public_for_peer_ = get(peer_id).get_public();
       if (!own_public_for_peer_.has_value())
       {
-        return {};
+        return std::nullopt;
       }
 
       const auto& own_public_for_peer = own_public_for_peer_.value();
@@ -320,20 +429,18 @@ namespace ccf
             signature_size))
       {
         LOG_FAIL_FMT(
-          "node2node peer signature verification failed {}", peer_id);
+          "node channel peer signature verification failed {}", peer_id);
         return false;
       }
 
-      // Load peer public
       if (!channel.load_peer_public(peer_public_start, peer_public_size))
       {
         return false;
       }
 
-      // Channel can be established
       channel.establish();
 
-      LOG_INFO_FMT("node2node channel with {} is now established", peer_id);
+      LOG_INFO_FMT("node channel with {} is now established", peer_id);
 
       return true;
     }

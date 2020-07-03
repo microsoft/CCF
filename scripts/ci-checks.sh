@@ -2,13 +2,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+set -e
+
 if [ "$1" == "-f" ]; then
   FIX=1
 else
   FIX=0
 fi
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"  
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 echo "Shell scripts"
 find . -type f -regex ".*\.sh$" | grep -E -v "^./3rdparty/" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
