@@ -88,11 +88,11 @@ class LoggingTxs:
         timeout=3,
     ):
         LOG.success(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
-        with remote_node.node_client() as mc:
+        with remote_node.client() as mc:
             check_commit = infra.checker.Checker(mc)
             check_commit_n = infra.checker.Checker(mc, self.notifications_queue)
 
-            with remote_node.user_client() as uc:
+            with remote_node.client("user0") as uc:
                 for _ in range(number_txs):
                     end_time = time.time() + timeout
                     while time.time() < end_time:
@@ -102,11 +102,11 @@ class LoggingTxs:
                             )
                             pub_msg = f"Public message at index {self.next_pub_index}"
                             rep_priv = uc.rpc(
-                                "log/private",
+                                "/app/log/private",
                                 {"id": self.next_priv_index, "msg": priv_msg,},
                             )
                             rep_pub = uc.rpc(
-                                "log/public",
+                                "/app/log/public",
                                 {"id": self.next_pub_index, "msg": pub_msg,},
                             )
                             check_commit_n(rep_priv, result=True)
@@ -156,11 +156,11 @@ class LoggingTxs:
 
     def _verify_tx(self, node, idx, priv=True, timeout=5):
         txs = self.priv if priv else self.pub
-        cmd = "log/private" if priv else "log/public"
+        cmd = "/app/log/private" if priv else "/app/log/public"
 
         end_time = time.time() + timeout
         while time.time() < end_time:
-            with node.user_client() as uc:
+            with node.client("user0") as uc:
                 rep = uc.get(cmd, {"id": idx})
                 if rep.status == 404:
                     LOG.warning("User frontend is not yet opened")
