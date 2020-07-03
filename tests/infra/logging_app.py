@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.checker
+import ccftools.clients
 import suite.test_requirements as reqs
 import time
 

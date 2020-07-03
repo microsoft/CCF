@@ -5,6 +5,7 @@ import time
 import suite.test_requirements as reqs
 import infra.ccf
 import random
+import ccftools.clients
 from enum import Enum
 
 from loguru import logger as LOG
