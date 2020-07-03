@@ -297,14 +297,16 @@ class Network:
 
         if args.app_script:
             infra.proc.ccall("cp", args.app_script, args.binary_dir).check_returncode()
-            self.consortium.set_lua_app(remote_node=primary, app_script=args.app_script)
+            self.consortium.set_lua_app(
+                remote_node=primary, app_script_path=args.app_script
+            )
 
         if args.js_app_script:
             infra.proc.ccall(
                 "cp", args.js_app_script, args.binary_dir
             ).check_returncode()
             self.consortium.set_js_app(
-                remote_node=primary, app_script=args.js_app_script
+                remote_node=primary, app_script_path=args.js_app_script
             )
 
         self.consortium.add_users(primary, initial_users)

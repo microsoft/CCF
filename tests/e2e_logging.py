@@ -336,7 +336,9 @@ def test_update_lua(network, args):
                     }"""
             )
 
-        network.consortium.set_lua_app(remote_node=primary, app_script=new_app_file)
+        network.consortium.set_lua_app(
+            remote_node=primary, app_script_path=new_app_file
+        )
         with primary.client("user0") as c:
             check(c.rpc("/app/ping"), result="pong")
 
