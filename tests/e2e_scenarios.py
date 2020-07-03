@@ -33,16 +33,16 @@ def run(args):
 
         primary, backups = network.find_nodes()
 
-        with primary.node_client() as mc:
+        with primary.client() as mc:
 
             check = infra.checker.Checker()
             check_commit = infra.checker.Checker(mc)
 
             for connection in scenario["connections"]:
                 with (
-                    primary.user_client()
+                    primary.client("user0")
                     if not connection.get("on_backup")
-                    else random.choice(backups).user_client()
+                    else random.choice(backups).client("user0")
                 ) as client:
                     txs = connection.get("transactions", [])
 

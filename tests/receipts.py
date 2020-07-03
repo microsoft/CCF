@@ -16,33 +16,35 @@ from loguru import logger as LOG
 def test(network, args, notifications_queue=None):
     primary, _ = network.find_primary_and_any_backup()
 
-    with primary.node_client() as mc:
+    with primary.client() as mc:
         check_commit = infra.checker.Checker(mc, notifications_queue)
         check = infra.checker.Checker()
 
         msg = "Hello world"
 
         LOG.info("Write/Read on primary")
-        with primary.user_client() as c:
-            r = c.rpc("log/private", {"id": 42, "msg": msg})
+        with primary.client("user0") as c:
+            r = c.rpc("/app/log/private", {"id": 42, "msg": msg})
             check_commit(r, result=True)
-            check(c.get("log/private", {"id": 42}), result={"msg": msg})
+            check(c.get("/app/log/private", {"id": 42}), result={"msg": msg})
             for _ in range(10):
                 c.rpc(
-                    "log/private", {"id": 43, "msg": "Additional messages"},
+                    "/app/log/private", {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
-                c.rpc("log/private", {"id": 43, "msg": "A final message"}), result=True,
+                c.rpc("/app/log/private", {"id": 43, "msg": "A final message"}),
+                result=True,
             )
-            r = c.get("receipt", {"commit": r.seqno})
+            r = c.get("/app/receipt", {"commit": r.seqno})
             check(
-                c.rpc("receipt/verify", {"receipt": r.result["receipt"]}),
+                c.rpc("/app/receipt/verify", {"receipt": r.result["receipt"]}),
                 result={"valid": True},
             )
             invalid = r.result["receipt"]
             invalid[-3] += 1
             check(
-                c.rpc("receipt/verify", {"receipt": invalid}), result={"valid": False}
+                c.rpc("/app/receipt/verify", {"receipt": invalid}),
+                result={"valid": False},
             )
 
     return network

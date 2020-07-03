@@ -40,8 +40,8 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
     for _ in range(infra.ccf.Network.replication_delay * 10):
         up_to_date_f = []
         for f in nodes:
-            with f.node_client() as c:
-                r = c.get("tx", {"view": view, "seqno": seqno})
+            with f.client() as c:
+                r = c.get("/node/tx", {"view": view, "seqno": seqno})
                 assert (
                     r.status == http.HTTPStatus.OK
                 ), f"tx request returned HTTP status {r.status}"
@@ -93,9 +93,9 @@ def run(args):
                     primary.node_id, current_view
                 )
             )
-            with primary.user_client() as c:
+            with primary.client("user0") as c:
                 res = c.rpc(
-                    "log/private",
+                    "/app/log/private",
                     {
                         "id": current_view,
                         "msg": "This log is committed in view {}".format(current_view),

@@ -52,8 +52,8 @@ class TxRates:
             json.dump(self.all_metrics, mfile)
 
     def process_next(self):
-        with self.primary.user_client() as client:
-            rv = client.get("commit")
+        with self.primary.client() as client:
+            rv = client.get("/node/commit")
             result = rv.to_dict()
             next_commit = result["result"]["seqno"]
             more_to_process = self.commit != next_commit
@@ -62,8 +62,8 @@ class TxRates:
             return more_to_process
 
     def get_metrics(self):
-        with self.primary.user_client() as client:
-            rv = client.get("metrics")
+        with self.primary.client() as client:
+            rv = client.get("/node/metrics")
             result = rv.to_dict()
             result = result["result"]
             self.all_metrics = result
