@@ -46,6 +46,7 @@ suite_reconfiguration = [
     reconfiguration.test_add_node,
     reconfiguration.test_add_node,
     reconfiguration.test_retire_node,
+    reconfiguration.test_add_node,
     election.test_kill_primary,
 ]
 suites["reconfiguration"] = suite_reconfiguration
@@ -81,6 +82,7 @@ all_tests_suite = [
     # rekey:
     rekey.test,
     # election:
+    reconfiguration.test_add_node,
     election.test_kill_primary,
 ]
 suites["all"] = all_tests_suite

@@ -87,7 +87,7 @@ def sufficient_member_count():
     return ensure_reqs(check)
 
 
-def can_kill_n_nodes(n):
+def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
         with primary.member_client() as c:
@@ -108,12 +108,14 @@ def can_kill_n_nodes(n):
 
             trusted_nodes_count = r.result
             running_nodes_count = len(network.get_joined_nodes())
-            if args.consensus == "raft" and running_nodes_count - n < ceil(
-                trusted_nodes_count / 2
+            would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
+            minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
+            if args.consensus == "raft" and (
+                would_leave_nodes_count < minimum_nodes_to_run_count
             ):
                 raise TestRequirementsNotMet(
-                    f"Cannot kill {n} node(s) as the network would not be able to make progress"
-                    f" (trusted nodes {trusted_nodes_count}, current active nodes {running_nodes_count}) "
+                    f"Cannot kill {nodes_to_kill_count} node(s) as the network would not be able to make progress"
+                    f" (would leave {would_leave_nodes_count} nodes but requires {minimum_nodes_to_run_count} nodes to make progress) "
                 )
 
     return ensure_reqs(check)
