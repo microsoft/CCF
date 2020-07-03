@@ -6,7 +6,7 @@ from enum import Enum
 import infra.remote
 import infra.net
 import infra.path
-import infra.clients
+import ccftools.clients
 import os
 import socket
 
@@ -238,14 +238,14 @@ class Node:
                 assert (
                     rep.error is None and rep.result is not None
                 ), f"An error occured after node {self.node_id} joined the network: {rep.error}"
-        except infra.clients.CCFConnectionException:
+        except ccftools.clients.CCFConnectionException:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_ledger(self):
         return self.remote.get_ledger()
 
     def user_client(self, user_id=0, **kwargs):
-        return infra.clients.client(
+        return ccftools.clients.client(
             self.pubhost,
             self.rpc_port,
             cert=os.path.join(self.common_dir, f"user{user_id}_cert.pem"),
@@ -258,7 +258,7 @@ class Node:
         )
 
     def node_client(self, **kwargs):
-        return infra.clients.client(
+        return ccftools.clients.client(
             self.pubhost,
             self.rpc_port,
             cert=None,
@@ -271,7 +271,7 @@ class Node:
         )
 
     def member_client(self, member_id=0, **kwargs):
-        return infra.clients.client(
+        return ccftools.clients.client(
             self.pubhost,
             self.rpc_port,
             cert=os.path.join(self.common_dir, f"member{member_id}_cert.pem"),

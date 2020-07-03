@@ -181,4 +181,4 @@ class Member:
             log_output=True,
         )
         res.check_returncode()
-        return infra.clients.Response.from_raw(res.stdout)
+        return ccftools.clients.Response.from_raw(res.stdout)

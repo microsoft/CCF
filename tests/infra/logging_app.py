@@ -119,7 +119,7 @@ class LoggingTxs:
                             break
                         except (
                             TimeoutError,
-                            infra.clients.CCFConnectionException,
+                            ccftools.clients.CCFConnectionException,
                         ):
                             LOG.debug("Network is unavailable")
                             if not ignore_failures:
@@ -134,7 +134,7 @@ class LoggingTxs:
             try:
                 network.wait_for_node_commit_sync(consensus)
                 break
-            except (TimeoutError, infra.clients.CCFConnectionException):
+            except (TimeoutError, ccftools.clients.CCFConnectionException):
                 LOG.error("Timeout error while waiting for nodes to sync")
                 if not ignore_failures:
                     raise

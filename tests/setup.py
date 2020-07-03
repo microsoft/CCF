@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name="ccf",
+    name="ccftools",
     version="0.11.7",
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
@@ -21,7 +21,12 @@ setup(
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
     ],
-    packages=["ccf"],
+    packages=["ccftools"],
     python_requires=">=3.7",
-    install_requires=["msgpack", "loguru"],
+    install_requires=[
+        "msgpack",
+        "loguru",
+        "websocket-client",
+        # "requests-http-signature",
+    ],
 )

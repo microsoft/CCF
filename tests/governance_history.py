@@ -5,7 +5,7 @@ import infra.ccf
 import infra.proc
 import infra.remote
 import infra.crypto
-import infra.ledger
+import ccftools.ledger
 from infra.proposal import ProposalState
 import http
 import os
@@ -66,7 +66,7 @@ def run(args):
         for l in os.listdir(ledger_directory):
             if l.endswith("_1"):
                 ledger_filename = os.path.join(ledger_directory, l)
-        ledger = infra.ledger.Ledger(ledger_filename)
+        ledger = ccftools.ledger.Ledger(ledger_filename)
         (
             original_proposals,
             original_votes,

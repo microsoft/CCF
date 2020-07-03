@@ -409,6 +409,7 @@ class WSClient:
 
 class CCFClient:
     def __init__(self, *args, **kwargs):
+        # TODO: Sensible default for those and cert, key and request_timeout as well
         self.prefix = kwargs.pop("prefix")
         self.description = kwargs.pop("description")
         self.connection_timeout = kwargs.pop("connection_timeout")
