@@ -19,48 +19,73 @@ namespace ccf
     NodeId self;
     std::unique_ptr<ChannelManager> channels;
     ringbuffer::WriterPtr to_host;
+    ringbuffer::AbstractWriterFactory& writer_factory;
 
-    void establish_channel(NodeId to)
-    {
-      // If the channel is not yet established, replace all sent messages with
-      // a key exchange message. In the case of raft, this is acceptable since
-      // append entries and vote requests are re-sent after a short timeout
-      auto signed_public = channels->get_signed_public(to);
-      if (!signed_public.has_value())
-      {
-        return;
-      }
-
-      LOG_DEBUG_FMT("node2node channel with {} initiated", to);
-
-      ChannelHeader msg = {ChannelMsg::key_exchange, self};
-      to_host->write(
-        node_outbound,
-        to,
-        NodeMsgType::channel_msg,
-        msg,
-        signed_public.value());
-    }
-
-    bool try_established_channel(NodeId id, Channel& channel)
+    bool try_establish_channel(NodeId peer_id, Channel& channel)
     {
       if (channel.get_status() != ChannelStatus::ESTABLISHED)
       {
-        establish_channel(id);
+        // If the channel is not yet established, replace all sent messages with
+        // a key exchange message. In the case of raft, this is acceptable since
+        // append entries and vote requests are re-sent after a short timeout
+        // https://github.com/microsoft/CCF/issues/1015
+        auto signed_public = channels->get_signed_public(peer_id);
+        if (!signed_public.has_value())
+        {
+          return false;
+        }
+
+        ChannelHeader msg = {ChannelMsg::key_exchange, self};
+        to_host->write(
+          node_outbound,
+          peer_id,
+          NodeMsgType::channel_msg,
+          msg,
+          signed_public.value());
+
+        LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
         return false;
       }
+
       return true;
     }
 
   public:
     NodeToNode(ringbuffer::AbstractWriterFactory& writer_factory_) :
+      writer_factory(writer_factory_),
       to_host(writer_factory_.create_writer_to_outside())
     {}
 
-    void initialize(NodeId id, const tls::Pem& network_pkey)
+    void initialize(NodeId self_id, const tls::Pem& network_pkey)
     {
-      self = id;
-      channels = std::make_unique<ChannelManager>(network_pkey);
+      self = self_id;
+      channels = std::make_unique<ChannelManager>(writer_factory, network_pkey);
+    }
+
+    void create_channel(
+      NodeId peer_id, const std::string& hostname, const std::string& service)
+    {
+      if (peer_id == self)
+      {
+        return;
+      }
+
+      channels->create_channel(peer_id, hostname, service);
+    }
+
+    void destroy_channel(NodeId peer_id)
+    {
+      if (peer_id == self)
+      {
+        return;
+      }
+
+      channels->destroy_channel(peer_id);
+    }
+
+    void close_all_outgoing()
+    {
+      channels->close_all_outgoing();
     }
 
     template <class T>
@@ -68,7 +93,7 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_established_channel(to, n2n_channel))
+      if (!try_establish_channel(to, n2n_channel))
       {
         return false;
       }
@@ -86,7 +111,7 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_established_channel(to, n2n_channel))
+      if (!try_establish_channel(to, n2n_channel))
       {
         return false;
       }
@@ -106,7 +131,6 @@ namespace ccf
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
       auto& n2n_channel = channels->get(t.from_node);
-
       if (!n2n_channel.verify(hdr, asCb(t)))
       {
         throw std::logic_error(fmt::format(
@@ -169,7 +193,7 @@ namespace ccf
       const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_established_channel(to, n2n_channel))
+      if (!try_establish_channel(to, n2n_channel))
       {
         return false;
       }

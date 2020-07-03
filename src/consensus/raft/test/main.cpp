@@ -33,7 +33,8 @@ DOCTEST_TEST_CASE("Single node startup" * doctest::test_suite("single"))
     ms(10),
     election_timeout);
 
-  std::unordered_set<raft::NodeId> config = {node_id};
+  kv::Consensus::Configuration::Nodes config;
+  config.try_emplace(node_id);
   r0.add_configuration(0, config);
 
   DOCTEST_INFO("DOCTEST_REQUIRE Initial State");
@@ -68,7 +69,8 @@ DOCTEST_TEST_CASE("Single node commit" * doctest::test_suite("single"))
     ms(10),
     election_timeout);
 
-  std::unordered_set<raft::NodeId> config = {node_id};
+  raft::Configuration::Nodes config;
+  config[node_id] = {};
   r0.add_configuration(0, config);
 
   DOCTEST_INFO("Become leader after election timeout");
@@ -126,7 +128,10 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(50));
 
-  std::unordered_set<raft::NodeId> config = {node_id0, node_id1, node_id2};
+  raft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  config[node_id2] = {};
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
@@ -290,7 +295,10 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(50));
 
-  std::unordered_set<raft::NodeId> config = {node_id0, node_id1, node_id2};
+  raft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  config[node_id2] = {};
   r0.add_configuration(0, config);
   r1.add_configuration(0, config);
   r2.add_configuration(0, config);
@@ -412,9 +420,11 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
     request_timeout,
     ms(50));
 
-  std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1};
-  r0.add_configuration(0, config0);
-  r1.add_configuration(0, config0);
+  raft::Configuration::Nodes config;
+  config[node_id0] = {};
+  config[node_id1] = {};
+  r0.add_configuration(0, config);
+  r1.add_configuration(0, config);
 
   map<raft::NodeId, TRaft*> nodes;
   nodes[node_id0] = &r0;
@@ -464,10 +474,13 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
 
   DOCTEST_INFO("Node 2 joins the ensemble");
 
-  std::unordered_set<raft::NodeId> config1 = {node_id0, node_id1, node_id2};
-  r0.add_configuration(1, config1);
-  r1.add_configuration(1, config1);
-  r2.add_configuration(1, config1);
+  raft::Configuration::Nodes config1;
+  config1[node_id0] = {};
+  config1[node_id1] = {};
+  config1[node_id2] = {};
+  r0.add_configuration(0, config1);
+  r1.add_configuration(0, config1);
+  r2.add_configuration(0, config1);
 
   nodes[node_id2] = &r2;
 
@@ -512,7 +525,9 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
     request_timeout,
     ms(100));
 
-  std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1};
+  raft::Configuration::Nodes config0;
+  config0[node_id0] = {};
+  config0[node_id1] = {};
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
@@ -665,7 +680,9 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
     request_timeout,
     ms(50));
 
-  std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1};
+  raft::Configuration::Nodes config0;
+  config0[node_id0] = {};
+  config0[node_id1] = {};
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
 
@@ -730,10 +747,13 @@ DOCTEST_TEST_CASE("Exceed append entries limit")
 
   DOCTEST_INFO("Node 2 joins the ensemble");
 
-  std::unordered_set<raft::NodeId> config1 = {node_id0, node_id1, node_id2};
-  r0.add_configuration(1, config1);
-  r1.add_configuration(1, config1);
-  r2.add_configuration(1, config1);
+  raft::Configuration::Nodes config1;
+  config1[node_id0] = {};
+  config1[node_id1] = {};
+  config1[node_id2] = {};
+  r0.add_configuration(0, config1);
+  r1.add_configuration(0, config1);
+  r2.add_configuration(0, config1);
 
   nodes[node_id2] = &r2;
 
@@ -810,7 +830,10 @@ DOCTEST_TEST_CASE(
     request_timeout,
     ms(50));
 
-  std::unordered_set<raft::NodeId> config0 = {node_id0, node_id1, node_id2};
+  raft::Configuration::Nodes config0;
+  config0[node_id0] = {};
+  config0[node_id1] = {};
+  config0[node_id2] = {};
   r0.add_configuration(0, config0);
   r1.add_configuration(0, config0);
   r2.add_configuration(0, config0);

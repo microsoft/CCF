@@ -35,7 +35,7 @@ private:
 public:
   RaftDriver(size_t number_of_nodes)
   {
-    std::unordered_set<raft::NodeId> configuration;
+    kv::Consensus::Configuration::Nodes configuration;
 
     for (size_t i = 0; i < number_of_nodes; ++i)
     {
@@ -51,7 +51,7 @@ public:
         ms(i * 100));
 
       _nodes.emplace(node_id, NodeDriver{kv, raft});
-      configuration.insert(node_id);
+      configuration.try_emplace(node_id);
     }
 
     for (auto& node : _nodes)
