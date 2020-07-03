@@ -179,7 +179,7 @@ namespace ccf
         // add a new user
         {"new_user",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const Cert pem_cert = args;
+           const auto pem_cert = args.get<tls::Pem>();
 
            GenesisGenerator g(this->network, tx);
            g.add_user(pem_cert);

@@ -36,7 +36,8 @@ auto kp = tls::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
-auto user_cert = kp -> self_sign("CN=name_user");
+auto user_cert_v = kp -> self_sign("CN=name_user");
+std::string user_cert(user_cert_v.begin(), user_cert_v.end());
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
@@ -641,6 +642,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
       const auto mi = parse_response_body<MemberInfo>(
         frontend_process(frontend, read_status_req, new_member->cert));
       DOCTEST_CHECK(mi.status == MemberStatus::ACTIVE);
+      DOCTEST_CHECK(mi.cert == new_member->cert);
     }
   }
 }
@@ -1157,7 +1159,6 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
       return Calls:call("new_user", user_cert)
     )xxx");
 
-  const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
   const auto propose =
     create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
 
@@ -1208,7 +1209,6 @@ DOCTEST_TEST_CASE("Add user via proposed call")
       return Calls:call("new_user", user_cert)
     )xxx");
 
-  const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
   const auto propose =
     create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
 

@@ -28,14 +28,6 @@ using namespace nlohmann;
 
 auto kp = tls::make_key_pair();
 
-namespace ccf
-{
-  bool operator==(const MemberInfo& mi0, const MemberInfo& mi1)
-  {
-    return mi0.status == mi1.status && mi0.keyshare == mi1.keyshare;
-  }
-}
-
 constexpr auto default_format = jsonrpc::Pack::MsgPack;
 constexpr auto content_type =
   ccf::jsonhandler::pack_to_content_type(default_format);
@@ -316,7 +308,23 @@ TEST_CASE("simple lua apps")
       {"0", {{}, dummy_key_share, MemberStatus::ACCEPTED}},
       {"1", {{}, dummy_key_share, MemberStatus::ACCEPTED}},
       {"2", {{}, dummy_key_share, MemberStatus::ACCEPTED}}};
-    check_success(frontend->process(get_ctx).value(), expected);
+
+    // certs are converted from PEM to DER, so we can't do simple equality -
+    // check each item
+    const auto actual = parse_response_body<decltype(expected)>(
+      parse_response(frontend->process(get_ctx).value()));
+    CHECK(actual.size() == expected.size());
+    for (const auto& [k, expected_info] : expected)
+    {
+      const auto it = actual.find(k);
+      CHECK(it != actual.end());
+      if (it != actual.end())
+      {
+        const auto& actual_info = it->second;
+        CHECK(expected_info.keyshare == actual_info.keyshare);
+        CHECK(expected_info.status == actual_info.status);
+      }
+    }
 
     // (2) try to write to members table
     const auto put_packed = make_pc(

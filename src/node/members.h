@@ -5,6 +5,7 @@
 #include "ds/hash.h"
 #include "entities.h"
 #include "raw_signature.h"
+#include "tls/pem.h"
 
 #include <msgpack/msgpack.hpp>
 #include <vector>
@@ -34,14 +35,12 @@ namespace ccf
 
   struct MemberPubInfo
   {
-    std::vector<uint8_t> cert;
-    std::vector<uint8_t> keyshare;
+    tls::Pem cert;
+    tls::Pem keyshare;
 
     MemberPubInfo() {}
 
-    MemberPubInfo(
-      const std::vector<uint8_t>& cert_,
-      const std::vector<uint8_t>& keyshare_) :
+    MemberPubInfo(const tls::Pem& cert_, const tls::Pem& keyshare_) :
       cert(cert_),
       keyshare(keyshare_)
     {}
@@ -54,28 +53,36 @@ namespace ccf
 
     MSGPACK_DEFINE(cert, keyshare);
   };
-
   DECLARE_JSON_TYPE(MemberPubInfo)
   DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare)
 
-  struct MemberInfo : MemberPubInfo
+  struct MemberInfo
   {
+    std::vector<uint8_t> cert; //< DER to match key in Certs table
+    tls::Pem keyshare;
     MemberStatus status = MemberStatus::ACCEPTED;
 
     MemberInfo() {}
 
     MemberInfo(
       const std::vector<uint8_t>& cert_,
-      const std::vector<uint8_t>& keyshare_,
+      const tls::Pem& keyshare_,
       MemberStatus status_) :
-      MemberPubInfo(cert_, keyshare_),
+      cert(cert_),
+      keyshare(keyshare_),
       status(status_)
     {}
 
-    MSGPACK_DEFINE(MSGPACK_BASE(MemberPubInfo), status);
+    bool operator==(const MemberInfo& rhs) const
+    {
+      return cert == rhs.cert && keyshare == rhs.keyshare &&
+        status == rhs.status;
+    }
+
+    MSGPACK_DEFINE(cert, keyshare, status);
   };
-  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
+  DECLARE_JSON_TYPE(MemberInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, cert, keyshare, status)
   using Members = kv::Map<MemberId, MemberInfo>;
 
   /** Records a signed signature containing the last state digest and the next
