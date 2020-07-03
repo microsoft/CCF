@@ -96,6 +96,8 @@ namespace ccf
         tables.member_acks,
         tables.signatures);
 
+      // The key to a CertDERs table must be a DER, for easy comparison against
+      // the DER peer cert retrieved from the connection
       auto member_cert_der = tls::make_verifier(member_cert)->der_cert_data();
 
       auto member_id = mc->get(member_cert_der);
@@ -108,8 +110,7 @@ namespace ccf
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
       m->put(
         id,
-        MemberInfo(
-          member_cert_der, member_keyshare_pub, MemberStatus::ACCEPTED));
+        MemberInfo(member_cert, member_keyshare_pub, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
       auto s = sig->get(0);

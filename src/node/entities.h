@@ -62,9 +62,9 @@ namespace ccf
   {
     static constexpr auto MEMBERS = "ccf.members";
     static constexpr auto MEMBER_ACKS = "ccf.member_acks";
-    static constexpr auto MEMBER_CERTS = "ccf.member_certs";
+    static constexpr auto MEMBER_CERT_DERS = "ccf.member_cert_ders";
     static constexpr auto USERS = "ccf.users";
-    static constexpr auto USER_CERTS = "ccf.user_certs";
+    static constexpr auto USER_CERT_DERS = "ccf.user_cert_ders";
     static constexpr auto NODES = "ccf.nodes";
     static constexpr auto VALUES = "ccf.values";
     static constexpr auto SIGNATURES = "ccf.signatures";
