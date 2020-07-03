@@ -194,9 +194,7 @@ namespace ccf
            if (!r)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: {} is not a valid user ID",
-               proposal_id,
-               user_id);
+               "Proposal {}: {} is not a valid user ID", proposal_id, user_id);
            }
 
            return r;

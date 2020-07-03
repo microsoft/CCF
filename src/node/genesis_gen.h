@@ -228,8 +228,7 @@ namespace ccf
 
     bool remove_user(UserId user_id)
     {
-      auto [u, uc] =
-        tx.get_view(tables.users, tables.user_certs);
+      auto [u, uc] = tx.get_view(tables.users, tables.user_certs);
 
       auto user_info = u->get(user_id);
       if (!user_info.has_value())
@@ -241,7 +240,7 @@ namespace ccf
       auto user_cert_der =
         tls::make_verifier({pem.data(), pem.data() + pem.size()})
           ->der_cert_data();
-      
+
       u->remove(user_id);
       uc->remove(user_cert_der);
       return true;

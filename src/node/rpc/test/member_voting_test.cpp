@@ -1227,12 +1227,10 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_CHECK(uid);
     DOCTEST_CHECK(*uid == 1);
     user_der = tls::make_verifier(user_cert)->der_cert_data();
-    const auto uid1 = tx1.get_view(network.user_certs)
-                        ->get(user_der);
+    const auto uid1 = tx1.get_view(network.user_certs)->get(user_der);
     DOCTEST_CHECK(uid1);
     DOCTEST_CHECK(*uid1 == 0);
   }
-
 
   {
     DOCTEST_INFO("Remove user");
