@@ -233,8 +233,8 @@ class Node:
         # Until the node has joined, the SSL handshake will fail as the node
         # is not yet endorsed by the network certificate
         try:
-            with self.node_client(connection_timeout=timeout) as nc:
-                rep = nc.get("commit")
+            with self.client(connection_timeout=timeout) as nc:
+                rep = nc.get("/node/commit")
                 assert (
                     rep.error is None and rep.result is not None
                 ), f"An error occured after node {self.node_id} joined the network: {rep.error}"
@@ -244,44 +244,20 @@ class Node:
     def get_ledger(self):
         return self.remote.get_ledger()
 
-    def user_client(self, user_id=0, **kwargs):
-        return infra.clients.client(
-            self.pubhost,
-            self.rpc_port,
-            cert=os.path.join(self.common_dir, f"user{user_id}_cert.pem"),
-            key=os.path.join(self.common_dir, f"user{user_id}_privk.pem"),
-            ca=os.path.join(self.common_dir, "networkcert.pem"),
-            description=f"node {self.node_id} (user {user_id})",
-            prefix="app",
-            binary_dir=self.binary_dir,
-            **kwargs,
-        )
-
-    def node_client(self, **kwargs):
-        return infra.clients.client(
-            self.pubhost,
-            self.rpc_port,
-            cert=None,
-            key=None,
-            ca=os.path.join(self.common_dir, "networkcert.pem"),
-            description=f"node {self.node_id} (node)",
-            prefix="node",
-            binary_dir=self.binary_dir,
-            **kwargs,
-        )
-
-    def member_client(self, member_id=0, **kwargs):
-        return infra.clients.client(
-            self.pubhost,
-            self.rpc_port,
-            cert=os.path.join(self.common_dir, f"member{member_id}_cert.pem"),
-            key=os.path.join(self.common_dir, f"member{member_id}_privk.pem"),
-            ca=os.path.join(self.common_dir, "networkcert.pem"),
-            description=f"node {self.node_id} (member {member_id})",
-            prefix="gov",
-            binary_dir=self.binary_dir,
-            **kwargs,
-        )
+    def client(self, identity=None, **kwargs):
+        akwargs = {
+            "cert": os.path.join(self.common_dir, f"{identity}_cert.pem")
+            if identity
+            else None,
+            "key": os.path.join(self.common_dir, f"{identity}_privk.pem")
+            if identity
+            else None,
+            "ca": os.path.join(self.common_dir, "networkcert.pem"),
+            "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
+            "binary_dir": self.binary_dir,
+        }
+        akwargs.update(kwargs)
+        return infra.clients.client(self.pubhost, self.rpc_port, **akwargs)
 
     def suspend(self):
         self.remote.suspend()

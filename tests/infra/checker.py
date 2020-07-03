@@ -21,13 +21,13 @@ def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
     # Forcing a signature accelerates this process for common operations
     # (e.g. governance proposals)
     if mksign:
-        r = client.rpc("mkSign")
+        r = client.rpc("/node/mkSign")
         if r.error is not None:
             raise RuntimeError(f"mkSign returned an error: {r.error}")
 
     end_time = time.time() + timeout
     while time.time() < end_time:
-        r = client.get("tx", {"view": view, "seqno": seqno})
+        r = client.get("/node/tx", {"view": view, "seqno": seqno})
         assert (
             r.status == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status}"

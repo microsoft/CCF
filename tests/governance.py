@@ -22,7 +22,7 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_nodes()
 
-        with primary.node_client() as mc:
+        with primary.client() as mc:
             oed = subprocess.run(
                 [
                     args.oesign,
@@ -40,7 +40,7 @@ def run(args):
             ]
             expected_mrenclave = lines[0].strip().split("=")[1]
 
-            r = mc.get("quote")
+            r = mc.get("/node/quote")
             quotes = r.result["quotes"]
             assert len(quotes) == 1
             primary_quote = quotes[0]
@@ -51,7 +51,7 @@ def run(args):
                 expected_mrenclave,
             )
 
-            r = mc.get("quotes")
+            r = mc.get("/node/quotes")
             quotes = r.result["quotes"]
             assert len(quotes) == len(hosts)
             for quote in quotes:

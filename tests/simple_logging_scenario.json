@@ -8,7 +8,7 @@
     {
       "transactions": [
         {
-          "method": "log/private",
+          "method": "/app/log/private",
           "params": {
             "id": 42,
             "msg": "Hello world"
@@ -17,7 +17,7 @@
         },
         {
           "verb": "GET",
-          "method": "log/private",
+          "method": "/app/log/private",
           "params": {
             "id": 42
           },
@@ -31,7 +31,7 @@
       "on_backup": true,
       "transactions": [
         {
-          "method": "log/private",
+          "method": "/app/log/private",
           "params": {
             "id": 42,
             "msg": "Hello world"
@@ -40,7 +40,7 @@
         },
         {
           "verb": "GET",
-          "method": "log/private",
+          "method": "/app/log/private",
           "params": {
             "id": 42
           },
