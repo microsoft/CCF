@@ -2,13 +2,18 @@
 # Licensed under the Apache 2.0 License.
 
 from setuptools import setup
+from os import path
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+PACKAGE_NAME = "ccftools"
+
+package_dir = path.join(path.abspath(path.dirname(__file__)), PACKAGE_NAME)
+print(package_dir)
+with open(path.join(package_dir, "README.md"), encoding="utf-8") as f:
+    long_description = f.read()
 
 setup(
-    name="ccftools",
-    version="0.11.9",
+    name=PACKAGE_NAME,
+    version="0.11.10",
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -21,7 +26,7 @@ setup(
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
     ],
-    packages=["ccftools"],
+    packages=[PACKAGE_NAME],
     python_requires=">=3.7",
     install_requires=[
         "msgpack",
