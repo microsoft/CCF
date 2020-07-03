@@ -16,11 +16,6 @@ def dump_to_file(output_path, obj, dump_args):
         json.dump(obj, f, **dump_args)
 
 
-def file_to_byte_array(path):
-    with open(path, "r") as f:
-        return [ord(c) for c in f.read()]
-
-
 def list_as_lua_literal(l):
     return str(l).translate(str.maketrans("[]", "{}"))
 
@@ -133,8 +128,8 @@ def new_member(member_cert_path, member_enc_pubk_path):
     LOG.debug("Generating new_member proposal")
 
     # Convert certs to byte arrays
-    member_cert = file_to_byte_array(member_cert_path)
-    member_keyshare_encryptor = file_to_byte_array(member_enc_pubk_path)
+    member_cert = open(member_cert_path).read()
+    member_keyshare_encryptor = open(member_enc_pubk_path).read()
 
     # Script which proposes adding a new member
     proposal_script_text = """
@@ -194,7 +189,7 @@ def retire_member(member_id, **kwargs):
 
 @cli_proposal
 def new_user(user_cert_path, **kwargs):
-    user_cert = file_to_byte_array(user_cert_path)
+    user_cert = open(user_cert_path).read()
     return build_proposal("new_user", user_cert, **kwargs)
 
 
