@@ -1185,7 +1185,7 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   }
 }
 
-DOCTEST_TEST_CASE("Add user via proposed call")
+DOCTEST_TEST_CASE("Add and remove user via proposed calls")
 {
   NetworkState network;
   network.tables->set_encryptor(encryptor);
@@ -1203,28 +1203,59 @@ DOCTEST_TEST_CASE("Add user via proposed call")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  Script proposal(R"xxx(
-    tables, user_cert = ...
-      return Calls:call("new_user", user_cert)
-    )xxx");
+  ccf::Cert user_der;
 
-  const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
-  const auto propose =
-    create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
+  {
+    DOCTEST_INFO("Add user");
 
-  const auto r = parse_response_body<Propose::Out>(
-    frontend_process(frontend, propose, member_cert));
-  DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
-  DOCTEST_CHECK(r.proposal_id == 0);
+    Script proposal(R"xxx(
+      tables, user_cert = ...
+        return Calls:call("new_user", user_cert)
+      )xxx");
 
-  kv::Tx tx1;
-  const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
-  DOCTEST_CHECK(uid);
-  DOCTEST_CHECK(*uid == 1);
-  const auto uid1 = tx1.get_view(network.user_certs)
-                      ->get(tls::make_verifier(user_cert)->der_cert_data());
-  DOCTEST_CHECK(uid1);
-  DOCTEST_CHECK(*uid1 == 0);
+    const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
+    const auto propose =
+      create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
+
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, member_cert));
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
+    DOCTEST_CHECK(r.proposal_id == 0);
+
+    kv::Tx tx1;
+    const auto uid = tx1.get_view(network.values)->get(ValueIds::NEXT_USER_ID);
+    DOCTEST_CHECK(uid);
+    DOCTEST_CHECK(*uid == 1);
+    user_der = tls::make_verifier(user_cert)->der_cert_data();
+    const auto uid1 = tx1.get_view(network.user_certs)
+                        ->get(user_der);
+    DOCTEST_CHECK(uid1);
+    DOCTEST_CHECK(*uid1 == 0);
+  }
+
+
+  {
+    DOCTEST_INFO("Remove user");
+
+    Script proposal(R"xxx(
+      tables, user_id = ...
+        return Calls:call("remove_user", user_id)
+      )xxx");
+
+    const auto propose =
+      create_signed_request(Propose::In{proposal, 0}, "propose", kp);
+
+    const auto r = parse_response_body<Propose::Out>(
+      frontend_process(frontend, propose, member_cert));
+    DOCTEST_CHECK(r.state == ProposalState::ACCEPTED);
+    DOCTEST_CHECK(r.proposal_id == 1);
+
+    kv::Tx tx1;
+    auto user = tx1.get_view(network.users)->get(0);
+    DOCTEST_CHECK(!user.has_value());
+    auto user_cert = tx1.get_view(network.user_certs)->get(user_der);
+    DOCTEST_CHECK(!user_cert.has_value());
+  }
 }
 
 DOCTEST_TEST_CASE("Passing members ballot with operator")

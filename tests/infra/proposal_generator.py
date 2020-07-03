@@ -197,6 +197,9 @@ def new_user(user_cert_path, **kwargs):
     user_cert = file_to_byte_array(user_cert_path)
     return build_proposal("new_user", user_cert, **kwargs)
 
+@cli_proposal
+def remove_user(user_id, **kwargs):
+    return build_proposal("remove_user", user_id, **kwargs)
 
 @cli_proposal
 def set_user_data(user_id, user_data, **kwargs):
