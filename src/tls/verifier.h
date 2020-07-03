@@ -190,42 +190,40 @@ namespace tls
   using VerifierPtr = std::shared_ptr<Verifier>;
   using VerifierUniquePtr = std::unique_ptr<Verifier>;
   /**
-   * Construct Verifier from a certificate in PEM format
+   * Construct Verifier from a certificate in DER or PEM format
    *
-   * @param public_pem Sequence of bytes containing the certificate in PEM
-   * format
+   * @param cert Sequence of bytes containing the certificate
    */
   inline VerifierUniquePtr make_unique_verifier(
-    const std::vector<uint8_t>& cert_pem,
+    const std::vector<uint8_t>& cert,
     bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
-    mbedtls_x509_crt cert;
-    mbedtls_x509_crt_init(&cert);
-    int rc = mbedtls_x509_crt_parse(&cert, cert_pem.data(), cert_pem.size());
+    mbedtls_x509_crt x509;
+    mbedtls_x509_crt_init(&x509);
+    int rc = mbedtls_x509_crt_parse(&x509, cert.data(), cert.size());
     if (rc)
     {
-      mbedtls_x509_crt_free(&cert);
+      mbedtls_x509_crt_free(&x509);
       throw std::invalid_argument(
         fmt::format("Failed to parse certificate: {}", error_string(rc)));
     }
 
-    const auto curve = get_ec_from_context(cert.pk);
+    const auto curve = get_ec_from_context(x509.pk);
 
     if (curve == MBEDTLS_ECP_DP_SECP256K1 && use_bitcoin_impl)
     {
-      return std::make_unique<Verifier_k1Bitcoin>(cert);
+      return std::make_unique<Verifier_k1Bitcoin>(x509);
     }
     else
     {
-      return std::make_unique<Verifier>(cert);
+      return std::make_unique<Verifier>(x509);
     }
   }
 
   inline VerifierPtr make_verifier(
-    const std::vector<uint8_t>& cert_pem,
-    bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
+    const Pem& cert, bool use_bitcoin_impl = prefer_bitcoin_secp256k1)
   {
-    return make_unique_verifier(cert_pem, use_bitcoin_impl);
+    return make_unique_verifier(cert.raw(), use_bitcoin_impl);
   }
 
   inline std::vector<uint8_t> cert_der_to_pem(
