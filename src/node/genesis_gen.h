@@ -226,8 +226,7 @@ namespace ccf
       }
 
       auto pem = tls::Pem(user_info.value().cert);
-      auto user_cert_der =
-        tls::make_verifier(pem)->der_cert_data();
+      auto user_cert_der = tls::make_verifier(pem)->der_cert_data();
 
       u->remove(user_id);
       uc->remove(user_cert_der);
