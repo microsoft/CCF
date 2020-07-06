@@ -176,7 +176,6 @@ namespace ccf
 
            return true;
          }},
-        // add a new user
         {"new_user",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
            const auto pem_cert = args.get<tls::Pem>();
@@ -185,6 +184,20 @@ namespace ccf
            g.add_user(pem_cert);
 
            return true;
+         }},
+        {"remove_user",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const UserId user_id = args;
+
+           GenesisGenerator g(this->network, tx);
+           auto r = g.remove_user(user_id);
+           if (!r)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid user ID", proposal_id, user_id);
+           }
+
+           return r;
          }},
         {"set_user_data",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
