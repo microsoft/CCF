@@ -216,6 +216,24 @@ namespace ccf
       return id;
     }
 
+    bool remove_user(UserId user_id)
+    {
+      auto [u, uc] = tx.get_view(tables.users, tables.user_certs);
+
+      auto user_info = u->get(user_id);
+      if (!user_info.has_value())
+      {
+        return false;
+      }
+
+      auto pem = tls::Pem(user_info.value().cert);
+      auto user_cert_der = tls::make_verifier(pem)->der_cert_data();
+
+      u->remove(user_id);
+      uc->remove(user_cert_der);
+      return true;
+    }
+
     auto add_node(const NodeInfo& node_info)
     {
       auto node_id =

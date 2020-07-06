@@ -254,15 +254,24 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
+    def add_user(self, remote_node, user_id):
+        user_cert = []
+        proposal, vote = infra.proposal_generator.new_user(
+            os.path.join(self.common_dir, f"user{user_id}_cert.pem")
+        )
+
+        proposal = self.get_any_active_member().propose(remote_node, proposal)
+        return self.vote_using_majority(remote_node, proposal)
+
     def add_users(self, remote_node, users):
         for u in users:
-            user_cert = []
-            proposal, vote = infra.proposal_generator.new_user(
-                os.path.join(self.common_dir, f"user{u}_cert.pem")
-            )
+            self.add_user(remote_node, u)
 
-            proposal = self.get_any_active_member().propose(remote_node, proposal)
-            self.vote_using_majority(remote_node, proposal)
+    def remove_user(self, remote_node, user_id):
+        proposal, vote = infra.proposal_generator.remove_user(user_id)
+
+        proposal = self.get_any_active_member().propose(remote_node, proposal)
+        self.vote_using_majority(remote_node, proposal)
 
     def set_lua_app(self, remote_node, app_script_path):
         proposal_body, vote = infra.proposal_generator.set_lua_app(app_script_path)

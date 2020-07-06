@@ -44,14 +44,13 @@ def test_run_txs(
 
 
 class LoggingTxs:
-    def __init__(
-        self, notifications_queue=None,
-    ):
+    def __init__(self, notifications_queue=None, user_id=0):
         self.pub = {}
         self.priv = {}
         self.next_pub_index = 1
         self.next_priv_index = 1
         self.notifications_queue = notifications_queue
+        self.user = f"user{user_id}"
 
     def issue(
         self,
@@ -92,7 +91,7 @@ class LoggingTxs:
             check_commit = infra.checker.Checker(mc)
             check_commit_n = infra.checker.Checker(mc, self.notifications_queue)
 
-            with remote_node.client("user0") as uc:
+            with remote_node.client(self.user) as uc:
                 for _ in range(number_txs):
                     end_time = time.time() + timeout
                     while time.time() < end_time:
@@ -160,7 +159,7 @@ class LoggingTxs:
 
         end_time = time.time() + timeout
         while time.time() < end_time:
-            with node.client("user0") as uc:
+            with node.client(self.user) as uc:
                 rep = uc.get(cmd, {"id": idx})
                 if rep.status == 404:
                     LOG.warning("User frontend is not yet opened")
