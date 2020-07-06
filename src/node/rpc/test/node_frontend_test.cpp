@@ -43,7 +43,7 @@ TResponse frontend_process(
   NodeRpcFrontend& frontend,
   const json& json_params,
   const std::string& method,
-  const Cert& caller)
+  const tls::Pem& caller)
 {
   http::Request r(method);
   const auto body = json_params.is_null() ?
@@ -52,7 +52,7 @@ TResponse frontend_process(
   r.set_body(&body);
   auto serialise_request = r.build_request();
 
-  auto session = std::make_shared<enclave::SessionContext>(0, caller);
+  auto session = std::make_shared<enclave::SessionContext>(0, caller.raw());
   auto rpc_ctx = enclave::make_rpc_context(session, serialise_request);
   auto serialised_response = frontend.process(rpc_ctx);
 
@@ -95,12 +95,14 @@ TEST_CASE("Add a node to an opening service")
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
-  auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-  Cert caller = v->der_cert_data();
+  const auto caller = kp->self_sign(fmt::format("CN=nodes"));
+  const auto node_public_encryption_key =
+    tls::make_key_pair()->public_key_pem();
 
   INFO("Try to join with a different consensus");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.public_encryption_key = node_public_encryption_key;
     join_input.consensus_type = ConsensusType::PBFT;
     const auto response =
       frontend_process(frontend, join_input, "join", caller);
@@ -118,6 +120,7 @@ TEST_CASE("Add a node to an opening service")
   INFO("Add first node before a service exists");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.public_encryption_key = node_public_encryption_key;
     const auto response =
       frontend_process(frontend, join_input, "join", caller);
 
@@ -131,6 +134,7 @@ TEST_CASE("Add a node to an opening service")
   INFO("Add first node which should be trusted straight away");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.public_encryption_key = node_public_encryption_key;
 
     auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
@@ -153,15 +157,13 @@ TEST_CASE("Add a node to an opening service")
 
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::TRUSTED);
-    CHECK(
-      v->cert_pem().str() ==
-      std::string({node_info->cert.data(),
-                   node_info->cert.data() + node_info->cert.size()}));
+    CHECK(caller == node_info->cert);
   }
 
   INFO("Adding the same node should return the same result");
   {
     JoinNetworkNodeToNode::In join_input;
+    join_input.public_encryption_key = node_public_encryption_key;
 
     auto http_response = frontend_process(frontend, join_input, "join", caller);
     CHECK(http_response.status == HTTP_STATUS_OK);
@@ -182,10 +184,11 @@ TEST_CASE("Add a node to an opening service")
   {
     tls::KeyPairPtr kp = tls::make_key_pair();
     auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-    Cert caller = v->der_cert_data();
+    const auto caller = v->der_cert_data();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;
+    join_input.public_encryption_key = node_public_encryption_key;
 
     auto http_response = frontend_process(frontend, join_input, "join", caller);
 
@@ -221,8 +224,7 @@ TEST_CASE("Add a node to an open service")
 
   // Node certificate
   tls::KeyPairPtr kp = tls::make_key_pair();
-  auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-  Cert caller = v->der_cert_data();
+  const auto caller = kp->self_sign(fmt::format("CN=nodes"));
 
   std::optional<NodeInfo> node_info;
   kv::Tx tx;
@@ -245,10 +247,7 @@ TEST_CASE("Add a node to an open service")
     node_info = nodes_view->get(node_id);
     CHECK(node_info.has_value());
     CHECK(node_info->status == NodeStatus::PENDING);
-    CHECK(
-      v->cert_pem().str() ==
-      std::string({node_info->cert.data(),
-                   node_info->cert.data() + node_info->cert.size()}));
+    CHECK(caller == node_info->cert);
   }
 
   INFO(
@@ -256,7 +255,7 @@ TEST_CASE("Add a node to an open service")
   {
     tls::KeyPairPtr kp = tls::make_key_pair();
     auto v = tls::make_verifier(kp->self_sign(fmt::format("CN=nodes")));
-    Cert caller = v->der_cert_data();
+    const auto caller = v->der_cert_data();
 
     // Network node info is empty (same as before)
     JoinNetworkNodeToNode::In join_input;

@@ -36,8 +36,7 @@ auto kp = tls::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
-auto user_cert_v = kp -> self_sign("CN=name_user");
-std::string user_cert(user_cert_v.begin(), user_cert_v.end());
+auto user_cert = kp -> self_sign("CN=name_user");
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
@@ -156,7 +155,7 @@ auto read_params(const T& key, const string& table_name)
 auto frontend_process(
   MemberRpcFrontend& frontend,
   const std::vector<uint8_t>& serialized_request,
-  const Cert& caller)
+  const tls::Pem& caller)
 {
   auto session = std::make_shared<enclave::SessionContext>(
     0, tls::make_verifier(caller)->der_cert_data());
@@ -177,7 +176,7 @@ auto frontend_process(
 }
 
 auto get_proposal(
-  MemberRpcFrontend& frontend, size_t proposal_id, const Cert& caller)
+  MemberRpcFrontend& frontend, size_t proposal_id, const tls::Pem& caller)
 {
   Script read_proposal(fmt::format(
     R"xxx(
@@ -192,18 +191,17 @@ auto get_proposal(
     frontend_process(frontend, read, caller));
 }
 
-std::vector<uint8_t> get_cert_data(uint64_t member_id, tls::KeyPairPtr& kp_mem)
+auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign("CN=new member" + to_string(member_id));
 }
 
-std::vector<uint8_t> gen_public_encryption_key()
+auto gen_public_encryption_key()
 {
   auto private_encryption_key =
     tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
   return tls::PublicX25519::write(
-           crypto::BoxKey::public_from_private(private_encryption_key))
-    .raw();
+    crypto::BoxKey::public_from_private(private_encryption_key));
 }
 
 auto init_frontend(
@@ -212,12 +210,12 @@ auto init_frontend(
   StubNodeState& node,
   ShareManager& share_manager,
   const int n_members,
-  std::vector<std::vector<uint8_t>>& member_certs)
+  std::vector<tls::Pem>& member_certs)
 {
   // create members
   for (uint8_t i = 0; i < n_members; i++)
   {
-    member_certs.push_back(get_cert_data(i, kp));
+    member_certs.push_back(get_cert(i, kp));
     gen.activate_member(gen.add_member(member_certs.back(), {}));
   }
 
@@ -244,7 +242,7 @@ DOCTEST_TEST_CASE("Member query/read")
   gen.finalize();
 
   const enclave::SessionContext member_session(
-    enclave::InvalidSessionId, member_cert);
+    enclave::InvalidSessionId, member_cert.raw());
 
   // put value to read
   constexpr auto key = 123;
@@ -342,10 +340,10 @@ DOCTEST_TEST_CASE("Proposer ballot")
   gen.init_values();
   gen.create_service({});
 
-  const auto proposer_cert = get_cert_data(0, kp);
+  const auto proposer_cert = get_cert(0, kp);
   const auto proposer_id = gen.add_member(proposer_cert, {});
   gen.activate_member(proposer_id);
-  const auto voter_cert = get_cert_data(1, kp);
+  const auto voter_cert = get_cert(1, kp);
   const auto voter_id = gen.add_member(voter_cert, {});
   gen.activate_member(voter_id);
 
@@ -365,7 +363,7 @@ DOCTEST_TEST_CASE("Proposer ballot")
   {
     DOCTEST_INFO("Propose, initially voting against");
 
-    const auto proposed_member = get_cert_data(2, kp);
+    const auto proposed_member = get_cert(2, kp);
 
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
@@ -430,7 +428,7 @@ struct NewMember
 {
   MemberId id;
   tls::KeyPairPtr kp = tls::make_key_pair();
-  Cert cert;
+  tls::Pem cert;
 };
 
 DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
@@ -458,10 +456,10 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
   gen.activate_member(proposer_id);
 
   // the voters
-  const auto voter_a_cert = get_cert_data(1, kp);
+  const auto voter_a_cert = get_cert(1, kp);
   auto voter_a = gen.add_member(voter_a_cert, gen_public_encryption_key());
   gen.activate_member(voter_a);
-  const auto voter_b_cert = get_cert_data(2, kp);
+  const auto voter_b_cert = get_cert(2, kp);
   auto voter_b = gen.add_member(voter_b_cert, gen_public_encryption_key());
   gen.activate_member(voter_b);
 
@@ -485,9 +483,7 @@ DOCTEST_TEST_CASE("Add new members until there are 7 then reject")
     auto cert_pem =
       new_member.kp->self_sign(fmt::format("CN=new member{}", new_member.id));
     auto keyshare = dummy_key_share;
-    auto v = tls::make_verifier(cert_pem);
-    const auto _cert = v->raw();
-    new_member.cert = {_cert->raw.p, _cert->raw.p + _cert->raw.len};
+    new_member.cert = cert_pem;
 
     // check new_member id does not work before member is added
     const auto read_next_req = create_request(
@@ -659,8 +655,8 @@ DOCTEST_TEST_CASE("Accept node")
   StubNodeState node(share_manager);
   auto new_kp = tls::make_key_pair();
 
-  const auto member_0_cert = get_cert_data(0, new_kp);
-  const auto member_1_cert = get_cert_data(1, kp);
+  const auto member_0_cert = get_cert(0, new_kp);
+  const auto member_1_cert = get_cert(1, kp);
   const auto member_0 = gen.add_member(member_0_cert, {});
   const auto member_1 = gen.add_member(member_1_cert, {});
   gen.activate_member(member_0);
@@ -804,7 +800,7 @@ ProposalInfo test_raw_writes(
   const int pro_votes = 1,
   bool explicit_proposer_vote = false)
 {
-  std::vector<std::vector<uint8_t>> member_certs;
+  std::vector<tls::Pem> member_certs;
   auto frontend =
     init_frontend(network, gen, node, share_manager, n_members, member_certs);
   frontend.open();
@@ -969,7 +965,7 @@ DOCTEST_TEST_CASE("Remove proposal")
   NewMember caller;
   auto cert = caller.kp->self_sign("CN=new member");
   auto v = tls::make_verifier(cert);
-  caller.cert = v->der_cert_data();
+  caller.cert = v->cert_pem();
 
   NetworkState network;
   network.tables->set_encryptor(encryptor);
@@ -1072,7 +1068,7 @@ DOCTEST_TEST_CASE("Complete proposal after initial rejection")
   gen.create_service({});
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
-  std::vector<std::vector<uint8_t>> member_certs;
+  std::vector<tls::Pem> member_certs;
   auto frontend =
     init_frontend(network, gen, node, share_manager, 3, member_certs);
   frontend.open();
@@ -1142,9 +1138,9 @@ DOCTEST_TEST_CASE("Vetoed proposal gets rejected")
   gen.create_service({});
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
-  const auto voter_a_cert = get_cert_data(1, kp);
+  const auto voter_a_cert = get_cert(1, kp);
   auto voter_a = gen.add_member(voter_a_cert, {});
-  const auto voter_b_cert = get_cert_data(2, kp);
+  const auto voter_b_cert = get_cert(2, kp);
   auto voter_b = gen.add_member(voter_b_cert, {});
   gen.activate_member(voter_a);
   gen.activate_member(voter_b);
@@ -1196,7 +1192,7 @@ DOCTEST_TEST_CASE("Add user via proposed call")
   gen.create_service({});
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
-  const auto member_cert = get_cert_data(0, kp);
+  const auto member_cert = get_cert(0, kp);
   gen.activate_member(gen.add_member(member_cert, {}));
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
@@ -1239,15 +1235,15 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   gen.create_service({});
 
   // Operating member, as set in operator_gov.lua
-  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_cert = get_cert(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, ccf::Cert> members;
+  std::map<size_t, tls::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
-    auto cert = get_cert_data(i, kp);
+    auto cert = get_cert(i, kp);
     auto id = gen.add_member(cert, {});
     gen.activate_member(id);
     members[id] = cert;
@@ -1272,7 +1268,7 @@ DOCTEST_TEST_CASE("Passing members ballot with operator")
   {
     DOCTEST_INFO("Propose and vote for");
 
-    const auto proposed_member = get_cert_data(4, kp);
+    const auto proposed_member = get_cert(4, kp);
 
     Propose::In proposal;
     proposal.script = std::string(R"xxx(
@@ -1357,15 +1353,15 @@ DOCTEST_TEST_CASE("Passing operator vote")
   gen.add_node(ni);
 
   // Operating member, as set in operator_gov.lua
-  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_cert = get_cert(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, ccf::Cert> members;
+  std::map<size_t, tls::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
-    auto cert = get_cert_data(i, kp);
+    auto cert = get_cert(i, kp);
     auto id = gen.add_member(cert, {});
     gen.activate_member(id);
     members[id] = cert;
@@ -1447,15 +1443,15 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   gen.add_node(ni);
 
   // Operating member, as set in operator_gov.lua
-  const auto operator_cert = get_cert_data(0, kp);
+  const auto operator_cert = get_cert(0, kp);
   const auto operator_id = gen.add_member(operator_cert, {});
   gen.activate_member(operator_id);
 
   // Non-operating members
-  std::map<size_t, ccf::Cert> members;
+  std::map<size_t, tls::Pem> members;
   for (size_t i = 1; i < 4; i++)
   {
-    auto cert = get_cert_data(i, kp);
+    auto cert = get_cert(i, kp);
     auto id = gen.add_member(cert, {});
     gen.activate_member(id);
     members[id] = cert;
@@ -1646,7 +1642,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
   ShareManager share_manager(network);
   auto node = StubNodeState(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<ccf::Cert, std::vector<uint8_t>>> members;
+  std::map<size_t, std::pair<tls::Pem, std::vector<uint8_t>>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 2;
@@ -1662,7 +1658,7 @@ DOCTEST_TEST_CASE("Submit recovery shares")
 
     for (size_t i = 0; i < members_count; i++)
     {
-      auto cert = get_cert_data(i, kp);
+      auto cert = get_cert(i, kp);
       auto private_encryption_key =
         tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
       auto public_encryption_key = tls::PublicX25519::write(
@@ -1794,7 +1790,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  std::map<size_t, ccf::Cert> members;
+  std::map<size_t, tls::Pem> members;
 
   kv::Tx gen_tx;
   GenesisGenerator gen(network, gen_tx);
@@ -1803,7 +1799,7 @@ DOCTEST_TEST_CASE("Maximum number of active members")
 
   for (size_t i = 1; i < max_active_members_count + 1; i++)
   {
-    auto cert = get_cert_data(i, kp);
+    auto cert = get_cert(i, kp);
     members[gen.add_member(cert, {})] = cert;
   }
   gen.finalize();
@@ -1845,7 +1841,7 @@ DOCTEST_TEST_CASE("Open network sequence")
   ShareManager share_manager(network);
   auto node = StubNodeState(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
-  std::map<size_t, std::pair<ccf::Cert, std::vector<uint8_t>>> members;
+  std::map<size_t, std::pair<tls::Pem, std::vector<uint8_t>>> members;
 
   size_t members_count = 4;
   size_t recovery_threshold = 100;
@@ -1861,7 +1857,7 @@ DOCTEST_TEST_CASE("Open network sequence")
     // Adding accepted members
     for (size_t i = 0; i < members_count; i++)
     {
-      auto cert = get_cert_data(i, kp);
+      auto cert = get_cert(i, kp);
       auto private_encryption_key =
         tls::create_entropy()->random(crypto::BoxKey::KEY_SIZE);
       auto public_encryption_key = tls::PublicX25519::write(

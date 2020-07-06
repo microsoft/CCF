@@ -46,7 +46,7 @@ namespace ccf
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert.raw();
       return true;
     }
 

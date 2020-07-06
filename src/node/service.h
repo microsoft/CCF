@@ -36,7 +36,7 @@ namespace ccf
     // Version at which the service is applicable from
     kv::Version version;
 
-    std::vector<uint8_t> cert;
+    tls::Pem cert;
     ServiceStatus status;
 
     MSGPACK_DEFINE(version, cert, status);

@@ -151,7 +151,7 @@ namespace tls
           "mbedtls_pem_write_buffer failed: " + error_string(rc));
       }
 
-      return Pem({buf, len});
+      return Pem(buf, len);
     }
 
     virtual ~Verifier()
@@ -226,10 +226,8 @@ namespace tls
     return make_unique_verifier(cert.raw(), use_bitcoin_impl);
   }
 
-  inline std::vector<uint8_t> cert_der_to_pem(
-    const std::vector<uint8_t>& der_cert_raw)
+  inline tls::Pem cert_der_to_pem(const std::vector<uint8_t>& der_cert_raw)
   {
-    auto caller_pem = make_verifier(der_cert_raw)->cert_pem();
-    return {caller_pem.str().begin(), caller_pem.str().end()};
+    return make_verifier(der_cert_raw)->cert_pem();
   }
 }

@@ -160,7 +160,7 @@ namespace ccf
     NodeId self;
     tls::KeyPairPtr node_sign_kp;
     tls::KeyPairPtr node_encrypt_kp;
-    std::vector<uint8_t> node_cert;
+    tls::Pem node_cert;
     std::vector<uint8_t> quote;
     CodeDigest node_code_id;
 
@@ -1171,7 +1171,7 @@ namespace ccf
       create_params.network_cert = network.identity->cert;
       create_params.quote = quote;
       create_params.public_encryption_key =
-        node_encrypt_kp->public_key_pem().raw();
+        node_encrypt_kp->public_key_pem();
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_params.node_info_network = args.config.node_info_network;
@@ -1240,7 +1240,7 @@ namespace ccf
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
       auto node_session = std::make_shared<enclave::SessionContext>(
-        enclave::InvalidSessionId, node_cert);
+        enclave::InvalidSessionId, node_cert.raw());
       auto ctx = enclave::make_rpc_context(node_session, packed);
 
       ctx->is_create_request = true;
@@ -1665,7 +1665,7 @@ namespace ccf
         network.signatures,
         network.pbft_new_views_map,
         node_sign_kp->private_key_pem().str(),
-        node_cert,
+        node_cert.raw(),
         consensus_config);
 
       network.tables->set_consensus(consensus);

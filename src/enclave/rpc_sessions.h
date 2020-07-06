@@ -44,7 +44,7 @@ namespace enclave
       rpc_map(rpc_map_)
     {}
 
-    void set_cert(CBuffer cert_, const tls::Pem& pk)
+    void set_cert(const tls::Pem& cert_, const tls::Pem& pk)
     {
       std::lock_guard<SpinLock> guard(lock);
 

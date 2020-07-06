@@ -211,7 +211,7 @@ namespace ccf
       }
 
       const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
-      u->put(id, {user_cert_der});
+      u->put(id, {user_cert});
       uc->put(user_cert_der, id);
       return id;
     }
@@ -252,8 +252,7 @@ namespace ccf
     }
 
     // Service status should use a state machine, very much like NodeState.
-    void create_service(
-      const std::vector<uint8_t>& network_cert, kv::Version version = 1)
+    void create_service(const tls::Pem& network_cert, kv::Version version = 1)
     {
       auto service_view = tx.get_view(tables.service);
       service_view->put(0, {version, network_cert, ServiceStatus::OPENING});
