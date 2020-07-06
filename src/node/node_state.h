@@ -1170,8 +1170,7 @@ namespace ccf
       create_params.node_cert = node_cert;
       create_params.network_cert = network.identity->cert;
       create_params.quote = quote;
-      create_params.public_encryption_key =
-        node_encrypt_kp->public_key_pem();
+      create_params.public_encryption_key = node_encrypt_kp->public_key_pem();
       create_params.code_digest =
         std::vector<uint8_t>(std::begin(node_code_id), std::end(node_code_id));
       create_params.node_info_network = args.config.node_info_network;

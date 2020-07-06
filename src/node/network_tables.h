@@ -124,8 +124,8 @@ namespace ccf
       users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
-      user_certs(
-        tables->create<CertDERs>(Tables::USER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
+      user_certs(tables->create<CertDERs>(
+        Tables::USER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       user_code_ids(tables->create<CodeIDs>(
         Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       user_client_signatures(
