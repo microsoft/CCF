@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import infra.ccf
-import infra.proposal_generator
+import ccf.proposal_generator
 
 import logging
 from time import gmtime, strftime
@@ -77,7 +77,7 @@ def run(args):
                 transactions.append(json_tx)
 
         # Manager is granted special privileges by members, which is later read by app to enforce access restrictions
-        proposal_body, _ = infra.proposal_generator.set_user_data(
+        proposal_body, _ = ccf.proposal_generator.set_user_data(
             manager.ccf_id,
             {"privileges": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
         )

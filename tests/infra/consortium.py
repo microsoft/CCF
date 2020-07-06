@@ -12,7 +12,7 @@ import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
-import infra.proposal_generator
+import ccf.proposal_generator
 from infra.proposal import ProposalState
 
 from loguru import logger as LOG
@@ -96,7 +96,7 @@ class Consortium:
             new_member_id, curve, self.common_dir, self.share_script, self.key_generator
         )
 
-        proposal, vote = infra.proposal_generator.new_member(
+        proposal, vote = ccf.proposal_generator.new_member(
             os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
             os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem"),
         )
@@ -195,7 +195,7 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
-        proposal_body, vote = infra.proposal_generator.retire_node(
+        proposal_body, vote = ccf.proposal_generator.retire_node(
             node_to_retire.node_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -213,7 +213,7 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        proposal_body, vote = infra.proposal_generator.trust_node(node_id)
+        proposal_body, vote = ccf.proposal_generator.trust_node(node_id)
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
@@ -224,7 +224,7 @@ class Consortium:
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def retire_member(self, remote_node, member_to_retire):
-        proposal_body, vote = infra.proposal_generator.retire_member(
+        proposal_body, vote = ccf.proposal_generator.retire_member(
             member_to_retire.member_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -237,7 +237,7 @@ class Consortium:
         proposal and make members vote to transition the network to state
         OPEN.
         """
-        proposal_body, vote = infra.proposal_generator.open_network()
+        proposal_body, vote = ccf.proposal_generator.open_network()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(
             remote_node, proposal, wait_for_global_commit=(not pbft_open)
@@ -245,19 +245,19 @@ class Consortium:
         self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, remote_node):
-        proposal_body, vote = infra.proposal_generator.rekey_ledger()
+        proposal_body, vote = ccf.proposal_generator.rekey_ledger()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def update_recovery_shares(self, remote_node):
-        proposal_body, vote = infra.proposal_generator.update_recovery_shares()
+        proposal_body, vote = ccf.proposal_generator.update_recovery_shares()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def add_users(self, remote_node, users):
         for u in users:
             user_cert = []
-            proposal, vote = infra.proposal_generator.new_user(
+            proposal, vote = ccf.proposal_generator.new_user(
                 os.path.join(self.common_dir, f"user{u}_cert.pem")
             )
 
@@ -265,17 +265,17 @@ class Consortium:
             self.vote_using_majority(remote_node, proposal)
 
     def set_lua_app(self, remote_node, app_script_path):
-        proposal_body, vote = infra.proposal_generator.set_lua_app(app_script_path)
+        proposal_body, vote = ccf.proposal_generator.set_lua_app(app_script_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def set_js_app(self, remote_node, app_script_path):
-        proposal_body, vote = infra.proposal_generator.set_js_app(app_script_path)
+        proposal_body, vote = ccf.proposal_generator.set_js_app(app_script_path)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def accept_recovery(self, remote_node):
-        proposal_body, vote = infra.proposal_generator.accept_recovery()
+        proposal_body, vote = ccf.proposal_generator.accept_recovery()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
@@ -298,7 +298,7 @@ class Consortium:
                     assert "End of recovery procedure initiated" not in r.result
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
-        proposal_body, vote = infra.proposal_generator.set_recovery_threshold(
+        proposal_body, vote = ccf.proposal_generator.set_recovery_threshold(
             recovery_threshold
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -306,12 +306,12 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_code(self, remote_node, new_code_id):
-        proposal_body, vote = infra.proposal_generator.new_node_code(new_code_id)
+        proposal_body, vote = ccf.proposal_generator.new_node_code(new_code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_user_code(self, remote_node, new_code_id):
-        proposal_body, vote = infra.proposal_generator.new_user_code(new_code_id)
+        proposal_body, vote = ccf.proposal_generator.new_user_code(new_code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal)
 

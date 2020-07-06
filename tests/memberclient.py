@@ -5,7 +5,7 @@ import http
 import infra.e2e_args
 import infra.ccf
 import infra.consortium
-import infra.proposal_generator
+import ccf.proposal_generator
 from infra.proposal import ProposalState
 import random
 
@@ -189,7 +189,7 @@ def run(args):
         assert response.status == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
-        proposal_trust_0, _ = infra.proposal_generator.trust_node(0)
+        proposal_trust_0, _ = ccf.proposal_generator.trust_node(0)
         try:
             new_member.propose(primary, proposal_trust_0)
             assert (
@@ -209,7 +209,7 @@ def run(args):
         assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
 
         LOG.info("New member makes a new proposal")
-        proposal_trust_1, _ = infra.proposal_generator.trust_node(1)
+        proposal_trust_1, _ = ccf.proposal_generator.trust_node(1)
         trust_node_proposal = new_member.propose(primary, proposal_trust_1)
 
         LOG.debug("Other members (non proposer) are unable to withdraw new proposal")
