@@ -3,7 +3,10 @@
 #pragma once
 
 #include <array>
+#include <string>
+#include <string_view>
 #include <type_traits>
+#include <vector>
 
 /**
  * This file defines various type traits and utils that are not available in the
@@ -56,4 +59,32 @@ namespace nonstd
 
   template <class T>
   using remove_cvref_t = typename remove_cvref<T>::type;
+
+  /** Split a string at each instance of the given delimitor. Returns
+   * string_views over the input string, exclusive of the delimiter
+   *
+   * ie:
+   * split_string("hello world", ' ') -> ["hello", "world"]
+   * split_string("hello", ' ') -> ["hello"]
+   * split_string(" hello ", ' ') -> ["", ",hello", ""]
+   * split_string("/some/url/path", '/') -> ["", "some", "url", "path"]
+   *
+   */
+  inline std::vector<std::string_view> split_string(
+    const std::string& s, char delimiter)
+  {
+    std::vector<std::string_view> views;
+    const auto data = s.c_str();
+
+    auto view_start = 0;
+    auto next_delim = s.find_first_of(delimiter, view_start);
+    while (next_delim != std::string::npos)
+    {
+      views.emplace_back(data + view_start, next_delim - view_start);
+      view_start = next_delim + 1;
+      next_delim = s.find_first_of(delimiter, view_start);
+    }
+    views.emplace_back(data + view_start, s.size() - view_start);
+    return views;
+  }
 }
