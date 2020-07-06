@@ -29,7 +29,7 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
       ]
     }
 
-    $ curl https://<ccf-node-address>/node/api/schema?method="tx" -X GET --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -H "Content-Type: application/json"
+    $ curl 'https://<ccf-node-address>/node/api/schema?method="tx"' -X GET --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem -H "Content-Type: application/json"
     {
       "params_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",

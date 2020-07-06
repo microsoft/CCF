@@ -47,6 +47,13 @@ namespace tls
       return s == rhs.s;
     }
 
+    Pem(const std::vector<uint8_t>& v) : Pem(CBuffer{v}) {}
+
+    bool operator==(const Pem& rhs) const
+    {
+      return s == rhs.s;
+    }
+
     const std::string& str() const
     {
       return s;

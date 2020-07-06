@@ -76,8 +76,8 @@ namespace ccf
 
     MSGPACK_DEFINE(MSGPACK_BASE(MemberPubInfo), status);
   };
-  DECLARE_JSON_TYPE_WITH_BASE(MemberInfo, MemberPubInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, status)
+  DECLARE_JSON_TYPE(MemberInfo)
+  DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, cert, keyshare, status)
   using Members = kv::Map<MemberId, MemberInfo>;
 
   /** Records a signed signature containing the last state digest and the next
