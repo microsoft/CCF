@@ -4,16 +4,14 @@
 from setuptools import setup
 from os import path
 
-PACKAGE_NAME = "ccftools"
+PACKAGE_NAME = "ccf"
 
-package_dir = path.join(path.abspath(path.dirname(__file__)), PACKAGE_NAME)
-print(package_dir)
-with open(path.join(package_dir, "README.md"), encoding="utf-8") as f:
+with open(path.join(path.abspath(path.dirname(__file__)), "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
     name=PACKAGE_NAME,
-    version="0.11.10",
+    version="0.11.7",
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",

@@ -13,7 +13,7 @@ import socket
 import os
 from collections import defaultdict
 import time
-import ccftools.clients
+import ccf.clients
 
 from loguru import logger as LOG
 
@@ -44,7 +44,7 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
     cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
     context = ssl.create_default_context(cafile=cafile)
-    context.set_ecdh_curve(ccftools.clients.get_curve(cafile).name)
+    context.set_ecdh_curve(ccf.clients.get_curve(cafile).name)
     context.load_cert_chain(
         certfile=os.path.join(network.common_dir, "user0_cert.pem"),
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
@@ -254,8 +254,8 @@ def test_historical_query(network, args):
                 timeout = 15
                 found = False
                 headers = {
-                    ccftools.clients.CCF_TX_VIEW_HEADER: str(view),
-                    ccftools.clients.CCF_TX_SEQNO_HEADER: str(seqno),
+                    ccf.clients.CCF_TX_VIEW_HEADER: str(view),
+                    ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
                 }
                 params = {"id": log_id}
                 end_time = time.time() + timeout

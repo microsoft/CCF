@@ -18,7 +18,7 @@ def run(args):
             format="<green>[{time:YYYY-MM-DD HH:mm:ss.SSS}]</green> {message}",
         )
         LOG.disable("infra")
-        LOG.disable("ccftools")
+        LOG.disable("ccf")
 
     LOG.info("Starting {} CCF nodes...".format(len(hosts)))
     if args.enclave_type == "virtual":

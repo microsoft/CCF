@@ -4,7 +4,7 @@ from threading import Timer
 import time
 import suite.test_requirements as reqs
 import random
-import ccftools.clients
+import ccf.clients
 from enum import Enum
 
 from loguru import logger as LOG
@@ -62,7 +62,7 @@ def wait_for_late_joiner(old_node, late_joiner, strict=False, timeout=60):
             if local_commit >= old_node_lc:
                 return LateJoinerStatus.Ready
             time.sleep(1)
-        except (TimeoutError, ccftools.clients.CCFConnectionException,) as exc:
+        except (TimeoutError, ccf.clients.CCFConnectionException,) as exc:
             LOG.warning(
                 f"late joiner with node id {late_joiner.node_id} isn't quite ready yet: {exc}"
             )

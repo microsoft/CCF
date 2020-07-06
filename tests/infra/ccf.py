@@ -5,7 +5,8 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum
-import ccftools.clients
+from ccf.clients import CCFConnectionException
+import ccf.clients
 import infra.path
 import infra.proc
 import infra.node
@@ -522,7 +523,7 @@ class Network:
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
-                    except ccftools.clients.CCFConnectionException:
+                    except CCFConnectionException:
                         pass
             if primary_id is not None:
                 break

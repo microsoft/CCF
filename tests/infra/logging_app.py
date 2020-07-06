@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import infra.checker
-import ccftools.clients
+import ccf.clients
 import suite.test_requirements as reqs
 import time
 
@@ -120,7 +120,7 @@ class LoggingTxs:
                             break
                         except (
                             TimeoutError,
-                            ccftools.clients.CCFConnectionException,
+                            ccf.clients.CCFConnectionException,
                         ):
                             LOG.debug("Network is unavailable")
                             if not ignore_failures:
@@ -135,7 +135,7 @@ class LoggingTxs:
             try:
                 network.wait_for_node_commit_sync(consensus)
                 break
-            except (TimeoutError, ccftools.clients.CCFConnectionException):
+            except (TimeoutError, ccf.clients.CCFConnectionException):
                 LOG.error("Timeout error while waiting for nodes to sync")
                 if not ignore_failures:
                     raise

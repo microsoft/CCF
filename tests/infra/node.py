@@ -6,7 +6,7 @@ from enum import Enum
 import infra.remote
 import infra.net
 import infra.path
-import ccftools.clients
+import ccf.clients
 import os
 import socket
 
@@ -238,7 +238,7 @@ class Node:
                 assert (
                     rep.error is None and rep.result is not None
                 ), f"An error occured after node {self.node_id} joined the network: {rep.error}"
-        except ccftools.clients.CCFConnectionException:
+        except ccf.clients.CCFConnectionException:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
     def get_ledger(self):
@@ -257,7 +257,7 @@ class Node:
             "binary_dir": self.binary_dir,
         }
         akwargs.update(kwargs)
-        return ccftools.clients.client(self.pubhost, self.rpc_port, **akwargs)
+        return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
 
     def suspend(self):
         self.remote.suspend()

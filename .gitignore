@@ -22,5 +22,4 @@ html/
 latex/
 env/
 *.egg-info
-tests/dist
-tests/dist/ccftools*
+**/dist

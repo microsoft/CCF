@@ -6,7 +6,7 @@ import infra.proc
 import infra.node
 import infra.proposal
 import infra.crypto
-import ccftools.clients
+import ccf.clients
 import http
 import os
 import base64
@@ -176,4 +176,4 @@ class Member:
             log_output=True,
         )
         res.check_returncode()
-        return ccftools.clients.Response.from_raw(res.stdout)
+        return ccf.clients.Response.from_raw(res.stdout)
