@@ -34,4 +34,5 @@ setup(
         "websocket-client",
         "cryptography",
     ],
+    scripts=[f"{PACKAGE_NAME}/proposal_generator.py"]
 )
