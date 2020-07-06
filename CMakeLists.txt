@@ -181,8 +181,8 @@ install(
 
 # Install CCF Python tools
 install(
-  DIRECTORY ccftools/ccf
-  DESTINATION bin/ccftools
+  DIRECTORY python/ccf
+  DESTINATION bin/
   FILES_MATCHING
   PATTERN "*.py"
   PATTERN "*/__pycache__*" EXCLUDE
