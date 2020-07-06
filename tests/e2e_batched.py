@@ -24,7 +24,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 
     # Set extended timeout, since some of these successful transactions will take many seconds
     with primary.client("user0", request_timeout=30) as c:
-        check = infra.checker.Checker()
+        check = ccf.checker.Checker()
 
         message_ids = [next(id_gen) for _ in range(batch_size)]
         messages = [

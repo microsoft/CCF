@@ -88,7 +88,7 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        check = infra.checker.Checker()
+        check = ccf.checker.Checker()
 
         with primary.client("user0") as user_client:
             LOG.info("user frontend")

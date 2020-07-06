@@ -50,7 +50,7 @@ def test_share_resilience(network, args):
                 last_member_to_submit = m
                 break
 
-            check_commit = infra.checker.Checker(nc)
+            check_commit = ccf.checker.Checker(nc)
             check_commit(
                 m.get_and_submit_recovery_share(primary, defunct_network_enc_pubk)
             )

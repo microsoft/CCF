@@ -97,7 +97,7 @@ def run(args):
 
         for regulator in regulators:
             with primary.user_client(format="msgpack", user_id=regulator.name) as c:
-                check = infra.checker.Checker()
+                check = ccf.checker.Checker()
 
                 check(
                     c.rpc(
@@ -124,7 +124,7 @@ def run(args):
 
         with primary.user_client(format="msgpack", user_id=regulators[0].name) as c:
             for bank in banks:
-                check = infra.checker.Checker()
+                check = ccf.checker.Checker()
 
                 check(
                     c.rpc(

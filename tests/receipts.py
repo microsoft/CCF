@@ -17,8 +17,8 @@ def test(network, args, notifications_queue=None):
     primary, _ = network.find_primary_and_any_backup()
 
     with primary.client() as mc:
-        check_commit = infra.checker.Checker(mc, notifications_queue)
-        check = infra.checker.Checker()
+        check_commit = ccf.checker.Checker(mc, notifications_queue)
+        check = ccf.checker.Checker()
 
         msg = "Hello world"
 

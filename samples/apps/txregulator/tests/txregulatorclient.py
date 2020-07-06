@@ -40,7 +40,7 @@ def run(args):
     with infra.ccf.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        check = infra.checker.Checker()
+        check = ccf.checker.Checker()
         network.start_and_join(args)
         primary, others = network.find_nodes()
 
@@ -105,7 +105,7 @@ def run(args):
 
         # As permissioned manager, register regulator and banks
         with primary.client() as mc:
-            check_commit = infra.checker.Checker(mc)
+            check_commit = ccf.checker.Checker(mc)
 
             with primary.client(f"user{manager.name}") as c:
                 check(

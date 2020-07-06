@@ -35,8 +35,8 @@ def run(args):
 
         with primary.client() as mc:
 
-            check = infra.checker.Checker()
-            check_commit = infra.checker.Checker(mc)
+            check = ccf.checker.Checker()
+            check_commit = ccf.checker.Checker(mc)
 
             for connection in scenario["connections"]:
                 with (
