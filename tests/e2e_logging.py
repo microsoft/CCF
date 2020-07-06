@@ -5,7 +5,7 @@ import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
-from infra.tx_status import TxStatus
+from ccf.tx_status import TxStatus
 import inspect
 import http
 import ssl

@@ -8,7 +8,7 @@ import infra.e2e_args
 import http
 import suite.test_requirements as reqs
 
-from infra.tx_status import TxStatus
+from ccf.tx_status import TxStatus
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits

@@ -11,7 +11,7 @@ import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-from infra.tx_status import TxStatus
+from ccf.tx_status import TxStatus
 import random
 from math import ceil
 
