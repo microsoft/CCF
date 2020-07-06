@@ -62,6 +62,7 @@ namespace http
     http::HeaderMap request_headers = {};
 
     std::vector<uint8_t> request_body = {};
+    enclave::PathParams path_params = {};
 
     std::vector<uint8_t> serialised_request = {};
     std::optional<ccf::SignedReq> signed_request = std::nullopt;
@@ -220,6 +221,11 @@ namespace http
     virtual const std::string& get_request_query() const override
     {
       return query;
+    }
+
+    virtual enclave::PathParams& get_request_path_params() override
+    {
+      return path_params;
     }
 
     virtual const ccf::RESTVerb& get_request_verb() const override

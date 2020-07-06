@@ -257,8 +257,9 @@ namespace ccf
       auto get_schema = [this](auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
-        const auto it = installed_handlers.find(in.method);
-        if (it == installed_handlers.end())
+        // TODO: Search templated handlers too
+        const auto it = fully_qualified_handlers.find(in.method);
+        if (it == fully_qualified_handlers.end())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,

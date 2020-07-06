@@ -102,6 +102,8 @@ namespace enclave
     {}
   };
 
+  using PathParams = std::map<std::string, std::string>;
+
   class RpcContext
   {
   public:
@@ -130,6 +132,7 @@ namespace enclave
 
     virtual const std::vector<uint8_t>& get_request_body() const = 0;
     virtual const std::string& get_request_query() const = 0;
+    virtual PathParams& get_request_path_params() = 0;
     virtual const ccf::RESTVerb& get_request_verb() const = 0;
 
     virtual std::string get_method() const = 0;
