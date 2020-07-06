@@ -36,8 +36,7 @@ auto kp = tls::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member");
 auto verifier_mem = tls::make_verifier(member_cert);
 auto member_caller = verifier_mem -> der_cert_data();
-auto user_cert_v = kp -> self_sign("CN=name_user");
-std::string user_cert(user_cert_v.begin(), user_cert_v.end());
+auto user_cert = kp -> self_sign("CN=name_user");
 std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
