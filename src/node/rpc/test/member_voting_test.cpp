@@ -1210,7 +1210,7 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
         return Calls:call("new_user", user_cert)
       )xxx");
 
-    const vector<uint8_t> user_cert = kp->self_sign("CN=new user");
+    const auto user_cert = kp->self_sign("CN=new user");
     const auto propose =
       create_signed_request(Propose::In{proposal, user_cert}, "propose", kp);
 
