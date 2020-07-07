@@ -38,8 +38,10 @@ namespace ccf
     }
 
   private:
+    SpinLock verifiers_lock;
     std::map<CallerId, tls::VerifierPtr> verifiers;
-    SpinLock lock;
+
+    SpinLock open_lock;
     bool is_open_ = false;
 
     Nodes* nodes;
@@ -168,19 +170,20 @@ namespace ccf
         return false;
       }
 
-      auto v = verifiers.find(caller_id);
-      if (v == verifiers.end())
+      tls::VerifierPtr verifier;
       {
-        verifiers.emplace(
-          std::make_pair(caller_id, tls::make_verifier(caller)));
-      }
-      if (!verifiers[caller_id]->verify(
-            signed_request.req, signed_request.sig, signed_request.md))
-      {
-        return false;
+        std::lock_guard<SpinLock> mguard(verifiers_lock);
+        auto v = verifiers.find(caller_id);
+        if (v == verifiers.end())
+        {
+          verifiers.emplace(
+            std::make_pair(caller_id, tls::make_verifier(caller)));
+        }
+        verifier = verifiers[caller_id];
       }
 
-      return true;
+      return verifier->verify(
+        signed_request.req, signed_request.sig, signed_request.md);
     }
 
     void set_response_unauthorized(
@@ -462,7 +465,7 @@ namespace ccf
 
     void open() override
     {
-      std::lock_guard<SpinLock> mguard(lock);
+      std::lock_guard<SpinLock> mguard(open_lock);
       if (!is_open_)
       {
         is_open_ = true;
@@ -472,7 +475,7 @@ namespace ccf
 
     bool is_open() override
     {
-      std::lock_guard<SpinLock> mguard(lock);
+      std::lock_guard<SpinLock> mguard(open_lock);
       return is_open_;
     }
 
