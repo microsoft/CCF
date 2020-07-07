@@ -262,7 +262,6 @@ if(BUILD_TESTS)
 
     add_unit_test(
       ds_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/ring_buffer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/oversized.cpp

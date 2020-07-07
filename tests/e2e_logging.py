@@ -528,24 +528,24 @@ def run(args):
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
-            # network = test(
-                # network,
-                # args,
-                # notifications_queue,
-                # verify=args.package is not "libjs_generic",
-            # )
-            # network = test_illegal(
-                # network, args, verify=args.package is not "libjs_generic"
-            # )
-            # network = test_large_messages(network, args)
-            # network = test_remove(network, args)
-            # network = test_forwarding_frontends(network, args)
-            # network = test_update_lua(network, args)
-            # network = test_cert_prefix(network, args)
-            # network = test_anonymous_caller(network, args)
+            network = test(
+                network,
+                args,
+                notifications_queue,
+                verify=args.package is not "libjs_generic",
+            )
+            network = test_illegal(
+                network, args, verify=args.package is not "libjs_generic"
+            )
+            network = test_large_messages(network, args)
+            network = test_remove(network, args)
+            network = test_forwarding_frontends(network, args)
+            network = test_update_lua(network, args)
+            network = test_cert_prefix(network, args)
+            network = test_anonymous_caller(network, args)
             network = test_raw_text(network, args)
-            # network = test_historical_query(network, args)
-            # network = test_view_history(network, args)
+            network = test_historical_query(network, args)
+            network = test_view_history(network, args)
 
 
 if __name__ == "__main__":
