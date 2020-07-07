@@ -95,34 +95,36 @@ namespace ccf
       auto& n2n_channel = channels->get(to);
       if (!try_establish_channel(to, n2n_channel))
       {
+        LOG_FAIL_FMT("Channel is not yet established!!");
+        n2n_channel.queue(msg_type, asCb(data));
         return false;
       }
 
-      // The secure channel between self and to has already been established
       GcmHdr hdr;
       n2n_channel.tag(hdr, asCb(data));
 
+      // TODO: Move this call to inside channel
       to_host->write(node_outbound, to, msg_type, data, hdr);
       return true;
     }
 
-    template <>
-    bool send_authenticated(
-      const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
-    {
-      auto& n2n_channel = channels->get(to);
-      if (!try_establish_channel(to, n2n_channel))
-      {
-        return false;
-      }
+    // template <>
+    // bool send_authenticated(
+    //   const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
+    // {
+    //   auto& n2n_channel = channels->get(to);
+    //   if (!try_establish_channel(to, n2n_channel))
+    //   {
+    //     return false;
+    //   }
 
-      // The secure channel between self and to has already been established
-      GcmHdr hdr;
-      n2n_channel.tag(hdr, data);
+    //   // The secure channel between self and to has already been established
+    //   GcmHdr hdr;
+    //   n2n_channel.tag(hdr, data);
 
-      to_host->write(node_outbound, to, msg_type, data, hdr);
-      return true;
-    }
+    //   to_host->write(node_outbound, to, msg_type, data, hdr);
+    //   return true;
+    // }
 
     template <class T>
     const T& recv_authenticated(const uint8_t*& data, size_t& size)

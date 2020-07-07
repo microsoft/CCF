@@ -233,8 +233,9 @@ namespace pbft
       }
       else
       {
-        msg->data.self->n2n_channels->send_authenticated(
-          msg->data.type, msg->data.to, msg->data.data);
+        // TODO: Uncomment
+        // msg->data.self->n2n_channels->send_authenticated(
+        //   msg->data.type, msg->data.to, msg->data.data);
       }
     }
 

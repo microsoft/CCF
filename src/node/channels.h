@@ -12,6 +12,7 @@
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>
+#include <queue>
 
 namespace ccf
 {
@@ -46,9 +47,19 @@ namespace ccf
   class Channel
   {
   private:
-    // Used for key exchange
-    tls::KeyExchangeContext ctx;
-    ChannelStatus status = INITIATED;
+    // TODO: Create another class for this!
+    struct Msg
+    {
+      NodeMsgType type;
+      std::vector<uint8_t> raw_plain; // To be intergrity-protected
+      std::vector<uint8_t> raw_cipher; // To be encrypted
+
+      Msg(NodeMsgType msg_type, CBuffer raw_plain_, CBuffer raw_cipher_) :
+        type(msg_type),
+        raw_plain(raw_plain_),
+        raw_cipher(raw_cipher_)
+      {}
+    };
 
     // Notifies the host to create a new outgoing connection
     ringbuffer::WriterPtr to_host;
@@ -57,11 +68,18 @@ namespace ccf
     std::string peer_service;
     bool outgoing;
 
+    // Used for key exchange
+    tls::KeyExchangeContext ctx;
+    ChannelStatus status = INITIATED;
+
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
 
     // Incremented for each tagged/encrypted message
     std::atomic<SeqNo> send_nonce{1};
+
+    // Used to buffer message sent on the channel before it is established
+    std::queue<Msg> outgoing_msgs;
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
@@ -223,6 +241,31 @@ namespace ccf
       key = std::make_unique<crypto::KeyAesGcm>(shared_secret);
       ctx.free_ctx();
       status = ESTABLISHED;
+
+      LOG_FAIL_FMT(
+        "Flushing {} queue messages with peer node {}",
+        outgoing_msgs.size(),
+        peer_id);
+
+      while (outgoing_msgs.size() != 0)
+      {
+        LOG_FAIL_FMT("Flushing one message from the queue");
+        auto& msg = outgoing_msgs.front();
+
+        if (msg.raw_cipher.size() > 0)
+        {
+          LOG_FAIL_FMT("Encrypc");
+        }
+        else
+        {
+          LOG_FAIL_FMT("Integrity protecc");
+          GcmHdr hdr;
+          tag(hdr, msg.raw_plain);
+
+          to_host->write(node_outbound, peer_id, msg.type, msg.raw_plain, hdr);
+        }
+        outgoing_msgs.pop();
+      }
     }
 
     void free_ctx()
@@ -276,6 +319,12 @@ namespace ccf
       const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
     {
       return verify_or_decrypt(header, aad, cipher, plain);
+    }
+
+    void queue(NodeMsgType msg_type, CBuffer integrity, CBuffer plain = nullb)
+    {
+      LOG_FAIL_FMT("Emplacing one message in queue");
+      outgoing_msgs.emplace(msg_type, integrity, plain);
     }
   };
 
