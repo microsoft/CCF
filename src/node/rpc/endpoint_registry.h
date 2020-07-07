@@ -347,6 +347,8 @@ namespace ccf
         template_start = regex_s.find_first_of('{', template_start + 1);
       }
 
+      LOG_TRACE_FMT("Installed a templated endpoint: {} became {}", endpoint.method, regex_s);
+      LOG_TRACE_FMT("Component names are: {}", fmt::join(templated.template_component_names, ", "));
       templated.template_regex = std::regex(regex_s);
 
       return templated;
@@ -529,7 +531,7 @@ namespace ccf
       }
 
       std::smatch match;
-      for (auto& [method, verb_endpoints] : templated_endpoints)
+      for (auto& [original_method, verb_endpoints] : templated_endpoints)
       {
         auto templated_endpoints_for_verb =
           verb_endpoints.find(rpc_ctx.get_request_verb());
