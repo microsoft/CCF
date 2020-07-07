@@ -310,7 +310,7 @@ namespace ccf
     std::optional<Endpoint> default_endpoint;
     std::map<std::string, std::map<RESTVerb, Endpoint>>
       fully_qualified_endpoints;
-    std::map<RESTVerb, std::map<std::string, PathTemplatedEndpoint>>
+    std::map<std::string, std::map<RESTVerb, PathTemplatedEndpoint>>
       templated_endpoints;
 
     kv::Consensus* consensus = nullptr;
@@ -437,7 +437,7 @@ namespace ccf
       const auto templated_endpoint = parse_path_template(endpoint);
       if (templated_endpoint.has_value())
       {
-        templated_endpoints[endpoint.verb][endpoint.method] =
+        templated_endpoints[endpoint.method][endpoint.verb] =
           templated_endpoint.value();
       }
       else
@@ -503,12 +503,9 @@ namespace ccf
         out.methods.push_back(method);
       }
 
-      for (const auto& [verb, endpoints] : templated_endpoints)
+      for (const auto& [method, verb_endpoints] : templated_endpoints)
       {
-        for (const auto& [method, endpoint] : endpoints)
-        {
-          out.methods.push_back(method);
-        }
+        out.methods.push_back(method);
       }
     }
 
@@ -531,14 +528,14 @@ namespace ccf
         }
       }
 
-      auto templated_endpoints_for_verb =
-        templated_endpoints.find(rpc_ctx.get_request_verb());
-      if (templated_endpoints_for_verb != templated_endpoints.end())
+      std::smatch match;
+      for (auto& [method, verb_endpoints] : templated_endpoints)
       {
-        auto& templated_endpoints = templated_endpoints_for_verb->second;
-        std::smatch match;
-        for (auto& [original_path, endpoint] : templated_endpoints)
+        auto templated_endpoints_for_verb =
+          verb_endpoints.find(rpc_ctx.get_request_verb());
+        if (templated_endpoints_for_verb != verb_endpoints.end())
         {
+          auto& endpoint = templated_endpoints_for_verb->second;
           if (std::regex_match(method, match, endpoint.template_regex))
           {
             auto& path_params = rpc_ctx.get_request_path_params();

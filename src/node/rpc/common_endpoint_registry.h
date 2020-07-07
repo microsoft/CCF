@@ -274,9 +274,11 @@ namespace ccf
               GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
           }
         }
-        else
+
+        const auto templated_it = templated_endpoints.find(in.method);
+        if (templated_it != templated_endpoints.end())
         {
-          for (const auto& [verb, endpoints] : templated_endpoints)
+          for (const auto& [verb, endpoint] : it->second)
           {
             std::string verb_name = verb.c_str();
             std::transform(
@@ -284,15 +286,8 @@ namespace ccf
               verb_name.end(),
               verb_name.begin(),
               [](unsigned char c) { return std::tolower(c); });
-            std::smatch match;
-            for (const auto& [method, endpoint] : endpoints)
-            {
-              if (std::regex_match(method, match, endpoint.template_regex))
-              {
-                j[verb_name] = GetSchema::Out{endpoint.params_schema,
-                                              endpoint.result_schema};
-              }
-            }
+            j[verb_name] =
+              GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
           }
         }
 
