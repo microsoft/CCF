@@ -7,8 +7,7 @@ from os import path
 PACKAGE_NAME = "ccf"
 
 path_here = path.abspath(path.dirname(__file__))
-package_path = path.join(path_here, PACKAGE_NAME)
-utilities_path = path.join(path_here, "../tests")
+utilities_path = "tests"
 
 with open(
     path.join(path_here, "README.md"), encoding="utf-8"
@@ -41,7 +40,7 @@ setup(
         "cryptography",
     ],
     scripts=[
-        path.join(package_path, "proposal_generator.py"),
+        path.join(PACKAGE_NAME, "proposal_generator.py"),
         path.join(utilities_path, "keygenerator.sh"),
         path.join(utilities_path, "scurl.sh"),
         path.join(utilities_path, "submit_recovery_share.sh"),
