@@ -347,8 +347,13 @@ namespace ccf
         template_start = regex_s.find_first_of('{', template_start + 1);
       }
 
-      LOG_TRACE_FMT("Installed a templated endpoint: {} became {}", endpoint.method, regex_s);
-      LOG_TRACE_FMT("Component names are: {}", fmt::join(templated.template_component_names, ", "));
+      LOG_TRACE_FMT(
+        "Installed a templated endpoint: {} became {}",
+        endpoint.method,
+        regex_s);
+      LOG_TRACE_FMT(
+        "Component names are: {}",
+        fmt::join(templated.template_component_names, ", "));
       templated.template_regex = std::regex(regex_s);
 
       return templated;
