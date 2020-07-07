@@ -4,7 +4,7 @@ import getpass
 import time
 import logging
 from random import seed
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.remote_client
 import infra.rates
@@ -81,7 +81,7 @@ def run(get_command, args):
 
     LOG.info("Starting nodes on {}".format(hosts))
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)

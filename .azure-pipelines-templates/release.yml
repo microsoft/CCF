@@ -27,3 +27,13 @@ jobs:
         isPreRelease: true
         addChangeLog: false
       displayName: 'GitHub release (create)'
+
+    # For now, push to test PyPi
+    - script: |
+        python3.7 -m venv env
+        source ./env/bin/activate
+        python setup.py sdist
+        python -m pip install twine
+        twine upload -u __token__ -p $(pypi_test_token) --repository testpypi dist/*
+      workingDirectory: python
+      displayName: PyPi https://test.pypi.org/project/ccf/

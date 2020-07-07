@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.notification
 import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
+import ccf.checker
 
 from loguru import logger as LOG
 
@@ -17,8 +18,8 @@ def test(network, args, notifications_queue=None):
     primary, _ = network.find_primary_and_any_backup()
 
     with primary.client() as mc:
-        check_commit = infra.checker.Checker(mc, notifications_queue)
-        check = infra.checker.Checker()
+        check_commit = ccf.checker.Checker(mc, notifications_queue)
+        check = ccf.checker.Checker()
 
         msg = "Hello world"
 
@@ -60,7 +61,7 @@ def run(args):
             else None
         )
 
-        with infra.ccf.network(
+        with infra.network.network(
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_join(args)

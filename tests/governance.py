@@ -3,7 +3,7 @@
 import os
 import sys
 import subprocess
-import infra.ccf
+import infra.network
 import infra.path
 import infra.proc
 import infra.notification
@@ -90,7 +90,7 @@ def run(args):
             else None
         )
 
-        with infra.ccf.network(
+        with infra.network.network(
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_join(args)
