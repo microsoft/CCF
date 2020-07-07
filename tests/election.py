@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import time
 import math
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.e2e_args
 import ccf.checker
@@ -38,7 +38,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
     """
     Wait for a specific seqno at a specific view to be committed on all nodes.
     """
-    for _ in range(infra.ccf.Network.replication_delay * 10):
+    for _ in range(infra.network.Network.replication_delay * 10):
         up_to_date_f = []
         for f in nodes:
             with f.client() as c:
@@ -68,7 +68,7 @@ def run(args):
     # if one node stops
     hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = ccf.checker.Checker()
@@ -119,7 +119,7 @@ def run(args):
         try:
             primary, _ = network.find_primary()
             assert False, "Primary should not be found"
-        except infra.ccf.PrimaryNotFound:
+        except infra.network.PrimaryNotFound:
             pass
 
         LOG.success(

@@ -6,7 +6,7 @@ import os
 import time
 import http
 import random
-import infra.ccf
+import infra.network
 import infra.proc
 import ccf.checker
 import infra.node
@@ -240,7 +240,7 @@ class Consortium:
         self.vote_using_majority(
             remote_node, proposal, wait_for_global_commit=(not pbft_open)
         )
-        self.check_for_service(remote_node, infra.ccf.ServiceStatus.OPEN, pbft_open)
+        self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, remote_node):
         proposal_body, vote = ccf.proposal_generator.rekey_ledger()

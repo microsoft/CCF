@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import time
 import sys
 
@@ -24,7 +24,7 @@ def run(args):
     if args.enclave_type == "virtual":
         LOG.warning("Virtual mode enabled")
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts=hosts, binary_directory=args.binary_dir, dbg_nodes=args.debug_nodes
     ) as network:
         if args.recover:

@@ -4,7 +4,7 @@ from hashlib import md5
 import itertools
 import time
 
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.notification
 import infra.net
@@ -61,7 +61,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 def run(args):
     hosts = ["localhost", "localhost", "localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
@@ -95,7 +95,7 @@ def run(args):
 def run_to_destruction(args):
     hosts = ["localhost", "localhost", "localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)

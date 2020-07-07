@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
 import time
-import infra.ccf
+import infra.network
 import infra.proc
 import ccf.checker
 import contextlib
@@ -16,7 +16,7 @@ from loguru import logger as LOG
 def run(args):
     hosts = ["localhost"] * (4 if args.consensus == "pbft" else 1)
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         check = ccf.checker.Checker()

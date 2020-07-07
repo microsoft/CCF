@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import infra.proc
 import suite.test_requirements as reqs
 import time
@@ -62,7 +62,7 @@ def test_add_node_untrusted_code(network, args):
             network.create_and_add_pending_node(
                 "liblua_generic", "localhost", args, timeout=3
             )
-        except infra.ccf.CodeIdNotFound as err:
+        except infra.network.CodeIdNotFound as err:
             code_not_found_exception = err
 
         assert (
@@ -87,7 +87,7 @@ def test_retire_node(network, args):
 def run(args):
     hosts = ["localhost", "localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)

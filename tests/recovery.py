@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import infra.logging_app as app
 import ccf.checker
 import suite.test_requirements as reqs
@@ -17,7 +17,7 @@ def test(network, args):
     ledger = primary.get_ledger()
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
-    recovered_network = infra.ccf.Network(
+    recovered_network = infra.network.Network(
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger)
@@ -32,7 +32,7 @@ def test_share_resilience(network, args):
     ledger = old_primary.get_ledger()
     defunct_network_enc_pubk = network.store_current_network_encryption_key()
 
-    recovered_network = infra.ccf.Network(
+    recovered_network = infra.network.Network(
         network.hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, network
     )
     recovered_network.start_in_recovery(args, ledger)
@@ -89,7 +89,7 @@ def test_share_resilience(network, args):
         )
 
     recovered_network.consortium.check_for_service(
-        new_primary, infra.ccf.ServiceStatus.OPEN,
+        new_primary, infra.network.ServiceStatus.OPEN,
     )
     return recovered_network
 
@@ -99,7 +99,7 @@ def run(args):
 
     txs = app.LoggingTxs()
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb, txs=txs
     ) as network:
         network.start_and_join(args)

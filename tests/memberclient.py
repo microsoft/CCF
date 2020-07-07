@@ -3,7 +3,7 @@
 import http
 
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import infra.consortium
 import ccf.proposal_generator
 from infra.proposal import ProposalState
@@ -39,7 +39,7 @@ def test_add_member(network, args):
     primary, _ = network.find_primary()
 
     new_member = network.consortium.generate_and_add_new_member(
-        primary, curve=infra.ccf.ParticipantsCurve(args.participants_curve).next()
+        primary, curve=infra.network.ParticipantsCurve(args.participants_curve).next()
     )
 
     try:
@@ -113,7 +113,7 @@ def assert_recovery_shares_update(func, network, args, **kwargs):
 def run(args):
     hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
@@ -134,7 +134,7 @@ def run(args):
             new_member,
         ) = network.consortium.generate_and_propose_new_member(
             remote_node=primary,
-            curve=infra.ccf.ParticipantsCurve(args.participants_curve).next(),
+            curve=infra.network.ParticipantsCurve(args.participants_curve).next(),
         )
 
         LOG.info("Check proposal has been recorded in open state")
