@@ -115,7 +115,8 @@ NodeInfo get_node_info(NodeId node_id = 0)
 
   auto node_cert = kp->self_sign("CN=CCF node");
 
-  PrincipalInfo pi = {node_id, (short)(3000), "ip", node_cert, "name-1", true};
+  PrincipalInfo pi = {
+    node_id, (short)(3000), "ip", node_cert.raw(), "name-1", true};
   principal_info.emplace_back(pi);
 
   GeneralInfo gi = {false,

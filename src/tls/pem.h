@@ -25,15 +25,22 @@ namespace tls
 
     Pem(const std::string& s_) : s(s_) {}
 
-    Pem(const CBuffer& b)
+    Pem(const uint8_t* data, size_t size)
     {
-      if (b.n == 0)
+      if (size == 0)
         throw std::logic_error("Got PEM of size 0.");
 
-      s.assign(reinterpret_cast<const char*>(b.p), b.n);
+      // If it's already null-terminated, don't suffix again
+      const auto null_terminated = *(data + size - 1) == 0;
+      if (null_terminated)
+        size -= 1;
+
+      s.assign(reinterpret_cast<const char*>(data), size);
     }
 
-    Pem(const std::vector<uint8_t>& v) : Pem(CBuffer{v}) {}
+    Pem(const CBuffer& b) : Pem(b.p, b.n) {}
+
+    Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
 
     bool operator==(const Pem& rhs) const
     {
@@ -59,6 +66,11 @@ namespace tls
     {
       // +1 for null termination
       return s.size() + 1;
+    }
+
+    bool empty() const
+    {
+      return s.empty();
     }
 
     std::vector<uint8_t> raw() const

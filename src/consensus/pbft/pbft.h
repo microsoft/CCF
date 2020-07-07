@@ -603,7 +603,7 @@ namespace pbft
       info.id = new_node_id;
       info.port = short(atoi(new_node_info.port.c_str()));
       info.ip = "256.256.256.256"; // Invalid
-      info.cert = new_node_info.cert;
+      info.cert = new_node_info.cert.raw();
       info.host_name = new_node_info.hostname;
       info.is_replica = true;
 

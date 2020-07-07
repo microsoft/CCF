@@ -30,9 +30,9 @@ namespace ccf
 {
   struct NodeInfo : NodeInfoNetwork
   {
-    std::vector<uint8_t> cert;
+    tls::Pem cert;
     std::vector<uint8_t> quote;
-    std::vector<uint8_t> encryption_pub_key;
+    tls::Pem encryption_pub_key;
     NodeStatus status = NodeStatus::PENDING;
 
     MSGPACK_DEFINE(

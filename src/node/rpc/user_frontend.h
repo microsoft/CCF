@@ -46,7 +46,7 @@ namespace ccf
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert.raw();
       return true;
     }
 
@@ -81,11 +81,11 @@ namespace ccf
   {
   public:
     UserEndpointRegistry(kv::Store& store) :
-      CommonEndpointRegistry(store, Tables::USER_CERTS)
+      CommonEndpointRegistry(store, Tables::USER_CERT_DERS)
     {}
 
     UserEndpointRegistry(NetworkTables& network) :
-      CommonEndpointRegistry(*network.tables, Tables::USER_CERTS)
+      CommonEndpointRegistry(*network.tables, Tables::USER_CERT_DERS)
     {}
   };
 

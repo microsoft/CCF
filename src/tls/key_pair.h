@@ -169,7 +169,7 @@ namespace tls
       }
 
       const size_t len = strlen((char const*)data);
-      return Pem({data, len});
+      return Pem(data, len);
     }
 
     mbedtls_pk_context* get_raw_context() const
@@ -495,7 +495,7 @@ namespace tls
       }
 
       const size_t len = strlen((char const*)data);
-      return Pem({data, len});
+      return Pem(data, len);
     }
 
     /**
@@ -588,7 +588,7 @@ namespace tls
      * loaded from a private key, there will be no public key available for
      * this call.
      */
-    std::vector<uint8_t> create_csr(const std::string& name)
+    Pem create_csr(const std::string& name)
     {
       Csr csr;
 
@@ -610,22 +610,19 @@ namespace tls
           entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1; // For null termination
-      std::vector<uint8_t> pem(buf, buf + len);
-      return pem;
+      auto len = strlen((char*)buf);
+      return Pem(buf, len);
     }
 
-    std::vector<uint8_t> sign_csr(
-      CBuffer csr,
+    Pem sign_csr(
+      const Pem& csr,
       const std::string& issuer,
       const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
       bool ca = false)
     {
       SignCsr sign;
 
-      Pem pem_csr(csr);
-      if (
-        mbedtls_x509_csr_parse(&sign.csr, pem_csr.data(), pem_csr.size()) != 0)
+      if (mbedtls_x509_csr_parse(&sign.csr, csr.data(), csr.size()) != 0)
         return {};
 
       char subject[512];
@@ -701,12 +698,11 @@ namespace tls
           sign.entropy->get_data()) != 0)
         return {};
 
-      auto len = strlen((char*)buf) + 1; // For null termination
-      std::vector<uint8_t> pem(buf, buf + len);
-      return pem;
+      auto len = strlen((char*)buf);
+      return Pem(buf, len);
     }
 
-    std::vector<uint8_t> self_sign(
+    Pem self_sign(
       const std::string& name,
       const std::optional<SubjectAltName> subject_alt_name = std::nullopt,
       bool ca = true)

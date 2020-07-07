@@ -119,13 +119,23 @@ auto init_frontend(
   GenesisGenerator& gen,
   ccfapp::AbstractNodeContext& context,
   const int n_users,
-  const int n_members)
+  const int n_members,
+  std::vector<tls::Pem>* created_members = nullptr)
 {
   for (uint8_t i = 0; i < n_users; i++)
     gen.add_user(user_caller);
 
+  std::vector<tls::Pem> member_certs;
   for (uint8_t i = 0; i < n_members; i++)
-    gen.add_member(kp->self_sign("CN=name_member"), dummy_key_share);
+  {
+    member_certs.push_back(kp->self_sign("CN=name_member"));
+    gen.add_member(member_certs.back(), dummy_key_share);
+  }
+
+  if (created_members != nullptr)
+  {
+    *created_members = member_certs;
+  }
 
   set_whitelists(gen);
 
@@ -194,7 +204,8 @@ TEST_CASE("simple lua apps")
   gen.create_service({});
   NodeContext context;
   // create network with 1 user and 3 active members
-  auto frontend = init_frontend(network, gen, context, 1, 3);
+  std::vector<tls::Pem> active_members;
+  auto frontend = init_frontend(network, gen, context, 1, 3, &active_members);
   set_lua_logger();
   auto user_session = std::make_shared<enclave::SessionContext>(
     enclave::InvalidSessionId, user_caller_der);
@@ -305,26 +316,10 @@ TEST_CASE("simple lua apps")
     auto get_ctx = enclave::make_rpc_context(user_session, packed);
     // expect to see 3 members in state active
     map<string, MemberInfo> expected = {
-      {"0", {{}, dummy_key_share, MemberStatus::ACCEPTED}},
-      {"1", {{}, dummy_key_share, MemberStatus::ACCEPTED}},
-      {"2", {{}, dummy_key_share, MemberStatus::ACCEPTED}}};
-
-    // certs are converted from PEM to DER, so we can't do simple equality -
-    // check each item
-    const auto actual = parse_response_body<decltype(expected)>(
-      parse_response(frontend->process(get_ctx).value()));
-    CHECK(actual.size() == expected.size());
-    for (const auto& [k, expected_info] : expected)
-    {
-      const auto it = actual.find(k);
-      CHECK(it != actual.end());
-      if (it != actual.end())
-      {
-        const auto& actual_info = it->second;
-        CHECK(expected_info.keyshare == actual_info.keyshare);
-        CHECK(expected_info.status == actual_info.status);
-      }
-    }
+      {"0", {active_members[0], dummy_key_share, MemberStatus::ACCEPTED}},
+      {"1", {active_members[1], dummy_key_share, MemberStatus::ACCEPTED}},
+      {"2", {active_members[2], dummy_key_share, MemberStatus::ACCEPTED}}};
+    check_success(frontend->process(get_ctx).value(), expected);
 
     // (2) try to write to members table
     const auto put_packed = make_pc(

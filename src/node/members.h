@@ -56,20 +56,15 @@ namespace ccf
   DECLARE_JSON_TYPE(MemberPubInfo)
   DECLARE_JSON_REQUIRED_FIELDS(MemberPubInfo, cert, keyshare)
 
-  struct MemberInfo
+  struct MemberInfo : public MemberPubInfo
   {
-    std::vector<uint8_t> cert; //< DER to match key in Certs table
-    tls::Pem keyshare;
     MemberStatus status = MemberStatus::ACCEPTED;
 
     MemberInfo() {}
 
     MemberInfo(
-      const std::vector<uint8_t>& cert_,
-      const tls::Pem& keyshare_,
-      MemberStatus status_) :
-      cert(cert_),
-      keyshare(keyshare_),
+      const tls::Pem& cert_, const tls::Pem& keyshare_, MemberStatus status_) :
+      MemberPubInfo(cert_, keyshare_),
       status(status_)
     {}
 
@@ -79,7 +74,7 @@ namespace ccf
         status == rhs.status;
     }
 
-    MSGPACK_DEFINE(cert, keyshare, status);
+    MSGPACK_DEFINE(MSGPACK_BASE(MemberPubInfo), status);
   };
   DECLARE_JSON_TYPE(MemberInfo)
   DECLARE_JSON_REQUIRED_FIELDS(MemberInfo, cert, keyshare, status)
