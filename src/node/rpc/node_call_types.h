@@ -56,10 +56,10 @@ namespace ccf
     {
       std::vector<MemberPubInfo> members_info;
       std::string gov_script;
-      std::vector<uint8_t> node_cert;
-      Cert network_cert;
+      tls::Pem node_cert;
+      tls::Pem network_cert;
       std::vector<uint8_t> quote;
-      std::vector<uint8_t> public_encryption_key;
+      tls::Pem public_encryption_key;
       std::vector<uint8_t> code_digest;
       NodeInfoNetwork node_info_network;
       ConsensusType consensus_type = ConsensusType::RAFT;
@@ -73,7 +73,7 @@ namespace ccf
     {
       NodeInfoNetwork node_info_network;
       std::vector<uint8_t> quote;
-      std::vector<uint8_t> public_encryption_key;
+      tls::Pem public_encryption_key;
       ConsensusType consensus_type = ConsensusType::RAFT;
     };
 

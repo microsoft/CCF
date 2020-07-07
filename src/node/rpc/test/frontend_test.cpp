@@ -260,12 +260,13 @@ public:
 class RpcContextRecorder
 {
 public:
-  std::vector<uint8_t> last_caller_cert;
+  // session->caller_cert may be DER or PEM, we always convert to PEM
+  tls::Pem last_caller_cert;
   CallerId last_caller_id;
 
   void record_ctx(EndpointContext& args)
   {
-    last_caller_cert = std::vector<uint8_t>(args.rpc_ctx->session->caller_cert);
+    last_caller_cert = tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
     last_caller_id = args.caller_id;
   }
 };
@@ -534,7 +535,7 @@ TEST_CASE("process_pbft")
   pbft::Request deserialised_req = request_value.value();
 
   REQUIRE(deserialised_req.caller_id == user_id);
-  REQUIRE(deserialised_req.caller_cert == user_caller_der);
+  REQUIRE(deserialised_req.caller_cert == user_caller.raw());
   REQUIRE(deserialised_req.raw == serialized_call);
   REQUIRE(deserialised_req.pbft_raw.empty());
   REQUIRE(deserialised_req.frame_format == enclave::FrameFormat::http);
@@ -1287,7 +1288,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
       CHECK(response.status == HTTP_STATUS_OK);
 
-      CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
+      CHECK(user_frontend_primary.last_caller_cert == user_caller);
       CHECK(user_frontend_primary.last_caller_id == 0);
     }
 
@@ -1310,7 +1311,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
         parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
       CHECK(response.status == HTTP_STATUS_OK);
 
-      CHECK(user_frontend_primary.last_caller_cert == invalid_caller_der);
+      CHECK(user_frontend_primary.last_caller_cert == invalid_caller);
       CHECK(user_frontend_primary.last_caller_id == INVALID_ID);
     }
   }
@@ -1415,7 +1416,7 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto serialized_call = write_req.build_request();
 
   auto node_session = std::make_shared<enclave::SessionContext>(
-    enclave::InvalidSessionId, node_caller);
+    enclave::InvalidSessionId, node_caller.raw());
   auto ctx = enclave::make_rpc_context(node_session, serialized_call);
   const auto r = node_frontend_backup.process(ctx);
   REQUIRE(!r.has_value());
@@ -1471,7 +1472,7 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
     parse_response(user_frontend_primary.process_forwarded(fwd_ctx));
   CHECK(response.status == HTTP_STATUS_OK);
 
-  CHECK(user_frontend_primary.last_caller_cert == user_caller_der);
+  CHECK(user_frontend_primary.last_caller_cert == user_caller);
   CHECK(user_frontend_primary.last_caller_id == 0);
 }
 
@@ -1513,7 +1514,7 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
     parse_response(member_frontend_primary.process_forwarded(fwd_ctx));
   CHECK(response.status == HTTP_STATUS_OK);
 
-  CHECK(member_frontend_primary.last_caller_cert == member_caller_der);
+  CHECK(member_frontend_primary.last_caller_cert == member_caller);
   CHECK(member_frontend_primary.last_caller_id == 0);
 }
 

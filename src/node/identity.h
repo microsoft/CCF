@@ -11,8 +11,8 @@ namespace ccf
 {
   struct NetworkIdentity
   {
-    std::vector<uint8_t> cert;
-    std::vector<uint8_t> priv_key;
+    tls::Pem cert;
+    tls::Pem priv_key;
 
     bool operator==(const NetworkIdentity& other) const
     {
@@ -25,9 +25,7 @@ namespace ccf
     {
       auto identity_key_pair = tls::make_key_pair();
       cert = identity_key_pair->self_sign(name);
-      auto privk_pem = identity_key_pair->private_key_pem();
-      priv_key = std::vector<uint8_t>(
-        privk_pem.data(), privk_pem.data() + privk_pem.size());
+      priv_key = identity_key_pair->private_key_pem();
     }
   };
 }

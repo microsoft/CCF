@@ -48,11 +48,10 @@ namespace ccf
       return get_digest_from_parsed_quote(parsed_quote);
     }
 
-    static std::optional<std::vector<uint8_t>> get_quote(
-      const Cert& raw_cert_pem)
+    static std::optional<std::vector<uint8_t>> get_quote(const tls::Pem& cert)
     {
       std::vector<uint8_t> raw_quote;
-      crypto::Sha256Hash h{raw_cert_pem};
+      crypto::Sha256Hash h{cert.raw()};
       uint8_t* quote;
       size_t quote_len = 0;
       oe_report_t parsed_quote = {0};
@@ -127,9 +126,9 @@ namespace ccf
     }
 
     static QuoteVerificationResult verify_quoted_certificate(
-      const Cert& raw_cert_pem, const oe_report_t& parsed_quote)
+      const tls::Pem& cert, const oe_report_t& parsed_quote)
     {
-      crypto::Sha256Hash hash{raw_cert_pem};
+      crypto::Sha256Hash hash{cert.raw()};
 
       if (
         parsed_quote.report_data_size != OE_REPORT_DATA_SIZE ||
@@ -148,7 +147,7 @@ namespace ccf
       kv::Tx& tx,
       CodeIDs& code_ids,
       const std::vector<uint8_t>& raw_quote,
-      const Cert& raw_cert_pem)
+      const tls::Pem& cert)
     {
       oe_report_t parsed_quote = {0};
 
@@ -164,7 +163,7 @@ namespace ccf
         return rc;
       }
 
-      rc = verify_quoted_certificate(raw_cert_pem, parsed_quote);
+      rc = verify_quoted_certificate(cert, parsed_quote);
       if (rc != QuoteVerificationResult::VERIFIED)
       {
         return rc;

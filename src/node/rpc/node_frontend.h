@@ -21,7 +21,7 @@ namespace ccf
 
     std::optional<NodeId> check_node_exists(
       kv::Tx& tx,
-      std::vector<uint8_t>& node_pem,
+      const tls::Pem& node_pem,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
       auto nodes_view = tx.get_view(network.nodes);
@@ -66,7 +66,7 @@ namespace ccf
 
     auto add_node(
       kv::Tx& tx,
-      std::vector<uint8_t>& caller_pem_raw,
+      const tls::Pem& caller_pem,
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status)
     {
@@ -91,7 +91,7 @@ namespace ccf
       {
         QuoteVerificationResult verify_result =
           QuoteVerifier::verify_quote_against_store(
-            tx, this->network.node_code_ids, in.quote, caller_pem_raw);
+            tx, this->network.node_code_ids, in.quote, caller_pem);
 
         if (verify_result != QuoteVerificationResult::VERIFIED)
         {
@@ -110,7 +110,7 @@ namespace ccf
       nodes_view->put(
         joining_node_id,
         {in.node_info_network,
-         caller_pem_raw,
+         caller_pem,
          in.quote,
          in.public_encryption_key,
          node_status});
@@ -186,7 +186,7 @@ namespace ccf
 
         // Convert caller cert from DER to PEM as PEM certificates
         // are quoted
-        auto caller_pem_raw =
+        auto caller_pem =
           tls::cert_der_to_pem(args.rpc_ctx->session->caller_cert);
 
         if (active_service->status == ServiceStatus::OPENING)
@@ -196,7 +196,7 @@ namespace ccf
 
           // If the node is already trusted, return network secrets
           auto existing_node_id =
-            check_node_exists(args.tx, caller_pem_raw, joining_node_status);
+            check_node_exists(args.tx, caller_pem, joining_node_status);
           if (existing_node_id.has_value())
           {
             return make_success(JoinNetworkNodeToNode::Out(
@@ -210,7 +210,7 @@ namespace ccf
                 *this->network.encryption_key.get()}}));
           }
 
-          return add_node(args.tx, caller_pem_raw, in, joining_node_status);
+          return add_node(args.tx, caller_pem, in, joining_node_status);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -218,7 +218,7 @@ namespace ccf
         // node polls the network to retrieve the network secrets until it is
         // trusted
 
-        auto existing_node_id = check_node_exists(args.tx, caller_pem_raw);
+        auto existing_node_id = check_node_exists(args.tx, caller_pem);
         if (existing_node_id.has_value())
         {
           // If the node already exists, return network secrets if is already
@@ -250,7 +250,7 @@ namespace ccf
         else
         {
           // If the node does not exist, add it to the KV in state pending
-          return add_node(args.tx, caller_pem_raw, in, NodeStatus::PENDING);
+          return add_node(args.tx, caller_pem, in, NodeStatus::PENDING);
         }
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept)).install();

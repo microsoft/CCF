@@ -43,7 +43,7 @@ namespace ccf
     //
     // members and member_certs tables should always be in sync
     Members& members;
-    Certs& member_certs;
+    CertDERs& member_certs;
 
     Scripts& gov_scripts;
     Proposals& proposals;
@@ -61,7 +61,7 @@ namespace ccf
     //
     // users and user_certs tables should always be in sync
     Users& users;
-    Certs& user_certs;
+    CertDERs& user_certs;
 
     CodeIDs& user_code_ids;
     ClientSignatures& user_client_signatures;
@@ -101,8 +101,8 @@ namespace ccf
             pbft::replicate_type_pbft, pbft::replicated_tables_pbft)),
       members(
         tables->create<Members>(Tables::MEMBERS, kv::SecurityDomain::PUBLIC)),
-      member_certs(tables->create<Certs>(
-        Tables::MEMBER_CERTS, kv::SecurityDomain::PUBLIC)),
+      member_certs(tables->create<CertDERs>(
+        Tables::MEMBER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       gov_scripts(tables->create<Scripts>(
         Tables::GOV_SCRIPTS, kv::SecurityDomain::PUBLIC)),
       proposals(tables->create<Proposals>(
@@ -124,8 +124,8 @@ namespace ccf
       users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
-      user_certs(
-        tables->create<Certs>(Tables::USER_CERTS, kv::SecurityDomain::PUBLIC)),
+      user_certs(tables->create<CertDERs>(
+        Tables::USER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       user_code_ids(tables->create<CodeIDs>(
         Tables::USER_CODE_IDS, kv::SecurityDomain::PUBLIC)),
       user_client_signatures(

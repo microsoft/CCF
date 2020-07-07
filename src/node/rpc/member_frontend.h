@@ -562,7 +562,7 @@ namespace ccf
       NetworkTables& network,
       AbstractNodeState& node,
       ShareManager& share_manager) :
-      CommonEndpointRegistry(*network.tables, Tables::MEMBER_CERTS),
+      CommonEndpointRegistry(*network.tables, Tables::MEMBER_CERT_DERS),
       network(network),
       node(node),
       share_manager(share_manager),
@@ -1088,7 +1088,7 @@ namespace ccf
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert.raw();
       return true;
     }
 

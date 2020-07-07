@@ -96,6 +96,8 @@ namespace ccf
         tables.member_acks,
         tables.signatures);
 
+      // The key to a CertDERs table must be a DER, for easy comparison against
+      // the DER peer cert retrieved from the connection
       auto member_cert_der = tls::make_verifier(member_cert)->der_cert_data();
 
       auto member_id = mc->get(member_cert_der);
@@ -108,8 +110,7 @@ namespace ccf
       const auto id = get_next_id(v, ValueIds::NEXT_MEMBER_ID);
       m->put(
         id,
-        MemberInfo(
-          member_cert_der, member_keyshare_pub, MemberStatus::ACCEPTED));
+        MemberInfo(member_cert, member_keyshare_pub, MemberStatus::ACCEPTED));
       mc->put(member_cert_der, id);
 
       auto s = sig->get(0);
@@ -210,7 +211,7 @@ namespace ccf
       }
 
       const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
-      u->put(id, {user_cert_der});
+      u->put(id, {user_cert});
       uc->put(user_cert_der, id);
       return id;
     }
@@ -269,11 +270,11 @@ namespace ccf
     }
 
     // Service status should use a state machine, very much like NodeState.
-    void create_service(
-      const std::vector<uint8_t>& network_cert, kv::Version version = 1)
+    void create_service(const tls::Pem& network_cert, kv::Version version = 1)
     {
       auto service_view = tx.get_view(tables.service);
-      service_view->put(0, {version, network_cert, ServiceStatus::OPENING});
+      service_view->put(
+        0, {version, network_cert.raw(), ServiceStatus::OPENING});
     }
 
     bool is_service_created()
