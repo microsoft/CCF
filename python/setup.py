@@ -7,10 +7,11 @@ from os import path
 PACKAGE_NAME = "ccf"
 
 path_here = path.abspath(path.dirname(__file__))
-print(f"path here: {path_here}")
+package_path = path.join(path_here, PACKAGE_NAME)
+utilities_path = path.join(path_here, "../tests")
 
 with open(
-    path.join(path.abspath(path.dirname(__file__)), "README.md"), encoding="utf-8"
+    path.join(path_here, "README.md"), encoding="utf-8"
 ) as f:
     long_description = f.read()
 
@@ -29,7 +30,7 @@ setup(
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
     ],
-    packages=[path.join(path_here, PACKAGE_NAME)],
+    packages=[PACKAGE_NAME],
     python_requires=">=3.7",
     install_requires=[
         "msgpack",
@@ -39,5 +40,11 @@ setup(
         "websocket-client",
         "cryptography",
     ],
-    scripts=[path.join(path_here, path.join(PACKAGE_NAME, "proposal_generator.py"))],
+    scripts=[
+        path.join(package_path, "proposal_generator.py"),
+        path.join(utilities_path, "keygenerator.sh"),
+        path.join(utilities_path, "scurl.sh"),
+        path.join(utilities_path, "submit_recovery_share.sh"),
+    ],
+    include_package_data=True,
 )

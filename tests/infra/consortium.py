@@ -195,9 +195,7 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
-        proposal_body, vote = ccf.proposal_generator.retire_node(
-            node_to_retire.node_id
-        )
+        proposal_body, vote = ccf.proposal_generator.retire_node(node_to_retire.node_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         self.vote_using_majority(remote_node, proposal)
 

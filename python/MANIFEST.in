@@ -1,0 +1,3 @@
+include ../tests/scurl.sh
+include ../tests/submit_recovery_share.sh
+include ../tests/kegenerator.sh
