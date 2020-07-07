@@ -257,29 +257,52 @@ namespace ccf
       auto get_schema = [this](auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
-        // TODO: Search templated handlers too
+        auto j = nlohmann::json::object();
+
         const auto it = fully_qualified_handlers.find(in.method);
-        if (it == fully_qualified_handlers.end())
+        if (it != fully_qualified_handlers.end())
+        {
+          for (const auto& [verb, endpoint] : it->second)
+          {
+            std::string verb_name = verb.c_str();
+            std::transform(
+              verb_name.begin(),
+              verb_name.end(),
+              verb_name.begin(),
+              [](unsigned char c) { return std::tolower(c); });
+            j[verb_name] =
+              GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+          }
+        }
+        else
+        {
+          for (const auto& [verb, endpoints] : templated_handlers)
+          {
+            std::string verb_name = verb.c_str();
+            std::transform(
+              verb_name.begin(),
+              verb_name.end(),
+              verb_name.begin(),
+              [](unsigned char c) { return std::tolower(c); });
+            std::smatch match;
+            for (const auto& [method, endpoint] : endpoints)
+            {
+              if (std::regex_match(method, match, endpoint.template_regex))
+              {
+                j[verb_name] = GetSchema::Out{endpoint.params_schema,
+                                              endpoint.result_schema};
+              }
+            }
+          }
+        }
+
+        if (j.empty())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             fmt::format("Method {} not recognised", in.method));
         }
-
-        auto j = nlohmann::json::object();
-
-        for (auto& [verb, endpoint] : it->second)
-        {
-          std::string verb_name = verb.c_str();
-          std::transform(
-            verb_name.begin(),
-            verb_name.end(),
-            verb_name.begin(),
-            [](unsigned char c) { return std::tolower(c); });
-          j[verb_name] =
-            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
-        }
-
+        
         return make_success(j);
       };
       make_command_endpoint(

@@ -302,7 +302,7 @@ namespace ccf
       PathTemplatedEndpoint(const PathTemplatedEndpoint& pte) = default;
       PathTemplatedEndpoint(const Endpoint& e) : Endpoint(e) {}
 
-      std::string template_regex;
+      std::regex template_regex;
       std::vector<std::string> template_component_names;
     };
 
@@ -328,12 +328,12 @@ namespace ccf
       }
 
       PathTemplatedEndpoint templated(endpoint);
-      templated.template_regex = endpoint.method;
-      template_start = templated.template_regex.find_first_of('{');
+      std::string regex_s = endpoint.method;
+      template_start = regex_s.find_first_of('{');
       while (template_start != std::string::npos)
       {
         const auto template_end =
-          templated.template_regex.find_first_of('}', template_start);
+          regex_s.find_first_of('}', template_start);
         if (template_end == std::string::npos)
         {
           throw std::logic_error(fmt::format(
@@ -342,13 +342,15 @@ namespace ccf
         }
 
         templated.template_component_names.push_back(
-          templated.template_regex.substr(
+          regex_s.substr(
             template_start + 1, template_end - template_start - 1));
-        templated.template_regex.replace(
+        regex_s.replace(
           template_start, template_end - template_start + 1, "([^/]+)");
         template_start =
-          templated.template_regex.find_first_of('{', template_start + 1);
+          regex_s.find_first_of('{', template_start + 1);
       }
+
+      templated.template_regex = std::regex(regex_s);
 
       return templated;
     }
@@ -499,10 +501,17 @@ namespace ccf
      */
     virtual void list_methods(kv::Tx& tx, ListMethods::Out& out)
     {
-      // TODO: List templated methods too
       for (const auto& [method, verb_handlers] : fully_qualified_handlers)
       {
         out.methods.push_back(method);
+      }
+
+      for (const auto& [verb, handlers]: templated_handlers)
+      {
+        for (const auto& [method, handler]: handlers)
+        {
+          out.methods.push_back(method);
+        }
       }
     }
 
@@ -532,8 +541,7 @@ namespace ccf
         std::smatch match;
         for (auto& [original_path, endpoint] : templated_handlers)
         {
-          std::regex regex(endpoint.template_regex);
-          if (std::regex_match(method, match, regex))
+          if (std::regex_match(method, match, endpoint.template_regex))
           {
             auto& path_params = rpc_ctx.get_request_path_params();
             for (size_t i = 0; i < endpoint.template_component_names.size();
