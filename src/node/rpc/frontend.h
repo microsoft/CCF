@@ -272,7 +272,7 @@ namespace ccf
       if (endpoint->require_client_signature && !signed_request.has_value())
       {
         set_response_unauthorized(
-          ctx, fmt::format("'{}' requests must be signed", ctx->get_method()));
+          ctx, fmt::format("'{}' RPC must be signed", ctx->get_method()));
         return ctx->serialise_response();
       }
 
