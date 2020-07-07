@@ -259,8 +259,8 @@ namespace ccf
 
         auto j = nlohmann::json::object();
 
-        const auto it = fully_qualified_handlers.find(in.method);
-        if (it != fully_qualified_handlers.end())
+        const auto it = fully_qualified_endpoints.find(in.method);
+        if (it != fully_qualified_endpoints.end())
         {
           for (const auto& [verb, endpoint] : it->second)
           {
@@ -276,7 +276,7 @@ namespace ccf
         }
         else
         {
-          for (const auto& [verb, endpoints] : templated_handlers)
+          for (const auto& [verb, endpoints] : templated_endpoints)
           {
             std::string verb_name = verb.c_str();
             std::transform(
@@ -302,7 +302,7 @@ namespace ccf
             HTTP_STATUS_BAD_REQUEST,
             fmt::format("Method {} not recognised", in.method));
         }
-        
+
         return make_success(j);
       };
       make_command_endpoint(
