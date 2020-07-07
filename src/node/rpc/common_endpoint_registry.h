@@ -278,7 +278,7 @@ namespace ccf
         const auto templated_it = templated_endpoints.find(in.method);
         if (templated_it != templated_endpoints.end())
         {
-          for (const auto& [verb, endpoint] : it->second)
+          for (const auto& [verb, endpoint] : templated_it->second)
           {
             std::string verb_name = verb.c_str();
             std::transform(
