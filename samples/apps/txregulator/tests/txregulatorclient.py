@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
-import infra.proposal_generator
+import infra.network
+import ccf.checker
+import ccf.proposal_generator
 
 import logging
 from time import gmtime, strftime
@@ -37,10 +38,10 @@ def check_status(rc):
 def run(args):
     hosts = ["localhost"] * (4 if args.consensus == "pbft" else 1)
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        check = infra.checker.Checker()
+        check = ccf.checker.Checker()
         network.start_and_join(args)
         primary, others = network.find_nodes()
 
@@ -77,7 +78,7 @@ def run(args):
                 transactions.append(json_tx)
 
         # Manager is granted special privileges by members, which is later read by app to enforce access restrictions
-        proposal_body, _ = infra.proposal_generator.set_user_data(
+        proposal_body, _ = ccf.proposal_generator.set_user_data(
             manager.ccf_id,
             {"privileges": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
         )
@@ -105,7 +106,7 @@ def run(args):
 
         # As permissioned manager, register regulator and banks
         with primary.client() as mc:
-            check_commit = infra.checker.Checker(mc)
+            check_commit = ccf.checker.Checker(mc)
 
             with primary.client(f"user{manager.name}") as c:
                 check(

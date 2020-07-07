@@ -5,7 +5,7 @@ import json
 import http
 import time
 
-from infra.tx_status import TxStatus
+from ccf.tx_status import TxStatus
 
 
 def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):

@@ -13,6 +13,7 @@ source env/bin/activate
 
 PATH_HERE=$(dirname "$(realpath -s "$0")")
 
+pip install -q -U -e "${PATH_HERE}"/python/
 pip install -q -U -r "${PATH_HERE}"/tests/requirements.txt
 echo "Python environment successfully setup"
 

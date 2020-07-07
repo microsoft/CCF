@@ -4,9 +4,10 @@ import os
 import json
 import http
 import random
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.e2e_args
+import ccf.checker
 
 from loguru import logger as LOG
 
@@ -25,7 +26,7 @@ def run(args):
     scenario_dir = os.path.dirname(args.scenario)
 
     # SNIPPET_START: create_network
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
@@ -35,8 +36,8 @@ def run(args):
 
         with primary.client() as mc:
 
-            check = infra.checker.Checker()
-            check_commit = infra.checker.Checker(mc)
+            check = ccf.checker.Checker()
+            check_commit = ccf.checker.Checker(mc)
 
             for connection in scenario["connections"]:
                 with (

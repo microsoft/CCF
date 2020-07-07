@@ -1,11 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.remote
 import infra.crypto
-import infra.ledger
+import ccf.ledger
 from infra.proposal import ProposalState
 import http
 import os
@@ -55,7 +55,7 @@ def run(args):
     votes_issued = 0
     withdrawals_issued = 0
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
@@ -66,7 +66,7 @@ def run(args):
         for l in os.listdir(ledger_directory):
             if l.endswith("_1"):
                 ledger_filename = os.path.join(ledger_directory, l)
-        ledger = infra.ledger.Ledger(ledger_filename)
+        ledger = ccf.ledger.Ledger(ledger_filename)
         (
             original_proposals,
             original_votes,
@@ -75,7 +75,7 @@ def run(args):
 
         LOG.info("Add new member proposal (implicit vote)")
         new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
-            primary, curve=infra.ccf.ParticipantsCurve.secp256k1
+            primary, curve=infra.network.ParticipantsCurve.secp256k1
         )
         proposals_issued += 1
 
@@ -92,7 +92,7 @@ def run(args):
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
         new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
-            primary, curve=infra.ccf.ParticipantsCurve.secp256k1
+            primary, curve=infra.network.ParticipantsCurve.secp256k1
         )
         proposals_issued += 1
 

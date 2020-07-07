@@ -80,4 +80,3 @@ jobs:
       parameters:
         env: ${{ parameters.env.Hosted }}
         depends_on: 'SGX_Release'
-

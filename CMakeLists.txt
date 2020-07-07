@@ -179,6 +179,15 @@ install(
   PATTERN "*/test*" EXCLUDE
 )
 
+# Install CCF Python tools
+install(
+  DIRECTORY python/ccf
+  DESTINATION bin/
+  FILES_MATCHING
+  PATTERN "*.py"
+  PATTERN "*/__pycache__*" EXCLUDE
+)
+
 # Install CCF Python infrastructure
 install(
   DIRECTORY tests/infra/
