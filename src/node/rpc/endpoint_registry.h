@@ -560,20 +560,32 @@ namespace ccf
       return nullptr;
     }
 
-    virtual std::vector<RESTVerb> get_allowed_verbs(
+    virtual std::set<RESTVerb> get_allowed_verbs(
       const enclave::RpcContext& rpc_ctx)
     {
       auto method = rpc_ctx.get_method();
       method = method.substr(method.find_first_not_of('/'));
 
-      // TODO: Search templated endpoints too
-      std::vector<RESTVerb> verbs;
+      std::set<RESTVerb> verbs;
+
       auto search = fully_qualified_endpoints.find(method);
       if (search != fully_qualified_endpoints.end())
       {
-        for (auto& [verb, endpoint] : search->second)
+        for (const auto& [verb, endpoint] : search->second)
         {
-          verbs.push_back(verb);
+          verbs.insert(verb);
+        }
+      }
+
+      std::smatch match;
+      for (const auto& [method, verb_endpoints] : templated_endpoints)
+      {
+        for (const auto& [verb, endpoint] : verb_endpoints)
+        {
+          if (std::regex_match(method, match, endpoint.template_regex))
+          {
+            verbs.insert(verb);
+          }
         }
       }
 
