@@ -89,20 +89,28 @@ add_custom_command(
   COMMENT "Generating code from EDL, and renaming to .cpp"
 )
 
-# Copy utilities from tests directory
-set(CCF_UTILITIES tests.sh keygenerator.sh cimetrics_env.sh
-                  upload_pico_metrics.py scurl.sh submit_recovery_share.sh
-)
+# Copy and install CCF utilities
+set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh)
 foreach(UTILITY ${CCF_UTILITIES})
+  configure_file(
+    ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+  )
+  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION BIN)
+endforeach()
+
+# Copy utilities from tests directory
+set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py)
+foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
     ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
   )
 endforeach()
 
 # Install specific utilities
-install(PROGRAMS ${CCF_DIR}/tests/scurl.sh ${CCF_DIR}/tests/keygenerator.sh
-                 ${CCF_DIR}/tests/sgxinfo.sh
-                 ${CCF_DIR}/tests/submit_recovery_share.sh DESTINATION bin
+install(
+  PROGRAMS ${CCF_DIR}/python/utils/scurl.sh
+           ${CCF_DIR}/python/utils/keygenerator.sh ${CCF_DIR}/tests/sgxinfo.sh
+           ${CCF_DIR}/python/utils/submit_recovery_share.sh DESTINATION bin
 )
 
 # Install getting_started scripts for VM creation and setup

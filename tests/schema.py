@@ -4,9 +4,10 @@ import os
 import sys
 import json
 import http
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.e2e_args
+import ccf.checker
 
 from loguru import logger as LOG
 
@@ -82,13 +83,13 @@ def run(args):
             else:
                 methods_without_schema.add(method)
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        check = infra.checker.Checker()
+        check = ccf.checker.Checker()
 
         with primary.client("user0") as user_client:
             LOG.info("user frontend")

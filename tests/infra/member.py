@@ -6,6 +6,8 @@ import infra.proc
 import infra.node
 import infra.proposal
 import infra.crypto
+import ccf.clients
+import ccf.checker
 import http
 import os
 import base64
@@ -110,9 +112,7 @@ class Member:
                 # can only commit after it has successfully joined and caught up.
                 # Given that the retry timer on join RPC is 4 seconds, anything less is very
                 # likely to time out!
-                infra.checker.wait_for_global_commit(
-                    mc, r.seqno, r.view, True, timeout=6
-                )
+                ccf.checker.wait_for_global_commit(mc, r.seqno, r.view, True, timeout=6)
 
         return r
 
@@ -175,4 +175,4 @@ class Member:
             log_output=True,
         )
         res.check_returncode()
-        return infra.clients.Response.from_raw(res.stdout)
+        return ccf.clients.Response.from_raw(res.stdout)
