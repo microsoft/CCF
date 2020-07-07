@@ -302,7 +302,7 @@ namespace ccf
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
 
-    Certs* certs = nullptr;
+    CertDERs* certs = nullptr;
 
   public:
     EndpointRegistry(
@@ -310,7 +310,7 @@ namespace ccf
     {
       if (!certs_table_name.empty())
       {
-        certs = tables.get<Certs>(certs_table_name);
+        certs = tables.get<CertDERs>(certs_table_name);
       }
     }
 

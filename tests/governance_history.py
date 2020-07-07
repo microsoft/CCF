@@ -22,8 +22,8 @@ def count_governance_operations(ledger):
 
     for tr in ledger:
         tables = tr.get_public_domain().get_tables()
-        if "ccf.member_certs" in tables:
-            members_table = tables["ccf.member_certs"]
+        if "ccf.member_cert_ders" in tables:
+            members_table = tables["ccf.member_cert_ders"]
             for cert, member_id in members_table.items():
                 members[member_id] = cert
 

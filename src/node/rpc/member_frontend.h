@@ -176,15 +176,28 @@ namespace ccf
 
            return true;
          }},
-        // add a new user
         {"new_user",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const Cert pem_cert = args;
+           const auto pem_cert = args.get<tls::Pem>();
 
            GenesisGenerator g(this->network, tx);
            g.add_user(pem_cert);
 
            return true;
+         }},
+        {"remove_user",
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+           const UserId user_id = args;
+
+           GenesisGenerator g(this->network, tx);
+           auto r = g.remove_user(user_id);
+           if (!r)
+           {
+             LOG_FAIL_FMT(
+               "Proposal {}: {} is not a valid user ID", proposal_id, user_id);
+           }
+
+           return r;
          }},
         {"set_user_data",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
@@ -549,7 +562,7 @@ namespace ccf
       NetworkTables& network,
       AbstractNodeState& node,
       ShareManager& share_manager) :
-      CommonEndpointRegistry(*network.tables, Tables::MEMBER_CERTS),
+      CommonEndpointRegistry(*network.tables, Tables::MEMBER_CERT_DERS),
       network(network),
       node(node),
       share_manager(share_manager),
@@ -1075,7 +1088,7 @@ namespace ccf
         return false;
       }
 
-      ctx->session->caller_cert = caller.value().cert;
+      ctx->session->caller_cert = caller.value().cert.raw();
       return true;
     }
 

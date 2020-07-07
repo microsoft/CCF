@@ -5,6 +5,7 @@
 #include "crypto/hash.h"
 #include "enclave/consensus_type.h"
 #include "serialiser_declare.h"
+#include "tls/pem.h"
 
 #include <array>
 #include <chrono>
@@ -194,14 +195,14 @@ namespace kv
       {
         std::string hostname;
         std::string port;
-        std::vector<uint8_t> cert = {};
+        tls::Pem cert = {};
 
         NodeInfo() = default;
 
         NodeInfo(
           const std::string& hostname_,
           const std::string& port_,
-          const std::vector<uint8_t>& cert_ = {}) :
+          const tls::Pem& cert_ = {}) :
           hostname(hostname_),
           port(port_),
           cert(cert_)

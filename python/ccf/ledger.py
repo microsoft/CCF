@@ -48,7 +48,7 @@ class LedgerDomain:
         self._tables = {}
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack.
-        self._msgpacked_tables = {"ccf.member_certs", "ccf.governance.history"}
+        self._msgpacked_tables = {"ccf.member_cert_ders", "ccf.governance.history"}
         self._read()
 
     def _read_next(self):
