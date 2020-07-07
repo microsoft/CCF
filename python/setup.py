@@ -20,7 +20,7 @@ setup(
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/microsoft/CCF",
+    url="https://github.com/microsoft/CCF/python/ccf",
     license="Apache License 2.0",
     author="CCF Team",
     author_email="ccfeng@microsoft.com",
