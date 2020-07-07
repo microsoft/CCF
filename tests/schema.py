@@ -7,6 +7,7 @@ import http
 import infra.ccf
 import infra.proc
 import infra.e2e_args
+import ccf.checker
 
 from loguru import logger as LOG
 

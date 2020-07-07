@@ -369,7 +369,7 @@ function(add_e2e_test)
     # Make python test client framework importable
     set_property(
       TEST ${PARSED_ARGS_NAME} APPEND
-      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:${CCF_DIR}/python:$ENV{PYTHONPATH}"
+      PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
 
     if(SHUFFLE_SUITE)
@@ -446,7 +446,7 @@ function(add_perf_test)
     TEST ${PARSED_ARGS_NAME} APPEND
     PROPERTY
       ENVIRONMENT
-      "PYTHONPATH=${CCF_DIR}/tests:${CCF_DIR}/python:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
+      "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(

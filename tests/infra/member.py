@@ -7,6 +7,7 @@ import infra.node
 import infra.proposal
 import infra.crypto
 import ccf.clients
+import ccf.checker
 import http
 import os
 import base64

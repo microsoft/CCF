@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.ccf
 import infra.logging_app as app
+import ccf.checker
 import suite.test_requirements as reqs
 import time
 

@@ -5,6 +5,7 @@ import math
 import infra.ccf
 import infra.proc
 import infra.e2e_args
+import ccf.checker
 import http
 import suite.test_requirements as reqs
 

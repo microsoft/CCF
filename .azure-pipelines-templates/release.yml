@@ -36,4 +36,4 @@ jobs:
         python -m pip install twine
         twine upload -u __token__ -p $(pypi_test_token) --repository testpypi dist/*
       workingDirectory: python
-      displayName: PyPi https://pypi.org/project/ccf/
+      displayName: PyPi https://test.pypi.org/project/ccf/

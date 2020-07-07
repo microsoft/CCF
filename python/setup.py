@@ -6,6 +6,9 @@ from os import path
 
 PACKAGE_NAME = "ccf"
 
+path_here = path.abspath(path.dirname(__file__))
+print(f"path here: {path_here}")
+
 with open(
     path.join(path.abspath(path.dirname(__file__)), "README.md"), encoding="utf-8"
 ) as f:
@@ -26,7 +29,7 @@ setup(
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
     ],
-    packages=[PACKAGE_NAME],
+    packages=[path.join(path_here, PACKAGE_NAME)],
     python_requires=">=3.7",
     install_requires=[
         "msgpack",
@@ -36,5 +39,5 @@ setup(
         "websocket-client",
         "cryptography",
     ],
-    scripts=[f"{PACKAGE_NAME}/proposal_generator.py"],
+    scripts=[path.join(path_here, path.join(PACKAGE_NAME, "proposal_generator.py"))],
 )

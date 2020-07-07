@@ -6,7 +6,6 @@ import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum
 from ccf.clients import CCFConnectionException
-import ccf.clients
 import infra.path
 import infra.proc
 import infra.node

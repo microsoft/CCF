@@ -6,6 +6,7 @@ import infra.notification
 import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
+import ccf.checker
 
 from loguru import logger as LOG
 

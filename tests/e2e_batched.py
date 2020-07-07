@@ -8,6 +8,7 @@ import infra.ccf
 import infra.proc
 import infra.notification
 import infra.net
+import ccf.checker
 import suite.test_requirements as reqs
 import infra.e2e_args
 

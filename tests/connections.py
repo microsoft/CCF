@@ -4,6 +4,7 @@ import infra.e2e_args
 import time
 import infra.ccf
 import infra.proc
+import ccf.checker
 import contextlib
 import resource
 import psutil

@@ -3,6 +3,7 @@
 import infra.e2e_args
 import infra.ccf
 import ccf.proposal_generator
+import ccf.checker
 import os
 import logging
 from time import gmtime, strftime, perf_counter
