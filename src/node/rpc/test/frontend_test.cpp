@@ -1134,6 +1134,25 @@ TEST_CASE("Templated paths")
 
     CHECK(expected_mapping == actual_mapping);
   }
+
+  {
+    auto request = create_simple_request("users/1/address");
+    const auto serialized_request = request.build_request();
+
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_request);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+
+    std::map<std::string, std::string> expected_mapping;
+    expected_mapping["foo"] = "users";
+    expected_mapping["bar"] = "1";
+    expected_mapping["baz"] = "address";
+
+    const auto response_json = nlohmann::json::parse(response.body);
+    const auto actual_mapping = response_json.get<decltype(expected_mapping)>();
+
+    CHECK(expected_mapping == actual_mapping);
+  }
 }
 
 TEST_CASE("Signed read requests can be executed on backup")
