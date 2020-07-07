@@ -254,7 +254,7 @@ class Consortium:
 
     def add_user(self, remote_node, user_id):
         user_cert = []
-        proposal, vote = infra.proposal_generator.new_user(
+        proposal, vote = ccf.proposal_generator.new_user(
             os.path.join(self.common_dir, f"user{user_id}_cert.pem")
         )
 
@@ -266,7 +266,7 @@ class Consortium:
             self.add_user(remote_node, u)
 
     def remove_user(self, remote_node, user_id):
-        proposal, vote = infra.proposal_generator.remove_user(user_id)
+        proposal, vote = ccf.proposal_generator.remove_user(user_id)
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
         self.vote_using_majority(remote_node, proposal)

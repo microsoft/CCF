@@ -5,9 +5,9 @@ from setuptools import setup
 from os import path
 
 PACKAGE_NAME = "ccf"
+UTILITIES_PATH = "utils"
 
 path_here = path.abspath(path.dirname(__file__))
-utilities_path = "tests"
 
 with open(
     path.join(path_here, "README.md"), encoding="utf-8"
@@ -41,9 +41,9 @@ setup(
     ],
     scripts=[
         path.join(PACKAGE_NAME, "proposal_generator.py"),
-        path.join(utilities_path, "keygenerator.sh"),
-        path.join(utilities_path, "scurl.sh"),
-        path.join(utilities_path, "submit_recovery_share.sh"),
+        path.join(UTILITIES_PATH, "keygenerator.sh"),
+        path.join(UTILITIES_PATH, "scurl.sh"),
+        path.join(UTILITIES_PATH, "submit_recovery_share.sh"),
     ],
     include_package_data=True,
 )

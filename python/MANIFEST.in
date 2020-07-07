@@ -1,4 +1,3 @@
-include ../tests/scurl.sh
-include ../tests/submit_recovery_share.sh
-include ../tests/keygenerator.sh
-recursive-include tests *.sh
+include utils/scurl.sh
+include utils/submit_recovery_share.sh
+include utils/keygenerator.sh
