@@ -77,6 +77,11 @@ namespace ccf
     {
       is_public = is_public_;
     }
+
+    State state() const override
+    {
+      return State::partOfNetwork;
+    }
   };
 
   class StubNotifier : public ccf::AbstractNotifier

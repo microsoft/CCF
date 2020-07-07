@@ -293,6 +293,24 @@ namespace ccf
         .set_auto_schema<GetSignedIndex>()
         .install();
 
+      auto get_state = [this](auto& args, nlohmann::json&& params) {
+        GetState::Out result;
+        result.state = this->node.state();
+
+        auto sig_view = args.tx.get_read_only_view(*signatures);
+        auto sig = sig_view->get(0);
+        if (!sig.has_value())
+          result.last_signed_index = 0;
+        else
+          result.last_signed_index = sig.value().seqno;
+
+        return result;
+      };
+      make_read_only_endpoint(
+        "state", HTTP_GET, json_read_only_adapter(get_state))
+        .set_auto_schema<GetState>()
+        .install();
+
       auto get_quote = [this](auto& args, nlohmann::json&&) {
         GetQuotes::Out result;
         std::set<NodeId> filter;

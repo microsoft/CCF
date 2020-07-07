@@ -26,5 +26,6 @@ namespace ccf
     virtual NodeId get_node_id() const = 0;
     virtual kv::Version get_last_recovered_commit_idx() = 0;
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
+    virtual State state() const = 0;
   };
 }
