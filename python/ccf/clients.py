@@ -33,6 +33,9 @@ CCF_TX_VIEW_HEADER = "x-ccf-tx-view"
 # Deprecated, will be removed
 CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
+DEFAULT_CONNECTION_TIMEOUT_SEC = 3
+DEFAULT_REQUEST_TIMEOUT_SEC = 3
+
 
 class Request:
     def __init__(
@@ -209,7 +212,15 @@ class CurlClient:
     """
 
     def __init__(
-        self, host, port, cert, key, ca, binary_dir, request_timeout, *args, **kwargs,
+        self,
+        host,
+        port,
+        cert=None,
+        key=None,
+        ca=None,
+        binary_dir=".",
+        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -288,20 +299,30 @@ class CurlClient:
 
 class TlsAdapter(HTTPAdapter):
     def __init__(self, ca_file):
-        self.ca_curve = get_curve(ca_file)
+        self.ca_curve = None
+        if ca_file is not None:
+            self.ca_curve = get_curve(ca_file)
         super().__init__()
 
     # pylint: disable=signature-differs
     def init_poolmanager(self, *args, **kwargs):
-        context = create_urllib3_context()
-        context.set_ecdh_curve(self.ca_curve.name)
-        kwargs["ssl_context"] = context
+        if self.ca_curve is not None:
+            context = create_urllib3_context()
+            context.set_ecdh_curve(self.ca_curve.name)
+            kwargs["ssl_context"] = context
         return super(TlsAdapter, self).init_poolmanager(*args, **kwargs)
 
 
 class RequestClient:
     def __init__(
-        self, host, port, cert, key, ca, request_timeout, *args, **kwargs,
+        self,
+        host,
+        port,
+        cert=None,
+        key=None,
+        ca=None,
+        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -357,7 +378,14 @@ class RequestClient:
 
 class WSClient:
     def __init__(
-        self, host, port, cert, key, ca, request_timeout, *args, **kwargs,
+        self,
+        host,
+        port,
+        cert=None,
+        key=None,
+        ca=None,
+        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+        **kwargs,
     ):
         self.host = host
         self.port = port
@@ -408,18 +436,24 @@ class WSClient:
 
 
 class CCFClient:
-    def __init__(self, *args, **kwargs):
-        self.description = kwargs.pop("description")
-        self.connection_timeout = kwargs.pop("connection_timeout")
+    def __init__(self, host, port, *args, **kwargs):
+        self.description = (
+            kwargs.pop("description") if "description" in kwargs else None
+        )
+        self.connection_timeout = (
+            kwargs.pop("connection_timeout")
+            if "connection_timeout" in kwargs
+            else DEFAULT_CONNECTION_TIMEOUT_SEC
+        )
         self.rpc_loggers = (RPCLogger(),)
-        self.name = "[{}:{}]".format(kwargs.get("host"), kwargs.get("port"))
+        self.name = f"[{host}:{port}]"
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(*args, **kwargs)
+            self.client_impl = CurlClient(host, port, *args, **kwargs)
         elif os.getenv("WEBSOCKETS_CLIENT") or kwargs.get("ws"):
-            self.client_impl = WSClient(*args, **kwargs)
+            self.client_impl = WSClient(host, port, *args, **kwargs)
         else:
-            self.client_impl = RequestClient(*args, **kwargs)
+            self.client_impl = RequestClient(host, port, *args, **kwargs)
 
     def _response(self, response):
         for logger in self.rpc_loggers:
@@ -481,8 +515,8 @@ def client(
     description=None,
     log_file=None,
     binary_dir=".",
-    connection_timeout=3,
-    request_timeout=3,
+    connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
+    request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
     ws=False,
 ):
     c = CCFClient(

@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
-import infra.ccf
-import infra.proposal_generator
+import infra.network
+import ccf.proposal_generator
+import ccf.checker
 import os
 import logging
 from time import gmtime, strftime, perf_counter
@@ -33,7 +34,7 @@ class AppUser:
 def run(args):
     hosts = ["localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
@@ -47,7 +48,7 @@ def run(args):
 
         # Give regulators permissions to register regulators and banks
         for regulator in regulators:
-            proposal_body, _ = infra.proposal_generator.set_user_data(
+            proposal_body, _ = ccf.proposal_generator.set_user_data(
                 regulator.ccf_id,
                 {"proposals": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
             )
@@ -97,7 +98,7 @@ def run(args):
 
         for regulator in regulators:
             with primary.user_client(format="msgpack", user_id=regulator.name) as c:
-                check = infra.checker.Checker()
+                check = ccf.checker.Checker()
 
                 check(
                     c.rpc(
@@ -124,7 +125,7 @@ def run(args):
 
         with primary.user_client(format="msgpack", user_id=regulators[0].name) as c:
             for bank in banks:
-                check = infra.checker.Checker()
+                check = ccf.checker.Checker()
 
                 check(
                     c.rpc(

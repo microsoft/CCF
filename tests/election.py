@@ -2,13 +2,14 @@
 # Licensed under the Apache 2.0 License.
 import time
 import math
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.e2e_args
+import ccf.checker
 import http
 import suite.test_requirements as reqs
 
-from infra.tx_status import TxStatus
+from ccf.tx_status import TxStatus
 from loguru import logger as LOG
 
 # This test starts from a given number of nodes (hosts), commits
@@ -37,7 +38,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
     """
     Wait for a specific seqno at a specific view to be committed on all nodes.
     """
-    for _ in range(infra.ccf.Network.replication_delay * 10):
+    for _ in range(infra.network.Network.replication_delay * 10):
         up_to_date_f = []
         for f in nodes:
             with f.client() as c:
@@ -67,10 +68,10 @@ def run(args):
     # if one node stops
     hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        check = infra.checker.Checker()
+        check = ccf.checker.Checker()
 
         network.start_and_join(args)
         current_view = None
@@ -118,7 +119,7 @@ def run(args):
         try:
             primary, _ = network.find_primary()
             assert False, "Primary should not be found"
-        except infra.ccf.PrimaryNotFound:
+        except infra.network.PrimaryNotFound:
             pass
 
         LOG.success(

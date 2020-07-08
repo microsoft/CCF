@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.ccf
+import infra.network
 import infra.proc
 import infra.notification
 import infra.net
@@ -56,7 +56,7 @@ def run(args):
             else None
         )
 
-        with infra.ccf.network(
+        with infra.network.network(
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
         ) as network:
             network.start_and_join(args)

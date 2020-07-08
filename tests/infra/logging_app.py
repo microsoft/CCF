@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import infra.checker
+import ccf.checker
+import ccf.clients
 import suite.test_requirements as reqs
 import time
 
@@ -88,8 +89,8 @@ class LoggingTxs:
     ):
         LOG.success(f"Applying {number_txs} logging txs to node {remote_node.node_id}")
         with remote_node.client() as mc:
-            check_commit = infra.checker.Checker(mc)
-            check_commit_n = infra.checker.Checker(mc, self.notifications_queue)
+            check_commit = ccf.checker.Checker(mc)
+            check_commit_n = ccf.checker.Checker(mc, self.notifications_queue)
 
             with remote_node.client(self.user) as uc:
                 for _ in range(number_txs):
@@ -118,7 +119,7 @@ class LoggingTxs:
                             break
                         except (
                             TimeoutError,
-                            infra.clients.CCFConnectionException,
+                            ccf.clients.CCFConnectionException,
                         ):
                             LOG.debug("Network is unavailable")
                             if not ignore_failures:
@@ -133,7 +134,7 @@ class LoggingTxs:
             try:
                 network.wait_for_node_commit_sync(consensus)
                 break
-            except (TimeoutError, infra.clients.CCFConnectionException):
+            except (TimeoutError, ccf.clients.CCFConnectionException):
                 LOG.error("Timeout error while waiting for nodes to sync")
                 if not ignore_failures:
                     raise
@@ -165,7 +166,7 @@ class LoggingTxs:
                     LOG.warning("User frontend is not yet opened")
                     time.sleep(0.1)
                 else:
-                    check = infra.checker.Checker(uc)
+                    check = ccf.checker.Checker(uc)
                     check(
                         rep, result={"msg": txs[idx]},
                     )

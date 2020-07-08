@@ -5,12 +5,12 @@ import time
 import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum
-import infra.clients
+from ccf.clients import CCFConnectionException
 import infra.path
 import infra.proc
 import infra.node
 import infra.consortium
-from infra.tx_status import TxStatus
+from ccf.tx_status import TxStatus
 import random
 from math import ceil
 
@@ -158,7 +158,8 @@ class Network:
 
     def _add_node(self, node, lib_name, args, target_node=None, recovery=False):
         forwarded_args = {
-            arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
+            arg: getattr(args, arg)
+            for arg in infra.network.Network.node_args_to_forward
         }
 
         # Contact primary if no target node is set
@@ -196,7 +197,8 @@ class Network:
         LOG.info("Opening CCF service on {}".format(hosts))
 
         forwarded_args = {
-            arg: getattr(args, arg) for arg in infra.ccf.Network.node_args_to_forward
+            arg: getattr(args, arg)
+            for arg in infra.network.Network.node_args_to_forward
         }
 
         for i, node in enumerate(self.nodes):
@@ -522,7 +524,7 @@ class Network:
                             break
                         else:
                             assert "Primary unknown" in res.error, res.error
-                    except infra.clients.CCFConnectionException:
+                    except CCFConnectionException:
                         pass
             if primary_id is not None:
                 break

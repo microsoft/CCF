@@ -45,13 +45,13 @@ pip --disable-pip-version-check install black pylint 1>/dev/null
 
 echo "Python format"
 if [ $FIX -ne 0 ]; then
-  black tests/ scripts/*.py
+  black python/ tests/ scripts/*.py
 else
-  black --check tests/ scripts/*.py
+  black --check python/ tests/ scripts/*.py
 fi
 
 # Install test dependencies before linting
 pip --disable-pip-version-check install -U -r tests/requirements.txt 1>/dev/null
 
 echo "Python lint"
-find tests/ -type f -name "*.py" -exec python -m pylint {} +
+find tests/ python/ -type f -name "*.py" -exec python -m pylint {} +
