@@ -301,16 +301,26 @@ def test_historical_query(network, args):
     return network
 
 
-@reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("/node/tx")
+@reqs.description("Testing forwarding on member and user frontends")
+@reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
-    with primary.client() as nc:
-        check_commit = ccf.checker.Checker(nc)
+    with backup.client() as c:
+        check_commit = ccf.checker.Checker(c)
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
+
+    with backup.client("user0") as c:
+        check_commit = ccf.checker.Checker(c)
+        check = ccf.checker.Checker()
+        msg = "forwarded_msg"
+        log_id = 123
+        check_commit(
+            c.rpc("/app/log/private", {"id": log_id, "msg": msg}), result=True,
+        )
+        check(c.get("/app/log/private", {"id": log_id}), result={"msg": msg})
 
     return network
 
@@ -529,24 +539,24 @@ def run(args):
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
-            network = test(
-                network,
-                args,
-                notifications_queue,
-                verify=args.package is not "libjs_generic",
-            )
-            network = test_illegal(
-                network, args, verify=args.package is not "libjs_generic"
-            )
-            network = test_large_messages(network, args)
-            network = test_remove(network, args)
+            # network = test(
+            #     network,
+            #     args,
+            #     notifications_queue,
+            #     verify=args.package is not "libjs_generic",
+            # )
+            # network = test_illegal(
+            #     network, args, verify=args.package is not "libjs_generic"
+            # )
+            # network = test_large_messages(network, args)
+            # network = test_remove(network, args)
             network = test_forwarding_frontends(network, args)
-            network = test_update_lua(network, args)
-            network = test_cert_prefix(network, args)
-            network = test_anonymous_caller(network, args)
-            network = test_raw_text(network, args)
-            network = test_historical_query(network, args)
-            network = test_view_history(network, args)
+            # network = test_update_lua(network, args)
+            # network = test_cert_prefix(network, args)
+            # network = test_anonymous_caller(network, args)
+            # network = test_raw_text(network, args)
+            # network = test_historical_query(network, args)
+            # network = test_view_history(network, args)
 
 
 if __name__ == "__main__":

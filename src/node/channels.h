@@ -291,48 +291,51 @@ namespace ccf
       ctx.free_ctx();
     }
 
-    void send(NodeMsgType msg_type, const CBuffer aad)
+    void try_establish_channel()
+    {
+      const auto own_public = ctx.get_own_public();
+      auto signature = network_kp->sign(own_public);
+
+      // Serialise channel public and network signature and length-prefix both
+      auto space = own_public.size() + signature.size() + 2 * sizeof(size_t);
+      std::vector<uint8_t> data(space);
+      auto data_ = data.data();
+      serialized::write(data_, space, own_public.size());
+      serialized::write(data_, space, own_public.data(), own_public.size());
+      serialized::write(data_, space, signature.size());
+      serialized::write(data_, space, signature.data(), signature.size());
+
+      ChannelHeader msg = {ChannelMsg::key_exchange, self};
+      to_host->write(
+        node_outbound, peer_id, NodeMsgType::channel_msg, msg, data);
+
+      LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
+    }
+
+    bool send(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
     {
       if (status != ESTABLISHED)
       {
-        const auto own_public_for_peer_ = get_public();
-        if (!own_public_for_peer_.has_value())
-        {
-          return;
-        }
-
-        const auto& own_public_for_peer = own_public_for_peer_.value();
-        auto signature = network_kp->sign(own_public_for_peer);
-
-        // Serialise channel public and network signature
-        // Length-prefix both
-        auto space =
-          own_public_for_peer.size() + signature.size() + 2 * sizeof(size_t);
-        std::vector<uint8_t> ret(space);
-        auto data_ = ret.data();
-        serialized::write(data_, space, own_public_for_peer.size());
-        serialized::write(
-          data_, space, own_public_for_peer.data(), own_public_for_peer.size());
-        serialized::write(data_, space, signature.size());
-        serialized::write(data_, space, signature.data(), signature.size());
-
-        ChannelHeader msg = {ChannelMsg::key_exchange, self};
-        to_host->write(
-          node_outbound, peer_id, NodeMsgType::channel_msg, msg, ret);
-
-        LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
-        return;
+        try_establish_channel();
+        return false;
       }
 
       RecvNonce nonce(
         send_nonce.fetch_add(1), threading::get_current_thread_id());
 
+      serializer::ByteRange byte_range = {aad.p, aad.n};
+
       GcmHdr hdr;
       hdr.set_iv_seq(nonce.get_val());
-      key->encrypt(hdr.get_iv(), nullb, aad, nullptr, hdr.tag);
 
-      auto data = std::vector<uint8_t>(aad);
-      to_host->write(node_outbound, peer_id, msg_type, data, hdr);
+      std::vector<uint8_t> cipher(plain.n);
+      LOG_FAIL_FMT("Size of cipher: {}", cipher.size());
+
+      key->encrypt(hdr.get_iv(), plain, aad, cipher.data(), hdr.tag);
+
+      to_host->write(node_outbound, peer_id, msg_type, byte_range, hdr, cipher);
+
+      return true;
     }
 
     void tag(GcmHdr& header, CBuffer aad)

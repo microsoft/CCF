@@ -89,30 +89,13 @@ namespace ccf
     }
 
     template <class T>
-    void send_authenticated(
+    bool send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
-      // TODO:
-      // 1. Retrieve channel
-      // 2. Call tag_and_send(). If channel is not ready, msg is queued
-
       LOG_FAIL_FMT("Sending authenticated message: {}", msg_type);
 
       auto& n2n_channel = channels->get(to);
-      n2n_channel.send(msg_type, asCb(data));
-
-      // if (!try_establish_channel(to, n2n_channel))
-      // {
-      //   LOG_FAIL_FMT("Channel is not yet established!!");
-      //   // n2n_channel.queue(msg_type, asCb(data));
-      //   return;
-      // }
-
-      // GcmHdr hdr;
-      // n2n_channel.tag(hdr, asCb(data));
-
-      // // TODO: Move this call to inside channel
-      // to_host->write(node_outbound, to, msg_type, data, hdr);
+      return n2n_channel.send(msg_type, asCb(data));
     }
 
     // template <>
@@ -204,18 +187,7 @@ namespace ccf
       const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_establish_channel(to, n2n_channel))
-      {
-        return false;
-      }
-
-      GcmHdr hdr;
-      std::vector<uint8_t> cipher(data.size());
-      n2n_channel.encrypt(hdr, asCb(msg_hdr), data, cipher);
-
-      to_host->write(node_outbound, to, msg_type, msg_hdr, hdr, cipher);
-
-      return true;
+      return n2n_channel.send(msg_type, asCb(msg_hdr), data);
     }
 
     template <class T>

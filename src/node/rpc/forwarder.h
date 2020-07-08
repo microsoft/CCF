@@ -78,6 +78,8 @@ namespace ccf
       ForwardedHeader msg = {
         ForwardedMsg::forwarded_cmd, self, rpc_ctx->frame_format()};
 
+      LOG_FAIL_FMT("Forwarding encrypted message... plain of size {}", plain.size());
+
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, to, plain, msg);
     }
@@ -144,6 +146,7 @@ namespace ccf
       // and expects the same format they forwarded.
       ForwardedHeader msg = {ForwardedMsg::forwarded_response, self};
 
+      LOG_FAIL_FMT("Sending forwarded response");
       return n2n_channels->send_encrypted(
         NodeMsgType::forwarded_msg, from_node, plain, msg);
     }
