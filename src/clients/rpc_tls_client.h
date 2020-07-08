@@ -163,7 +163,7 @@ public:
     std::vector<uint8_t> body;
     if (!params.is_null())
     {
-      body = jsonrpc::pack(params, jsonrpc::Pack::MsgPack);
+      body = serdes::pack(params, serdes::Pack::MsgPack);
     }
     return gen_request(
       method,
@@ -218,7 +218,7 @@ public:
     else if (http::status_success(resp.status))
     {
       const auto& content_type = resp.headers.find(http::headers::CONTENT_TYPE);
-      return jsonrpc::unpack(resp.body, jsonrpc::Pack::MsgPack);
+      return serdes::unpack(resp.body, serdes::Pack::MsgPack);
     }
     else
     {

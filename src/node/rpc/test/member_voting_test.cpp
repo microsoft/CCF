@@ -26,7 +26,7 @@ extern "C"
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;
-using namespace jsonrpc;
+using namespace serdes;
 using namespace nlohmann;
 
 using TResponse = http::SimpleResponseProcessor::Response;
@@ -41,7 +41,7 @@ std::vector<uint8_t> dummy_key_share = {1, 2, 3};
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
-constexpr auto default_pack = jsonrpc::Pack::Text;
+constexpr auto default_pack = serdes::Pack::Text;
 
 string get_script_path(string name)
 {
@@ -63,7 +63,7 @@ T parse_response_body(const TResponse& r)
   nlohmann::json body_j;
   try
   {
-    body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+    body_j = serdes::unpack(r.body, serdes::Pack::Text);
   }
   catch (const nlohmann::json::parse_error& e)
   {
@@ -113,7 +113,7 @@ std::vector<uint8_t> create_request(
 {
   http::Request r(method_name, verb);
   const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       jsonrpc::pack(params, default_pack);
+                                       serdes::pack(params, default_pack);
   r.set_body(&body);
   return r.build_request();
 }
@@ -124,7 +124,7 @@ std::vector<uint8_t> create_signed_request(
   http::Request r(method_name);
 
   const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       jsonrpc::pack(params, default_pack);
+                                       serdes::pack(params, default_pack);
 
   r.set_body(&body);
   http::sign_request(r, kp_);

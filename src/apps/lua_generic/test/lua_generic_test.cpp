@@ -23,12 +23,12 @@
 using namespace ccfapp;
 using namespace ccf;
 using namespace std;
-using namespace jsonrpc;
+using namespace serdes;
 using namespace nlohmann;
 
 auto kp = tls::make_key_pair();
 
-constexpr auto default_format = jsonrpc::Pack::MsgPack;
+constexpr auto default_format = serdes::Pack::MsgPack;
 constexpr auto content_type =
   ccf::jsonhandler::pack_to_content_type(default_format);
 
@@ -56,7 +56,7 @@ TResponse check_error(const vector<uint8_t>& v, http_status expected)
 template <typename T>
 T parse_response_body(const TResponse& r)
 {
-  const auto body_j = jsonrpc::unpack(r.body, default_format);
+  const auto body_j = serdes::unpack(r.body, default_format);
   return body_j.get<T>();
 }
 
@@ -171,7 +171,7 @@ std::vector<uint8_t> make_pc(const string& method, const Params& params)
 {
   auto request = http::Request(method);
   request.set_header(http::headers::CONTENT_TYPE, content_type);
-  const auto body = jsonrpc::pack(params, default_format);
+  const auto body = serdes::pack(params, default_format);
   request.set_body(&body);
   return request.build_request();
 }
