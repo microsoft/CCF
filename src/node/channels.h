@@ -82,6 +82,7 @@ namespace ccf
     std::atomic<SeqNo> send_nonce{1};
 
     // Used to buffer message sent on the channel before it is established
+    static constexpr auto max_queued_msgs = 16;
     std::queue<Msg> outgoing_msgs;
 
     // Used to prevent replayed messages.
@@ -178,10 +179,29 @@ namespace ccf
       LOG_DEBUG_FMT("node channel with {} initiated", peer_id);
     }
 
-    void queue(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
+    void queue_msg(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
     {
-      LOG_FAIL_FMT("Emplacing one message in queue");
-      outgoing_msgs.emplace(msg_type, aad, plain);
+      if (outgoing_msgs.size() < max_queued_msgs)
+      {
+        outgoing_msgs.emplace(msg_type, aad, plain);
+      }
+      else
+      {
+        LOG_DEBUG_FMT(
+          "Cannot queue msg for node {} as channel is full (size: {})",
+          peer_id,
+          max_queued_msgs);
+      }
+    }
+
+    void flush_outgoing_msgs()
+    {
+      while (outgoing_msgs.size() != 0)
+      {
+        auto& msg = outgoing_msgs.front();
+        send(msg.type, msg.raw_plain, msg.raw_cipher);
+        outgoing_msgs.pop();
+      }
     }
 
   public:
@@ -267,11 +287,8 @@ namespace ccf
     {
       if (status == ESTABLISHED)
       {
-        LOG_FAIL_FMT("load_peer_signed_public: channel is already established");
         return false;
       }
-
-      LOG_FAIL_FMT("Loading peer signed public....");
 
       auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
 
@@ -323,30 +340,11 @@ namespace ccf
         return false;
       }
 
-      LOG_FAIL_FMT("Establishing channel, complete= {}", complete);
-
       ctx.load_peer_public(peer_public_start, peer_public_size);
 
       establish(complete);
 
       return true;
-    }
-
-    void flush_outgoing_msgs()
-    {
-      LOG_FAIL_FMT(
-        "Flushing {} queue messages with peer node {}",
-        outgoing_msgs.size(),
-        peer_id);
-
-      while (outgoing_msgs.size() != 0)
-      {
-        LOG_FAIL_FMT("Flushing one message from the queue");
-        auto& msg = outgoing_msgs.front();
-
-        send(msg.type, msg.raw_plain, msg.raw_cipher);
-        outgoing_msgs.pop();
-      }
     }
 
     void establish(bool complete)
@@ -372,22 +370,12 @@ namespace ccf
       }
     }
 
-    void free_ctx()
-    {
-      if (status != ESTABLISHED)
-      {
-        return;
-      }
-
-      ctx.free_ctx();
-    }
-
     bool send(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
     {
       if (status != ESTABLISHED)
       {
         try_establish_channel();
-        queue(msg_type, aad, plain);
+        queue_msg(msg_type, aad, plain);
         return false;
       }
 
@@ -423,7 +411,7 @@ namespace ccf
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       if (!verify_or_decrypt(hdr, aad))
       {
-        LOG_FAIL_FMT("Failed to verify node message");
+        LOG_FAIL_FMT("Failed to verify node message from {}", peer_id);
         return false;
       }
 
@@ -445,7 +433,7 @@ namespace ccf
 
       if (!verify_or_decrypt(hdr, {data, size}))
       {
-        LOG_FAIL_FMT("Failed to verify node message");
+        LOG_FAIL_FMT("Failed to verify node message from {}", peer_id);
         return false;
       }
 
@@ -469,7 +457,7 @@ namespace ccf
       std::vector<uint8_t> plain(size);
       if (!verify_or_decrypt(hdr, aad, {data, size}, plain))
       {
-        LOG_FAIL_FMT("Failed to decrypt node message");
+        LOG_FAIL_FMT("Failed to decrypt node message from {}", peer_id);
         return std::nullopt;
       }
 

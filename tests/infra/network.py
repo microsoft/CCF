@@ -240,9 +240,9 @@ class Network:
                 raise
 
         self.election_duration = (
-            args.pbft_view_change_timeout * 2 / 1000
+            args.pbft_view_change_timeout / 1000
             if args.consensus == "pbft"
-            else args.raft_election_timeout * 2 / 1000
+            else args.raft_election_timeout / 1000
         )
 
         LOG.info("All nodes started")

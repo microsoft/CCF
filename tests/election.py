@@ -109,7 +109,6 @@ def run(args):
             wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
             test_kill_primary(network, args, find_new_primary=False)
-            break
 
         # More than F nodes have been stopped, trying to commit any message
         LOG.debug(
