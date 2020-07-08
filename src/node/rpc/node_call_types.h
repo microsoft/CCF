@@ -23,25 +23,6 @@ namespace ccf
     readingPrivateLedger
   };
 
-  struct GetSignedIndex
-  {
-    using In = void;
-
-    enum class State
-    {
-      ReadingPublicLedger,
-      ReadingPrivateLedger,
-      PartOfNetwork,
-      PartOfPublicNetwork,
-    };
-
-    struct Out
-    {
-      State state;
-      kv::Version signed_index;
-    };
-  };
-
   struct GetState
   {
     using In = void;
