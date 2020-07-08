@@ -5,7 +5,6 @@
 #include "enclave/interface.h"
 #include "node/code_id.h"
 #include "node/rpc/call_types.h"
-#include "node/rpc/node_interface.h"
 
 namespace ccf
 {
