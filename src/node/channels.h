@@ -309,7 +309,7 @@ namespace ccf
       to_host->write(
         node_outbound, peer_id, NodeMsgType::channel_msg, msg, data);
 
-      LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
+      LOG_DEBUG_FMT("node channel with {} initiated", peer_id);
     }
 
     bool send(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
@@ -323,8 +323,7 @@ namespace ccf
       RecvNonce nonce(
         send_nonce.fetch_add(1), threading::get_current_thread_id());
 
-      serializer::ByteRange byte_range = {aad.p, aad.n};
-
+      serializer::ByteRange aad_byte_range = {aad.p, aad.n};
       GcmHdr hdr;
       hdr.set_iv_seq(nonce.get_val());
 
@@ -333,57 +332,58 @@ namespace ccf
 
       key->encrypt(hdr.get_iv(), plain, aad, cipher.data(), hdr.tag);
 
-      to_host->write(node_outbound, peer_id, msg_type, byte_range, hdr, cipher);
+      to_host->write(
+        node_outbound, peer_id, msg_type, aad_byte_range, hdr, cipher);
 
       return true;
     }
 
-    void tag(GcmHdr& header, CBuffer aad)
+    bool recv_authenticated(CBuffer aad, const uint8_t*& data, size_t& size)
     {
-      // // TODO: Wrap this so that it is common to all send functions
-      // if (status != ESTABLISHED)
-      // {
-      //   const auto own_public_for_peer_ = get_public();
-      //   if (!own_public_for_peer_.has_value())
-      //   {
-      //     return std::nullopt;
-      //   }
+      if (status != ESTABLISHED)
+      {
+        LOG_FAIL_FMT(
+          "node channel with {} cannot receive messages: not yet established",
+          peer_id);
+        return false;
+      }
 
-      //   const auto& own_public_for_peer = own_public_for_peer_.value();
-      //   auto signature = network_kp->sign(own_public_for_peer);
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
-      //   // Serialise channel public and network signature
-      //   // Length-prefix both
-      //   auto space =
-      //     own_public_for_peer.size() + signature.size() + 2 * sizeof(size_t);
-      //   std::vector<uint8_t> ret(space);
-      //   auto data_ = ret.data();
-      //   serialized::write(data_, space, own_public_for_peer.size());
-      //   serialized::write(
-      //     data_, space, own_public_for_peer.data(),
-      //     own_public_for_peer.size());
-      //   serialized::write(data_, space, signature.size());
-      //   serialized::write(data_, space, signature.data(), signature.size());
+      LOG_FAIL_FMT("Recv encrypted msg of cipher size: {}", size);
 
-      //   ChannelHeader msg = {ChannelMsg::key_exchange, self};
-      //   to_host->write(
-      //     node_outbound,
-      //     peer_id,
-      //     NodeMsgType::channel_msg,
-      //     msg,
-      //     signed_public.value());
+      if (!verify_or_decrypt(hdr, aad))
+      {
+        LOG_FAIL_FMT("Failed to verify node message");
+        return false;
+      }
 
-      //   LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
-      //   return;
-      // }
+      return true;
+    }
 
-      RecvNonce nonce(
-        send_nonce.fetch_add(1), threading::get_current_thread_id());
+    std::optional<std::vector<uint8_t>> recv_encrypted(
+      CBuffer aad, const uint8_t* data, size_t size)
+    {
+      if (status != ESTABLISHED)
+      {
+        LOG_FAIL_FMT(
+          "node channel with {} cannot receive messages: not yet established",
+          peer_id);
+        return std::nullopt;
+      }
 
-      header.set_iv_seq(nonce.get_val());
-      key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      std::vector<uint8_t> plain(size);
 
-      // to_host->write(node_outbound, peer_id, msg_type, data, hdr);
+      LOG_FAIL_FMT("Recv encrypted msg of cipher size: {}", size);
+
+      if (!verify_or_decrypt(hdr, aad, {data, size}, plain))
+      {
+        LOG_FAIL_FMT("Failed to decrypt node message");
+        return std::nullopt;
+      }
+
+      return plain;
     }
 
     static RecvNonce get_nonce(const GcmHdr& header)
@@ -394,20 +394,6 @@ namespace ccf
     bool verify(const GcmHdr& header, CBuffer aad)
     {
       return verify_or_decrypt(header, aad);
-    }
-
-    void encrypt(GcmHdr& header, CBuffer aad, CBuffer plain, Buffer cipher)
-    {
-      if (status != ESTABLISHED)
-      {
-        throw std::logic_error("Channel is not established for encrypting");
-      }
-
-      RecvNonce nonce(
-        send_nonce.fetch_add(1), threading::get_current_thread_id());
-
-      header.set_iv_seq(nonce.get_val());
-      key->encrypt(header.get_iv(), plain, aad, cipher.p, header.tag);
     }
 
     bool decrypt(

@@ -121,16 +121,14 @@ namespace ccf
     const T& recv_authenticated(const uint8_t*& data, size_t& size)
     {
       LOG_FAIL_FMT("Recv authenticated: {}", size);
-      const auto& t = serialized::overlay<T>(data, size);
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
+      auto& t = serialized::overlay<T>(data, size);
       auto& n2n_channel = channels->get(t.from_node);
-      if (!n2n_channel.verify(hdr, asCb(t)))
+
+      if (!n2n_channel.recv_authenticated(asCb(t), data, size))
       {
         throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {} (size: {})",
-          t.from_node,
-          size));
+          "Invalid authenticated node2node message from node {}", t.from_node));
       }
 
       return t;
@@ -186,6 +184,7 @@ namespace ccf
       const std::vector<uint8_t>& data,
       const T& msg_hdr)
     {
+      // data is encrypted while msg_hdr is integrity-protected
       auto& n2n_channel = channels->get(to);
       return n2n_channel.send(msg_type, asCb(msg_hdr), data);
     }
@@ -195,19 +194,16 @@ namespace ccf
       const uint8_t* data, size_t size)
     {
       auto t = serialized::read<T>(data, size);
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      std::vector<uint8_t> plain(size);
-
       auto& n2n_channel = channels->get(t.from_node);
-      if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
+
+      auto plain = n2n_channel.recv_encrypted(asCb(t), data, size);
+      if (!plain.has_value())
       {
         throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {} (size: {})",
-          t.from_node,
-          size));
+          "Invalid encrypted node2node message from node {}", t.from_node));
       }
 
-      return std::make_pair(t, plain);
+      return std::make_pair(t, plain.value());
     }
 
     void process_key_exchange(const uint8_t* data, size_t size)
