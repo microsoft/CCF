@@ -36,7 +36,7 @@ def test(network, args, notifications_queue=None):
                 c.rpc("/app/log/private", {"id": 43, "msg": "A final message"}),
                 result=True,
             )
-            r = c.get("/app/receipt", {"commit": r.seqno})
+            r = c.get(f"/app/receipt/{r.view}/{r.seqno}")
             check(
                 c.rpc("/app/receipt/verify", {"receipt": r.result["receipt"]}),
                 result={"valid": True},
