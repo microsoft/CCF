@@ -203,10 +203,7 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx, CallerId caller_id)
     {
-      const auto method = ctx->get_method();
-      const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto endpoint =
-        endpoints.find_endpoint(local_method, ctx->get_request_verb());
+      auto endpoint = endpoints.find_endpoint(*ctx);
       if (endpoint != nullptr && endpoint->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
@@ -220,19 +217,17 @@ namespace ccf
       CallerId caller_id,
       PreExec pre_exec = {})
     {
-      const auto method = ctx->get_method();
-      const auto local_method = method.substr(method.find_first_not_of('/'));
-      const auto endpoint =
-        endpoints.find_endpoint(local_method, ctx->get_request_verb());
+      const auto endpoint = endpoints.find_endpoint(*ctx);
       if (endpoint == nullptr)
       {
-        const auto allowed_verbs = endpoints.get_allowed_verbs(local_method);
+        const auto allowed_verbs = endpoints.get_allowed_verbs(*ctx);
         if (allowed_verbs.empty())
         {
           ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
           ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          ctx->set_response_body(fmt::format("Unknown RPC: {}", method));
+          ctx->set_response_body(
+            fmt::format("Unknown path: {}", ctx->get_method()));
           return ctx->serialise_response();
         }
         else
@@ -250,7 +245,9 @@ namespace ccf
           // - Body for visiblity + human readability
           ctx->set_response_header(http::headers::ALLOW, allow_header_value);
           ctx->set_response_body(fmt::format(
-            "Allowed methods for '{}' are: {}", method, allow_header_value));
+            "Allowed methods for '{}' are: {}",
+            ctx->get_method(),
+            allow_header_value));
           return ctx->serialise_response();
         }
       }
@@ -278,7 +275,7 @@ namespace ccf
       if (endpoint->require_client_signature && !signed_request.has_value())
       {
         set_response_unauthorized(
-          ctx, fmt::format("'{}' RPC must be signed", method));
+          ctx, fmt::format("'{}' RPC must be signed", ctx->get_method()));
         return ctx->serialise_response();
       }
 

@@ -197,6 +197,22 @@ public:
   }
 };
 
+class TestTemplatedPaths : public SimpleUserRpcFrontend
+{
+public:
+  TestTemplatedPaths(kv::Store& tables) : SimpleUserRpcFrontend(tables)
+  {
+    open();
+
+    auto endpoint = [this](auto& args) {
+      nlohmann::json response_body = args.rpc_ctx->get_request_path_params();
+      args.rpc_ctx->set_response_body(response_body.dump(2));
+      args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_endpoint("{foo}/{bar}/{baz}", HTTP_POST, endpoint).install();
+  }
+};
+
 class TestMemberFrontend : public MemberRpcFrontend
 {
 public:
@@ -1093,6 +1109,50 @@ TEST_CASE("Alternative endpoints")
       enclave::make_rpc_context(user_session, serialized_read_only);
     auto response = parse_response(frontend.process(rpc_ctx).value());
     CHECK(response.status == HTTP_STATUS_OK);
+  }
+}
+
+TEST_CASE("Templated paths")
+{
+  prepare_callers();
+  TestTemplatedPaths frontend(*network.tables);
+
+  {
+    auto request = create_simple_request("fin/fang/foom");
+    const auto serialized_request = request.build_request();
+
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_request);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+
+    std::map<std::string, std::string> expected_mapping;
+    expected_mapping["foo"] = "fin";
+    expected_mapping["bar"] = "fang";
+    expected_mapping["baz"] = "foom";
+
+    const auto response_json = nlohmann::json::parse(response.body);
+    const auto actual_mapping = response_json.get<decltype(expected_mapping)>();
+
+    CHECK(expected_mapping == actual_mapping);
+  }
+
+  {
+    auto request = create_simple_request("users/1/address");
+    const auto serialized_request = request.build_request();
+
+    auto rpc_ctx = enclave::make_rpc_context(user_session, serialized_request);
+    auto response = parse_response(frontend.process(rpc_ctx).value());
+    CHECK(response.status == HTTP_STATUS_OK);
+
+    std::map<std::string, std::string> expected_mapping;
+    expected_mapping["foo"] = "users";
+    expected_mapping["bar"] = "1";
+    expected_mapping["baz"] = "address";
+
+    const auto response_json = nlohmann::json::parse(response.body);
+    const auto actual_mapping = response_json.get<decltype(expected_mapping)>();
+
+    CHECK(expected_mapping == actual_mapping);
   }
 }
 
