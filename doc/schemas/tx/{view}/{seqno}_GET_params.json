@@ -16,6 +16,6 @@
     "view",
     "seqno"
   ],
-  "title": "tx/params",
+  "title": "tx/{view}/{seqno}/params",
   "type": "object"
 }

@@ -9,6 +9,8 @@
 #include "metrics.h"
 #include "node/code_id.h"
 
+#include <charconv>
+
 namespace ccf
 {
   /*
@@ -56,24 +58,51 @@ namespace ccf
         .install();
 
       auto get_tx_status = [this](auto& args, nlohmann::json&& params) {
-        const auto in = params.get<GetTxStatus::In>();
+        kv::Consensus::View view;
+        {
+          auto view_s = args.rpc_ctx->get_request_path_params()["view"];
+          auto [p, ec] =
+            std::from_chars(view_s.data(), view_s.data() + view_s.size(), view);
+          if (ec != std::errc())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format(
+                "Unable to parse path parameter '{}' as a view", view_s));
+          }
+        }
+
+        kv::Consensus::SeqNo seqno;
+        {
+          auto seqno_s = args.rpc_ctx->get_request_path_params()["seqno"];
+          auto [p, ec] = std::from_chars(
+            seqno_s.data(), seqno_s.data() + seqno_s.size(), seqno);
+          if (ec != std::errc())
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format(
+                "Unable to parse path parameter '{}' as a seqno", seqno_s));
+          }
+        }
 
         if (consensus != nullptr)
         {
-          const auto tx_view = consensus->get_view(in.seqno);
+          const auto tx_view = consensus->get_view(seqno);
           const auto committed_seqno = consensus->get_committed_seqno();
           const auto committed_view = consensus->get_view(committed_seqno);
 
           GetTxStatus::Out out;
           out.status = ccf::get_tx_status(
-            in.view, in.seqno, tx_view, committed_view, committed_seqno);
+            view, seqno, tx_view, committed_view, committed_seqno);
           return make_success(out);
         }
 
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Consensus is not yet configured");
       };
-      make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
+      make_command_endpoint(
+        "tx/{view}/{seqno}", HTTP_GET, json_command_adapter(get_tx_status))
         .set_auto_schema<GetTxStatus>()
         .install();
 

@@ -27,7 +27,7 @@ def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
 
     end_time = time.time() + timeout
     while time.time() < end_time:
-        r = client.get("/node/tx", {"view": view, "seqno": seqno})
+        r = client.get(f"/node/tx/{view}/{seqno}")
         assert (
             r.status == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status}"

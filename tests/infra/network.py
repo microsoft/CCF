@@ -575,7 +575,7 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    resp = c.get("/node/tx", {"view": view, "seqno": seqno})
+                    resp = c.get(f"/node/tx/{view}/{seqno}")
                     if resp.error is not None:
                         # Node may not have joined the network yet, try again
                         break

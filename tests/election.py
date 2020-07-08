@@ -42,7 +42,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
         up_to_date_f = []
         for f in nodes:
             with f.client() as c:
-                r = c.get("/node/tx", {"view": view, "seqno": seqno})
+                r = c.get(f"/node/tx/{view}/{seqno}")
                 assert (
                     r.status == http.HTTPStatus.OK
                 ), f"tx request returned HTTP status {r.status}"

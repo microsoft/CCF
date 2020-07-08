@@ -13,6 +13,6 @@
   "required": [
     "status"
   ],
-  "title": "tx/result",
+  "title": "tx/{view}/{seqno}/result",
   "type": "object"
 }
