@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.ccf
+import infra.network
 import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
@@ -19,7 +19,7 @@ def test(network, args):
 def run(args):
     hosts = ["localhost", "localhost"]
 
-    with infra.ccf.network(
+    with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
     ) as network:
         network.start_and_join(args)

@@ -38,8 +38,10 @@ namespace ccf
     }
 
   private:
+    SpinLock verifiers_lock;
     std::map<CallerId, tls::VerifierPtr> verifiers;
-    SpinLock lock;
+
+    SpinLock open_lock;
     bool is_open_ = false;
 
     Nodes* nodes;
@@ -168,19 +170,20 @@ namespace ccf
         return false;
       }
 
-      auto v = verifiers.find(caller_id);
-      if (v == verifiers.end())
+      tls::VerifierPtr verifier;
       {
-        verifiers.emplace(
-          std::make_pair(caller_id, tls::make_verifier(caller)));
-      }
-      if (!verifiers[caller_id]->verify(
-            signed_request.req, signed_request.sig, signed_request.md))
-      {
-        return false;
+        std::lock_guard<SpinLock> mguard(verifiers_lock);
+        auto v = verifiers.find(caller_id);
+        if (v == verifiers.end())
+        {
+          verifiers.emplace(
+            std::make_pair(caller_id, tls::make_verifier(caller)));
+        }
+        verifier = verifiers[caller_id];
       }
 
-      return true;
+      return verifier->verify(
+        signed_request.req, signed_request.sig, signed_request.md);
     }
 
     void set_response_unauthorized(
@@ -200,10 +203,7 @@ namespace ccf
     std::optional<std::vector<uint8_t>> process_if_local_node_rpc(
       std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx, CallerId caller_id)
     {
-      const auto method = ctx->get_method();
-      const auto local_method = method.substr(method.find_first_not_of('/'));
-      auto endpoint =
-        endpoints.find_endpoint(local_method, ctx->get_request_verb());
+      auto endpoint = endpoints.find_endpoint(*ctx);
       if (endpoint != nullptr && endpoint->execute_locally)
       {
         return process_command(ctx, tx, caller_id);
@@ -217,19 +217,17 @@ namespace ccf
       CallerId caller_id,
       PreExec pre_exec = {})
     {
-      const auto method = ctx->get_method();
-      const auto local_method = method.substr(method.find_first_not_of('/'));
-      const auto endpoint =
-        endpoints.find_endpoint(local_method, ctx->get_request_verb());
+      const auto endpoint = endpoints.find_endpoint(*ctx);
       if (endpoint == nullptr)
       {
-        const auto allowed_verbs = endpoints.get_allowed_verbs(local_method);
+        const auto allowed_verbs = endpoints.get_allowed_verbs(*ctx);
         if (allowed_verbs.empty())
         {
           ctx->set_response_status(HTTP_STATUS_NOT_FOUND);
           ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-          ctx->set_response_body(fmt::format("Unknown RPC: {}", method));
+          ctx->set_response_body(
+            fmt::format("Unknown path: {}", ctx->get_method()));
           return ctx->serialise_response();
         }
         else
@@ -247,7 +245,9 @@ namespace ccf
           // - Body for visiblity + human readability
           ctx->set_response_header(http::headers::ALLOW, allow_header_value);
           ctx->set_response_body(fmt::format(
-            "Allowed methods for '{}' are: {}", method, allow_header_value));
+            "Allowed methods for '{}' are: {}",
+            ctx->get_method(),
+            allow_header_value));
           return ctx->serialise_response();
         }
       }
@@ -275,7 +275,7 @@ namespace ccf
       if (endpoint->require_client_signature && !signed_request.has_value())
       {
         set_response_unauthorized(
-          ctx, fmt::format("'{}' RPC must be signed", method));
+          ctx, fmt::format("'{}' RPC must be signed", ctx->get_method()));
         return ctx->serialise_response();
       }
 
@@ -462,7 +462,7 @@ namespace ccf
 
     void open() override
     {
-      std::lock_guard<SpinLock> mguard(lock);
+      std::lock_guard<SpinLock> mguard(open_lock);
       if (!is_open_)
       {
         is_open_ = true;
@@ -472,7 +472,7 @@ namespace ccf
 
     bool is_open() override
     {
-      std::lock_guard<SpinLock> mguard(lock);
+      std::lock_guard<SpinLock> mguard(open_lock);
       return is_open_;
     }
 

@@ -257,26 +257,45 @@ namespace ccf
       auto get_schema = [this](auto& args, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
-        const auto it = installed_handlers.find(in.method);
-        if (it == installed_handlers.end())
+        auto j = nlohmann::json::object();
+
+        const auto it = fully_qualified_endpoints.find(in.method);
+        if (it != fully_qualified_endpoints.end())
+        {
+          for (const auto& [verb, endpoint] : it->second)
+          {
+            std::string verb_name = verb.c_str();
+            std::transform(
+              verb_name.begin(),
+              verb_name.end(),
+              verb_name.begin(),
+              [](unsigned char c) { return std::tolower(c); });
+            j[verb_name] =
+              GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+          }
+        }
+
+        const auto templated_it = templated_endpoints.find(in.method);
+        if (templated_it != templated_endpoints.end())
+        {
+          for (const auto& [verb, endpoint] : templated_it->second)
+          {
+            std::string verb_name = verb.c_str();
+            std::transform(
+              verb_name.begin(),
+              verb_name.end(),
+              verb_name.begin(),
+              [](unsigned char c) { return std::tolower(c); });
+            j[verb_name] =
+              GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
+          }
+        }
+
+        if (j.empty())
         {
           return make_error(
             HTTP_STATUS_BAD_REQUEST,
             fmt::format("Method {} not recognised", in.method));
-        }
-
-        auto j = nlohmann::json::object();
-
-        for (auto& [verb, endpoint] : it->second)
-        {
-          std::string verb_name = verb.c_str();
-          std::transform(
-            verb_name.begin(),
-            verb_name.end(),
-            verb_name.begin(),
-            [](unsigned char c) { return std::tolower(c); });
-          j[verb_name] =
-            GetSchema::Out{endpoint.params_schema, endpoint.result_schema};
         }
 
         return make_success(j);

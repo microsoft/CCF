@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import os
-import infra.ccf
+import infra.network
 import infra.remote
 
 from loguru import logger as LOG
@@ -34,7 +34,7 @@ class CCFRemoteClient(object):
         self.BIN = infra.path.build_bin_path(bin_path)
 
         # strip out the config from the path
-        self.common_dir = infra.ccf.get_common_folder_name(workspace, label)
+        self.common_dir = infra.network.get_common_folder_name(workspace, label)
 
         self.DEPS = [
             os.path.join(self.common_dir, "user1_cert.pem"),

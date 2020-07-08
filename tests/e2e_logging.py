@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import infra.ccf
+import infra.network
 import infra.notification
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
-from infra.tx_status import TxStatus
+from ccf.tx_status import TxStatus
+import ccf.checker
 import inspect
 import http
 import ssl
@@ -13,7 +14,7 @@ import socket
 import os
 from collections import defaultdict
 import time
-import infra.clients
+import ccf.clients
 
 from loguru import logger as LOG
 
@@ -44,7 +45,7 @@ def test_illegal(network, args, notifications_queue=None, verify=True):
     # Send malformed HTTP traffic and check the connection is closed
     cafile = cafile = os.path.join(network.common_dir, "networkcert.pem")
     context = ssl.create_default_context(cafile=cafile)
-    context.set_ecdh_curve(infra.clients.get_curve(cafile).name)
+    context.set_ecdh_curve(ccf.clients.get_curve(cafile).name)
     context.load_cert_chain(
         certfile=os.path.join(network.common_dir, "user0_cert.pem"),
         keyfile=os.path.join(network.common_dir, "user0_privk.pem"),
@@ -79,8 +80,8 @@ def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
     with primary.client() as nc:
-        check_commit = infra.checker.Checker(nc)
-        check = infra.checker.Checker()
+        check_commit = ccf.checker.Checker(nc)
+        check = ccf.checker.Checker()
 
         with primary.client("user0") as c:
             log_id = 44
@@ -106,8 +107,8 @@ def test_remove(network, args):
         primary, _ = network.find_primary()
 
         with primary.client() as nc:
-            check_commit = infra.checker.Checker(nc)
-            check = infra.checker.Checker()
+            check_commit = ccf.checker.Checker(nc)
+            check = ccf.checker.Checker()
 
             with primary.client("user0") as c:
                 log_id = 44
@@ -197,7 +198,7 @@ def test_anonymous_caller(network, args):
 
 
 @reqs.description("Write non-JSON body")
-@reqs.supports_methods("log/private/raw_text", "log/private")
+@reqs.supports_methods("log/private/raw_text/{id}", "log/private")
 def test_raw_text(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
@@ -206,9 +207,9 @@ def test_raw_text(network, args):
         msg = "This message is not in JSON"
         with primary.client("user0") as c:
             r = c.rpc(
-                "/app/log/private/raw_text",
+                f"/app/log/private/raw_text/{log_id}",
                 msg,
-                headers={"content-type": "text/plain", "x-log-id": str(log_id)},
+                headers={"content-type": "text/plain"},
             )
             assert r.status == http.HTTPStatus.OK.value
             r = c.get("/app/log/private", {"id": log_id})
@@ -234,8 +235,8 @@ def test_historical_query(network, args):
         primary, _ = network.find_primary()
 
         with primary.client() as nc:
-            check_commit = infra.checker.Checker(nc)
-            check = infra.checker.Checker()
+            check_commit = ccf.checker.Checker(nc)
+            check = ccf.checker.Checker()
 
             with primary.client("user0") as c:
                 log_id = 10
@@ -254,8 +255,8 @@ def test_historical_query(network, args):
                 timeout = 15
                 found = False
                 headers = {
-                    infra.clients.CCF_TX_VIEW_HEADER: str(view),
-                    infra.clients.CCF_TX_SEQNO_HEADER: str(seqno),
+                    ccf.clients.CCF_TX_VIEW_HEADER: str(view),
+                    ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
                 }
                 params = {"id": log_id}
                 end_time = time.time() + timeout
@@ -307,7 +308,7 @@ def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
 
     with primary.client() as nc:
-        check_commit = infra.checker.Checker(nc)
+        check_commit = ccf.checker.Checker(nc)
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
 
@@ -321,7 +322,7 @@ def test_update_lua(network, args):
         LOG.info("Updating Lua application")
         primary, _ = network.find_primary()
 
-        check = infra.checker.Checker()
+        check = ccf.checker.Checker()
 
         # Create a new lua application file (minimal app)
         new_app_file = "new_lua_app.lua"
@@ -370,7 +371,7 @@ def test_view_history(network, args):
         LOG.warning("Skipping view reconstruction in PBFT")
         return network
 
-    check = infra.checker.Checker()
+    check = ccf.checker.Checker()
 
     for node in network.get_joined_nodes():
         with node.client("user0") as c:
@@ -474,7 +475,7 @@ def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
     with primary.client("user0") as c:
-        check = infra.checker.Checker()
+        check = ccf.checker.Checker()
         r = c.rpc("/app/log/private", {"id": 0, "msg": "Ignored"})
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
@@ -524,7 +525,7 @@ def run(args):
             else None
         )
 
-        with infra.ccf.network(
+        with infra.network.network(
             hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb,
         ) as network:
             network.start_and_join(args)
