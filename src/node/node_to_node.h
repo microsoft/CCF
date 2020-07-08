@@ -28,7 +28,6 @@ namespace ccf
         // If the channel is not yet established, replace all sent messages with
         // a key exchange message. In the case of raft, this is acceptable since
         // append entries and vote requests are re-sent after a short timeout
-        // https://github.com/microsoft/CCF/issues/1015
         auto signed_public = channels->get_signed_public(peer_id);
         if (!signed_public.has_value())
         {
@@ -59,7 +58,8 @@ namespace ccf
     void initialize(NodeId self_id, const tls::Pem& network_pkey)
     {
       self = self_id;
-      channels = std::make_unique<ChannelManager>(writer_factory, network_pkey);
+      channels =
+        std::make_unique<ChannelManager>(writer_factory, network_pkey, self);
     }
 
     void create_channel(
@@ -89,28 +89,36 @@ namespace ccf
     }
 
     template <class T>
-    bool send_authenticated(
+    void send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
+      // TODO:
+      // 1. Retrieve channel
+      // 2. Call tag_and_send(). If channel is not ready, msg is queued
+
+      LOG_FAIL_FMT("Sending authenticated message: {}", msg_type);
+
       auto& n2n_channel = channels->get(to);
-      if (!try_establish_channel(to, n2n_channel))
-      {
-        LOG_FAIL_FMT("Channel is not yet established!!");
-        n2n_channel.queue(msg_type, asCb(data));
-        return false;
-      }
+      n2n_channel.send(msg_type, asCb(data));
 
-      GcmHdr hdr;
-      n2n_channel.tag(hdr, asCb(data));
+      // if (!try_establish_channel(to, n2n_channel))
+      // {
+      //   LOG_FAIL_FMT("Channel is not yet established!!");
+      //   // n2n_channel.queue(msg_type, asCb(data));
+      //   return;
+      // }
 
-      // TODO: Move this call to inside channel
-      to_host->write(node_outbound, to, msg_type, data, hdr);
-      return true;
+      // GcmHdr hdr;
+      // n2n_channel.tag(hdr, asCb(data));
+
+      // // TODO: Move this call to inside channel
+      // to_host->write(node_outbound, to, msg_type, data, hdr);
     }
 
     // template <>
     // bool send_authenticated(
-    //   const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
+    //   const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>&
+    //   data)
     // {
     //   auto& n2n_channel = channels->get(to);
     //   if (!try_establish_channel(to, n2n_channel))
@@ -129,6 +137,7 @@ namespace ccf
     template <class T>
     const T& recv_authenticated(const uint8_t*& data, size_t& size)
     {
+      LOG_FAIL_FMT("Recv authenticated: {}", size);
       const auto& t = serialized::overlay<T>(data, size);
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
@@ -235,6 +244,9 @@ namespace ccf
       // the initiator
       const auto& ke = serialized::overlay<ChannelHeader>(data, size);
 
+      LOG_FAIL_FMT("Processing key exchange...");
+
+      // TODO: Change this so that it works on the channel directly
       auto signed_public = channels->get_signed_public(ke.from_node);
       if (!signed_public.has_value())
       {
@@ -262,6 +274,8 @@ namespace ccf
       // Called on channel initiator when a key exchange response message is
       // received from the target
       const auto& ke = serialized::overlay<ChannelHeader>(data, size);
+
+      LOG_FAIL_FMT("Completing key exchange...");
 
       if (!channels->load_peer_signed_public(
             ke.from_node, std::vector<uint8_t>(data, data + size)))

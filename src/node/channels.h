@@ -61,6 +61,9 @@ namespace ccf
       {}
     };
 
+    NodeId self;
+    tls::KeyPairPtr network_kp;
+
     // Notifies the host to create a new outgoing connection
     ringbuffer::WriterPtr to_host;
     NodeId peer_id;
@@ -148,10 +151,14 @@ namespace ccf
   public:
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
+      tls::KeyPairPtr network_kp_,
+      NodeId self_,
       NodeId peer_id_,
       const std::string& peer_hostname_,
       const std::string& peer_service_) :
       to_host(writer_factory.create_writer_to_outside()),
+      network_kp(network_kp_),
+      self(self_),
       peer_id(peer_id_),
       peer_hostname(peer_hostname_),
       peer_service(peer_service_),
@@ -162,8 +169,13 @@ namespace ccf
     }
 
     Channel(
-      ringbuffer::AbstractWriterFactory& writer_factory, NodeId peer_id_) :
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      tls::KeyPairPtr network_kp_,
+      NodeId self_,
+      NodeId peer_id_) :
       to_host(writer_factory.create_writer_to_outside()),
+      network_kp(network_kp_),
+      self(self_),
       peer_id(peer_id_),
       outgoing(false)
     {}
@@ -260,9 +272,10 @@ namespace ccf
         {
           LOG_FAIL_FMT("Integrity protecc");
           GcmHdr hdr;
-          tag(hdr, msg.raw_plain);
+          // tag(hdr, msg.raw_plain);
 
-          to_host->write(node_outbound, peer_id, msg.type, msg.raw_plain, hdr);
+          // to_host->write(node_outbound, peer_id, msg.type, msg.raw_plain,
+          // hdr);
         }
         outgoing_msgs.pop();
       }
@@ -278,17 +291,96 @@ namespace ccf
       ctx.free_ctx();
     }
 
-    void tag(GcmHdr& header, CBuffer aad)
+    void send(NodeMsgType msg_type, const CBuffer aad)
     {
       if (status != ESTABLISHED)
       {
-        throw std::logic_error("Channel is not established for tagging");
+        const auto own_public_for_peer_ = get_public();
+        if (!own_public_for_peer_.has_value())
+        {
+          return;
+        }
+
+        const auto& own_public_for_peer = own_public_for_peer_.value();
+        auto signature = network_kp->sign(own_public_for_peer);
+
+        // Serialise channel public and network signature
+        // Length-prefix both
+        auto space =
+          own_public_for_peer.size() + signature.size() + 2 * sizeof(size_t);
+        std::vector<uint8_t> ret(space);
+        auto data_ = ret.data();
+        serialized::write(data_, space, own_public_for_peer.size());
+        serialized::write(
+          data_, space, own_public_for_peer.data(), own_public_for_peer.size());
+        serialized::write(data_, space, signature.size());
+        serialized::write(data_, space, signature.data(), signature.size());
+
+        ChannelHeader msg = {ChannelMsg::key_exchange, self};
+        to_host->write(
+          node_outbound, peer_id, NodeMsgType::channel_msg, msg, ret);
+
+        LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
+        return;
       }
+
+      RecvNonce nonce(
+        send_nonce.fetch_add(1), threading::get_current_thread_id());
+
+      GcmHdr hdr;
+      hdr.set_iv_seq(nonce.get_val());
+      key->encrypt(hdr.get_iv(), nullb, aad, nullptr, hdr.tag);
+
+      auto data = std::vector<uint8_t>(aad);
+      to_host->write(node_outbound, peer_id, msg_type, data, hdr);
+    }
+
+    void tag(GcmHdr& header, CBuffer aad)
+    {
+      // // TODO: Wrap this so that it is common to all send functions
+      // if (status != ESTABLISHED)
+      // {
+      //   const auto own_public_for_peer_ = get_public();
+      //   if (!own_public_for_peer_.has_value())
+      //   {
+      //     return std::nullopt;
+      //   }
+
+      //   const auto& own_public_for_peer = own_public_for_peer_.value();
+      //   auto signature = network_kp->sign(own_public_for_peer);
+
+      //   // Serialise channel public and network signature
+      //   // Length-prefix both
+      //   auto space =
+      //     own_public_for_peer.size() + signature.size() + 2 * sizeof(size_t);
+      //   std::vector<uint8_t> ret(space);
+      //   auto data_ = ret.data();
+      //   serialized::write(data_, space, own_public_for_peer.size());
+      //   serialized::write(
+      //     data_, space, own_public_for_peer.data(),
+      //     own_public_for_peer.size());
+      //   serialized::write(data_, space, signature.size());
+      //   serialized::write(data_, space, signature.data(), signature.size());
+
+      //   ChannelHeader msg = {ChannelMsg::key_exchange, self};
+      //   to_host->write(
+      //     node_outbound,
+      //     peer_id,
+      //     NodeMsgType::channel_msg,
+      //     msg,
+      //     signed_public.value());
+
+      //   LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
+      //   return;
+      // }
+
       RecvNonce nonce(
         send_nonce.fetch_add(1), threading::get_current_thread_id());
 
       header.set_iv_seq(nonce.get_val());
       key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
+
+      // to_host->write(node_outbound, peer_id, msg_type, data, hdr);
     }
 
     static RecvNonce get_nonce(const GcmHdr& header)
@@ -334,13 +426,16 @@ namespace ccf
     std::unordered_map<NodeId, Channel> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
     tls::KeyPairPtr network_kp;
+    NodeId self;
 
   public:
     ChannelManager(
       ringbuffer::AbstractWriterFactory& writer_factory_,
-      const tls::Pem& network_pkey) :
+      const tls::Pem& network_pkey,
+      NodeId self_) :
       writer_factory(writer_factory_),
-      network_kp(tls::make_key_pair(network_pkey))
+      network_kp(tls::make_key_pair(network_pkey)),
+      self(self_)
     {}
 
     void create_channel(
@@ -355,7 +450,8 @@ namespace ccf
         return;
       }
 
-      channels.try_emplace(peer_id, writer_factory, peer_id, hostname, service);
+      channels.try_emplace(
+        peer_id, writer_factory, network_kp, self, peer_id, hostname, service);
     }
 
     void destroy_channel(NodeId peer_id)
@@ -392,7 +488,7 @@ namespace ccf
       }
 
       // Creating temporary channel that is not outgoing
-      channels.try_emplace(peer_id, writer_factory, peer_id);
+      channels.try_emplace(peer_id, writer_factory, network_kp, self, peer_id);
 
       return channels.at(peer_id);
     }
