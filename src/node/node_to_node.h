@@ -21,34 +21,6 @@ namespace ccf
     ringbuffer::WriterPtr to_host;
     ringbuffer::AbstractWriterFactory& writer_factory;
 
-    bool try_establish_channel(NodeId peer_id, Channel& channel)
-    {
-      if (channel.get_status() != ChannelStatus::ESTABLISHED)
-      {
-        // If the channel is not yet established, replace all sent messages with
-        // a key exchange message. In the case of raft, this is acceptable since
-        // append entries and vote requests are re-sent after a short timeout
-        auto signed_public = channels->get_signed_public(peer_id);
-        if (!signed_public.has_value())
-        {
-          return false;
-        }
-
-        ChannelHeader msg = {ChannelMsg::key_exchange, self};
-        to_host->write(
-          node_outbound,
-          peer_id,
-          NodeMsgType::channel_msg,
-          msg,
-          signed_public.value());
-
-        LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
-        return false;
-      }
-
-      return true;
-    }
-
   public:
     NodeToNode(ringbuffer::AbstractWriterFactory& writer_factory_) :
       writer_factory(writer_factory_),
@@ -92,30 +64,17 @@ namespace ccf
     bool send_authenticated(
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
-      LOG_FAIL_FMT("Sending authenticated message: {}", msg_type);
-
       auto& n2n_channel = channels->get(to);
       return n2n_channel.send(msg_type, asCb(data));
     }
 
-    // template <>
-    // bool send_authenticated(
-    //   const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>&
-    //   data)
-    // {
-    //   auto& n2n_channel = channels->get(to);
-    //   if (!try_establish_channel(to, n2n_channel))
-    //   {
-    //     return false;
-    //   }
-
-    //   // The secure channel between self and to has already been established
-    //   GcmHdr hdr;
-    //   n2n_channel.tag(hdr, data);
-
-    //   to_host->write(node_outbound, to, msg_type, data, hdr);
-    //   return true;
-    // }
+    template <>
+    bool send_authenticated(
+      const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
+    {
+      auto& n2n_channel = channels->get(to);
+      return n2n_channel.send(msg_type, data);
+    }
 
     template <class T>
     const T& recv_authenticated(const uint8_t*& data, size_t& size)
@@ -151,31 +110,31 @@ namespace ccf
       return ccf::Channel::get_nonce(hdr);
     }
 
-    template <class T>
-    CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
-    {
-      // data contains the message header of type T, the raw data, and the gcm
-      // header at the end
-      const auto* payload_data = data;
-      auto payload_size = size - sizeof(GcmHdr);
+    // template <class T>
+    // CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
+    // {
+    //   // data contains the message header of type T, the raw data, and the gcm
+    //   // header at the end
+    //   const auto* payload_data = data;
+    //   auto payload_size = size - sizeof(GcmHdr);
 
-      const auto& t = serialized::overlay<T>(data, size);
-      serialized::skip(data, size, (size - sizeof(GcmHdr)));
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+    //   const auto& t = serialized::overlay<T>(data, size);
+    //   serialized::skip(data, size, (size - sizeof(GcmHdr)));
+    //   const auto& hdr = serialized::overlay<GcmHdr>(data, size);
 
-      auto& n2n_channel = channels->get(t.from_node);
+    //   auto& n2n_channel = channels->get(t.from_node);
 
-      if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
-      {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {} (size: {})",
-          t.from_node,
-          size));
-      }
+    //   if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
+    //   {
+    //     throw std::logic_error(fmt::format(
+    //       "Invalid authenticated node2node message from node {} (size: {})",
+    //       t.from_node,
+    //       size));
+    //   }
 
-      serialized::skip(payload_data, payload_size, sizeof(T));
-      return {payload_data, payload_size};
-    }
+    //   serialized::skip(payload_data, payload_size, sizeof(T));
+    //   return {payload_data, payload_size};
+    // }
 
     template <class T>
     bool send_encrypted(

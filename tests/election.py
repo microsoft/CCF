@@ -66,7 +66,7 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
 def run(args):
     # Three nodes minimum to make sure that the raft network can still make progress
     # if one node stops
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 3)
 
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -109,6 +109,7 @@ def run(args):
             wait_for_seqno_to_commit(seqno, current_view, network.get_joined_nodes())
 
             test_kill_primary(network, args, find_new_primary=False)
+            break
 
         # More than F nodes have been stopped, trying to commit any message
         LOG.debug(

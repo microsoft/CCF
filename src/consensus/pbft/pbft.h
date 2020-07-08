@@ -233,9 +233,8 @@ namespace pbft
       }
       else
       {
-        // TODO: Uncomment
-        // msg->data.self->n2n_channels->send_authenticated(
-        //   msg->data.type, msg->data.to, msg->data.data);
+        msg->data.self->n2n_channels->send_authenticated(
+          msg->data.type, msg->data.to, msg->data.data);
       }
     }
 
@@ -686,11 +685,11 @@ namespace pbft
       {
         try
         {
-          auto r = msg->data.self->channels
-                     ->template recv_authenticated_with_load<PbftHeader>(
-                       msg->data.d.data(), msg->data.d.size());
-          msg->data.d.data() = r.p;
-          msg->data.d.size() = r.n;
+          // auto r = msg->data.self->channels
+          //            ->template recv_authenticated_with_load<PbftHeader>(
+          //              msg->data.d.data(), msg->data.d.size());
+          // msg->data.d.data() = r.p;
+          // msg->data.d.size() = r.n;
         }
         catch (const std::logic_error& err)
         {

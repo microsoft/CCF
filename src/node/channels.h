@@ -148,6 +148,33 @@ namespace ccf
       return ret;
     }
 
+    void try_establish_channel()
+    {
+      const auto own_public = ctx.get_own_public();
+      auto signature = network_kp->sign(own_public);
+
+      // Serialise channel public and network signature and length-prefix both
+      auto space = own_public.size() + signature.size() + 2 * sizeof(size_t);
+      std::vector<uint8_t> data(space);
+      auto data_ = data.data();
+      serialized::write(data_, space, own_public.size());
+      serialized::write(data_, space, own_public.data(), own_public.size());
+      serialized::write(data_, space, signature.size());
+      serialized::write(data_, space, signature.data(), signature.size());
+
+      ChannelHeader msg = {ChannelMsg::key_exchange, self};
+      to_host->write(
+        node_outbound, peer_id, NodeMsgType::channel_msg, msg, data);
+
+      LOG_DEBUG_FMT("node channel with {} initiated", peer_id);
+    }
+
+    void queue(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
+    {
+      LOG_FAIL_FMT("Emplacing one message in queue");
+      outgoing_msgs.emplace(msg_type, aad, plain);
+    }
+
   public:
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
@@ -247,13 +274,8 @@ namespace ccf
       return true;
     }
 
-    void establish()
+    void flush_outgoing_msgs()
     {
-      auto shared_secret = ctx.compute_shared_secret();
-      key = std::make_unique<crypto::KeyAesGcm>(shared_secret);
-      ctx.free_ctx();
-      status = ESTABLISHED;
-
       LOG_FAIL_FMT(
         "Flushing {} queue messages with peer node {}",
         outgoing_msgs.size(),
@@ -264,21 +286,21 @@ namespace ccf
         LOG_FAIL_FMT("Flushing one message from the queue");
         auto& msg = outgoing_msgs.front();
 
-        if (msg.raw_cipher.size() > 0)
-        {
-          LOG_FAIL_FMT("Encrypc");
-        }
-        else
-        {
-          LOG_FAIL_FMT("Integrity protecc");
-          GcmHdr hdr;
-          // tag(hdr, msg.raw_plain);
-
-          // to_host->write(node_outbound, peer_id, msg.type, msg.raw_plain,
-          // hdr);
-        }
+        send(msg.type, msg.raw_plain, msg.raw_cipher);
         outgoing_msgs.pop();
       }
+    }
+
+    void establish()
+    {
+      auto shared_secret = ctx.compute_shared_secret();
+      key = std::make_unique<crypto::KeyAesGcm>(shared_secret);
+      ctx.free_ctx();
+      status = ESTABLISHED;
+
+      flush_outgoing_msgs();
+
+      LOG_INFO_FMT("node channel with {} is now established", peer_id);
     }
 
     void free_ctx()
@@ -291,32 +313,12 @@ namespace ccf
       ctx.free_ctx();
     }
 
-    void try_establish_channel()
-    {
-      const auto own_public = ctx.get_own_public();
-      auto signature = network_kp->sign(own_public);
-
-      // Serialise channel public and network signature and length-prefix both
-      auto space = own_public.size() + signature.size() + 2 * sizeof(size_t);
-      std::vector<uint8_t> data(space);
-      auto data_ = data.data();
-      serialized::write(data_, space, own_public.size());
-      serialized::write(data_, space, own_public.data(), own_public.size());
-      serialized::write(data_, space, signature.size());
-      serialized::write(data_, space, signature.data(), signature.size());
-
-      ChannelHeader msg = {ChannelMsg::key_exchange, self};
-      to_host->write(
-        node_outbound, peer_id, NodeMsgType::channel_msg, msg, data);
-
-      LOG_DEBUG_FMT("node channel with {} initiated", peer_id);
-    }
-
     bool send(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
     {
       if (status != ESTABLISHED)
       {
         try_establish_channel();
+        queue(msg_type, aad, plain);
         return false;
       }
 
@@ -340,18 +342,18 @@ namespace ccf
 
     bool recv_authenticated(CBuffer aad, const uint8_t*& data, size_t& size)
     {
+      // Receive authenticated message, modifying data to point to the start of
+      // the non-authenticated plaintext payload
       if (status != ESTABLISHED)
       {
         LOG_FAIL_FMT(
-          "node channel with {} cannot receive messages: not yet established",
+          "node channel with {} cannot receive authenticated message: not "
+          "yet established",
           peer_id);
         return false;
       }
 
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-
-      LOG_FAIL_FMT("Recv encrypted msg of cipher size: {}", size);
-
       if (!verify_or_decrypt(hdr, aad))
       {
         LOG_FAIL_FMT("Failed to verify node message");
@@ -364,19 +366,18 @@ namespace ccf
     std::optional<std::vector<uint8_t>> recv_encrypted(
       CBuffer aad, const uint8_t* data, size_t size)
     {
+      // Receive encrypted message, returning the decrypted payload
       if (status != ESTABLISHED)
       {
         LOG_FAIL_FMT(
-          "node channel with {} cannot receive messages: not yet established",
+          "node channel with {} cannot receive encrypted message: not yet "
+          "established",
           peer_id);
         return std::nullopt;
       }
 
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       std::vector<uint8_t> plain(size);
-
-      LOG_FAIL_FMT("Recv encrypted msg of cipher size: {}", size);
-
       if (!verify_or_decrypt(hdr, aad, {data, size}, plain))
       {
         LOG_FAIL_FMT("Failed to decrypt node message");
@@ -391,22 +392,16 @@ namespace ccf
       return RecvNonce(header.get_iv_int());
     }
 
-    bool verify(const GcmHdr& header, CBuffer aad)
-    {
-      return verify_or_decrypt(header, aad);
-    }
+    // bool verify(const GcmHdr& header, CBuffer aad)
+    // {
+    //   return verify_or_decrypt(header, aad);
+    // }
 
-    bool decrypt(
-      const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
-    {
-      return verify_or_decrypt(header, aad, cipher, plain);
-    }
-
-    void queue(NodeMsgType msg_type, CBuffer integrity, CBuffer plain = nullb)
-    {
-      LOG_FAIL_FMT("Emplacing one message in queue");
-      outgoing_msgs.emplace(msg_type, integrity, plain);
-    }
+    // bool decrypt(
+    //   const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
+    // {
+    //   return verify_or_decrypt(header, aad, cipher, plain);
+    // }
   };
 
   class ChannelManager
@@ -550,7 +545,8 @@ namespace ccf
       if (signature_size < data_remaining)
       {
         LOG_FAIL_FMT(
-          "Expected signature to use all remaining {} bytes, but only uses {}",
+          "Expected signature to use all remaining {} bytes, but only uses "
+          "{}",
           data_remaining,
           signature_size);
         return false;
@@ -573,8 +569,6 @@ namespace ccf
       }
 
       channel.establish();
-
-      LOG_INFO_FMT("node channel with {} is now established", peer_id);
 
       return true;
     }
