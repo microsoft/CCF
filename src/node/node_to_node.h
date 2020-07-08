@@ -134,7 +134,6 @@ namespace ccf
       const std::vector<uint8_t>& data,
       const T& msg_hdr)
     {
-      // data is encrypted while msg_hdr is integrity-protected
       auto& n2n_channel = channels->get(to);
       return n2n_channel.send(msg_type, asCb(msg_hdr), data);
     }
@@ -161,28 +160,11 @@ namespace ccf
       // Called on channel target when a key exchange message is received from
       // the initiator
       const auto& ke = serialized::overlay<ChannelHeader>(data, size);
+      auto& n2n_channel = channels->get(ke.from_node);
 
-      // TODO: Change this so that it works on the channel directly
-      auto signed_public = channels->get_signed_public(ke.from_node);
-      if (!signed_public.has_value())
-      {
-        // Channel is already established
-        return;
-      }
+      LOG_FAIL_FMT("Processing key exchange");
 
-      if (!channels->load_peer_signed_public(
-            ke.from_node, std::vector<uint8_t>(data, data + size)))
-      {
-        return;
-      }
-
-      ChannelHeader msg = {ChannelMsg::key_exchange_response, self};
-      to_host->write(
-        node_outbound,
-        ke.from_node,
-        NodeMsgType::channel_msg,
-        msg,
-        signed_public.value());
+      n2n_channel.load_peer_signed_public(false, data, size);
     }
 
     void complete_key_exchange(const uint8_t* data, size_t size)
@@ -193,11 +175,8 @@ namespace ccf
 
       LOG_FAIL_FMT("Completing key exchange...");
 
-      if (!channels->load_peer_signed_public(
-            ke.from_node, std::vector<uint8_t>(data, data + size)))
-      {
-        return;
-      }
+      auto& n2n_channel = channels->get(ke.from_node);
+      n2n_channel.load_peer_signed_public(true, data, size);
     }
 
     void recv_message(OArray&& oa)
