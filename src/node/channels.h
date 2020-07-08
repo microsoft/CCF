@@ -363,6 +363,28 @@ namespace ccf
       return true;
     }
 
+    bool recv_authenticated_with_load(const uint8_t*& data, size_t& size)
+    {
+      // Receive authenticated message, modifying data to point to the start of
+      // the non-authenticated plaintex payload. data contains payload first,
+      // then GCM header
+
+      const uint8_t* data_ = data;
+      size_t size_ = size;
+
+      serialized::skip(data_, size_, (size_ - sizeof(GcmHdr)));
+      const auto& hdr = serialized::overlay<GcmHdr>(data_, size_);
+      size -= sizeof(GcmHdr);
+
+      if (!verify_or_decrypt(hdr, {data, size}))
+      {
+        LOG_FAIL_FMT("Failed to verify node message");
+        return false;
+      }
+
+      return true;
+    }
+
     std::optional<std::vector<uint8_t>> recv_encrypted(
       CBuffer aad, const uint8_t* data, size_t size)
     {

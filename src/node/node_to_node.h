@@ -110,31 +110,22 @@ namespace ccf
       return ccf::Channel::get_nonce(hdr);
     }
 
-    // template <class T>
-    // CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
-    // {
-    //   // data contains the message header of type T, the raw data, and the gcm
-    //   // header at the end
-    //   const auto* payload_data = data;
-    //   auto payload_size = size - sizeof(GcmHdr);
+    template <class T>
+    const T& recv_authenticated_with_load(const uint8_t*& data, size_t& size)
+    {
+      // PBFT only
 
-    //   const auto& t = serialized::overlay<T>(data, size);
-    //   serialized::skip(data, size, (size - sizeof(GcmHdr)));
-    //   const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      const auto& t = serialized::overlay<T>(data, size);
+      auto& n2n_channel = channels->get(t.from_node);
+      if (n2n_channel.recv_authenticated_with_load(data, size))
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message with load from node {}",
+          t.from_node));
+      }
 
-    //   auto& n2n_channel = channels->get(t.from_node);
-
-    //   if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
-    //   {
-    //     throw std::logic_error(fmt::format(
-    //       "Invalid authenticated node2node message from node {} (size: {})",
-    //       t.from_node,
-    //       size));
-    //   }
-
-    //   serialized::skip(payload_data, payload_size, sizeof(T));
-    //   return {payload_data, payload_size};
-    // }
+      return t;
+    }
 
     template <class T>
     bool send_encrypted(
@@ -170,8 +161,6 @@ namespace ccf
       // Called on channel target when a key exchange message is received from
       // the initiator
       const auto& ke = serialized::overlay<ChannelHeader>(data, size);
-
-      LOG_FAIL_FMT("Processing key exchange...");
 
       // TODO: Change this so that it works on the channel directly
       auto signed_public = channels->get_signed_public(ke.from_node);
