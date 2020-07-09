@@ -69,6 +69,7 @@ all_tests_suite = [
     memberclient.test_add_member,
     memberclient.test_retire_member,
     memberclient.test_update_recovery_shares,
+    memberclient.test_missing_signature,
     # receipts:
     receipts.test,
     # reconfiguration:
