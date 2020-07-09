@@ -305,7 +305,7 @@ def test_historical_query(network, args):
 @reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
-    primary, backup = network.find_primary_and_any_backup()
+    backup = network.find_any_backup()
 
     with backup.client() as c:
         check_commit = ccf.checker.Checker(c)
