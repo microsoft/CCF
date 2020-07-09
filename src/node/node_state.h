@@ -932,13 +932,11 @@ namespace ccf
       {
         case channel_msg:
         {
-          LOG_FAIL_FMT("Recv channel msg");
           n2n_channels->recv_message(std::move(oa));
           break;
         }
         case consensus_msg:
         {
-          LOG_FAIL_FMT("Recv consensus msg");
           consensus->recv_message(std::move(oa));
           break;
         }

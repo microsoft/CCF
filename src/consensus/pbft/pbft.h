@@ -688,9 +688,6 @@ namespace pbft
           msg->data.self->channels
             ->template recv_authenticated_with_load<PbftHeader>(
               msg->data.d.data(), msg->data.d.size());
-
-          // msg->data.d.data() = r.p;
-          // msg->data.d.size() = r.n;
         }
         catch (const std::logic_error& err)
         {
