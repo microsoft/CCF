@@ -122,7 +122,11 @@ namespace ccf
 
           GetTxStatus::Out out;
           out.status = ccf::get_tx_status(
-            tx_id.term, tx_id.version, tx_view, committed_view, committed_seqno);
+            tx_id.term,
+            tx_id.version,
+            tx_view,
+            committed_view,
+            committed_seqno);
           return make_success(out);
         }
 
@@ -378,7 +382,11 @@ namespace ccf
           const auto committed_view = consensus->get_view(committed_seqno);
 
           const auto status = ccf::get_tx_status(
-            tx_id.term, tx_id.version, tx_view, committed_view, committed_seqno);
+            tx_id.term,
+            tx_id.version,
+            tx_view,
+            committed_view,
+            committed_seqno);
 
           if (status != ccf::TxStatus::Committed)
           {

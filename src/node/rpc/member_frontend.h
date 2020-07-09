@@ -674,9 +674,7 @@ namespace ccf
       };
       make_endpoint("proposal", HTTP_POST, json_adapter(propose))
         .set_auto_schema<Propose>()
-        .set_require_client_signature(
-          true) // TODO: We probably want to make this the default for
-                // member_frontend
+        .set_require_client_signature(true)
         .install();
 
       auto get_proposal =

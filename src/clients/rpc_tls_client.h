@@ -194,7 +194,8 @@ public:
     return call(method, params, HTTP_POST);
   }
 
-  Response get(const std::string& method, const nlohmann::json& params = nullptr)
+  Response get(
+    const std::string& method, const nlohmann::json& params = nullptr)
   {
     // GET body is ignored, so params must be placed in query
     auto full_path = method;
