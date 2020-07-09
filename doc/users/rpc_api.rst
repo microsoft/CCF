@@ -7,7 +7,7 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/node/api --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
+    $ curl https://<ccf-node-address>/app/api --cacert networkcert.pem --key user0_privk.pem --cert user0_cert.pem
     {
       "methods": [
         "api",
@@ -15,7 +15,6 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
         "commit",
         "quote",
         "quotes",
-        "state",
         "join",
         "metrics",
         "mkSign",
