@@ -256,7 +256,6 @@ class CurlClient:
                 "-X",
                 request.http_verb,
                 "-i",
-                "-v",
                 f"-m {self.request_timeout}",
             ]
 
@@ -284,7 +283,6 @@ class CurlClient:
 
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True, check=False)
-            LOG.warning(rc.stderr.decode())
 
             if rc.returncode != 0:
                 if rc.returncode == 60:  # PEER_FAILED_VERIFICATION
