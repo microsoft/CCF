@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../ds/bits.h"
-#include "../mem/allocconfig.h"
 
 #if defined(FreeBSD_KERNEL)
 extern "C"
@@ -29,7 +28,7 @@ namespace snmalloc
      * PAL supports.
      */
     static constexpr uint64_t pal_features = AlignedAllocation;
-    void error(const char* const str)
+    [[noreturn]] void error(const char* const str)
     {
       panic("snmalloc error: %s", str);
     }
@@ -61,8 +60,12 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t size, size_t align)
+    void* reserve_aligned(size_t size) noexcept
     {
+      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+      SNMALLOC_ASSERT(size >= minimum_alloc_size);
+      size_t align = size;
+
       vm_offset_t addr;
       if (vmem_xalloc(
             kernel_arena,
