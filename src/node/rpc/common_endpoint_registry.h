@@ -39,8 +39,8 @@ namespace ccf
           return false;
         }
 
-        auto view_s = view_it->second;
-        auto [p, ec] =
+        const auto view_s = view_it->second;
+        const auto [p, ec] =
           std::from_chars(view_s.data(), view_s.data() + view_s.size(), view);
         if (ec != std::errc())
         {
@@ -59,8 +59,8 @@ namespace ccf
           return false;
         }
 
-        auto seqno_s = seqno_it->second;
-        auto [p, ec] = std::from_chars(
+        const auto seqno_s = seqno_it->second;
+        const auto [p, ec] = std::from_chars(
           seqno_s.data(), seqno_s.data() + seqno_s.size(), seqno);
         if (ec != std::errc())
         {

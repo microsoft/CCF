@@ -100,8 +100,7 @@ namespace http
           auto& signed_headers = parsed_sign_params->signed_headers;
           signed_headers.emplace_back(http::headers::AUTHORIZATION);
 
-          for (const auto& required_header :
-               {http::headers::DIGEST, http::headers::CONTENT_LENGTH})
+          for (const auto& required_header : http::required_signature_headers)
           {
             if (
               std::find(

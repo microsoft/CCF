@@ -14,6 +14,7 @@ from urllib3.util.ssl_ import create_urllib3_context
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
+import base64
 
 import requests
 from loguru import logger as LOG
@@ -255,13 +256,12 @@ class CurlClient:
                 "-X",
                 request.http_verb,
                 "-i",
+                "-v",
                 f"-m {self.request_timeout}",
             ]
 
-            if not request.params_in_query:
-                if request.params is None:
-                    msg_bytes = bytes()
-                elif isinstance(request.params, bytes):
+            if not request.params_in_query and request.params is not None:
+                if isinstance(request.params, bytes):
                     msg_bytes = request.params
                 else:
                     msg_bytes = json.dumps(request.params).encode()
@@ -269,12 +269,11 @@ class CurlClient:
                 nf.write(msg_bytes)
                 nf.flush()
                 cmd.extend(["--data-binary", f"@{nf.name}"])
+                cmd.extend(["-H", "Content-Type: application/json"])
 
             # Set requested headers first - so they take precedence over defaults
             for k, v in request.headers.items():
                 cmd.extend(["-H", f"{k}: {v}"])
-
-            cmd.extend(["-H", "Content-Type: application/json"])
 
             if self.ca:
                 cmd.extend(["--cacert", self.ca])
@@ -285,6 +284,7 @@ class CurlClient:
 
             LOG.debug(f"Running: {' '.join(cmd)}")
             rc = subprocess.run(cmd, capture_output=True, check=False)
+            LOG.warning(rc.stderr.decode())
 
             if rc.returncode != 0:
                 if rc.returncode == 60:  # PEER_FAILED_VERIFICATION
@@ -313,6 +313,18 @@ class TlsAdapter(HTTPAdapter):
         return super(TlsAdapter, self).init_poolmanager(*args, **kwargs)
 
 
+class HTTPSignatureAuth_AlwaysDigest(HTTPSignatureAuth):
+    def add_digest(self, request):
+        # Add digest of empty body, never leave it blank
+        if request.body is None:
+            if "digest" not in self.headers:
+                self.headers.append("digest")
+            digest = self.hasher_constructor(b"").digest()
+            request.headers["Digest"] = "SHA-256=" + base64.b64encode(digest).decode()
+        else:
+            super(HTTPSignatureAuth_AlwaysDigest, self).add_digest(request)
+
+
 class RequestClient:
     def __init__(
         self,
@@ -336,18 +348,18 @@ class RequestClient:
         self.session.mount("https://", TlsAdapter(self.ca))
 
     def request(self, request, is_signed=False):
+        extra_headers = {}
+        extra_headers.update(request.headers)
+
         auth_value = None
         if is_signed:
-            auth_value = HTTPSignatureAuth(
+            auth_value = HTTPSignatureAuth_AlwaysDigest(
                 algorithm="ecdsa-sha256",
                 key=open(self.key, "rb").read(),
                 # key_id needs to be specified but is unused
                 key_id="tls",
-                headers=["(request-target)", "Date", "Content-Length", "Content-Type",],
+                headers=["(request-target)", "Digest", "Content-Length"],
             )
-
-        extra_headers = {}
-        extra_headers.update(request.headers)
 
         request_args = {
             "method": request.http_verb,

@@ -92,8 +92,8 @@ class Member:
         """
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc(
-                "/gov/vote",
-                {"ballot": {"text": ballot}, "id": proposal.proposal_id},
+                f"/gov/vote/{proposal.proposal_id}",
+                {"ballot": {"text": ballot}},
                 signed=not force_unsigned,
             )
 
@@ -118,7 +118,7 @@ class Member:
 
     def withdraw(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as c:
-            r = c.rpc("/gov/withdraw", {"id": proposal.proposal_id}, signed=True)
+            r = c.rpc(f"/gov/withdraw/{proposal.proposal_id}", signed=True)
             if r.status == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r

@@ -16,17 +16,11 @@
         }
       },
       "type": "object"
-    },
-    "id": {
-      "maximum": 18446744073709551615,
-      "minimum": 0,
-      "type": "integer"
     }
   },
   "required": [
-    "id",
     "ballot"
   ],
-  "title": "vote/params",
+  "title": "vote/{id}/params",
   "type": "object"
 }

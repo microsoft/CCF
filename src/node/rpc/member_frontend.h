@@ -552,6 +552,31 @@ namespace ccf
       return ProposalInfo{proposal_id, proposal.proposer, proposal.state};
     }
 
+    bool get_proposal_id(
+      const enclave::PathParams& params,
+      ObjectId& proposal_id,
+      std::string& error)
+    {
+      const auto id_it = params.find("id");
+      if (id_it == params.end())
+      {
+        error = fmt::format("No parameter named 'id' in path");
+        return false;
+      }
+
+      const auto id_s = id_it->second;
+      const auto [p, ec] =
+        std::from_chars(id_s.data(), id_s.data() + id_s.size(), proposal_id);
+      if (ec != std::errc())
+      {
+        error = fmt::format(
+          "Unable to parse path parameter '{}' as a proposal ID", id_s);
+        return false;
+      }
+
+      return true;
+    }
+
     NetworkTables& network;
     AbstractNodeState& node;
     ShareManager& share_manager;
@@ -657,8 +682,14 @@ namespace ccf
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
         }
 
-        const auto proposal_action = params.get<ProposalAction>();
-        const auto proposal_id = proposal_action.id;
+        ObjectId proposal_id;
+        std::string error;
+        if (!get_proposal_id(
+              args.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
+
         auto proposals = args.tx.get_view(this->network.proposals);
         auto proposal = proposals->get(proposal_id);
 
@@ -699,8 +730,8 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      make_endpoint("withdraw", HTTP_POST, json_adapter(withdraw))
-        .set_auto_schema<ProposalAction, ProposalInfo>()
+      make_endpoint("withdraw/{id}", HTTP_POST, json_adapter(withdraw))
+        .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
 
@@ -716,14 +747,21 @@ namespace ccf
           return make_error(HTTP_STATUS_BAD_REQUEST, "Votes must be signed");
         }
 
-        const auto vote = params.get<Vote>();
+        ObjectId proposal_id;
+        std::string error;
+        if (!get_proposal_id(
+              args.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
+
         auto proposals = args.tx.get_view(this->network.proposals);
-        auto proposal = proposals->get(vote.id);
+        auto proposal = proposals->get(proposal_id);
         if (!proposal)
         {
           return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            fmt::format("Proposal {} does not exist", vote.id));
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Proposal {} does not exist", proposal_id));
         }
 
         if (proposal->state != ProposalState::OPEN)
@@ -733,36 +771,42 @@ namespace ccf
             fmt::format(
               "Proposal {} is currently in state {} - only {} proposals can "
               "receive votes",
-              vote.id,
+              proposal_id,
               proposal->state,
               ProposalState::OPEN));
         }
 
+        const auto vote = params.get<Vote>();
         proposal->votes[args.caller_id] = vote.ballot;
-        proposals->put(vote.id, proposal.value());
+        proposals->put(proposal_id, proposal.value());
 
         record_voting_history(
           args.tx, args.caller_id, args.rpc_ctx->get_signed_request().value());
 
         return make_success(
-          complete_proposal(args.tx, vote.id, proposal.value()));
+          complete_proposal(args.tx, proposal_id, proposal.value()));
       };
-      make_endpoint("vote", HTTP_POST, json_adapter(vote))
+      make_endpoint("vote/{id}", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
 
       auto complete =
-        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
-          if (!check_member_active(tx, caller_id))
+        [this](EndpointContext& ctx, nlohmann::json&& params) {
+          if (!check_member_active(ctx.tx, ctx.caller_id))
           {
             return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
           }
 
-          const auto proposal_action = params.get<ProposalAction>();
-          const auto proposal_id = proposal_action.id;
+          ObjectId proposal_id;
+          std::string error;
+          if (!get_proposal_id(
+                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          }
 
-          auto proposals = tx.get_view(this->network.proposals);
+          auto proposals = ctx.tx.get_view(this->network.proposals);
           auto proposal = proposals->get(proposal_id);
           if (!proposal.has_value())
           {
@@ -772,10 +816,10 @@ namespace ccf
           }
 
           return make_success(
-            complete_proposal(tx, proposal_id, proposal.value()));
+            complete_proposal(ctx.tx, proposal_id, proposal.value()));
         };
-      make_endpoint("complete", HTTP_POST, json_adapter(complete))
-        .set_auto_schema<ProposalAction, ProposalInfo>()
+      make_endpoint("complete/{id}", HTTP_POST, json_adapter(complete))
+        .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
 

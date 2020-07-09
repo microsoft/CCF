@@ -21,7 +21,7 @@ def list_as_lua_literal(l):
 
 
 def script_to_vote_object(script):
-    return {"ballot": {"text": script}, "id": PROPOSAL_ID_PLACEHOLDER}
+    return {"ballot": {"text": script}}
 
 
 TRIVIAL_YES_BALLOT = {"text": "return true"}
@@ -41,9 +41,6 @@ function equal_arrays(a, b)
   end
 end
 """
-
-
-PROPOSAL_ID_PLACEHOLDER = "<replace with desired proposal_id>"
 
 
 def add_arg_construction(lines, arg, arg_name="args"):
@@ -107,10 +104,7 @@ def build_proposal(proposed_call, args=None, inline_args=False):
         add_arg_checks(vote_lines, args)
     vote_lines.append("return true")
     vote_text = "; ".join(vote_lines)
-    vote = {
-        "ballot": {"text": vote_text},
-        "id": PROPOSAL_ID_PLACEHOLDER,
-    }
+    vote = {"ballot": {"text": vote_text}}
 
     LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
     LOG.trace(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
@@ -171,10 +165,7 @@ def new_member(member_cert_path, member_enc_pubk_path):
     """
 
     # Vote object (request body for /gov/vote)
-    verifying_vote = {
-        "ballot": {"text": verifying_vote_text},
-        "id": PROPOSAL_ID_PLACEHOLDER,
-    }
+    verifying_vote = {"ballot": {"text": verifying_vote_text}}
 
     LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
     LOG.trace(f"Accompanying vote:\n{json.dumps(verifying_vote, indent=2)}")
