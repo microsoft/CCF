@@ -118,7 +118,7 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def new_member(member_cert_path, member_enc_pubk_path):
+def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
     LOG.debug("Generating new_member proposal")
 
     # Convert certs to byte arrays
@@ -131,7 +131,7 @@ def new_member(member_cert_path, member_enc_pubk_path):
     return Calls:call("new_member", args)
     """
 
-    # Proposal object (request body for /gov/propose) containing this member's info as parameter
+    # Proposal object (request body for /gov/proposal) containing this member's info as parameter
     proposal = {
         "parameter": {"cert": member_cert, "keyshare": member_keyshare_encryptor},
         "script": {"text": proposal_script_text},
@@ -164,7 +164,7 @@ def new_member(member_cert_path, member_enc_pubk_path):
     return true
     """
 
-    # Vote object (request body for /gov/vote)
+    # Vote object (request body for /gov/proposal/{id}/vote)
     verifying_vote = {"ballot": {"text": verifying_vote_text}}
 
     LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
@@ -270,13 +270,13 @@ if __name__ == "__main__":
         "-po",
         "--proposal-output-file",
         type=str,
-        help=f"Path where proposal JSON object (request body for /gov/propose) will be dumped. Default is {default_proposal_output}",
+        help=f"Path where proposal JSON object (request body for /gov/proposal) will be dumped. Default is {default_proposal_output}",
     )
     parser.add_argument(
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for /gov/vote) will be dumped. Default is {default_vote_output}",
+        help=f"Path where vote JSON object (request body for /gov/proposal/{id}/vote) will be dumped. Default is {default_vote_output}",
     )
     parser.add_argument(
         "-pp",
