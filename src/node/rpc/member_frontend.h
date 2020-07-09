@@ -674,34 +674,38 @@ namespace ccf
       };
       make_endpoint("proposal", HTTP_POST, json_adapter(propose))
         .set_auto_schema<Propose>()
+        .set_require_client_signature(
+          true) // TODO: We probably want to make this the default for
+                // member_frontend
         .install();
 
-      auto get_proposal = [this](EndpointContext& args, nlohmann::json&& params) {
-        if (!check_member_active(args.tx, args.caller_id))
-        {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-        }
+      auto get_proposal =
+        [this](EndpointContext& args, nlohmann::json&& params) {
+          if (!check_member_active(args.tx, args.caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          }
 
-        ObjectId proposal_id;
-        std::string error;
-        if (!get_proposal_id(
-              args.rpc_ctx->get_request_path_params(), proposal_id, error))
-        {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
-        }
+          ObjectId proposal_id;
+          std::string error;
+          if (!get_proposal_id(
+                args.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          }
 
-        auto proposals = args.tx.get_view(this->network.proposals);
-        auto proposal = proposals->get(proposal_id);
+          auto proposals = args.tx.get_view(this->network.proposals);
+          auto proposal = proposals->get(proposal_id);
 
-        if (!proposal)
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            fmt::format("Proposal {} does not exist", proposal_id));
-        }
+          if (!proposal)
+          {
+            return make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              fmt::format("Proposal {} does not exist", proposal_id));
+          }
 
-        return make_success(proposal.value());
-      };
+          return make_success(proposal.value());
+        };
       make_endpoint("proposal/{id}", HTTP_GET, json_adapter(get_proposal))
         .set_auto_schema<void, Proposal>()
         //.set_require_client_signature(true)
@@ -822,33 +826,32 @@ namespace ccf
         .set_require_client_signature(true)
         .install();
 
-      auto complete =
-        [this](EndpointContext& ctx, nlohmann::json&& params) {
-          if (!check_member_active(ctx.tx, ctx.caller_id))
-          {
-            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-          }
+      auto complete = [this](EndpointContext& ctx, nlohmann::json&& params) {
+        if (!check_member_active(ctx.tx, ctx.caller_id))
+        {
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+        }
 
-          ObjectId proposal_id;
-          std::string error;
-          if (!get_proposal_id(
-                ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
-          {
-            return make_error(HTTP_STATUS_BAD_REQUEST, error);
-          }
+        ObjectId proposal_id;
+        std::string error;
+        if (!get_proposal_id(
+              ctx.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
 
-          auto proposals = ctx.tx.get_view(this->network.proposals);
-          auto proposal = proposals->get(proposal_id);
-          if (!proposal.has_value())
-          {
-            return make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              fmt::format("No such proposal: {}", proposal_id));
-          }
+        auto proposals = ctx.tx.get_view(this->network.proposals);
+        auto proposal = proposals->get(proposal_id);
+        if (!proposal.has_value())
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            fmt::format("No such proposal: {}", proposal_id));
+        }
 
-          return make_success(
-            complete_proposal(ctx.tx, proposal_id, proposal.value()));
-        };
+        return make_success(
+          complete_proposal(ctx.tx, proposal_id, proposal.value()));
+      };
       make_endpoint("proposal/{id}/complete", HTTP_POST, json_adapter(complete))
         .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
