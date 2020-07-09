@@ -106,7 +106,7 @@ namespace ccf
       // PBFT only
       const auto& t = serialized::overlay<T>(data, size);
       auto& n2n_channel = channels->get(t.from_node);
-      if (n2n_channel.recv_authenticated_with_load(data, size))
+      if (!n2n_channel.recv_authenticated_with_load(data, size))
       {
         throw std::logic_error(fmt::format(
           "Invalid authenticated node2node message with load from node {}",
