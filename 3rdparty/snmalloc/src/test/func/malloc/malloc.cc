@@ -15,22 +15,44 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   {
     if (p != nullptr)
       abort();
-  }
-  else
-  {
-    if (our_malloc_usable_size(p) < size)
-      abort();
-
-    if (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0)
-      abort();
 
     our_free(p);
+    return;
   }
+
+  const auto alloc_size = our_malloc_usable_size(p);
+  const auto expected_size = round_size(size);
+  if ((align == 1) && (alloc_size != expected_size))
+  {
+    printf(
+      "Usable size is %zu, but required to be %zu.\n",
+      alloc_size,
+      expected_size);
+    abort();
+  }
+  if ((align != 1) && (alloc_size < expected_size))
+  {
+    printf(
+      "Usable size is %zu, but required to be at least %zu.\n",
+      alloc_size,
+      expected_size);
+    abort();
+  }
+  if (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0)
+  {
+    printf(
+      "Address is 0x%zx, but required to be aligned to 0x%zx.\n",
+      reinterpret_cast<uintptr_t>(p),
+      align);
+    abort();
+  }
+
+  our_free(p);
 }
 
 void test_calloc(size_t nmemb, size_t size, int err, bool null)
 {
-  fprintf(stderr, "calloc(%d, %d)\n", (int)nmemb, (int)size);
+  fprintf(stderr, "calloc(%zu, %zu)\n", nmemb, size);
   errno = 0;
   void* p = our_calloc(nmemb, size);
 
@@ -47,7 +69,11 @@ void test_calloc(size_t nmemb, size_t size, int err, bool null)
 
 void test_realloc(void* p, size_t size, int err, bool null)
 {
-  fprintf(stderr, "realloc(%p(%d), %d)\n", p, int(size), (int)size);
+  size_t old_size = 0;
+  if (p != nullptr)
+    old_size = our_malloc_usable_size(p);
+
+  fprintf(stderr, "realloc(%p(%zu), %zu)\n", p, old_size, size);
   errno = 0;
   auto new_p = our_realloc(p, size);
   // Realloc failure case, deallocate original block
@@ -58,7 +84,7 @@ void test_realloc(void* p, size_t size, int err, bool null)
 
 void test_posix_memalign(size_t size, size_t align, int err, bool null)
 {
-  fprintf(stderr, "posix_memalign(&p, %d, %d)\n", (int)align, (int)size);
+  fprintf(stderr, "posix_memalign(&p, %zu, %zu)\n", align, size);
   void* p = nullptr;
   errno = our_posix_memalign(&p, align, size);
   check_result(size, align, p, err, null);
@@ -66,7 +92,7 @@ void test_posix_memalign(size_t size, size_t align, int err, bool null)
 
 void test_memalign(size_t size, size_t align, int err, bool null)
 {
-  fprintf(stderr, "memalign(%d, %d)\n", (int)align, (int)size);
+  fprintf(stderr, "memalign(%zu, %zu)\n", align, size);
   errno = 0;
   void* p = our_memalign(align, size);
   check_result(size, align, p, err, null);
@@ -81,9 +107,19 @@ int main(int argc, char** argv)
 
   constexpr int SUCCESS = 0;
 
+  test_realloc(our_malloc(64), 4194304, SUCCESS, false);
+
+  for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
+  {
+    const size_t size = 1ULL << sc;
+    printf("malloc: %zu\n", size);
+    check_result(size, 1, our_malloc(size), SUCCESS, false);
+    check_result(size + 1, 1, our_malloc(size + 1), SUCCESS, false);
+  }
+
   test_calloc(0, 0, SUCCESS, false);
 
-  for (snmalloc::sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+  for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
 
@@ -97,11 +133,37 @@ int main(int argc, char** argv)
       test_calloc(n, 0, SUCCESS, false);
     }
     test_calloc(0, size, SUCCESS, false);
+  }
 
+  for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+  {
+    const size_t size = sizeclass_to_size(sc);
     test_realloc(our_malloc(size), size, SUCCESS, false);
     test_realloc(our_malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(our_malloc(size), (size_t)-1, ENOMEM, true);
+    for (sizeclass_t sc2 = 0; sc2 < NUM_SIZECLASSES; sc2++)
+    {
+      const size_t size2 = sizeclass_to_size(sc2);
+      test_realloc(our_malloc(size), size2, SUCCESS, false);
+      test_realloc(our_malloc(size + 1), size2, SUCCESS, false);
+    }
+  }
+
+  for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
+  {
+    const size_t size = 1ULL << sc;
+    test_realloc(our_malloc(size), size, SUCCESS, false);
+    test_realloc(our_malloc(size), 0, SUCCESS, true);
+    test_realloc(nullptr, size, SUCCESS, false);
+    test_realloc(our_malloc(size), (size_t)-1, ENOMEM, true);
+    for (sizeclass_t sc2 = 0; sc2 < (SUPERSLAB_BITS + 4); sc2++)
+    {
+      const size_t size2 = 1ULL << sc2;
+      printf("size1: %zu, size2:%zu\n", size, size2);
+      test_realloc(our_malloc(size), size2, SUCCESS, false);
+      test_realloc(our_malloc(size + 1), size2, SUCCESS, false);
+    }
   }
 
   test_posix_memalign(0, 0, EINVAL, true);
@@ -111,7 +173,7 @@ int main(int argc, char** argv)
   for (size_t align = sizeof(uintptr_t); align <= SUPERSLAB_SIZE * 8;
        align <<= 1)
   {
-    for (snmalloc::sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+    for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
     {
       const size_t size = sizeclass_to_size(sc);
       test_posix_memalign(size, align, SUCCESS, false);

@@ -65,9 +65,10 @@ namespace snmalloc
       StatusChange = 2
     };
 
-    static Superslab* get(void* p)
+    static Superslab* get(const void* p)
     {
-      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(p);
+      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(
+        const_cast<void*>(p));
     }
 
     static bool is_short_sizeclass(sizeclass_t sizeclass)
@@ -180,8 +181,8 @@ namespace snmalloc
     Slab* alloc_slab(sizeclass_t sizeclass)
     {
       uint8_t h = head;
-      Slab* slab = pointer_cast<Slab>(
-        address_cast(this) + (static_cast<size_t>(h) << SLAB_BITS));
+      Slab* slab = pointer_offset(
+        reinterpret_cast<Slab*>(this), (static_cast<size_t>(h) << SLAB_BITS));
 
       uint8_t n = meta[h].next;
 
