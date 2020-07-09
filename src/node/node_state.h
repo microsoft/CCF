@@ -407,7 +407,7 @@ namespace ccf
             return false;
           }
 
-          auto j = serdes::unpack(data, serdes::Pack::Text);
+          auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
           JoinNetworkNodeToNode::Out resp;
           try
@@ -496,7 +496,7 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port);
 
-      const auto body = serdes::pack(join_params, serdes::Pack::Text);
+      const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
 
       http::Request r(fmt::format(
         "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "join"));
@@ -1177,7 +1177,7 @@ namespace ccf
       create_params.consensus_type = network.consensus_type;
       create_params.recovery_threshold = args.config.genesis.recovery_threshold;
 
-      const auto body = serdes::pack(create_params, serdes::Pack::Text);
+      const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
       http::Request request(fmt::format(
         "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::members), "create"));
@@ -1224,7 +1224,7 @@ namespace ccf
         return false;
       }
 
-      const auto body = serdes::unpack(r.body, serdes::Pack::Text);
+      const auto body = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");

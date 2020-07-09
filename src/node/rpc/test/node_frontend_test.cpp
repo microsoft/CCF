@@ -16,7 +16,7 @@
 
 using namespace ccf;
 using namespace nlohmann;
-using namespace serdes;
+using namespace jsonrpc;
 
 extern "C"
 {
@@ -48,7 +48,7 @@ TResponse frontend_process(
   http::Request r(method);
   const auto body = json_params.is_null() ?
     std::vector<uint8_t>() :
-    serdes::pack(json_params, Pack::Text);
+    jsonrpc::pack(json_params, Pack::Text);
   r.set_body(&body);
   auto serialise_request = r.build_request();
 
@@ -72,7 +72,7 @@ TResponse frontend_process(
 template <typename T>
 T parse_response_body(const TResponse& r)
 {
-  const auto body_j = serdes::unpack(r.body, serdes::Pack::Text);
+  const auto body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
   return body_j.get<T>();
 }
 

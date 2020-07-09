@@ -272,7 +272,7 @@ namespace ccfapp
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_body(
-          serdes::pack(response, serdes::Pack::Text));
+          jsonrpc::pack(response, jsonrpc::Pack::Text));
         args.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         return;
