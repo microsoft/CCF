@@ -283,19 +283,19 @@ namespace loggingapp
           return;
         }
 
-        constexpr auto log_id_header = "x-log-id";
-        const auto id_it = args.rpc_ctx->get_request_header(log_id_header);
-        if (!id_it.has_value())
+        const auto& path_params = args.rpc_ctx->get_request_path_params();
+        const auto id_it = path_params.find("id");
+        if (id_it == path_params.end())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           args.rpc_ctx->set_response_header(
             http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
           args.rpc_ctx->set_response_body(
-            fmt::format("Missing ID header '{}'", log_id_header));
+            fmt::format("Missing ID component in request path"));
           return;
         }
 
-        const auto id = strtoul(id_it.value().c_str(), nullptr, 10);
+        const auto id = strtoul(id_it->second.c_str(), nullptr, 10);
 
         const std::vector<uint8_t>& content = args.rpc_ctx->get_request_body();
         const std::string log_line(content.begin(), content.end());
@@ -305,7 +305,7 @@ namespace loggingapp
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
-      make_endpoint("log/private/raw_text", HTTP_POST, log_record_text)
+      make_endpoint("log/private/raw_text/{id}", HTTP_POST, log_record_text)
         .install();
       // SNIPPET_END: log_record_text
 

@@ -32,8 +32,9 @@ namespace http
     return c;
   }
 
-  static void url_unescape(std::string& s)
+  static std::string url_decode(const std::string_view& s_)
   {
+    std::string s(s_);
     char const* src = s.c_str();
     char const* end = s.c_str() + s.size();
     char* dst = s.data();
@@ -58,6 +59,7 @@ namespace http
     }
 
     s.resize(dst - s.data());
+    return s;
   }
 
   static bool status_success(http_status status)
@@ -375,12 +377,11 @@ namespace http
       else
       {
         const auto [path, query] = parse_url(url);
-        std::string unescaped_query(query);
-        url_unescape(unescaped_query);
+        std::string decoded_query = url_decode(query);
         proc.handle_request(
           http_method(parser.method),
           path,
-          unescaped_query,
+          decoded_query,
           std::move(headers),
           std::move(body_buf));
       }

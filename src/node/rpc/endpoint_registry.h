@@ -15,6 +15,7 @@
 #include <functional>
 #include <http-parser/http_parser.h>
 #include <nlohmann/json.hpp>
+#include <regex>
 #include <set>
 
 namespace ccf
@@ -295,14 +296,68 @@ namespace ccf
       }
     };
 
+    struct PathTemplatedEndpoint : public Endpoint
+    {
+      PathTemplatedEndpoint() = default;
+      PathTemplatedEndpoint(const PathTemplatedEndpoint& pte) = default;
+      PathTemplatedEndpoint(const Endpoint& e) : Endpoint(e) {}
+
+      std::regex template_regex;
+      std::vector<std::string> template_component_names;
+    };
+
   protected:
-    std::optional<Endpoint> default_handler;
-    std::map<std::string, std::map<RESTVerb, Endpoint>> installed_handlers;
+    std::optional<Endpoint> default_endpoint;
+    std::map<std::string, std::map<RESTVerb, Endpoint>>
+      fully_qualified_endpoints;
+    std::map<std::string, std::map<RESTVerb, PathTemplatedEndpoint>>
+      templated_endpoints;
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
 
     CertDERs* certs = nullptr;
+
+    static std::optional<PathTemplatedEndpoint> parse_path_template(
+      const Endpoint& endpoint)
+    {
+      auto template_start = endpoint.method.find_first_of('{');
+      if (template_start == std::string::npos)
+      {
+        return std::nullopt;
+      }
+
+      PathTemplatedEndpoint templated(endpoint);
+      std::string regex_s = endpoint.method;
+      template_start = regex_s.find_first_of('{');
+      while (template_start != std::string::npos)
+      {
+        const auto template_end = regex_s.find_first_of('}', template_start);
+        if (template_end == std::string::npos)
+        {
+          throw std::logic_error(fmt::format(
+            "Invalid templated path - missing closing '}': {}",
+            endpoint.method));
+        }
+
+        templated.template_component_names.push_back(regex_s.substr(
+          template_start + 1, template_end - template_start - 1));
+        regex_s.replace(
+          template_start, template_end - template_start + 1, "([^/]+)");
+        template_start = regex_s.find_first_of('{', template_start + 1);
+      }
+
+      LOG_TRACE_FMT(
+        "Installed a templated endpoint: {} became {}",
+        endpoint.method,
+        regex_s);
+      LOG_TRACE_FMT(
+        "Component names are: {}",
+        fmt::join(templated.template_component_names, ", "));
+      templated.template_regex = std::regex(regex_s);
+
+      return templated;
+    }
 
   public:
     EndpointRegistry(
@@ -386,7 +441,16 @@ namespace ccf
      */
     void install(const Endpoint& endpoint)
     {
-      installed_handlers[endpoint.method][endpoint.verb] = endpoint;
+      const auto templated_endpoint = parse_path_template(endpoint);
+      if (templated_endpoint.has_value())
+      {
+        templated_endpoints[endpoint.method][endpoint.verb] =
+          templated_endpoint.value();
+      }
+      else
+      {
+        fully_qualified_endpoints[endpoint.method][endpoint.verb] = endpoint;
+      }
     }
 
     CCF_DEPRECATED(
@@ -404,19 +468,19 @@ namespace ccf
       make_endpoint(method, default_verb, f)
         .set_read_write(read_write)
         .install();
-      return installed_handlers[method][default_verb];
+      return fully_qualified_endpoints[method][default_verb];
     }
 
     // Only needed to support deprecated functions
     Endpoint& reinstall(
       const Endpoint& h, const std::string& prev_method, RESTVerb prev_verb)
     {
-      const auto handlers_it = installed_handlers.find(prev_method);
-      if (handlers_it != installed_handlers.end())
+      const auto endpoints_it = fully_qualified_endpoints.find(prev_method);
+      if (endpoints_it != fully_qualified_endpoints.end())
       {
-        handlers_it->second.erase(prev_verb);
+        endpoints_it->second.erase(prev_verb);
       }
-      return installed_handlers[h.method][h.verb] = h;
+      return fully_qualified_endpoints[h.method][h.verb] = h;
     }
 
     /** Set a default EndpointFunction
@@ -429,8 +493,8 @@ namespace ccf
      */
     Endpoint& set_default(EndpointFunction f)
     {
-      default_handler = {"", f, this};
-      return default_handler.value();
+      default_endpoint = {"", f, this};
+      return default_endpoint.value();
     }
 
     /** Populate out with all supported methods
@@ -441,7 +505,12 @@ namespace ccf
      */
     virtual void list_methods(kv::Tx& tx, ListMethods::Out& out)
     {
-      for (const auto& [method, verb_handlers] : installed_handlers)
+      for (const auto& [method, verb_endpoints] : fully_qualified_endpoints)
+      {
+        out.methods.push_back(method);
+      }
+
+      for (const auto& [method, verb_endpoints] : templated_endpoints)
       {
         out.methods.push_back(method);
       }
@@ -449,36 +518,81 @@ namespace ccf
 
     virtual void init_handlers(kv::Store& tables) {}
 
-    virtual Endpoint* find_endpoint(const std::string& method, RESTVerb verb)
+    virtual Endpoint* find_endpoint(enclave::RpcContext& rpc_ctx)
     {
-      auto search = installed_handlers.find(method);
-      if (search != installed_handlers.end())
+      auto method = rpc_ctx.get_method();
+      method = method.substr(method.find_first_not_of('/'));
+
+      auto endpoints_for_exact_method = fully_qualified_endpoints.find(method);
+      if (endpoints_for_exact_method != fully_qualified_endpoints.end())
       {
-        auto& verb_handlers = search->second;
-        auto search2 = verb_handlers.find(verb);
-        if (search2 != verb_handlers.end())
+        auto& verb_endpoints = endpoints_for_exact_method->second;
+        auto endpoints_for_verb =
+          verb_endpoints.find(rpc_ctx.get_request_verb());
+        if (endpoints_for_verb != verb_endpoints.end())
         {
-          return &search2->second;
+          return &endpoints_for_verb->second;
         }
       }
 
-      if (default_handler)
+      std::smatch match;
+      for (auto& [original_method, verb_endpoints] : templated_endpoints)
       {
-        return &default_handler.value();
+        auto templated_endpoints_for_verb =
+          verb_endpoints.find(rpc_ctx.get_request_verb());
+        if (templated_endpoints_for_verb != verb_endpoints.end())
+        {
+          auto& endpoint = templated_endpoints_for_verb->second;
+          if (std::regex_match(method, match, endpoint.template_regex))
+          {
+            auto& path_params = rpc_ctx.get_request_path_params();
+            for (size_t i = 0; i < endpoint.template_component_names.size();
+                 ++i)
+            {
+              const auto& template_name = endpoint.template_component_names[i];
+              const auto& template_value = match[i + 1].str();
+              path_params[template_name] = template_value;
+            }
+
+            return &endpoint;
+          }
+        }
+      }
+
+      if (default_endpoint)
+      {
+        return &default_endpoint.value();
       }
 
       return nullptr;
     }
 
-    virtual std::vector<RESTVerb> get_allowed_verbs(const std::string& method)
+    virtual std::set<RESTVerb> get_allowed_verbs(
+      const enclave::RpcContext& rpc_ctx)
     {
-      std::vector<RESTVerb> verbs;
-      auto search = installed_handlers.find(method);
-      if (search != installed_handlers.end())
+      auto method = rpc_ctx.get_method();
+      method = method.substr(method.find_first_not_of('/'));
+
+      std::set<RESTVerb> verbs;
+
+      auto search = fully_qualified_endpoints.find(method);
+      if (search != fully_qualified_endpoints.end())
       {
-        for (auto& [verb, endpoint] : search->second)
+        for (const auto& [verb, endpoint] : search->second)
         {
-          verbs.push_back(verb);
+          verbs.insert(verb);
+        }
+      }
+
+      std::smatch match;
+      for (const auto& [method, verb_endpoints] : templated_endpoints)
+      {
+        for (const auto& [verb, endpoint] : verb_endpoints)
+        {
+          if (std::regex_match(method, match, endpoint.template_regex))
+          {
+            verbs.insert(verb);
+          }
         }
       }
 

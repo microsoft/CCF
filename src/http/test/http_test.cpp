@@ -286,8 +286,7 @@ DOCTEST_TEST_CASE("Escaping")
       "2b+"
       "characters+%2520%2520";
 
-    std::string s = escaped;
-    http::url_unescape(s);
+    std::string s = http::url_decode(escaped);
     DOCTEST_REQUIRE(s == unescaped);
   }
 
