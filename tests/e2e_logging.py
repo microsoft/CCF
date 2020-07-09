@@ -198,7 +198,7 @@ def test_anonymous_caller(network, args):
 
 
 @reqs.description("Write non-JSON body")
-@reqs.supports_methods("log/private/raw_text", "log/private")
+@reqs.supports_methods("log/private/raw_text/{id}", "log/private")
 def test_raw_text(network, args):
     if args.package == "liblogging":
         primary, _ = network.find_primary()
@@ -207,9 +207,9 @@ def test_raw_text(network, args):
         msg = "This message is not in JSON"
         with primary.client("user0") as c:
             r = c.rpc(
-                "/app/log/private/raw_text",
+                f"/app/log/private/raw_text/{log_id}",
                 msg,
-                headers={"content-type": "text/plain", "x-log-id": str(log_id)},
+                headers={"content-type": "text/plain"},
             )
             assert r.status == http.HTTPStatus.OK.value
             r = c.get("/app/log/private", {"id": log_id})
