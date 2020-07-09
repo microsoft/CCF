@@ -38,6 +38,11 @@ namespace ccf
   static_assert(
     sizeof(RecvNonce) == sizeof(SeqNo), "RecvNonce is the wrong size");
 
+  static inline RecvNonce get_nonce(const GcmHdr& header)
+  {
+    return RecvNonce(header.get_iv_int());
+  }
+
   enum ChannelStatus
   {
     INITIATED = 0,
@@ -47,18 +52,53 @@ namespace ccf
   class Channel
   {
   private:
-    // TODO: Create another class for this!
-    struct Msg
+    class OutgoingQueue
     {
-      NodeMsgType type;
-      std::vector<uint8_t> raw_plain; // To be intergrity-protected
-      std::vector<uint8_t> raw_cipher; // To be encrypted
+    public:
+      struct Msg
+      {
+        NodeMsgType type;
+        std::vector<uint8_t> raw_plain; // To be intergrity-protected
+        std::vector<uint8_t> raw_cipher; // To be encrypted
 
-      Msg(NodeMsgType msg_type, CBuffer raw_plain_, CBuffer raw_cipher_) :
-        type(msg_type),
-        raw_plain(raw_plain_),
-        raw_cipher(raw_cipher_)
-      {}
+        Msg(NodeMsgType msg_type, CBuffer raw_plain_, CBuffer raw_cipher_) :
+          type(msg_type),
+          raw_plain(raw_plain_),
+          raw_cipher(raw_cipher_)
+        {}
+      };
+
+    private:
+      static constexpr auto max_queued_msgs = 16;
+      std::queue<Msg> outgoing_msgs;
+      Channel& parent;
+
+    public:
+      OutgoingQueue(Channel& parent_) : parent(parent_) {}
+
+      void queue_msg(Msg&& msg)
+      {
+        if (outgoing_msgs.size() < max_queued_msgs)
+        {
+          outgoing_msgs.emplace(std::move(msg));
+        }
+        else
+        {
+          LOG_DEBUG_FMT(
+            "Cannot queue msg for node as channel is full (max size: {})",
+            max_queued_msgs);
+        }
+      }
+
+      void flush_all()
+      {
+        while (outgoing_msgs.size() != 0)
+        {
+          auto& msg = outgoing_msgs.front();
+          parent.send(msg.type, msg.raw_plain, msg.raw_cipher);
+          outgoing_msgs.pop();
+        }
+      }
     };
 
     NodeId self;
@@ -82,8 +122,7 @@ namespace ccf
     std::atomic<SeqNo> send_nonce{1};
 
     // Used to buffer message sent on the channel before it is established
-    static constexpr auto max_queued_msgs = 16;
-    std::queue<Msg> outgoing_msgs;
+    OutgoingQueue outgoing_queue;
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
@@ -149,23 +188,6 @@ namespace ccf
       return ret;
     }
 
-    std::vector<uint8_t> get_signed_public()
-    {
-      const auto own_public = ctx.get_own_public();
-      auto signature = network_kp->sign(own_public);
-
-      // Serialise channel public and network signature and length-prefix both
-      auto space = own_public.size() + signature.size() + 2 * sizeof(size_t);
-      std::vector<uint8_t> serialised_signed_public(space);
-      auto data_ = serialised_signed_public.data();
-      serialized::write(data_, space, own_public.size());
-      serialized::write(data_, space, own_public.data(), own_public.size());
-      serialized::write(data_, space, signature.size());
-      serialized::write(data_, space, signature.data(), signature.size());
-
-      return serialised_signed_public;
-    }
-
     void try_establish_channel()
     {
       ChannelHeader msg = {ChannelMsg::key_exchange, self};
@@ -177,31 +199,6 @@ namespace ccf
         get_signed_public());
 
       LOG_DEBUG_FMT("node channel with {} initiated", peer_id);
-    }
-
-    void queue_msg(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
-    {
-      if (outgoing_msgs.size() < max_queued_msgs)
-      {
-        outgoing_msgs.emplace(msg_type, aad, plain);
-      }
-      else
-      {
-        LOG_DEBUG_FMT(
-          "Cannot queue msg for node {} as channel is full (size: {})",
-          peer_id,
-          max_queued_msgs);
-      }
-    }
-
-    void flush_outgoing_msgs()
-    {
-      while (outgoing_msgs.size() != 0)
-      {
-        auto& msg = outgoing_msgs.front();
-        send(msg.type, msg.raw_plain, msg.raw_cipher);
-        outgoing_msgs.pop();
-      }
     }
 
   public:
@@ -218,7 +215,8 @@ namespace ccf
       peer_id(peer_id_),
       peer_hostname(peer_hostname_),
       peer_service(peer_service_),
-      outgoing(true)
+      outgoing(true),
+      outgoing_queue(*this)
     {
       RINGBUFFER_WRITE_MESSAGE(
         ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
@@ -233,7 +231,8 @@ namespace ccf
       network_kp(network_kp_),
       self(self_),
       peer_id(peer_id_),
-      outgoing(false)
+      outgoing(false),
+      outgoing_queue(*this)
     {}
 
     ~Channel()
@@ -280,6 +279,23 @@ namespace ccf
         RINGBUFFER_WRITE_MESSAGE(ccf::remove_node, to_host, peer_id);
       }
       outgoing = false;
+    }
+
+    std::vector<uint8_t> get_signed_public()
+    {
+      const auto own_public = ctx.get_own_public();
+      auto signature = network_kp->sign(own_public);
+
+      // Serialise channel public and network signature and length-prefix both
+      auto space = own_public.size() + signature.size() + 2 * sizeof(size_t);
+      std::vector<uint8_t> serialised_signed_public(space);
+      auto data_ = serialised_signed_public.data();
+      serialized::write(data_, space, own_public.size());
+      serialized::write(data_, space, own_public.data(), own_public.size());
+      serialized::write(data_, space, signature.size());
+      serialized::write(data_, space, signature.data(), signature.size());
+
+      return serialised_signed_public;
     }
 
     bool load_peer_signed_public(
@@ -354,7 +370,7 @@ namespace ccf
       ctx.free_ctx();
       status = ESTABLISHED;
 
-      flush_outgoing_msgs();
+      outgoing_queue.flush_all();
 
       LOG_INFO_FMT("node channel with {} is now established", peer_id);
 
@@ -375,7 +391,7 @@ namespace ccf
       if (status != ESTABLISHED)
       {
         try_establish_channel();
-        queue_msg(msg_type, aad, plain);
+        outgoing_queue.queue_msg(OutgoingQueue::Msg(msg_type, aad, plain));
         return false;
       }
 
@@ -462,11 +478,6 @@ namespace ccf
       }
 
       return plain;
-    }
-
-    static RecvNonce get_nonce(const GcmHdr& header)
-    {
-      return RecvNonce(header.get_iv_int());
     }
   };
 

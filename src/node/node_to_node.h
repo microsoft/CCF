@@ -140,7 +140,7 @@ namespace ccf
       const auto& t = serialized::overlay<T>(data, size);
       serialized::skip(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      return ccf::Channel::get_nonce(hdr);
+      return ccf::get_nonce(hdr);
     }
 
     template <class T>
@@ -149,7 +149,7 @@ namespace ccf
       // PBFT only
       const auto& t = serialized::overlay<T>(data, size);
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      return ccf::Channel::get_nonce(hdr);
+      return ccf::get_nonce(hdr);
     }
 
     void process_key_exchange(const uint8_t* data, size_t size)
