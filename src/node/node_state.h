@@ -54,25 +54,9 @@ namespace std
 {
   std::ostream& operator<<(std::ostream& os, ccf::State s)
   {
-    switch (s)
-    {
-      case ccf::State::uninitialized:
-        return os << "uninitialized";
-      case ccf::State::initialized:
-        return os << "initialized";
-      case ccf::State::pending:
-        return os << "pending";
-      case ccf::State::partOfPublicNetwork:
-        return os << "partOfPublicNetwork";
-      case ccf::State::partOfNetwork:
-        return os << "partOfNetwork";
-      case ccf::State::readingPublicLedger:
-        return os << "readingPublicLedger";
-      case ccf::State::readingPrivateLedger:
-        return os << "readingPrivateLedger";
-      default:
-        return os << "unknown value";
-    }
+    nlohmann::json j;
+    to_json(j, s);
+    return os << j.dump();
   }
 }
 
