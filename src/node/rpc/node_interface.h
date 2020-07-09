@@ -8,6 +8,11 @@
 
 namespace ccf
 {
+  using ExtendedState = std::tuple<
+    State,
+    std::optional<kv::Version> /* recovery_target_seqno */,
+    std::optional<kv::Version> /* last_recovered_seqno */>;
+
   class AbstractNodeState
   {
   public:
@@ -26,6 +31,6 @@ namespace ccf
     virtual NodeId get_node_id() const = 0;
     virtual kv::Version get_last_recovered_commit_idx() = 0;
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
-    virtual State state() const = 0;
+    virtual ExtendedState state() = 0;
   };
 }

@@ -78,9 +78,9 @@ namespace ccf
       is_public = is_public_;
     }
 
-    State state() const override
+    ExtendedState state() override
     {
-      return State::partOfNetwork;
+      return {State::partOfNetwork, {}, {}};
     }
   };
 

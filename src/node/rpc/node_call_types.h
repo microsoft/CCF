@@ -31,6 +31,8 @@ namespace ccf
     {
       ccf::State state;
       kv::Version last_signed_index;
+      std::optional<kv::Version> recovery_target_seqno;
+      std::optional<kv::Version> last_recovered_seqno;
     };
   };
 

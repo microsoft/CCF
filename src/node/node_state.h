@@ -949,9 +949,18 @@ namespace ccf
       return sm.check(State::partOfPublicNetwork);
     }
 
-    State state() const override
+    ExtendedState state() override
     {
-      return sm.value();
+      std::lock_guard<SpinLock> guard(lock);
+      State s = sm.value();
+      if (s == State::readingPrivateLedger)
+      {
+        return {s, recovery_v, recovery_store->current_version()};
+      }
+      else
+      {
+        return {s, {}, {}};
+      }
     }
 
     bool rekey_ledger(kv::Tx& tx) override

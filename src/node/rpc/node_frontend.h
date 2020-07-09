@@ -257,7 +257,10 @@ namespace ccf
 
       auto get_state = [this](auto& args, nlohmann::json&& params) {
         GetState::Out result;
-        result.state = this->node.state();
+        auto [s, rts, lrs] = this->node.state();
+        result.state = s;
+        result.recovery_target_seqno = rts;
+        result.last_recovered_seqno = lrs;
 
         auto sig_view = args.tx.get_read_only_view(*signatures);
         auto sig = sig_view->get(0);
