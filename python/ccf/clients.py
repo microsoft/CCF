@@ -268,7 +268,8 @@ class CurlClient:
                 nf.write(msg_bytes)
                 nf.flush()
                 cmd.extend(["--data-binary", f"@{nf.name}"])
-                cmd.extend(["-H", "Content-Type: application/json"])
+                if not "content-type" in request.headers:
+                    request.headers["content-type"] = "application/json"
 
             # Set requested headers first - so they take precedence over defaults
             for k, v in request.headers.items():
