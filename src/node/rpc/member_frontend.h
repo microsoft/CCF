@@ -672,8 +672,39 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
-      make_endpoint("propose", HTTP_POST, json_adapter(propose))
+      make_endpoint("proposal", HTTP_POST, json_adapter(propose))
         .set_auto_schema<Propose>()
+        .install();
+
+      auto get_proposal = [this](EndpointContext& args, nlohmann::json&& params) {
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+        }
+
+        ObjectId proposal_id;
+        std::string error;
+        if (!get_proposal_id(
+              args.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
+
+        auto proposals = args.tx.get_view(this->network.proposals);
+        auto proposal = proposals->get(proposal_id);
+
+        if (!proposal)
+        {
+          return make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            fmt::format("Proposal {} does not exist", proposal_id));
+        }
+
+        return make_success(proposal.value());
+      };
+      make_endpoint("proposal/{id}", HTTP_GET, json_adapter(get_proposal))
+        .set_auto_schema<void, Proposal>()
+        //.set_require_client_signature(true)
         .install();
 
       auto withdraw = [this](EndpointContext& args, nlohmann::json&& params) {
@@ -730,7 +761,7 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      make_endpoint("withdraw/{id}", HTTP_POST, json_adapter(withdraw))
+      make_endpoint("proposal/{id}/withdraw", HTTP_POST, json_adapter(withdraw))
         .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -786,7 +817,7 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, proposal_id, proposal.value()));
       };
-      make_endpoint("vote/{id}", HTTP_POST, json_adapter(vote))
+      make_endpoint("proposal/{id}/vote", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -818,7 +849,7 @@ namespace ccf
           return make_success(
             complete_proposal(ctx.tx, proposal_id, proposal.value()));
         };
-      make_endpoint("complete/{id}", HTTP_POST, json_adapter(complete))
+      make_endpoint("proposal/{id}/complete", HTTP_POST, json_adapter(complete))
         .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();

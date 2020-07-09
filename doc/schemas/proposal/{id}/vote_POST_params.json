@@ -16,28 +16,11 @@
         }
       },
       "type": "object"
-    },
-    "parameter": {},
-    "script": {
-      "properties": {
-        "bytecode": {
-          "items": {
-            "maximum": 255,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "type": "array"
-        },
-        "text": {
-          "type": "string"
-        }
-      },
-      "type": "object"
     }
   },
   "required": [
-    "script"
+    "ballot"
   ],
-  "title": "propose/params",
+  "title": "proposal/{id}/vote/params",
   "type": "object"
 }
