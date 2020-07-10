@@ -29,12 +29,15 @@ def run(args):
         for filename in filenames
     )
 
+    all_methods = []
+
     def fetch_schema(client, prefix):
         list_response = client.get(f"/{prefix}/api")
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
         methods = list_response.result["methods"]
+        all_methods.extend(methods)
 
         for method in methods:
             schema_found = False
@@ -108,6 +111,7 @@ def run(args):
         for m in sorted(methods_without_schema):
             LOG.info(" " + m)
 
+    LOG.warning('\n'.join(sorted(set(all_methods))))
     made_changes = False
 
     if len(old_schema) > 0:
