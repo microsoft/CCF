@@ -26,6 +26,6 @@
     "proposer_id",
     "state"
   ],
-  "title": "proposals/{id}/complete/result",
+  "title": "proposals/{proposal_id}/votes/result",
   "type": "object"
 }

@@ -12,7 +12,7 @@ For transparency and auditability, all governance operations (including votes) a
 Submitting a New Proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposals`` and vote using ``POST /gov/proposals/{id}/votes``.
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposals`` and vote using ``POST /gov/proposals/{proposal_id}/votes``.
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 
@@ -81,7 +81,7 @@ As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members 
 Displaying Proposals
 --------------------
 
-The details of pending proposals, including the proposer member id, proposal script, parameters, and votes, can be queried from the service by calling ``GET /gov/proposals/{id}``. For example, after accepting the proposal above:
+The details of pending proposals, including the proposer member id, proposal script, parameters, and votes, can be queried from the service by calling ``GET /gov/proposals/{proposal_id}``. For example, after accepting the proposal above:
 
 .. code-block:: bash
 

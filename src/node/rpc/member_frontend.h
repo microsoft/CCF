@@ -585,7 +585,7 @@ namespace ccf
       ObjectId& proposal_id,
       std::string& error)
     {
-      return get_path_param(params, "id", proposal_id, error);
+      return get_path_param(params, "proposal_id", proposal_id, error);
     }
 
     bool get_member_id_from_path(
@@ -723,7 +723,10 @@ namespace ccf
 
           return make_success(proposal.value());
         };
-      make_read_only_endpoint("proposals/{id}", HTTP_GET, json_read_only_adapter(get_proposal))
+      make_read_only_endpoint(
+        "proposals/{proposal_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_proposal))
         .set_auto_schema<void, Proposal>()
         .install();
 
@@ -782,7 +785,7 @@ namespace ccf
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
       make_endpoint(
-        "proposals/{id}/withdraw", HTTP_POST, json_adapter(withdraw))
+        "proposals/{proposal_id}/withdraw", HTTP_POST, json_adapter(withdraw))
         .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -838,49 +841,60 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, proposal_id, proposal.value()));
       };
-      make_endpoint("proposals/{id}/votes", HTTP_POST, json_adapter(vote))
+      make_endpoint(
+        "proposals/{proposal_id}/votes", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
 
-      auto get_vote = [this](ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-        if (!check_member_active(args.tx, args.caller_id))
-        {
-          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-        }
+      auto get_vote =
+        [this](ReadOnlyEndpointContext& args, nlohmann::json&& params) {
+          if (!check_member_active(args.tx, args.caller_id))
+          {
+            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+          }
 
-        std::string error;
-        ObjectId proposal_id;
-        if (!get_proposal_id_from_path(
-              args.rpc_ctx->get_request_path_params(), proposal_id, error))
-        {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
-        }
+          std::string error;
+          ObjectId proposal_id;
+          if (!get_proposal_id_from_path(
+                args.rpc_ctx->get_request_path_params(), proposal_id, error))
+          {
+            return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          }
 
-        MemberId member_id;
-        if (!get_member_id_from_path(args.rpc_ctx->get_request_path_params(), member_id, error))
-        {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
-        }
+          MemberId member_id;
+          if (!get_member_id_from_path(
+                args.rpc_ctx->get_request_path_params(), member_id, error))
+          {
+            return make_error(HTTP_STATUS_BAD_REQUEST, error);
+          }
 
-        auto proposals = args.tx.get_read_only_view(this->network.proposals);
-        auto proposal = proposals->get(proposal_id);
-        if (!proposal)
-        {
-          return make_error(
-            HTTP_STATUS_NOT_FOUND,
-            fmt::format("Proposal {} does not exist", proposal_id));
-        }
+          auto proposals = args.tx.get_read_only_view(this->network.proposals);
+          auto proposal = proposals->get(proposal_id);
+          if (!proposal)
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              fmt::format("Proposal {} does not exist", proposal_id));
+          }
 
-        const auto vote_it = proposal->votes.find(member_id);
-        if (vote_it == proposal->votes.end())
-        {
-          return make_error(HTTP_STATUS_NOT_FOUND, fmt::format("Member {} has not voted for proposal {}", member_id, proposal_id));
-        }
+          const auto vote_it = proposal->votes.find(member_id);
+          if (vote_it == proposal->votes.end())
+          {
+            return make_error(
+              HTTP_STATUS_NOT_FOUND,
+              fmt::format(
+                "Member {} has not voted for proposal {}",
+                member_id,
+                proposal_id));
+          }
 
-        return make_success(vote_it->second);
-      };
-      make_read_only_endpoint("proposals/{id}/votes/{member_id}", HTTP_GET, json_read_only_adapter(get_vote))
+          return make_success(vote_it->second);
+        };
+      make_read_only_endpoint(
+        "proposals/{proposal_id}/votes/{member_id}",
+        HTTP_GET,
+        json_read_only_adapter(get_vote))
         .set_auto_schema<void, Vote>()
         .install();
 
@@ -911,7 +925,7 @@ namespace ccf
           complete_proposal(ctx.tx, proposal_id, proposal.value()));
       };
       make_endpoint(
-        "proposals/{id}/complete", HTTP_POST, json_adapter(complete))
+        "proposals/{proposal_id}/complete", HTTP_POST, json_adapter(complete))
         .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();

@@ -26,6 +26,6 @@
     "proposer_id",
     "state"
   ],
-  "title": "proposals/{id}/withdraw/result",
+  "title": "proposals/{proposal_id}/complete/result",
   "type": "object"
 }
