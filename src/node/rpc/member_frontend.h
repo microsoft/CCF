@@ -12,13 +12,13 @@
 #include "node_interface.h"
 #include "tls/key_pair.h"
 
+#include <charconv>
 #include <exception>
 #include <initializer_list>
 #include <map>
 #include <memory>
 #include <set>
 #include <sstream>
-#include <charconv>
 
 namespace ccf
 {
@@ -673,7 +673,7 @@ namespace ccf
         return make_success(
           Propose::Out{complete_proposal(args.tx, proposal_id, proposal)});
       };
-      make_endpoint("proposal", HTTP_POST, json_adapter(propose))
+      make_endpoint("proposals", HTTP_POST, json_adapter(propose))
         .set_auto_schema<Propose>()
         .set_require_client_signature(true)
         .install();
@@ -705,7 +705,7 @@ namespace ccf
 
           return make_success(proposal.value());
         };
-      make_endpoint("proposal/{id}", HTTP_GET, json_adapter(get_proposal))
+      make_endpoint("proposals/{id}", HTTP_GET, json_adapter(get_proposal))
         .set_auto_schema<void, Proposal>()
         .install();
 
@@ -763,7 +763,8 @@ namespace ccf
 
         return make_success(get_proposal_info(proposal_id, proposal.value()));
       };
-      make_endpoint("proposal/{id}/withdraw", HTTP_POST, json_adapter(withdraw))
+      make_endpoint(
+        "proposals/{id}/withdraw", HTTP_POST, json_adapter(withdraw))
         .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -819,7 +820,7 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, proposal_id, proposal.value()));
       };
-      make_endpoint("proposal/{id}/vote", HTTP_POST, json_adapter(vote))
+      make_endpoint("proposals/{id}/vote", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
         .set_require_client_signature(true)
         .install();
@@ -850,7 +851,8 @@ namespace ccf
         return make_success(
           complete_proposal(ctx.tx, proposal_id, proposal.value()));
       };
-      make_endpoint("proposal/{id}/complete", HTTP_POST, json_adapter(complete))
+      make_endpoint(
+        "proposals/{id}/complete", HTTP_POST, json_adapter(complete))
         .set_auto_schema<void, ProposalInfo>()
         .set_require_client_signature(true)
         .install();

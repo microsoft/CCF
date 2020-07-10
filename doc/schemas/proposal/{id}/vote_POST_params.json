@@ -21,6 +21,6 @@
   "required": [
     "ballot"
   ],
-  "title": "proposal/{id}/vote/params",
+  "title": "proposals/{id}/vote/params",
   "type": "object"
 }

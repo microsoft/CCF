@@ -37,7 +37,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposal/5/vote --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/5/vote --cacert network_cert --key member1_privk --cert member1_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "proposal_id": 5,
         "proposer_id": 0,
@@ -51,7 +51,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposal/5/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/5/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_conditional.json -H "content-type: application/json"
     {
         "proposal_id": 5,
         "proposer_id": 0,

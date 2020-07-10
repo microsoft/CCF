@@ -38,6 +38,6 @@
   "required": [
     "script"
   ],
-  "title": "proposal/params",
+  "title": "proposals/params",
   "type": "object"
 }

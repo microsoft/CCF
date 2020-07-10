@@ -69,6 +69,6 @@
     "state",
     "votes"
   ],
-  "title": "proposal/{id}/result",
+  "title": "proposals/{id}/result",
   "type": "object"
 }
