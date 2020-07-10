@@ -45,7 +45,7 @@ end
 
 def add_arg_construction(lines, arg, arg_name="args"):
     if isinstance(arg, str):
-        lines.append(f'{arg_name} = "{arg}"')
+        lines.append(f'{arg_name} = [[{arg}]]')
     elif isinstance(arg, collections.abc.Sequence):
         lines.append(f"{arg_name} = {list_as_lua_literal(arg)}")
     elif isinstance(arg, collections.abc.Mapping):
@@ -59,7 +59,7 @@ def add_arg_construction(lines, arg, arg_name="args"):
 def add_arg_checks(lines, arg, arg_name="args"):
     lines.append(f"if {arg_name} == nil then return false")
     if isinstance(arg, str):
-        lines.append(f'if not {arg_name} == "{arg}" then return false end')
+        lines.append(f'if not {arg_name} == [[{arg}]] then return false end')
     elif isinstance(arg, collections.abc.Sequence):
         expected_name = arg_name.replace(".", "_")
         lines.append(f"{expected_name} = {list_as_lua_literal(arg)}")
@@ -151,12 +151,12 @@ def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
 
     {LUA_FUNCTION_EQUAL_ARRAYS}
 
-    expected_cert = {list_as_lua_literal(member_cert)}
+    expected_cert = [[{member_cert}]]
     if not equal_arrays(call.args.cert, expected_cert) then
     return false
     end
 
-    expected_keyshare = {list_as_lua_literal(member_keyshare_encryptor)}
+    expected_keyshare = [[{member_keyshare_encryptor}]]
     if not equal_arrays(call.args.keyshare, expected_keyshare) then
     return false
     end
