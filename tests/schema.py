@@ -111,7 +111,6 @@ def run(args):
         for m in sorted(methods_without_schema):
             LOG.info(" " + m)
 
-    LOG.warning('\n'.join(sorted(set(all_methods))))
     made_changes = False
 
     if len(old_schema) > 0:
@@ -132,6 +131,11 @@ def run(args):
             LOG.error(" " + f)
         made_changes = True
 
+    if args.list_all:
+        LOG.info("Discovered methods:")
+        for method in sorted(set(all_methods)):
+            LOG.info(f"  {method}")
+
     if made_changes:
         sys.exit(1)
 
@@ -149,6 +153,11 @@ if __name__ == "__main__":
             "--schema-dir",
             help="Path to directory where retrieved schema should be saved",
             required=True,
+        )
+        parser.add_argument(
+            "--list-all",
+            help="List all discovered methods at the end of the run",
+            action="store_true",
         )
 
     args = infra.e2e_args.cli_args(add=add)
