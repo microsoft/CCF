@@ -302,7 +302,7 @@ def test_historical_query(network, args):
 
 
 @reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("/node/tx/{view}/{seqno}")
+@reqs.supports_methods("/node/tx")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
     primary, backup = network.find_primary_and_any_backup()
@@ -359,7 +359,7 @@ def test_update_lua(network, args):
 
 
 @reqs.description("Check for commit of every prior transaction")
-@reqs.supports_methods("/node/commit", "/node/tx/{view}/{seqno}")
+@reqs.supports_methods("/node/commit", "/node/tx")
 def test_view_history(network, args):
     if args.consensus == "pbft":
         # This appears to work in PBFT, but it is unacceptably slow:
@@ -391,7 +391,7 @@ def test_view_history(network, args):
             for seqno in range(1, commit_seqno + 1):
                 views = []
                 for view in range(1, commit_view + 1):
-                    r = c.get(f"/node/tx/{view}/{seqno}")
+                    r = c.get("/node/tx", {"view": view, "seqno": seqno})
                     check(r)
                     status = TxStatus(r.result["status"])
                     if status == TxStatus.Committed:
@@ -470,7 +470,7 @@ class SentTxs:
 
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
-@reqs.supports_methods("log/private", "/node/tx/{view}/{seqno}")
+@reqs.supports_methods("log/private", "/node/tx")
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
@@ -495,7 +495,7 @@ def test_tx_statuses(network, args):
 
             done = False
             for view, seqno in SentTxs.get_all_tx_ids():
-                r = c.get(f"/node/tx/{view}/{seqno}")
+                r = c.get("/node/tx", {"view": view, "seqno": seqno})
                 check(r)
                 status = TxStatus(r.result["status"])
                 SentTxs.update_status(view, seqno, status)

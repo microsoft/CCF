@@ -18,6 +18,7 @@
 #include <memory>
 #include <set>
 #include <sstream>
+#include <charconv>
 
 namespace ccf
 {

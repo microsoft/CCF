@@ -13,6 +13,6 @@
   "required": [
     "receipt"
   ],
-  "title": "receipt/{view}/{seqno}/result",
+  "title": "receipt/result",
   "type": "object"
 }

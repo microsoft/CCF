@@ -251,15 +251,18 @@ namespace timing
     CommitPoint wait_for_global_commit(
       const CommitPoint& target, bool record = true)
     {
-      const auto get_tx_status =
-        fmt::format("tx/{}/{}", target.view, target.seqno);
+      auto params = nlohmann::json::object();
+      params["view"] = target.view;
+      params["seqno"] = target.seqno;
+
+      constexpr auto get_tx_status = "tx";
 
       LOG_INFO_FMT(
         "Waiting for transaction ID {}.{}", target.view, target.seqno);
 
       while (true)
       {
-        const auto response = net_client->get(get_tx_status);
+        const auto response = net_client->get(get_tx_status, params);
 
         if (record)
         {

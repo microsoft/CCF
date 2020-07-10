@@ -26,8 +26,8 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
         "node/ids",
         "primary_info",
         "receipt/verify",
-        "receipt/{view}/{seqno}",
-        "tx/{view}/{seqno}",
+        "receipt",
+        "tx",
         "user_id"
       ]
     }

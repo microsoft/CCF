@@ -9,8 +9,6 @@
 #include "metrics.h"
 #include "node/code_id.h"
 
-#include <charconv>
-
 namespace ccf
 {
   /*
@@ -26,54 +24,6 @@ namespace ccf
 
   protected:
     kv::Store* tables = nullptr;
-
-    bool get_tx_id_from_path(
-      const enclave::PathParams& params, kv::TxID& tx_id, std::string& error)
-    {
-      kv::Consensus::View view;
-      {
-        const auto view_it = params.find("view");
-        if (view_it == params.end())
-        {
-          error = fmt::format("No parameter named 'view' in path");
-          return false;
-        }
-
-        const auto view_s = view_it->second;
-        const auto [p, ec] =
-          std::from_chars(view_s.data(), view_s.data() + view_s.size(), view);
-        if (ec != std::errc())
-        {
-          error = fmt::format(
-            "Unable to parse path parameter '{}' as a view", view_s);
-          return false;
-        }
-      }
-
-      kv::Consensus::SeqNo seqno;
-      {
-        const auto seqno_it = params.find("seqno");
-        if (seqno_it == params.end())
-        {
-          error = fmt::format("No parameter named 'seqno' in path");
-          return false;
-        }
-
-        const auto seqno_s = seqno_it->second;
-        const auto [p, ec] = std::from_chars(
-          seqno_s.data(), seqno_s.data() + seqno_s.size(), seqno);
-        if (ec != std::errc())
-        {
-          error = fmt::format(
-            "Unable to parse path parameter '{}' as a seqno", seqno_s);
-          return false;
-        }
-      }
-
-      tx_id.term = view;
-      tx_id.version = seqno;
-      return true;
-    }
 
   public:
     CommonEndpointRegistry(
@@ -106,36 +56,25 @@ namespace ccf
         .install();
 
       auto get_tx_status = [this](auto& args, nlohmann::json&& params) {
-        kv::TxID tx_id;
-        std::string error;
-        if (!get_tx_id_from_path(
-              args.rpc_ctx->get_request_path_params(), tx_id, error))
-        {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
-        }
+        const auto in = params.get<GetTxStatus::In>();
 
         if (consensus != nullptr)
         {
-          const auto tx_view = consensus->get_view(tx_id.version);
+          const auto tx_view = consensus->get_view(in.seqno);
           const auto committed_seqno = consensus->get_committed_seqno();
           const auto committed_view = consensus->get_view(committed_seqno);
 
           GetTxStatus::Out out;
           out.status = ccf::get_tx_status(
-            tx_id.term,
-            tx_id.version,
-            tx_view,
-            committed_view,
-            committed_seqno);
+            in.view, in.seqno, tx_view, committed_view, committed_seqno);
           return make_success(out);
         }
 
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Consensus is not yet configured");
       };
-      make_command_endpoint(
-        "tx/{view}/{seqno}", HTTP_GET, json_command_adapter(get_tx_status))
-        .set_auto_schema<void, GetTxStatus::Out>()
+      make_command_endpoint("tx", HTTP_GET, json_command_adapter(get_tx_status))
+        .set_auto_schema<GetTxStatus>()
         .install();
 
       auto get_metrics = [this](auto& args, nlohmann::json&& params) {
@@ -367,42 +306,13 @@ namespace ccf
         .install();
 
       auto get_receipt = [this](auto& args, nlohmann::json&& params) {
-        kv::TxID tx_id;
-        std::string error;
-        if (!get_tx_id_from_path(
-              args.rpc_ctx->get_request_path_params(), tx_id, error))
-        {
-          return make_error(HTTP_STATUS_BAD_REQUEST, error);
-        }
+        const auto in = params.get<GetReceipt::In>();
 
         if (history != nullptr)
         {
-          const auto tx_view = consensus->get_view(tx_id.version);
-          const auto committed_seqno = consensus->get_committed_seqno();
-          const auto committed_view = consensus->get_view(committed_seqno);
-
-          const auto status = ccf::get_tx_status(
-            tx_id.term,
-            tx_id.version,
-            tx_view,
-            committed_view,
-            committed_seqno);
-
-          if (status != ccf::TxStatus::Committed)
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              fmt::format(
-                "Receipts are only available for committed transactions. "
-                "Requested transaction {}.{} is {}",
-                tx_id.term,
-                tx_id.version,
-                ccf::tx_status_to_str(status)));
-          }
-
           try
           {
-            auto p = history->get_receipt(tx_id.version);
+            auto p = history->get_receipt(in.commit);
             const GetReceipt::Out out{p};
 
             return make_success(out);
@@ -412,9 +322,8 @@ namespace ccf
             return make_error(
               HTTP_STATUS_INTERNAL_SERVER_ERROR,
               fmt::format(
-                "Unable to produce receipt for Tx ID {}.{} : {}",
-                tx_id.term,
-                tx_id.version,
+                "Unable to produce receipt for commit {} : {}",
+                in.commit,
                 e.what()));
           }
         }
@@ -423,8 +332,8 @@ namespace ccf
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Unable to produce receipt");
       };
       make_command_endpoint(
-        "receipt/{view}/{seqno}", HTTP_GET, json_command_adapter(get_receipt))
-        .set_auto_schema<void, GetReceipt::Out>()
+        "receipt", HTTP_GET, json_command_adapter(get_receipt))
+        .set_auto_schema<GetReceipt>()
         .install();
 
       auto verify_receipt = [this](auto& args, nlohmann::json&& params) {

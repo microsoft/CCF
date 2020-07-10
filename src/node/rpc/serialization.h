@@ -84,6 +84,8 @@ namespace ccf
   DECLARE_JSON_TYPE(GetCommit::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetCommit::Out, view, seqno)
 
+  DECLARE_JSON_TYPE(GetTxStatus::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::In, view, seqno)
   DECLARE_JSON_TYPE(GetTxStatus::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetTxStatus::Out, status)
 
@@ -123,6 +125,8 @@ namespace ccf
   DECLARE_JSON_TYPE(GetSchema::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetSchema::Out, params_schema, result_schema)
 
+  DECLARE_JSON_TYPE(GetReceipt::In)
+  DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::In, commit)
   DECLARE_JSON_TYPE(GetReceipt::Out)
   DECLARE_JSON_REQUIRED_FIELDS(GetReceipt::Out, receipt)
 

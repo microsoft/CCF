@@ -25,6 +25,12 @@ namespace ccf
 
   struct GetTxStatus
   {
+    struct In
+    {
+      kv::Consensus::View view;
+      kv::Consensus::SeqNo seqno;
+    };
+
     struct Out
     {
       TxStatus status;
@@ -150,6 +156,11 @@ namespace ccf
 
   struct GetReceipt
   {
+    struct In
+    {
+      int64_t commit = 0;
+    };
+
     struct Out
     {
       std::vector<std::uint8_t> receipt = {};

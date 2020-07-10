@@ -535,7 +535,10 @@ namespace client
       size_t view,
       size_t seqno)
     {
-      return connection->get(fmt::format("tx/{}/{}", view, seqno));
+      nlohmann::json p;
+      p["seqno"] = seqno;
+      p["view"] = view;
+      return connection->get("tx", p);
     }
 
     virtual void verify_params(const nlohmann::json& expected)
