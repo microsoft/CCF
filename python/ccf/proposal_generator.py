@@ -57,7 +57,7 @@ def add_arg_construction(lines, arg, arg_name="args"):
 
 
 def add_arg_checks(lines, arg, arg_name="args"):
-    lines.append(f"if {arg_name} == nil then return false")
+    lines.append(f"if {arg_name} == nil then return false end")
     if isinstance(arg, str):
         lines.append(f'if not {arg_name} == [[{arg}]] then return false end')
     elif isinstance(arg, collections.abc.Sequence):
@@ -98,9 +98,9 @@ def build_proposal(proposed_call, args=None, inline_args=False):
         "if not #calls == 1 then return false end",
         "call = calls[1]",
         f'if not call.func == "{proposed_call}" then return false end',
-        LUA_FUNCTION_EQUAL_ARRAYS,
-    ]
+    ] + [line.strip() for line in LUA_FUNCTION_EQUAL_ARRAYS.splitlines()]
     if args is not None:
+        vote_lines.append("args = call.args")
         add_arg_checks(vote_lines, args)
     vote_lines.append("return true")
     vote_text = "; ".join(vote_lines)
