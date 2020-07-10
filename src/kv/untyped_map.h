@@ -315,6 +315,14 @@ namespace kv::untyped
         map_snapshot.serialize(data);
       }
 
+      // TODO: Type is probably wrong here
+      std::vector<uint8_t> serialise() override
+      {
+        std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
+        map_snapshot.serialize(ret.data());
+        return ret;
+      }
+
       size_t get_serialized_size() override
       {
         return map_snapshot.get_serialized_size();

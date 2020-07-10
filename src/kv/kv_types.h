@@ -387,6 +387,7 @@ namespace kv
     public:
       virtual ~Snapshot() = default;
       virtual void serialize(uint8_t* data) = 0;
+      virtual std::vector<uint8_t> serialise() = 0;
       virtual size_t get_serialized_size() = 0;
       virtual std::string& get_name() = 0;
       virtual SecurityDomain get_security_domain() = 0;

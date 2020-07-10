@@ -113,6 +113,12 @@ namespace kv
       serialise_internal(name);
     }
 
+    // TODO: Different type here
+    void serialise_snapshot(std::vector<uint8_t>&& snapshot)
+    {
+      serialise_internal(snapshot);
+    }
+
     template <class Version>
     void serialise_read_version(const Version& version)
     {

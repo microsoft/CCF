@@ -296,7 +296,7 @@ namespace kv
       }
 
       auto e = get_encryptor();
-      KvStoreSerialiser serialiser(e, version);
+      KvStoreSerialiser serialiser(e, version, true);
 
       return snapshot->serialise(serialiser);
     }
@@ -308,13 +308,23 @@ namespace kv
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
 
+        // TODO: Check that v <= current version
         if (v < commit_version())
         {
           throw ccf::ccf_logic_error(fmt::format(
-            "Attempting to snapshot at invalid version v:{}, "
-            "commit_version:{}",
+            "Attempting to snapshot at version {} which is earlier than "
+            "committed version {}",
             v,
             commit_version()));
+        }
+
+        if (v > current_version())
+        {
+          throw ccf ::ccf_logic_error(fmt::format(
+            "Attempting to snapshot at version {} which is later "
+            "than committed version {}",
+            v,
+            current_version()));
         }
 
         for (auto& map : maps)

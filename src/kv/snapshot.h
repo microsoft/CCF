@@ -52,6 +52,11 @@ namespace kv
         {
           if (it->get_security_domain() == domain)
           {
+            // TODO: Call it->serialise() instead
+            s.start_map(it->get_name(), it->get_security_domain());
+
+            // TODO: Size prefix?
+            s.serialise_snapshot(it->serialise());
             LOG_FAIL_FMT("he!");
           }
 
@@ -66,7 +71,7 @@ namespace kv
         }
       }
 
-      return {};
+      return s.get_raw_data();
     }
 
     kv::Version get_version() const override
