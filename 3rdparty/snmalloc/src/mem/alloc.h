@@ -17,6 +17,7 @@
 #include "sizeclasstable.h"
 #include "slab.h"
 
+#include <array>
 #include <functional>
 
 namespace snmalloc
@@ -284,6 +285,7 @@ namespace snmalloc
       UNUSED(size);
       return free(p);
 #else
+      SNMALLOC_ASSERT(p != nullptr);
       check_size(p, size);
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
@@ -393,7 +395,7 @@ namespace snmalloc
     }
 
     template<Boundary location = Start>
-    static address_t external_address(void* p)
+    static void* external_pointer(void* p)
     {
 #ifdef USE_MALLOC
       error("Unsupported");
@@ -422,12 +424,13 @@ namespace snmalloc
         return external_pointer<location>(p, sc, slab_end);
       }
 
-      auto ss = address_cast(super);
+      auto ss = super;
 
       while (size > 64)
       {
         // This is a large alloc redirect.
-        ss = ss - (1ULL << (size - 64));
+        ss = pointer_offset_signed(
+          ss, -(static_cast<ptrdiff_t>(1) << (size - 64)));
         size = ChunkMap::get(ss);
       }
 
@@ -435,38 +438,35 @@ namespace snmalloc
       {
         if constexpr ((location == End) || (location == OnePastEnd))
           // We don't know the End, so return MAX_PTR
-          return UINTPTR_MAX;
+          return pointer_offset<void>(nullptr, UINTPTR_MAX);
         else
           // We don't know the Start, so return MIN_PTR
-          return 0;
+          return nullptr;
       }
 
       // This is a large alloc, mask off to the slab size.
       if constexpr (location == Start)
         return ss;
       else if constexpr (location == End)
-        return (ss + (1ULL << size) - 1ULL);
+        return pointer_offset(ss, (1ULL << size) - 1ULL);
       else
-        return (ss + (1ULL << size));
+        return pointer_offset(ss, 1ULL << size);
 #endif
     }
 
-    template<Boundary location = Start>
-    static void* external_pointer(void* p)
+  private:
+    SNMALLOC_SLOW_PATH static size_t alloc_size_error()
     {
-      return pointer_cast<void>(external_address<location>(p));
+      error("Not allocated by this allocator");
     }
 
-    static size_t alloc_size(void* p)
+  public:
+    SNMALLOC_FAST_PATH static size_t alloc_size(const void* p)
     {
       // This must be called on an external pointer.
       size_t size = ChunkMap::get(address_cast(p));
 
-      if (size == 0)
-      {
-        error("Not allocated by this allocator");
-      }
-      else if (size == CMSuperslab)
+      if (likely(size == CMSuperslab))
       {
         Superslab* super = Superslab::get(p);
 
@@ -477,7 +477,8 @@ namespace snmalloc
 
         return sizeclass_to_size(meta.sizeclass);
       }
-      else if (size == CMMediumslab)
+
+      if (likely(size == CMMediumslab))
       {
         Mediumslab* slab = Mediumslab::get(p);
         // Reading a remote sizeclass won't fail, since the other allocator
@@ -485,7 +486,12 @@ namespace snmalloc
         return sizeclass_to_size(slab->get_sizeclass());
       }
 
-      return 1ULL << size;
+      if (likely(size != 0))
+      {
+        return 1ULL << size;
+      }
+
+      return alloc_size_error();
     }
 
     size_t get_id()
@@ -508,14 +514,9 @@ namespace snmalloc
        * A stub Remote object that will always be the head of this list;
        * never taken for further processing.
        */
-      Remote head;
+      Remote head{};
 
-      Remote* last;
-
-      RemoteList()
-      {
-        clear();
-      }
+      Remote* last{&head};
 
       void clear()
       {
@@ -538,8 +539,8 @@ namespace snmalloc
        * need to dispatch everything, we can check if we are a real allocator
        * and lazily provide a real allocator.
        */
-      int64_t capacity = 0;
-      RemoteList list[REMOTE_SLOTS];
+      int64_t capacity{0};
+      std::array<RemoteList, REMOTE_SLOTS> list{};
 
       /// Used to find the index into the array of queues for remote
       /// deallocation
@@ -728,12 +729,6 @@ namespace snmalloc
         size_t size1 = sizeclass_to_size(sc1);
         size_t size2 = sizeclass_to_size(sc2);
 
-        // All medium size classes are page aligned.
-        if (i > NUM_SMALL_CLASSES)
-        {
-          SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(nullptr, size1));
-        }
-
         SNMALLOC_ASSERT(sc1 == i);
         SNMALLOC_ASSERT(sc1 == sc2);
         SNMALLOC_ASSERT(size1 == size);
@@ -823,31 +818,35 @@ namespace snmalloc
     }
 
     template<Boundary location>
-    static uintptr_t
+    static void*
     external_pointer(void* p, sizeclass_t sizeclass, void* end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
       void* end_point_correction = location == End ?
-        (static_cast<uint8_t*>(end_point) - 1) :
-        (location == OnePastEnd ? end_point :
-                                  (static_cast<uint8_t*>(end_point) - rsize));
+        pointer_offset_signed(end_point, -1) :
+        (location == OnePastEnd ?
+           end_point :
+           pointer_offset_signed(end_point, -static_cast<ptrdiff_t>(rsize)));
 
-      ptrdiff_t offset_from_end =
-        (static_cast<uint8_t*>(end_point) - 1) - static_cast<uint8_t*>(p);
+      size_t offset_from_end =
+        pointer_diff(p, pointer_offset_signed(end_point, -1));
 
-      size_t end_to_end =
-        round_by_sizeclass(rsize, static_cast<size_t>(offset_from_end));
+      size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
 
-      return address_cast<uint8_t>(
-        static_cast<uint8_t*>(end_point_correction) - end_to_end);
+      return pointer_offset_signed(
+        end_point_correction, -static_cast<ptrdiff_t>(end_to_end));
     }
 
     void init_message_queue()
     {
       // Manufacture an allocation to prime the queue
-      // Using an actual allocation removes a conditional of a critical path.
+      // Using an actual allocation removes a conditional from a critical path.
       Remote* dummy = reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE));
+      if (dummy == nullptr)
+      {
+        error("Critical error: Out-of-memory during initialisation.");
+      }
       dummy->set_target_id(id());
       message_queue().init(dummy);
     }

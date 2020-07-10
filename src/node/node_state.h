@@ -49,44 +49,14 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-namespace ccf
-{
-  enum class State
-  {
-    uninitialized,
-    initialized,
-    pending,
-    partOfPublicNetwork,
-    partOfNetwork,
-    readingPublicLedger,
-    readingPrivateLedger
-  };
-}
-
 // Used by fmtlib to render ccf::State
 namespace std
 {
   std::ostream& operator<<(std::ostream& os, ccf::State s)
   {
-    switch (s)
-    {
-      case ccf::State::uninitialized:
-        return os << "uninitialized";
-      case ccf::State::initialized:
-        return os << "initialized";
-      case ccf::State::pending:
-        return os << "pending";
-      case ccf::State::partOfPublicNetwork:
-        return os << "partOfPublicNetwork";
-      case ccf::State::partOfNetwork:
-        return os << "partOfNetwork";
-      case ccf::State::readingPublicLedger:
-        return os << "readingPublicLedger";
-      case ccf::State::readingPrivateLedger:
-        return os << "readingPrivateLedger";
-      default:
-        return os << "unknown value";
-    }
+    nlohmann::json j;
+    to_json(j, s);
+    return os << j.dump();
   }
 }
 
@@ -117,6 +87,11 @@ namespace ccf
     bool check(T s) const
     {
       return s == this->s.load();
+    }
+
+    T value() const
+    {
+      return this->s.load();
     }
 
     void advance(T s)
@@ -407,7 +382,7 @@ namespace ccf
             return false;
           }
 
-          auto j = serdes::unpack(data, serdes::Pack::Text);
+          auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
 
           JoinNetworkNodeToNode::Out resp;
           try
@@ -496,7 +471,7 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port);
 
-      const auto body = serdes::pack(join_params, serdes::Pack::Text);
+      const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
 
       http::Request r(fmt::format(
         "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "join"));
@@ -974,6 +949,20 @@ namespace ccf
       return sm.check(State::partOfPublicNetwork);
     }
 
+    ExtendedState state() override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      State s = sm.value();
+      if (s == State::readingPrivateLedger)
+      {
+        return {s, recovery_v, recovery_store->current_version()};
+      }
+      else
+      {
+        return {s, {}, {}};
+      }
+    }
+
     bool rekey_ledger(kv::Tx& tx) override
     {
       std::lock_guard<SpinLock> guard(lock);
@@ -1177,7 +1166,7 @@ namespace ccf
       create_params.consensus_type = network.consensus_type;
       create_params.recovery_threshold = args.config.genesis.recovery_threshold;
 
-      const auto body = serdes::pack(create_params, serdes::Pack::Text);
+      const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
 
       http::Request request(fmt::format(
         "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::members), "create"));
@@ -1224,7 +1213,7 @@ namespace ccf
         return false;
       }
 
-      const auto body = serdes::unpack(r.body, serdes::Pack::Text);
+      const auto body = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");

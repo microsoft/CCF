@@ -12,22 +12,27 @@
 
 namespace ccf
 {
-  struct GetSignedIndex
+  enum class State
+  {
+    uninitialized,
+    initialized,
+    pending,
+    partOfPublicNetwork,
+    partOfNetwork,
+    readingPublicLedger,
+    readingPrivateLedger
+  };
+
+  struct GetState
   {
     using In = void;
 
-    enum class State
-    {
-      ReadingPublicLedger,
-      ReadingPrivateLedger,
-      PartOfNetwork,
-      PartOfPublicNetwork,
-    };
-
     struct Out
     {
-      State state;
-      kv::Version signed_index;
+      ccf::State state;
+      kv::Version last_signed_seqno;
+      std::optional<kv::Version> recovery_target_seqno;
+      std::optional<kv::Version> last_recovered_seqno;
     };
   };
 

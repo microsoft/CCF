@@ -13,10 +13,10 @@ To see how this is run in the main test suite, look at the `Test command` used b
 .. code-block:: bash
 
     $ cd build
-    $ ctest -VV -R end_to_end_scenario -N
+    $ ctest -VV -R e2e_scenario -N
 
     ...
-    42: Test command: /usr/bin/unbuffer "python3" "/data/src/CCF/tests/e2e_scenarios.py" "-b" "." "--label" "end_to_end_scenario" "-l" "info" "-g" "/data/src/CCF/src/runtime_config/gov.lua" "--scenario" "/data/src/CCF/tests/simple_logging_scenario.json"
+    42: Test command: /usr/bin/unbuffer "python3" "/data/src/CCF/tests/e2e_scenarios.py" "-b" "." "--label" "e2e_scenario" "-l" "info" "-g" "/data/src/CCF/src/runtime_config/gov.lua" "--scenario" "/data/src/CCF/tests/simple_logging_scenario.json"
     42: Environment variables:
     42:  PYTHONPATH=/data/src/CCF/tests
 
@@ -72,5 +72,5 @@ The ``e2e`` test script takes several additional parameters, documented by passi
 
 .. rubric:: Footnotes
 
-.. [#log_location] The log location should be visible in the Python output. By default, node ``N`` will log to files ``out`` and ``err`` in ``CCF/build/workspace/end_to_end_scenario_{N}``
+.. [#log_location] The log location should be visible in the Python output. By default, node ``N`` will log to files ``out`` and ``err`` in ``CCF/build/workspace/e2e_scenario_{N}``
 

@@ -105,6 +105,16 @@ your toolchain:
 LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
 ```
 
+## Cross Compile for Android
+Android support is out-of-the-box.
+
+To cross-compile the library for arm android, you can simply invoke CMake with the toolchain file and the andorid api settings (for more infomation, check this [document](https://developer.android.com/ndk/guides/cmake)).
+
+For example, you can cross-compile for `arm64-v8a` with the following command:
+```
+cmake /path/to/snmalloc -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a
+```
+
 # CMake Feature Flags
 
 These can be added to your cmake command line.
@@ -150,7 +160,7 @@ your system.
 The PAL must implement the following methods:
 
 ```c++
-void error(const char* const str) noexcept;
+[[noreturn]] void error(const char* const str) noexcept;
 ```
 Report a fatal error and exit.
 
@@ -184,16 +194,24 @@ pages, rather than zeroing them synchronously in this call
 
 ```c++
 template<bool committed>
-void* reserve(size_t size, size_t align);
-template<bool committed>
-void* reserve(size_t size) noexcept;
+void* reserve_aligned(size_t size) noexcept;
+std::pair<void*, size_t> reserve_at_least(size_t size) noexcept;
 ```
 Only one of these needs to be implemented, depending on whether the underlying
 system can provide strongly aligned memory regions.
-If the system guarantees only page alignment, implement the second and snmalloc
-will over-allocate and then trim the requested region.
+If the system guarantees only page alignment, implement the second. The Pal is 
+free to overallocate based on the platforms desire and snmalloc
+will find suitably aligned blocks inside the region.  `reserve_at_least` should 
+not commit memory as snmalloc will commit the range of memory it requires of what 
+is returned.
+
 If the system provides strong alignment, implement the first to return memory
-at the desired alignment.
+at the desired alignment. If providing the first, then the `Pal` should also 
+specify the minimum size block it can provide: 
+```
+static constexpr size_t minimum_alloc_size = ...;
+```
+
 
 Finally, you need to define a field to indicate the features that your PAL supports:
 ```c++
@@ -224,6 +242,16 @@ The [Windows](src/pal/pal_windows.h), and
 [OpenEnclave](src/pal/pal_open_enclave.h) and
 [FreeBSD kernel](src/pal/pal_freebsd_kernel.h) implementations give examples of
 non-POSIX environments that snmalloc supports.
+
+The POSIX PAL uses `mmap` to map memory.
+Some POSIX or POSIX-like systems require minor tweaks to this behaviour.
+Rather than requiring these to copy and paste the code, a PAL that inherits from the POSIX PAL can define one or both of these (`static constexpr`) fields to customise the `mmap` behaviour.
+
+ - `default_mmap_flags` allows a PAL to provide additional `MAP_*`
+    flags to all `mmap` calls.
+ - `anonymous_memory_fd` allows the PAL to override the default file
+   descriptor used for memory mappings.
+
 
 # Contributing
 

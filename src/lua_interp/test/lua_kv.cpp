@@ -273,11 +273,11 @@ namespace ccf
   tx, caller, id, method, params = ...
 
   function jsucc(id, result)
-    return {serdes = "2.0", id = id, result = result}
+    return {jsonrpc = "2.0", id = id, result = result}
   end
 
   function jerr(id, code, message)
-    return {serdes = "2.0", id = id, error = {code = code, message = message}}
+    return {jsonrpc = "2.0", id = id, error = {code = code, message = message}}
   end
 
   handlers = {}
