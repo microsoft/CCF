@@ -100,7 +100,7 @@ def run(args):
             new_member_proposal.proposer_id
         ).withdraw(primary, new_member_proposal)
         assert response.status == http.HTTPStatus.OK.value
-        assert response.result["state"] == ProposalState.Withdrawn.value
+        assert response.body["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1
 
     (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(

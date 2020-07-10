@@ -67,34 +67,29 @@ class FakeSocket:
 
 
 class Response:
-    def __init__(self, status, result, error, seqno, view, global_commit, headers):
+    def __init__(self, status, body, seqno, view, global_commit, headers):
         self.status = status
-        self.result = result
-        self.error = error
+        self.body = body
         self.seqno = seqno
         self.view = view
         self.global_commit = global_commit
         self.headers = headers
 
+    #TODO: what's this for?
     def to_dict(self):
-        d = {
+        return {
             "seqno": self.seqno,
             "global_commit": self.global_commit,
             "view": self.view,
+            "body": self.body
         }
-        if self.result is not None:
-            d["result"] = self.result
-        else:
-            d["error"] = self.error
-        return d
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
-        body = self.result if f"{self.status}"[0] == "2" else self.error
         return (
             f"{self.status} "
             + (f"@{self.view}.{self.seqno} " if versioned else "")
-            + truncate(f"{body}")
+            + truncate(f"{self.body}")
         )
 
     @staticmethod
@@ -111,8 +106,7 @@ class Response:
 
         return Response(
             status=rr.status_code,
-            result=parsed_body if rr.ok else None,
-            error=None if rr.ok else parsed_body,
+            body=parsed_body,
             seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(rr.headers.get(CCF_GLOBAL_COMMIT_HEADER)),
@@ -139,8 +133,7 @@ class Response:
 
         return Response(
             status=response.status,
-            result=parsed_body if ok else None,
-            error=None if ok else parsed_body,
+            body=parsed_body,
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
             global_commit=int_or_none(response.getheader(CCF_GLOBAL_COMMIT_HEADER)),
@@ -426,13 +419,12 @@ class WSClient:
         (view,) = struct.unpack("<Q", out[10:18])
         (global_commit,) = struct.unpack("<Q", out[18:26])
         payload = out[26:]
+        #TODO: move out the decoding!
         if status == 200:
-            result = json.loads(payload) if payload else None
-            error = None
+            body = json.loads(payload) if payload else None
         else:
-            result = None
-            error = payload.decode()
-        return Response(status, result, error, seqno, view, global_commit, headers={})
+            body = payload.decode()
+        return Response(status, body, seqno, view, global_commit, headers={})
 
 
 class CCFClient:

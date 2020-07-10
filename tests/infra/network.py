@@ -518,12 +518,12 @@ class Network:
                 with node.client(request_timeout=request_timeout) as c:
                     try:
                         res = c.get("/node/primary_info")
-                        if res.error is None:
-                            primary_id = res.result["primary_id"]
-                            view = res.result["current_view"]
+                        if res.status == 200:
+                            primary_id = res.body["primary_id"]
+                            view = res.body["current_view"]
                             break
                         else:
-                            assert "Primary unknown" in res.error, res.error
+                            assert "Primary unknown" in res.body, res
                     except CCFConnectionException:
                         pass
             if primary_id is not None:
@@ -562,8 +562,8 @@ class Network:
         while time.time() < end_time:
             with primary.client() as c:
                 resp = c.get("/node/commit")
-                seqno = resp.result["seqno"]
-                view = resp.result["view"]
+                seqno = resp.body["seqno"]
+                view = resp.body["view"]
                 if seqno != 0:
                     break
             time.sleep(0.1)
@@ -576,10 +576,10 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.client() as c:
                     resp = c.get("/node/tx", {"view": view, "seqno": seqno})
-                    if resp.error is not None:
+                    if resp.status != 200:
                         # Node may not have joined the network yet, try again
                         break
-                    status = TxStatus(resp.result["status"])
+                    status = TxStatus(resp.body["status"])
                     if status == TxStatus.Committed:
                         caught_up_nodes.append(node)
                     elif status == TxStatus.Invalid:

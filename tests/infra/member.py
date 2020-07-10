@@ -73,8 +73,8 @@ class Member:
 
             return infra.proposal.Proposal(
                 proposer_id=self.member_id,
-                proposal_id=r.result["proposal_id"],
-                state=infra.proposal.ProposalState(r.result["state"]),
+                proposal_id=r.body["proposal_id"],
+                state=infra.proposal.ProposalState(r.body["state"]),
                 has_proposer_voted_for=True,
             )
 
@@ -97,14 +97,14 @@ class Member:
                 signed=not force_unsigned,
             )
 
-        if r.error is not None:
+        if r.status != 200:
             return r
 
         # If the proposal was accepted, wait for it to be globally committed
         # This is particularly useful for the open network proposal to wait
         # until the global hook on the SERVICE table is triggered
         if (
-            r.result["state"] == infra.proposal.ProposalState.Accepted.value
+            r.body["state"] == infra.proposal.ProposalState.Accepted.value
             and wait_for_global_commit
         ):
             with remote_node.client() as mc:
@@ -126,8 +126,8 @@ class Member:
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc("/gov/ack/update_state_digest")
-            assert r.error is None, f"Error ack/update_state_digest: {r.error}"
-            return bytearray(r.result["state_digest"])
+            assert r.status == 200, f"Error ack/update_state_digest: {r}"
+            return bytearray(r.body["state_digest"])
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
@@ -135,7 +135,7 @@ class Member:
             r = mc.rpc(
                 "/gov/ack", params={"state_digest": list(state_digest)}, signed=True
             )
-            assert r.error is None, f"Error ACK: {r.error}"
+            assert r.status == 200, f"Error ACK: {r}"
             self.status = MemberStatus.ACTIVE
             return r
 
@@ -150,10 +150,8 @@ class Member:
                 defunct_network_enc_pubk,
             )
 
-            nonce_bytes = base64.b64decode(r.result["nonce"])
-            encrypted_share_bytes = base64.b64decode(
-                r.result["encrypted_recovery_share"]
-            )
+            nonce_bytes = base64.b64decode(r.body["nonce"])
+            encrypted_share_bytes = base64.b64decode(r.body["encrypted_recovery_share"])
             return ctx.decrypt(encrypted_share_bytes, nonce_bytes)
 
     def get_and_submit_recovery_share(self, remote_node, defunct_network_enc_pubk):

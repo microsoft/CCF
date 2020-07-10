@@ -25,7 +25,7 @@ class AppUser:
         network.consortium.add_users(primary, [self.name])
 
         with primary.client(f"user{self.name}") as client:
-            self.ccf_id = client.get("/app/user_id").result["caller_id"]
+            self.ccf_id = client.get("/app/user_id").body["caller_id"]
 
     def __str__(self):
         return f"{self.ccf_id} ({self.name})"
@@ -239,7 +239,7 @@ def run(args):
                 # assert that the flagged txs that we poll for are correct
                 resp = c.rpc("/app/REG_poll_flagged")
                 poll_flagged_ids = []
-                for poll_flagged in resp.result:
+                for poll_flagged in resp.body:
                     # poll flagged is a list [tx_id, regulator_id]
                     poll_flagged_ids.append(poll_flagged[0])
                 poll_flagged_ids.sort()

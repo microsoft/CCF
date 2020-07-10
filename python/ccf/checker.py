@@ -22,8 +22,8 @@ def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
     # (e.g. governance proposals)
     if mksign:
         r = client.rpc("/node/mkSign")
-        if r.error is not None:
-            raise RuntimeError(f"mkSign returned an error: {r.error}")
+        if r.status != 200:
+            raise RuntimeError(f"mkSign returned an error: {r}")
 
     end_time = time.time() + timeout
     while time.time() < end_time:
@@ -31,7 +31,7 @@ def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
         assert (
             r.status == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status}"
-        status = TxStatus(r.result["status"])
+        status = TxStatus(r.body["status"])
         if status == TxStatus.Committed:
             return
         elif status == TxStatus.Invalid:
@@ -49,24 +49,25 @@ class Checker:
         self.notification_queue = notification_queue
         self.notified_commit = 0
 
+    #TODO: that API's not right!
     def __call__(self, rpc_result, result=None, error=None, timeout=2):
         if error is not None:
             if callable(error):
                 assert error(
-                    rpc_result.status, rpc_result.error
-                ), f"{rpc_result.status}: {rpc_result.error}"
+                    rpc_result.status, rpc_result.body
+                ), f"{rpc_result.status}: {rpc_result.body}"
             else:
-                assert rpc_result.error == error, "Expected {}, got {}".format(
-                    error, rpc_result.error
+                assert rpc_result.body == error, "Expected {}, got {}".format(
+                    error, rpc_result.body
                 )
             return
 
         if result is not None:
             if callable(result):
-                assert result(rpc_result.result), rpc_result.result
+                assert result(rpc_result.body), rpc_result.body
             else:
-                assert rpc_result.result == result, "Expected {}, got {}".format(
-                    result, rpc_result.result
+                assert rpc_result.body == result, "Expected {}, got {}".format(
+                    result, rpc_result.body
                 )
 
             assert rpc_result.seqno and rpc_result.view, rpc_result

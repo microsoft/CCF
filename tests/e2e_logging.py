@@ -181,14 +181,12 @@ def test_anonymous_caller(network, args):
             r = c.rpc("/app/log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.result == True
             r = c.get("/app/log/private", {"id": log_id})
-            assert (
-                r.error is not None
-            ), "Anonymous user is not authorised to call log/private"
+            assert r.body == "Anonymous user is not authorised to call log/private", r
 
         with primary.client("user0") as c:
             r = c.get("/app/log/private", {"id": log_id})
-            assert r.result is not None
-            assert msg in r.result["msg"]
+            assert msg in r.body["msg"], r
+
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
