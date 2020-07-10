@@ -3,8 +3,6 @@
 #ifdef _MSC_VER
 #  include <immintrin.h>
 #  include <intrin.h>
-#else
-#  include <emmintrin.h>
 #endif
 
 #if defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
@@ -28,13 +26,21 @@ namespace snmalloc
      */
     static constexpr uint64_t aal_features = IntegerPointers;
 
+    static constexpr enum AalName aal_name = X86_SGX;
+
+    static constexpr size_t smallest_page_size = 0x1000;
+
     /**
      * On pipelined processors, notify the core that we are in a spin loop and
      * that speculative execution past this point may not be a performance gain.
      */
     static inline void pause()
     {
+#ifdef _MSC_VER
       _mm_pause();
+#else
+      asm volatile("pause");
+#endif
     }
 
     /**
@@ -42,7 +48,11 @@ namespace snmalloc
      */
     static inline void prefetch(void* ptr)
     {
+#ifdef _MSC_VER
       _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
+#else
+      asm volatile("prefetcht0 %0" ::"m"(ptr));
+#endif
     }
 
     /**
