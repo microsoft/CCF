@@ -9,13 +9,21 @@
 namespace ccf
 {
   DECLARE_JSON_ENUM(
-    GetSignedIndex::State,
-    {{GetSignedIndex::State::ReadingPublicLedger, "readingPublicLedger"},
-     {GetSignedIndex::State::ReadingPrivateLedger, "readingPrivateLedger"},
-     {GetSignedIndex::State::PartOfNetwork, "partOfNetwork"},
-     {GetSignedIndex::State::PartOfPublicNetwork, "partOfPublicNetwork"}})
-  DECLARE_JSON_TYPE(GetSignedIndex::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(GetSignedIndex::Out, state, signed_index)
+    ccf::State,
+    {{ccf::State::uninitialized, "uninitialized"},
+     {ccf::State::initialized, "initialized"},
+     {ccf::State::pending, "pending"},
+     {ccf::State::partOfPublicNetwork, "partOfPublicNetwork"},
+     {ccf::State::partOfNetwork, "partOfNetwork"},
+     {ccf::State::readingPublicLedger, "readingPublicLedger"},
+     {ccf::State::readingPrivateLedger, "readingPrivateLedger"}})
+  DECLARE_JSON_TYPE(GetState::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(
+    GetState::Out,
+    state,
+    last_signed_seqno,
+    recovery_target_seqno,
+    last_recovered_seqno)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetQuotes::Quote)
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Quote, node_id, raw)
