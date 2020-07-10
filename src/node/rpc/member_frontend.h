@@ -706,7 +706,6 @@ namespace ccf
         };
       make_endpoint("proposal/{id}", HTTP_GET, json_adapter(get_proposal))
         .set_auto_schema<void, Proposal>()
-        //.set_require_client_signature(true)
         .install();
 
       auto withdraw = [this](EndpointContext& args, nlohmann::json&& params) {
