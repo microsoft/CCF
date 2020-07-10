@@ -12,6 +12,8 @@ from loguru import logger as LOG
 def check_can_progress(node, timeout=3):
     with node.client() as c:
         r = c.get("/node/commit")
+        with node.client("user0") as uc:
+            uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
         end_time = time.time() + timeout
         while time.time() < end_time:
             if c.get("/node/commit").result["seqno"] > r.result["seqno"]:
@@ -39,6 +41,7 @@ def test_add_node_from_backup(network, args):
 
 
 @reqs.description("Adding as many pending nodes as current number of nodes")
+@reqs.supports_methods("log/private")
 def test_add_as_many_pending_nodes(network, args):
     # Should not change the raft consensus rules (i.e. majority)
     number_new_nodes = len(network.nodes)
