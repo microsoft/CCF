@@ -1,7 +1,17 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
+    "last_recovered_seqno": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer"
+    },
     "last_signed_index": {
+      "maximum": 9223372036854775807,
+      "minimum": -9223372036854775808,
+      "type": "integer"
+    },
+    "recovery_target_seqno": {
       "maximum": 9223372036854775807,
       "minimum": -9223372036854775808,
       "type": "integer"
@@ -20,7 +30,9 @@
   },
   "required": [
     "state",
-    "last_signed_index"
+    "last_signed_index",
+    "recovery_target_seqno",
+    "last_recovered_seqno"
   ],
   "title": "state/result",
   "type": "object"
