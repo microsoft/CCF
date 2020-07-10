@@ -188,6 +188,21 @@ auto get_proposal(
     frontend_process(frontend, getter, caller));
 }
 
+auto get_vote(
+  MemberRpcFrontend& frontend,
+  size_t proposal_id,
+  MemberId voter,
+  const tls::Pem& caller)
+{
+  const auto getter = create_request(
+    nullptr,
+    fmt::format("proposals/{}/votes/{}", proposal_id, voter),
+    HTTP_GET);
+
+  return parse_response_body<Script>(
+    frontend_process(frontend, getter, caller));
+}
+
 auto get_cert(uint64_t member_id, tls::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign("CN=new member" + to_string(member_id));
@@ -407,6 +422,17 @@ DOCTEST_TEST_CASE("Proposer ballot")
     const auto voter_vote = votes.find(voter_id);
     DOCTEST_CHECK(voter_vote != votes.end());
     DOCTEST_CHECK(voter_vote->second == vote_for);
+
+    {
+      DOCTEST_INFO("Get votes directly");
+      const auto proposer_vote2 =
+        get_vote(frontend, proposal_id, proposer_id, proposer_cert);
+      DOCTEST_CHECK(proposer_vote2 == vote_against);
+
+      const auto voter_vote2 =
+        get_vote(frontend, proposal_id, voter_id, proposer_cert);
+      DOCTEST_CHECK(voter_vote2 == vote_for);
+    }
   }
 
   {
