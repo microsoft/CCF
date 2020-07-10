@@ -214,39 +214,35 @@ namespace kv::untyped
         commit_version = v;
         committed_writes = true;
 
-        if (!change_set.writes.empty())
+        auto& roll = map.get_roll();
+        auto state = roll.commits->get_tail()->state;
+
+        for (auto it = change_set.writes.begin(); it != change_set.writes.end();
+             ++it)
         {
-          auto& roll = map.get_roll();
-          auto state = roll.commits->get_tail()->state;
-
-          for (auto it = change_set.writes.begin();
-               it != change_set.writes.end();
-               ++it)
+          if (it->second.has_value())
           {
-            if (it->second.has_value())
+            // Write the new value with the global version.
+            changes = true;
+            state = state.put(it->first, VersionV{v, it->second.value()});
+          }
+          else
+          {
+            // Write an empty value with the deleted global version only if
+            // the key exists.
+            auto search = state.get(it->first);
+            if (search.has_value())
             {
-              // Write the new value with the global version.
               changes = true;
-              state = state.put(it->first, VersionV{v, it->second.value()});
-            }
-            else
-            {
-              // Write an empty value with the deleted global version only if
-              // the key exists.
-              auto search = state.get(it->first);
-              if (search.has_value())
-              {
-                changes = true;
-                state = state.put(it->first, VersionV{-v, {}});
-              }
+              state = state.put(it->first, VersionV{-v, {}});
             }
           }
+        }
 
-          if (changes)
-          {
-            map.roll.commits->insert_back(map.roll.create_new_local_commit(
-              v, std::move(state), change_set.writes));
-          }
+        if (changes)
+        {
+          map.roll.commits->insert_back(map.roll.create_new_local_commit(
+            v, std::move(state), change_set.writes));
         }
       }
 
