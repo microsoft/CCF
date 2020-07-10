@@ -87,7 +87,7 @@ namespace ccf
         .set_execute_locally(true)
         .install();
 
-      auto make_signature = [this](auto& args, nlohmann::json&& params) {
+      auto make_signature = [this](EndpointContext& args, nlohmann::json&& params) {
         if (consensus != nullptr)
         {
           if (consensus->type() == ConsensusType::RAFT)
@@ -108,8 +108,8 @@ namespace ccf
         return make_error(
           HTTP_STATUS_INTERNAL_SERVER_ERROR, "Failed to trigger signature");
       };
-      make_command_endpoint(
-        "mkSign", HTTP_POST, json_command_adapter(make_signature))
+      make_endpoint(
+        "mkSign", HTTP_POST, json_adapter(make_signature))
         .set_auto_schema<void, bool>()
         .install();
 
