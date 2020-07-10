@@ -1,7 +1,13 @@
 cmake_minimum_required(VERSION 3.8)
 project(snmalloc C CXX)
 
+if (NOT CMAKE_BUILD_TYPE)
+  message(STATUS "No build type selected, default to: Release")
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
+
 include(CheckCXXCompilerFlag)
+include(CheckCSourceCompiles)
 
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
@@ -9,8 +15,17 @@ option(USE_MEASURE "Measure performance with histograms" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
 option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
 option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
+option(SNMALLOC_STATIC_LIBRARY   "Build static libraries" ON)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
+option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
+set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
+
+CHECK_C_SOURCE_COMPILES("
+#include <malloc.h>
+size_t malloc_usable_size(const void* ptr) { return 0; }
+int main() { return 0; }
+" CONST_QUALIFIED_MALLOC_USABLE_SIZE)
 
 if ((CMAKE_BUILD_TYPE STREQUAL "Release") AND (NOT SNMALLOC_CI_BUILD))
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." Off)
@@ -36,6 +51,10 @@ macro(warnings_high)
   endif()
 endmacro()
 
+macro(oe_simulate target)
+  target_compile_definitions(${target} PRIVATE SNMALLOC_USE_SMALL_CHUNKS)
+endmacro()
+
 macro(clangformat_targets)
   # The clang-format tool is installed under a variety of different names.  Try
   # to find a sensible one.  Only look for versions 9 explicitly - we don't
@@ -43,8 +62,7 @@ macro(clangformat_targets)
   # tool.  It does not work with older versions as AfterCaseLabel is not supported
   # in earlier versions.
   find_program(CLANG_FORMAT NAMES
-    clang-format-9
-    clang-format)
+    clang-format-9)
 
   # If we've found a clang-format tool, generate a target for it, otherwise emit
   # a warning.
@@ -135,6 +153,10 @@ if(USE_POSIX_COMMIT_CHECKS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_POSIX_COMMIT_CHECKS)
 endif()
 
+if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
+  target_compile_definitions(snmalloc_lib INTERFACE -DMALLOC_USABLE_SIZE_QUALIFIER=const)
+endif()
+
 
 # To build with just the header library target define SNMALLOC_ONLY_HEADER_LIBRARY
 # in containing Cmake file.
@@ -146,20 +168,32 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
-    add_compile_options(-fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
+    add_compile_options(-fno-exceptions -fno-rtti -g -fomit-frame-pointer)
+    # Static TLS model unsupported on Haiku
+    if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
+	    add_compile_options(-ftls-model=initial-exec)
+    endif()
     if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
       # Get better stack traces in CI and Debug.
       target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
     endif()
 
-    if((${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") OR
-       (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86") OR
-       (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm"))
+    if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
       check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
       if (SUPPORT_MARCH_NATIVE)
         add_compile_options(-march=native)
+      else()
+        message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
       endif()
     endif()
+
+    find_package(Backtrace)
+    if(${Backtrace_FOUND})
+      target_compile_definitions(snmalloc_lib INTERFACE -DBACKTRACE_HEADER="${Backtrace_HEADER}")
+      target_link_libraries(snmalloc_lib INTERFACE ${Backtrace_LIBRARIES})
+      target_include_directories(snmalloc_lib INTERFACE ${Backtrace_INCLUD_DIRS})
+    endif()
+
   endif()
 
   macro(subdirlist result curdir)
@@ -204,17 +238,34 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
 
   endmacro()
 
+  if (SNMALLOC_STATIC_LIBRARY)
+    add_shim(snmallocshim-static STATIC src/override/malloc.cc)
+    add_shim(snmallocshim-1mib-static STATIC src/override/malloc.cc)
+    add_shim(snmallocshim-16mib-static STATIC src/override/malloc.cc)
+    target_compile_definitions(snmallocshim-16mib-static PRIVATE SNMALLOC_USE_LARGE_CHUNKS
+            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
+    target_compile_definitions(snmallocshim-static PRIVATE
+            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
+    target_compile_definitions(snmallocshim-1mib-static PRIVATE
+            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
+  endif ()
+
   if(NOT WIN32)
     set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
-    target_compile_definitions(snmallocshim-1mib PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
+    add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
+    target_compile_definitions(snmallocshim-16mib PRIVATE SNMALOC_USE_LARGE_CHUNKS)
+    # Build a shim with some settings from oe.
+    add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
+    oe_simulate(snmallocshim-oe)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
     add_shim(snmallocshim-rust STATIC src/override/rust.cc)
     add_shim(snmallocshim-1mib-rust STATIC src/override/rust.cc)
-    target_compile_definitions(snmallocshim-1mib-rust PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
+    add_shim(snmallocshim-16mib-rust STATIC src/override/rust.cc)
+    target_compile_definitions(snmallocshim-16mib-rust PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
   endif()
 
   enable_testing()
@@ -225,14 +276,17 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   foreach(TEST_CATEGORY ${TEST_CATEGORIES})
     subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
     foreach(TEST ${TESTS})
-      foreach(SUPER_SLAB_SIZE 1;16)
+      foreach(SUPER_SLAB_SIZE 1;16;oe)
         unset(SRC)
         aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${SUPER_SLAB_SIZE}")
 
         add_executable(${TESTNAME} ${SRC})
-        if (${SUPER_SLAB_SIZE} EQUAL 1)
-          target_compile_definitions(${TESTNAME} PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
+        if (${SUPER_SLAB_SIZE} EQUAL 16)
+          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
+        endif()
+        if (${SUPER_SLAB_SIZE} EQUAL oe)
+          oe_simulate(${TESTNAME})
         endif()
         target_link_libraries(${TESTNAME} snmalloc_lib)
         if (${TEST} MATCHES "release-.*")

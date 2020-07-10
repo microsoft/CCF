@@ -12,7 +12,7 @@
 #  endif
 #endif
 
-#include <iostream>
+#include <cstddef>
 namespace snmalloc
 {
   /**
@@ -26,6 +26,10 @@ namespace snmalloc
      */
     static constexpr uint64_t aal_features =
       IntegerPointers | NoCpuCycleCounters;
+
+    static constexpr enum AalName aal_name = ARM;
+
+    static constexpr size_t smallest_page_size = 0x1000;
 
     /**
      * On pipelined processors, notify the core that we are in a spin loop and

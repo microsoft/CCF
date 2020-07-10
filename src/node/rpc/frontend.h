@@ -195,7 +195,7 @@ namespace ccf
         http::headers::WWW_AUTHENTICATE,
         fmt::format(
           "Signature realm=\"Signed request access\", "
-          "headers=\"(request-target) {}",
+          "headers=\"(request-target) {}\"",
           http::headers::DIGEST));
       ctx->set_response_body(std::move(msg));
     }
