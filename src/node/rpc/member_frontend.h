@@ -820,7 +820,7 @@ namespace ccf
         return make_success(
           complete_proposal(args.tx, proposal_id, proposal.value()));
       };
-      make_endpoint("proposals/{id}/vote", HTTP_POST, json_adapter(vote))
+      make_endpoint("proposals/{id}/votes", HTTP_POST, json_adapter(vote))
         .set_auto_schema<Vote, ProposalInfo>()
         .set_require_client_signature(true)
         .install();

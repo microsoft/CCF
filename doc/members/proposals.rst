@@ -12,7 +12,7 @@ For transparency and auditability, all governance operations (including votes) a
 Submitting a New Proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposal`` and vote using ``POST /gov/proposals/{id}/vote``.
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposal`` and vote using ``POST /gov/proposals/{id}/votes``.
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 
@@ -57,7 +57,7 @@ In this case, a new proposal with id ``4`` has successfully been created and the
     }
 
     # Member 2 rejects the proposal (votes in favour: 1/3)
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
     {
       "proposal_id": 4,
       "proposer_id": 1,
@@ -65,7 +65,7 @@ In this case, a new proposal with id ``4`` has successfully been created and the
     }
 
     # Member 3 accepts the proposal (votes in favour: 2/3)
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
       "proposal_id": 4,
       "proposer_id": 1,

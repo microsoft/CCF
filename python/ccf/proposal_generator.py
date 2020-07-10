@@ -164,7 +164,7 @@ def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
     return true
     """
 
-    # Vote object (request body for /gov/proposals/{id}/vote)
+    # Vote object (request body for /gov/proposals/{id}/votes)
     verifying_vote = {"ballot": {"text": verifying_vote_text}}
 
     LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
@@ -276,7 +276,7 @@ if __name__ == "__main__":
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for /gov/proposals/{id}/vote) will be dumped. Default is {default_vote_output}",
+        help=f"Path where vote JSON object (request body for /gov/proposals/{id}/votes) will be dumped. Default is {default_vote_output}",
     )
     parser.add_argument(
         "-pp",

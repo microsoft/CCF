@@ -28,14 +28,14 @@ A member proposes to recover the network and other members can vote on the propo
         "state": "OPEN"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/1/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/1/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "proposal_id": 1,
         "proposer_id": 0,
         "state": "OPEN"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/1/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/1/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
     {
         "proposal_id": 1,
         "proposer_id": 0,

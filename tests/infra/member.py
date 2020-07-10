@@ -92,7 +92,7 @@ class Member:
         """
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc(
-                f"/gov/proposals/{proposal.proposal_id}/vote",
+                f"/gov/proposals/{proposal.proposal_id}/votes",
                 {"ballot": {"text": ballot}},
                 signed=not force_unsigned,
             )
