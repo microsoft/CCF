@@ -17,9 +17,6 @@ from infra.proposal import ProposalState
 
 from loguru import logger as LOG
 
-# Votes are currently produced but unused, so temporarily disable this pylint warning throughout this file
-# pylint: disable=unused-variable
-
 
 class Consortium:
     def __init__(
@@ -197,7 +194,9 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
-        proposal_body, careful_vote = ccf.proposal_generator.retire_node(node_to_retire.node_id)
+        proposal_body, careful_vote = ccf.proposal_generator.retire_node(
+            node_to_retire.node_id
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
@@ -281,7 +280,9 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal)
 
     def set_lua_app(self, remote_node, app_script_path):
-        proposal_body, careful_vote = ccf.proposal_generator.set_lua_app(app_script_path)
+        proposal_body, careful_vote = ccf.proposal_generator.set_lua_app(
+            app_script_path
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
