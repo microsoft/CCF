@@ -30,7 +30,7 @@ namespace ccf
     struct Out
     {
       ccf::State state;
-      kv::Version last_signed_index;
+      kv::Version last_signed_seqno;
       std::optional<kv::Version> recovery_target_seqno;
       std::optional<kv::Version> last_recovered_seqno;
     };

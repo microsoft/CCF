@@ -265,9 +265,9 @@ namespace ccf
         auto sig_view = args.tx.get_read_only_view(*signatures);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
-          result.last_signed_index = 0;
+          result.last_signed_seqno = 0;
         else
-          result.last_signed_index = sig.value().seqno;
+          result.last_signed_seqno = sig.value().seqno;
 
         return result;
       };

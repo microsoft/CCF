@@ -49,10 +49,10 @@ Similarly to the normal join protocol (see :ref:`operators/start_network:Adding 
         Note over Node 2: Reading Public Ledger...
 
         Operators->>+Node 2: node/state
-        Node 2-->>Operators: {"last_signed_index": 50, "state": "readingPublicLedger"}
+        Node 2-->>Operators: {"last_signed_seqno": 50, "state": "readingPublicLedger"}
         Note over Node 2: Finished Reading Public Ledger, now Part of Public Network
         Operators->>Node 2: node/state
-        Node 2-->>Operators: {"last_signed_index": 243, "state": "partOfPublicNetwork"}
+        Node 2-->>Operators: {"last_signed_seqno": 243, "state": "partOfPublicNetwork"}
 
         Note over Operators, Node 2: Operators select Node 2 to start the new network
 

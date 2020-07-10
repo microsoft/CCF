@@ -66,6 +66,6 @@ Example
 .. code-block:: json
 
     {
-        "last_signed_index": 34,
+        "last_signed_seqno": 34,
         "state": "partOfPublicNetwork"
     }

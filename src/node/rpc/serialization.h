@@ -21,7 +21,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     GetState::Out,
     state,
-    last_signed_index,
+    last_signed_seqno,
     recovery_target_seqno,
     last_recovered_seqno)
 
