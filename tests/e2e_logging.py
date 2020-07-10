@@ -155,8 +155,7 @@ def test_cert_prefix(network, args):
                 msg = "This message will be prefixed"
                 c.rpc("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
                 r = c.get("/app/log/private", {"id": log_id})
-                assert r.result is not None
-                assert f"CN=user{user_id}" in r.result["msg"]
+                assert f"CN=user{user_id}" in r.body["msg"], r
 
     else:
         LOG.warning(
@@ -179,7 +178,7 @@ def test_anonymous_caller(network, args):
         msg = "This message is anonymous"
         with primary.client("user4") as c:
             r = c.rpc("/app/log/private/anonymous", {"id": log_id, "msg": msg})
-            assert r.result == True
+            assert r.body == True
             r = c.get("/app/log/private", {"id": log_id})
             assert r.body == "Anonymous user is not authorised to call log/private", r
 
@@ -211,8 +210,7 @@ def test_raw_text(network, args):
             )
             assert r.status == http.HTTPStatus.OK.value
             r = c.get("/app/log/private", {"id": log_id})
-            assert r.result is not None
-            assert msg in r.result["msg"]
+            assert msg in r.body["msg"], r
 
     else:
         LOG.warning(
@@ -272,9 +270,7 @@ def test_historical_query(network, args):
                         retry_after = int(retry_after)
                         time.sleep(retry_after)
                     elif get_response.status == http.HTTPStatus.OK:
-                        assert (
-                            get_response.result["msg"] == msg
-                        ), f"{get_response.result}"
+                        assert get_response.body["msg"] == msg, get_response
                         found = True
                         break
                     elif get_response.status == http.HTTPStatus.NO_CONTENT:
@@ -283,7 +279,7 @@ def test_historical_query(network, args):
                         )
                     else:
                         raise ValueError(
-                            f"Unexpected response status {get_response.status}: {get_response.error}"
+                            f"Unexpected response status {get_response.status}: {get_response.body}"
                         )
 
                 if not found:
@@ -376,8 +372,8 @@ def test_view_history(network, args):
             r = c.get("/node/commit")
             check(c)
 
-            commit_view = r.result["view"]
-            commit_seqno = r.result["seqno"]
+            commit_view = r.body["view"]
+            commit_seqno = r.body["seqno"]
 
             # Temporarily disable logging of RPCs for readability
             rpc_loggers = c.rpc_loggers
@@ -391,7 +387,7 @@ def test_view_history(network, args):
                 for view in range(1, commit_view + 1):
                     r = c.get("/node/tx", {"view": view, "seqno": seqno})
                     check(r)
-                    status = TxStatus(r.result["status"])
+                    status = TxStatus(r.body["status"])
                     if status == TxStatus.Committed:
                         views.append(view)
                 seqno_to_views[seqno] = views
@@ -495,7 +491,7 @@ def test_tx_statuses(network, args):
             for view, seqno in SentTxs.get_all_tx_ids():
                 r = c.get("/node/tx", {"view": view, "seqno": seqno})
                 check(r)
-                status = TxStatus(r.result["status"])
+                status = TxStatus(r.body["status"])
                 SentTxs.update_status(view, seqno, status)
                 if (
                     status == TxStatus.Committed

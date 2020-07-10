@@ -71,7 +71,7 @@ def run(args):
 
         with primary.client() as uc:
             r = uc.get("/node/code")
-            versions = sorted(r.result["versions"], key=lambda x: x["digest"])
+            versions = sorted(r.body["versions"], key=lambda x: x["digest"])
             expected = sorted(
                 [
                     {"digest": first_code_id, "status": "ACCEPTED"},

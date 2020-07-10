@@ -137,9 +137,9 @@ class Network:
 
         with primary.client() as nc:
             r = nc.get("/node/primary_info")
-            first_node_id = r.result["primary_id"]
-            assert (r.result["primary_host"] == primary.host) and (
-                int(r.result["primary_port"]) == primary.rpc_port
+            first_node_id = r.body["primary_id"]
+            assert (r.body["primary_host"] == primary.host) and (
+                int(r.body["primary_port"]) == primary.rpc_port
             ), "Primary is not the node that just started"
             for n in self.nodes:
                 n.node_id = n.node_id + first_node_id
@@ -489,8 +489,7 @@ class Network:
             try:
                 with node.client(connection_timeout=timeout) as c:
                     r = c.get("/node/state")
-                    LOG.info(r.result)
-                    if r.result["state"] == state:
+                    if r.body["state"] == state:
                         break
             except ConnectionRefusedError:
                 pass

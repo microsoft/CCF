@@ -22,7 +22,7 @@ def test(network, args, notifications_queue=None):
     with primary.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
             r = c.rpc("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.result == True, r.result
+            assert r.body == True, r
 
     # Before we start sending transactions to the secondary,
     # we want to wait for its app frontend to be open, which is
@@ -31,17 +31,17 @@ def test(network, args, notifications_queue=None):
     with other.client() as nc:
         while time.time() < end_time:
             r = nc.get("/node/network")
-            if r.result == "OPEN":
+            if r.body == "OPEN":
                 break
             else:
                 time.sleep(0.1)
-        assert r.result == "OPEN", r
+        assert r.body == "OPEN", r
 
     LOG.info("Write on secondary through forwarding")
     with other.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
             r = c.rpc("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.result == True, r.result
+            assert r.body == True, r
 
     return network
 

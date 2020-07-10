@@ -38,10 +38,10 @@ def test(network, args, notifications_queue=None):
             )
             r = c.get("/app/receipt", {"commit": r.seqno})
             check(
-                c.rpc("/app/receipt/verify", {"receipt": r.result["receipt"]}),
+                c.rpc("/app/receipt/verify", {"receipt": r.body["receipt"]}),
                 result={"valid": True},
             )
-            invalid = r.result["receipt"]
+            invalid = r.body["receipt"]
             invalid[-3] += 1
             check(
                 c.rpc("/app/receipt/verify", {"receipt": invalid}),

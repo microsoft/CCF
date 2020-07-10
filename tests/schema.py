@@ -34,7 +34,7 @@ def run(args):
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
-        methods = list_response.result["methods"]
+        methods = list_response.body["methods"]
 
         for method in methods:
             schema_found = False
@@ -46,8 +46,8 @@ def run(args):
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
             )
 
-            if schema_response.result is not None:
-                for verb, schema_element in schema_response.result.items():
+            if schema_response.body is not None:
+                for verb, schema_element in schema_response.body.items():
                     for schema_type in ["params", "result"]:
                         element_name = "{}_schema".format(schema_type)
                         element = schema_element[element_name]
