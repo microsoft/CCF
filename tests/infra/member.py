@@ -79,11 +79,7 @@ class Member:
             )
 
     def vote(
-        self,
-        remote_node,
-        proposal,
-        accept=True,
-        wait_for_global_commit=True,
+        self, remote_node, proposal, accept=True, wait_for_global_commit=True,
     ):
         ballot = """
         tables, changes = ...
