@@ -15,7 +15,6 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
         "commit",
         "quote",
         "quotes",
-        "signed_index",
         "join",
         "metrics",
         "mkSign",
