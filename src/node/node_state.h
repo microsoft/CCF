@@ -49,44 +49,14 @@ extern "C"
 #include <evercrypt/EverCrypt_AutoConfig2.h>
 }
 
-namespace ccf
-{
-  enum class State
-  {
-    uninitialized,
-    initialized,
-    pending,
-    partOfPublicNetwork,
-    partOfNetwork,
-    readingPublicLedger,
-    readingPrivateLedger
-  };
-}
-
 // Used by fmtlib to render ccf::State
 namespace std
 {
   std::ostream& operator<<(std::ostream& os, ccf::State s)
   {
-    switch (s)
-    {
-      case ccf::State::uninitialized:
-        return os << "uninitialized";
-      case ccf::State::initialized:
-        return os << "initialized";
-      case ccf::State::pending:
-        return os << "pending";
-      case ccf::State::partOfPublicNetwork:
-        return os << "partOfPublicNetwork";
-      case ccf::State::partOfNetwork:
-        return os << "partOfNetwork";
-      case ccf::State::readingPublicLedger:
-        return os << "readingPublicLedger";
-      case ccf::State::readingPrivateLedger:
-        return os << "readingPrivateLedger";
-      default:
-        return os << "unknown value";
-    }
+    nlohmann::json j;
+    to_json(j, s);
+    return os << j.dump();
   }
 }
 
@@ -117,6 +87,11 @@ namespace ccf
     bool check(T s) const
     {
       return s == this->s.load();
+    }
+
+    T value() const
+    {
+      return this->s.load();
     }
 
     void advance(T s)
@@ -976,6 +951,20 @@ namespace ccf
     bool is_part_of_public_network() const override
     {
       return sm.check(State::partOfPublicNetwork);
+    }
+
+    ExtendedState state() override
+    {
+      std::lock_guard<SpinLock> guard(lock);
+      State s = sm.value();
+      if (s == State::readingPrivateLedger)
+      {
+        return {s, recovery_v, recovery_store->current_version()};
+      }
+      else
+      {
+        return {s, {}, {}};
+      }
     }
 
     bool rekey_ledger(kv::Tx& tx) override
