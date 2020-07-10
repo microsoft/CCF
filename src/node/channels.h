@@ -58,7 +58,7 @@ namespace ccf
       struct Msg
       {
         NodeMsgType type;
-        std::vector<uint8_t> raw_plain; // To be intergrity-protected
+        std::vector<uint8_t> raw_plain; // To be integrity-protected
         std::vector<uint8_t> raw_cipher; // To be encrypted
 
         Msg(NodeMsgType msg_type, CBuffer raw_plain_, CBuffer raw_cipher_) :
