@@ -83,7 +83,6 @@ class Member:
         remote_node,
         proposal,
         accept=True,
-        force_unsigned=False,
         wait_for_global_commit=True,
     ):
         ballot = """
@@ -94,7 +93,7 @@ class Member:
             r = mc.rpc(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
                 {"ballot": {"text": ballot}},
-                signed=not force_unsigned,
+                signed=True,
             )
 
         if r.error is not None:

@@ -86,12 +86,6 @@ def run(args):
         votes_issued += 1
         assert new_member_proposal.state == infra.proposal.ProposalState.Accepted
 
-        LOG.info("Unsigned votes are rejected")
-        response = network.consortium.get_member_by_id(2).vote(
-            primary, new_member_proposal, accept=True, force_unsigned=True
-        )
-        assert response.status == http.HTTPStatus.UNAUTHORIZED.value
-
         LOG.info("Create new proposal but withdraw it before it is accepted")
         new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
             primary, curve=infra.network.ParticipantsCurve.secp256k1
