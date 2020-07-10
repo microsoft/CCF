@@ -84,6 +84,7 @@ namespace kv
       data_size = data_in_size;
     }
 
+
     template <typename T>
     T read_next()
     {
@@ -110,15 +111,6 @@ namespace kv
       data_offset += entry_size;
       return kv::serialisers::SerialisedEntry(
         data_ptr + before_offset, data_ptr + data_offset);
-    }
-
-    template <typename T>
-    T peek_next()
-    {
-      auto before_offset = data_offset;
-      msgpack::unpack(msg, data_ptr, data_size, data_offset);
-      data_offset = before_offset;
-      return msg->as<T>();
     }
 
     bool is_eos()

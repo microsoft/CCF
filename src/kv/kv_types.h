@@ -432,6 +432,8 @@ namespace kv
       virtual const std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>&
       get_map_snapshots() = 0;
       virtual void serialize() = 0;
+      virtual std::vector<uint8_t> serialise(KvStoreSerialiser& s) = 0;
+
       virtual kv::Version get_version() const = 0;
     };
 
@@ -454,6 +456,7 @@ namespace kv
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
+    virtual std::vector<uint8_t> snapshot_serialise(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual CommitSuccess commit(

@@ -170,3 +170,30 @@ TEST_CASE(
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
   }
 }
+
+TEST_CASE("Serialised snapshot")
+{
+  LOG_DEBUG_FMT("Serialising snapshots!!");
+
+  kv::Store store;
+  auto& string_map = store.create<MapTypes::StringString>(
+    "string_map", kv::SecurityDomain::PUBLIC);
+  auto& num_map =
+    store.create<MapTypes::NumNum>("num_map", kv::SecurityDomain::PRIVATE);
+
+  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  store.set_encryptor(encryptor);
+
+  kv::Tx tx1;
+  auto view_1 = tx1.get_view(string_map);
+  view_1->put("foo", "bar");
+  REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+
+  kv::Tx tx2;
+  auto view_2 = tx2.get_view(num_map);
+  view_2->put(42, 123);
+  REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+
+  auto snapshot_serial = store.snapshot_serialise(2);
+  REQUIRE(snapshot_serial.size() == 0);
+}

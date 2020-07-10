@@ -623,22 +623,15 @@ namespace kv::untyped
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
       auto r = roll.commits->get_head();
-      while (r != nullptr)
+
+      for (auto current = roll.commits->get_tail(); current != nullptr;
+           current = current->prev)
       {
-        if (v < r->version)
+        if (current->version <= v)
         {
+          r = current;
           break;
         }
-        r = r->next;
-      }
-
-      if (r == nullptr)
-      {
-        r = roll.commits->get_tail();
-      }
-      else if (r->prev != nullptr)
-      {
-        r = r->prev;
       }
 
       champ::

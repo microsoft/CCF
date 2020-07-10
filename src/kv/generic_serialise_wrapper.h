@@ -87,10 +87,13 @@ namespace kv
 
   public:
     GenericSerialiseWrapper(
-      std::shared_ptr<AbstractTxEncryptor> e, const Version& version_) :
+      std::shared_ptr<AbstractTxEncryptor> e,
+      const Version& version_,
+      bool is_snapshot_ = false) :
       crypto_util(e)
     {
       set_current_domain(SecurityDomain::PUBLIC);
+      serialise_internal(is_snapshot_);
       serialise_internal(version_);
       version = version_;
     }
@@ -230,6 +233,7 @@ namespace kv
     R* current_reader;
     std::vector<uint8_t> decrypted_buffer;
     KvOperationType unhandled_op;
+    bool is_snapshot;
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
@@ -272,6 +276,14 @@ namespace kv
       return KvOperationType::KOT_NOT_SUPPORTED;
     }
 
+    // Should only be called once, once the GCM header and length of public
+    // domain have been read
+    void read_public_header()
+    {
+      is_snapshot = public_reader.template read_next<bool>();
+      version = public_reader.template read_next<Version>();
+    }
+
   public:
     GenericDeserialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
@@ -281,7 +293,7 @@ namespace kv
       unhandled_op(KvOperationType::KOT_NOT_SUPPORTED)
     {}
 
-    bool init(const uint8_t* data, size_t size)
+    std::optional<Version> init(const uint8_t* data, size_t size)
     {
       current_reader = &public_reader;
       auto data_ = data;
@@ -292,7 +304,8 @@ namespace kv
       if (!crypto_util)
       {
         public_reader.init(data, size);
-        return true;
+        read_public_header();
+        return version;
       }
 
       // Skip gcm hdr and read length of public domain
@@ -303,15 +316,16 @@ namespace kv
       auto data_public = data_;
       public_reader.init(data_public, public_domain_length);
 
+      read_public_header();
+
       // If the domain is public only, skip the decryption and only return the
       // public data
       if (
         domain_restriction.has_value() &&
         domain_restriction.value() == kv::SecurityDomain::PUBLIC)
-        return true;
-
-      // Read version without modifying public reader
-      version = public_reader.template peek_next<Version>();
+      {
+        return version;
+      }
 
       // Go to start of private domain
       serialized::skip(data_, size_, public_domain_length);
@@ -324,17 +338,11 @@ namespace kv
             decrypted_buffer,
             version))
       {
-        return false;
+        return std::nullopt;
       }
 
       // Set private reader
       private_reader.init(decrypted_buffer.data(), decrypted_buffer.size());
-      return true;
-    }
-
-    Version deserialise_version()
-    {
-      version = current_reader->template read_next<Version>();
       return version;
     }
 

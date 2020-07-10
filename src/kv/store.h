@@ -260,10 +260,12 @@ namespace kv
       }
     }
 
-    std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
+    std::vector<uint8_t> snapshot_serialise(Version v) override
     {
-      std::unique_ptr<AbstractSnapshot> snapshot =
-        std::make_unique<StoreSnapshot>(v);
+      // Only generate the snapshot in the lock but do not serialise yet as it
+      // is expensive. When the snapshot is generated, a shared pointer to the
+      // underlying state is taken (basically free).
+      auto snapshot = std::make_unique<StoreSnapshot>(v);
 
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
@@ -284,7 +286,45 @@ namespace kv
 
         for (auto& map : maps)
         {
-          snapshot->add_map_snapshot(std::move(map.second->snapshot(v)));
+          snapshot->add_map_snapshot(map.second->snapshot(v));
+        }
+
+        for (auto& map : maps)
+        {
+          map.second->unlock();
+        }
+      }
+
+      auto e = get_encryptor();
+      KvStoreSerialiser serialiser(e, version);
+
+      return snapshot->serialise(serialiser);
+    }
+
+    std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
+    {
+      auto snapshot = std::make_unique<StoreSnapshot>(v);
+
+      {
+        std::lock_guard<SpinLock> mguard(maps_lock);
+
+        if (v < commit_version())
+        {
+          throw ccf::ccf_logic_error(fmt::format(
+            "Attempting to snapshot at invalid version v:{}, "
+            "commit_version:{}",
+            v,
+            commit_version()));
+        }
+
+        for (auto& map : maps)
+        {
+          map.second->lock();
+        }
+
+        for (auto& map : maps)
+        {
+          snapshot->add_map_snapshot(map.second->snapshot(v));
         }
 
         for (auto& map : maps)
@@ -424,13 +464,14 @@ namespace kv
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      if (!d->init(data.data(), data.size()))
+      auto v_ = d->init(data.data(), data.size());
+      if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return DeserialiseSuccess::FAILED;
       }
+      auto v = v_.value();
 
-      Version v = d->deserialise_version();
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback(v - 1);
