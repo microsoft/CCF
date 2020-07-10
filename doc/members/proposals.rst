@@ -12,7 +12,7 @@ For transparency and auditability, all governance operations (including votes) a
 Submitting a New Proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposal`` and vote using ``POST /gov/proposals/{id}/votes``.
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposals`` and vote using ``POST /gov/proposals/{id}/votes``.
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 
@@ -29,7 +29,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposal --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
     {
       "proposal_id": 4,
       "proposer_id": 1,

@@ -59,7 +59,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposal --cacert network_cert --key member1_privk --cert member1_cert --data-binary @rekey_ledger.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @rekey_ledger.json -H "content-type: application/json"
     {
         "proposal_id": 4,
         "proposer_id": 1,
@@ -101,7 +101,7 @@ The number of member shares required to restore the private ledger (``recovery_t
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposal --cacert network_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
     {
         "proposal_id": 5,
         "proposer_id": 1,

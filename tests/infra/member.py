@@ -67,7 +67,7 @@ class Member:
 
     def propose(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.rpc("/gov/proposal", proposal, signed=True,)
+            r = mc.rpc("/gov/proposals", proposal, signed=True,)
             if r.status != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 

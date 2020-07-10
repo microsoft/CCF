@@ -38,7 +38,7 @@ def count_governance_operations(ledger):
                 digest = signed_request[0][3]
                 infra.crypto.verify_request_sig(cert, sig, req, request_body, digest)
                 request_target_line = req.decode().splitlines()[0]
-                if "/gov/proposal" in request_target_line:
+                if "/gov/proposals" in request_target_line:
                     if request_target_line.endswith("/votes"):
                         verified_votes += 1
                     elif request_target_line.endswith("/withdraw"):

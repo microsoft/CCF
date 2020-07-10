@@ -19,7 +19,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
             "text": "tables, user_cert = ...; return Calls:call(\"new_user\", user_cert)"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposal --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @add_user.json -H "content-type: application/json"
     {
         "proposal_id": 5,
         "proposer_id": 0,
@@ -86,7 +86,7 @@ Registering the Lua Application
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposal --cacert network_cert --key member0_privk --cert member0_cert --data-binary @set_lua_app.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @set_lua_app.json -H "content-type: application/json"
     {
         "proposal_id": 7,
         "proposer_id": 0,
@@ -111,7 +111,7 @@ Once users are added to the opening network, members should create a proposal to
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/proposal --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member0_privk --cert member0_cert --data-binary @open_network.json -H "content-type: application/json"
     {
         "proposal_id": 10,
         "proposer_id": 0,
