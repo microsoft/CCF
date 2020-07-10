@@ -386,7 +386,7 @@ function(add_e2e_test)
       )
     endif()
 
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS end_to_end)
+    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS e2e)
     set_property(
       TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL}
     )

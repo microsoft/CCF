@@ -54,10 +54,10 @@ Example
         ]
     }
 
-signed_index
-------------
+state
+-----
 
-.. literalinclude:: ../schemas/signed_index_GET_result.json
+.. literalinclude:: ../schemas/state_GET_result.json
     :language: json
 
 Example
@@ -66,6 +66,6 @@ Example
 .. code-block:: json
 
     {
-        "signed_index": 34,
+        "last_signed_seqno": 34,
         "state": "partOfPublicNetwork"
     }

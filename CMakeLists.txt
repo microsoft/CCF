@@ -554,7 +554,7 @@ if(BUILD_TESTS)
   )
 
   add_e2e_test(
-    NAME lua_end_to_end_batched
+    NAME lua_e2e_batched
     PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
     CONSENSUS raft
     ADDITIONAL_ARGS --app-script
@@ -627,7 +627,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME js_end_to_end_logging_${CONSENSUS}
+      NAME js_e2e_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS --js-app-script
@@ -635,7 +635,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME end_to_end_scenario_${CONSENSUS}
+      NAME e2e_scenario_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_scenarios.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS --scenario
@@ -649,7 +649,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME lua_end_to_end_logging_${CONSENSUS}
+      NAME lua_e2e_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS --app-script
@@ -694,7 +694,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME end_to_end_logging_${CONSENSUS}
+      NAME cpp_e2e_logging_${CONSENSUS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       CURL_CLIENT TRUE
       CONSENSUS ${CONSENSUS}

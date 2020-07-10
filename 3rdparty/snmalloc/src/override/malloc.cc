@@ -9,9 +9,17 @@ using namespace snmalloc;
 #ifndef SNMALLOC_EXPORT
 #  define SNMALLOC_EXPORT
 #endif
-
-#ifndef SNMALLOC_NAME_MANGLE
+#ifdef SNMALLOC_STATIC_LIBRARY_PREFIX
+#  define __SN_CONCAT(a, b) a##b
+#  define __SN_EVALUATE(a, b) __SN_CONCAT(a, b)
+#  define SNMALLOC_NAME_MANGLE(a) \
+    __SN_EVALUATE(SNMALLOC_STATIC_LIBRARY_PREFIX, a)
+#elif !defined(SNMALLOC_NAME_MANGLE)
 #  define SNMALLOC_NAME_MANGLE(a) a
+#endif
+
+#ifndef MALLOC_USABLE_SIZE_QUALIFIER
+#  define MALLOC_USABLE_SIZE_QUALIFIER
 #endif
 
 extern "C"
@@ -31,6 +39,11 @@ extern "C"
     ThreadAlloc::get_noncachable()->dealloc(ptr);
   }
 
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(cfree)(void* ptr)
+  {
+    SNMALLOC_NAME_MANGLE(free)(ptr);
+  }
+
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(calloc)(size_t nmemb, size_t size)
   {
     bool overflow = false;
@@ -43,7 +56,9 @@ extern "C"
     return ThreadAlloc::get_noncachable()->alloc<ZeroMem::YesZero>(sz);
   }
 
-  SNMALLOC_EXPORT size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(void* ptr)
+  SNMALLOC_EXPORT
+  size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(
+    MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
   {
     return Alloc::alloc_size(ptr);
   }
@@ -75,7 +90,7 @@ extern "C"
 #endif
     size_t sz = Alloc::alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
-    if (sz == sizeclass_to_size(size_to_sizeclass(size)))
+    if (sz == round_size(size))
       return ptr;
 
     void* p = SNMALLOC_NAME_MANGLE(malloc)(size);

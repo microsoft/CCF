@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../pal/pal_consts.h"
+#include "../pal/pal.h"
 #include "allocconfig.h"
 
 namespace snmalloc
@@ -184,5 +184,18 @@ namespace snmalloc
     SNMALLOC_ASSERT(bits::next_pow2(alignment) == alignment);
 
     return ((alignment - 1) | (size - 1)) + 1;
+  }
+
+  SNMALLOC_FAST_PATH static size_t round_size(size_t size)
+  {
+    if (size > sizeclass_to_size(NUM_SIZECLASSES - 1))
+    {
+      return bits::next_pow2(size);
+    }
+    if (size == 0)
+    {
+      size = 1;
+    }
+    return sizeclass_to_size(size_to_sizeclass(size));
   }
 } // namespace snmalloc
