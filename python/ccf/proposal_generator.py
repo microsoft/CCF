@@ -7,6 +7,7 @@ import inspect
 import json
 import os
 import sys
+import functools
 
 from loguru import logger as LOG
 
@@ -24,9 +25,6 @@ def script_to_vote_object(script):
     return {"ballot": {"text": script}}
 
 
-TRIVIAL_YES_BALLOT = {"text": "return true"}
-TRIVIAL_NO_BALLOT = {"text": "return false"}
-
 LUA_FUNCTION_EQUAL_ARRAYS = """
 function equal_arrays(a, b)
   if #a ~= #b then
@@ -42,9 +40,13 @@ function equal_arrays(a, b)
 end"""
 
 
+DEFAULT_PROPOSAL_OUTPUT = "{proposal_type}.json"
+DEFAULT_VOTE_OUTPUT = "vote_for_{proposal_output}.json"
+
+
 def add_arg_construction(lines, arg, arg_name="args"):
     if isinstance(arg, str):
-        lines.append(f'{arg_name} = [[{arg}]]')
+        lines.append(f"{arg_name} = [[{arg}]]")
     elif isinstance(arg, collections.abc.Sequence):
         lines.append(f"{arg_name} = {list_as_lua_literal(arg)}")
     elif isinstance(arg, collections.abc.Mapping):
@@ -58,7 +60,7 @@ def add_arg_construction(lines, arg, arg_name="args"):
 def add_arg_checks(lines, arg, arg_name="args"):
     lines.append(f"if {arg_name} == nil then return false end")
     if isinstance(arg, str):
-        lines.append(f'if not {arg_name} == [[{arg}]] then return false end')
+        lines.append(f"if not {arg_name} == [[{arg}]] then return false end")
     elif isinstance(arg, collections.abc.Sequence):
         expected_name = arg_name.replace(".", "_")
         lines.append(f"{expected_name} = {list_as_lua_literal(arg)}")
@@ -112,15 +114,47 @@ def build_proposal(proposed_call, args=None, inline_args=False):
 
 
 def cli_proposal(func):
-    func.is_cli_proposal = True
-    return func
+    @functools.wraps(func)
+    def wrapper(
+        proposal_output_path=None, vote_output_path=None, indent=None, *args, **kwargs,
+    ):
+        proposal_name = func.__name__
+        if proposal_output_path is None:
+            proposal_output_path = DEFAULT_PROPOSAL_OUTPUT.format(
+                proposal_type=func.__name__
+            )
+        if not proposal_output_path.endswith(".json"):
+            proposal_output_path += ".json"
+
+        proposal_output_filename, _ = os.path.splitext(proposal_output_path)
+
+        if vote_output_path is None:
+            vote_output_path = DEFAULT_VOTE_OUTPUT.format(
+                proposal_output=proposal_output_filename
+            )
+        if not vote_output_path.endswith(".json"):
+            vote_output_path += ".json"
+
+        proposal_object, vote_object = func(*args, **kwargs)
+        dump_args = {"indent": indent}
+
+        LOG.trace(f"Writing proposal to {proposal_output_path}")
+        dump_to_file(proposal_output_path, proposal_object, dump_args)
+
+        LOG.trace(f"Writing vote to {vote_output_path}")
+        dump_to_file(vote_output_path, vote_object, dump_args)
+
+        return f"@{proposal_output_path}", f"@{vote_output_path}"
+
+    wrapper.is_cli_proposal = True
+    return wrapper
 
 
 @cli_proposal
 def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
     LOG.debug("Generating new_member proposal")
 
-    # Convert certs to byte arrays
+    # Read certs
     member_cert = open(member_cert_path).read()
     member_keyshare_encryptor = open(member_enc_pubk_path).read()
 
@@ -262,20 +296,17 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    default_proposal_output = "{proposal_type}.json"
-    default_vote_output = "vote_for_{proposal_output}.json"
-
     parser.add_argument(
         "-po",
         "--proposal-output-file",
         type=str,
-        help=f"Path where proposal JSON object (request body for POST /gov/proposals) will be dumped. Default is {default_proposal_output}",
+        help=f"Path where proposal JSON object (request body for POST /gov/proposals) will be dumped. Default is {DEFAULT_PROPOSAL_OUTPUT}",
     )
     parser.add_argument(
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/votes) will be dumped. Default is {default_vote_output}",
+        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/votes) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
     )
     parser.add_argument(
         "-pp",
@@ -326,23 +357,17 @@ if __name__ == "__main__":
         level="TRACE" if args.verbose else "INFO",
     )
 
-    proposal, vote = args.func(
+    proposal_path, vote_path = args.func(
         **{name: getattr(args, name) for name in args.param_names},
         inline_args=args.inline_args,
+        indent=2 if args.pretty_print else None,
+        proposal_output_path=args.proposal_output_file,
+        vote_output_path=args.vote_output_file,
     )
 
-    dump_args = {}
-    if args.pretty_print:
-        dump_args["indent"] = 2
+    # Remove leading @s
+    proposal_path = proposal_path[1:]
+    vote_path = vote_path[1:]
 
-    proposal_output_path = args.proposal_output_file or default_proposal_output.format(
-        proposal_type=args.proposal_type
-    )
-    LOG.success(f"Writing proposal to {proposal_output_path}")
-    dump_to_file(proposal_output_path, proposal, dump_args)
-
-    vote_output_path = args.vote_output_file or default_vote_output.format(
-        proposal_output=os.path.splitext(proposal_output_path)[0]
-    )
-    LOG.success(f"Writing vote to {vote_output_path}")
-    dump_to_file(vote_output_path, vote, dump_args)
+    LOG.success(f"Wrote proposal to {proposal_path}")
+    LOG.success(f"Wrote vote to {vote_path}")
