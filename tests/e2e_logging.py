@@ -180,7 +180,7 @@ def test_anonymous_caller(network, args):
             r = c.rpc("/app/log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.body == True
             r = c.get("/app/log/private", {"id": log_id})
-            assert r.body == "Anonymous user is not authorised to call log/private", r
+            assert r.status == 403, r
 
         with primary.client("user0") as c:
             r = c.get("/app/log/private", {"id": log_id})

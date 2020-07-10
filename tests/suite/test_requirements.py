@@ -90,9 +90,9 @@ def sufficient_member_count():
 def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.member_client() as c:
+        with primary.client("member0") as c:
             r = c.rpc(
-                "query",
+                "gov/query",
                 {
                     "text": """tables = ...
                         trusted_nodes_count = 0
