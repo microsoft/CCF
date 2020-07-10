@@ -39,8 +39,7 @@ function equal_arrays(a, b)
     end
     return true
   end
-end
-"""
+end"""
 
 
 def add_arg_construction(lines, arg, arg_name="args"):

@@ -78,13 +78,14 @@ def run(args):
                 transactions.append(json_tx)
 
         # Manager is granted special privileges by members, which is later read by app to enforce access restrictions
-        proposal_body, _ = ccf.proposal_generator.set_user_data(
+        proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
             manager.ccf_id,
             {"privileges": {"REGISTER_REGULATORS": True, "REGISTER_BANKS": True}},
         )
         proposal = network.consortium.get_any_active_member().propose(
             primary, proposal_body
         )
+        proposal.vote_for = careful_vote
         network.consortium.vote_using_majority(primary, proposal)
 
         # Check permissions are enforced

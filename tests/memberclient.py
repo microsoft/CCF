@@ -216,7 +216,7 @@ def run(args):
         assert response.status == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
-        proposal_trust_0, _ = ccf.proposal_generator.trust_node(0)
+        proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(0)
         try:
             new_member.propose(primary, proposal_trust_0)
             assert (
@@ -230,6 +230,7 @@ def run(args):
 
         LOG.info("New member is now active and send an accept node proposal")
         trust_node_proposal_0 = new_member.propose(primary, proposal_trust_0)
+        trust_node_proposal_0.vote_for = careful_vote
 
         LOG.debug("Members vote to accept the accept node proposal")
         network.consortium.vote_using_majority(primary, trust_node_proposal_0)

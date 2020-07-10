@@ -81,14 +81,10 @@ class Member:
     def vote(
         self, remote_node, proposal, accept=True, wait_for_global_commit=True,
     ):
-        ballot = """
-        tables, changes = ...
-        return true
-        """
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
-                {"ballot": {"text": ballot}},
+                params=proposal.vote_for,
                 signed=True,
             )
 
