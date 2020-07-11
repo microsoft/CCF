@@ -869,7 +869,7 @@ namespace ccf
         };
       make_endpoint(
         "ack/update_state_digest", HTTP_POST, json_adapter(update_state_digest))
-        .set_auto_schema<void, StateDigest>()
+        .set_auto_schema<void, MemberAck>()
         .install();
 
       auto get_encrypted_recovery_share = [this](
