@@ -25,11 +25,11 @@ schedules:
 resources:
   containers:
     - container: nosgx
-      image: ccfciteam/ccf-ci:0.11.6
+      image: ccfciteam/ccf-ci:oe0.10pre0
       options: --publish-all --cap-add SYS_PTRACE -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/ -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      image: ccfciteam/ccf-ci:0.11.6
+      image: ccfciteam/ccf-ci:oe0.10pre0
       options: --publish-all --device /dev/sgx:/dev/sgx -v /dev/shm:/tmp/ccache -v /mnt/build:/__w/ -v /lib/modules:/lib/modules:ro
 
 variables:
