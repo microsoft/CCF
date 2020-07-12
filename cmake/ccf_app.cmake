@@ -176,6 +176,7 @@ function(add_ccf_app name)
               # These oe libraries must be linked in correct order, so they are
               # re-declared here
               openenclave::oeenclave
+              openenclave::oesnmalloc
               openenclave::oecore
               openenclave::oesyscall
               ccf.enclave
