@@ -55,6 +55,8 @@ namespace kv
             // TODO: Call it->serialise() instead
             s.start_map(it->get_name(), it->get_security_domain());
 
+            s.serialise_entry_version(it->get_version());
+
             // TODO: Why not serialise the champmap using the serialiser instead
             // of serialising it here? Probably performance?
             s.serialise_snapshot(it->serialise());

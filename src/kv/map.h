@@ -88,9 +88,9 @@ namespace kv
       untyped_map.apply(s);
     }
 
-    void apply_snapshot(const std::vector<uint8_t>& snapshot) override
+    void apply_snapshot(Version v, const std::vector<uint8_t>& snapshot) override
     {
-      untyped_map.apply_snapshot(snapshot);
+      untyped_map.apply_snapshot(v, snapshot);
     }
 
     void post_compact() override

@@ -18,7 +18,7 @@ namespace kv
     KOT_NOT_SUPPORTED = 0,
     KOT_SET_VERSION = (1 << 0),
     KOT_MAP_START_INDICATOR = (1 << 1),
-    KOT_READ_VERSION = (1 << 2),
+    KOT_ENTRY_VERSION = (1 << 2),
     KOT_READ = (1 << 3),
     KOT_WRITE_VERSION = (1 << 4),
     KOT_WRITE = (1 << 5),
@@ -124,7 +124,7 @@ namespace kv
     }
 
     template <class Version>
-    void serialise_read_version(const Version& version)
+    void serialise_entry_version(const Version& version)
     {
       serialise_internal(version);
     }
@@ -375,7 +375,7 @@ namespace kv
         current_reader->template read_next<std::string>()};
     }
 
-    Version deserialise_read_version()
+    Version deserialise_entry_version()
     {
       return current_reader->template read_next<Version>();
     }

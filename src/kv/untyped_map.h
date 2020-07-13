@@ -398,7 +398,7 @@ namespace kv::untyped
 
       if (include_reads)
       {
-        s.serialise_read_version(change_set.read_version);
+        s.serialise_entry_version(change_set.read_version);
 
         s.serialise_count_header(change_set.reads.size());
         for (auto it = change_set.reads.begin(); it != change_set.reads.end();
@@ -409,7 +409,7 @@ namespace kv::untyped
       }
       else
       {
-        s.serialise_read_version(NoVersion);
+        s.serialise_entry_version(NoVersion);
         s.serialise_count_header(0);
       }
 
@@ -470,7 +470,7 @@ namespace kv::untyped
 
       uint64_t ctr;
 
-      auto rv = d.deserialise_read_version();
+      auto rv = d.deserialise_entry_version();
       if (rv != NoVersion)
       {
         change_set.read_version = rv;
@@ -644,13 +644,12 @@ namespace kv::untyped
         }
       }
 
-      // StateSnapshot snapshot(r->state);
-
       return std::make_unique<Snapshot>(
         name, security_domain, replicated, r->version, StateSnapshot(r->state));
     }
 
-    void apply_snapshot(const std::vector<uint8_t>& snapshot) override
+    void apply_snapshot(
+      Version version, const std::vector<uint8_t>& snapshot) override
     {
       // This discards all entries in the roll and applies the given
       // snapshot. The Map expects to be locked while applying the snapshot.
@@ -664,7 +663,7 @@ namespace kv::untyped
 
       // TODO: Is the version of the snapshot sufficient here? We would end up
       // with a roll with a different state here!!
-      r->version = NoVersion;
+      r->version = version;
     }
 
     void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) override

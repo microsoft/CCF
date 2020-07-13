@@ -245,7 +245,11 @@ namespace kv
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
-        LOG_FAIL_FMT("Snapshot map: {}", r.value());
+
+        LOG_FAIL_FMT("Snapshot map: {}", map_name);
+
+        auto map_version = d.deserialise_entry_version();
+        LOG_FAIL_FMT("Map version: {}", map_version);
 
         auto search = maps.find(map_name);
         if (search == maps.end())
@@ -257,7 +261,7 @@ namespace kv
 
         auto map_snapshot = d.deserialise_raw();
 
-        search->second->apply_snapshot(map_snapshot);
+        search->second->apply_snapshot(map_version, map_snapshot);
       }
 
       for (auto& map : maps)

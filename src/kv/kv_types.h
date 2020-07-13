@@ -409,7 +409,8 @@ namespace kv
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
     virtual void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) = 0;
-    virtual void apply_snapshot(const std::vector<uint8_t>& snapshot) = 0;
+    virtual void apply_snapshot(
+      Version v, const std::vector<uint8_t>& snapshot) = 0;
     virtual void post_compact() = 0;
     virtual void rollback(Version v) = 0;
     virtual void lock() = 0;
