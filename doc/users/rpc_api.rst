@@ -21,7 +21,6 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
         "log/private/raw_text/{id}",
         "log/public",
         "metrics",
-        "mkSign",
         "network_info",
         "node/ids",
         "primary_info",
