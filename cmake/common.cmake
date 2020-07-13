@@ -80,8 +80,10 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
 add_custom_command(
-  COMMAND openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --trusted --trusted-dir
-          ${CCF_GENERATED_DIR} --untrusted --untrusted-dir ${CCF_GENERATED_DIR}
+  COMMAND
+    openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --search-path ${OE_INCLUDEDIR}
+    --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir
+    ${CCF_GENERATED_DIR}
   COMMAND mv ${CCF_GENERATED_DIR}/ccf_t.c ${CCF_GENERATED_DIR}/ccf_t.cpp
   COMMAND mv ${CCF_GENERATED_DIR}/ccf_u.c ${CCF_GENERATED_DIR}/ccf_u.cpp
   DEPENDS ${CCF_DIR}/edl/ccf.edl

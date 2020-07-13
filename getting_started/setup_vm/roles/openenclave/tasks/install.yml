@@ -49,7 +49,7 @@
 
 - name: Build Open Enclave
   shell: |
-    cmake -GNinja -DCMAKE_INSTALL_PREFIX:PATH={{ oe_prefix }} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_SNMALLOC=ON {{ oe_build_opts }} ..
+    cmake -GNinja -DCMAKE_INSTALL_PREFIX:PATH={{ oe_prefix }} -DCMAKE_BUILD_TYPE=RelWithDebInfo {{ oe_build_opts }} ..
     ninja
   args:
     chdir: "{{ workspace }}/openenclave-{{ oe_ver }}/build"
