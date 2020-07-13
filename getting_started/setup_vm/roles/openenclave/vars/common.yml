@@ -1,5 +1,5 @@
 workspace: "/tmp/"
-oe_ver: "v0.9.0"
+oe_ver: "update_snmalloc_0.5"
 oe_src: "oe-{{ oe_ver }}.tar.gz"
 oe_prefix: "/opt/openenclave"
-oe_repo: "https://github.com/openenclave/openenclave.git"
+oe_repo: "https://github.com/achamayou/openenclave.git"
