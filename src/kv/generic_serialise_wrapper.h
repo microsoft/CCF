@@ -118,7 +118,6 @@ namespace kv
       serialise_internal(name);
     }
 
-    // TODO: Different type here
     void serialise_snapshot(const std::vector<uint8_t>& snapshot)
     {
       serialise_internal_raw(snapshot);
@@ -298,7 +297,7 @@ namespace kv
   public:
     GenericDeserialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
-      std::optional<SecurityDomain> domain_restriction) :
+      std::optional<SecurityDomain> domain_restriction = std::nullopt) :
       crypto_util(e),
       domain_restriction(domain_restriction),
       unhandled_op(KvOperationType::KOT_NOT_SUPPORTED)
@@ -401,6 +400,11 @@ namespace kv
     {
       return {current_reader->read_next_pre_serialised(),
               current_reader->read_next_pre_serialised()};
+    }
+
+    std::vector<uint8_t> deserialise_raw()
+    {
+      return current_reader->read_next_raw();
     }
 
     uint64_t deserialise_remove_header()

@@ -88,6 +88,11 @@ namespace kv
       untyped_map.apply(s);
     }
 
+    void apply_snapshot(const std::vector<uint8_t>& snapshot) override
+    {
+      untyped_map.apply_snapshot(snapshot);
+    }
+
     void post_compact() override
     {
       return untyped_map.post_compact();

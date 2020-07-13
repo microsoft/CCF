@@ -650,6 +650,23 @@ namespace kv::untyped
         name, security_domain, replicated, r->version, StateSnapshot(r->state));
     }
 
+    void apply_snapshot(const std::vector<uint8_t>& snapshot) override
+    {
+      // This discards all entries in the roll and applies the given
+      // snapshot. The Map expects to be locked while applying the snapshot.
+      roll.reset_commits();
+      roll.rollback_counter++;
+
+      auto r = roll.commits->get_head();
+
+      // TODO: What about the writes in the roll? What role do they serve?
+      r->state = State::deserialize_map(snapshot);
+
+      // TODO: Is the version of the snapshot sufficient here? We would end up
+      // with a roll with a different state here!!
+      r->version = NoVersion;
+    }
+
     void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) override
     {
       // This discards all entries in the roll and applies the given

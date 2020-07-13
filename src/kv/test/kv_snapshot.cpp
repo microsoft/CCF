@@ -184,16 +184,45 @@ TEST_CASE("Serialised snapshot")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
 
-  kv::Tx tx1;
-  auto view_1 = tx1.get_view(string_map);
-  view_1->put("foo", "bar");
-  REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
+  std::vector<uint8_t> serial_snapshot;
 
-  kv::Tx tx2;
-  auto view_2 = tx2.get_view(num_map);
-  view_2->put(42, 123);
-  REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+  INFO("Generate snapshot from first store");
+  {
+    kv::Tx tx1;
+    auto view_1 = tx1.get_view(string_map);
+    view_1->put("foo", "bar");
+    REQUIRE(tx1.commit() == kv::CommitSuccess::OK);
 
-  auto snapshot_serial = store.snapshot_serialise(2);
-  REQUIRE(snapshot_serial.size() == 0);
+    kv::Tx tx2;
+    auto view_2 = tx2.get_view(num_map);
+    view_2->put(42, 123);
+    REQUIRE(tx2.commit() == kv::CommitSuccess::OK);
+
+    serial_snapshot = store.snapshot_serialise(tx2.commit_version());
+    REQUIRE(serial_snapshot.size() != 0);
+  }
+
+  INFO("Deserialise snapshot in new store");
+  {
+    kv::Store new_store;
+    new_store.clone_schema(store);
+    new_store.set_encryptor(encryptor);
+
+    new_store.deserialise_snapshot(serial_snapshot);
+
+    kv::Tx tx_;
+    auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
+    auto new_num_map = new_store.get<MapTypes::NumNum>("num_map");
+
+    auto [view_1, view_2] = tx_.get_view(*new_string_map, *new_num_map);
+
+    auto bar = view_1->get("foo");
+    REQUIRE(bar.has_value());
+    REQUIRE(bar.value() == "bar");
+
+    auto onetwothree = view_2->get(42);
+    REQUIRE(onetwothree.has_value());
+    REQUIRE(onetwothree.value() == 123);
+
+  }
 }

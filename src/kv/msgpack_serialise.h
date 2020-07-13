@@ -119,6 +119,26 @@ namespace kv
         data_ptr + before_offset, data_ptr + data_offset);
     }
 
+    std::vector<uint8_t> read_next_raw()
+    {
+      auto remainder = data_size - data_offset;
+      auto data = reinterpret_cast<const uint8_t*>(data_ptr + data_offset);
+      const auto entry_size = serialized::read<uint64_t>(data, remainder);
+
+      if (remainder < entry_size)
+      {
+        throw std::runtime_error(fmt::format(
+          "Expected {} byte entry, found only {}", entry_size, remainder));
+      }
+
+      const auto bytes_read = data_size - data_offset - remainder;
+      data_offset += bytes_read;
+
+      const auto before_offset = data_offset;
+      data_offset += entry_size;
+      return {data_ptr + before_offset, data_ptr + data_offset};
+    }
+
     bool is_eos()
     {
       return data_offset >= data_size;

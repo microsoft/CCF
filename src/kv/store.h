@@ -220,6 +220,54 @@ namespace kv
       return *result;
     }
 
+    DeserialiseSuccess deserialise_snapshot(const std::vector<uint8_t>& data)
+    {
+      // TODO: Unify with deserialise() for write sets
+
+      auto e = get_encryptor();
+      auto d = KvStoreDeserialiser(e);
+
+      auto v_ = d.init(data.data(), data.size());
+      if (!v_.has_value())
+      {
+        LOG_FAIL_FMT("Initialisation of deserialise object failed");
+        return DeserialiseSuccess::FAILED;
+      }
+      auto v = v_.value();
+
+      std::lock_guard<SpinLock> mguard(maps_lock);
+
+      for (auto& map : maps)
+      {
+        map.second->lock();
+      }
+
+      for (auto r = d.start_map(); r.has_value(); r = d.start_map())
+      {
+        const auto map_name = r.value();
+        LOG_FAIL_FMT("Snapshot map: {}", r.value());
+
+        auto search = maps.find(map_name);
+        if (search == maps.end())
+        {
+          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_DEBUG_FMT("No such map {} at version {}", map_name, v);
+          return DeserialiseSuccess::FAILED;
+        }
+
+        auto map_snapshot = d.deserialise_raw();
+
+        search->second->apply_snapshot(map_snapshot);
+      }
+
+      for (auto& map : maps)
+      {
+        map.second->unlock();
+      }
+
+      return DeserialiseSuccess::PASS;
+    }
+
     void deserialize(const std::unique_ptr<AbstractSnapshot>& snapshot)
     {
       std::lock_guard<SpinLock> mguard(maps_lock);
@@ -310,7 +358,6 @@ namespace kv
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
 
-        // TODO: Check that v <= current version
         if (v < commit_version())
         {
           throw ccf::ccf_logic_error(fmt::format(
@@ -324,7 +371,7 @@ namespace kv
         {
           throw ccf ::ccf_logic_error(fmt::format(
             "Attempting to snapshot at version {} which is later "
-            "than committed version {}",
+            "than current version {}",
             v,
             current_version()));
         }
