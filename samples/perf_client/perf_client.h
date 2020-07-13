@@ -430,7 +430,6 @@ namespace client
         // Create a new connection, because we need to do some GETs
         // and when all you have is a WebSocket, everything looks like a POST!
         auto c = create_connection(true, false);
-        trigger_signature(c);
         wait_for_global_commit(last_response_commit);
       }
       const auto last_commit = last_response_commit.seqno;
@@ -512,22 +511,6 @@ namespace client
     {
       connection->disconnect();
       connection->connect();
-    }
-
-    RpcTlsClient::Response trigger_signature(
-      const std::shared_ptr<RpcTlsClient>& connection)
-    {
-      // Send a mkSign RPC to trigger next global commit
-      const auto method = "mkSign";
-      const auto mk_sign = connection->gen_request(method);
-      connection->write(mk_sign.encoded);
-
-      // Do a blocking read for this final response
-      const auto response = connection->read_response();
-      process_reply(response);
-      LOG_INFO_FMT("Triggered signature");
-
-      return response;
     }
 
     RpcTlsClient::Response get_tx_status(
@@ -655,7 +638,6 @@ namespace client
           {
             // Ensure creation transactions are globally committed before
             // proceeding
-            trigger_signature(create_connection(true));
             wait_for_global_commit(last_response.value());
           }
         }
