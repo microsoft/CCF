@@ -55,19 +55,11 @@ namespace kv
             // TODO: Call it->serialise() instead
             s.start_map(it->get_name(), it->get_security_domain());
 
-            // TODO: Size prefix?
+            // TODO: Why not serialise the champmap using the serialiser instead
+            // of serialising it here? Probably performance?
             s.serialise_snapshot(it->serialise());
             LOG_FAIL_FMT("he!");
           }
-
-          // const auto map = it.second.map;
-          // if (
-          //   map->get_security_domain() == domain && map->is_replicated() &&
-          //   it.second.view->has_changes())
-          // {
-          //   map->serialise(
-          //     it.second.view.get(), replicated_serialiser, include_reads);
-          // }
         }
       }
 

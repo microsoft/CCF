@@ -14,6 +14,7 @@ namespace kv::untyped
   using VersionV = kv::VersionV<SerialisedEntry>;
   using State =
     kv::State<SerialisedEntry, SerialisedEntry, SerialisedKeyHasher>;
+
   using Read = kv::Read<SerialisedEntry>;
   using Write = kv::Write<SerialisedEntry, SerialisedEntry>;
   using ChangeSet =

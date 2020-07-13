@@ -301,6 +301,8 @@ namespace kv
       return snapshot->serialise(serialiser);
     }
 
+    // TODO: It feels like we should specify a version here but instead do like
+    // the normal transactions get a version on the fly
     std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
     {
       auto snapshot = std::make_unique<StoreSnapshot>(v);

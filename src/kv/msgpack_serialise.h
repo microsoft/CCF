@@ -30,6 +30,13 @@ namespace kv
       msgpack::pack(sb, std::forward<T>(t));
     }
 
+    void append_raw(const std::vector<uint8_t>& raw)
+    {
+      const uint64_t size = raw.size();
+      sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
+      sb.write(reinterpret_cast<char const*>(raw.data()), raw.size());
+    }
+
     // Where we have pre-serialised data, we dump it length-prefixed into the
     // output buffer. If we call append, then pack will prefix the data with
     // some type information, potentially redundantly repacking already-packed
@@ -83,7 +90,6 @@ namespace kv
       data_ptr = (const char*)data_in_ptr;
       data_size = data_in_size;
     }
-
 
     template <typename T>
     T read_next()

@@ -98,9 +98,11 @@ namespace kv::untyped
   class Map : public AbstractMap
   {
   public:
-    using K = kv::serialisers::SerialisedEntry;
-    using V = kv::serialisers::SerialisedEntry;
+    using K = SerialisedEntry;
+    using V = SerialisedEntry;
     using H = SerialisedKeyHasher;
+
+    using StateSnapshot = kv::Snapshot<K, V, H>;
 
     using CommitHook = CommitHook<Write>;
 
@@ -294,7 +296,8 @@ namespace kv::untyped
       const SecurityDomain security_domain;
       const bool replicated;
       kv::Version version;
-      champ::Snapshot<K, kv::untyped::VersionV, H> map_snapshot;
+
+      StateSnapshot map_snapshot;
 
     public:
       Snapshot(
@@ -302,7 +305,7 @@ namespace kv::untyped
         SecurityDomain security_domain_,
         bool replicated_,
         kv::Version version_,
-        champ::Snapshot<K, kv::untyped::VersionV, H>&& map_snapshot_) :
+        StateSnapshot&& map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
         replicated(replicated_),
@@ -315,7 +318,6 @@ namespace kv::untyped
         map_snapshot.serialize(data);
       }
 
-      // TODO: Type is probably wrong here
       std::vector<uint8_t> serialise() override
       {
         std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
@@ -642,12 +644,10 @@ namespace kv::untyped
         }
       }
 
-      champ::
-        Snapshot<SerialisedEntry, kv::untyped::VersionV, SerialisedKeyHasher>
-          snapshot(r->state);
+      // StateSnapshot snapshot(r->state);
 
       return std::make_unique<Snapshot>(
-        name, security_domain, replicated, r->version, std::move(snapshot));
+        name, security_domain, replicated, r->version, StateSnapshot(r->state));
     }
 
     void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) override

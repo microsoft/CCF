@@ -62,8 +62,13 @@ namespace kv
       current_writer->append(std::forward<T>(t));
     }
 
+    void serialise_internal_raw(const std::vector<uint8_t>& raw)
+    {
+      current_writer->append_raw(raw);
+    }
+
     void serialise_internal_pre_serialised(
-      const kv::serialisers::SerialisedEntry& raw)
+      const serialisers::SerialisedEntry& raw)
     {
       current_writer->append_pre_serialised(raw);
     }
@@ -114,9 +119,9 @@ namespace kv
     }
 
     // TODO: Different type here
-    void serialise_snapshot(std::vector<uint8_t>&& snapshot)
+    void serialise_snapshot(const std::vector<uint8_t>& snapshot)
     {
-      serialise_internal(snapshot);
+      serialise_internal_raw(snapshot);
     }
 
     template <class Version>
@@ -328,7 +333,7 @@ namespace kv
       // public data
       if (
         domain_restriction.has_value() &&
-        domain_restriction.value() == kv::SecurityDomain::PUBLIC)
+        domain_restriction.value() == SecurityDomain::PUBLIC)
       {
         return version;
       }

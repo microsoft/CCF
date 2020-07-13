@@ -13,6 +13,8 @@ namespace kv
   using VersionV = champ::VersionV<V>;
   template <typename K, typename V, typename H>
   using State = champ::Map<K, VersionV<V>, H>;
+  template <typename K, typename V, typename H>
+  using Snapshot = champ::Snapshot<K, VersionV<V>, H>;
 
   template <typename K>
   using Read = std::map<K, Version>;
