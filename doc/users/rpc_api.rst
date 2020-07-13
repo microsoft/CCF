@@ -17,7 +17,6 @@ The API can also be retrieved from a running service using the `api`_ and `api/s
         "quotes",
         "join",
         "metrics",
-        "mkSign",
         "network_info",
         "node/ids",
         "primary_info",
