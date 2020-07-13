@@ -67,7 +67,7 @@ class Member:
 
     def propose(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.rpc("/gov/propose", proposal, signed=True,)
+            r = mc.rpc("/gov/proposals", proposal, signed=True,)
             if r.status != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
@@ -79,12 +79,7 @@ class Member:
             )
 
     def vote(
-        self,
-        remote_node,
-        proposal,
-        accept=True,
-        force_unsigned=False,
-        wait_for_global_commit=True,
+        self, remote_node, proposal, accept=True, wait_for_global_commit=True,
     ):
         ballot = """
         tables, changes = ...
@@ -92,9 +87,9 @@ class Member:
         """
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.rpc(
-                "/gov/vote",
-                {"ballot": {"text": ballot}, "id": proposal.proposal_id},
-                signed=not force_unsigned,
+                f"/gov/proposals/{proposal.proposal_id}/votes",
+                {"ballot": {"text": ballot}},
+                signed=True,
             )
 
         if r.error is not None:
@@ -118,7 +113,7 @@ class Member:
 
     def withdraw(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as c:
-            r = c.rpc("/gov/withdraw", {"id": proposal.proposal_id}, signed=True)
+            r = c.rpc(f"/gov/proposals/{proposal.proposal_id}/withdraw", signed=True)
             if r.status == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r

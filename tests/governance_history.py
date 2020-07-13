@@ -37,12 +37,14 @@ def count_governance_operations(ledger):
                 request_body = signed_request[0][2]
                 digest = signed_request[0][3]
                 infra.crypto.verify_request_sig(cert, sig, req, request_body, digest)
-                if "/gov/propose" in req.decode():
-                    verified_proposals += 1
-                elif "/gov/vote" in req.decode():
-                    verified_votes += 1
-                elif "/gov/withdraw" in req.decode():
-                    verified_withdrawals += 1
+                request_target_line = req.decode().splitlines()[0]
+                if "/gov/proposals" in request_target_line:
+                    if request_target_line.endswith("/votes"):
+                        verified_votes += 1
+                    elif request_target_line.endswith("/withdraw"):
+                        verified_withdrawals += 1
+                    else:
+                        verified_proposals += 1
 
     return (verified_proposals, verified_votes, verified_withdrawals)
 
@@ -83,12 +85,6 @@ def run(args):
         network.consortium.vote_using_majority(primary, new_member_proposal)
         votes_issued += 1
         assert new_member_proposal.state == infra.proposal.ProposalState.Accepted
-
-        LOG.info("Unsigned votes are rejected")
-        response = network.consortium.get_member_by_id(2).vote(
-            primary, new_member_proposal, accept=True, force_unsigned=True
-        )
-        assert response.status == http.HTTPStatus.UNAUTHORIZED.value
 
         LOG.info("Create new proposal but withdraw it before it is accepted")
         new_member_proposal, _ = network.consortium.generate_and_propose_new_member(
