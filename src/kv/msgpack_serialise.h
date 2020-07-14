@@ -36,7 +36,7 @@ namespace kv
     // data. This means the output is no longer a stream of msgpack objects!
     // Parsers are expected to know the type of the Ks and Vs for the tables
     // they care about, and skip over any others
-    template<typename T>
+    template <typename T>
     void append_pre_serialised(const T& entry)
     {
       const uint64_t size = entry.size();

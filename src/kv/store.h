@@ -267,7 +267,6 @@ namespace kv
       return snapshot.serialise(serialiser);
     }
 
-    // TODO: Review how locking works here, compared to deserialise()
     DeserialiseSuccess deserialise_snapshot(
       const std::vector<uint8_t>& data) override
     {
@@ -305,6 +304,13 @@ namespace kv
         auto map_snapshot = d.deserialise_raw();
 
         search->second->apply_snapshot(map_version, map_snapshot);
+      }
+
+      if (!d.end())
+      {
+        LOG_FAIL_FMT("Failed to deserialize snapshot");
+        LOG_DEBUG_FMT("Unexpected content in Tx at version {}", v);
+        return DeserialiseSuccess::FAILED;
       }
 
       for (auto& map : maps)
@@ -445,13 +451,12 @@ namespace kv
       auto e = get_encryptor();
 
       // create the first deserialiser
-      // TODO: No need for unique ptr here
-      auto d = std::make_unique<KvStoreDeserialiser>(
+      auto d = KvStoreDeserialiser(
         e,
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      auto v_ = d->init(data.data(), data.size());
+      auto v_ = d.init(data.data(), data.size());
       if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
@@ -482,7 +487,7 @@ namespace kv
       std::lock_guard<SpinLock> mguard(maps_lock);
       OrderedViews views;
 
-      for (auto r = d->start_map(); r.has_value(); r = d->start_map())
+      for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
 
@@ -507,7 +512,7 @@ namespace kv
         // version
         auto deserialise_version = (commit ? v : NoVersion);
         auto deserialised_write_set =
-          search->second->deserialise(*d, deserialise_version);
+          search->second->deserialise(d, deserialise_version);
         if (deserialised_write_set == nullptr)
         {
           LOG_FAIL_FMT("Failed to deserialize");
@@ -525,7 +530,7 @@ namespace kv
           std::unique_ptr<AbstractTxView>(deserialised_write_set)};
       }
 
-      if (!d->end())
+      if (!d.end())
       {
         LOG_FAIL_FMT("Failed to deserialize");
         LOG_DEBUG_FMT("Unexpected content in Tx at version {}", v);
