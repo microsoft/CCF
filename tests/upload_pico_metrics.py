@@ -20,8 +20,6 @@ benchmark_specs = {
             "Benchmark": "deserialise<SD::PUBLIC>",
             "D": "10",
         },
-    ],
-    "kv_bench.csv": [
         {
             "_name": "KV snap ser (/s)^",
             "Suite": "serialise_snapshot",
