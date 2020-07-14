@@ -255,42 +255,25 @@ namespace ccf
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept)).install();
 
-      auto get_signed_index = [this](auto& args, nlohmann::json&& params) {
-        GetSignedIndex::Out result;
-        if (this->node.is_reading_public_ledger())
-        {
-          result.state = GetSignedIndex::State::ReadingPublicLedger;
-        }
-        else if (this->node.is_reading_private_ledger())
-        {
-          result.state = GetSignedIndex::State::ReadingPrivateLedger;
-        }
-        else if (this->node.is_part_of_network())
-        {
-          result.state = GetSignedIndex::State::PartOfNetwork;
-        }
-        else if (this->node.is_part_of_public_network())
-        {
-          result.state = GetSignedIndex::State::PartOfPublicNetwork;
-        }
-        else
-        {
-          return make_error(
-            HTTP_STATUS_BAD_REQUEST, "Network is not in recovery mode");
-        }
+      auto get_state = [this](auto& args, nlohmann::json&& params) {
+        GetState::Out result;
+        auto [s, rts, lrs] = this->node.state();
+        result.state = s;
+        result.recovery_target_seqno = rts;
+        result.last_recovered_seqno = lrs;
 
         auto sig_view = args.tx.get_read_only_view(*signatures);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
-          result.signed_index = 0;
+          result.last_signed_seqno = 0;
         else
-          result.signed_index = sig.value().seqno;
+          result.last_signed_seqno = sig.value().seqno;
 
-        return make_success(result);
+        return result;
       };
       make_read_only_endpoint(
-        "signed_index", HTTP_GET, json_read_only_adapter(get_signed_index))
-        .set_auto_schema<GetSignedIndex>()
+        "state", HTTP_GET, json_read_only_adapter(get_state))
+        .set_auto_schema<GetState>()
         .install();
 
       auto get_quote = [this](auto& args, nlohmann::json&&) {

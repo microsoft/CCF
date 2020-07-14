@@ -17,16 +17,27 @@
       },
       "type": "object"
     },
-    "id": {
-      "maximum": 18446744073709551615,
-      "minimum": 0,
-      "type": "integer"
+    "parameter": {},
+    "script": {
+      "properties": {
+        "bytecode": {
+          "items": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "type": "object"
     }
   },
   "required": [
-    "id",
-    "ballot"
+    "script"
   ],
-  "title": "vote/params",
+  "title": "proposals/params",
   "type": "object"
 }

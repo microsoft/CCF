@@ -194,17 +194,21 @@ public:
     return call(method, params, HTTP_POST);
   }
 
-  Response get(const std::string& method, const nlohmann::json& params)
+  Response get(
+    const std::string& method, const nlohmann::json& params = nullptr)
   {
     // GET body is ignored, so params must be placed in query
     auto full_path = method;
-    for (auto it = params.begin(); it != params.end(); ++it)
+    if (!params.is_null())
     {
-      full_path += fmt::format(
-        "{}{}={}",
-        it == params.begin() ? "?" : "&",
-        it.key(),
-        it.value().dump());
+      for (auto it = params.begin(); it != params.end(); ++it)
+      {
+        full_path += fmt::format(
+          "{}{}={}",
+          it == params.begin() ? "?" : "&",
+          it.key(),
+          it.value().dump());
+      }
     }
     return call(full_path, nullptr, HTTP_GET);
   }
