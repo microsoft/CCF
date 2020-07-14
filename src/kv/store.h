@@ -293,19 +293,15 @@ namespace kv
       {
         const auto map_name = r.value();
 
-        LOG_FAIL_FMT("Snapshot map: {}", map_name);
-
-        auto map_version = d.deserialise_entry_version();
-        LOG_FAIL_FMT("Map version: {}", map_version);
-
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          LOG_FAIL_FMT("Failed to deserialize");
+          LOG_FAIL_FMT("Failed to deserialize snapshot");
           LOG_DEBUG_FMT("No such map {} at version {}", map_name, v);
           return DeserialiseSuccess::FAILED;
         }
 
+        auto map_version = d.deserialise_entry_version();
         auto map_snapshot = d.deserialise_raw();
 
         search->second->apply_snapshot(map_version, map_snapshot);
@@ -449,6 +445,7 @@ namespace kv
       auto e = get_encryptor();
 
       // create the first deserialiser
+      // TODO: No need for unique ptr here
       auto d = std::make_unique<KvStoreDeserialiser>(
         e,
         public_only ? kv::SecurityDomain::PUBLIC :
