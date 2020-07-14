@@ -486,8 +486,8 @@ namespace champ
         return true;
       });
 
-      // Sort keys to be able to reproduce same serialised snapshot on different
-      // nodes
+      // Sort keys to be able to generate byte-for-byte serialised snapshot from
+      // the same state
       std::sort(
         ordered_state.begin(), ordered_state.end(), [](KVTuple& i, KVTuple& j) {
           return i.h_k < j.h_k;

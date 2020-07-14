@@ -292,16 +292,16 @@ namespace kv::untyped
     class Snapshot : public AbstractMap::Snapshot
     {
     private:
-      std::string name;
+      const std::string name;
       const SecurityDomain security_domain;
       const bool replicated;
-      kv::Version version;
+      const kv::Version version;
 
       StateSnapshot map_snapshot;
 
     public:
       Snapshot(
-        std::string name_,
+        const std::string& name_,
         SecurityDomain security_domain_,
         bool replicated_,
         kv::Version version_,
@@ -313,46 +313,19 @@ namespace kv::untyped
         map_snapshot(std::move(map_snapshot_))
       {}
 
-      void serialize(uint8_t* data) override
+      void serialise(KvStoreSerialiser& s) override
       {
-        map_snapshot.serialize(data);
-      }
+        s.start_map(name, security_domain);
+        s.serialise_entry_version(version);
 
-      std::vector<uint8_t> serialise() override
-      {
         std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
         map_snapshot.serialize(ret.data());
-        return ret;
-      }
-
-      size_t get_serialized_size() override
-      {
-        return map_snapshot.get_serialized_size();
-      }
-
-      const CBuffer& get_serialized_buffer() override
-      {
-        return map_snapshot.get_serialized_buffer();
-      }
-
-      std::string& get_name() override
-      {
-        return name;
+        s.serialise_snapshot(std::move(ret));
       }
 
       SecurityDomain get_security_domain() override
       {
         return security_domain;
-      }
-
-      bool get_is_replicated() override
-      {
-        return replicated;
-      }
-
-      kv::Version get_version() override
-      {
-        return version;
       }
     };
 
@@ -632,6 +605,9 @@ namespace kv::untyped
 
     std::unique_ptr<AbstractMap::Snapshot> snapshot(Version v) override
     {
+      // This takes a snapshot of the state of the map at the last entry
+      // committed at or before this version. The Map expects to be locked while
+      // taking the snapshot.
       auto r = roll.commits->get_head();
 
       for (auto current = roll.commits->get_tail(); current != nullptr;
@@ -658,26 +634,8 @@ namespace kv::untyped
 
       auto r = roll.commits->get_head();
 
-      // TODO: What about the writes in the roll? What role do they serve?
       r->state = State::deserialize_map(snapshot);
-
-      // TODO: Is the version of the snapshot sufficient here? We would end up
-      // with a roll with a different state here!!
       r->version = version;
-    }
-
-    void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) override
-    {
-      // This discards all entries in the roll and applies the given
-      // snapshot. The Map expects to be locked while applying the snapshot.
-      roll.reset_commits();
-      roll.rollback_counter++;
-
-      auto r = roll.commits->get_head();
-
-      const auto& c = s->get_serialized_buffer();
-      r->state = State::deserialize_map(c);
-      r->version = s->get_version();
     }
 
     void compact(Version v) override

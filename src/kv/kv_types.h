@@ -386,14 +386,8 @@ namespace kv
     {
     public:
       virtual ~Snapshot() = default;
-      virtual void serialize(uint8_t* data) = 0;
-      virtual std::vector<uint8_t> serialise() = 0;
-      virtual size_t get_serialized_size() = 0;
-      virtual std::string& get_name() = 0;
+      virtual void serialise(KvStoreSerialiser& s) = 0;
       virtual SecurityDomain get_security_domain() = 0;
-      virtual bool get_is_replicated() = 0;
-      virtual kv::Version get_version() = 0;
-      virtual const CBuffer& get_serialized_buffer() = 0;
     };
 
     virtual ~AbstractMap() {}
@@ -408,7 +402,6 @@ namespace kv
     virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;
-    virtual void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) = 0;
     virtual void apply_snapshot(
       Version v, const std::vector<uint8_t>& snapshot) = 0;
     virtual void post_compact() = 0;
@@ -432,12 +425,7 @@ namespace kv
       virtual ~AbstractSnapshot() = default;
       virtual void add_map_snapshot(
         std::unique_ptr<kv::AbstractMap::Snapshot> snapshot) = 0;
-      virtual const std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>&
-      get_map_snapshots() = 0;
-      virtual void serialize() = 0;
       virtual std::vector<uint8_t> serialise(KvStoreSerialiser& s) = 0;
-
-      virtual kv::Version get_version() const = 0;
     };
 
     virtual ~AbstractStore() {}
@@ -458,12 +446,14 @@ namespace kv
       bool public_only = false,
       Term* term = nullptr) = 0;
     virtual void compact(Version v) = 0;
-    virtual std::unique_ptr<AbstractSnapshot> snapshot(Version v) = 0;
-    virtual std::vector<uint8_t> snapshot_serialise(Version v) = 0;
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual CommitSuccess commit(
       const TxID& txid, PendingTx pt, bool globally_committable) = 0;
+
+    virtual std::vector<uint8_t> serialise_snapshot(Version v) = 0;
+    virtual DeserialiseSuccess deserialise_snapshot(
+      const std::vector<uint8_t>& data) = 0;
 
     virtual size_t commit_gap() = 0;
   };

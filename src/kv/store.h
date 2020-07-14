@@ -220,10 +220,57 @@ namespace kv
       return *result;
     }
 
-    DeserialiseSuccess deserialise_snapshot(const std::vector<uint8_t>& data)
+    std::vector<uint8_t> serialise_snapshot(Version v) override
     {
-      // TODO: Unify with deserialise() for write sets
+      if (v < commit_version())
+      {
+        throw ccf::ccf_logic_error(fmt::format(
+          "Attempting to snapshot at version {} which is earlier than "
+          "committed version {} ",
+          v,
+          commit_version()));
+      }
 
+      if (v > current_version())
+      {
+        throw ccf ::ccf_logic_error(fmt::format(
+          "Attempting to snapshot at version {} which is later "
+          "than current version {}",
+          v,
+          current_version()));
+      }
+
+      StoreSnapshot snapshot;
+
+      {
+        std::lock_guard<SpinLock> mguard(maps_lock);
+
+        for (auto& map : maps)
+        {
+          map.second->lock();
+        }
+
+        for (auto& map : maps)
+        {
+          snapshot.add_map_snapshot(map.second->snapshot(v));
+        }
+
+        for (auto& map : maps)
+        {
+          map.second->unlock();
+        }
+      }
+
+      auto e = get_encryptor();
+      KvStoreSerialiser serialiser(e, v, true);
+
+      return snapshot.serialise(serialiser);
+    }
+
+    // TODO: Review how locking works here, compared to deserialise()
+    DeserialiseSuccess deserialise_snapshot(
+      const std::vector<uint8_t>& data) override
+    {
       auto e = get_encryptor();
       auto d = KvStoreDeserialiser(e);
 
@@ -235,7 +282,6 @@ namespace kv
       }
       auto v = v_.value();
 
-      // TODO: Review maps
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       for (auto& map : maps)
@@ -278,133 +324,6 @@ namespace kv
       }
 
       return DeserialiseSuccess::PASS;
-    }
-
-    void deserialize(const std::unique_ptr<AbstractSnapshot>& snapshot)
-    {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
-      for (auto& map : maps)
-      {
-        map.second->lock();
-      }
-
-      const auto& snapshots = snapshot->get_map_snapshots();
-      CCF_ASSERT_FMT(
-        maps.size() == snapshots.size(),
-        "Number of maps does not match the snapshot, maps:{}, snapshots:{}",
-        maps.size(),
-        snapshots.size());
-      for (auto& s : snapshots)
-      {
-        auto search = maps.find(s->get_name());
-        if (search == maps.end())
-        {
-          throw ccf::ccf_logic_error(
-            fmt::format("Map does not exist - {}", s->get_name()));
-        }
-
-        search->second->apply(s);
-      }
-
-      for (auto& map : maps)
-      {
-        map.second->unlock();
-      }
-
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        version = snapshot->get_version();
-        last_replicated = snapshot->get_version();
-        last_committable = snapshot->get_version();
-      }
-    }
-
-    std::vector<uint8_t> snapshot_serialise(Version v) override
-    {
-      // Only generate the snapshot in the lock but do not serialise yet as it
-      // is expensive. When the snapshot is generated, a shared pointer to the
-      // underlying state is taken (basically free).
-      auto snapshot = std::make_unique<StoreSnapshot>(v);
-
-      {
-        std::lock_guard<SpinLock> mguard(maps_lock);
-
-        if (v < commit_version())
-        {
-          throw ccf::ccf_logic_error(fmt::format(
-            "Attempting to snapshot at invalid version v:{}, "
-            "commit_version:{}",
-            v,
-            commit_version()));
-        }
-
-        for (auto& map : maps)
-        {
-          map.second->lock();
-        }
-
-        for (auto& map : maps)
-        {
-          snapshot->add_map_snapshot(map.second->snapshot(v));
-        }
-
-        for (auto& map : maps)
-        {
-          map.second->unlock();
-        }
-      }
-
-      auto e = get_encryptor();
-      KvStoreSerialiser serialiser(e, v, true);
-
-      return snapshot->serialise(serialiser);
-    }
-
-    // TODO: It feels like we should specify a version here but instead do like
-    // the normal transactions get a version on the fly
-    std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
-    {
-      auto snapshot = std::make_unique<StoreSnapshot>(v);
-
-      {
-        std::lock_guard<SpinLock> mguard(maps_lock);
-
-        if (v < commit_version())
-        {
-          throw ccf::ccf_logic_error(fmt::format(
-            "Attempting to snapshot at version {} which is earlier than "
-            "committed version {}",
-            v,
-            commit_version()));
-        }
-
-        if (v > current_version())
-        {
-          throw ccf ::ccf_logic_error(fmt::format(
-            "Attempting to snapshot at version {} which is later "
-            "than current version {}",
-            v,
-            current_version()));
-        }
-
-        for (auto& map : maps)
-        {
-          map.second->lock();
-        }
-
-        for (auto& map : maps)
-        {
-          snapshot->add_map_snapshot(map.second->snapshot(v));
-        }
-
-        for (auto& map : maps)
-        {
-          map.second->unlock();
-        }
-      }
-      snapshot->serialize();
-      return snapshot;
     }
 
     void compact(Version v) override

@@ -83,12 +83,8 @@ namespace kv
       return untyped_map.snapshot(v);
     }
 
-    void apply(const std::unique_ptr<AbstractMap::Snapshot>& s) override
-    {
-      untyped_map.apply(s);
-    }
-
-    void apply_snapshot(Version v, const std::vector<uint8_t>& snapshot) override
+    void apply_snapshot(
+      Version v, const std::vector<uint8_t>& snapshot) override
     {
       untyped_map.apply_snapshot(v, snapshot);
     }
