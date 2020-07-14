@@ -30,20 +30,14 @@ namespace kv
       msgpack::pack(sb, std::forward<T>(t));
     }
 
-    void append_raw(const std::vector<uint8_t>& raw)
-    {
-      const uint64_t size = raw.size();
-      sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
-      sb.write(reinterpret_cast<char const*>(raw.data()), raw.size());
-    }
-
     // Where we have pre-serialised data, we dump it length-prefixed into the
     // output buffer. If we call append, then pack will prefix the data with
     // some type information, potentially redundantly repacking already-packed
     // data. This means the output is no longer a stream of msgpack objects!
     // Parsers are expected to know the type of the Ks and Vs for the tables
     // they care about, and skip over any others
-    void append_pre_serialised(const kv::serialisers::SerialisedEntry& entry)
+    template<typename T>
+    void append_pre_serialised(const T& entry)
     {
       const uint64_t size = entry.size();
       sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
@@ -98,28 +92,8 @@ namespace kv
       return msg->as<T>();
     }
 
-    kv::serialisers::SerialisedEntry read_next_pre_serialised()
-    {
-      auto remainder = data_size - data_offset;
-      auto data = reinterpret_cast<const uint8_t*>(data_ptr + data_offset);
-      const auto entry_size = serialized::read<uint64_t>(data, remainder);
-
-      if (remainder < entry_size)
-      {
-        throw std::runtime_error(fmt::format(
-          "Expected {} byte entry, found only {}", entry_size, remainder));
-      }
-
-      const auto bytes_read = data_size - data_offset - remainder;
-      data_offset += bytes_read;
-
-      const auto before_offset = data_offset;
-      data_offset += entry_size;
-      return kv::serialisers::SerialisedEntry(
-        data_ptr + before_offset, data_ptr + data_offset);
-    }
-
-    std::vector<uint8_t> read_next_raw()
+    template <typename T>
+    T read_next_pre_serialised()
     {
       auto remainder = data_size - data_offset;
       auto data = reinterpret_cast<const uint8_t*>(data_ptr + data_offset);

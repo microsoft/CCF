@@ -62,15 +62,10 @@ namespace kv
       current_writer->append(std::forward<T>(t));
     }
 
-    void serialise_internal_raw(const std::vector<uint8_t>& raw)
+    template <typename T>
+    void serialise_internal_pre_serialised(const T& raw)
     {
-      current_writer->append_raw(raw);
-    }
-
-    void serialise_internal_pre_serialised(
-      const serialisers::SerialisedEntry& raw)
-    {
-      current_writer->append_pre_serialised(raw);
+      current_writer->template append_pre_serialised<T>(raw);
     }
 
     void set_current_domain(SecurityDomain domain)
@@ -120,7 +115,7 @@ namespace kv
 
     void serialise_snapshot(const std::vector<uint8_t>& snapshot)
     {
-      serialise_internal_raw(snapshot);
+      serialise_internal_pre_serialised(snapshot);
     }
 
     template <class Version>
@@ -387,8 +382,9 @@ namespace kv
 
     std::tuple<SerialisedKey, Version> deserialise_read()
     {
-      return {current_reader->read_next_pre_serialised(),
-              current_reader->template read_next<Version>()};
+      return {
+        current_reader->template read_next_pre_serialised<SerialisedKey>(),
+        current_reader->template read_next<Version>()};
     }
 
     uint64_t deserialise_write_header()
@@ -398,13 +394,16 @@ namespace kv
 
     std::tuple<SerialisedKey, SerialisedValue> deserialise_write()
     {
-      return {current_reader->read_next_pre_serialised(),
-              current_reader->read_next_pre_serialised()};
+      return {
+        current_reader->template read_next_pre_serialised<SerialisedKey>(),
+        current_reader->template read_next_pre_serialised<SerialisedValue>()};
     }
 
     std::vector<uint8_t> deserialise_raw()
     {
-      return current_reader->read_next_raw();
+      // return current_reader->read_next_raw();
+      return current_reader
+        ->template read_next_pre_serialised<std::vector<uint8_t>>();
     }
 
     uint64_t deserialise_remove_header()
@@ -414,7 +413,7 @@ namespace kv
 
     SerialisedKey deserialise_remove()
     {
-      return current_reader->read_next_pre_serialised();
+      return current_reader->template read_next_pre_serialised<SerialisedKey>();
     }
 
     bool end()

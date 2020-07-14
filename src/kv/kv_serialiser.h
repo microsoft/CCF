@@ -3,7 +3,6 @@
 
 #pragma once
 
-// TODO: Test with JSON as well
 #ifdef USE_NLJSON_KV_SERIALISER
 #  include "kv/nljson_serialise.h"
 #else

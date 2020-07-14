@@ -320,7 +320,7 @@ namespace kv::untyped
 
         std::vector<uint8_t> ret(map_snapshot.get_serialized_size());
         map_snapshot.serialize(ret.data());
-        s.serialise_snapshot(std::move(ret));
+        s.serialise_snapshot(ret);
       }
 
       SecurityDomain get_security_domain() override
