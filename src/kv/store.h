@@ -235,6 +235,7 @@ namespace kv
       }
       auto v = v_.value();
 
+      // TODO: Review maps
       std::lock_guard<SpinLock> mguard(maps_lock);
 
       for (auto& map : maps)
@@ -267,6 +268,13 @@ namespace kv
       for (auto& map : maps)
       {
         map.second->unlock();
+      }
+
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        version = v;
+        last_replicated = v;
+        last_committable = v;
       }
 
       return DeserialiseSuccess::PASS;
@@ -348,7 +356,7 @@ namespace kv
       }
 
       auto e = get_encryptor();
-      KvStoreSerialiser serialiser(e, version, true);
+      KvStoreSerialiser serialiser(e, v, true);
 
       return snapshot->serialise(serialiser);
     }
