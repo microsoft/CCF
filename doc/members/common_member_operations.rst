@@ -59,19 +59,28 @@ To limit the scope of key compromise, members of the consortium can refresh the 
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @rekey_ledger.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @rekey_ledger.json -H "content-type: application/json"
     {
-        "completed": false,
-        "id": 1
+        "proposal_id": 4,
+        "proposer_id": 1,
+        "state": "OPEN"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
-    false
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    {
+        "proposal_id": 4,
+        "proposer_id": 1,
+        "state": "OPEN"
+    }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
-    true
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    {
+        "proposal_id": 4,
+        "proposer_id": 1,
+        "state": "ACCEPTED"
+    }
 
-Once the proposal is accepted (``"result":true``), all subsequent transactions will be encrypted with a fresh new ledger encryption key.
+Once the proposal is accepted (``"state": "ACCEPTED"``) it is immediately enacted. All subsequent transactions will be encrypted with a fresh new ledger encryption key.
 
 Updating Recovery Threshold
 ---------------------------
@@ -92,16 +101,25 @@ The number of member shares required to restore the private ledger (``recovery_t
         }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @set_recovery_threshold.json -H "content-type: application/json"
     {
-        "completed": false,
-        "id": 1
+        "proposal_id": 5,
+        "proposer_id": 1,
+        "state": "OPEN"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
-    false
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/5/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    {
+        "proposal_id": 5,
+        "proposer_id": 1,
+        "state": "OPEN"
+    }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
-    true
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/5/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept_1.json -H "content-type: application/json"
+    {
+        "proposal_id": 5,
+        "proposer_id": 1,
+        "state": "ACCEPTED"
+    }
 
 .. note:: The new recovery threshold has to be in the range between 1 and the current number of active members.

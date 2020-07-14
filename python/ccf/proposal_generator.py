@@ -21,7 +21,7 @@ def list_as_lua_literal(l):
 
 
 def script_to_vote_object(script):
-    return {"ballot": {"text": script}, "id": PROPOSAL_ID_PLACEHOLDER}
+    return {"ballot": {"text": script}}
 
 
 TRIVIAL_YES_BALLOT = {"text": "return true"}
@@ -41,9 +41,6 @@ function equal_arrays(a, b)
   end
 end
 """
-
-
-PROPOSAL_ID_PLACEHOLDER = "<replace with desired proposal_id>"
 
 
 def add_arg_construction(lines, arg, arg_name="args"):
@@ -107,10 +104,7 @@ def build_proposal(proposed_call, args=None, inline_args=False):
         add_arg_checks(vote_lines, args)
     vote_lines.append("return true")
     vote_text = "; ".join(vote_lines)
-    vote = {
-        "ballot": {"text": vote_text},
-        "id": PROPOSAL_ID_PLACEHOLDER,
-    }
+    vote = {"ballot": {"text": vote_text}}
 
     LOG.trace(f"Made {proposed_call} proposal:\n{json.dumps(proposal, indent=2)}")
     LOG.trace(f"Accompanying vote:\n{json.dumps(vote, indent=2)}")
@@ -124,7 +118,7 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def new_member(member_cert_path, member_enc_pubk_path):
+def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
     LOG.debug("Generating new_member proposal")
 
     # Convert certs to byte arrays
@@ -137,7 +131,7 @@ def new_member(member_cert_path, member_enc_pubk_path):
     return Calls:call("new_member", args)
     """
 
-    # Proposal object (request body for /gov/propose) containing this member's info as parameter
+    # Proposal object (request body for POST /gov/proposals) containing this member's info as parameter
     proposal = {
         "parameter": {"cert": member_cert, "keyshare": member_keyshare_encryptor},
         "script": {"text": proposal_script_text},
@@ -170,11 +164,8 @@ def new_member(member_cert_path, member_enc_pubk_path):
     return true
     """
 
-    # Vote object (request body for /gov/vote)
-    verifying_vote = {
-        "ballot": {"text": verifying_vote_text},
-        "id": PROPOSAL_ID_PLACEHOLDER,
-    }
+    # Vote object (request body for POST /gov/proposals/{proposal_id}/votes)
+    verifying_vote = {"ballot": {"text": verifying_vote_text}}
 
     LOG.trace(f"Made new member proposal:\n{json.dumps(proposal, indent=2)}")
     LOG.trace(f"Accompanying vote:\n{json.dumps(verifying_vote, indent=2)}")
@@ -279,13 +270,13 @@ if __name__ == "__main__":
         "-po",
         "--proposal-output-file",
         type=str,
-        help=f"Path where proposal JSON object (request body for /gov/propose) will be dumped. Default is {default_proposal_output}",
+        help=f"Path where proposal JSON object (request body for POST /gov/proposals) will be dumped. Default is {default_proposal_output}",
     )
     parser.add_argument(
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for /gov/vote) will be dumped. Default is {default_vote_output}",
+        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/votes) will be dumped. Default is {default_vote_output}",
     )
     parser.add_argument(
         "-pp",

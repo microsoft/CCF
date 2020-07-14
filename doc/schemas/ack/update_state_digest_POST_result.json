@@ -1,6 +1,50 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
+    "signed_req": {
+      "properties": {
+        "md": {
+          "enum": [
+            "MBEDTLS_MD_NONE",
+            "MBEDTLS_MD_SHA1",
+            "MBEDTLS_MD_SHA256",
+            "MBEDTLS_MD_SHA384",
+            "MBEDTLS_MD_SHA512"
+          ]
+        },
+        "req": {
+          "items": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "request_body": {
+          "items": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "sig": {
+          "items": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "sig",
+        "req",
+        "request_body",
+        "md"
+      ],
+      "type": "object"
+    },
     "state_digest": {
       "items": {
         "maximum": 255,
@@ -11,7 +55,8 @@
     }
   },
   "required": [
-    "state_digest"
+    "state_digest",
+    "signed_req"
   ],
   "title": "ack/update_state_digest/result",
   "type": "object"
