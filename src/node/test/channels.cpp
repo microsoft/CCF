@@ -130,11 +130,9 @@ TEST_CASE("Client/Server key exchange")
 
     // Messages sent before channel was established are flushed
     auto outbound_msgs = read_outbound_msgs<MsgType>(eio1);
-    REQUIRE(outbound_msgs.size() == 2);
+    REQUIRE(outbound_msgs.size() == 1);
     REQUIRE(outbound_msgs[0].type == NodeMsgType::consensus_msg);
     REQUIRE(outbound_msgs[0].authenticated_hdr == msg);
-    REQUIRE(outbound_msgs[1].type == NodeMsgType::consensus_msg);
-    REQUIRE(outbound_msgs[1].authenticated_hdr == msg);
 
     REQUIRE(channel2.load_peer_signed_public(
       true, channel1_signed_public.data(), channel1_signed_public.size()));

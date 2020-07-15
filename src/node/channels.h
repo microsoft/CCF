@@ -12,7 +12,6 @@
 #include <iostream>
 #include <map>
 #include <mbedtls/ecdh.h>
-#include <queue>
 
 namespace ccf
 {
@@ -52,53 +51,18 @@ namespace ccf
   class Channel
   {
   private:
-    class OutgoingQueue
+    struct OutgoingMsg
     {
-    public:
-      struct Msg
-      {
-        NodeMsgType type;
-        std::vector<uint8_t> raw_plain; // To be integrity-protected
-        std::vector<uint8_t> raw_cipher; // To be encrypted
+      NodeMsgType type;
+      std::vector<uint8_t> raw_plain; // To be integrity-protected
+      std::vector<uint8_t> raw_cipher; // To be encrypted
 
-        Msg(NodeMsgType msg_type, CBuffer raw_plain_, CBuffer raw_cipher_) :
-          type(msg_type),
-          raw_plain(raw_plain_),
-          raw_cipher(raw_cipher_)
-        {}
-      };
-
-    private:
-      static constexpr auto max_queued_msgs = 16;
-      std::queue<Msg> outgoing_msgs;
-      Channel& parent;
-
-    public:
-      OutgoingQueue(Channel& parent_) : parent(parent_) {}
-
-      void queue_msg(Msg&& msg)
-      {
-        if (outgoing_msgs.size() < max_queued_msgs)
-        {
-          outgoing_msgs.emplace(std::move(msg));
-        }
-        else
-        {
-          LOG_DEBUG_FMT(
-            "Cannot queue msg for node as channel is full (max size: {})",
-            max_queued_msgs);
-        }
-      }
-
-      void flush_all()
-      {
-        while (outgoing_msgs.size() != 0)
-        {
-          auto& msg = outgoing_msgs.front();
-          parent.send(msg.type, msg.raw_plain, msg.raw_cipher);
-          outgoing_msgs.pop();
-        }
-      }
+      OutgoingMsg(
+        NodeMsgType msg_type, CBuffer raw_plain_, CBuffer raw_cipher_) :
+        type(msg_type),
+        raw_plain(raw_plain_),
+        raw_cipher(raw_cipher_)
+      {}
     };
 
     NodeId self;
@@ -121,8 +85,9 @@ namespace ccf
     // Incremented for each tagged/encrypted message
     std::atomic<SeqNo> send_nonce{1};
 
-    // Used to buffer message sent on the channel before it is established
-    OutgoingQueue outgoing_queue;
+    // Used to buffer at most one message sent on the channel before it is
+    // established
+    std::optional<OutgoingMsg> outgoing_msg;
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
@@ -215,8 +180,7 @@ namespace ccf
       peer_id(peer_id_),
       peer_hostname(peer_hostname_),
       peer_service(peer_service_),
-      outgoing(true),
-      outgoing_queue(*this)
+      outgoing(true)
     {
       RINGBUFFER_WRITE_MESSAGE(
         ccf::add_node, to_host, peer_id, peer_hostname, peer_service);
@@ -231,8 +195,7 @@ namespace ccf
       network_kp(network_kp_),
       self(self_),
       peer_id(peer_id_),
-      outgoing(false),
-      outgoing_queue(*this)
+      outgoing(false)
     {}
 
     ~Channel()
@@ -370,7 +333,14 @@ namespace ccf
       ctx.free_ctx();
       status = ESTABLISHED;
 
-      outgoing_queue.flush_all();
+      if (outgoing_msg.has_value())
+      {
+        send(
+          outgoing_msg->type,
+          outgoing_msg->raw_plain,
+          outgoing_msg->raw_cipher);
+        outgoing_msg.reset();
+      }
 
       LOG_INFO_FMT("node channel with {} is now established", peer_id);
 
@@ -391,7 +361,7 @@ namespace ccf
       if (status != ESTABLISHED)
       {
         try_establish_channel();
-        outgoing_queue.queue_msg(OutgoingQueue::Msg(msg_type, aad, plain));
+        outgoing_msg = OutgoingMsg(msg_type, aad, plain);
         return false;
       }
 
