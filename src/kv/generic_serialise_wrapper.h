@@ -401,7 +401,6 @@ namespace kv
 
     std::vector<uint8_t> deserialise_raw()
     {
-      // return current_reader->read_next_raw();
       return current_reader
         ->template read_next_pre_serialised<std::vector<uint8_t>>();
     }
