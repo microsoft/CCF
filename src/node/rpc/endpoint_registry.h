@@ -585,7 +585,7 @@ namespace ccf
       }
 
       std::smatch match;
-      for (const auto& [method, verb_endpoints] : templated_endpoints)
+      for (const auto& [original_method, verb_endpoints] : templated_endpoints)
       {
         for (const auto& [verb, endpoint] : verb_endpoints)
         {

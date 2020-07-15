@@ -1,68 +1,78 @@
 Proposing and Voting for a Proposal
 ===================================
 
-This page explains how members can submit and vote for proposals before they get accepted.
+This page explains how members can submit and vote for proposals.
 
-Any member (proposer) can submit a new proposal. Other members can then vote on this proposal using its unique proposal id.
+Any member can submit a new proposal. All members can then vote on this proposal using its unique proposal id. Each member may alter their vote (by submitting a new vote) any number of times while the proposal is open. The member who originally submitted the proposal (the `proposer`) votes for the proposal by default, but has the option to include a negative or conditional vote like any other member. Additionally, the proposer has the ability to `withdraw` a proposal while it is open.
 
-Once a proposal is accepted under the rules of the :term:`Constitution`, it is executed and its effects are recorded in the ledger.
+Each time a vote is submitted, all vote ballots for this proposal are re-executed on the current state to determine whether they are `for` or `against` the proposal. This vote tally is passed to the :term:`Constitution`, which determines whether the proposal is accepted or remains open. Once a proposal is accepted under the rules of the :term:`Constitution`, it is executed and its effects are recorded in the ledger.
 
 For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.
 
 Submitting a New Proposal
 -------------------------
 
-Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``members/propose`` and vote using ``members/vote``.
+Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using ``POST /gov/proposals`` and vote using ``POST /gov/proposals/{proposal_id}/votes``.
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
 
 .. code-block:: bash
 
-    $ cat add_member.json
+    $ cat new_member.json
     {
-        "parameter": {"cert": [<cert of member4>], "keyshare": [<public keyshare of member4>]},
-        "script": {
-            "text": "tables, member_info = ...; return Calls:call(\"new_member\", member_info)"
-        }
+      "parameter": {
+        "cert": "-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUTu47sG/Ziz4hgoeMhKzs/alrEYcwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcwOTE0NTc0OFoXDTIxMDcwOTE0NTc0OFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAENhB3M5fWT5YQ\n+vBOl0T9xt29CvYBsJyLCGeflqLAFA4YDs7Bb3mMH46EiJg+BFT0HmIPtGW91qE5\nZEPMINQ2zuU0IU6uomPBi76pQ5vhm/2HDy3SLDwRytrSDNqTXZXfo1MwUTAdBgNV\nHQ4EFgQUBchpeGuTHjy4XuwdgQqC3pOqOdEwHwYDVR0jBBgwFoAUBchpeGuTHjy4\nXuwdgQqC3pOqOdEwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\nmNPNpZvqn3piEepKGFJtqKtq+bZxUZuWZxxXILj4/qnC1fLatJaMQ/DHRtCxwcU/\nAjEAtZe3LAQ6NtVIrn4qFG3ruuEgFL9arCpFGEBLFkVdkL2nFIBTp1L4C1/aJBqk\nK9d9\n-----END CERTIFICATE-----\n",
+        "keyshare": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VuAyEAO63rFGghBlp4DUvFQ6437ZGBlB8LNHnzgNEjW5hRPHM=\n-----END PUBLIC KEY-----\n"
+      },
+      "script": {
+        "text": "tables, args = ...; return Calls:call(\"new_member\", args)"
+      }
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/propose --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals --cacert network_cert --key member1_privk --cert member1_cert --data-binary @add_member.json -H "content-type: application/json"
     {
-      "completed": false,
-      "id": 1
+      "proposal_id": 4,
+      "proposer_id": 1,
+      "state": "OPEN"
     }
 
-In this case, a new proposal with id ``1`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or withhold their vote until later). Other members can then vote to accept or reject the proposal:
+In this case, a new proposal with id ``4`` has successfully been created and the proposer member has voted to accept it (they may instead pass a voting ballot with their proposal if they wish to vote conditionally, or withhold their vote until later). Other members can then vote to accept or reject the proposal:
 
 .. code-block:: bash
 
-    // Proposal 1 is already created by member 1 (votes: 1/3)
+    # Proposal 4 already exists, and has a single vote in favour from the proposer member 1 (votes in favour: 1/3)
 
     $ cat vote_reject.json
     {
         "ballot": {
             "text": "return false"
-        },
-        "id": 0
+        }
     }
 
     $ cat vote_accept.json
     {
         "ballot": {
             "text": "return true"
-        },
-        "id": 0
+        }
     }
 
-    // Member 2 rejects the proposal (votes: 1/3)
-    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
-    false
+    # Member 2 rejects the proposal (votes in favour: 1/3)
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4/votes --cacert network_cert --key member2_privk --cert member2_cert --data-binary @vote_reject.json -H "content-type: application/json"
+    {
+      "proposal_id": 4,
+      "proposer_id": 1,
+      "state": "OPEN"
+    }
 
-    // Member 3 accepts the proposal (votes: 2/3)
-    $ ./scurl.sh https://<ccf-node-address>/gov/vote --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
-    true
+    # Member 3 accepts the proposal (votes in favour: 2/3)
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4/votes --cacert network_cert --key member3_privk --cert member3_cert --data-binary @vote_accept.json -H "content-type: application/json"
+    {
+      "proposal_id": 4,
+      "proposer_id": 1,
+      "state": "ACCEPTED"
+    }
 
-    // As a majority of members have accepted the proposal, member4 is added to the consortium
+    # As a majority of members have accepted the proposal, member 4 is added to the consortium
 
 As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members has been reached and the proposal completes, successfully adding ``member4``.
 
@@ -71,55 +81,51 @@ As soon as ``member3`` accepts the proposal, a majority (2 out of 3) of members 
 Displaying Proposals
 --------------------
 
-The details of pending proposals, including the proposer member id, proposal script, parameters, and votes, can be queried from the service by calling ``members/query`` and reading the ``ccf.proposals`` table. For example:
+The details of pending proposals, including the proposer member id, proposal script, parameters, and votes, can be queried from the service by calling ``GET /gov/proposals/{proposal_id}``. For example, after accepting the proposal above:
 
 .. code-block:: bash
 
-    $ cat display_proposals.json
+    # The full proposal state, including votes, can still be retrieved by any member
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/4 --cacert networkcert.pem --key member3_privk.pem --cert member3_cert.pem -H "content-type: application/json" -X GET
     {
-      "text": "tables = ...; local proposals = {}; tables[\"ccf.proposals\"]:foreach( function(k, v) proposals[tostring(k)] = v; end ) return proposals;"
-    }
-
-    $ ./scurl.sh https://<ccf-node-address>/gov/query --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @display_proposals.json -H "content-type: application/json"
-    {
-      "1": {
-        "parameter": [...],
-        "proposer": 0,
-        "script": {
-          "text": "tables, member_cert = ...\n return Calls:call(\"new_member\", member_cert)"
-        },
-        "votes": [
-          [
-            0,
-            {
-              "text": "return true"
-            }
-          ],
-          [
-            1,
-            {
-              "text": "return false"
-            }
-          ]
+      "parameter": {...},
+      "proposer": 1,
+      "script": {...},
+      "state": "ACCEPTED",
+      "votes": [
+        [
+          1,
+          {
+            "text": "return true"
+          }
+        ],
+        [
+          2,
+          {
+            "text": "return true"
+          }
+        ],
+        [
+          3,
+          {
+            "text": "return false"
+          }
         ]
-      }
+      ]
     }
-
-In this case, there is one pending proposal (``id`` is 1), proposed by the first member (``member1``, ``id`` is 0) and which will call the ``new_member`` function with the new member's certificate as a parameter. Two votes have been cast: ``member1`` (proposer) has voted for the proposal, while ``member2`` (``id`` is 1) has voted against it.
 
 Withdrawing a Proposal
 ----------------------
 
-At any stage during the voting process and before the proposal is completed, the proposing member may decide to withdraw a pending proposal:
+At any stage during the voting process, before the proposal is accepted, the proposing member may decide to withdraw a pending proposal:
 
 .. code-block:: bash
 
-    $ cat withdraw_0.json
+    $ ./scurl.sh https://<ccf-node-address>/gov/proposals/<proposal-id>/withdraw --cacert networkcert.pem --key member1_privk.pem --cert member1_cert.pem -H "content-type: application/json"
     {
-      "id": 0
+      "proposal_id": 4,
+      "proposer_id": 1,
+      "state": "WITHDRAWN"
     }
 
-    $ ./scurl.sh https://<ccf-node-address>/gov/withdraw --cacert networkcert.pem --key member0_privk.pem --cert member0_cert.pem --data-binary @withdraw_0.json -H "content-type: application/json"
-    true
-
-This means future votes will be ignored, and the proposal will never be accepted. However it will remain visible as a proposal so members can easily audit historic proposals.
+This means future votes will be rejected, and the proposal will never be accepted. However it remains visible as a proposal so members can easily audit historic proposals.

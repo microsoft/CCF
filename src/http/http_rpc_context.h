@@ -100,21 +100,6 @@ namespace http
           auto& signed_headers = parsed_sign_params->signed_headers;
           signed_headers.emplace_back(http::headers::AUTHORIZATION);
 
-          for (const auto& required_header :
-               {http::headers::DIGEST, http::headers::CONTENT_LENGTH})
-          {
-            if (
-              std::find(
-                signed_headers.begin(),
-                signed_headers.end(),
-                required_header) == signed_headers.end())
-            {
-              throw std::logic_error(fmt::format(
-                "HTTP authorization header must sign header '{}'",
-                required_header));
-            }
-          }
-
           auto it = request_headers.begin();
           while (it != request_headers.end())
           {
