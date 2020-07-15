@@ -361,6 +361,7 @@ namespace ccf
       if (status != ESTABLISHED)
       {
         try_establish_channel();
+        LOG_FAIL_FMT("Queuing channel msg"); // TODO: Delete me
         outgoing_msg = OutgoingMsg(msg_type, aad, plain);
         return false;
       }
