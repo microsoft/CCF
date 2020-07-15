@@ -25,26 +25,26 @@ def test(network, args, notifications_queue=None):
 
         LOG.info("Write/Read on primary")
         with primary.client("user0") as c:
-            r = c.rpc("/app/log/private", {"id": 42, "msg": msg})
+            r = c.post("/app/log/private", {"id": 42, "msg": msg})
             check_commit(r, result=True)
             check(c.get("/app/log/private", {"id": 42}), result={"msg": msg})
             for _ in range(10):
-                c.rpc(
+                c.post(
                     "/app/log/private", {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
-                c.rpc("/app/log/private", {"id": 43, "msg": "A final message"}),
+                c.post("/app/log/private", {"id": 43, "msg": "A final message"}),
                 result=True,
             )
             r = c.get("/app/receipt", {"commit": r.seqno})
             check(
-                c.rpc("/app/receipt/verify", {"receipt": r.body["receipt"]}),
+                c.post("/app/receipt/verify", {"receipt": r.body["receipt"]}),
                 result={"valid": True},
             )
             invalid = r.body["receipt"]
             invalid[-3] += 1
             check(
-                c.rpc("/app/receipt/verify", {"receipt": invalid}),
+                c.post("/app/receipt/verify", {"receipt": invalid}),
                 result={"valid": False},
             )
 

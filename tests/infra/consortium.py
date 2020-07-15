@@ -48,7 +48,7 @@ class Consortium:
             self.recovery_threshold = len(self.members)
         else:
             with remote_node.client("member0") as mc:
-                r = mc.rpc(
+                r = mc.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
@@ -74,7 +74,7 @@ class Consortium:
                     self.members.append(new_member)
                     LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
 
-                r = mc.rpc(
+                r = mc.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
@@ -175,7 +175,7 @@ class Consortium:
 
         proposals = []
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc("/gov/query", {"text": script})
+            r = c.post("/gov/query", {"text": script})
             assert r.status == http.HTTPStatus.OK.value
             for proposal_id, attr in r.body.items():
                 has_proposer_voted_for = False
@@ -199,7 +199,7 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal)
 
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc(
+            r = c.post(
                 "/gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
             )
             assert r.body["status"] == infra.node.NodeStatus.RETIRED.name
@@ -333,7 +333,7 @@ class Consortium:
             f"member{self.get_any_active_member().member_id}",
             request_timeout=(30 if pbft_open else 3),
         ) as c:
-            r = c.rpc(
+            r = c.post(
                 "/gov/query",
                 {
                     "text": """tables = ...
@@ -370,7 +370,7 @@ class Consortium:
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc("/gov/read", {"table": "ccf.nodes", "key": node_id})
+            r = c.post("/gov/read", {"table": "ccf.nodes", "key": node_id})
 
             if r.status != 200 or (
                 node_status and r.body["status"] != node_status.name

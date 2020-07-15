@@ -40,20 +40,26 @@ DEFAULT_REQUEST_TIMEOUT_SEC = 3
 
 class Request:
     def __init__(
-        self, method, params=None, http_verb="POST", headers=None, params_in_query=None
+        self, path, params=None, http_verb="POST", headers=None, params_in_query=None
     ):
         if headers is None:
             headers = {}
 
+        #TODO: remove
         if params_in_query is None:
             params_in_query = http_verb == "GET"
 
-        self.method = method
+        self.path = path
         self.params = params
         self.http_verb = http_verb
         self.headers = headers
         self.params_in_query = params_in_query
 
+    def __str__(self):
+        return (
+            f"{self.http_verb} {self.path} {self.headers} "
+            + truncate(f"{self.params}") if self.params is not None else ""
+        )
 
 def int_or_none(v):
     return int(v) if v is not None else None
@@ -149,35 +155,6 @@ def human_readable_size(n):
         n /= 1024.0
         i += 1
     return f"{n:,.2f} {suffixes[i]}"
-
-
-class RPCLogger:
-    def log_request(self, request, name, description):
-        LOG.info(
-            f"{name} {request.http_verb} {request.method}"
-            + (truncate(f" {request.params}") if request.params is not None else "")
-            + f"{description}"
-        )
-
-    def log_response(self, response):
-        LOG.debug(response)
-
-
-class RPCFileLogger(RPCLogger):
-    def __init__(self, path):
-        self.path = path
-
-    def log_request(self, request, name, description):
-        with open(self.path, "a") as f:
-            f.write(f">> Request: {request.http_verb} {request.method}" + os.linesep)
-            json.dump(request.params, f, indent=2)
-            f.write(os.linesep)
-
-    def log_response(self, response):
-        with open(self.path, "a") as f:
-            f.write("<< Response:" + os.linesep)
-            json.dump(response.to_dict() if response else "None", f, indent=2)
-            f.write(os.linesep)
 
 
 class CCFConnectionException(Exception):
@@ -355,7 +332,7 @@ class RequestClient:
 
         request_args = {
             "method": request.http_verb,
-            "url": f"https://{self.host}:{self.port}{request.method}",
+            "url": f"https://{self.host}:{self.port}{request.path}",
             "auth": auth_value,
             "headers": extra_headers,
         }
@@ -417,7 +394,7 @@ class WSClient:
             except Exception as exc:
                 raise CCFConnectionException from exc
         payload = json.dumps(request.params).encode()
-        path = (request.method).encode()
+        path = (request.path).encode()
         header = struct.pack("<h", len(path)) + path
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
         frame = websocket.ABNF(
@@ -448,7 +425,6 @@ class CCFClient:
             if "connection_timeout" in kwargs
             else DEFAULT_CONNECTION_TIMEOUT_SEC
         )
-        self.rpc_loggers = (RPCLogger(),)
         self.name = f"[{host}:{port}]"
 
         if os.getenv("CURL_CLIENT"):
@@ -459,31 +435,28 @@ class CCFClient:
             self.client_impl = RequestClient(host, port, *args, **kwargs)
 
     def _response(self, response):
-        for logger in self.rpc_loggers:
-            logger.log_response(response)
+        LOG.info(response)
         return response
 
     # pylint: disable=method-hidden
-    def _just_rpc(self, method, *args, **kwargs):
+    def _direct_call(self, method, *args, **kwargs):
         is_signed = "signed" in kwargs and kwargs.pop("signed")
         r = Request(method, *args, **kwargs)
 
         description = ""
         if self.description:
             description = f" ({self.description})" + (" [signed]" if is_signed else "")
-        for logger in self.rpc_loggers:
-            logger.log_request(r, self.name, description)
-
+        LOG.info(f"{self.name} {r} ({description})")
         return self._response(self.client_impl.request(r, is_signed))
 
-    def rpc(self, *args, **kwargs):
+    def call(self, *args, **kwargs):
         end_time = time.time() + self.connection_timeout
         while True:
             try:
-                response = self._just_rpc(*args, **kwargs)
+                response = self._direct_call(*args, **kwargs)
                 # Only the first request gets this timeout logic - future calls
-                # call _just_rpc directly
-                self.rpc = self._just_rpc
+                # call _direct_call directly
+                self.call = self._direct_call
                 return response
             except (CCFConnectionException, TimeoutError) as e:
                 # If the initial connection fails (e.g. due to node certificate
@@ -496,16 +469,16 @@ class CCFClient:
                 time.sleep(0.1)
 
     def get(self, *args, **kwargs):
-        return self.rpc(*args, http_verb="GET", **kwargs)
+        return self.call(*args, http_verb="GET", **kwargs)
 
     def post(self, *args, **kwargs):
-        return self.rpc(*args, http_verb="POST", **kwargs)
+        return self.call(*args, http_verb="POST", **kwargs)
 
     def put(self, *args, **kwargs):
-        return self.rpc(*args, http_verb="PUT", **kwargs)
+        return self.call(*args, http_verb="PUT", **kwargs)
 
     def delete(self, *args, **kwargs):
-        return self.rpc(*args, http_verb="DELETE", **kwargs)
+        return self.call(*args, http_verb="DELETE", **kwargs)
 
 
 @contextlib.contextmanager
@@ -516,7 +489,6 @@ def client(
     key=None,
     ca=None,
     description=None,
-    log_file=None,
     binary_dir=".",
     connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
     request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
@@ -534,8 +506,5 @@ def client(
         request_timeout=request_timeout,
         ws=ws,
     )
-
-    if log_file is not None:
-        c.rpc_loggers += (RPCFileLogger(log_file),)
 
     yield c

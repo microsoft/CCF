@@ -95,7 +95,7 @@ def run(args):
                 )
             )
             with primary.client("user0") as c:
-                res = c.rpc(
+                res = c.post(
                     "/app/log/private",
                     {
                         "id": current_view,

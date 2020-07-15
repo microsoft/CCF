@@ -67,7 +67,7 @@ class Member:
 
     def propose(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.rpc("/gov/proposals", proposal, signed=True,)
+            r = mc.post("/gov/proposals", proposal, signed=True,)
             if r.status != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
@@ -86,7 +86,7 @@ class Member:
         return true
         """
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.rpc(
+            r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
                 {"ballot": {"text": ballot}},
                 signed=True,
@@ -113,21 +113,21 @@ class Member:
 
     def withdraw(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as c:
-            r = c.rpc(f"/gov/proposals/{proposal.proposal_id}/withdraw", signed=True)
+            r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw", signed=True)
             if r.status == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
 
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.rpc("/gov/ack/update_state_digest")
+            r = mc.post("/gov/ack/update_state_digest")
             assert r.status == 200, f"Error ack/update_state_digest: {r}"
             return bytearray(r.body["state_digest"])
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(f"member{self.member_id}") as mc:
-            r = mc.rpc(
+            r = mc.post(
                 "/gov/ack", params={"state_digest": list(state_digest)}, signed=True
             )
             assert r.status == 200, f"Error ACK: {r}"

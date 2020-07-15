@@ -21,7 +21,7 @@ def test(network, args, notifications_queue=None):
     LOG.info("Write on primary")
     with primary.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
-            r = c.rpc("/app/log/private", {"id": 42, "msg": msg * i})
+            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
             assert r.body == True, r
 
     # Before we start sending transactions to the secondary,
@@ -40,7 +40,7 @@ def test(network, args, notifications_queue=None):
     LOG.info("Write on secondary through forwarding")
     with other.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
-            r = c.rpc("/app/log/private", {"id": 42, "msg": msg * i})
+            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
             assert r.body == True, r
 
     return network

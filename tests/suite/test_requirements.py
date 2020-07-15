@@ -91,7 +91,7 @@ def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
         with primary.client("member0") as c:
-            r = c.rpc(
+            r = c.post(
                 "gov/query",
                 {
                     "text": """tables = ...
