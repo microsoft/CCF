@@ -74,6 +74,31 @@ def test_update_recovery_shares(network, args):
     return network
 
 
+@reqs.description("Send an unsigned request where signature is required")
+def test_missing_signature(network, args):
+    primary, _ = network.find_primary()
+    member = network.consortium.get_any_active_member()
+    with primary.client(f"member{member.member_id}") as mc:
+        r = mc.rpc("/gov/proposals", signed=False)
+        assert r.status == http.HTTPStatus.UNAUTHORIZED, r.status
+        www_auth = "www-authenticate"
+        assert www_auth in r.headers, r.headers
+        auth_header = r.headers[www_auth]
+        assert auth_header.startswith("Signature"), auth_header
+        elements = {
+            e[0].strip(): e[1]
+            for e in (element.split("=") for element in auth_header.split(","))
+        }
+        assert "headers" in elements, elements
+        required_headers = elements["headers"]
+        assert required_headers.startswith('"'), required_headers
+        assert required_headers.endswith('"'), required_headers
+        assert "(request-target)" in required_headers, required_headers
+        assert "digest" in required_headers, required_headers
+
+    return network
+
+
 def assert_recovery_shares_update(func, network, args, **kwargs):
     primary, _ = network.find_primary()
 
@@ -118,6 +143,8 @@ def run(args):
     ) as network:
         network.start_and_join(args)
         primary, _ = network.find_primary()
+
+        network = test_missing_signature(network, args)
 
         LOG.info("Original members can ACK")
         network.consortium.get_any_active_member().ack(primary)

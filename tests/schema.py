@@ -29,12 +29,15 @@ def run(args):
         for filename in filenames
     )
 
+    all_methods = []
+
     def fetch_schema(client, prefix):
         list_response = client.get(f"/{prefix}/api")
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
         methods = list_response.body["methods"]
+        all_methods.extend(methods)
 
         for method in methods:
             schema_found = False
@@ -128,6 +131,11 @@ def run(args):
             LOG.error(" " + f)
         made_changes = True
 
+    if args.list_all:
+        LOG.info("Discovered methods:")
+        for method in sorted(set(all_methods)):
+            LOG.info(f"  {method}")
+
     if made_changes:
         sys.exit(1)
 
@@ -145,6 +153,11 @@ if __name__ == "__main__":
             "--schema-dir",
             help="Path to directory where retrieved schema should be saved",
             required=True,
+        )
+        parser.add_argument(
+            "--list-all",
+            help="List all discovered methods at the end of the run",
+            action="store_true",
         )
 
     args = infra.e2e_args.cli_args(add=add)

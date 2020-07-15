@@ -104,19 +104,11 @@ namespace ccf
   DECLARE_JSON_TYPE(ProposalInfo)
   DECLARE_JSON_REQUIRED_FIELDS(ProposalInfo, proposal_id, proposer_id, state);
 
-  struct ProposalAction
-  {
-    //! the id of the proposal subject to the action
-    ObjectId id;
-  };
-  DECLARE_JSON_TYPE(ProposalAction)
-  DECLARE_JSON_REQUIRED_FIELDS(ProposalAction, id)
-
-  struct Vote : public ProposalAction
+  struct Vote
   {
     Script ballot;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(Vote, ProposalAction)
+  DECLARE_JSON_TYPE(Vote)
   DECLARE_JSON_REQUIRED_FIELDS(Vote, ballot)
 
   //! A call proposed by a proposal script

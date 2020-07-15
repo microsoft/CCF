@@ -8,7 +8,7 @@ import time
 from ccf.tx_status import TxStatus
 
 
-def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
+def wait_for_global_commit(client, seqno, view, timeout=3):
     """
     Given a client to a CCF network and a seqno/view pair, this function
     waits for this specific commit index to be globally committed by the
@@ -16,15 +16,6 @@ def wait_for_global_commit(client, seqno, view, mksign=False, timeout=3):
     A TimeoutError exception is raised if the commit index is not globally
     committed within the given timeout.
     """
-    # Waiting for a global commit can significantly slow down tests as
-    # signatures take some time to be emitted and globally committed.
-    # Forcing a signature accelerates this process for common operations
-    # (e.g. governance proposals)
-    if mksign:
-        r = client.rpc("/node/mkSign")
-        if r.status != 200:
-            raise RuntimeError(f"mkSign returned an error: {r}")
-
     end_time = time.time() + timeout
     while time.time() < end_time:
         r = client.get("/node/tx", {"view": view, "seqno": seqno})
