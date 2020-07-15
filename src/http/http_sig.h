@@ -370,8 +370,27 @@ namespace http
             fmt::format("Error parsing {} fields", headers::AUTHORIZATION));
         }
 
+        const auto& signed_headers = parsed_sign_params->signed_headers;
+        std::vector<std::string> missing_required_headers;
+        for (const auto& required_header : http::required_signature_headers)
+        {
+          const auto it = std::find(
+            signed_headers.begin(), signed_headers.end(), required_header);
+          if (it == signed_headers.end())
+          {
+            missing_required_headers.push_back(required_header);
+          }
+        }
+
+        if (!missing_required_headers.empty())
+        {
+          throw std::logic_error(fmt::format(
+            "HTTP signature does not cover required fields: {}",
+            fmt::join(missing_required_headers, ", ")));
+        }
+
         auto signed_raw = construct_raw_signed_string(
-          verb, path, query, headers, parsed_sign_params->signed_headers);
+          verb, path, query, headers, signed_headers);
         if (!signed_raw.has_value())
         {
           throw std::logic_error(

@@ -50,4 +50,7 @@ namespace http
     static constexpr auto SIGN_PARAMS_DELIMITER = ",";
     static constexpr auto SIGN_PARAMS_HEADERS_DELIMITER = " ";
   }
+
+  static constexpr char const* required_signature_headers[] = {
+    auth::SIGN_HEADER_REQUEST_TARGET, headers::DIGEST};
 }

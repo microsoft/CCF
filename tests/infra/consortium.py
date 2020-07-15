@@ -153,7 +153,6 @@ class Consortium:
                 remote_node,
                 proposal,
                 accept=True,
-                force_unsigned=False,
                 wait_for_global_commit=wait_for_global_commit,
             )
             assert response.status == http.HTTPStatus.OK.value
