@@ -232,3 +232,6 @@ class Ledger:
 
     def __iter__(self):
         return self
+
+    def get_ledger_files(self):
+        return self._filenames
