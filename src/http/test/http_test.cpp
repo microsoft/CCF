@@ -435,4 +435,35 @@ DOCTEST_TEST_CASE("Signatures")
       }
     }
   }
+
+  DOCTEST_SUBCASE("Unquoted auth values")
+  {
+    std::vector<std::string_view> headers_to_sign;
+    headers_to_sign.emplace_back(http::auth::SIGN_HEADER_REQUEST_TARGET);
+    for (const auto& header_it : request.get_headers())
+    {
+      headers_to_sign.emplace_back(header_it.first);
+    }
+
+    http::sign_request(request, kp, headers_to_sign);
+
+    const auto& headers = request.get_headers();
+    const auto auth_it = headers.find(http::headers::AUTHORIZATION);
+    DOCTEST_REQUIRE(auth_it != headers.end());
+
+    std::string auth_value = auth_it->second;
+    const auto new_end = std::remove(auth_value.begin(), auth_value.end(), '"');
+    auth_value.erase(new_end, auth_value.end());
+
+    request.set_header(http::headers::AUTHORIZATION, auth_value);
+
+    const auto serial_request = request.build_request();
+
+    SignedRequestProcessor sp;
+    http::RequestParser p(sp);
+
+    auto parsed = p.execute(serial_request.data(), serial_request.size());
+    DOCTEST_REQUIRE(parsed == serial_request.size());
+    DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
+  }
 }

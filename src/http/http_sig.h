@@ -279,9 +279,11 @@ namespace http
           auto k = p.substr(0, eq_pos);
           auto v = p.substr(eq_pos + 1);
 
-          // Remove inverted commas around value
-          v.remove_prefix(v.find_first_of("\"") + 1);
-          v.remove_suffix(v.size() - v.find_last_of("\""));
+          // Remove quotes around value, if present
+          if (v.size() >= 2 && v[0] == '"' && v[v.size() - 1] == '"')
+          {
+            v = v.substr(1, v.size() - 2);
+          }
 
           if (k == auth::SIGN_PARAMS_KEYID)
           {
