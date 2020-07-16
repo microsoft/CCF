@@ -38,7 +38,6 @@ LUA_FUNCTION_EQUAL_ARRAYS = """function equal_arrays(a, b)
   end
 end"""
 
-
 DEFAULT_PROPOSAL_OUTPUT = "{proposal_name}_proposal.json"
 DEFAULT_VOTE_OUTPUT = "{proposal_name}_vote_for.json"
 
@@ -101,7 +100,7 @@ def add_arg_checks(lines, arg, arg_name="args"):
         lines.append(f"if not {arg_name} == {arg} then return false end")
 
 
-def build_proposal(proposed_call, args=None, inline_args=False):
+def build_proposal(proposed_call, args=None, inline_args=False, vote_against=False):
     LOG.trace(f"Generating {proposed_call} proposal")
 
     proposal_script_lines = []
@@ -120,6 +119,8 @@ def build_proposal(proposed_call, args=None, inline_args=False):
     }
     if args is not None and not inline_args:
         proposal["parameter"] = args
+    if vote_against:
+        proposal["ballot"] = {"text": "return false"}
 
     vote_lines = [
         "tables, calls = ...",
@@ -164,6 +165,14 @@ def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
         "parameter": {"cert": member_cert, "keyshare": member_keyshare_encryptor},
         "script": {"text": proposal_script_text},
     }
+
+    try:
+        vote_against = kwargs.pop("vote_against")
+    except KeyError:
+        vote_against = False
+
+    if vote_against:
+        proposal["ballot"] = {"text": "return false"}
 
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
     verifying_vote_text = f"""
@@ -365,6 +374,12 @@ if __name__ == "__main__":
         "the script. When not inlined, the parameters are passed separately and could "
         "be replaced in the resulting object",
     )
+    parser.add_argument(
+        "--vote-against",
+        action="store_true",
+        help="Include a negative initial vote when creating the proposal",
+        default=False,
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
 
     # Auto-generate CLI args based on the inspected signatures of generator functions
@@ -402,6 +417,7 @@ if __name__ == "__main__":
 
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
+        vote_against=args.vote_against,
         inline_args=args.inline_args,
     )
 
