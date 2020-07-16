@@ -116,7 +116,7 @@ def build_proposal(proposed_call, args=None, inline_args=False):
 def cli_proposal(func):
     @functools.wraps(func)
     def wrapper(
-        proposal_output_path=None, vote_output_path=None, indent=None, *args, **kwargs,
+        *args, proposal_output_path=None, vote_output_path=None, indent=None, **kwargs,
     ):
         proposal_name = func.__name__
         if proposal_output_path is None:

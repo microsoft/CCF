@@ -259,15 +259,20 @@ class CurlClient:
                 f"-m {self.request_timeout}",
             ]
 
-            if not request.params_in_query and request.params is not None:
-                if isinstance(request.params, bytes):
-                    msg_bytes = request.params
+            if not request.params_in_query and request.params is not None:#
+                if isinstance(request.params, str) and request.params.startswith("@"):
+                    # Request is already a file path - pass it directly
+                    cmd.extend(["--data-binary", request.params])
                 else:
-                    msg_bytes = json.dumps(request.params).encode()
-                LOG.debug(f"Writing request body: {msg_bytes}")
-                nf.write(msg_bytes)
-                nf.flush()
-                cmd.extend(["--data-binary", f"@{nf.name}"])
+                    # Write request to temp file
+                    if isinstance(request.params, bytes):
+                        msg_bytes = request.params
+                    else:
+                        msg_bytes = json.dumps(request.params).encode()
+                    LOG.debug(f"Writing request body: {msg_bytes}")
+                    nf.write(msg_bytes)
+                    nf.flush()
+                    cmd.extend(["--data-binary", f"@{nf.name}"])
                 if not "content-type" in request.headers:
                     request.headers["content-type"] = "application/json"
 
