@@ -358,7 +358,7 @@ if(BUILD_TESTS)
     add_unit_test(
       http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
     )
-    target_link_libraries(http_test PRIVATE http_parser.host)
+    target_link_libraries(http_test PRIVATE http_parser.host secp256k1.host)
 
     add_unit_test(
       frontend_test

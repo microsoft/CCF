@@ -4,6 +4,8 @@
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
 #include "../http_builder.h"
 #include "../http_parser.h"
+#include "../http_sig.h"
+#include "tls/key_pair.h"
 
 #include <doctest/doctest.h>
 #include <queue>
@@ -310,7 +312,9 @@ DOCTEST_TEST_CASE("Escaping")
 
   {
     const std::string request =
-      "GET /hello%20world?hello%20world=hello%20world&saluton%20mondo=saluton%20mondo HTTP/1.1\r\n\r\n";
+      "GET "
+      "/hello%20world?hello%20world=hello%20world&saluton%20mondo=saluton%"
+      "20mondo HTTP/1.1\r\n\r\n";
 
     http::SimpleRequestProcessor sp;
     http::RequestParser p(sp);
@@ -322,6 +326,113 @@ DOCTEST_TEST_CASE("Escaping")
     const auto& m = sp.received.front();
     DOCTEST_CHECK(m.method == HTTP_GET);
     DOCTEST_CHECK(m.path == "/hello%20world");
-    DOCTEST_CHECK(m.query == "hello world=hello world&saluton mondo=saluton mondo");
+    DOCTEST_CHECK(
+      m.query == "hello world=hello world&saluton mondo=saluton mondo");
+  }
+}
+
+struct SignedRequestProcessor : public http::SimpleRequestProcessor
+{
+  std::queue<ccf::SignedReq> signed_reqs;
+
+  virtual void handle_request(
+    http_method method,
+    const std::string_view& path,
+    const std::string& query,
+    http::HeaderMap&& headers,
+    std::vector<uint8_t>&& body) override
+  {
+    const auto signed_req = http::HttpSignatureVerifier::parse(
+      http_method_str(method), path, query, headers, body);
+    DOCTEST_REQUIRE(signed_req.has_value());
+
+    signed_reqs.push(signed_req.value());
+
+    http::SimpleRequestProcessor::handle_request(
+      method, path, query, std::move(headers), std::move(body));
+  }
+};
+
+DOCTEST_TEST_CASE("Signatures")
+{
+  // Produce signed requests with some formatting variations, ensure we can
+  // parse them
+  auto kp = tls::make_key_pair();
+
+  http::Request request("/foo", HTTP_POST);
+  request.set_query_param("param", "value");
+  request.set_query_param("pet", "dog");
+  request.set_header("Host", "example.com");
+  request.set_header("Date", "Sun, 05 Jan 2014 21:31:40 GMT");
+  request.set_header("Content-Type", "application/json");
+
+  const std::string body_s("{\"hello\": \"world\"}");
+  const std::vector<uint8_t> body_v(body_s.begin(), body_s.end());
+
+  request.set_body(body_v.data(), body_v.size());
+
+  http::add_digest_header(request);
+
+  {
+    const auto& headers = request.get_headers();
+    const auto it = headers.find(http::headers::DIGEST);
+    DOCTEST_REQUIRE(it != headers.end());
+
+    constexpr auto expected_digest_value =
+      "SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=";
+    DOCTEST_REQUIRE(it->second == expected_digest_value);
+  }
+
+  DOCTEST_SUBCASE("Some headers")
+  {
+    std::vector<std::string_view> headers_to_sign;
+    headers_to_sign.emplace_back(http::auth::SIGN_HEADER_REQUEST_TARGET);
+    headers_to_sign.emplace_back(http::headers::DIGEST);
+
+    http::sign_request(request, kp, headers_to_sign);
+
+    const auto serial_request = request.build_request();
+
+    SignedRequestProcessor sp;
+    http::RequestParser p(sp);
+
+    auto parsed = p.execute(serial_request.data(), serial_request.size());
+    DOCTEST_REQUIRE(parsed == serial_request.size());
+    DOCTEST_REQUIRE(!sp.signed_reqs.empty());
+  }
+
+  DOCTEST_SUBCASE("All headers")
+  {
+    std::vector<std::string_view> headers_to_sign;
+    headers_to_sign.emplace_back(http::auth::SIGN_HEADER_REQUEST_TARGET);
+    for (const auto& header_it : request.get_headers())
+    {
+      headers_to_sign.emplace_back(header_it.first);
+    }
+
+    // Try all permutations to test order-independence
+    std::sort(headers_to_sign.begin(), headers_to_sign.end());
+    while (true)
+    {
+      http::sign_request(request, kp, headers_to_sign);
+
+      const auto serial_request = request.build_request();
+
+      SignedRequestProcessor sp;
+      http::RequestParser p(sp);
+
+      auto parsed = p.execute(serial_request.data(), serial_request.size());
+      DOCTEST_REQUIRE(parsed == serial_request.size());
+      DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
+
+      sp.signed_reqs.pop();
+
+      const bool was_last_permutation =
+        !std::next_permutation(headers_to_sign.begin(), headers_to_sign.end());
+      if (was_last_permutation)
+      {
+        break;
+      }
+    }
   }
 }
