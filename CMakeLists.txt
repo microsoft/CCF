@@ -42,7 +42,11 @@ configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
 )
 
-set(CONSENSUSES raft pbft)
+if(PBFT_TESTS)
+  set(CONSENSUSES raft pbft)
+else()
+  set(CONSENSUSES raft)
+endif()
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
@@ -583,22 +587,6 @@ if(BUILD_TESTS)
     )
   endif()
 
-  add_e2e_test(
-    NAME suspend_nodes_pbft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
-    CONSENSUS pbft
-    LABEL long_test
-    ADDITIONAL_ARGS --seed 42
-  )
-
-  add_e2e_test(
-    NAME replay_new_view_pbft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
-    CONSENSUS pbft
-    LABEL long_test
-    ADDITIONAL_ARGS --seed 42
-  )
-
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
   endif()
@@ -712,6 +700,24 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
     )
+
+    if(${CONSENSUS} STREQUAL pbft)
+      add_e2e_test(
+        NAME suspend_nodes_pbft
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
+        CONSENSUS pbft
+        LABEL long_test
+        ADDITIONAL_ARGS --seed 42
+      )
+
+      add_e2e_test(
+        NAME replay_new_view_pbft
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
+        CONSENSUS pbft
+        LABEL long_test
+        ADDITIONAL_ARGS --seed 42
+      )
+    endif()
 
   endforeach()
 
