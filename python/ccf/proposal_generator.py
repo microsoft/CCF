@@ -25,8 +25,7 @@ def script_to_vote_object(script):
     return {"ballot": {"text": script}}
 
 
-LUA_FUNCTION_EQUAL_ARRAYS = """
-function equal_arrays(a, b)
+LUA_FUNCTION_EQUAL_ARRAYS = """function equal_arrays(a, b)
   if #a ~= #b then
     return false
   else
@@ -40,8 +39,36 @@ function equal_arrays(a, b)
 end"""
 
 
-DEFAULT_PROPOSAL_OUTPUT = "{proposal_type}.json"
-DEFAULT_VOTE_OUTPUT = "vote_for_{proposal_output}.json"
+DEFAULT_PROPOSAL_OUTPUT = "{proposal_name}_proposal.json"
+DEFAULT_VOTE_OUTPUT = "{proposal_name}_vote_for.json"
+
+
+def complete_proposal_output_path(
+    proposal_name, proposal_output_path=None, common_dir="."
+):
+    if proposal_output_path is None:
+        proposal_output_path = DEFAULT_PROPOSAL_OUTPUT.format(
+            proposal_name=proposal_name
+        )
+
+    if not proposal_output_path.endswith(".json"):
+        proposal_output_path += ".json"
+
+    proposal_output_path = os.path.join(common_dir, proposal_output_path)
+
+    return proposal_output_path
+
+
+def complete_vote_output_path(proposal_name, vote_output_path=None, common_dir="."):
+    if vote_output_path is None:
+        vote_output_path = DEFAULT_VOTE_OUTPUT.format(proposal_name=proposal_name)
+
+    if not vote_output_path.endswith(".json"):
+        vote_output_path += ".json"
+
+    vote_output_path = os.path.join(common_dir, vote_output_path)
+
+    return vote_output_path
 
 
 def add_arg_construction(lines, arg, arg_name="args"):
@@ -114,40 +141,8 @@ def build_proposal(proposed_call, args=None, inline_args=False):
 
 
 def cli_proposal(func):
-    @functools.wraps(func)
-    def wrapper(
-        *args, proposal_output_path=None, vote_output_path=None, indent=None, **kwargs,
-    ):
-        proposal_name = func.__name__
-        if proposal_output_path is None:
-            proposal_output_path = DEFAULT_PROPOSAL_OUTPUT.format(
-                proposal_type=func.__name__
-            )
-        if not proposal_output_path.endswith(".json"):
-            proposal_output_path += ".json"
-
-        proposal_output_filename, _ = os.path.splitext(proposal_output_path)
-
-        if vote_output_path is None:
-            vote_output_path = DEFAULT_VOTE_OUTPUT.format(
-                proposal_output=proposal_output_filename
-            )
-        if not vote_output_path.endswith(".json"):
-            vote_output_path += ".json"
-
-        proposal_object, vote_object = func(*args, **kwargs)
-        dump_args = {"indent": indent}
-
-        LOG.trace(f"Writing proposal to {proposal_output_path}")
-        dump_to_file(proposal_output_path, proposal_object, dump_args)
-
-        LOG.trace(f"Writing vote to {vote_output_path}")
-        dump_to_file(vote_output_path, vote_object, dump_args)
-
-        return f"@{proposal_output_path}", f"@{vote_output_path}"
-
-    wrapper.is_cli_proposal = True
-    return wrapper
+    func.is_cli_proposal = True
+    return func
 
 
 @cli_proposal
@@ -291,6 +286,57 @@ def set_recovery_threshold(threshold, **kwargs):
     return build_proposal("set_recovery_threshold", threshold, **kwargs)
 
 
+class ProposalGenerator:
+    def __init__(self, common_dir="."):
+        self.common_dir = common_dir
+
+        # Auto-generate methods wrapping inspected functions, dumping outputs to file
+        def wrapper(func):
+            @functools.wraps(func)
+            def wrapper_func(
+                *args,
+                proposal_output_path=None,
+                vote_output_path=None,
+                **kwargs,
+            ):
+                proposal_output_path = complete_proposal_output_path(
+                    func.__name__,
+                    proposal_output_path=proposal_output_path,
+                    common_dir=self.common_dir,
+                )
+
+                vote_output_path = complete_vote_output_path(
+                    func.__name__,
+                    vote_output_path=vote_output_path,
+                    common_dir=self.common_dir,
+                )
+
+                proposal_object, vote_object = func(*args, **kwargs)
+                dump_args = {"indent": 2}
+
+                LOG.success(f"Writing proposal to {proposal_output_path}")
+                dump_to_file(proposal_output_path, proposal_object, dump_args)
+
+                LOG.success(f"Writing vote to {vote_output_path}")
+                dump_to_file(vote_output_path, vote_object, dump_args)
+
+                return f"@{proposal_output_path}", f"@{vote_output_path}"
+
+            return wrapper_func
+
+        module = inspect.getmodule(inspect.currentframe())
+        proposal_generators = inspect.getmembers(module, predicate=inspect.isfunction)
+
+        for func_name, func in proposal_generators:
+            # Only generate for decorated functions
+            try:
+                getattr(func, "is_cli_proposal")
+            except AttributeError:
+                continue
+
+            setattr(self, func_name, wrapper(func))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -318,8 +364,8 @@ if __name__ == "__main__":
         "-i",
         "--inline-args",
         action="store_true",
-        help="Create a fixed proposal script with the call arguments as literalsinside"
-        "the script. When not inlined, the parameters are passed separately and could"
+        help="Create a fixed proposal script with the call arguments as literals inside "
+        "the script. When not inlined, the parameters are passed separately and could "
         "be replaced in the resulting object",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -357,17 +403,23 @@ if __name__ == "__main__":
         level="TRACE" if args.verbose else "INFO",
     )
 
-    proposal_path, vote_path = args.func(
+    proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
         inline_args=args.inline_args,
-        indent=2 if args.pretty_print else None,
-        proposal_output_path=args.proposal_output_file,
-        vote_output_path=args.vote_output_file,
     )
 
-    # Remove leading @s
-    proposal_path = proposal_path[1:]
-    vote_path = vote_path[1:]
+    dump_args = {}
+    if args.pretty_print:
+        dump_args["indent"] = 2
 
-    LOG.success(f"Wrote proposal to {proposal_path}")
+    proposal_path = complete_proposal_output_path(
+        args.proposal_type, proposal_output_path=args.proposal_output_file
+    )
+    LOG.success(f"Writing proposal to {proposal_path}")
+    dump_to_file(proposal_path, proposal, dump_args)
+
+    vote_path = complete_vote_output_path(
+        args.proposal_type, vote_output_path=args.vote_output_file
+    )
     LOG.success(f"Wrote vote to {vote_path}")
+    dump_to_file(vote_path, vote, dump_args)
