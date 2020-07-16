@@ -44,6 +44,7 @@ class LedgerDomain:
         self._buffer = buffer
         self._buffer_size = buffer.getbuffer().nbytes
         self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
+        self._is_snapshot = self._read_next()
         self._version = self._read_next()
         self._tables = {}
         # Keys and Values may have custom serialisers.
