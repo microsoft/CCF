@@ -307,4 +307,21 @@ DOCTEST_TEST_CASE("Escaping")
     DOCTEST_CHECK(m.path == "/foo/bar");
     DOCTEST_CHECK(m.query == "this=that&awkward=escaped string :;-=?!\"");
   }
+
+  {
+    const std::string request =
+      "GET /hello%20world?hello%20world=hello%20world&saluton%20mondo=saluton%20mondo HTTP/1.1\r\n\r\n";
+
+    http::SimpleRequestProcessor sp;
+    http::RequestParser p(sp);
+
+    const std::vector<uint8_t> req(request.begin(), request.end());
+    auto parsed = p.execute(req.data(), req.size());
+
+    DOCTEST_CHECK(!sp.received.empty());
+    const auto& m = sp.received.front();
+    DOCTEST_CHECK(m.method == HTTP_GET);
+    DOCTEST_CHECK(m.path == "/hello%20world");
+    DOCTEST_CHECK(m.query == "hello world=hello world&saluton mondo=saluton mondo");
+  }
 }
