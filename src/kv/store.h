@@ -222,23 +222,19 @@ namespace kv
 
     std::vector<uint8_t> serialise_snapshot(Version v) override
     {
-      if (v < commit_version())
-      {
-        throw ccf::ccf_logic_error(fmt::format(
-          "Cannot snapshot at version {} which is earlier than committed "
-          "version {} ",
-          v,
-          commit_version()));
-      }
+      CCF_ASSERT_FMT(
+        v >= commit_version(),
+        "Cannot snapshot at version {} which is earlier than committed "
+        "version {} ",
+        v,
+        commit_version());
 
-      if (v > current_version())
-      {
-        throw ccf ::ccf_logic_error(fmt::format(
-          "Cannot snapshot at version {} which is later than current version "
-          "{}",
-          v,
-          current_version()));
-      }
+      CCF_ASSERT_FMT(
+        v <= current_version(),
+        "Cannot snapshot at version {} which is later than current "
+        "version {} ",
+        v,
+        current_version());
 
       StoreSnapshot snapshot;
 
@@ -288,6 +284,7 @@ namespace kv
         map.second->lock();
       }
 
+      bool success = true;
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
@@ -297,7 +294,8 @@ namespace kv
         {
           LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
           LOG_DEBUG_FMT("No such map in store {}", map_name);
-          return DeserialiseSuccess::FAILED;
+          success = false;
+          break;
         }
 
         auto map_version = d.deserialise_entry_version();
@@ -306,15 +304,20 @@ namespace kv
         search->second->apply_snapshot(map_version, map_snapshot);
       }
 
-      if (!d.end())
-      {
-        LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
-        return DeserialiseSuccess::FAILED;
-      }
-
       for (auto& map : maps)
       {
         map.second->unlock();
+      }
+
+      if (!d.end())
+      {
+        LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
+        success = false;
+      }
+
+      if (!success)
+      {
+        return DeserialiseSuccess::FAILED;
       }
 
       {
