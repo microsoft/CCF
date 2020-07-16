@@ -64,11 +64,8 @@ def run(args):
         primary, _ = network.find_primary()
 
         ledger_directory = network.find_primary()[0].remote.ledger_path()
-        # For now, this test only works with one ledger file
-        for l in os.listdir(ledger_directory):
-            if l.endswith("_1"):
-                ledger_filename = os.path.join(ledger_directory, l)
-        ledger = ccf.ledger.Ledger(ledger_filename)
+      
+        ledger = ccf.ledger.Ledger(ledger_directory)
         (
             original_proposals,
             original_votes,
