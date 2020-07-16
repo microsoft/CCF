@@ -3,6 +3,7 @@
 import io
 import msgpack.fallback as msgpack  # Default implementation has buggy interaction between read_bytes and tell, so use fallback
 import struct
+import os
 
 from loguru import logger as LOG
 
@@ -48,7 +49,7 @@ class LedgerDomain:
         self._tables = {}
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack.
-        self._msgpacked_tables = {"ccf.member_cert_ders", "ccf.governance.history"}
+        self._msgpacked_tables = {"ccf.member_certs", "ccf.governance.history", "ccf.signatures", "ccf.nodes"}
         self._read()
 
     def _read_next(self):
@@ -108,7 +109,7 @@ class LedgerDomain:
 def _byte_read_safe(file, num_of_bytes):
     ret = file.read(num_of_bytes)
     if len(ret) != num_of_bytes:
-        raise ValueError("Failed to read precise number of bytes: %u" % num_of_bytes)
+        raise ValueError("Failed to read precise number of bytes: %u, actual = %u" % (num_of_bytes, len(ret)))
     return ret
 
 
@@ -121,12 +122,12 @@ class Transaction:
     _public_domain = None
     _file_size = 0
     gcm_header = None
+    
+    
 
     def __init__(self, filename):
         self._file = open(filename, mode="rb")
-        self._file.seek(0, 2)
-        self._file_size = self._file.tell()
-        self._file.seek(0, 0)
+        self._file_size = int.from_bytes(_byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little")
 
     def __del__(self):
         self._file.close()
@@ -134,6 +135,7 @@ class Transaction:
     def _read_header(self):
         # read the size of the transaction
         buffer = _byte_read_safe(self._file, LEDGER_TRANSACTION_SIZE)
+        self._tx_offset = self._file.tell()
         self._total_size = to_uint_32(buffer)
         self._next_offset += self._total_size
         self._next_offset += LEDGER_TRANSACTION_SIZE
@@ -152,6 +154,15 @@ class Transaction:
             self._public_domain = LedgerDomain(buffer)
         return self._public_domain
 
+    def get_public_tx(self) -> bytes:
+        # remember where the pointer is in the file before we go back for the transaction bytes
+        header = self._file.tell()
+        self._file.seek(self._tx_offset)
+        buffer = _byte_read_safe(self._file, self._total_size)
+        # return to original filepointer and return the transaction bytes
+        self._file.seek(header)
+        return buffer
+
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
         self._public_domain = None
@@ -169,13 +180,42 @@ class Transaction:
         except:
             raise StopIteration()
 
-
 class Ledger:
 
-    _filename = None
+    _filenames = []
+    _directory = None
+    _fileindex = 0
 
-    def __init__(self, filename):
-        self._filename = filename
+    def __init__(self, name:str, is_dir:bool == False):
+        if is_dir:
+            contents = os.listdir(name)
+            # Sorts the list based off the first number after ledger_ so that the ledger is verified in sequence 
+            sort = sorted(contents, key=lambda x: int(
+                x.replace(".committed", "").replace("ledger_", "").split("-")[0]))
 
+            for chunk in sort:
+                # Add only the .committed ledgers to be verified 
+                if os.path.isfile(os.path.join(name, chunk)):
+                    if chunk.find(".committed") != -1:
+                        self._filenames.append(os.path.join(name, chunk))
+
+        else:
+            self._filenames = [name]
+
+       
+        self._fileindex = 0
+        self._current_tx = Transaction(self._filenames[0])
+
+    def __next__(self):
+        try:
+            return next(self._current_tx)
+        except StopIteration:
+            self._fileindex += 1
+            if len(self._filenames) > self._fileindex:
+                self._current_tx = Transaction(self._filenames[self._fileindex])
+                return next(self._current_tx)
+            else:
+                raise StopIteration()
+    
     def __iter__(self):
-        return Transaction(self._filename)
+        return self
