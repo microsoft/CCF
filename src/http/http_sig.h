@@ -280,7 +280,7 @@ namespace http
           auto v = p.substr(eq_pos + 1);
 
           // Remove quotes around value, if present
-          if (v.size() >= 2 && v[0] == '"' && v[v.size() - 1] == '"')
+          if (v.size() >= 2 && v.front() == '"' && v.back() == '"')
           {
             v = v.substr(1, v.size() - 2);
           }
