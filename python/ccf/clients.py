@@ -259,7 +259,7 @@ class CurlClient:
                 f"-m {self.request_timeout}",
             ]
 
-            if not request.params_in_query and request.params is not None:#
+            if not request.params_in_query and request.params is not None:
                 if isinstance(request.params, str) and request.params.startswith("@"):
                     # Request is already a file path - pass it directly
                     cmd.extend(["--data-binary", request.params])
@@ -373,10 +373,15 @@ class RequestClient:
         }
 
         if request.params is not None:
+            request_params = request.params
+            if isinstance(request.params, str) and request.params.startswith("@"):
+                # Request is a file path - read contents, assume json
+                request_params = json.load(open(request.params[1:]))
+
             if request.params_in_query:
-                request_args["params"] = build_query_string(request.params)
+                request_args["params"] = build_query_string(request_params)
             else:
-                request_args["json"] = request.params
+                request_args["json"] = request_params
 
         try:
             response = self.session.request(
