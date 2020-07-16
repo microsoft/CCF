@@ -294,10 +294,7 @@ class ProposalGenerator:
         def wrapper(func):
             @functools.wraps(func)
             def wrapper_func(
-                *args,
-                proposal_output_path=None,
-                vote_output_path=None,
-                **kwargs,
+                *args, proposal_output_path=None, vote_output_path=None, **kwargs,
             ):
                 proposal_output_path = complete_proposal_output_path(
                     func.__name__,
@@ -328,7 +325,7 @@ class ProposalGenerator:
         proposal_generators = inspect.getmembers(module, predicate=inspect.isfunction)
 
         for func_name, func in proposal_generators:
-            # Only generate for decorated functions
+            # Only wrap decorated functions
             try:
                 getattr(func, "is_cli_proposal")
             except AttributeError:
