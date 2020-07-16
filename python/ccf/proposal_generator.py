@@ -102,7 +102,7 @@ def add_arg_checks(lines, arg, arg_name="args"):
 
 
 def build_proposal(proposed_call, args=None, inline_args=False):
-    LOG.debug(f"Generating {proposed_call} proposal")
+    LOG.trace(f"Generating {proposed_call} proposal")
 
     proposal_script_lines = []
     if args is None:
@@ -314,10 +314,10 @@ class ProposalGenerator:
                 proposal_object, vote_object = func(*args, **kwargs)
                 dump_args = {"indent": 2}
 
-                LOG.success(f"Writing proposal to {proposal_output_path}")
+                LOG.debug(f"Writing proposal to {proposal_output_path}")
                 dump_to_file(proposal_output_path, proposal_object, dump_args)
 
-                LOG.success(f"Writing vote to {vote_output_path}")
+                LOG.debug(f"Writing vote to {vote_output_path}")
                 dump_to_file(vote_output_path, vote_object, dump_args)
 
                 return f"@{proposal_output_path}", f"@{vote_output_path}"
