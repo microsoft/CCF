@@ -29,7 +29,7 @@ def test(network, args, notifications_queue=None):
     # when it's aware that the network is open. Before that,
     # we will get 404s.
     end_time = time.time() + 10
-    with other.client() as nc:
+    with other.client("user0") as nc:
         while time.time() < end_time:
             r = nc.rpc("/app/log/private", {"id": 42, "msg": msg * i})
             if r.status == 200:
