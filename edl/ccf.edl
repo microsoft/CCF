@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 enclave {
+    from "openenclave/edl/sgx/platform.edl" import *;
 
     include "enclave/start_type.h"
     include "enclave/consensus_type.h"
