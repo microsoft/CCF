@@ -215,7 +215,7 @@ class CurlClient:
             else:
                 cmd = ["curl"]
 
-            url = f"https://{self.host}:{self.port}{request.method}"
+            url = f"https://{self.host}:{self.port}{request.path}"
 
             if request.params_in_query:
                 if request.params is not None:

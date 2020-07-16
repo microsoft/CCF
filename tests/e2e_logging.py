@@ -375,11 +375,6 @@ def test_view_history(network, args):
             commit_view = r.body["view"]
             commit_seqno = r.body["seqno"]
 
-            # Temporarily disable logging of RPCs for readability
-            rpc_loggers = c.rpc_loggers
-            c.rpc_loggers = ()
-            LOG.warning("RPC logging temporarily suppressed")
-
             # Retrieve status for all possible Tx IDs
             seqno_to_views = {}
             for seqno in range(1, commit_seqno + 1):
@@ -391,9 +386,6 @@ def test_view_history(network, args):
                     if status == TxStatus.Committed:
                         views.append(view)
                 seqno_to_views[seqno] = views
-
-            c.rpc_loggers = rpc_loggers
-            LOG.warning("RPC logging restored")
 
             # Check we have exactly one Tx ID for each seqno
             txs_ok = True
