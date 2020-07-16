@@ -49,7 +49,12 @@ class LedgerDomain:
         self._tables = {}
         # Keys and Values may have custom serialisers.
         # Store most as raw bytes, only decode a few which we know are msgpack.
-        self._msgpacked_tables = {"ccf.member_certs", "ccf.governance.history", "ccf.signatures", "ccf.nodes"}
+        self._msgpacked_tables = {
+            "ccf.member_certs",
+            "ccf.governance.history",
+            "ccf.signatures",
+            "ccf.nodes",
+        }
         self._read()
 
     def _read_next(self):
@@ -109,7 +114,10 @@ class LedgerDomain:
 def _byte_read_safe(file, num_of_bytes):
     ret = file.read(num_of_bytes)
     if len(ret) != num_of_bytes:
-        raise ValueError("Failed to read precise number of bytes: %u, actual = %u" % (num_of_bytes, len(ret)))
+        raise ValueError(
+            "Failed to read precise number of bytes: %u, actual = %u"
+            % (num_of_bytes, len(ret))
+        )
     return ret
 
 
@@ -122,12 +130,12 @@ class Transaction:
     _public_domain = None
     _file_size = 0
     gcm_header = None
-    
-    
 
     def __init__(self, filename):
         self._file = open(filename, mode="rb")
-        self._file_size = int.from_bytes(_byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little")
+        self._file_size = int.from_bytes(
+            _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
+        )
 
     def __del__(self):
         self._file.close()
@@ -180,20 +188,25 @@ class Transaction:
         except:
             raise StopIteration()
 
+
 class Ledger:
 
     _filenames = []
     _fileindex = 0
 
-    def __init__(self, name:str):
+    def __init__(self, name: str):
         if os.path.isdir(name):
             contents = os.listdir(name)
-            # Sorts the list based off the first number after ledger_ so that the ledger is verified in sequence 
-            sort = sorted(contents, key=lambda x: int(
-                x.replace(".committed", "").replace("ledger_", "").split("-")[0]))
+            # Sorts the list based off the first number after ledger_ so that the ledger is verified in sequence
+            sort = sorted(
+                contents,
+                key=lambda x: int(
+                    x.replace(".committed", "").replace("ledger_", "").split("-")[0]
+                ),
+            )
 
             for chunk in sort:
-                # Add only the .committed ledgers to be verified 
+                # Add only the .committed ledgers to be verified
                 if os.path.isfile(os.path.join(name, chunk)):
                     if chunk.endswith(".committed"):
                         self._filenames.append(os.path.join(name, chunk))
@@ -215,6 +228,6 @@ class Ledger:
                 return next(self._current_tx)
             else:
                 raise StopIteration()
-    
+
     def __iter__(self):
         return self
