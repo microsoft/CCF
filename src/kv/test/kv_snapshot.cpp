@@ -45,35 +45,16 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     // Do not commit tx3
   }
 
-  auto first_snapshot = store.snapshot(first_snapshot_version);
-
-  INFO("Verify content of snapshot");
-  {
-    auto& vec_s = first_snapshot->get_map_snapshots();
-    for (auto& s : vec_s)
-    {
-      REQUIRE_EQ(s->get_security_domain(), kv::SecurityDomain::PUBLIC);
-      REQUIRE_EQ(s->get_is_replicated(), true);
-
-      // Only string_map is committed at version 1
-      if (s->get_name() == "string_map")
-      {
-        REQUIRE_GT(s->get_serialized_size(), 0);
-      }
-      else
-      {
-        REQUIRE_EQ(s->get_name(), "num_map");
-        REQUIRE_EQ(s->get_serialized_size(), 0);
-      }
-    }
-  }
+  auto first_snapshot = store.serialise_snapshot(first_snapshot_version);
 
   INFO("Apply snapshot at 1 to new store");
   {
     kv::Store new_store;
     new_store.clone_schema(store);
 
-    new_store.deserialize(first_snapshot);
+    REQUIRE_EQ(
+      new_store.deserialise_snapshot(first_snapshot),
+      kv::DeserialiseSuccess::PASS);
     REQUIRE_EQ(new_store.current_version(), 1);
 
     auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
@@ -94,12 +75,12 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     REQUIRE(!v.has_value());
   }
 
-  auto second_snapshot = store.snapshot(second_snapshot_version);
+  auto second_snapshot = store.serialise_snapshot(second_snapshot_version);
   INFO("Apply snapshot at 2 to new store");
   {
     kv::Store new_store;
     new_store.clone_schema(store);
-    new_store.deserialize(second_snapshot);
+    new_store.deserialise_snapshot(second_snapshot);
     REQUIRE_EQ(new_store.current_version(), 2);
 
     auto new_string_map = new_store.get<MapTypes::StringString>("string_map");
@@ -146,7 +127,7 @@ TEST_CASE(
     snapshot_version = tx2.commit_version();
   }
 
-  auto snapshot = store.snapshot(snapshot_version);
+  auto snapshot = store.serialise_snapshot(snapshot_version);
 
   INFO("Apply snapshot while committing a transaction");
   {
@@ -159,7 +140,7 @@ TEST_CASE(
     view->put("in", "flight");
     // tx is not committed until the snapshot is deserialised
 
-    new_store.deserialize(snapshot);
+    new_store.deserialise_snapshot(snapshot);
 
     // Transaction conflicts as snapshot was applied while transaction was in
     // flight
