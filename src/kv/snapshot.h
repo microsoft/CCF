@@ -10,40 +10,30 @@ namespace kv
   {
   private:
     std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
-    kv::Version version;
-    size_t serialized_size = 0;
-    std::vector<uint8_t> buffer;
 
   public:
-    StoreSnapshot(kv::Version version_) : version(version_) {}
+    StoreSnapshot() = default;
 
     void add_map_snapshot(
       std::unique_ptr<kv::AbstractMap::Snapshot> snapshot) override
     {
-      serialized_size += snapshot->get_serialized_size();
       snapshots.push_back(std::move(snapshot));
     }
 
-    const std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>>&
-    get_map_snapshots() override
+    std::vector<uint8_t> serialise(KvStoreSerialiser& s) override
     {
-      return snapshots;
-    }
-
-    void serialize() override
-    {
-      buffer.resize(serialized_size);
-      uint8_t* buffer_ = buffer.data();
-      for (auto& s : snapshots)
+      for (auto domain : {SecurityDomain::PUBLIC, SecurityDomain::PRIVATE})
       {
-        s->serialize(buffer_);
-        buffer_ = buffer_ + s->get_serialized_size();
+        for (const auto& it : snapshots)
+        {
+          if (it->get_security_domain() == domain)
+          {
+            it->serialise(s);
+          }
+        }
       }
-    }
 
-    kv::Version get_version() const override
-    {
-      return version;
+      return s.get_raw_data();
     }
   };
 }
