@@ -183,11 +183,10 @@ class Transaction:
 class Ledger:
 
     _filenames = []
-    _directory = None
     _fileindex = 0
 
-    def __init__(self, name:str, is_dir:bool == False):
-        if is_dir:
+    def __init__(self, name:str):
+        if os.path.isdir(name):
             contents = os.listdir(name)
             # Sorts the list based off the first number after ledger_ so that the ledger is verified in sequence 
             sort = sorted(contents, key=lambda x: int(
@@ -196,13 +195,13 @@ class Ledger:
             for chunk in sort:
                 # Add only the .committed ledgers to be verified 
                 if os.path.isfile(os.path.join(name, chunk)):
-                    if chunk.find(".committed") != -1:
+                    if chunk.endswith(".committed"):
                         self._filenames.append(os.path.join(name, chunk))
-
+                    else:
+                        LOG.warning(f"The file {chunk} has not been committed")
         else:
             self._filenames = [name]
 
-       
         self._fileindex = 0
         self._current_tx = Transaction(self._filenames[0])
 
