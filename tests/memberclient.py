@@ -216,9 +216,11 @@ def run(args):
         assert response.status == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
-        proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(0)
+        proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(
+            0, vote_against=True
+        )
         try:
-            new_member.propose(primary, proposal_trust_0)
+            new_member.propose(primary, proposal_trust_0, has_proposer_voted_for=False)
             assert (
                 False
             ), "New non-active member should get insufficient rights response"
@@ -229,14 +231,16 @@ def run(args):
         new_member.ack(primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        trust_node_proposal_0 = new_member.propose(primary, proposal_trust_0)
+        trust_node_proposal_0 = new_member.propose(
+            primary, proposal_trust_0, has_proposer_voted_for=False
+        )
         trust_node_proposal_0.vote_for = careful_vote
 
         LOG.debug("Members vote to accept the accept node proposal")
         network.consortium.vote_using_majority(primary, trust_node_proposal_0)
         assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
 
-        LOG.info("New member makes a new proposal")
+        LOG.info("New member makes a new proposal, with initial no vote")
         proposal_trust_1, _ = ccf.proposal_generator.trust_node(1)
         trust_node_proposal = new_member.propose(primary, proposal_trust_1)
 
