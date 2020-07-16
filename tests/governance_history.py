@@ -64,7 +64,7 @@ def run(args):
         primary, _ = network.find_primary()
 
         ledger_directory = network.find_primary()[0].remote.ledger_path()
-      
+
         ledger = ccf.ledger.Ledger(ledger_directory)
         (
             original_proposals,
