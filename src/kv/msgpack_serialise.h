@@ -41,7 +41,10 @@ namespace kv
     {
       const uint64_t size = entry.size();
       sb.write(reinterpret_cast<char const*>(&size), sizeof(size));
-      sb.write(reinterpret_cast<char const*>(entry.data()), entry.size());
+      if (entry.size() > 0)
+      {
+        sb.write(reinterpret_cast<char const*>(entry.data()), entry.size());
+      }
     }
 
     void clear()
