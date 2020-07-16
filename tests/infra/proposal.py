@@ -36,6 +36,5 @@ class Proposal:
         self.votes_for = 1 if self.has_proposer_voted_for else 0
         self.vote_for = {"ballot": {"text": "return true"}}
 
-
     def increment_votes_for(self):
         self.votes_for += 1

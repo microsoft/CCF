@@ -260,7 +260,6 @@ class Consortium:
         return self.vote_using_majority(remote_node, proposal)
 
     def add_user(self, remote_node, user_id):
-        user_cert = []
         proposal, careful_vote = self.proposal_generator.new_user(
             os.path.join(self.common_dir, f"user{user_id}_cert.pem")
         )
