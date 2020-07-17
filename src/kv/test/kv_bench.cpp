@@ -236,8 +236,6 @@ static void des_snap(picobench::state& s)
 
   auto snapshot = kv_store.serialise_snapshot(tx.commit_version());
 
-  LOG_INFO_FMT("Size of snapshot: {}", snapshot.size()); // TODO: Delete
-
   s.start_timer();
   kv_store2.deserialise_snapshot(snapshot);
   s.stop_timer();
