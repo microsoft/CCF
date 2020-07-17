@@ -1,6 +1,25 @@
 End-to-end demo
 ===============
 
+This document explains how to spin up a test CCF network and submit simple commands to it using `curl`_. This uses the :ref:`example C++ logging app <developers/example>` and the ``start_test_network.sh`` helper script from the main CCF repo.
+
+PREREQUISITES - VM, you've built the app
+
+RUN EXACTLY THIS
+Here's a summary of what it has done.
+.sh is a thin wrapper around .py, including venv setup.
+Run it with -v for more detail, --help for options, and prefix with CURL_CLIENT=ON for sample curl commands it has run.
+
+IDENTITIES
+auth both ways, members vs users vs unauthed? networkcert.pem is produced by the first node, was copied from node dir to common. Default is workspace/etc, move with --workspace?
+
+USING IT
+Use that IP, curl to it with the generated identities
+
+TYING IT ALL TOGETHER
+Explicitly call out the endpoint - registered with this name _here_, available as URI path _here_. Prod a few different endpoints, show the difference in their behaviour (grep the ledger for public entries, show private is encrypted?)
+
+
 This document explains how the Python testing infrastructure is used to run a complete end-to-end test of CCF.
 
 The script ``tests/e2e_scenarios.py`` reads a test scenario from json. This json file can specify which app the network should run, how many nodes it should create, and the list of transactions to run. ``tests/simple_logging_scenario.json`` is an example scenario file showing the expected format:
@@ -69,6 +88,9 @@ There should be a corresponding entry in the Python output, similar to:
     | DEBUG    | infra.clients:log_response:135 - {'status': 200, 'result': True, 'error': None, 'seqno': 23, 'view': 2}
 
 The ``e2e`` test script takes several additional parameters, documented by passing ``-h`` on the command line. To debug a node it may be useful to increase the node's verbosity by altering the ``--log-level`` option [#log_location]_, or to attach a debugger to a node at launch with the ``--debug-nodes`` option. If passed the ``--network-only`` option the script will keep the network alive, rather than closing immediately after transactions have completed, allowing additional transactions to be sent manually.
+
+
+.. _curl: https://curl.haxx.se/
 
 .. rubric:: Footnotes
 
