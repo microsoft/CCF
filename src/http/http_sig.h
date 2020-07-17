@@ -25,7 +25,6 @@ namespace http
   {
     std::string signed_string = {};
     std::string value = {};
-    bool has_digest = false;
     bool first = true;
 
     for (const auto f : headers_to_sign)
@@ -48,17 +47,11 @@ namespace http
         const auto h = headers.find(f);
         if (h == headers.end())
         {
-          LOG_FAIL_FMT("Signed header {} does not exist", f);
-          return {};
+          LOG_FAIL_FMT("Signed header '{}' does not exist", f);
+          return std::nullopt;
         }
 
         value = h->second;
-
-        // Digest field should be signed.
-        if (f == headers::DIGEST)
-        {
-          has_digest = true;
-        }
       }
 
       if (!first)
@@ -72,12 +65,6 @@ namespace http
       signed_string.append(value);
     }
 
-    if (!has_digest)
-    {
-      LOG_FAIL_FMT("{} is not signed", headers::DIGEST);
-      return {};
-    }
-
     auto ret =
       std::vector<uint8_t>({signed_string.begin(), signed_string.end()});
     return ret;
@@ -89,38 +76,32 @@ namespace http
     std::vector<uint8_t> signature;
   };
 
+  inline void add_digest_header(http::Request& request)
+  {
+    // Ensure digest is present and up-to-date
+    const auto& headers = request.get_headers();
+
+    tls::HashBytes body_digest;
+    tls::do_hash(
+      request.get_content_data(),
+      request.get_content_length(),
+      body_digest,
+      MBEDTLS_MD_SHA256);
+    request.set_header(
+      headers::DIGEST,
+      fmt::format(
+        "{}={}",
+        "SHA-256",
+        tls::b64_from_raw(body_digest.data(), body_digest.size())));
+  }
+
   inline void sign_request(
     http::Request& request,
     const tls::KeyPairPtr& kp,
+    const std::vector<std::string_view>& headers_to_sign,
     SigningDetails* details = nullptr)
   {
-    std::vector<std::string_view> headers_to_sign;
-    headers_to_sign.emplace_back(auth::SIGN_HEADER_REQUEST_TARGET);
-    headers_to_sign.emplace_back(headers::DIGEST);
-    headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
-
-    {
-      // Ensure digest present and up-to-date
-      const auto& headers = request.get_headers();
-
-      tls::HashBytes body_digest;
-      tls::do_hash(
-        request.get_content_data(),
-        request.get_content_length(),
-        body_digest,
-        MBEDTLS_MD_SHA256);
-      request.set_header(
-        headers::DIGEST,
-        fmt::format(
-          "{}={}",
-          "SHA-256",
-          tls::b64_from_raw(body_digest.data(), body_digest.size())));
-
-      if (headers.find(headers::CONTENT_TYPE) != headers.end())
-      {
-        headers_to_sign.emplace_back(headers::CONTENT_TYPE);
-      }
-    }
+    add_digest_header(request);
 
     const auto to_sign = construct_raw_signed_string(
       http_method_str(request.get_method()),
@@ -151,6 +132,19 @@ namespace http
       details->to_sign = to_sign.value();
       details->signature = signature;
     }
+  }
+
+  inline void sign_request(
+    http::Request& request,
+    const tls::KeyPairPtr& kp,
+    SigningDetails* details = nullptr)
+  {
+    std::vector<std::string_view> headers_to_sign;
+    headers_to_sign.emplace_back(auth::SIGN_HEADER_REQUEST_TARGET);
+    headers_to_sign.emplace_back(headers::DIGEST);
+    headers_to_sign.emplace_back(headers::CONTENT_LENGTH);
+
+    sign_request(request, kp, headers_to_sign, details);
   }
 
   // Implements verification of "Signature" scheme from
@@ -285,9 +279,19 @@ namespace http
           auto k = p.substr(0, eq_pos);
           auto v = p.substr(eq_pos + 1);
 
-          // Remove inverted commas around value
-          v.remove_prefix(v.find_first_of("\"") + 1);
-          v.remove_suffix(v.size() - v.find_last_of("\""));
+          // Remove quotes around value, if present
+          const bool begins_with_quote = v.front() == '"';
+          const bool ends_with_quote = v.back() == '"';
+          if (v.size() >= 2 && (begins_with_quote || ends_with_quote))
+          {
+            if (!(begins_with_quote && ends_with_quote))
+            {
+              LOG_FAIL_FMT("Unbalanced quotes in Authorization header: {}", p);
+              return std::nullopt;
+            }
+
+            v = v.substr(1, v.size() - 2);
+          }
 
           if (k == auth::SIGN_PARAMS_KEYID)
           {
@@ -299,7 +303,7 @@ namespace http
             if (v != auth::SIGN_ALGORITHM_SHA256)
             {
               LOG_FAIL_FMT("Signature algorithm {} is not supported", v);
-              return {};
+              return std::nullopt;
             }
           }
           else if (k == auth::SIGN_PARAMS_SIGNATURE)
@@ -315,7 +319,7 @@ namespace http
             {
               LOG_FAIL_FMT(
                 "No headers specified in {} field", auth::SIGN_PARAMS_HEADERS);
-              return {};
+              return std::nullopt;
             }
 
             for (const auto& h : parsed_signed_headers)
@@ -327,7 +331,7 @@ namespace http
         else
         {
           LOG_FAIL_FMT("Authorization parameter {} does not contain \"=\"", p);
-          return {};
+          return std::nullopt;
         }
       }
 
