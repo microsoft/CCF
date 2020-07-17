@@ -128,7 +128,8 @@ namespace tls
         }
 
         default:
-        {}
+        {
+        }
       }
 
       return MBEDTLS_SSL_VERIFY_REQUIRED;
