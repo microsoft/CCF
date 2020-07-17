@@ -309,15 +309,15 @@ namespace kv
         map.second->unlock();
       }
 
+      if (!success)
+      {
+        return DeserialiseSuccess::FAILED;
+      }
+
       if (!d.end())
       {
         LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
         success = false;
-      }
-
-      if (!success)
-      {
-        return DeserialiseSuccess::FAILED;
       }
 
       {
