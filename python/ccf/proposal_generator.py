@@ -7,6 +7,7 @@ import inspect
 import json
 import os
 import sys
+import functools
 
 from loguru import logger as LOG
 
@@ -24,11 +25,7 @@ def script_to_vote_object(script):
     return {"ballot": {"text": script}}
 
 
-TRIVIAL_YES_BALLOT = {"text": "return true"}
-TRIVIAL_NO_BALLOT = {"text": "return false"}
-
-LUA_FUNCTION_EQUAL_ARRAYS = """
-function equal_arrays(a, b)
+LUA_FUNCTION_EQUAL_ARRAYS = """function equal_arrays(a, b)
   if #a ~= #b then
     return false
   else
@@ -39,13 +36,43 @@ function equal_arrays(a, b)
     end
     return true
   end
-end
-"""
+end"""
+
+DEFAULT_PROPOSAL_OUTPUT = "{proposal_name}_proposal.json"
+DEFAULT_VOTE_OUTPUT = "{proposal_name}_vote_for.json"
+
+
+def complete_proposal_output_path(
+    proposal_name, proposal_output_path=None, common_dir="."
+):
+    if proposal_output_path is None:
+        proposal_output_path = DEFAULT_PROPOSAL_OUTPUT.format(
+            proposal_name=proposal_name
+        )
+
+    if not proposal_output_path.endswith(".json"):
+        proposal_output_path += ".json"
+
+    proposal_output_path = os.path.join(common_dir, proposal_output_path)
+
+    return proposal_output_path
+
+
+def complete_vote_output_path(proposal_name, vote_output_path=None, common_dir="."):
+    if vote_output_path is None:
+        vote_output_path = DEFAULT_VOTE_OUTPUT.format(proposal_name=proposal_name)
+
+    if not vote_output_path.endswith(".json"):
+        vote_output_path += ".json"
+
+    vote_output_path = os.path.join(common_dir, vote_output_path)
+
+    return vote_output_path
 
 
 def add_arg_construction(lines, arg, arg_name="args"):
     if isinstance(arg, str):
-        lines.append(f'{arg_name} = "{arg}"')
+        lines.append(f"{arg_name} = [====[{arg}]====]")
     elif isinstance(arg, collections.abc.Sequence):
         lines.append(f"{arg_name} = {list_as_lua_literal(arg)}")
     elif isinstance(arg, collections.abc.Mapping):
@@ -56,11 +83,16 @@ def add_arg_construction(lines, arg, arg_name="args"):
         lines.append(f"{arg_name} = {arg}")
 
 
-def add_arg_checks(lines, arg, arg_name="args"):
-    lines.append(f"if {arg_name} == nil then return false")
+def add_arg_checks(lines, arg, arg_name="args", added_equal_arrays_fn=False):
+    lines.append(f"if {arg_name} == nil then return false end")
     if isinstance(arg, str):
-        lines.append(f'if not {arg_name} == "{arg}" then return false end')
+        lines.append(f"if not {arg_name} == [====[{arg}]====] then return false end")
     elif isinstance(arg, collections.abc.Sequence):
+        if not added_equal_arrays_fn:
+            lines.extend(
+                line.strip() for line in LUA_FUNCTION_EQUAL_ARRAYS.splitlines()
+            )
+            added_equal_arrays_fn = True
         expected_name = arg_name.replace(".", "_")
         lines.append(f"{expected_name} = {list_as_lua_literal(arg)}")
         lines.append(
@@ -68,13 +100,18 @@ def add_arg_checks(lines, arg, arg_name="args"):
         )
     elif isinstance(arg, collections.abc.Mapping):
         for k, v in arg.items():
-            add_arg_checks(lines, v, arg_name=f"{arg_name}.{k}")
+            add_arg_checks(
+                lines,
+                v,
+                arg_name=f"{arg_name}.{k}",
+                added_equal_arrays_fn=added_equal_arrays_fn,
+            )
     else:
         lines.append(f"if not {arg_name} == {arg} then return false end")
 
 
-def build_proposal(proposed_call, args=None, inline_args=False):
-    LOG.debug(f"Generating {proposed_call} proposal")
+def build_proposal(proposed_call, args=None, inline_args=False, vote_against=False):
+    LOG.trace(f"Generating {proposed_call} proposal")
 
     proposal_script_lines = []
     if args is None:
@@ -92,15 +129,17 @@ def build_proposal(proposed_call, args=None, inline_args=False):
     }
     if args is not None and not inline_args:
         proposal["parameter"] = args
+    if vote_against:
+        proposal["ballot"] = {"text": "return false"}
 
     vote_lines = [
         "tables, calls = ...",
         "if not #calls == 1 then return false end",
         "call = calls[1]",
         f'if not call.func == "{proposed_call}" then return false end',
-        LUA_FUNCTION_EQUAL_ARRAYS,
     ]
     if args is not None:
+        vote_lines.append("args = call.args")
         add_arg_checks(vote_lines, args)
     vote_lines.append("return true")
     vote_text = "; ".join(vote_lines)
@@ -121,7 +160,7 @@ def cli_proposal(func):
 def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
     LOG.debug("Generating new_member proposal")
 
-    # Convert certs to byte arrays
+    # Read certs
     member_cert = open(member_cert_path).read()
     member_keyshare_encryptor = open(member_enc_pubk_path).read()
 
@@ -137,6 +176,11 @@ def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
         "script": {"text": proposal_script_text},
     }
 
+    vote_against = kwargs.pop("vote_against", False)
+
+    if vote_against:
+        proposal["ballot"] = {"text": "return false"}
+
     # Sample vote script which checks the expected member is being added, and no other actions are being taken
     verifying_vote_text = f"""
     tables, calls = ...
@@ -149,15 +193,13 @@ def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
     return false
     end
 
-    {LUA_FUNCTION_EQUAL_ARRAYS}
-
-    expected_cert = {list_as_lua_literal(member_cert)}
-    if not equal_arrays(call.args.cert, expected_cert) then
+    expected_cert = [====[{member_cert}]====]
+    if not call.args.cert == expected_cert then
     return false
     end
 
-    expected_keyshare = {list_as_lua_literal(member_keyshare_encryptor)}
-    if not equal_arrays(call.args.keyshare, expected_keyshare) then
+    expected_keyshare = [====[{member_keyshare_encryptor}]====]
+    if not call.args.keyshare == expected_keyshare then
     return false
     end
 
@@ -258,25 +300,66 @@ def set_recovery_threshold(threshold, **kwargs):
     return build_proposal("set_recovery_threshold", threshold, **kwargs)
 
 
+class ProposalGenerator:
+    def __init__(self, common_dir="."):
+        self.common_dir = common_dir
+
+        # Auto-generate methods wrapping inspected functions, dumping outputs to file
+        def wrapper(func):
+            @functools.wraps(func)
+            def wrapper_func(
+                *args, proposal_output_path=None, vote_output_path=None, **kwargs,
+            ):
+                proposal_output_path = complete_proposal_output_path(
+                    func.__name__,
+                    proposal_output_path=proposal_output_path,
+                    common_dir=self.common_dir,
+                )
+
+                vote_output_path = complete_vote_output_path(
+                    func.__name__,
+                    vote_output_path=vote_output_path,
+                    common_dir=self.common_dir,
+                )
+
+                proposal_object, vote_object = func(*args, **kwargs)
+                dump_args = {"indent": 2}
+
+                LOG.debug(f"Writing proposal to {proposal_output_path}")
+                dump_to_file(proposal_output_path, proposal_object, dump_args)
+
+                LOG.debug(f"Writing vote to {vote_output_path}")
+                dump_to_file(vote_output_path, vote_object, dump_args)
+
+                return f"@{proposal_output_path}", f"@{vote_output_path}"
+
+            return wrapper_func
+
+        module = inspect.getmodule(inspect.currentframe())
+        proposal_generators = inspect.getmembers(module, predicate=inspect.isfunction)
+
+        for func_name, func in proposal_generators:
+            # Only wrap decorated functions
+            if hasattr(func, "is_cli_proposal"):
+                setattr(self, func_name, wrapper(func))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    default_proposal_output = "{proposal_type}.json"
-    default_vote_output = "vote_for_{proposal_output}.json"
-
     parser.add_argument(
         "-po",
         "--proposal-output-file",
         type=str,
-        help=f"Path where proposal JSON object (request body for POST /gov/proposals) will be dumped. Default is {default_proposal_output}",
+        help=f"Path where proposal JSON object (request body for POST /gov/proposals) will be dumped. Default is {DEFAULT_PROPOSAL_OUTPUT}",
     )
     parser.add_argument(
         "-vo",
         "--vote-output-file",
         type=str,
-        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/votes) will be dumped. Default is {default_vote_output}",
+        help=f"Path where vote JSON object (request body for POST /gov/proposals/{{proposal_id}}/votes) will be dumped. Default is {DEFAULT_VOTE_OUTPUT}",
     )
     parser.add_argument(
         "-pp",
@@ -288,9 +371,15 @@ if __name__ == "__main__":
         "-i",
         "--inline-args",
         action="store_true",
-        help="Create a fixed proposal script with the call arguments as literalsinside"
-        "the script. When not inlined, the parameters are passed separately and could"
+        help="Create a fixed proposal script with the call arguments as literals inside "
+        "the script. When not inlined, the parameters are passed separately and could "
         "be replaced in the resulting object",
+    )
+    parser.add_argument(
+        "--vote-against",
+        action="store_true",
+        help="Include a negative initial vote when creating the proposal",
+        default=False,
     )
     parser.add_argument("-v", "--verbose", action="store_true")
 
@@ -303,9 +392,7 @@ if __name__ == "__main__":
 
     for func_name, func in proposal_generators:
         # Only generate for decorated functions
-        try:
-            getattr(func, "is_cli_proposal")
-        except AttributeError:
+        if not hasattr(func, "is_cli_proposal"):
             continue
 
         subparser = subparsers.add_parser(func_name)
@@ -329,6 +416,7 @@ if __name__ == "__main__":
 
     proposal, vote = args.func(
         **{name: getattr(args, name) for name in args.param_names},
+        vote_against=args.vote_against,
         inline_args=args.inline_args,
     )
 
@@ -336,14 +424,14 @@ if __name__ == "__main__":
     if args.pretty_print:
         dump_args["indent"] = 2
 
-    proposal_output_path = args.proposal_output_file or default_proposal_output.format(
-        proposal_type=args.proposal_type
+    proposal_path = complete_proposal_output_path(
+        args.proposal_type, proposal_output_path=args.proposal_output_file
     )
-    LOG.success(f"Writing proposal to {proposal_output_path}")
-    dump_to_file(proposal_output_path, proposal, dump_args)
+    LOG.success(f"Writing proposal to {proposal_path}")
+    dump_to_file(proposal_path, proposal, dump_args)
 
-    vote_output_path = args.vote_output_file or default_vote_output.format(
-        proposal_output=os.path.splitext(proposal_output_path)[0]
+    vote_path = complete_vote_output_path(
+        args.proposal_type, vote_output_path=args.vote_output_file
     )
-    LOG.success(f"Writing vote to {vote_output_path}")
-    dump_to_file(vote_output_path, vote, dump_args)
+    LOG.success(f"Wrote vote to {vote_path}")
+    dump_to_file(vote_path, vote, dump_args)
