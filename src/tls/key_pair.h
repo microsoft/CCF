@@ -570,7 +570,7 @@ namespace tls
       EntropyPtr entropy = create_entropy();
 
       const auto ec = get_ec_from_context(*ctx);
-      const auto md_type = get_md_for_ec(ec);
+      const auto md_type = get_md_for_ec(ec, true);
 
       return mbedtls_pk_sign(
         ctx.get(),

@@ -537,25 +537,9 @@ namespace raft
         r.term,
         r.idx);
 
-      const auto prev_term = get_term_internal(r.prev_idx);
-      LOG_DEBUG_FMT("Previous term for {} should be {}", r.prev_idx, prev_term);
-
       // Don't check that the sender node ID is valid. Accept anything that
       // passes the integrity check. This way, entries containing dynamic
       // topology changes that include adding this new leader can be accepted.
-      if (r.prev_idx < commit_idx)
-      {
-        LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idex ({}) < commit_idx "
-          "({})",
-          local_id,
-          r.from_node,
-          r.prev_idx,
-          commit_idx);
-        return;
-      }
-
-      restart_election_timeout();
 
       if (current_term == r.term && state == Candidate)
       {
@@ -580,8 +564,13 @@ namespace raft
         return;
       }
 
+      const auto prev_term = get_term_internal(r.prev_idx);
+
       if (prev_term != r.prev_term)
       {
+        LOG_DEBUG_FMT(
+          "Previous term for {} should be {}", r.prev_idx, prev_term);
+
         // Reply false if the log doesn't contain an entry at r.prev_idx
         // whose term is r.prev_term.
         if (prev_term == 0)
@@ -605,6 +594,20 @@ namespace raft
             r.prev_term);
         }
         send_append_entries_response(r.from_node, false);
+        return;
+      }
+
+      restart_election_timeout();
+
+      if (r.prev_idx < commit_idx)
+      {
+        LOG_DEBUG_FMT(
+          "Recv append entries to {} from {} but prev_idex ({}) < commit_idx "
+          "({})",
+          local_id,
+          r.from_node,
+          r.prev_idx,
+          commit_idx);
         return;
       }
 
