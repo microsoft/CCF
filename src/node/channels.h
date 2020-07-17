@@ -37,6 +37,11 @@ namespace ccf
   static_assert(
     sizeof(RecvNonce) == sizeof(SeqNo), "RecvNonce is the wrong size");
 
+  static inline RecvNonce get_nonce(const GcmHdr& header)
+  {
+    return RecvNonce(header.get_iv_int());
+  }
+
   enum ChannelStatus
   {
     INITIATED = 0,
@@ -46,9 +51,22 @@ namespace ccf
   class Channel
   {
   private:
-    // Used for key exchange
-    tls::KeyExchangeContext ctx;
-    ChannelStatus status = INITIATED;
+    struct OutgoingMsg
+    {
+      NodeMsgType type;
+      std::vector<uint8_t> raw_plain; // To be integrity-protected
+      std::vector<uint8_t> raw_cipher; // To be encrypted
+
+      OutgoingMsg(
+        NodeMsgType msg_type, CBuffer raw_plain_, CBuffer raw_cipher_) :
+        type(msg_type),
+        raw_plain(raw_plain_),
+        raw_cipher(raw_cipher_)
+      {}
+    };
+
+    NodeId self;
+    tls::KeyPairPtr network_kp;
 
     // Notifies the host to create a new outgoing connection
     ringbuffer::WriterPtr to_host;
@@ -57,11 +75,19 @@ namespace ccf
     std::string peer_service;
     bool outgoing;
 
+    // Used for key exchange
+    tls::KeyExchangeContext ctx;
+    ChannelStatus status = INITIATED;
+
     // Used for AES GCM authentication/encryption
     std::unique_ptr<crypto::KeyAesGcm> key;
 
     // Incremented for each tagged/encrypted message
     std::atomic<SeqNo> send_nonce{1};
+
+    // Used to buffer at most one message sent on the channel before it is
+    // established
+    std::optional<OutgoingMsg> outgoing_msg;
 
     // Used to prevent replayed messages.
     // Set to the latest successfully received nonce.
@@ -127,13 +153,30 @@ namespace ccf
       return ret;
     }
 
+    void try_establish_channel()
+    {
+      ChannelHeader msg = {ChannelMsg::key_exchange, self};
+      to_host->write(
+        node_outbound,
+        peer_id,
+        NodeMsgType::channel_msg,
+        msg,
+        get_signed_public());
+
+      LOG_DEBUG_FMT("node channel with {} initiated", peer_id);
+    }
+
   public:
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
+      tls::KeyPairPtr network_kp_,
+      NodeId self_,
       NodeId peer_id_,
       const std::string& peer_hostname_,
       const std::string& peer_service_) :
       to_host(writer_factory.create_writer_to_outside()),
+      network_kp(network_kp_),
+      self(self_),
       peer_id(peer_id_),
       peer_hostname(peer_hostname_),
       peer_service(peer_service_),
@@ -144,8 +187,13 @@ namespace ccf
     }
 
     Channel(
-      ringbuffer::AbstractWriterFactory& writer_factory, NodeId peer_id_) :
+      ringbuffer::AbstractWriterFactory& writer_factory,
+      tls::KeyPairPtr network_kp_,
+      NodeId self_,
+      NodeId peer_id_) :
       to_host(writer_factory.create_writer_to_outside()),
+      network_kp(network_kp_),
+      self(self_),
       peer_id(peer_id_),
       outgoing(false)
     {}
@@ -196,86 +244,210 @@ namespace ccf
       outgoing = false;
     }
 
-    std::optional<std::vector<uint8_t>> get_public()
+    std::vector<uint8_t> get_signed_public()
     {
-      if (status == ESTABLISHED)
-      {
-        return {};
-      }
+      const auto own_public = ctx.get_own_public();
+      auto signature = network_kp->sign(own_public);
 
-      return ctx.get_own_public();
+      // Serialise channel public and network signature and length-prefix both
+      auto space = own_public.size() + signature.size() + 2 * sizeof(size_t);
+      std::vector<uint8_t> serialised_signed_public(space);
+      auto data_ = serialised_signed_public.data();
+      serialized::write(data_, space, own_public.size());
+      serialized::write(data_, space, own_public.data(), own_public.size());
+      serialized::write(data_, space, signature.size());
+      serialized::write(data_, space, signature.data(), signature.size());
+
+      return serialised_signed_public;
     }
 
-    bool load_peer_public(const uint8_t* bytes, size_t size)
+    bool load_peer_signed_public(
+      bool complete, const uint8_t* data, size_t size)
     {
       if (status == ESTABLISHED)
       {
         return false;
       }
 
-      ctx.load_peer_public(bytes, size);
+      auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
+
+      auto peer_public_size = serialized::read<size_t>(data, size);
+      auto peer_public_start = data;
+
+      if (peer_public_size > size)
+      {
+        LOG_FAIL_FMT(
+          "Peer public key header wants {} bytes, but only {} remain",
+          peer_public_size,
+          size);
+        return false;
+      }
+
+      data += peer_public_size;
+      size -= peer_public_size;
+
+      auto signature_size = serialized::read<size_t>(data, size);
+      auto signature_start = data;
+
+      if (signature_size > size)
+      {
+        LOG_FAIL_FMT(
+          "Signature header wants {} bytes, but only {} remain",
+          signature_size,
+          size);
+        return false;
+      }
+
+      if (signature_size < size)
+      {
+        LOG_FAIL_FMT(
+          "Expected signature to use all remaining {} bytes, but only uses "
+          "{}",
+          size,
+          signature_size);
+        return false;
+      }
+
+      if (!network_pubk->verify(
+            peer_public_start,
+            peer_public_size,
+            signature_start,
+            signature_size))
+      {
+        LOG_FAIL_FMT(
+          "node channel peer signature verification failed {}", peer_id);
+        return false;
+      }
+
+      ctx.load_peer_public(peer_public_start, peer_public_size);
+
+      establish(complete);
+
       return true;
     }
 
-    void establish()
+    void establish(bool complete)
     {
       auto shared_secret = ctx.compute_shared_secret();
       key = std::make_unique<crypto::KeyAesGcm>(shared_secret);
       ctx.free_ctx();
       status = ESTABLISHED;
-    }
 
-    void free_ctx()
-    {
-      if (status != ESTABLISHED)
+      if (outgoing_msg.has_value())
       {
-        return;
+        send(
+          outgoing_msg->type,
+          outgoing_msg->raw_plain,
+          outgoing_msg->raw_cipher);
+        outgoing_msg.reset();
       }
 
-      ctx.free_ctx();
-    }
+      LOG_INFO_FMT("node channel with {} is now established", peer_id);
 
-    void tag(GcmHdr& header, CBuffer aad)
-    {
-      if (status != ESTABLISHED)
+      if (!complete)
       {
-        throw std::logic_error("Channel is not established for tagging");
+        ChannelHeader msg = {ChannelMsg::key_exchange_response, self};
+        to_host->write(
+          node_outbound,
+          peer_id,
+          NodeMsgType::channel_msg,
+          msg,
+          get_signed_public());
       }
-      RecvNonce nonce(
-        send_nonce.fetch_add(1), threading::get_current_thread_id());
-
-      header.set_iv_seq(nonce.get_val());
-      key->encrypt(header.get_iv(), nullb, aad, nullptr, header.tag);
     }
 
-    static RecvNonce get_nonce(const GcmHdr& header)
-    {
-      return RecvNonce(header.get_iv_int());
-    }
-
-    bool verify(const GcmHdr& header, CBuffer aad)
-    {
-      return verify_or_decrypt(header, aad);
-    }
-
-    void encrypt(GcmHdr& header, CBuffer aad, CBuffer plain, Buffer cipher)
+    bool send(NodeMsgType msg_type, CBuffer aad, CBuffer plain = nullb)
     {
       if (status != ESTABLISHED)
       {
-        throw std::logic_error("Channel is not established for encrypting");
+        try_establish_channel();
+        outgoing_msg = OutgoingMsg(msg_type, aad, plain);
+        return false;
       }
 
       RecvNonce nonce(
         send_nonce.fetch_add(1), threading::get_current_thread_id());
 
-      header.set_iv_seq(nonce.get_val());
-      key->encrypt(header.get_iv(), plain, aad, cipher.p, header.tag);
+      serializer::ByteRange aad_byte_range = {aad.p, aad.n};
+      GcmHdr hdr;
+      hdr.set_iv_seq(nonce.get_val());
+
+      std::vector<uint8_t> cipher(plain.n);
+      key->encrypt(hdr.get_iv(), plain, aad, cipher.data(), hdr.tag);
+
+      to_host->write(
+        node_outbound, peer_id, msg_type, aad_byte_range, hdr, cipher);
+
+      return true;
     }
 
-    bool decrypt(
-      const GcmHdr& header, CBuffer aad, CBuffer cipher, Buffer plain)
+    bool recv_authenticated(CBuffer aad, const uint8_t*& data, size_t& size)
     {
-      return verify_or_decrypt(header, aad, cipher, plain);
+      // Receive authenticated message, modifying data to point to the start of
+      // the non-authenticated plaintext payload
+      if (status != ESTABLISHED)
+      {
+        LOG_FAIL_FMT(
+          "node channel with {} cannot receive authenticated message: not "
+          "yet established",
+          peer_id);
+        return false;
+      }
+
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      if (!verify_or_decrypt(hdr, aad))
+      {
+        LOG_FAIL_FMT("Failed to verify node message from {}", peer_id);
+        return false;
+      }
+
+      return true;
+    }
+
+    bool recv_authenticated_with_load(const uint8_t*& data, size_t& size)
+    {
+      // Receive authenticated message, modifying data to point to the start of
+      // the non-authenticated plaintex payload. data contains payload first,
+      // then GCM header
+
+      const uint8_t* data_ = data;
+      size_t size_ = size;
+
+      serialized::skip(data_, size_, (size_ - sizeof(GcmHdr)));
+      const auto& hdr = serialized::overlay<GcmHdr>(data_, size_);
+      size -= sizeof(GcmHdr);
+
+      if (!verify_or_decrypt(hdr, {data, size}))
+      {
+        LOG_FAIL_FMT("Failed to verify node message from {}", peer_id);
+        return false;
+      }
+
+      return true;
+    }
+
+    std::optional<std::vector<uint8_t>> recv_encrypted(
+      CBuffer aad, const uint8_t* data, size_t size)
+    {
+      // Receive encrypted message, returning the decrypted payload
+      if (status != ESTABLISHED)
+      {
+        LOG_FAIL_FMT(
+          "node channel with {} cannot receive encrypted message: not yet "
+          "established",
+          peer_id);
+        return std::nullopt;
+      }
+
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      std::vector<uint8_t> plain(size);
+      if (!verify_or_decrypt(hdr, aad, {data, size}, plain))
+      {
+        LOG_FAIL_FMT("Failed to decrypt node message from {}", peer_id);
+        return std::nullopt;
+      }
+
+      return plain;
     }
   };
 
@@ -285,13 +457,16 @@ namespace ccf
     std::unordered_map<NodeId, Channel> channels;
     ringbuffer::AbstractWriterFactory& writer_factory;
     tls::KeyPairPtr network_kp;
+    NodeId self;
 
   public:
     ChannelManager(
       ringbuffer::AbstractWriterFactory& writer_factory_,
-      const tls::Pem& network_pkey) :
+      const tls::Pem& network_pkey,
+      NodeId self_) :
       writer_factory(writer_factory_),
-      network_kp(tls::make_key_pair(network_pkey))
+      network_kp(tls::make_key_pair(network_pkey)),
+      self(self_)
     {}
 
     void create_channel(
@@ -306,7 +481,8 @@ namespace ccf
         return;
       }
 
-      channels.try_emplace(peer_id, writer_factory, peer_id, hostname, service);
+      channels.try_emplace(
+        peer_id, writer_factory, network_kp, self, peer_id, hostname, service);
     }
 
     void destroy_channel(NodeId peer_id)
@@ -342,107 +518,9 @@ namespace ccf
         return search->second;
       }
 
-      // Creating temporary channel that is not outgoing
-      channels.try_emplace(peer_id, writer_factory, peer_id);
-
+      // Creating temporary channel that is not outgoing (at least for now)
+      channels.try_emplace(peer_id, writer_factory, network_kp, self, peer_id);
       return channels.at(peer_id);
-    }
-
-    std::optional<std::vector<uint8_t>> get_signed_public(NodeId peer_id)
-    {
-      const auto own_public_for_peer_ = get(peer_id).get_public();
-      if (!own_public_for_peer_.has_value())
-      {
-        return std::nullopt;
-      }
-
-      const auto& own_public_for_peer = own_public_for_peer_.value();
-
-      auto signature = network_kp->sign(own_public_for_peer);
-
-      // Serialise channel public and network signature
-      // Length-prefix both
-      auto space =
-        own_public_for_peer.size() + signature.size() + 2 * sizeof(size_t);
-      std::vector<uint8_t> ret(space);
-      auto data_ = ret.data();
-      serialized::write(data_, space, own_public_for_peer.size());
-      serialized::write(
-        data_, space, own_public_for_peer.data(), own_public_for_peer.size());
-      serialized::write(data_, space, signature.size());
-      serialized::write(data_, space, signature.data(), signature.size());
-
-      return ret;
-    }
-
-    bool load_peer_signed_public(
-      NodeId peer_id, const std::vector<uint8_t>& peer_signed_public)
-    {
-      auto& channel = get(peer_id);
-
-      // Verify signature
-      auto network_pubk = tls::make_public_key(network_kp->public_key_pem());
-
-      auto data = peer_signed_public.data();
-      auto data_remaining = peer_signed_public.size();
-
-      auto peer_public_size = serialized::read<size_t>(data, data_remaining);
-      auto peer_public_start = data;
-
-      if (peer_public_size > data_remaining)
-      {
-        LOG_FAIL_FMT(
-          "Peer public key header wants {} bytes, but only {} remain",
-          peer_public_size,
-          data_remaining);
-        return false;
-      }
-
-      data += peer_public_size;
-      data_remaining -= peer_public_size;
-
-      auto signature_size = serialized::read<size_t>(data, data_remaining);
-      auto signature_start = data;
-
-      if (signature_size > data_remaining)
-      {
-        LOG_FAIL_FMT(
-          "Signature header wants {} bytes, but only {} remain",
-          signature_size,
-          data_remaining);
-        return false;
-      }
-
-      if (signature_size < data_remaining)
-      {
-        LOG_FAIL_FMT(
-          "Expected signature to use all remaining {} bytes, but only uses {}",
-          data_remaining,
-          signature_size);
-        return false;
-      }
-
-      if (!network_pubk->verify(
-            peer_public_start,
-            peer_public_size,
-            signature_start,
-            signature_size))
-      {
-        LOG_FAIL_FMT(
-          "node channel peer signature verification failed {}", peer_id);
-        return false;
-      }
-
-      if (!channel.load_peer_public(peer_public_start, peer_public_size))
-      {
-        return false;
-      }
-
-      channel.establish();
-
-      LOG_INFO_FMT("node channel with {} is now established", peer_id);
-
-      return true;
     }
   };
 }
