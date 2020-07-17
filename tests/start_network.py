@@ -51,7 +51,7 @@ def run(args):
             LOG.info("  Node [{:2d}] = {}:{}".format(b.node_id, b.pubhost, b.rpc_port))
 
         LOG.info(
-           f"You can now issue business transactions to the {args.package} application."
+            f"You can now issue business transactions to the {args.package} application."
         )
         LOG.info(f"Certificates have been copied to {network.common_dir}")
         LOG.info(
