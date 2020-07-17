@@ -97,7 +97,7 @@ foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
     ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
   )
-  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION BIN)
+  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
 endforeach()
 
 # Copy utilities from tests directory
