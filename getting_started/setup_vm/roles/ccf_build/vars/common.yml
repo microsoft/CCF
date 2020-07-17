@@ -22,6 +22,8 @@ debs:
   - libssl-dev
   - jq
   - sudo
+  - curl
+  - shellcheck
 
 mbedtls_ver: "2.16.6"
 mbedtls_dir: "mbedtls-{{ mbedtls_ver }}"

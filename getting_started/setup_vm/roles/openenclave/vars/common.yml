@@ -1,5 +1,9 @@
 workspace: "/tmp/"
-oe_ver: "update_snmalloc_0.5"
+oe_ver: "0.10.0-rc1"
+oe_ver_: "0.10.0_rc1"
+# Source install
 oe_src: "oe-{{ oe_ver }}.tar.gz"
 oe_prefix: "/opt/openenclave"
-oe_repo: "https://github.com/achamayou/openenclave.git"
+oe_repo: "https://github.com/openenclave/openenclave.git"
+# Binary install
+oe_deb: "https://github.com/openenclave/openenclave/releases/download/v{{ oe_ver }}/Ubuntu_1804_open-enclave_{{ oe_ver_ }}_amd64.deb"
