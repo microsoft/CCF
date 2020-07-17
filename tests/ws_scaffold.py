@@ -26,16 +26,17 @@ def test(network, args, notifications_queue=None):
 
     # Before we start sending transactions to the secondary,
     # we want to wait for its app frontend to be open, which is
-    # when it's aware that the network is open.
+    # when it's aware that the network is open. Before that,
+    # we will get 404s.
     end_time = time.time() + 10
-    with other.client() as nc:
+    with other.client("user0") as nc:
         while time.time() < end_time:
-            r = nc.get("/node/network")
-            if r.body == "OPEN":
+            r = nc.rpc("/app/log/private", {"id": 42, "msg": msg * i})
+            if r.status == 200:
                 break
             else:
                 time.sleep(0.1)
-        assert r.body == "OPEN", r
+        assert r.status == 200, r
 
     LOG.info("Write on secondary through forwarding")
     with other.client("user0", ws=True) as c:

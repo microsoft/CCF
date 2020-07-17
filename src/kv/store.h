@@ -220,62 +220,26 @@ namespace kv
       return *result;
     }
 
-    void deserialize(const std::unique_ptr<AbstractSnapshot>& snapshot)
+    std::vector<uint8_t> serialise_snapshot(Version v) override
     {
-      std::lock_guard<SpinLock> mguard(maps_lock);
-
-      for (auto& map : maps)
-      {
-        map.second->lock();
-      }
-
-      const auto& snapshots = snapshot->get_map_snapshots();
       CCF_ASSERT_FMT(
-        maps.size() == snapshots.size(),
-        "Number of maps does not match the snapshot, maps:{}, snapshots:{}",
-        maps.size(),
-        snapshots.size());
-      for (auto& s : snapshots)
-      {
-        auto search = maps.find(s->get_name());
-        if (search == maps.end())
-        {
-          throw ccf::ccf_logic_error(
-            fmt::format("Map does not exist - {}", s->get_name()));
-        }
+        v >= commit_version(),
+        "Cannot snapshot at version {} which is earlier than committed "
+        "version {} ",
+        v,
+        commit_version());
 
-        search->second->apply(s);
-      }
+      CCF_ASSERT_FMT(
+        v <= current_version(),
+        "Cannot snapshot at version {} which is later than current "
+        "version {} ",
+        v,
+        current_version());
 
-      for (auto& map : maps)
-      {
-        map.second->unlock();
-      }
-
-      {
-        std::lock_guard<SpinLock> vguard(version_lock);
-        version = snapshot->get_version();
-        last_replicated = snapshot->get_version();
-        last_committable = snapshot->get_version();
-      }
-    }
-
-    std::unique_ptr<AbstractSnapshot> snapshot(Version v) override
-    {
-      std::unique_ptr<AbstractSnapshot> snapshot =
-        std::make_unique<StoreSnapshot>(v);
+      StoreSnapshot snapshot;
 
       {
         std::lock_guard<SpinLock> mguard(maps_lock);
-
-        if (v < commit_version())
-        {
-          throw ccf::ccf_logic_error(fmt::format(
-            "Attempting to snapshot at invalid version v:{}, "
-            "commit_version:{}",
-            v,
-            commit_version()));
-        }
 
         for (auto& map : maps)
         {
@@ -284,7 +248,7 @@ namespace kv
 
         for (auto& map : maps)
         {
-          snapshot->add_map_snapshot(std::move(map.second->snapshot(v)));
+          snapshot.add_map_snapshot(map.second->snapshot(v));
         }
 
         for (auto& map : maps)
@@ -292,8 +256,78 @@ namespace kv
           map.second->unlock();
         }
       }
-      snapshot->serialize();
-      return snapshot;
+
+      auto e = get_encryptor();
+      KvStoreSerialiser serialiser(e, v, true);
+
+      return snapshot.serialise(serialiser);
+    }
+
+    DeserialiseSuccess deserialise_snapshot(
+      const std::vector<uint8_t>& data) override
+    {
+      auto e = get_encryptor();
+      auto d = KvStoreDeserialiser(e);
+
+      auto v_ = d.init(data.data(), data.size());
+      if (!v_.has_value())
+      {
+        LOG_FAIL_FMT("Initialisation of deserialise object failed");
+        return DeserialiseSuccess::FAILED;
+      }
+      auto v = v_.value();
+
+      std::lock_guard<SpinLock> mguard(maps_lock);
+
+      for (auto& map : maps)
+      {
+        map.second->lock();
+      }
+
+      bool success = true;
+      for (auto r = d.start_map(); r.has_value(); r = d.start_map())
+      {
+        const auto map_name = r.value();
+
+        auto search = maps.find(map_name);
+        if (search == maps.end())
+        {
+          LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
+          LOG_DEBUG_FMT("No such map in store {}", map_name);
+          success = false;
+          break;
+        }
+
+        auto map_version = d.deserialise_entry_version();
+        auto map_snapshot = d.deserialise_raw();
+
+        search->second->apply_snapshot(map_version, map_snapshot);
+      }
+
+      for (auto& map : maps)
+      {
+        map.second->unlock();
+      }
+
+      if (!success)
+      {
+        return DeserialiseSuccess::FAILED;
+      }
+
+      if (!d.end())
+      {
+        LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
+        success = false;
+      }
+
+      {
+        std::lock_guard<SpinLock> vguard(version_lock);
+        version = v;
+        last_replicated = v;
+        last_committable = v;
+      }
+
+      return DeserialiseSuccess::PASS;
     }
 
     void compact(Version v) override
@@ -419,18 +453,19 @@ namespace kv
       auto e = get_encryptor();
 
       // create the first deserialiser
-      auto d = std::make_unique<KvStoreDeserialiser>(
+      auto d = KvStoreDeserialiser(
         e,
         public_only ? kv::SecurityDomain::PUBLIC :
                       std::optional<kv::SecurityDomain>());
 
-      if (!d->init(data.data(), data.size()))
+      auto v_ = d.init(data.data(), data.size());
+      if (!v_.has_value())
       {
         LOG_FAIL_FMT("Initialisation of deserialise object failed");
         return DeserialiseSuccess::FAILED;
       }
+      auto v = v_.value();
 
-      Version v = d->deserialise_version();
       // Throw away any local commits that have not propagated via the
       // consensus.
       rollback(v - 1);
@@ -454,23 +489,23 @@ namespace kv
       std::lock_guard<SpinLock> mguard(maps_lock);
       OrderedViews views;
 
-      for (auto r = d->start_map(); r.has_value(); r = d->start_map())
+      for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
 
         auto search = maps.find(map_name);
         if (search == maps.end())
         {
-          LOG_FAIL_FMT("Failed to deserialize");
-          LOG_DEBUG_FMT("No such map {} at version {}", map_name, v);
+          LOG_FAIL_FMT("Failed to deserialise transaction at version {}", v);
+          LOG_DEBUG_FMT("No such map in store {}", map_name);
           return DeserialiseSuccess::FAILED;
         }
 
         auto view_search = views.find(map_name);
         if (view_search != views.end())
         {
-          LOG_FAIL_FMT("Failed to deserialize");
-          LOG_DEBUG_FMT("Multiple writes on {} at version {}", map_name, v);
+          LOG_FAIL_FMT("Failed to deserialise transaction at version {}", v);
+          LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
           return DeserialiseSuccess::FAILED;
         }
 
@@ -479,14 +514,14 @@ namespace kv
         // version
         auto deserialise_version = (commit ? v : NoVersion);
         auto deserialised_write_set =
-          search->second->deserialise(*d, deserialise_version);
+          search->second->deserialise(d, deserialise_version);
         if (deserialised_write_set == nullptr)
         {
-          LOG_FAIL_FMT("Failed to deserialize");
-          LOG_DEBUG_FMT(
-            "Could not deserialise Tx for map {} at version {}",
-            map_name,
+          LOG_FAIL_FMT(
+            "Failed to deserialise transaction at version {}",
             deserialise_version);
+          LOG_DEBUG_FMT(
+            "Could not deserialise transaction for map {}", map_name);
           return DeserialiseSuccess::FAILED;
         }
 
@@ -497,10 +532,9 @@ namespace kv
           std::unique_ptr<AbstractTxView>(deserialised_write_set)};
       }
 
-      if (!d->end())
+      if (!d.end())
       {
-        LOG_FAIL_FMT("Failed to deserialize");
-        LOG_DEBUG_FMT("Unexpected content in Tx at version {}", v);
+        LOG_FAIL_FMT("Unexpected content in transaction at version {}", v);
         return DeserialiseSuccess::FAILED;
       }
 

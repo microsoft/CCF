@@ -65,7 +65,7 @@ class Member:
         # Use this with caution (i.e. only when the network is opening)
         self.status = MemberStatus.ACTIVE
 
-    def propose(self, remote_node, proposal):
+    def propose(self, remote_node, proposal, has_proposer_voted_for=True):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post("/gov/proposals", proposal, signed=True,)
             if r.status != http.HTTPStatus.OK.value:
@@ -75,20 +75,16 @@ class Member:
                 proposer_id=self.member_id,
                 proposal_id=r.body["proposal_id"],
                 state=infra.proposal.ProposalState(r.body["state"]),
-                has_proposer_voted_for=True,
+                has_proposer_voted_for=has_proposer_voted_for,
             )
 
     def vote(
         self, remote_node, proposal, accept=True, wait_for_global_commit=True,
     ):
-        ballot = """
-        tables, changes = ...
-        return true
-        """
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
-                {"ballot": {"text": ballot}},
+                params=proposal.vote_for,
                 signed=True,
             )
 
