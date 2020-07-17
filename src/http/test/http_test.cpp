@@ -451,19 +451,56 @@ DOCTEST_TEST_CASE("Signatures")
     const auto auth_it = headers.find(http::headers::AUTHORIZATION);
     DOCTEST_REQUIRE(auth_it != headers.end());
 
-    std::string auth_value = auth_it->second;
-    const auto new_end = std::remove(auth_value.begin(), auth_value.end(), '"');
-    auth_value.erase(new_end, auth_value.end());
+    DOCTEST_SUBCASE("Unbalanced quotes")
+    {
+      std::string original = auth_it->second;
 
-    request.set_header(http::headers::AUTHORIZATION, auth_value);
+      std::string missing_first_quote = original;
+      const auto first_quote = missing_first_quote.find_first_of('"');
+      missing_first_quote.erase(missing_first_quote.begin() + first_quote);
 
-    const auto serial_request = request.build_request();
+      {
+        request.set_header(http::headers::AUTHORIZATION, missing_first_quote);
+        const auto serial_request = request.build_request();
 
-    SignedRequestProcessor sp;
-    http::RequestParser p(sp);
+        SignedRequestProcessor sp;
+        http::RequestParser p(sp);
+        DOCTEST_REQUIRE_THROWS(
+          p.execute(serial_request.data(), serial_request.size()));
+      }
 
-    auto parsed = p.execute(serial_request.data(), serial_request.size());
-    DOCTEST_REQUIRE(parsed == serial_request.size());
-    DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
+      std::string missing_second_quote = original;
+      const auto second_quote =
+        missing_second_quote.find_first_of('"', first_quote + 1);
+      missing_second_quote.erase(missing_second_quote.begin() + second_quote);
+
+      {
+        request.set_header(http::headers::AUTHORIZATION, missing_second_quote);
+        const auto serial_request = request.build_request();
+
+        SignedRequestProcessor sp;
+        http::RequestParser p(sp);
+        DOCTEST_REQUIRE_THROWS(
+          p.execute(serial_request.data(), serial_request.size()));
+      }
+    }
+
+    DOCTEST_SUBCASE("No quotes")
+    {
+      std::string auth_value = auth_it->second;
+      const auto new_end =
+        std::remove(auth_value.begin(), auth_value.end(), '"');
+      auth_value.erase(new_end, auth_value.end());
+
+      request.set_header(http::headers::AUTHORIZATION, auth_value);
+
+      const auto serial_request = request.build_request();
+
+      SignedRequestProcessor sp;
+      http::RequestParser p(sp);
+      auto parsed = p.execute(serial_request.data(), serial_request.size());
+      DOCTEST_REQUIRE(parsed == serial_request.size());
+      DOCTEST_REQUIRE(sp.signed_reqs.size() == 1);
+    }
   }
 }
