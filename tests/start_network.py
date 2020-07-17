@@ -20,7 +20,7 @@ def run(args):
         LOG.disable("infra")
         LOG.disable("ccf")
 
-    LOG.info("Starting {} CCF nodes...".format(len(hosts)))
+    LOG.info(f"Starting {len(hosts)} CCF nodes...")
     if args.enclave_type == "virtual":
         LOG.warning("Virtual mode enabled")
 
@@ -51,10 +51,9 @@ def run(args):
             LOG.info("  Node [{:2d}] = {}:{}".format(b.node_id, b.pubhost, b.rpc_port))
 
         LOG.info(
-            "You can now issue business transactions to the {} application.".format(
-                args.package
-            )
+           f"You can now issue business transactions to the {args.package} application."
         )
+        LOG.info(f"Certificates have been copied to {network.common_dir}")
         LOG.info(
             "See https://microsoft.github.io/CCF/users/issue_commands.html for more information."
         )
