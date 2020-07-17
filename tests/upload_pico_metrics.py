@@ -23,14 +23,14 @@ benchmark_specs = {
         {
             "_name": "KV snap ser (/s)^",
             "Suite": "serialise_snapshot",
-            "Benchmark": "ser_snap<SD::PUBLIC>",
-            "D": "10",
+            "Benchmark": "ser_snap<1000>",
+            "D": "100",
         },
         {
             "_name": "KV snap deser (/s)^",
             "Suite": "deserialise_snapshot",
-            "Benchmark": "des_snap<SD::PUBLIC>",
-            "D": "10",
+            "Benchmark": "des_snap<1000>",
+            "D": "100",
         },
     ],
     "map_bench.csv": [

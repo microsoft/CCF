@@ -157,7 +157,7 @@ static void commit_latency(picobench::state& s)
   s.stop_timer();
 }
 
-template <kv::SecurityDomain SD>
+template <size_t KEY_COUNT>
 static void ser_snap(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
@@ -168,18 +168,23 @@ static void ser_snap(picobench::state& s)
   encryptor->set_iv_id(1);
   kv_store.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<MapType>("map0", SD);
-  auto& map1 = kv_store.create<MapType>("map1", SD);
-
-  kv::Tx tx;
-  auto [tx0, tx1] = tx.get_view(map0, map1);
-
   for (int i = 0; i < s.iterations(); i++)
   {
-    const auto key = gen_key(i);
-    const auto value = gen_value(i);
-    tx0->put(key, value);
-    tx1->put(key, value);
+    kv_store.create<MapType>(
+      fmt::format("map{}", i), kv::SecurityDomain::PRIVATE);
+  }
+
+  kv::Tx tx;
+  for (int i = 0; i < s.iterations(); i++)
+  {
+    auto view = tx.get_view(*kv_store.get<MapType>(fmt::format("map{}", i)));
+    for (int j = 0; j < KEY_COUNT; j++)
+    {
+      const auto key = gen_key(j);
+      const auto value = gen_value(j);
+
+      view->put(key, value);
+    }
   }
 
   auto rc = tx.commit();
@@ -191,7 +196,7 @@ static void ser_snap(picobench::state& s)
   s.stop_timer();
 }
 
-template <kv::SecurityDomain SD>
+template <size_t KEY_COUNT>
 static void des_snap(picobench::state& s)
 {
   logger::config::level() = logger::INFO;
@@ -204,20 +209,25 @@ static void des_snap(picobench::state& s)
   kv_store.set_encryptor(encryptor);
   kv_store2.set_encryptor(encryptor);
 
-  auto& map0 = kv_store.create<MapType>("map0", SD);
-  auto& map1 = kv_store.create<MapType>("map1", SD);
+  for (int i = 0; i < s.iterations(); i++)
+  {
+    kv_store.create<MapType>(
+      fmt::format("map{}", i), kv::SecurityDomain::PRIVATE);
+  }
 
   kv_store2.clone_schema(kv_store);
 
   kv::Tx tx;
-  auto [tx0, tx1] = tx.get_view(map0, map1);
-
   for (int i = 0; i < s.iterations(); i++)
   {
-    const auto key = gen_key(i);
-    const auto value = gen_value(i);
-    tx0->put(key, value);
-    tx1->put(key, value);
+    auto view = tx.get_view(*kv_store.get<MapType>(fmt::format("map{}", i)));
+    for (int j = 0; j < KEY_COUNT; j++)
+    {
+      const auto key = gen_key(j);
+      const auto value = gen_value(j);
+
+      view->put(key, value);
+    }
   }
 
   auto rc = tx.commit();
@@ -225,6 +235,8 @@ static void des_snap(picobench::state& s)
     throw std::logic_error("Transaction commit failed: " + std::to_string(rc));
 
   auto snapshot = kv_store.serialise_snapshot(tx.commit_version());
+
+  LOG_INFO_FMT("Size of snapshot: {}", snapshot.size()); // TODO: Delete
 
   s.start_timer();
   kv_store2.deserialise_snapshot(snapshot);
@@ -254,16 +266,19 @@ PICOBENCH(deserialise<SD::PUBLIC>)
   .baseline();
 PICOBENCH(deserialise<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
 
+const uint32_t snapshot_sample_size = 10;
+const std::vector<int> map_count = {20, 100};
+
 PICOBENCH_SUITE("serialise_snapshot");
-PICOBENCH(ser_snap<SD::PUBLIC>)
-  .iterations(tx_count)
-  .samples(sample_size)
+PICOBENCH(ser_snap<100>)
+  .iterations(map_count)
+  .samples(snapshot_sample_size)
   .baseline();
-PICOBENCH(ser_snap<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+PICOBENCH(ser_snap<1000>).iterations(map_count).samples(snapshot_sample_size);
 
 PICOBENCH_SUITE("deserialise_snapshot");
-PICOBENCH(des_snap<SD::PUBLIC>)
-  .iterations(tx_count)
-  .samples(sample_size)
+PICOBENCH(des_snap<100>)
+  .iterations(map_count)
+  .samples(snapshot_sample_size)
   .baseline();
-PICOBENCH(des_snap<SD::PRIVATE>).iterations(tx_count).samples(sample_size);
+PICOBENCH(des_snap<1000>).iterations(map_count).samples(snapshot_sample_size);
