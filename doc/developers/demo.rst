@@ -6,19 +6,19 @@ This document explains how to spin up a test CCF network and submit simple comma
 Startup
 -------
 
-This uses the :ref:`example C++ logging app <developers/example>` and the ``start_test_network.sh`` helper script from the main CCF repo.
+This uses the :ref:`example C++ logging app <developers/logging_cpp:Logging (C++)>` and the ``start_test_network.sh`` helper script from the main CCF repo.
 
-``start_test_network.sh`` is a thin wrapper around ``start_network.py`` to ensure the necessary Python dependencies are available, to set some sensible default values, and to use ``curl`` to submit CCF commands (rather than the default implementation using `Python Requests <https://requests.readthedocs.io/en/master/>`_). This script has a large number of additional configuration options which are documented by passing a ``--help`` argument. An important option is ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
+``start_test_network.sh`` is a thin wrapper around ``start_network.py``. It ensures the necessary Python dependencies are available, sets some sensible default values, and uses ``curl`` to submit CCF commands (``CURL_CLIENT=ON``). There are a large number of additional configuration options, documented by passing the ``--help`` argument. You may wish to pass ``-v`` which will make the script significantly more verbose, printing the precise ``curl`` commands which were used to communicate with the test network.
 
 This script automates the steps described in :ref:`operators/start_network:Starting a New Network`, in summary:
 
 - generating new identities (private keys and certs) for the initial members and users
 - starting the initial ``cchost`` node
-- starting multiple additional nodes, instructed to _join_ the initial node
+- starting multiple additional nodes, instructed to ``join`` the initial node
 - verifying that each node has successfully joined the new service
 - proposing and passing governance votes using the generated member identities
 
-The following command should be run from your ``CCF/build`` directory to create and run a test network:
+The following command can be run from your ``CCF/build`` directory to create and run a test network:
 
 .. code-block:: bash
 
@@ -36,7 +36,7 @@ The following command should be run from your ``CCF/build`` directory to create 
     [2020-07-17 15:27:46.644] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
     [2020-07-17 15:27:46.644] Press Ctrl+C to shutdown the network.
 
-The command output shows the addresses of the nodes in the service where commands may be submitted (eg, in this case, via ``curl https://127.251.192.205:36981/...``). The output and error logs of each node can be found in the node-specific directory in the workspace (eg, ``workspace/test_network_0/err`` is node 0's stderr).
+The command output shows the addresses of the CCF nodes where commands may be submitted (eg, in this case, via ``curl https://127.251.192.205:36981/...``). The output and error logs of each node can be found in the node-specific directory in the workspace (eg, ``workspace/test_network_0/err`` is node 0's stderr).
 
 Authentication
 --------------
@@ -88,7 +88,7 @@ The business transaction endpoints defined by our application are available unde
     :end-before: SNIPPET_END: install_record
     :dedent: 6
 
-This is accessed via the ``/app/log/private`` path:
+This is available at the ``/app/log/private`` path:
 
 .. code-block:: bash
 
