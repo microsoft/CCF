@@ -29,6 +29,7 @@ namespace raft
       Term* term = nullptr) = 0;
     virtual void compact(Index v) = 0;
     virtual void rollback(Index v, std::optional<Term> t = std::nullopt) = 0;
+    virtual void snapshot(Index v) = 0;
     virtual void set_term(Term t) = 0;
   };
 
@@ -44,7 +45,7 @@ namespace raft
     S deserialise(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      Term* term = nullptr)
+      Term* term = nullptr) override
     {
       auto p = x.lock();
       if (p)
@@ -52,7 +53,7 @@ namespace raft
       return S::FAILED;
     }
 
-    void compact(Index v)
+    void compact(Index v) override
     {
       auto p = x.lock();
       if (p)
@@ -61,14 +62,21 @@ namespace raft
       }
     }
 
-    void rollback(Index v, std::optional<Term> t = std::nullopt)
+    void rollback(Index v, std::optional<Term> t = std::nullopt) override
     {
       auto p = x.lock();
       if (p)
         p->rollback(v, t);
     }
 
-    void set_term(Term t)
+    void snapshot(Index v) override
+    {
+      auto p = x.lock();
+      if (p)
+        p->serialise_snapshot(v);
+    }
+
+    void set_term(Term t) override
     {
       auto p = x.lock();
       if (p)

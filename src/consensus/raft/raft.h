@@ -1137,6 +1137,8 @@ namespace raft
 
     void commit(Index idx)
     {
+      static size_t snapshot_interval = 100;
+
       if (idx > last_idx)
         throw std::logic_error(
           "Tried to commit " + std::to_string(idx) + "but last_idx as " +
@@ -1154,6 +1156,13 @@ namespace raft
       LOG_DEBUG_FMT("Compacting...");
       store->compact(idx);
       ledger->commit(idx);
+
+      if (state == Leader)
+      {
+        LOG_FAIL_FMT("Snapshotting at {}", idx);
+        store->snapshot(idx);
+        LOG_FAIL_FMT("Snapshot done");
+      }
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 
       // Examine all configurations that are followed by a globally committed

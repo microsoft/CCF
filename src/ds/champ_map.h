@@ -411,7 +411,7 @@ namespace champ
         size_++;
       }
 
-      int64_t size_change = get_size_with_padding<K, V>(key, value) - r.second; // r.second - serialized_size
+      int64_t size_change = get_size_with_padding<K, V>(key, value) - r.second;
       return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 
