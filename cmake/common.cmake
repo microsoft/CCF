@@ -97,7 +97,7 @@ foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
     ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
   )
-  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION BIN)
+  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
 endforeach()
 
 # Copy utilities from tests directory
@@ -108,12 +108,8 @@ foreach(UTILITY ${CCF_TEST_UTILITIES})
   )
 endforeach()
 
-# Install specific utilities
-install(
-  PROGRAMS ${CCF_DIR}/python/utils/scurl.sh
-           ${CCF_DIR}/python/utils/keygenerator.sh ${CCF_DIR}/tests/sgxinfo.sh
-           ${CCF_DIR}/python/utils/submit_recovery_share.sh DESTINATION bin
-)
+# Install additional utilities
+install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
 install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
