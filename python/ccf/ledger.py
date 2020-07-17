@@ -1,7 +1,10 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import io
-import msgpack.fallback as msgpack  # Default implementation has buggy interaction between read_bytes and tell, so use fallback
+from os import sendfile
+
+# Default implementation has buggy interaction between read_bytes and tell, so use fallback
+import msgpack.fallback as msgpack
 import struct
 import os
 
@@ -45,7 +48,6 @@ class LedgerDomain:
         self._buffer = buffer
         self._buffer_size = buffer.getbuffer().nbytes
         self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
-        self._is_snapshot = self._read_next()
         self._version = self._read_next()
         self._tables = {}
         # Keys and Values may have custom serialisers.
@@ -131,6 +133,7 @@ class Transaction:
     _public_domain = None
     _file_size = 0
     gcm_header = None
+    _tx_offset = 0
 
     def __init__(self, filename):
         self._file = open(filename, mode="rb")
@@ -196,25 +199,24 @@ class Ledger:
     _fileindex = 0
 
     def __init__(self, name: str):
-        if os.path.isdir(name):
-            contents = os.listdir(name)
-            # Sorts the list based off the first number after ledger_ so that the ledger is verified in sequence
-            sort = sorted(
-                contents,
-                key=lambda x: int(
-                    x.replace(".committed", "").replace("ledger_", "").split("-")[0]
-                ),
-            )
 
-            for chunk in sort:
-                # Add only the .committed ledgers to be verified
-                if os.path.isfile(os.path.join(name, chunk)):
-                    if chunk.endswith(".committed"):
-                        self._filenames.append(os.path.join(name, chunk))
-                    else:
-                        LOG.warning(f"The file {chunk} has not been committed")
-        else:
-            self._filenames = [name]
+        contents = os.listdir(name)
+        # Sorts the list based off the first number after ledger_ so that the ledger is verified in sequence
+        sort = sorted(
+            contents,
+            key=lambda x: int(
+                x.replace(".committed", "").replace("ledger_", "").split("-")[0]
+            ),
+        )
+
+        for chunk in sort:
+            # Add only the .committed ledgers to be verified
+            if os.path.isfile(os.path.join(name, chunk)):
+                if chunk.endswith(".committed"):
+                    self._filenames.append(os.path.join(name, chunk))
+                else:
+                    LOG.warning(f"The file {chunk} has not been committed")
+                    self._filenames.append(os.path.join(name, chunk))
 
         self._fileindex = 0
         self._current_tx = Transaction(self._filenames[0])
