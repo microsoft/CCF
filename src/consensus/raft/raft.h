@@ -1137,7 +1137,8 @@ namespace raft
 
     void commit(Index idx)
     {
-      static size_t snapshot_interval = 100;
+      static size_t snapshot_interval = 10;
+      static Index last_snapshot_idx = 0;
 
       if (idx > last_idx)
         throw std::logic_error(
@@ -1159,9 +1160,24 @@ namespace raft
 
       if (state == Leader)
       {
-        LOG_FAIL_FMT("Snapshotting at {}", idx);
-        store->snapshot(idx);
-        LOG_FAIL_FMT("Snapshot done");
+        if (idx - last_snapshot_idx > snapshot_interval)
+        {
+          LOG_FAIL_FMT("Snapshotting at {}", idx);
+
+          auto snap = store->snapshot(idx);
+          if (snap.has_value())
+          {
+            ledger->put_snapshot(idx, snap.value());
+          }
+          else
+          {
+            LOG_FAIL_FMT(
+              "Error generating snapshot at {}. Continuing normal operation.",
+              idx);
+          }
+          last_snapshot_idx = idx;
+          LOG_FAIL_FMT("Snapshot done");
+        }
       }
       LOG_DEBUG_FMT("Commit on {}: {}", local_id, idx);
 

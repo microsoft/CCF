@@ -142,6 +142,10 @@ int main(int argc, char** argv)
     ->capture_default_str()
     ->transform(CLI::AsSizeValue(true)); // 1000 is kb
 
+  std::string snapshot_dir("snapshots");
+  app.add_option("--snapshot-dir", snapshot_dir, "Snapshots directory")
+    ->capture_default_str();
+
   logger::Level host_log_level{logger::Level::INFO};
   std::vector<std::pair<std::string, logger::Level>> level_map;
   for (int i = logger::TRACE; i < logger::MAX_LOG_LEVEL; i++)
@@ -522,9 +526,11 @@ int main(int argc, char** argv)
   // graceful shutdown on sigterm
   asynchost::Sigterm sigterm(writer_factory);
 
-  // write to a ledger
   asynchost::Ledger ledger(ledger_dir, writer_factory, ledger_chunk_threshold);
   ledger.register_message_handlers(bp.get_dispatcher());
+
+  asynchost::SnapshotManager snapshot(snapshot_dir);
+  snapshot.register_message_handlers(bp.get_dispatcher());
 
   // Begin listening for node-to-node and RPC messages.
   // This includes DNS resolution and potentially dynamic port assignment (if

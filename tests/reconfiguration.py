@@ -5,6 +5,7 @@ import infra.network
 import infra.proc
 import suite.test_requirements as reqs
 import time
+import e2e_logging
 
 from loguru import logger as LOG
 
@@ -93,12 +94,14 @@ def run(args):
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_join(args)
-        test_add_node_from_backup(network, args)
+        for _ in range(1,100):
+            e2e_logging.test(network, args, verify=False)
+        # test_add_node_from_backup(network, args)
         test_add_node(network, args)
-        test_add_node_untrusted_code(network, args)
-        test_retire_node(network, args)
-        test_add_as_many_pending_nodes(network, args)
-        test_add_node(network, args)
+        # test_add_node_untrusted_code(network, args)
+        # test_retire_node(network, args)
+        # test_add_as_many_pending_nodes(network, args)
+        # test_add_node(network, args)
 
 
 if __name__ == "__main__":
