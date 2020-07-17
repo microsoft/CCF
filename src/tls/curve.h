@@ -68,7 +68,8 @@ namespace tls
   }
 
   // Get message digest algorithm to use for given elliptic curve
-  inline mbedtls_md_type_t get_md_for_ec(mbedtls_ecp_group_id ec)
+  inline mbedtls_md_type_t get_md_for_ec(
+    mbedtls_ecp_group_id ec, bool allow_none = false)
   {
     switch (ec)
     {
@@ -88,9 +89,19 @@ namespace tls
       }
       default:
       {
-        throw std::logic_error(
-          std::string("Unhandled ecp group id: ") +
-          mbedtls_ecp_curve_info_from_grp_id(ec)->name);
+        if (allow_none)
+        {
+          return MBEDTLS_MD_NONE;
+        }
+        else
+        {
+          const auto curve_info = mbedtls_ecp_curve_info_from_grp_id(ec);
+          const auto error = fmt::format(
+            "Unhandled ecp group id: {}",
+            curve_info ? curve_info->name :
+                         fmt::format("UNKNOWN ({})", (size_t)ec));
+          throw std::logic_error(error);
+        }
       }
     }
   }

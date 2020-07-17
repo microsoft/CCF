@@ -11,7 +11,9 @@ namespace http
     static constexpr auto AUTHORIZATION = "authorization";
     static constexpr auto CONTENT_LENGTH = "content-length";
     static constexpr auto CONTENT_TYPE = "content-type";
+    static constexpr auto DATE = "date";
     static constexpr auto DIGEST = "digest";
+    static constexpr auto HOST = "host";
     static constexpr auto LOCATION = "location";
     static constexpr auto RETRY_AFTER = "retry-after";
     static constexpr auto WWW_AUTHENTICATE = "www-authenticate";
