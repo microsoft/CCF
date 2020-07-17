@@ -108,11 +108,9 @@ foreach(UTILITY ${CCF_TEST_UTILITIES})
   )
 endforeach()
 
-# Install specific utilities
+# Install additional utilities
 install(
-  PROGRAMS ${CCF_DIR}/python/utils/scurl.sh
-           ${CCF_DIR}/python/utils/keygenerator.sh ${CCF_DIR}/tests/sgxinfo.sh
-           ${CCF_DIR}/python/utils/submit_recovery_share.sh DESTINATION bin
+  PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin
 )
 
 # Install getting_started scripts for VM creation and setup
