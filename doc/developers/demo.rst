@@ -1,7 +1,7 @@
 End-to-end demo
 ===============
 
-This document explains how to spin up a test CCF network and submit simple commands to it using `curl`_. Once you have built your own app, you should be able to test it in the same way - simply replace ``liblogging`` with the name of your app binary.
+This document explains how to spin up a test CCF network and submit simple commands to it using `curl`_. We use curl here because it is basic, general, and broadly available - you should be able to get the same results with any HTTP client, provided you can configure the appropriate caller and CA identities. Once you have built your own app, you should be able to test it in the same way - simply replace ``liblogging`` with the name of your app binary, and call the endpoints defined by your app.
 
 Startup
 -------
@@ -18,9 +18,11 @@ This script automates the steps described in :ref:`operators/start_network:Start
 - verifying that each node has successfully joined the new service
 - proposing and passing governance votes using the generated member identities
 
-The following command can be run from your ``CCF/build`` directory to create and run a test network:
+The following command will run a simple 3-node test network on a single machine:
 
 .. code-block:: bash
+
+    $ cd CCF/build
 
     $ ../start_test_network.sh --package ./liblogging.enclave.so.signed 
     Setting up Python environment...
@@ -47,7 +49,7 @@ The service identity is created at startup. The initial node generates a fresh p
 
 Each member and user is identified by the cert with which they were registered with the service, either at genesis or in a subsequent ``new_member`` or ``new_user`` governance proposal. Access to the corresponding private key allows a client to submit commands as this member or user. For this test network these are all freshly generated and stored in the same common workspace for easy access. In a real deployment only the certificates would be shared; the private keys would be distributed and remain confidential.
 
-When using curl the server's identity is provided by ``--cacert`` and the client identity by ``--cert`` and ``--key``. Resources under the ``/gov`` path require member identities, while those under ``/app`` require user identities.
+When using curl the server's identity is provided by ``--cacert`` and the client identity by ``--cert`` and ``--key``. Resources under the ``/gov`` path require member identities, while those under ``/app`` typically require user identities.
 
 These certificates and keys are copied by the start network script to the common workspace directory, displayed by the start network script. By default this is ``workspace/test_network_common``.
 
