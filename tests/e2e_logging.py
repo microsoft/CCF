@@ -301,16 +301,26 @@ def test_historical_query(network, args):
     return network
 
 
-@reqs.description("Testing forwarding on member and node frontends")
-@reqs.supports_methods("/node/tx")
+@reqs.description("Testing forwarding on member and user frontends")
+@reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
 def test_forwarding_frontends(network, args):
-    primary, backup = network.find_primary_and_any_backup()
+    backup = network.find_any_backup()
 
-    with primary.client() as nc:
-        check_commit = ccf.checker.Checker(nc)
+    with backup.client() as c:
+        check_commit = ccf.checker.Checker(c)
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
+
+    with backup.client("user0") as c:
+        check_commit = ccf.checker.Checker(c)
+        check = ccf.checker.Checker()
+        msg = "forwarded_msg"
+        log_id = 123
+        check_commit(
+            c.rpc("/app/log/private", {"id": log_id, "msg": msg}), result=True,
+        )
+        check(c.get("/app/log/private", {"id": log_id}), result={"msg": msg})
 
     return network
 

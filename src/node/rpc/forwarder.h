@@ -94,7 +94,7 @@ namespace ccf
       {
         LOG_FAIL_FMT("Invalid forwarded command");
         LOG_DEBUG_FMT("Invalid forwarded command: {}", err.what());
-        return {};
+        return std::nullopt;
       }
 
       std::vector<uint8_t> caller_cert;
@@ -160,7 +160,7 @@ namespace ccf
       {
         LOG_FAIL_FMT("Invalid forwarded response");
         LOG_DEBUG_FMT("Invalid forwarded response: {}", err.what());
-        return {};
+        return std::nullopt;
       }
 
       const auto& plain_ = r.second;
