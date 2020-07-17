@@ -17,9 +17,26 @@ def dump_to_file(output_path, obj, dump_args):
         json.dump(obj, f, **dump_args)
 
 
+def list_as_lua_literal(l):
+    return str(l).translate(str.maketrans("[]", "{}"))
+
+
 def script_to_vote_object(script):
     return {"ballot": {"text": script}}
 
+
+LUA_FUNCTION_EQUAL_ARRAYS = """function equal_arrays(a, b)
+  if #a ~= #b then
+    return false
+  else
+    for k, v in ipairs(a) do
+      if b[k] ~= v then
+        return false
+      end
+    end
+    return true
+  end
+end"""
 
 DEFAULT_PROPOSAL_OUTPUT = "{proposal_name}_proposal.json"
 DEFAULT_VOTE_OUTPUT = "{proposal_name}_vote_for.json"
@@ -56,6 +73,8 @@ def complete_vote_output_path(proposal_name, vote_output_path=None, common_dir="
 def add_arg_construction(lines, arg, arg_name="args"):
     if isinstance(arg, str):
         lines.append(f"{arg_name} = [====[{arg}]====]")
+    elif isinstance(arg, collections.abc.Sequence):
+        lines.append(f"{arg_name} = {list_as_lua_literal(arg)}")
     elif isinstance(arg, collections.abc.Mapping):
         lines.append(f"{arg_name} = {{}}")
         for k, v in args.items():
@@ -64,13 +83,22 @@ def add_arg_construction(lines, arg, arg_name="args"):
         lines.append(f"{arg_name} = {arg}")
 
 
-def add_arg_checks(lines, arg, arg_name="args"):
+def add_arg_checks(lines, arg, arg_name="args", added_equal_arrays_fn=False):
     lines.append(f"if {arg_name} == nil then return false end")
     if isinstance(arg, str):
         lines.append(f"if not {arg_name} == [====[{arg}]====] then return false end")
+    elif isinstance(arg, collections.abc.Sequence):
+        if not added_equal_arrays_fn:
+             lines.extend(line.strip() for line in LUA_FUNCTION_EQUAL_ARRAYS.splitlines())
+             added_equal_arrays_fn = True
+        expected_name = arg_name.replace(".", "_")
+        lines.append(f"{expected_name} = {list_as_lua_literal(arg)}")
+        lines.append(
+            f"if not equal_arrays({arg_name}, {expected_name}) then return false end"
+        )
     elif isinstance(arg, collections.abc.Mapping):
         for k, v in arg.items():
-            add_arg_checks(lines, v, arg_name=f"{arg_name}.{k}")
+            add_arg_checks(lines, v, arg_name=f"{arg_name}.{k}", added_equal_arrays_fn=added_equal_arrays_fn)
     else:
         lines.append(f"if not {arg_name} == {arg} then return false end")
 
