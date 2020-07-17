@@ -287,7 +287,8 @@ namespace ccf
         }
 
         default:
-        {}
+        {
+        }
         break;
       }
     }
