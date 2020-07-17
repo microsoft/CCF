@@ -89,8 +89,10 @@ def add_arg_checks(lines, arg, arg_name="args", added_equal_arrays_fn=False):
         lines.append(f"if not {arg_name} == [====[{arg}]====] then return false end")
     elif isinstance(arg, collections.abc.Sequence):
         if not added_equal_arrays_fn:
-             lines.extend(line.strip() for line in LUA_FUNCTION_EQUAL_ARRAYS.splitlines())
-             added_equal_arrays_fn = True
+            lines.extend(
+                line.strip() for line in LUA_FUNCTION_EQUAL_ARRAYS.splitlines()
+            )
+            added_equal_arrays_fn = True
         expected_name = arg_name.replace(".", "_")
         lines.append(f"{expected_name} = {list_as_lua_literal(arg)}")
         lines.append(
@@ -98,7 +100,12 @@ def add_arg_checks(lines, arg, arg_name="args", added_equal_arrays_fn=False):
         )
     elif isinstance(arg, collections.abc.Mapping):
         for k, v in arg.items():
-            add_arg_checks(lines, v, arg_name=f"{arg_name}.{k}", added_equal_arrays_fn=added_equal_arrays_fn)
+            add_arg_checks(
+                lines,
+                v,
+                arg_name=f"{arg_name}.{k}",
+                added_equal_arrays_fn=added_equal_arrays_fn,
+            )
     else:
         lines.append(f"if not {arg_name} == {arg} then return false end")
 
