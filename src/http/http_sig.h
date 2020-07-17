@@ -280,8 +280,16 @@ namespace http
           auto v = p.substr(eq_pos + 1);
 
           // Remove quotes around value, if present
-          if (v.size() >= 2 && v.front() == '"' && v.back() == '"')
+          const bool begins_with_quote = v.front() == '"';
+          const bool ends_with_quote = v.back() == '"';
+          if (v.size() >= 2 && (begins_with_quote || ends_with_quote))
           {
+            if (!(begins_with_quote && ends_with_quote))
+            {
+              LOG_FAIL_FMT("Unbalanced quotes in Authorization header: {}", p);
+              return std::nullopt;
+            }
+
             v = v.substr(1, v.size() - 2);
           }
 
@@ -295,7 +303,7 @@ namespace http
             if (v != auth::SIGN_ALGORITHM_SHA256)
             {
               LOG_FAIL_FMT("Signature algorithm {} is not supported", v);
-              return {};
+              return std::nullopt;
             }
           }
           else if (k == auth::SIGN_PARAMS_SIGNATURE)
@@ -311,7 +319,7 @@ namespace http
             {
               LOG_FAIL_FMT(
                 "No headers specified in {} field", auth::SIGN_PARAMS_HEADERS);
-              return {};
+              return std::nullopt;
             }
 
             for (const auto& h : parsed_signed_headers)
@@ -323,7 +331,7 @@ namespace http
         else
         {
           LOG_FAIL_FMT("Authorization parameter {} does not contain \"=\"", p);
-          return {};
+          return std::nullopt;
         }
       }
 
