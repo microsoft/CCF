@@ -169,10 +169,7 @@ def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
         "script": {"text": proposal_script_text},
     }
 
-    try:
-        vote_against = kwargs.pop("vote_against")
-    except KeyError:
-        vote_against = False
+    vote_against = kwargs.pop("vote_against", False)
 
     if vote_against:
         proposal["ballot"] = {"text": "return false"}
@@ -336,12 +333,8 @@ class ProposalGenerator:
 
         for func_name, func in proposal_generators:
             # Only wrap decorated functions
-            try:
-                getattr(func, "is_cli_proposal")
-            except AttributeError:
-                continue
-
-            setattr(self, func_name, wrapper(func))
+            if hasattr(func, "is_cli_proposal"):
+                setattr(self, func_name, wrapper(func))
 
 
 if __name__ == "__main__":
@@ -392,9 +385,7 @@ if __name__ == "__main__":
 
     for func_name, func in proposal_generators:
         # Only generate for decorated functions
-        try:
-            getattr(func, "is_cli_proposal")
-        except AttributeError:
+        if not hasattr(func, "is_cli_proposal"):
             continue
 
         subparser = subparsers.add_parser(func_name)
