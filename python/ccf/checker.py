@@ -40,7 +40,7 @@ class Checker:
         self.notification_queue = notification_queue
         self.notified_commit = 0
 
-    #TODO: that API's not right!
+    # TODO: that API's not right!
     def __call__(self, rpc_result, result=None, error=None, timeout=2):
         if error is not None:
             if callable(error):

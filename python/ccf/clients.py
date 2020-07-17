@@ -45,7 +45,7 @@ class Request:
         if headers is None:
             headers = {}
 
-        #TODO: remove
+        # TODO: remove
         if params_in_query is None:
             params_in_query = http_verb == "GET"
 
@@ -57,9 +57,11 @@ class Request:
 
     def __str__(self):
         return (
-            f"{self.http_verb} {self.path} {self.headers} "
-            + truncate(f"{self.params}") if self.params is not None else ""
+            f"{self.http_verb} {self.path} {self.headers} " + truncate(f"{self.params}")
+            if self.params is not None
+            else ""
         )
+
 
 def int_or_none(v):
     return int(v) if v is not None else None
@@ -82,13 +84,13 @@ class Response:
         self.global_commit = global_commit
         self.headers = headers
 
-    #TODO: what's this for?
+    # TODO: what's this for?
     def to_dict(self):
         return {
             "seqno": self.seqno,
             "global_commit": self.global_commit,
             "view": self.view,
-            "body": self.body
+            "body": self.body,
         }
 
     def __str__(self):
@@ -239,7 +241,7 @@ class CurlClient:
                         msg_bytes = request.params
                     else:
                         msg_bytes = json.dumps(request.params).encode()
-                    LOG.debug(f"Writing request body: {msg_bytes}")
+                    LOG.debug(f"Writing request body: {truncate(msg_bytes)}")
                     nf.write(msg_bytes)
                     nf.flush()
                     cmd.extend(["--data-binary", f"@{nf.name}"])
@@ -417,7 +419,7 @@ class WSClient:
         (view,) = struct.unpack("<Q", out[10:18])
         (global_commit,) = struct.unpack("<Q", out[18:26])
         payload = out[26:]
-        #TODO: move out the decoding!
+        # TODO: move out the decoding!
         if status == 200:
             body = json.loads(payload) if payload else None
         else:
