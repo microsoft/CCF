@@ -109,9 +109,7 @@ foreach(UTILITY ${CCF_TEST_UTILITIES})
 endforeach()
 
 # Install additional utilities
-install(
-  PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin
-)
+install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
 install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
