@@ -1,0 +1,7 @@
+- name: Include vars
+  include_vars: common.yml
+
+- name: Install step-cli
+  apt:
+    deb: "{{ oe_deb }}"
+  become: true
