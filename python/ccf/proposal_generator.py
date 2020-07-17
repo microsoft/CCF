@@ -17,26 +17,9 @@ def dump_to_file(output_path, obj, dump_args):
         json.dump(obj, f, **dump_args)
 
 
-def list_as_lua_literal(l):
-    return str(l).translate(str.maketrans("[]", "{}"))
-
-
 def script_to_vote_object(script):
     return {"ballot": {"text": script}}
 
-
-LUA_FUNCTION_EQUAL_ARRAYS = """function equal_arrays(a, b)
-  if #a ~= #b then
-    return false
-  else
-    for k, v in ipairs(a) do
-      if b[k] ~= v then
-        return false
-      end
-    end
-    return true
-  end
-end"""
 
 DEFAULT_PROPOSAL_OUTPUT = "{proposal_name}_proposal.json"
 DEFAULT_VOTE_OUTPUT = "{proposal_name}_vote_for.json"
@@ -72,9 +55,7 @@ def complete_vote_output_path(proposal_name, vote_output_path=None, common_dir="
 
 def add_arg_construction(lines, arg, arg_name="args"):
     if isinstance(arg, str):
-        lines.append(f"{arg_name} = [[{arg}]]")
-    elif isinstance(arg, collections.abc.Sequence):
-        lines.append(f"{arg_name} = {list_as_lua_literal(arg)}")
+        lines.append(f"{arg_name} = [====[{arg}]====]")
     elif isinstance(arg, collections.abc.Mapping):
         lines.append(f"{arg_name} = {{}}")
         for k, v in args.items():
@@ -86,13 +67,7 @@ def add_arg_construction(lines, arg, arg_name="args"):
 def add_arg_checks(lines, arg, arg_name="args"):
     lines.append(f"if {arg_name} == nil then return false end")
     if isinstance(arg, str):
-        lines.append(f"if not {arg_name} == [[{arg}]] then return false end")
-    elif isinstance(arg, collections.abc.Sequence):
-        expected_name = arg_name.replace(".", "_")
-        lines.append(f"{expected_name} = {list_as_lua_literal(arg)}")
-        lines.append(
-            f"if not equal_arrays({arg_name}, {expected_name}) then return false end"
-        )
+        lines.append(f"if not {arg_name} == [====[{arg}]====] then return false end")
     elif isinstance(arg, collections.abc.Mapping):
         for k, v in arg.items():
             add_arg_checks(lines, v, arg_name=f"{arg_name}.{k}")
@@ -127,7 +102,7 @@ def build_proposal(proposed_call, args=None, inline_args=False, vote_against=Fal
         "if not #calls == 1 then return false end",
         "call = calls[1]",
         f'if not call.func == "{proposed_call}" then return false end',
-    ] + [line.strip() for line in LUA_FUNCTION_EQUAL_ARRAYS.splitlines()]
+    ]
     if args is not None:
         vote_lines.append("args = call.args")
         add_arg_checks(vote_lines, args)
@@ -186,15 +161,13 @@ def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
     return false
     end
 
-    {LUA_FUNCTION_EQUAL_ARRAYS}
-
-    expected_cert = [[{member_cert}]]
-    if not equal_arrays(call.args.cert, expected_cert) then
+    expected_cert = [====[{member_cert}]====]
+    if not call.args.cert == expected_cert then
     return false
     end
 
-    expected_keyshare = [[{member_keyshare_encryptor}]]
-    if not equal_arrays(call.args.keyshare, expected_keyshare) then
+    expected_keyshare = [====[{member_keyshare_encryptor}]====]
+    if not call.args.keyshare == expected_keyshare then
     return false
     end
 
