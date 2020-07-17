@@ -906,11 +906,15 @@ namespace ccf
       switch (msg_type)
       {
         case channel_msg:
+        {
           n2n_channels->recv_message(std::move(oa));
           break;
+        }
         case consensus_msg:
+        {
           consensus->recv_message(std::move(oa));
           break;
+        }
 
         default:
         {
