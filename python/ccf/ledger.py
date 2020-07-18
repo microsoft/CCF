@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import io
-from os import sendfile
 
 # Default implementation has buggy interaction between read_bytes and tell, so use fallback
 import msgpack.fallback as msgpack
