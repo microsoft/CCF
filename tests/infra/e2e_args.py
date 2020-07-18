@@ -7,6 +7,15 @@ import infra.network
 import sys
 
 
+def absolute_path_to_existing_file(arg):
+    abs_arg = os.path.abspath(arg)
+    if arg != abs_arg:
+        raise argparse.ArgumentTypeError("Must provide absolute path")
+    if not os.path.isfile(abs_arg):
+        raise argparse.ArgumentTypeError(f"{abs_arg} is not a file")
+    return abs_arg
+
+
 def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
     if parser is None:
         parser = argparse.ArgumentParser(
@@ -52,7 +61,11 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         default=False,
     )
     parser.add_argument(
-        "-g", "--gov-script", help="Path to governance script",
+        "-g",
+        "--gov-script",
+        help="Path to governance script",
+        required=True,
+        type=absolute_path_to_existing_file,
     )
     parser.add_argument("-s", "--app-script", help="Path to app script")
     parser.add_argument("-j", "--js-app-script", help="Path to js app script")
@@ -152,7 +165,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--ledger-recovery-timeout",
         help="On recovery, maximum timeout (s) while reading the ledger",
         type=int,
-        default=10,
+        default=30,
     )
     parser.add_argument(
         "--ledger-chunk-max-bytes",
