@@ -33,7 +33,7 @@ namespace logger
     MAX_LOG_LEVEL
   };
 
-  static constexpr __syscall_slong_t ns_per_s = 1'000'000'000;
+  static constexpr long int ns_per_s = 1'000'000'000;
 
   class AbstractLogger
   {

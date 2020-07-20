@@ -618,7 +618,7 @@ namespace kv::untyped
       }
 
       return std::make_unique<Snapshot>(
-        name, security_domain, replicated, r->version, StateSnapshot(r->state));
+        name, security_domain, r->version, StateSnapshot(r->state));
     }
 
     void apply_snapshot(

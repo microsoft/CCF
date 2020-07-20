@@ -196,8 +196,6 @@ function(add_unit_test name)
   )
 endfunction()
 
-add_compile_options()
-
 if("sgx" IN_LIST COMPILE_TARGETS)
   # Host Executable
   add_executable(

@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensus_types.h"
 #include "consensus/pbft/pbft_types.h"
 #include "consensus/raft/raft_types.h"
 #include "host/timer.h"

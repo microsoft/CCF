@@ -320,25 +320,10 @@ namespace kv
 
   public:
     MovePendingTx(
-      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID req_id_) :
+      std::vector<uint8_t>&& data_, kv::TxHistory::RequestID&& req_id_) :
       data(std::move(data_)),
       req_id(std::move(req_id_))
     {}
-
-    MovePendingTx(MovePendingTx&& other) = default;
-    MovePendingTx& operator=(MovePendingTx&& other) = default;
-
-    MovePendingTx(const MovePendingTx& other)
-    {
-      throw std::logic_error(
-        "Calling copy constructor of MovePendingTx is not permitted");
-    }
-    MovePendingTx& operator=(const MovePendingTx& other)
-    {
-      throw std::logic_error(
-        "Calling copy asignment operator of MovePendingTx is not "
-        "permitted");
-    }
 
     PendingTxInfo operator()()
     {
@@ -452,7 +437,7 @@ namespace kv
     virtual void rollback(Version v, std::optional<Term> t = std::nullopt) = 0;
     virtual void set_term(Term t) = 0;
     virtual CommitSuccess commit(
-      const TxID& txid, PendingTx pt, bool globally_committable) = 0;
+      const TxID& txid, PendingTx&& pending_tx, bool globally_committable) = 0;
 
     virtual std::vector<uint8_t> serialise_snapshot(Version v) = 0;
     virtual DeserialiseSuccess deserialise_snapshot(

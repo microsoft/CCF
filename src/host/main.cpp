@@ -561,7 +561,7 @@ int main(int argc, char** argv)
   std::vector<uint8_t> network_cert(certificate_size);
   std::vector<uint8_t> network_enc_pubk(pubk_size);
 
-  StartType start_type;
+  StartType start_type = StartType::Unknown;
 
   EnclaveConfig enclave_config;
   enclave_config.circuit = &circuit;
@@ -617,6 +617,11 @@ int main(int argc, char** argv)
   {
     LOG_INFO_FMT("Creating new node - recover");
     start_type = StartType::Recover;
+  }
+
+  if (start_type == StartType::Unknown)
+  {
+    LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
   }
 
   enclave.create_node(
