@@ -9,7 +9,11 @@ steps:
   condition: succeededOrFailed()
 
 - script: |
+    echo yes | /opt/openenclave/bin/scripts/lvi-mitigation/install_lvi_mitigation_bindir
+  displayName: Install LVI mitigation toolchain
+
+- script: |
     mkdir build
     cd build
-    cmake -L -GNinja .. ${{ parameters.cmake_args }}
+    cmake -L -GNinja .. ${{ parameters.cmake_args }} -DLVI_MITIGATIONS=ON -DLVI_MITIGATION_BINDIR="$(readlink -f ../lvi_mitigation_bin)""
   displayName: CMake
