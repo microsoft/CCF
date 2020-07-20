@@ -29,6 +29,8 @@ if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
+option(LVI_MITIGATIONS "Enable LVI mitigations" OFF)
+
 option(NO_STRICT_TLS_CIPHERSUITES
        "Disable strict list of valid TLS ciphersuites" OFF
 )
@@ -473,6 +475,10 @@ function(add_picobench name)
   )
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
+
+  if (${LVI_MITIGATIONS})
+    apply_lvi_mitigation(${name})
+  endif()
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 
