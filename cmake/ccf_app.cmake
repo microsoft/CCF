@@ -41,6 +41,14 @@ find_package(OpenEnclave 0.10 CONFIG REQUIRED)
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
 # OpenEnclave_INCLUDE_DIRS
 
+if(LVI_MITIGATIONS)
+  # Also pull in the LVI mitigation wrappers
+  find_package(
+    OpenEnclave-LVI-Mitigation CONFIG REQUIRED PATHS
+    ${OE_LIBDIR}/openenclave/cmake
+  )
+endif()
+
 # Sign a built enclave library with oesign
 function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
   cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "INSTALL_LIBS")
@@ -146,10 +154,7 @@ function(use_client_mbedtls name)
 endfunction()
 
 function(use_oe_mbedtls name)
-  target_link_libraries(
-    ${name} PRIVATE openenclave::oeenclave openenclave::oelibcxx
-                    openenclave::oelibc
-  )
+  target_link_libraries(${name} PRIVATE ${OE_TARGET_ENCLAVE_AND_STD})
 endfunction()
 
 # Enclave library wrapper
@@ -171,18 +176,13 @@ function(add_ccf_app name)
     )
 
     target_link_libraries(
-      ${enc_name}
-      PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
-              # These oe libraries must be linked in correct order, so they are
-              # re-declared here
-              openenclave::oeenclave
-              openenclave::oesnmalloc
-              openenclave::oecore
-              openenclave::oesyscall
-              ccf.enclave
+      ${enc_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
+                          ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
     )
 
     set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+    add_lvi_mitigations(${enc_name})
 
     add_dependencies(${name} ${enc_name})
     if(PARSED_ARGS_DEPS)
@@ -209,6 +209,7 @@ function(add_ccf_app name)
     enable_coverage(${virt_name})
     use_client_mbedtls(${virt_name})
     add_san(${virt_name})
+    add_lvi_mitigations(${virt_name})
 
     add_dependencies(${name} ${virt_name})
     if(PARSED_ARGS_DEPS)
@@ -226,6 +227,6 @@ endfunction()
 function(add_enclave_library_c name files)
   add_library(${name} STATIC ${files})
   target_compile_options(${name} PRIVATE -nostdinc)
-  target_link_libraries(${name} PRIVATE openenclave::oelibc)
+  target_link_libraries(${name} PRIVATE ${OE_TARGET_LIBC})
   set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
 endfunction()

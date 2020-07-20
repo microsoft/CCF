@@ -82,9 +82,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.enclave
-    PUBLIC openenclave::oeenclave
-           openenclave::oelibcxx
-           openenclave::oelibc
+    PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
            -static-libgcc
            -lgcc
            ccfcrypto.enclave
@@ -99,6 +97,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   enable_quote_code(ccf.enclave)
+
+  add_lvi_mitigations(ccf.enclave)
 
   install(
     TARGETS ccf.enclave
@@ -153,6 +153,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   enable_coverage(ccf.virtual)
   use_client_mbedtls(ccf.virtual)
   add_san(ccf.virtual)
+  add_lvi_mitigations(ccf.enclave)
 
   install(
     TARGETS ccf.virtual
