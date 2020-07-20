@@ -32,7 +32,6 @@ endif()
 option(LVI_MITIGATIONS "Enable LVI mitigations" OFF)
 if(LVI_MITIGATIONS)
   set(OE_TARGET_LIBC openenclave::oelibc-lvi-cfg)
-  set(OE_TARGET_HOST openenclave::oehost-lvi-cfg)
   set(OE_TARGET_ENCLAVE_AND_STD
       openenclave::oeenclave-lvi-cfg openenclave::oelibcxx-lvi-cfg
       openenclave::oelibc-lvi-cfg
@@ -43,7 +42,6 @@ if(LVI_MITIGATIONS)
   )
 else()
   set(OE_TARGET_LIBC openenclave::oelibc)
-  set(OE_TARGET_HOST openenclave::oehost)
   set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
                                 openenclave::oelibc
   )
@@ -240,7 +238,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
             ${CMAKE_DL_LIBS}
             ${CMAKE_THREAD_LIBS_INIT}
             ${LINK_LIBCXX}
-            ${OE_TARGET_HOST}
+            openenclave::oehost
             ccfcrypto.host
             evercrypt.host
             CURL::libcurl
