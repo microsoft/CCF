@@ -1018,9 +1018,9 @@ namespace ccf
             q.node_id = nid;
             q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 
-#ifdef GET_QUOTE
             if (this->network.consensus_type != ConsensusType::PBFT)
             {
+#ifdef GET_QUOTE
               auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
               if (!code_id_opt.has_value())
               {
@@ -1031,8 +1031,8 @@ namespace ccf
                 q.mrenclave =
                   fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
               }
-            }
 #endif
+            }
             result.quotes.push_back(q);
           }
         }

@@ -5,7 +5,10 @@
 #pragma once
 
 #ifndef INSIDE_ENCLAVE
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wundef"
 #  include <backward-cpp/backward.hpp>
+#  pragma clang diagnostic pop
 #endif
 
 #include <iostream>
