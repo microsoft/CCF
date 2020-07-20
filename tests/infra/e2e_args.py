@@ -10,7 +10,7 @@ import sys
 def absolute_path_to_existing_file(arg):
     abs_arg = os.path.abspath(arg)
     if arg != abs_arg:
-        raise argparse.ArgumentTypeError(f"Please provide absolute path")
+        raise argparse.ArgumentTypeError("Must provide absolute path")
     if not os.path.isfile(abs_arg):
         raise argparse.ArgumentTypeError(f"{abs_arg} is not a file")
     return abs_arg
