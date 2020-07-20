@@ -125,6 +125,8 @@ extern "C"
     size_t num_worker_thread,
     void* time_location)
   {
+    (void)enclave;
+
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>("enclave_create_node");
 
@@ -150,6 +152,8 @@ extern "C"
 
   inline oe_result_t enclave_run(oe_enclave_t* enclave, bool* _retval)
   {
+    (void)enclave;
+
     static run_func_t run_func =
       get_enclave_exported_function<run_func_t>("enclave_run");
 
@@ -165,6 +169,13 @@ extern "C"
     uint32_t config_size,
     oe_enclave_t** enclave)
   {
+    (void)path;
+    (void)type;
+    (void)flags;
+    (void)config;
+    (void)config_size;
+    (void)enclave;
+
     // this function is not supposed to be called when using a virtual enclave
     return OE_FAILURE;
   }

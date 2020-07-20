@@ -169,8 +169,7 @@ function(add_ccf_app name)
     target_include_directories(
       ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
-    target_compile_options(${enc_name} PRIVATE -Wall -Wextra -Werror -Wundef -Wpedantic -ferror-limit=1000)
-
+    add_warning_checks(${enc_name})
     target_link_libraries(
       ${enc_name}
       PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
