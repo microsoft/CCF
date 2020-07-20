@@ -33,7 +33,7 @@ namespace logger
     MAX_LOG_LEVEL
   };
 
-  static constexpr size_t ns_per_s = 1'000'000'000;
+  static constexpr __syscall_slong_t ns_per_s = 1'000'000'000;
 
   class AbstractLogger
   {
@@ -235,7 +235,7 @@ namespace logger
       std::vector<std::unique_ptr<AbstractLogger>>& the_loggers = get_loggers();
       if (the_loggers.size() > 0)
       {
-        the_loggers.front() = std::move(std::make_unique<JsonConsoleLogger>());
+        the_loggers.front() = std::make_unique<JsonConsoleLogger>();
       }
       else
       {
@@ -339,9 +339,9 @@ namespace logger
 
   public:
     LogLine(Level ll, const char* file_name, size_t line_number) :
+      log_level(ll),
       file_name(file_name),
       line_number(line_number),
-      log_level(ll),
 #ifdef INSIDE_ENCLAVE
       thread_id(threading::get_current_thread_id())
 #else

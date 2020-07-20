@@ -37,7 +37,7 @@ namespace champ
   template <class T>
   inline size_t get_size(const T& data)
   {
-    return sizeof(uint64_t) + sizeof(T);
+    return sizeof(uint64_t) + sizeof(data);
   }
 
   template <>

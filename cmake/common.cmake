@@ -171,6 +171,13 @@ find_package(CURL REQUIRED)
 
 list(APPEND LINK_LIBCXX -lc++ -lc++abi -lc++fs -stdlib=libc++)
 
+macro(warnings_high)
+  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Wsign-conversion)
+  endif ()
+  add_compile_options(-Wall -Wextra -Werror -Wundef)
+endmacro()
+
 # Unit test wrapper
 function(add_unit_test name)
   add_executable(${name} ${CCF_DIR}/src/enclave/thread_local.cpp ${ARGN})
@@ -189,11 +196,15 @@ function(add_unit_test name)
   )
 endfunction()
 
+add_compile_options()
+
 if("sgx" IN_LIST COMPILE_TARGETS)
   # Host Executable
   add_executable(
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
+  target_compile_options(cchost PRIVATE -Wall -Wextra -Werror -Wundef)
+
   use_client_mbedtls(cchost)
   target_compile_options(cchost PRIVATE -stdlib=libc++)
   target_include_directories(

@@ -42,7 +42,7 @@ namespace kv::untyped
     }
 
     template <class T>
-    bool ne(std::enable_if_t<!Ne<T>::value, const T&> a, const T& b)
+    bool ne(std::enable_if_t<!Ne<T>::value, const T&>, const T&)
     {
       return false;
     }
@@ -121,10 +121,10 @@ namespace kv::untyped
     class TxViewCommitter : public AbstractTxView
     {
     protected:
-      ChangeSet change_set;
-
       Map& map;
       size_t rollback_counter;
+
+      ChangeSet change_set;
 
       Version commit_version = NoVersion;
 
@@ -294,7 +294,6 @@ namespace kv::untyped
     private:
       const std::string name;
       const SecurityDomain security_domain;
-      const bool replicated;
       const kv::Version version;
 
       StateSnapshot map_snapshot;
@@ -303,12 +302,10 @@ namespace kv::untyped
       Snapshot(
         const std::string& name_,
         SecurityDomain security_domain_,
-        bool replicated_,
         kv::Version version_,
         StateSnapshot&& map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
-        replicated(replicated_),
         version(version_),
         map_snapshot(std::move(map_snapshot_))
       {}
@@ -339,7 +336,7 @@ namespace kv::untyped
       bool replicated_) :
       store(store_),
       name(name_),
-      roll{std::make_unique<LocalCommits>(), 0},
+      roll{std::make_unique<LocalCommits>(), 0, {}},
       security_domain(security_domain_),
       replicated(replicated_)
     {
@@ -561,7 +558,7 @@ namespace kv::untyped
         return false;
 
       size_t count = 0;
-      state2->state.foreach([&count](const K& k, const VersionV& v) {
+      state2->state.foreach([&count](const K&, const VersionV&) {
         count++;
         return true;
       });

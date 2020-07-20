@@ -57,7 +57,7 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        bp, AdminMessage::stopped, [](const uint8_t* data, size_t size) {
+        bp, AdminMessage::stopped, [](const uint8_t*, size_t) {
           uv_stop(uv_default_loop());
           LOG_INFO_FMT("Host stopped successfully");
         });

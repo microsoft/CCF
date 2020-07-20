@@ -23,10 +23,10 @@ namespace asynchost
     {
       LOG_INFO_FMT("Listening on {}:{}", host, service);
     }
-    virtual void on_accept(TCP& peer) {}
+    virtual void on_accept(TCP&) {}
     virtual void on_connect() {}
     virtual void on_connect_failed() {}
-    virtual void on_read(size_t len, uint8_t*& data) {}
+    virtual void on_read(size_t, uint8_t*&) {}
     virtual void on_disconnect() {}
   };
 
@@ -424,7 +424,7 @@ namespace asynchost
       return true;
     }
 
-    static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo* res)
+    static void on_resolved(uv_getaddrinfo_t* req, int rc, struct addrinfo*)
     {
       static_cast<TCPImpl*>(req->data)->on_resolved(req, rc);
     }

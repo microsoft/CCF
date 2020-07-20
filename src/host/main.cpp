@@ -559,7 +559,7 @@ int main(int argc, char** argv)
   const size_t pubk_size = 1024;
   std::vector<uint8_t> node_cert(certificate_size);
   std::vector<uint8_t> network_cert(certificate_size);
-  std::vector<uint8_t> network_enc_pubk(certificate_size);
+  std::vector<uint8_t> network_enc_pubk(pubk_size);
 
   StartType start_type;
 
