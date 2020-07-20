@@ -165,7 +165,7 @@ def cli_args(add=lambda x: None, parser=None, accept_unknown=False):
         "--ledger-recovery-timeout",
         help="On recovery, maximum timeout (s) while reading the ledger",
         type=int,
-        default=10,
+        default=30,
     )
     parser.add_argument(
         "--ledger-chunk-max-bytes",

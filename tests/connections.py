@@ -43,7 +43,7 @@ def run(args):
                     LOG.error(f"Failed to connect client {i}")
 
             c = clients[int(random.random() * len(clients))]
-            check(c.rpc("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
+            check(c.post("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
 
             assert (
                 len(clients) >= max_fds - num_fds - 1
@@ -64,7 +64,7 @@ def run(args):
                 LOG.info(f"Connected client {i}")
 
             c = clients[int(random.random() * len(clients))]
-            check(c.rpc("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
+            check(c.post("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
 
             assert (
                 len(clients) >= max_fds - num_fds - 1

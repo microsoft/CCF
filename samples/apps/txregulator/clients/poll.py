@@ -44,16 +44,16 @@ def run(args):
         ) as c:
             while True:
                 time.sleep(1)
-                resp = reg_c.rpc("REG_poll_flagged").to_dict()
+                resp = reg_c.post("REG_poll_flagged").to_dict()
 
                 if "result" in resp:
                     flagged_txs = resp["result"]
 
                     for flagged in flagged_txs:
                         # bank reveal the transaction
-                        c.rpc("TX_reveal", {"tx_id": flagged[0]})
+                        c.post("TX_reveal", {"tx_id": flagged[0]})
                         # regulator get the transaction
-                        tx_resp = reg_c.rpc(
+                        tx_resp = reg_c.post(
                             "REG_get_revealed", {"tx_id": flagged[0]}
                         ).to_dict()
                         if "result" in tx_resp:

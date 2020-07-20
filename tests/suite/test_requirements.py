@@ -52,7 +52,7 @@ def supports_methods(*methods):
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
             response = c.get("/app/api")
-            supported_methods = response.result["methods"]
+            supported_methods = response.body["methods"]
             missing = {*methods}.difference(supported_methods)
             if missing:
                 concat = ", ".join(missing)
@@ -90,9 +90,9 @@ def sufficient_member_count():
 def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         primary, _ = network.find_primary()
-        with primary.client(identity="member0") as c:
-            r = c.rpc(
-                "query",
+        with primary.client("member0") as c:
+            r = c.post(
+                "gov/query",
                 {
                     "text": """tables = ...
                         trusted_nodes_count = 0
@@ -106,7 +106,7 @@ def can_kill_n_nodes(nodes_to_kill_count):
                 },
             )
 
-            trusted_nodes_count = r.result
+            trusted_nodes_count = r.body
             running_nodes_count = len(network.get_joined_nodes())
             would_leave_nodes_count = running_nodes_count - nodes_to_kill_count
             minimum_nodes_to_run_count = ceil((trusted_nodes_count + 1) / 2)
