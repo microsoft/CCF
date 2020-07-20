@@ -34,6 +34,10 @@ namespace ccf
       tables(&store)
     {}
 
+// -Wunused-parameter flags unusued "args" or "params" lambda parameter
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+
     void init_handlers(kv::Store& t) override
     {
       EndpointRegistry::init_handlers(t);
@@ -337,7 +341,10 @@ namespace ccf
         "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))
         .set_auto_schema<VerifyReceipt>()
         .install();
+
+#pragma clang diagnostic pop
     }
+
 
     void tick(
       std::chrono::milliseconds elapsed,

@@ -87,7 +87,7 @@ extern "C"
   using tick_func_t = bool (*)(size_t, size_t);
 
   /*ocall function table*/
-  static oe_ocall_func_t __ccf_ocall_function_table[] = {NULL};
+  static oe_ocall_func_t __ccf_ocall_function_table[] = {nullptr};
 
   inline void load_virtual_enclave(const char* path)
   {

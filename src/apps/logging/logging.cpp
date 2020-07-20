@@ -228,6 +228,15 @@ namespace loggingapp
         const auto& cert_data = args.rpc_ctx->session->caller_cert;
         const auto ret =
           mbedtls_x509_crt_parse(&cert, cert_data.data(), cert_data.size());
+        if (ret != 0)
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+          args.rpc_ctx->set_response_body(
+            "Cannot parse x509 caller certificate");
+          return;
+        }
 
         const auto log_line = fmt::format("{}: {}", cert.subject, in.msg);
         auto view = args.tx.get_view(records);
@@ -388,8 +397,7 @@ namespace loggingapp
 
       auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(
-        [this,
-         &notifier](kv::Version version, const ccf::Signatures::Write& w) {
+        [&notifier](kv::Version version, const ccf::Signatures::Write& w) {
           if (w.size() > 0)
           {
             nlohmann::json notify_j;

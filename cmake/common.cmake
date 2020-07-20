@@ -201,7 +201,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   add_executable(
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
-  target_compile_options(cchost PRIVATE -Wall -Wextra -Werror -Wundef)
+  target_compile_options(cchost PRIVATE -Wall -Wextra -Werror -Wundef -Wpedantic -ferror-limit=1000)
 
   use_client_mbedtls(cchost)
   target_compile_options(cchost PRIVATE -stdlib=libc++)

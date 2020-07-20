@@ -29,7 +29,7 @@ namespace tls
     {
       mbedtls_entropy_init(&entropy);
       mbedtls_ctr_drbg_init(&drbg);
-      mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &entropy, NULL, 0);
+      mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &entropy, nullptr, 0);
     }
 
     ~MbedtlsEntropy()

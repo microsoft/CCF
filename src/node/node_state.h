@@ -964,7 +964,7 @@ namespace ccf
       }
       else
       {
-        return {s, {}, {}};
+        return {s, std::nullopt, std::nullopt};
       }
     }
 

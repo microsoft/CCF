@@ -180,8 +180,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
 
       if (r < 0)
@@ -373,8 +372,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -473,8 +471,7 @@ namespace enclave
           return;
 
         default:
-        {
-        }
+        {}
       }
 
       status = status_;
@@ -504,8 +501,7 @@ namespace enclave
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -565,6 +561,7 @@ namespace enclave
     static void dbg_callback(
       void* ctx, int level, const char* file, int line, const char* str)
     {
+      (void)ctx;
       (void)level;
       LOG_DEBUG_FMT("{}:{}: {}", file, line, str);
     }

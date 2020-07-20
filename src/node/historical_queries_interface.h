@@ -23,7 +23,7 @@ namespace ccf::historical
   class StubStateCache : public AbstractStateCache
   {
   public:
-    StorePtr get_store_at(consensus::Index idx) override
+    StorePtr get_store_at(__attribute__((unused)) consensus::Index idx) override
     {
       return nullptr;
     }

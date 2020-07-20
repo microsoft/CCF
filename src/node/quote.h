@@ -35,7 +35,7 @@ namespace ccf
     static std::optional<CodeDigest> get_code_id(
       const std::vector<uint8_t>& raw_quote)
     {
-      oe_report_t parsed_quote = {0};
+      oe_report_t parsed_quote;
 
       auto rc =
         oe_parse_report(raw_quote.data(), raw_quote.size(), &parsed_quote);
@@ -54,7 +54,6 @@ namespace ccf
       crypto::Sha256Hash h{cert.raw()};
       uint8_t* quote;
       size_t quote_len = 0;
-      oe_report_t parsed_quote = {0};
 
       auto rc = oe_get_report(
         OE_REPORT_FLAGS_REMOTE_ATTESTATION,
@@ -149,7 +148,7 @@ namespace ccf
       const std::vector<uint8_t>& raw_quote,
       const tls::Pem& cert)
     {
-      oe_report_t parsed_quote = {0};
+      oe_report_t parsed_quote;
 
       auto rc = verify_oe_quote(raw_quote, parsed_quote);
       if (rc != QuoteVerificationResult::VERIFIED)

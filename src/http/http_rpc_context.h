@@ -10,7 +10,8 @@
 
 namespace http
 {
-  static std::optional<std::string> extract_actor(enclave::RpcContext& ctx)
+  inline static std::optional<std::string> extract_actor(
+    enclave::RpcContext& ctx)
   {
     const auto path = ctx.get_method();
 
@@ -427,7 +428,7 @@ namespace enclave
         ws::RequestParser parser(processor);
 
         auto next_read = 2;
-        auto index = 0;
+        size_t index = 0;
         while (index < packed.size())
         {
           auto chunk = std::vector(
