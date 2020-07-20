@@ -15,5 +15,5 @@ steps:
 - script: |
     mkdir build
     cd build
-    cmake -L -GNinja .. ${{ parameters.cmake_args }} -DLVI_MITIGATIONS=ON -DLVI_MITIGATION_BINDIR="$(readlink -f ../lvi_mitigation_bin)""
+    cmake -L -GNinja .. ${{ parameters.cmake_args }} -DLVI_MITIGATIONS=ON -DLVI_MITIGATION_BINDIR="$(readlink -f ../lvi_mitigation_bin)"
   displayName: CMake
