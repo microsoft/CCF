@@ -6,7 +6,7 @@ As well as the following methods, :ref:`users/rpc_api:Common Methods` are also a
 POST /gov/ack/update_state_digest
 ---------------------------------
 
-Get the current state digest which should be signed to indicate member liveness.
+Get the current state digest. This is signed to indicate member liveness.
 
 .. literalinclude:: ../schemas/ack/update_state_digest_POST_result.json
     :language: json

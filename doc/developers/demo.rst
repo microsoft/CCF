@@ -1,7 +1,7 @@
 End-to-end demo
 ===============
 
-This document explains how to spin up a test CCF network and submit simple commands to it using `curl`_. We use curl here because it is basic, general, and broadly available - you should be able to get the same results with any HTTP client, provided you can configure the appropriate caller and CA identities. Once you have built your own app, you should be able to test it in the same way - simply replace ``liblogging`` with the name of your app binary, and call the endpoints defined by your app.
+This document explains how to spin up a test CCF network and submit simple commands to it using `curl`_. We use curl here because it is a standard tool and broadly available - you should be able to get the same results with any HTTP client, provided you can configure the appropriate caller and CA identities. Once you have built your own app, you should be able to test it in the same way - simply replace ``liblogging`` with the name of your app binary, and call the endpoints defined by your app.
 
 Startup
 -------
