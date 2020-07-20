@@ -2,9 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/encryptor.h"
-
 #include "entities.h"
+#include "kv/encryptor.h"
 #include "node/ledger_secrets.h"
 
 #include <atomic>
@@ -22,6 +21,7 @@ namespace ccf
       crypto::GcmHeader<crypto::GCM_SIZE_IV>& gcm_hdr,
       kv::Version version) override
     {
+      (void)version;
       gcm_hdr.set_iv_id(BaseEncryptor::iv_id);
       gcm_hdr.set_iv_seq(seq_no.fetch_add(1));
     }
@@ -33,8 +33,8 @@ namespace ccf
   class LedgerSecretsMixin : public BaseEncryptor
   {
   private:
-    bool is_recovery;
     std::shared_ptr<LedgerSecrets> ledger_secrets;
+    bool is_recovery;
 
     using KeyInfo = kv::TxEncryptor::KeyInfo;
 

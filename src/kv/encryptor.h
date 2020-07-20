@@ -66,7 +66,10 @@ namespace kv
     std::list<EncryptionKey> encryption_keys;
     size_t iv_id = 0;
 
-    virtual void record_compacted_keys(const std::list<KeyInfo>& keys){};
+    virtual void record_compacted_keys(const std::list<KeyInfo>& keys)
+    {
+      (void)keys;
+    };
 
   public:
     TxEncryptor(const std::list<KeyInfo>& existing_keys)
@@ -75,7 +78,7 @@ namespace kv
       for (auto const& s : existing_keys)
       {
         encryption_keys.emplace_back(TxEncryptor::EncryptionKey{
-          s.version, s.raw_key, crypto::KeyAesGcm(s.raw_key)});
+          {s.version, s.raw_key}, crypto::KeyAesGcm(s.raw_key)});
       }
     }
 
@@ -105,7 +108,7 @@ namespace kv
       get_encryption_key(version).encrypt(
         gcm_hdr.get_iv(), plain, additional_data, cipher.data(), gcm_hdr.tag);
 
-      serialised_header = std::move(gcm_hdr.serialise());
+      serialised_header = gcm_hdr.serialise();
     }
 
     /**
@@ -163,7 +166,7 @@ namespace kv
       std::lock_guard<SpinLock> guard(lock);
 
       encryption_keys.emplace_back(EncryptionKey{
-        version, raw_ledger_key, crypto::KeyAesGcm(raw_ledger_key)});
+        {version, raw_ledger_key}, crypto::KeyAesGcm(raw_ledger_key)});
     }
 
     void rollback(kv::Version version) override

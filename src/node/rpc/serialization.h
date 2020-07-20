@@ -48,21 +48,19 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_list)
   DECLARE_JSON_TYPE(NetworkEncryptionKey)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkEncryptionKey, private_raw)
+
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo,
+    public_only,
+    last_recovered_commit_idx,
+    consensus_type,
     ledger_secrets,
     identity,
     encryption_key)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::Out,
-    node_status,
-    node_id,
-    public_only,
-    consensus_type)
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::Out, last_recovered_commit_idx, network_info)
+  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
+  DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
 
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(

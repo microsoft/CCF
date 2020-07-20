@@ -88,19 +88,24 @@ namespace ccf
     {
       NodeStatus node_status;
       NodeId node_id;
-      bool public_only;
-      kv::Version last_recovered_commit_idx;
-      ConsensusType consensus_type = ConsensusType::RAFT;
 
+      // Only if the caller node is trusted
       struct NetworkInfo
       {
+        bool public_only = false;
+        kv::Version last_recovered_commit_idx = kv::NoVersion;
+        ConsensusType consensus_type = ConsensusType::RAFT;
+
         LedgerSecrets ledger_secrets;
         NetworkIdentity identity;
         NetworkEncryptionKey encryption_key;
 
         bool operator==(const NetworkInfo& other) const
         {
-          return ledger_secrets == other.ledger_secrets &&
+          return public_only == other.public_only &&
+            last_recovered_commit_idx == other.last_recovered_commit_idx &&
+            consensus_type == other.consensus_type &&
+            ledger_secrets == other.ledger_secrets &&
             identity == other.identity &&
             encryption_key == other.encryption_key;
         }
@@ -110,6 +115,7 @@ namespace ccf
           return !(*this == other);
         }
       };
+
       NetworkInfo network_info;
     };
   };

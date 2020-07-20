@@ -57,7 +57,7 @@ namespace ccf
     COMPACT
   };
 
-  constexpr size_t MAX_HISTORY_LEN = 1000;
+  constexpr int MAX_HISTORY_LEN = 1000;
 
   static std::ostream& operator<<(std::ostream& os, HashOp flag)
   {
@@ -106,18 +106,32 @@ namespace ccf
       signatures(signatures_)
     {}
 
-    void append(const std::vector<uint8_t>& replicated) override {}
+    void append(const std::vector<uint8_t>& replicated) override
+    {
+      (void)replicated;
+    }
 
-    void append(const uint8_t* replicated, size_t replicated_size) override {}
+    void append(const uint8_t* replicated, size_t replicated_size) override
+    {
+      (void)replicated;
+      (void)replicated_size;
+    }
 
     bool verify(kv::Term* term = nullptr) override
     {
+      (void)term;
       return true;
     }
 
-    void rollback(kv::Version v) override {}
+    void rollback(kv::Version v) override
+    {
+      (void)v;
+    }
 
-    void compact(kv::Version v) override {}
+    void compact(kv::Version v) override
+    {
+      (void)v;
+    }
 
     void emit_signature() override
     {
@@ -142,6 +156,11 @@ namespace ccf
       const std::vector<uint8_t>& request,
       uint8_t frame_format) override
     {
+      (void)id;
+      (void)caller_id;
+      (void)caller_cert;
+      (void)request;
+      (void)frame_format;
       return true;
     }
 
@@ -149,13 +168,21 @@ namespace ccf
       kv::TxHistory::RequestID id,
       kv::Version version,
       const std::vector<uint8_t>& replicated) override
-    {}
+    {
+      (void)id;
+      (void)version;
+      (void)replicated;
+    }
 
     void add_pending(
       kv::TxHistory::RequestID id,
       kv::Version version,
       std::shared_ptr<std::vector<uint8_t>> replicated) override
-    {}
+    {
+      (void)id;
+      (void)version;
+      (void)replicated;
+    }
 
     void flush_pending() override {}
 
@@ -164,18 +191,36 @@ namespace ccf
       kv::Version version,
       const uint8_t* replicated,
       size_t replicated_size) override
-    {}
+    {
+      (void)id;
+      (void)version;
+      (void)replicated;
+      (void)replicated_size;
+    }
 
-    void add_result(RequestID id, kv::Version version) override {}
+    void add_result(RequestID id, kv::Version version) override
+    {
+      (void)id;
+      (void)version;
+    }
 
     void add_response(
       kv::TxHistory::RequestID id,
       const std::vector<uint8_t>& response) override
-    {}
+    {
+      (void)id;
+      (void)response;
+    }
 
-    void register_on_result(ResultCallbackHandler func) override {}
+    void register_on_result(ResultCallbackHandler func) override
+    {
+      (void)func;
+    }
 
-    void register_on_response(ResponseCallbackHandler func) override {}
+    void register_on_response(ResponseCallbackHandler func) override
+    {
+      (void)func;
+    }
 
     void clear_on_result() override {}
 
@@ -188,11 +233,13 @@ namespace ccf
 
     std::vector<uint8_t> get_receipt(kv::Version v) override
     {
+      (void)v;
       return {};
     }
 
     bool verify_receipt(const std::vector<uint8_t>& v) override
     {
+      (void)v;
       return true;
     }
   };

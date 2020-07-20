@@ -73,6 +73,7 @@ template <typename T>
 T parse_response_body(const TResponse& r)
 {
   const auto body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+  LOG_DEBUG_FMT("{}", body_j.dump()); // TODO: Delete
   return body_j.get<T>();
 }
 
@@ -148,7 +149,7 @@ TEST_CASE("Add a node to an opening service")
     CHECK(
       response.network_info.encryption_key == *network.encryption_key.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
-    CHECK(response.public_only == false);
+    CHECK(response.network_info.public_only == false);
 
     kv::Tx tx;
     const NodeId node_id = response.node_id;
@@ -298,7 +299,7 @@ TEST_CASE("Add a node to an open service")
     CHECK(
       response.network_info.encryption_key == *network.encryption_key.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
-    CHECK(response.public_only == true);
+    CHECK(response.network_info.public_only == true);
   }
 }
 

@@ -142,7 +142,7 @@ namespace ccf
     RecvNonce get_recv_nonce(const uint8_t* data, size_t size)
     {
       // PBFT only
-      const auto& t = serialized::overlay<T>(data, size);
+      serialized::read<T>(data, size);
       serialized::skip(data, size, (size - sizeof(GcmHdr)));
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       return ccf::get_nonce(hdr);
@@ -152,7 +152,7 @@ namespace ccf
     RecvNonce get_encrypted_recv_nonce(const uint8_t* data, size_t size)
     {
       // PBFT only
-      const auto& t = serialized::overlay<T>(data, size);
+      serialized::read<T>(data, size);
       const auto& hdr = serialized::overlay<GcmHdr>(data, size);
       return ccf::get_nonce(hdr);
     }
@@ -196,8 +196,7 @@ namespace ccf
         }
 
         default:
-        {
-        }
+        {}
         break;
       }
     }

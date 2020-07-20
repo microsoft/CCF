@@ -254,7 +254,7 @@ namespace ccf
     return jsonhandler::ErrorDetails{status, msg};
   }
 
-// -Wunused-function _wrongly_ flags the following functions as unused
+// -Wunused-function seems to _wrongly_ flag the following functions as unused
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 
