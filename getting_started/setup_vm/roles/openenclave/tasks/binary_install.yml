@@ -1,7 +1,7 @@
 - name: Include vars
   include_vars: common.yml
 
-- name: Install step-cli
+- name: Install Open Enclave
   apt:
     deb: "{{ oe_deb }}"
   become: true
