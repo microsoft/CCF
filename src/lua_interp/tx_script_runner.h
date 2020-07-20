@@ -223,7 +223,11 @@ namespace ccf
 
       virtual void add_custom_tables(
         lua::Interpreter& li, kv::Tx& tx, int& n_registered_tables) const
-      {}
+      {
+        (void)li;
+        (void)tx;
+        (void)n_registered_tables;
+      }
 
     public:
       /** Run a script transactionally in a given environment.
@@ -300,6 +304,8 @@ namespace ccf
       TxScriptRunner(NetworkTables& network_tables) :
         network_tables(network_tables)
       {}
+
+      virtual ~TxScriptRunner() {};
     };
   }
 }

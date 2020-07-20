@@ -89,6 +89,7 @@ namespace ccf
 
       static int panic(lua_State* l)
       {
+        (void)l;
         throw lua::ex("Lua panicked.");
         return 0;
       }

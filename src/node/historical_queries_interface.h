@@ -40,6 +40,9 @@ namespace ccf::historical
     kv::Consensus::View view,
     kv::Consensus::SeqNo seqno)>;
 
+// Unused in most sample apps
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
   static ccf::EndpointFunction adapter(
     const HandleHistoricalQuery& f,
     AbstractStateCache& state_cache,
@@ -132,4 +135,5 @@ namespace ccf::historical
       f(args, historical_store, target_view, target_seqno);
     };
   }
+#pragma clang diagnostic pop
 }
