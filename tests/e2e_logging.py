@@ -312,7 +312,7 @@ def test_forwarding_frontends(network, args):
         msg = "forwarded_msg"
         log_id = 123
         check_commit(
-            c.rpc("/app/log/private", {"id": log_id, "msg": msg}), result=True,
+            c.post("/app/log/private", {"id": log_id, "msg": msg}), result=True,
         )
         check(c.get("/app/log/private", {"id": log_id}), result={"msg": msg})
 

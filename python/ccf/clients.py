@@ -128,7 +128,6 @@ class Response:
         response = HTTPResponse(sock)
         response.begin()
         raw_body = response.read(raw)
-        ok = response.status == 200
 
         content_type = response.headers.get("content-type")
         if content_type == "application/json":
