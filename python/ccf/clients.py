@@ -24,7 +24,7 @@ import websocket
 
 def truncate(string, max_len=256):
     if len(string) > max_len:
-        return string[: max_len - 3] + "..."
+        return f"{string[: max_len]} + {len(string) - max_len} chars"
     else:
         return string
 
