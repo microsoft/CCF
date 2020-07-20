@@ -345,7 +345,6 @@ namespace ccf
 #pragma clang diagnostic pop
     }
 
-
     void tick(
       std::chrono::milliseconds elapsed,
       kv::Consensus::Statistics stats) override

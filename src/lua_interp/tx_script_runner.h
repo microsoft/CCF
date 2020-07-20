@@ -305,7 +305,7 @@ namespace ccf
         network_tables(network_tables)
       {}
 
-      virtual ~TxScriptRunner() {};
+      virtual ~TxScriptRunner(){};
     };
   }
 }
