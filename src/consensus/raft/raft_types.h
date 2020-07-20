@@ -115,6 +115,7 @@ namespace raft
     Term prev_term;
     Index leader_commit_idx;
     Term term_of_idx;
+    bool is_snapshot;
   };
 
   struct AppendEntriesResponse : RaftHeader

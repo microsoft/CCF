@@ -84,22 +84,23 @@ namespace raft
 
     struct NodeState
     {
-      // the highest matching index with the node that was confirmed
-      Index match_idx;
       // the highest index sent to the node
       Index sent_idx;
+
+      // the highest matching index with the node that was confirmed
+      Index match_idx;
 
       Configuration::NodeInfo node_info;
 
       NodeState() = default;
 
       NodeState(
-        Index match_idx_,
+        const Configuration::NodeInfo& node_info_,
         Index sent_idx_,
-        const Configuration::NodeInfo& node_info_) :
-        match_idx(match_idx_),
+        Index match_idx_ = 0) :
+        node_info(node_info_),
         sent_idx(sent_idx_),
-        node_info(node_info_)
+        match_idx(match_idx_)
       {}
     };
 
@@ -114,6 +115,10 @@ namespace raft
     Index last_idx;
     Index commit_idx;
     TermHistory term_history;
+
+    // Snapshots
+    Index last_snapshot_idx;
+    Term last_snapshot_term;
 
     // Volatile
     NodeId leader_id;
@@ -496,6 +501,13 @@ namespace raft
         end_idx,
         commit_idx);
 
+      bool is_snapshot = start_idx == last_snapshot_idx;
+
+      if (is_snapshot)
+      {
+        LOG_FAIL_FMT("Sending snapshot");
+      }
+
       AppendEntries ae = {raft_append_entries,
                           local_id,
                           end_idx,
@@ -503,16 +515,21 @@ namespace raft
                           current_term,
                           prev_term,
                           commit_idx,
-                          term_of_idx};
+                          term_of_idx,
+                          is_snapshot};
 
       auto& node = nodes.at(to);
 
-      // Record the most recent index we have sent to this node.
-      node.sent_idx = end_idx;
-
       // The host will append log entries to this message when it is
       // sent to the destination node.
-      channels->send_authenticated(ccf::NodeMsgType::consensus_msg, to, ae);
+      if (!channels->send_authenticated(
+            ccf::NodeMsgType::consensus_msg, to, ae))
+      {
+        return;
+      }
+
+      // Record the most recent index we have sent to this node.
+      node.sent_idx = end_idx;
     }
 
     void recv_append_entries(const uint8_t* data, size_t size)
@@ -536,6 +553,15 @@ namespace raft
         r.term,
         r.idx);
 
+      if (r.is_snapshot)
+      {
+        LOG_FAIL_FMT("This is a snapshot!!");
+
+        // TODO: If this is a snapshot:
+        // - Do not check index consistency
+        // -
+      }
+
       const auto prev_term = get_term_internal(r.prev_idx);
       LOG_DEBUG_FMT("Previous term for {} should be {}", r.prev_idx, prev_term);
 
@@ -545,7 +571,7 @@ namespace raft
       if (r.prev_idx < commit_idx)
       {
         LOG_DEBUG_FMT(
-          "Recv append entries to {} from {} but prev_idex ({}) < commit_idx "
+          "Recv append entries to {} from {} but prev_idx ({}) < commit_idx "
           "({})",
           local_id,
           r.from_node,
@@ -608,14 +634,17 @@ namespace raft
       }
 
       LOG_DEBUG_FMT(
-        "Recv append entries to {} from {} for index {} and previous index {}",
+        "Recv append entries to {} from {} for index {} and previous index {} "
+        "{}",
         local_id,
         r.from_node,
         r.idx,
-        r.prev_idx);
+        r.prev_idx,
+        r.is_snapshot ? "[snapshot]" : "");
 
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
+        // TODO: Skip this check if snapshot
         if (i <= last_idx)
         {
           // If the current entry has already been deserialised, skip the
@@ -651,6 +680,7 @@ namespace raft
         auto deserialise_success =
           store->deserialise(entry, public_only, &sig_term);
 
+        // TODO: don't do this if snapshot
         ledger->put_entry(
           entry, deserialise_success == kv::DeserialiseSuccess::PASS_SIGNATURE);
 
@@ -1138,7 +1168,6 @@ namespace raft
     void commit(Index idx)
     {
       static size_t snapshot_interval = 10;
-      static Index last_snapshot_idx = 0;
 
       if (idx > last_idx)
         throw std::logic_error(
@@ -1176,6 +1205,7 @@ namespace raft
               idx);
           }
           last_snapshot_idx = idx;
+          last_snapshot_term = current_term;
           LOG_FAIL_FMT("Snapshot done");
         }
       }
@@ -1284,10 +1314,14 @@ namespace raft
 
         if (nodes.find(node_info.first) == nodes.end())
         {
-          // A new node is sent only future entries initially. If it does not
-          // have prior data, it will communicate that back to the leader.
-          auto index = last_idx + 1;
-          nodes.try_emplace(node_info.first, 0, index, node_info.second);
+          // A new node is sent entries from the last snapshot idx. Subsequent
+          // entries will be caught up using normal append entries.
+
+          // TODO: In the case of last_snapshot_idx = 0, this sends -1 as
+          // prev_idx :(
+          // auto send_idx = last_snapshot_idx;
+          nodes.try_emplace(
+            node_info.first, node_info.second, last_snapshot_idx - 1);
 
           if (state == Leader)
           {
@@ -1295,7 +1329,8 @@ namespace raft
               node_info.first,
               node_info.second.hostname,
               node_info.second.port);
-            send_append_entries(node_info.first, index);
+
+            send_append_entries(node_info.first, last_snapshot_idx);
           }
 
           LOG_INFO_FMT("Added raft node {}", node_info.first);
