@@ -192,9 +192,11 @@ namespace ringbuffer
     Const c; // copy of reader's consts
     Var* v; // pointer to reader's vars
 
-    virtual void checkAccess(
-      __attribute__((unused)) size_t index, __attribute__((unused)) size_t size)
-    {}
+    virtual void checkAccess(size_t index, size_t size)
+    {
+      (void)index;
+      (void)size;
+    }
 
     struct Reservation
     {

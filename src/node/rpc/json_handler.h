@@ -292,7 +292,6 @@ namespace ccf
         f(args.tx, args.caller_id, std::move(params)), args.rpc_ctx, packing);
     };
   }
-#pragma clang diagnostic pop
 
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(
@@ -320,6 +319,7 @@ namespace ccf
         f(args, std::move(params)), args.rpc_ctx, packing);
     };
   }
+#pragma clang diagnostic pop
 
   using CommandHandlerWithJson = std::function<jsonhandler::JsonAdapterResponse(
     CommandEndpointContext& args, nlohmann::json&& params)>;

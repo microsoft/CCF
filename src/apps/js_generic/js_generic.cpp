@@ -3,7 +3,12 @@
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wc99-extensions"
 #include "quickjs.h"
+#pragma clang diagnostic pop
 
 #include <memory>
 #include <vector>
@@ -16,9 +21,13 @@ namespace ccfapp
 
   using Table = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-extensions"
+
   static JSValue js_print(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
+    (void)this_val;
     int i;
     const char* str;
     std::stringstream ss;
@@ -68,6 +77,7 @@ namespace ccfapp
   static JSValue js_get(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
+    (void)this_val;
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -91,6 +101,7 @@ namespace ccfapp
   static JSValue js_remove(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
+    (void)this_val;
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -113,6 +124,7 @@ namespace ccfapp
   static JSValue js_put(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
+    (void)this_val;
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 2)
       return JS_ThrowTypeError(
@@ -151,8 +163,6 @@ namespace ccfapp
       network(network),
       table(network.tables->create<Table>("data"))
     {
-      auto& tables = *network.tables;
-
       auto default_handler = [this](EndpointContext& args) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -295,6 +305,8 @@ namespace ccfapp
     }
   };
 
+#pragma clang diagnostic pop
+
   class JS : public ccf::UserRpcFrontend
   {
   private:
@@ -310,6 +322,7 @@ namespace ccfapp
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
     NetworkTables& network, ccfapp::AbstractNodeContext& context)
   {
+    (void)context;
     return make_shared<JS>(network);
   }
 } // namespace ccfapp

@@ -47,9 +47,10 @@ namespace ringbuffer
     virtual WriteMarker prepare(
       ringbuffer::Message m,
       size_t total_size,
-      __attribute__((unused)) bool wait = true,
+      bool wait = true,
       size_t* identifier = nullptr) override
     {
+      (void)wait;
       if (pending.empty())
       {
         // No currently pending messages - try to write to underlying buffer

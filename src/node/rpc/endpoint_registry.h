@@ -504,9 +504,9 @@ namespace ccf
      * internally, so derived implementations must be able to populate the list
      * with the supported methods however it constructs them.
      */
-    virtual void list_methods(
-      __attribute__((unused)) kv::Tx& tx, ListMethods::Out& out)
+    virtual void list_methods(kv::Tx& tx, ListMethods::Out& out)
     {
+      (void)tx;
       for (const auto& [method, verb_endpoints] : fully_qualified_endpoints)
       {
         out.methods.push_back(method);
@@ -518,7 +518,10 @@ namespace ccf
       }
     }
 
-    virtual void init_handlers(__attribute__((unused)) kv::Store& tables) {}
+    virtual void init_handlers(kv::Store& tables)
+    {
+      (void)tables;
+    }
 
     virtual Endpoint* find_endpoint(enclave::RpcContext& rpc_ctx)
     {
@@ -602,9 +605,11 @@ namespace ccf
     }
 
     virtual void tick(
-      __attribute__((unused)) std::chrono::milliseconds elapsed,
-      __attribute__((unused)) kv::Consensus::Statistics stats)
-    {}
+      std::chrono::milliseconds elapsed, kv::Consensus::Statistics stats)
+    {
+      (void)elapsed;
+      (void)stats;
+    }
 
     bool has_certs()
     {
