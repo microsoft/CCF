@@ -153,7 +153,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   enable_coverage(ccf.virtual)
   use_client_mbedtls(ccf.virtual)
   add_san(ccf.virtual)
-  add_lvi_mitigations(ccf.enclave)
+  add_lvi_mitigations(ccf.virtual)
 
   install(
     TARGETS ccf.virtual
