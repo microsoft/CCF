@@ -6,5 +6,6 @@ enum StartType
 {
   New = 1,
   Join = 2,
-  Recover = 3
+  Recover = 3,
+  Unknown = 100
 };

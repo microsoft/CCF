@@ -61,4 +61,10 @@ if(${COLORED_OUTPUT})
   endif()
 endif()
 
+function(add_warning_checks name)
+  target_compile_options(
+    ${name} PRIVATE -Wall -Wextra -Werror -Wundef -Wpedantic
+  )
+endfunction()
+
 set(CMAKE_CXX_STANDARD 17)

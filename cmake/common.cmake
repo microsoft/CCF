@@ -194,11 +194,11 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   add_executable(
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
+
+  add_warning_checks(cchost)
   use_client_mbedtls(cchost)
   target_compile_options(cchost PRIVATE -stdlib=libc++)
-  target_include_directories(
-    cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CCF_GENERATED_DIR}
-  )
+  target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
 
   target_link_libraries(
@@ -237,9 +237,9 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(
-    cchost.virtual PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${OE_INCLUDEDIR}
-                           ${CCF_GENERATED_DIR}
+    cchost.virtual PRIVATE ${OE_INCLUDEDIR} ${CCF_GENERATED_DIR}
   )
+  add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
   enable_coverage(cchost.virtual)
   target_link_libraries(

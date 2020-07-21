@@ -87,7 +87,7 @@ namespace ccf
         Could be avoided in C++17 with if constexpr (sizeof...(T)) */
       void push_n() {}
 
-      static int panic(lua_State* l)
+      static int panic(lua_State*)
       {
         throw lua::ex("Lua panicked.");
         return 0;

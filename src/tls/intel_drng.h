@@ -268,12 +268,12 @@ namespace tls
 
     std::vector<uint8_t> random(size_t len) override
     {
-      unsigned char buf[len];
+      std::vector<uint8_t> buf(len);
 
-      if (rdrand_get_bytes(len, buf) < len)
+      if (rdrand_get_bytes(buf.size(), buf.data()) < buf.size())
         throw std::logic_error("Couldn't create random data");
 
-      return std::vector<uint8_t>(buf, buf + len);
+      return buf;
     }
 
     uint64_t random64() override

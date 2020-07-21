@@ -254,6 +254,10 @@ namespace ccf
     return jsonhandler::ErrorDetails{status, msg};
   }
 
+// -Wunused-function seems to _wrongly_ flag the following functions as unused
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+
   using HandlerTxOnly =
     std::function<jsonhandler::JsonAdapterResponse(kv::Tx& tx)>;
 
@@ -267,7 +271,6 @@ namespace ccf
 
   using HandlerJsonParamsOnly = std::function<jsonhandler::JsonAdapterResponse(
     kv::Tx& tx, nlohmann::json&& params)>;
-
   static EndpointFunction json_adapter(const HandlerJsonParamsOnly& f)
   {
     return [f](EndpointContext& args) {
@@ -316,6 +319,7 @@ namespace ccf
         f(args, std::move(params)), args.rpc_ctx, packing);
     };
   }
+#pragma clang diagnostic pop
 
   using CommandHandlerWithJson = std::function<jsonhandler::JsonAdapterResponse(
     CommandEndpointContext& args, nlohmann::json&& params)>;

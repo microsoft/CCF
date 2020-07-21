@@ -97,9 +97,9 @@ namespace enclave
       size_t fwd_session_id_,
       ccf::CallerId caller_id_,
       const std::vector<uint8_t>& caller_cert_ = {}) :
+      caller_cert(caller_cert_),
       original_caller(
-        std::make_optional<Forwarded>(fwd_session_id_, caller_id_)),
-      caller_cert(caller_cert_)
+        std::make_optional<Forwarded>(fwd_session_id_, caller_id_))
     {}
   };
 
