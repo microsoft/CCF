@@ -1,5 +1,5 @@
-# Copyright (c) Open Enclave SDK contributors.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
 
 if(NOT DEFINED OE_BINDIR)
   message(
