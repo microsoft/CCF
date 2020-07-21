@@ -140,91 +140,108 @@ TEST_CASE("persistent map operations")
 static const champ::Map<K, V, H> gen_map(size_t size)
 {
   champ::Map<K, V, H> map;
-  for (uint32_t j = 0; j < 2; ++j)
+  for (uint64_t i = 0; i < size; ++i)
   {
-    for (uint64_t i = 0; i < size; ++i)
-    {
-      map = map.put(i, i);
-    }
+    map = map.put(i, i);
   }
   return map;
 }
 
 TEST_CASE("serialize map")
 {
-  struct pair
-  {
-    K k;
-    V v;
-  };
+  //   struct pair
+  //   {
+  //     K k;
+  //     V v;
+  //   };
 
-  std::vector<pair> results;
-  uint32_t num_elements = 100;
-  auto map = gen_map(num_elements);
-  INFO("make sure we can serialize a map");
-  {
-    map.foreach([&results](const auto& key, const auto& value) {
-      results.push_back({key, value});
-      return true;
-    });
-    REQUIRE_EQ(num_elements, results.size());
-  }
+  //   std::vector<pair> results;
+  //   uint32_t num_elements = 100;
+  //   auto map = gen_map(num_elements);
 
-  INFO("make sure we can deserialize a map");
-  {
-    std::set<K> keys;
-    champ::Map<K, V, H> new_map;
-    for (const auto& p : results)
-    {
-      REQUIRE_LT(p.k, num_elements);
-      keys.insert(p.k);
-      new_map = new_map.put(p.k, p.v);
-    }
-    REQUIRE_EQ(num_elements, new_map.size());
-    REQUIRE_EQ(num_elements, keys.size());
-  }
+  //   INFO("make sure we can serialize a map");
+  //   {
+  //     map.foreach([&results](const auto& key, const auto& value) {
+  //       results.push_back({key, value});
+  //       return true;
+  //     });
+  //     REQUIRE_EQ(num_elements, results.size());
+  //   }
 
-  INFO("Serialize map to array");
+  //   INFO("make sure we can deserialize a map");
+  //   {
+  //     std::set<K> keys;
+  //     champ::Map<K, V, H> new_map;
+  //     for (const auto& p : results)
+  //     {
+  //       REQUIRE_LT(p.k, num_elements);
+  //       keys.insert(p.k);
+  //       new_map = new_map.put(p.k, p.v);
+  //     }
+  //     REQUIRE_EQ(num_elements, new_map.size());
+  //     REQUIRE_EQ(num_elements, keys.size());
+  //   }
+
+  //   INFO("Serialize map to array");
+  //   {
+  //     champ::Snapshot<K, V, H> snapshot(map);
+  //     std::vector<uint8_t> s(map.get_serialized_size());
+  //     snapshot.serialize(s.data());
+
+  //     champ::Map<K, V, H> new_map = champ::Map<K, V, H>::deserialize_map(s);
+
+  //     std::set<K> keys;
+  //     new_map.foreach([&keys](const auto& key, const auto& value) {
+  //       keys.insert(key);
+  //       REQUIRE_EQ(key, value);
+  //       return true;
+  //     });
+  //     REQUIRE_EQ(map.size(), new_map.size());
+  //     REQUIRE_EQ(map.size(), keys.size());
+
+  //     uint32_t offset = 1000;
+  //     for (uint32_t i = offset; i < offset + num_elements; ++i)
+  //     {
+  //       new_map = new_map.put(i, i);
+  //     }
+  //     REQUIRE_EQ(new_map.size(), map.size() + num_elements);
+  //     for (uint32_t i = offset; i < offset + num_elements; ++i)
+  //     {
+  //       auto p = new_map.get(i);
+  //       REQUIRE(p.has_value());
+  //       REQUIRE(p.value() == i);
+  //     }
+  //   }
+
+  //   INFO("Ensure serialized state is byte identical");
+  //   {
+  //     champ::Snapshot<K, V, H> snapshot_1(map);
+  //     std::vector<uint8_t> s_1(map.get_serialized_size());
+  //     snapshot_1.serialize(s_1.data());
+
+  //     champ::Snapshot<K, V, H> snapshot_2(map);
+  //     std::vector<uint8_t> s_2(map.get_serialized_size());
+  //     snapshot_2.serialize(s_2.data());
+
+  //     REQUIRE_EQ(s_1, s_2);
+  //   }
+
+  INFO("Serialize map with different key sizes");
   {
-    champ::Snapshot<K, V, H> snapshot(map);
+    using SerialisedKey = champ::serialisers::SerialisedEntry;
+    using SerialisedValue = champ::serialisers::SerialisedEntry;
+
+    uint32_t num_elements = 100;
+    champ::Map<SerialisedKey, SerialisedValue> map;
+    SerialisedKey key(16);
+    SerialisedValue value(8);
+    SerialisedValue long_value(256);
+
+    map = map.put(key, value);
+    map = map.put(key, long_value);
+
+    champ::Snapshot<SerialisedKey, SerialisedValue> snapshot(map);
     std::vector<uint8_t> s(map.get_serialized_size());
     snapshot.serialize(s.data());
-
-    champ::Map<K, V, H> new_map = champ::Map<K, V, H>::deserialize_map(s);
-
-    std::set<K> keys;
-    new_map.foreach([&keys](const auto& key, const auto& value) {
-      keys.insert(key);
-      REQUIRE_EQ(key, value);
-      return true;
-    });
-    REQUIRE_EQ(map.size(), new_map.size());
-    REQUIRE_EQ(map.size(), keys.size());
-
-    uint32_t offset = 1000;
-    for (uint32_t i = offset; i < offset + num_elements; ++i)
-    {
-      new_map = new_map.put(i, i);
-    }
-    REQUIRE_EQ(new_map.size(), map.size() + num_elements);
-    for (uint32_t i = offset; i < offset + num_elements; ++i)
-    {
-      auto p = new_map.get(i);
-      REQUIRE(p.has_value());
-      REQUIRE(p.value() == i);
-    }
-  }
-
-  INFO("Ensure serialized state is byte identical");
-  {
-    champ::Snapshot<K, V, H> snapshot_1(map);
-    std::vector<uint8_t> s_1(map.get_serialized_size());
-    snapshot_1.serialize(s_1.data());
-
-    champ::Snapshot<K, V, H> snapshot_2(map);
-    std::vector<uint8_t> s_2(map.get_serialized_size());
-    snapshot_2.serialize(s_2.data());
-
-    REQUIRE_EQ(s_1, s_2);
   }
 }
