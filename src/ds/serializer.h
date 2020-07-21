@@ -131,6 +131,7 @@ namespace serializer
 
   struct AbstractSerializedSection
   {
+    virtual ~AbstractSerializedSection() = default;
     virtual const uint8_t* data() const = 0;
     virtual size_t size() const = 0;
   };
@@ -208,7 +209,7 @@ namespace serializer
     }
 
     template <typename... Ts>
-    static std::tuple<> deserialize(const uint8_t* data, size_t size)
+    static std::tuple<> deserialize(const uint8_t*, size_t size)
     {
       if constexpr (sizeof...(Ts) == 0)
       {

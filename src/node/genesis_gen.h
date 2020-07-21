@@ -255,7 +255,7 @@ namespace ccf
       auto [nodes_view, secrets_view] =
         tx.get_view(tables.nodes, tables.secrets);
 
-      nodes_view->foreach([&active_nodes, self_to_exclude, this](
+      nodes_view->foreach([&active_nodes, self_to_exclude](
                             const NodeId& nid, const NodeInfo& ni) {
         if (
           ni.status == ccf::NodeStatus::TRUSTED &&
@@ -405,7 +405,7 @@ namespace ccf
       size_t active_members_count = 0;
 
       members_view->foreach(
-        [&active_members_count](const MemberId& mid, const MemberInfo& mi) {
+        [&active_members_count](const MemberId&, const MemberInfo& mi) {
           if (mi.status == MemberStatus::ACTIVE)
           {
             active_members_count++;

@@ -231,9 +231,8 @@ namespace ccf
 
       std::vector<SecretSharing::Share> shares;
       submitted_shares_view->foreach(
-        [&shares, this](
-          const MemberId member_id,
-          const std::vector<uint8_t>& encrypted_share) {
+        [&shares,
+         this](const MemberId, const std::vector<uint8_t>& encrypted_share) {
           SecretSharing::Share share;
           auto decrypted_share = decrypt_submitted_share(encrypted_share);
           std::copy_n(
@@ -390,14 +389,12 @@ namespace ccf
         throw std::logic_error("Failed to get active service");
       }
 
-      auto submitted_shares = submitted_shares_view->put(
+      submitted_shares_view->put(
         member_id, encrypt_submitted_share(submitted_recovery_share));
 
       size_t submitted_shares_count = 0;
       submitted_shares_view->foreach(
-        [&submitted_shares_count](
-          const MemberId member_id,
-          const std::vector<uint8_t>& encrypted_share) {
+        [&submitted_shares_count](const MemberId, const std::vector<uint8_t>&) {
           submitted_shares_count++;
           return true;
         });
@@ -413,8 +410,7 @@ namespace ccf
 
       submitted_shares_view->foreach(
         [&submitted_share_ids](
-          const MemberId member_id,
-          const std::vector<uint8_t>& encrypted_share) {
+          const MemberId member_id, const std::vector<uint8_t>&) {
           submitted_share_ids.push_back(member_id);
           return true;
         });

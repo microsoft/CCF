@@ -192,7 +192,6 @@ namespace ccf::historical
           }
 
           // Move store from untrusted to trusted
-          const auto& untrusted_store = request.store;
           LOG_DEBUG_FMT(
             "Now trusting {} due to signature at {}", untrusted_idx, sig_idx);
           request.current_stage = RequestStage::Trusted;
