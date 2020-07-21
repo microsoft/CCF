@@ -19,7 +19,7 @@
 
 // Marker to create virtual enclaves, should be distinct from any valid
 // OE_ENCLAVE_FLAG combinations
-#define ENCLAVE_FLAG_VIRTUAL -1
+constexpr static uint32_t ENCLAVE_FLAG_VIRTUAL = -1;
 
 namespace host
 {

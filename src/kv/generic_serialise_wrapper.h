@@ -293,9 +293,9 @@ namespace kv
     GenericDeserialiseWrapper(
       std::shared_ptr<AbstractTxEncryptor> e,
       std::optional<SecurityDomain> domain_restriction = std::nullopt) :
+      unhandled_op(KvOperationType::KOT_NOT_SUPPORTED),
       crypto_util(e),
-      domain_restriction(domain_restriction),
-      unhandled_op(KvOperationType::KOT_NOT_SUPPORTED)
+      domain_restriction(domain_restriction)
     {}
 
     std::optional<Version> init(const uint8_t* data, size_t size)

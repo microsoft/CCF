@@ -13,7 +13,10 @@
 // the central enclave object
 static SpinLock create_lock;
 static std::atomic<enclave::Enclave*> e;
+
+#ifdef DEBUG_CONFIG
 static uint8_t* reserved_memory;
+#endif
 std::atomic<std::chrono::milliseconds> logger::config::ms =
   std::chrono::milliseconds::zero();
 std::atomic<uint16_t> num_pending_threads = 0;

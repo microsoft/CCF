@@ -674,7 +674,7 @@ namespace kv
 
     CommitSuccess commit(
       const TxID& txid,
-      PendingTx pending_tx,
+      PendingTx&& pending_tx,
       bool globally_committable) override
     {
       auto r = get_consensus();

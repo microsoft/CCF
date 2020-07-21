@@ -88,7 +88,7 @@ namespace ccf
      * stack.
      */
     template <typename T>
-    void push_raw(lua_State* l, const T& o)
+    void push_raw(lua_State*, const T&)
     {
       static_assert(
         std::is_empty<T>::value,
@@ -118,7 +118,7 @@ namespace ccf
     }
 
     template <typename T>
-    inline T check_get(lua_State* l, int arg)
+    inline T check_get(lua_State*, int)
     {
       static_assert(
         std::is_empty<T>::value,

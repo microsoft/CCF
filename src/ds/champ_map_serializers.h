@@ -37,7 +37,7 @@ namespace champ
   template <class T>
   inline size_t get_size(const T& data)
   {
-    return sizeof(uint64_t) + sizeof(T);
+    return sizeof(uint64_t) + sizeof(data);
   }
 
   template <>
@@ -110,6 +110,7 @@ namespace champ
   inline T deserialize(const uint8_t*& data, size_t& size)
   {
     size_t result = serialized::read<size_t>(data, size);
+    (void)result;
     CCF_ASSERT_FMT(
       result == sizeof(T), "result:{} == sizeof(T):{}", result, sizeof(T));
     return serialized::read<T>(data, size);
