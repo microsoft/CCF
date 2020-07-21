@@ -260,15 +260,8 @@ namespace ccf
         GetState::Out result;
         auto [s, rts, lrs] = this->node.state();
         result.state = s;
-
-        if (rts.has_value())
-        {
-          result.recovery_target_seqno = rts.value();
-        }
-        if (lrs.has_value())
-        {
-          result.last_recovered_seqno = lrs.value();
-        }
+        result.recovery_target_seqno = rts;
+        result.last_recovered_seqno = lrs;
 
         auto sig_view = args.tx.get_read_only_view(*signatures);
         auto sig = sig_view->get(0);

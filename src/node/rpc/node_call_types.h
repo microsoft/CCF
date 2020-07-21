@@ -33,8 +33,8 @@ namespace ccf
       kv::Version last_signed_seqno;
 
       // Only on recovery
-      kv::Version recovery_target_seqno;
-      kv::Version last_recovered_seqno;
+      std::optional<kv::Version> recovery_target_seqno;
+      std::optional<kv::Version> last_recovered_seqno;
     };
   };
 
