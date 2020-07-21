@@ -334,7 +334,7 @@ namespace champ
   {
   private:
     std::shared_ptr<SubNodes<K, V, H>> root;
-    size_t size = 0;
+    size_t map_size = 0;
     size_t serialized_size = 0;
 
     Map(
@@ -342,7 +342,7 @@ namespace champ
       size_t size_,
       size_t serialized_size_) :
       root(std::move(root_)),
-      size(size_),
+      map_size(size_),
       serialized_size(serialized_size_)
     {}
 
@@ -373,9 +373,9 @@ namespace champ
       return map;
     }
 
-    size_t get_size() const
+    size_t size() const
     {
-      return size;
+      return map_size;
     }
 
     size_t get_serialized_size() const
@@ -385,7 +385,7 @@ namespace champ
 
     bool empty() const
     {
-      return size == 0;
+      return map_size == 0;
     }
 
     std::optional<V> get(const K& key) const
@@ -406,7 +406,7 @@ namespace champ
     const Map<K, V, H> put(const K& key, const V& value) const
     {
       auto r = root->put(0, H()(key), key, value);
-      auto size_ = size;
+      auto size_ = map_size;
       if (r.second == 0)
       {
         size_++;
@@ -470,7 +470,7 @@ namespace champ
     void serialize(uint8_t* data)
     {
       std::vector<KVTuple> ordered_state;
-      ordered_state.reserve(map.get_size());
+      ordered_state.reserve(map.size());
       size_t size = 0;
 
       map.foreach([&](auto& key, auto& value) {
@@ -500,7 +500,7 @@ namespace champ
         "size:{}, map->size:{} ==> count:{}, vect:{}",
         size,
         map.get_serialized_size(),
-        map.get_size(),
+        map.size(),
         ordered_state.size());
 
       serialized_buffer = CBuffer(data, map.get_serialized_size());
