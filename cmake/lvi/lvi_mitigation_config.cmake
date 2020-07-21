@@ -13,7 +13,7 @@ set(LVI_MITIGATION_BINDIR ${CMAKE_CURRENT_BINARY_DIR}/lvi_mitigation_bin)
 execute_process(
   COMMAND echo yes
   COMMAND ${OE_BINDIR}/scripts/lvi-mitigation/install_lvi_mitigation_bindir
-  ERROR_QUIET
+  #ERROR_QUIET
 )
 
 # OE_LVI_MITIGATION holds the value of LVI_MITIGATION from the configuration of
