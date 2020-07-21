@@ -95,6 +95,7 @@ def run(args):
         assert response.body["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1
 
+    ledger = ccf.ledger.Ledger(ledger_directory)
     (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(
         ledger
     )
