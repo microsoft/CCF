@@ -66,7 +66,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_compile_definitions(
     ccf.enclave PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-    )
+  )
 
   target_compile_options(ccf.enclave PUBLIC -nostdinc -nostdinc++)
   add_warning_checks(ccf.enclave)
