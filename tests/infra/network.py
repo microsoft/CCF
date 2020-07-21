@@ -278,8 +278,10 @@ class Network:
         """
         self.common_dir = get_common_folder_name(args.workspace, args.label)
 
-        assert args.gov_script is not None, "--gov-script argument must be provided to start a network"
-        
+        assert (
+            args.gov_script is not None
+        ), "--gov-script argument must be provided to start a network"
+
         self._setup_common_folder(args.gov_script)
 
         initial_member_ids = list(range(max(1, args.initial_member_count)))
