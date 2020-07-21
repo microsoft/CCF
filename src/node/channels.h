@@ -23,7 +23,7 @@ namespace ccf
     uint8_t tid;
     uint64_t nonce : (sizeof(uint64_t) - sizeof(uint8_t)) * CHAR_BIT;
 
-    RecvNonce(uint64_t nonce_, uint8_t tid_) : nonce(nonce_), tid(tid_) {}
+    RecvNonce(uint64_t nonce_, uint8_t tid_) : tid(tid_), nonce(nonce_) {}
     RecvNonce(const uint64_t header)
     {
       *this = *reinterpret_cast<const RecvNonce*>(&header);
@@ -97,7 +97,7 @@ namespace ccf
       SeqNo tid_seqno;
     };
     std::array<ChannelSeqno, threading::ThreadMessaging::max_num_threads>
-      local_recv_nonce = {0};
+      local_recv_nonce = {{}};
 
     bool verify_or_decrypt(
       const GcmHdr& header,
@@ -112,7 +112,6 @@ namespace ccf
 
       RecvNonce recv_nonce(header.get_iv_int());
       auto tid = recv_nonce.tid;
-      auto& channel_nonce = local_recv_nonce[tid];
 
       uint16_t current_tid = threading::get_current_thread_id();
       assert(
@@ -174,9 +173,9 @@ namespace ccf
       NodeId peer_id_,
       const std::string& peer_hostname_,
       const std::string& peer_service_) :
-      to_host(writer_factory.create_writer_to_outside()),
-      network_kp(network_kp_),
       self(self_),
+      network_kp(network_kp_),
+      to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
       peer_hostname(peer_hostname_),
       peer_service(peer_service_),
@@ -191,9 +190,9 @@ namespace ccf
       tls::KeyPairPtr network_kp_,
       NodeId self_,
       NodeId peer_id_) :
-      to_host(writer_factory.create_writer_to_outside()),
-      network_kp(network_kp_),
       self(self_),
+      network_kp(network_kp_),
+      to_host(writer_factory.create_writer_to_outside()),
       peer_id(peer_id_),
       outgoing(false)
     {}

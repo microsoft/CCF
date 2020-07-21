@@ -215,7 +215,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+    NetworkTables& network, ccfapp::AbstractNodeContext&)
   {
     return std::make_shared<Lua>(network);
   }

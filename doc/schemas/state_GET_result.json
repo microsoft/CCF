@@ -30,9 +30,7 @@
   },
   "required": [
     "state",
-    "last_signed_seqno",
-    "recovery_target_seqno",
-    "last_recovered_seqno"
+    "last_signed_seqno"
   ],
   "title": "state/result",
   "type": "object"

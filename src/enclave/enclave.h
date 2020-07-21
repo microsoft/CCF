@@ -38,7 +38,6 @@ namespace enclave
 
     CCFConfig ccf_config;
     StartType start_type;
-    ConsensusType consensus_type;
 
     struct NodeContext : public ccfapp::AbstractNodeContext
     {
@@ -71,13 +70,12 @@ namespace enclave
       basic_writer_factory(*circuit),
       writer_factory(basic_writer_factory, enclave_config->writer_config),
       network(consensus_type_),
+      share_manager(network),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(writer_factory, rpc_map)),
-      share_manager(network),
       cmd_forwarder(std::make_shared<ccf::Forwarder<ccf::NodeToNode>>(
         rpcsessions, n2n_channels, rpc_map)),
-      consensus_type(consensus_type_),
       context(
         ccf::Notifier(writer_factory),
         ccf::historical::StateCache(
@@ -200,7 +198,7 @@ namespace enclave
         oversized::FragmentReconstructor fr(bp.get_dispatcher());
 
         DISPATCHER_SET_MESSAGE_HANDLER(
-          bp, AdminMessage::stop, [&bp, this](const uint8_t*, size_t) {
+          bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
             bp.set_finished();
             threading::ThreadMessaging::thread_messaging.set_finished();
           });
@@ -315,11 +313,11 @@ namespace enclave
           node->start_ledger_recovery();
         }
 
-        bp.run(circuit->read_from_outside(), [](size_t consecutive_idles) {
+        bp.run(circuit->read_from_outside(), [](size_t num_consecutive_idles) {
           static std::chrono::microseconds idling_start_time;
           const auto time_now = enclave::get_enclave_time();
 
-          if (consecutive_idles == 0)
+          if (num_consecutive_idles == 0)
           {
             idling_start_time = time_now;
           }

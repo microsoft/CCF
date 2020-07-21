@@ -39,10 +39,12 @@ namespace threading
     virtual ~Tmsg() = default;
   };
 
+#ifdef USE_MPSCQ
   static void init_cb(std::unique_ptr<ThreadMsg> m)
   {
     LOG_INFO_FMT("Init was called");
   }
+#endif
 
   class Task
   {
@@ -117,12 +119,12 @@ namespace threading
 #ifndef USE_MPSCQ
     void reverse_local_messages()
     {
-      if (local_msg == NULL)
+      if (local_msg == nullptr)
         return;
 
-      ThreadMsg *prev = NULL, *current = NULL, *next = NULL;
+      ThreadMsg *prev = nullptr, *current = nullptr, *next = nullptr;
       current = local_msg;
-      while (current != NULL)
+      while (current != nullptr)
       {
         next = current->next;
         current->next = prev;

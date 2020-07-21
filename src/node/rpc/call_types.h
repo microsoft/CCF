@@ -92,7 +92,7 @@ namespace ccf
     struct Out
     {
       std::vector<NodeInfo> nodes = {};
-      std::optional<NodeId> primary_id = {};
+      std::optional<NodeId> primary_id = std::nullopt;
     };
   };
 
