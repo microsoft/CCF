@@ -4,11 +4,7 @@
 #include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#pragma clang diagnostic ignored "-Wc99-extensions"
-#include "quickjs.h"
-#pragma clang diagnostic pop
+#include <quickjs/quickjs.h>
 
 #include <memory>
 #include <vector>
