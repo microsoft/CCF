@@ -4,9 +4,8 @@
 #include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
 
-#include <quickjs/quickjs.h>
-
 #include <memory>
+#include <quickjs/quickjs.h>
 #include <vector>
 
 namespace ccfapp
