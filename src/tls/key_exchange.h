@@ -19,9 +19,9 @@ namespace tls
   class KeyExchangeContext
   {
   private:
-    tls::EntropyPtr entropy;
     mbedtls_ecdh_context ctx;
     std::vector<uint8_t> own_public;
+    tls::EntropyPtr entropy;
 
   public:
 #ifdef MOD_MBEDTLS

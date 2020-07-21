@@ -57,7 +57,7 @@ namespace ccf
     COMPACT
   };
 
-  constexpr size_t MAX_HISTORY_LEN = 1000;
+  constexpr int MAX_HISTORY_LEN = 1000;
 
   static std::ostream& operator<<(std::ostream& os, HashOp flag)
   {
@@ -106,18 +106,18 @@ namespace ccf
       signatures(signatures_)
     {}
 
-    void append(const std::vector<uint8_t>& replicated) override {}
+    void append(const std::vector<uint8_t>&) override {}
 
-    void append(const uint8_t* replicated, size_t replicated_size) override {}
+    void append(const uint8_t*, size_t) override {}
 
-    bool verify(kv::Term* term = nullptr) override
+    bool verify(kv::Term*) override
     {
       return true;
     }
 
-    void rollback(kv::Version v) override {}
+    void rollback(kv::Version) override {}
 
-    void compact(kv::Version v) override {}
+    void compact(kv::Version) override {}
 
     void emit_signature() override
     {
@@ -136,46 +136,42 @@ namespace ccf
     }
 
     bool add_request(
-      kv::TxHistory::RequestID id,
-      CallerId caller_id,
-      const std::vector<uint8_t>& caller_cert,
-      const std::vector<uint8_t>& request,
-      uint8_t frame_format) override
+      kv::TxHistory::RequestID,
+      CallerId,
+      const std::vector<uint8_t>&,
+      const std::vector<uint8_t>&,
+      uint8_t) override
     {
       return true;
     }
 
     void add_result(
-      kv::TxHistory::RequestID id,
-      kv::Version version,
-      const std::vector<uint8_t>& replicated) override
+      kv::TxHistory::RequestID,
+      kv::Version,
+      const std::vector<uint8_t>&) override
     {}
 
     void add_pending(
-      kv::TxHistory::RequestID id,
-      kv::Version version,
-      std::shared_ptr<std::vector<uint8_t>> replicated) override
+      kv::TxHistory::RequestID,
+      kv::Version,
+      std::shared_ptr<std::vector<uint8_t>>) override
     {}
 
     void flush_pending() override {}
 
     virtual void add_result(
-      RequestID id,
-      kv::Version version,
-      const uint8_t* replicated,
-      size_t replicated_size) override
+      RequestID, kv::Version, const uint8_t*, size_t) override
     {}
 
-    void add_result(RequestID id, kv::Version version) override {}
+    void add_result(RequestID, kv::Version) override {}
 
     void add_response(
-      kv::TxHistory::RequestID id,
-      const std::vector<uint8_t>& response) override
+      kv::TxHistory::RequestID, const std::vector<uint8_t>&) override
     {}
 
-    void register_on_result(ResultCallbackHandler func) override {}
+    void register_on_result(ResultCallbackHandler) override {}
 
-    void register_on_response(ResponseCallbackHandler func) override {}
+    void register_on_response(ResponseCallbackHandler) override {}
 
     void clear_on_result() override {}
 
@@ -186,12 +182,12 @@ namespace ccf
       return crypto::Sha256Hash();
     }
 
-    std::vector<uint8_t> get_receipt(kv::Version v) override
+    std::vector<uint8_t> get_receipt(kv::Version) override
     {
       return {};
     }
 
-    bool verify_receipt(const std::vector<uint8_t>& v) override
+    bool verify_receipt(const std::vector<uint8_t>&) override
     {
       return true;
     }

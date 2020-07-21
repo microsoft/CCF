@@ -838,7 +838,7 @@ namespace tls
       throw std::logic_error("Could not parse key: " + error_string(rc));
     }
 
-    return std::move(key);
+    return key;
   }
 
   /**

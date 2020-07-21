@@ -79,8 +79,6 @@ namespace http
   inline void add_digest_header(http::Request& request)
   {
     // Ensure digest is present and up-to-date
-    const auto& headers = request.get_headers();
-
     tls::HashBytes body_digest;
     tls::do_hash(
       request.get_content_data(),

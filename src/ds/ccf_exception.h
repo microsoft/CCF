@@ -3,7 +3,10 @@
 #pragma once
 
 #ifdef VIRTUAL_ENCLAVE
-#  include "../3rdparty/backward-cpp/backward.hpp"
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wundef"
+#  include <backward-cpp/backward.hpp>
+#  pragma clang diagnostic pop
 #endif
 #include "logger.h"
 

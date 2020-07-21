@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "consensus/consensus_types.h"
 #include "consensus/pbft/pbft_types.h"
 #include "consensus/raft/raft_types.h"
 #include "host/timer.h"
@@ -249,9 +248,8 @@ namespace asynchost
 
             const auto& ae =
               serialized::overlay<consensus::AppendEntriesIndex>(p, psize);
-            // Find the total frame size, and write it along with the header.
-            auto count = ae.idx - ae.prev_idx;
 
+            // Find the total frame size, and write it along with the header.
             uint32_t frame = (uint32_t)size_to_send;
             std::optional<std::vector<uint8_t>> framed_entries = std::nullopt;
             framed_entries =
