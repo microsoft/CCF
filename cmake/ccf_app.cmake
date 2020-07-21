@@ -43,10 +43,7 @@ find_package(OpenEnclave 0.10 CONFIG REQUIRED)
 
 if(LVI_MITIGATIONS)
   # Also pull in the LVI mitigation wrappers
-  find_package(
-    OpenEnclave-LVI-Mitigation CONFIG REQUIRED PATHS
-    ${OE_LIBDIR}/openenclave/cmake
-  )
+  include(${CCF_DIR}/cmake/lvi/lvi_mitigation_config.cmake)
 endif()
 
 # Sign a built enclave library with oesign
