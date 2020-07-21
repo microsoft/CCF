@@ -243,7 +243,8 @@ namespace champ
       const auto& entry0 = node_as<Entry<K, V>>(c_idx);
       if (k == entry0->key)
       {
-        auto current_size = get_size_with_padding<K, V>(entry0->key, entry0->value);
+        auto current_size =
+          get_size_with_padding<K, V>(entry0->key, entry0->value);
         nodes[c_idx] = std::make_shared<Entry<K, V>>(k, v);
         return current_size;
       }
@@ -411,7 +412,7 @@ namespace champ
         size_++;
       }
 
-      int64_t size_change = get_size_with_padding<K, V>(key, value) - r.second; // r.second - serialized_size
+      int64_t size_change = get_size_with_padding<K, V>(key, value) - r.second;
       return Map(std::move(r.first), size_, size_change + serialized_size);
     }
 
