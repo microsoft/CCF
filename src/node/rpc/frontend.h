@@ -118,6 +118,7 @@ namespace ccf
         ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         ctx->set_response_body(
           "RPC could not be forwarded to unknown primary.");
+        endpoint->metrics.failures++;
         return ctx->serialise_response();
       }
       else
@@ -252,6 +253,8 @@ namespace ccf
         }
       }
 
+      endpoint->metrics.calls++;
+
       if (endpoint->require_client_identity && endpoints.has_certs())
       {
         // Only if endpoint requires client identity.
@@ -264,6 +267,7 @@ namespace ccf
         {
           ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx->set_response_body(invalid_caller_error_message());
+          endpoint->metrics.errors++;
           return ctx->serialise_response();
         }
       }
@@ -276,6 +280,7 @@ namespace ccf
       {
         set_response_unauthorized(
           ctx, fmt::format("'{}' RPC must be signed", ctx->get_method()));
+        endpoint->metrics.errors++;
         return ctx->serialise_response();
       }
 
@@ -295,6 +300,7 @@ namespace ccf
             ctx->session->caller_cert, caller_id, signed_request.value()))
         {
           set_response_unauthorized(ctx);
+          endpoint->metrics.errors++;
           return ctx->serialise_response();
         }
 
@@ -350,6 +356,7 @@ namespace ccf
 
           if (!ctx->should_apply_writes())
           {
+            //TODO: return based on status
             return ctx->serialise_response();
           }
 
@@ -385,6 +392,7 @@ namespace ccf
                 }
               }
 
+              //TODO: return based on status
               return ctx->serialise_response();
             }
 
@@ -397,6 +405,7 @@ namespace ccf
             {
               ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
               ctx->set_response_body("Transaction failed to replicate.");
+              endpoint->metrics.failures++;
               return ctx->serialise_response();
             }
           }
@@ -405,6 +414,7 @@ namespace ccf
         {
           ctx->set_response_status(e.status);
           ctx->set_response_body(e.what());
+          endpoint->metrics.failures++;
           return ctx->serialise_response();
         }
         catch (JsonParseError& e)
@@ -412,6 +422,7 @@ namespace ccf
           auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           ctx->set_response_body(std::move(err));
+          endpoint->metrics.failures++;
           return ctx->serialise_response();
         }
         catch (const kv::KvSerialiserException& e)
@@ -427,6 +438,7 @@ namespace ccf
         {
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           ctx->set_response_body(e.what());
+          endpoint->metrics.failures++;
           return ctx->serialise_response();
         }
       }

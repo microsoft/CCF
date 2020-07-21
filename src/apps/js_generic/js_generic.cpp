@@ -289,7 +289,7 @@ namespace ccfapp
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {
-        out.methods.push_back(key);
+        out.endpoints.push_back({"POST", key});
         return true;
       });
     }

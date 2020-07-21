@@ -195,7 +195,7 @@ namespace ccfapp
       scripts->foreach([&out](const auto& key, const auto&) {
         if (key != UserScriptIds::ENV_HANDLER)
         {
-          out.methods.push_back(key);
+          out.endpoints.push_back({"POST", key});
         }
         return true;
       });

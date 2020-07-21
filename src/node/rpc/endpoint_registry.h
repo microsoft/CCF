@@ -70,6 +70,13 @@ namespace ccf
       Write
     };
 
+    struct Metrics
+    {
+      size_t calls = 0;
+      size_t errors = 0;
+      size_t failures = 0;
+    };
+
     /** An Endpoint represents a user-defined resource that can be invoked by
      * authorised users via HTTP requests, over TLS. An Endpoint is accessible
      * at a specific verb and URI, e.g. POST /app/accounts or GET /app/records.
@@ -87,6 +94,8 @@ namespace ccf
       EndpointRegistry* registry = nullptr;
 
       nlohmann::json params_schema = nullptr;
+
+      Metrics metrics;
 
       /** Sets the JSON schema that the request parameters must comply with.
        *
@@ -505,14 +514,39 @@ namespace ccf
      */
     virtual void list_methods(kv::Tx& tx, ListMethods::Out& out)
     {
-      for (const auto& [method, verb_endpoints] : fully_qualified_endpoints)
+      for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
-        out.methods.push_back(method);
+        for (const auto& [verb, endpoint]: verb_endpoints)
+        {
+          out.endpoints.push_back({verb.c_str(), path});
+        }
       }
 
-      for (const auto& [method, verb_endpoints] : templated_endpoints)
+      for (const auto& [path, verb_endpoints] : templated_endpoints)
       {
-        out.methods.push_back(method);
+        for (const auto& [verb, endpoint]: verb_endpoints)
+        {
+          out.endpoints.push_back({verb.c_str(), path});
+        }
+      }
+    }
+
+    virtual void endpoint_metrics(kv::Tx& tx, EndpointMetrics::Out& out)
+    {
+      for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
+      {
+        for (const auto& [verb, endpoint]: verb_endpoints)
+        {
+          out.metrics.push_back({verb.c_str(), path, endpoint.metrics.calls, endpoint.metrics.errors, endpoint.metrics.failures});
+        }
+      }
+
+      for (const auto& [path, verb_endpoints] : templated_endpoints)
+      {
+        for (const auto& [verb, endpoint]: verb_endpoints)
+        {
+          out.metrics.push_back({verb.c_str(), path, endpoint.metrics.calls, endpoint.metrics.errors, endpoint.metrics.failures});
+        }
       }
     }
 

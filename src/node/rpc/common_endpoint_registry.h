@@ -220,12 +220,21 @@ namespace ccf
 
         list_methods(tx, out);
 
-        std::sort(out.methods.begin(), out.methods.end());
-
         return make_success(out);
       };
       make_endpoint("api", HTTP_GET, json_adapter(list_methods_fn))
         .set_auto_schema<void, ListMethods::Out>()
+        .install();
+
+      auto endpoint_metrics_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
+        EndpointMetrics::Out out;
+
+        endpoint_metrics(tx, out);
+
+        return make_success(out);
+      };
+      make_endpoint("endpoint_metrics", HTTP_GET, json_adapter(endpoint_metrics_fn))
+        .set_auto_schema<void, EndpointMetrics::Out>()
         .install();
 
       auto get_schema = [this](auto& args, nlohmann::json&& params) {
