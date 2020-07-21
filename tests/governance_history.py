@@ -8,7 +8,6 @@ import infra.crypto
 import ccf.ledger
 from infra.proposal import ProposalState
 import http
-import os
 from loguru import logger as LOG
 
 
