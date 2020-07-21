@@ -5,7 +5,7 @@
 #include "enclave/rpc_context.h"
 #include "endpoint_registry.h"
 #include "http/http_consts.h"
-#include "node/rpc/json_rpc.h"
+#include "node/rpc/serdes.h"
 
 #include <http-parser/http_parser.h>
 
@@ -19,7 +19,7 @@ namespace ccf
    * Rather than:
    * auto foo = [](auto& args) {
    *   nlohmann::json params;
-   *   jsonrpc::Pack pack_type;
+   *   serdes::Pack pack_type;
    *   if (<content-type is JSON>)
    *   {
    *     params = unpack(args.rpc_ctx->get_request_body());
@@ -72,15 +72,15 @@ namespace ccf
 
     using JsonAdapterResponse = std::variant<ErrorDetails, nlohmann::json>;
 
-    static constexpr char const* pack_to_content_type(jsonrpc::Pack p)
+    static constexpr char const* pack_to_content_type(serdes::Pack p)
     {
       switch (p)
       {
-        case jsonrpc::Pack::Text:
+        case serdes::Pack::Text:
         {
           return http::headervalues::contenttype::JSON;
         }
-        case jsonrpc::Pack::MsgPack:
+        case serdes::Pack::MsgPack:
         {
           return http::headervalues::contenttype::MSGPACK;
         }
@@ -91,10 +91,10 @@ namespace ccf
       }
     }
 
-    static jsonrpc::Pack detect_json_pack(
+    static serdes::Pack detect_json_pack(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
-      std::optional<jsonrpc::Pack> packing = std::nullopt;
+      std::optional<serdes::Pack> packing = std::nullopt;
 
       const auto content_type_it =
         ctx->get_request_header(http::headers::CONTENT_TYPE);
@@ -103,11 +103,11 @@ namespace ccf
         const auto& content_type = content_type_it.value();
         if (content_type == http::headervalues::contenttype::JSON)
         {
-          packing = jsonrpc::Pack::Text;
+          packing = serdes::Pack::Text;
         }
         else if (content_type == http::headervalues::contenttype::MSGPACK)
         {
-          packing = jsonrpc::Pack::MsgPack;
+          packing = serdes::Pack::MsgPack;
         }
         else
         {
@@ -121,16 +121,16 @@ namespace ccf
       }
       else
       {
-        packing = jsonrpc::detect_pack(ctx->get_request_body());
+        packing = serdes::detect_pack(ctx->get_request_body());
       }
 
-      return packing.value_or(jsonrpc::Pack::Text);
+      return packing.value_or(serdes::Pack::Text);
     }
 
     static nlohmann::json get_params_from_body(
-      const std::shared_ptr<enclave::RpcContext>& ctx, jsonrpc::Pack pack)
+      const std::shared_ptr<enclave::RpcContext>& ctx, serdes::Pack pack)
     {
-      return jsonrpc::unpack(ctx->get_request_body(), pack);
+      return serdes::unpack(ctx->get_request_body(), pack);
     }
 
     static nlohmann::json get_params_from_query(
@@ -176,7 +176,7 @@ namespace ccf
       return params;
     }
 
-    static std::pair<jsonrpc::Pack, nlohmann::json> get_json_params(
+    static std::pair<serdes::Pack, nlohmann::json> get_json_params(
       const std::shared_ptr<enclave::RpcContext>& ctx)
     {
       const auto pack = detect_json_pack(ctx);
@@ -200,7 +200,7 @@ namespace ccf
     static void set_response(
       JsonAdapterResponse&& res,
       std::shared_ptr<enclave::RpcContext>& ctx,
-      jsonrpc::Pack packing)
+      serdes::Pack packing)
     {
       auto error = std::get_if<ErrorDetails>(&res);
       if (error != nullptr)
@@ -214,20 +214,20 @@ namespace ccf
         ctx->set_response_status(HTTP_STATUS_OK);
         switch (packing)
         {
-          case jsonrpc::Pack::Text:
+          case serdes::Pack::Text:
           {
             const auto s = fmt::format("{}\n", body->dump());
             ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
             break;
           }
-          case jsonrpc::Pack::MsgPack:
+          case serdes::Pack::MsgPack:
           {
             ctx->set_response_body(nlohmann::json::to_msgpack(*body));
             break;
           }
           default:
           {
-            throw std::logic_error("Unhandled jsonrpc::Pack");
+            throw std::logic_error("Unhandled serdes::Pack");
           }
         }
         ctx->set_response_header(

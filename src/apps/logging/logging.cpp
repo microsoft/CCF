@@ -402,7 +402,7 @@ namespace loggingapp
           {
             nlohmann::json notify_j;
             notify_j["commit"] = version;
-            notifier.notify(jsonrpc::pack(notify_j, jsonrpc::Pack::Text));
+            notifier.notify(serdes::pack(notify_j, serdes::Pack::Text));
           }
         });
     }

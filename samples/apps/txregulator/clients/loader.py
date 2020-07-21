@@ -101,7 +101,7 @@ def run(args):
                 check = ccf.checker.Checker()
 
                 check(
-                    c.rpc(
+                    c.post(
                         "REG_register",
                         {
                             "regulator_id": regulator.ccf_id,
@@ -113,7 +113,7 @@ def run(args):
                     result=regulator.ccf_id,
                 )
                 check(
-                    c.rpc("REG_get", {"id": regulator.ccf_id}),
+                    c.post("REG_get", {"id": regulator.ccf_id}),
                     result=[
                         regulator.country,
                         scripts[regulator.name],
@@ -128,12 +128,12 @@ def run(args):
                 check = ccf.checker.Checker()
 
                 check(
-                    c.rpc(
+                    c.post(
                         "BK_register", {"bank_id": bank.ccf_id, "country": bank.country}
                     ),
                     result=bank.ccf_id,
                 )
-                check(c.rpc("BK_get", {"id": bank.ccf_id}), result=bank.country)
+                check(c.post("BK_get", {"id": bank.ccf_id}), result=bank.country)
                 LOG.debug(f"User {bank} successfully registered as bank")
 
         LOG.success(
@@ -145,7 +145,7 @@ def run(args):
 
         with primary.user_client(format="msgpack", user_id=regulators[0].name) as reg_c:
             with primary.user_client(
-                format="msgpack", user_id=banks[0].name, log_file=None
+                format="msgpack", user_id=banks[0].name
             ) as c:
                 with open(args.datafile, newline="") as f:
                     start_time = perf_counter()
@@ -163,7 +163,7 @@ def run(args):
                             "dst_country": row["dst_country"],
                         }
 
-                        check(c.rpc("TX_record", json_tx), result=tx_id)
+                        check(c.post("TX_record", json_tx), result=tx_id)
                         print(json.dumps(json_tx))
                         tx_id += 1
 

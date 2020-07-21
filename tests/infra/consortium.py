@@ -46,7 +46,7 @@ class Consortium:
             self.recovery_threshold = len(self.members)
         else:
             with remote_node.client("member0") as mc:
-                r = mc.rpc(
+                r = mc.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
@@ -60,7 +60,7 @@ class Consortium:
                         """
                     },
                 )
-                for m in r.result or []:
+                for m in r.body or []:
                     new_member = infra.member.Member(
                         m[0], curve, self.common_dir, share_script
                     )
@@ -72,7 +72,7 @@ class Consortium:
                     self.members.append(new_member)
                     LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
 
-                r = mc.rpc(
+                r = mc.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
@@ -80,7 +80,7 @@ class Consortium:
                         """
                     },
                 )
-                self.recovery_threshold = r.result["recovery_threshold"]
+                self.recovery_threshold = r.body["recovery_threshold"]
 
     def activate(self, remote_node):
         for m in self.members:
@@ -157,7 +157,7 @@ class Consortium:
                 wait_for_global_commit=wait_for_global_commit,
             )
             assert response.status == http.HTTPStatus.OK.value
-            proposal.state = infra.proposal.ProposalState(response.result["state"])
+            proposal.state = infra.proposal.ProposalState(response.body["state"])
             proposal.increment_votes_for()
 
         if proposal.state is not ProposalState.Accepted:
@@ -176,9 +176,9 @@ class Consortium:
 
         proposals = []
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc("/gov/query", {"text": script})
+            r = c.post("/gov/query", {"text": script})
             assert r.status == http.HTTPStatus.OK.value
-            for proposal_id, attr in r.result.items():
+            for proposal_id, attr in r.body.items():
                 has_proposer_voted_for = False
                 for vote in attr["votes"]:
                     if attr["proposer"] == vote[0]:
@@ -203,10 +203,10 @@ class Consortium:
         self.vote_using_majority(remote_node, proposal)
 
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc(
+            r = c.post(
                 "/gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
             )
-            assert r.result["status"] == infra.node.NodeStatus.RETIRED.name
+            assert r.body["status"] == infra.node.NodeStatus.RETIRED.name
 
     def trust_node(self, remote_node, node_id):
         if not self._check_node_exists(
@@ -314,10 +314,10 @@ class Consortium:
                 check_commit(r)
 
                 if submitted_shares_count >= self.recovery_threshold:
-                    assert "End of recovery procedure initiated" in r.result
+                    assert "End of recovery procedure initiated" in r.body
                     break
                 else:
-                    assert "End of recovery procedure initiated" not in r.result
+                    assert "End of recovery procedure initiated" not in r.body
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         proposal_body, careful_vote = self.proposal_generator.set_recovery_threshold(
@@ -352,7 +352,7 @@ class Consortium:
             f"member{self.get_any_active_member().member_id}",
             request_timeout=(30 if pbft_open else 3),
         ) as c:
-            r = c.rpc(
+            r = c.post(
                 "/gov/query",
                 {
                     "text": """tables = ...
@@ -374,8 +374,8 @@ class Consortium:
                     """
                 },
             )
-            current_status = r.result["status"]
-            current_cert = array.array("B", r.result["cert"]).tobytes()
+            current_status = r.body["status"]
+            current_cert = array.array("B", r.body["cert"]).tobytes()
 
             expected_cert = open(
                 os.path.join(self.common_dir, "networkcert.pem"), "rb"
@@ -389,10 +389,10 @@ class Consortium:
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc("/gov/read", {"table": "ccf.nodes", "key": node_id})
+            r = c.post("/gov/read", {"table": "ccf.nodes", "key": node_id})
 
-            if r.error is not None or (
-                node_status and r.result["status"] != node_status.name
+            if r.status != 200 or (
+                node_status and r.body["status"] != node_status.name
             ):
                 return False
 
