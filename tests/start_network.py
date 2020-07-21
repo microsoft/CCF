@@ -120,4 +120,8 @@ if __name__ == "__main__":
             "Error: --recover requires --ledger, --network-enc-pubk and --common-dir arguments."
         )
         sys.exit(1)
+    else:
+        print("Error: --gov-script is required.")
+        sys.exit(2)
+
     run(args)
