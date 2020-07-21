@@ -337,7 +337,6 @@ namespace ccf
         "receipt/verify", HTTP_POST, json_command_adapter(verify_receipt))
         .set_auto_schema<VerifyReceipt>()
         .install();
-
     }
 
     void tick(
