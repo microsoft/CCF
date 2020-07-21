@@ -88,10 +88,8 @@ namespace ccf
      * stack.
      */
     template <typename T>
-    void push_raw(lua_State* l, const T& o)
+    void push_raw(lua_State*, const T&)
     {
-      (void)l;
-      (void)o;
       static_assert(
         std::is_empty<T>::value,
         "Unsupported type for Lua stack object (push).");
@@ -120,10 +118,8 @@ namespace ccf
     }
 
     template <typename T>
-    inline T check_get(lua_State* l, int arg)
+    inline T check_get(lua_State*, int)
     {
-      (void)l;
-      (void)arg;
       static_assert(
         std::is_empty<T>::value,
         "Unsupported type for Lua stack object (check_get).");

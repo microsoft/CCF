@@ -441,9 +441,8 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& nwt, ccfapp::AbstractNodeContext& context)
+    NetworkTables& nwt, ccfapp::AbstractNodeContext&)
   {
-    (void)context;
     return make_shared<SmallBank>(*nwt.tables);
   }
 }

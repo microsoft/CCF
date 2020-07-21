@@ -245,15 +245,8 @@ namespace kv
     }
 
     virtual void force_become_primary(
-      SeqNo seqno,
-      View view,
-      const std::vector<Version>& terms,
-      SeqNo commit_seqno)
+      SeqNo, View, const std::vector<Version>&, SeqNo)
     {
-      (void)seqno;
-      (void)view;
-      (void)terms;
-      (void)commit_seqno;
       state = Primary;
     }
 
@@ -270,16 +263,12 @@ namespace kv
       SeqNo seqno, const Configuration::Nodes& conf) = 0;
     virtual Configuration::Nodes get_latest_configuration() const = 0;
 
-    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs& args)
+    virtual bool on_request(const kv::TxHistory::RequestCallbackArgs&)
     {
-      (void)args;
       return true;
     }
 
-    virtual void periodic(std::chrono::milliseconds elapsed)
-    {
-      (void)elapsed;
-    }
+    virtual void periodic(std::chrono::milliseconds) {}
     virtual void periodic_end() {}
 
     struct Statistics

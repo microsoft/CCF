@@ -671,10 +671,8 @@ namespace ccf
     // certs, but couldn't find caller. Default behaviour is that there are no
     // caller certs, so nothing is changed but we return true
     virtual bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx)
+      std::shared_ptr<enclave::RpcContext>, kv::Tx&)
     {
-      (void)ctx;
-      (void)tx;
       return true;
     }
 

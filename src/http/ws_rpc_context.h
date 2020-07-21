@@ -129,9 +129,8 @@ namespace ws
     }
 
     virtual std::optional<std::string> get_request_header(
-      const std::string_view& name) override
+      const std::string_view&) override
     {
-      (void)name;
       return std::nullopt;
     }
 
@@ -156,11 +155,8 @@ namespace ws
     }
 
     virtual void set_response_header(
-      const std::string_view& name, const std::string_view& value) override
-    {
-      (void)name;
-      (void)value;
-    }
+      const std::string_view&, const std::string_view&) override
+    {}
 
     virtual void set_seqno(kv::Version sn) override
     {

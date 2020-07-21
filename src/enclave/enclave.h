@@ -313,11 +313,11 @@ namespace enclave
           node->start_ledger_recovery();
         }
 
-        bp.run(circuit->read_from_outside(), [](size_t consecutive_idles) {
+        bp.run(circuit->read_from_outside(), [](size_t num_consecutive_idles) {
           static std::chrono::microseconds idling_start_time;
           const auto time_now = enclave::get_enclave_time();
 
-          if (consecutive_idles == 0)
+          if (num_consecutive_idles == 0)
           {
             idling_start_time = time_now;
           }

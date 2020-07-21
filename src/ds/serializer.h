@@ -209,10 +209,8 @@ namespace serializer
     }
 
     template <typename... Ts>
-    static std::tuple<> deserialize(const uint8_t* data, size_t size)
+    static std::tuple<> deserialize(const uint8_t*, size_t size)
     {
-      (void)data;
-
       if constexpr (sizeof...(Ts) == 0)
       {
         if (size > 0)

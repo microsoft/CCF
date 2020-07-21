@@ -25,9 +25,8 @@ namespace ccfapp
 #pragma clang diagnostic ignored "-Wc99-extensions"
 
   static JSValue js_print(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    (void)this_val;
     int i;
     const char* str;
     std::stringstream ss;
@@ -75,9 +74,8 @@ namespace ccfapp
   }
 
   static JSValue js_get(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    (void)this_val;
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -99,9 +97,8 @@ namespace ccfapp
   }
 
   static JSValue js_remove(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    (void)this_val;
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -122,9 +119,8 @@ namespace ccfapp
   }
 
   static JSValue js_put(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    (void)this_val;
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 2)
       return JS_ThrowTypeError(
@@ -320,9 +316,8 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+    NetworkTables& network, ccfapp::AbstractNodeContext&)
   {
-    (void)context;
     return make_shared<JS>(network);
   }
 } // namespace ccfapp

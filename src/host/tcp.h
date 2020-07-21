@@ -612,9 +612,8 @@ namespace asynchost
         on_free(buf);
     }
 
-    static void on_write(uv_write_t* req, int rc)
+    static void on_write(uv_write_t* req, int)
     {
-      (void)rc;
       free_write(req);
     }
 

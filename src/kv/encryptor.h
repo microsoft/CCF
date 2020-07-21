@@ -66,10 +66,7 @@ namespace kv
     std::list<EncryptionKey> encryption_keys;
     size_t iv_id = 0;
 
-    virtual void record_compacted_keys(const std::list<KeyInfo>& keys)
-    {
-      (void)keys;
-    };
+    virtual void record_compacted_keys(const std::list<KeyInfo>&){};
 
   public:
     TxEncryptor(const std::list<KeyInfo>& existing_keys)

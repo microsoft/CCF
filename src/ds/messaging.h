@@ -149,10 +149,9 @@ namespace messaging
 
   using RingbufferDispatcher = Dispatcher<ringbuffer::Message>;
 
-  using IdleBehaviour = std::function<void(size_t)>;
-  static inline void default_idle_behaviour(size_t num_consecutive_idles)
+  using IdleBehaviour = std::function<void(size_t num_consecutive_idles)>;
+  static inline void default_idle_behaviour(size_t)
   {
-    (void)num_consecutive_idles;
     CCF_PAUSE();
   }
 
