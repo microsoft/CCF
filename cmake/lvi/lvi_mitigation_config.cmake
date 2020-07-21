@@ -13,8 +13,12 @@ set(LVI_MITIGATION_BINDIR ${CMAKE_CURRENT_BINARY_DIR}/lvi_mitigation_bin)
 execute_process(
   COMMAND echo yes
   COMMAND ${OE_BINDIR}/scripts/lvi-mitigation/install_lvi_mitigation_bindir
-  #ERROR_QUIET
+  RESULT_VARIABLE LVI_BIN_DIR_RET
 )
+
+if(NOT LVI_BIN_DIR_RET EQUAL "0")
+    message(FATAL_ERROR "Failed to create LVI mitigation binary directory")
+endif()
 
 # OE_LVI_MITIGATION holds the value of LVI_MITIGATION from the configuration of
 # OE SDK. OE_LVI_MITIGATION=ControlFlow indicates that the SDK supports LVI
