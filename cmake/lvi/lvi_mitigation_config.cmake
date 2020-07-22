@@ -9,7 +9,7 @@ if(NOT DEFINED OE_BINDIR)
 endif()
 
 # Check that LVI mitigations have been installed into expected dir
-set(LVI_MITIGATION_BINDIR ${OE_BINDIR}/lvi_mitigation_bin)
+set(LVI_MITIGATION_BINDIR /opt/oe_lvi)
 if(NOT IS_DIRECTORY "${LVI_MITIGATION_BINDIR}")
     message(FATAL_ERROR "LVI mitigation tools must be installed at ${LVI_MITIGATION_BINDIR}")
 endif()

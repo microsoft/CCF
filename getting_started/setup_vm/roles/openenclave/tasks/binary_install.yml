@@ -48,5 +48,37 @@
     chdir: "{{ oe_lvi_bin_dir }}"
   become: true
 
+- name: Download Intel LVI toolset
+  get_url:
+    url: "{{ oe_lvi_intel_bin_url }}"
+    dest: "{{ workspace }}/{{ oe_lvi_toolset_name }}"
+
+- name: Remove existing expanded Intel LVI toolset
+  file:
+    path: "{{ workspace }}/external"
+    state: absent
+
+- name: Expand Intel LVI toolset
+  unarchive:
+    src: "{{ workspace }}/{{ oe_lvi_toolset_name }}"
+    dest: "{{ workspace }}"
+    copy: no
+    creates: "{{ workspace }}/external/toolset"
+
+- name: Copy Intel LVI as
+  copy:
+    remote_src: true
+    src: "{{ workspace }}/external/toolset/as"
+    dest: "{{ oe_lvi_bin_dir }}/as"
+    mode: preserve
+  become: true
+
+- name: Copy Intel LVI ld
+  copy:
+    remote_src: true
+    src: "{{ workspace }}/external/toolset/ld"
+    dest: "{{ oe_lvi_bin_dir }}/ld"
+    mode: preserve
+  become: true
 
 # TODO: Download specific as and ld
