@@ -105,8 +105,8 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   uint16_t,
   std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::stop);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::stopped);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::notification, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::tick, size_t);

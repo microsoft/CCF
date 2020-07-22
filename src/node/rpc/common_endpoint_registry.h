@@ -38,7 +38,7 @@ namespace ccf
     {
       EndpointRegistry::init_handlers(t);
 
-      auto get_commit = [this](auto& args, nlohmann::json&& params) {
+      auto get_commit = [this](auto&, nlohmann::json&&) {
         if (consensus != nullptr)
         {
           auto [view, seqno] = consensus->get_committed_txid();
@@ -55,7 +55,7 @@ namespace ccf
         .set_auto_schema<void, GetCommit::Out>()
         .install();
 
-      auto get_tx_status = [this](auto& args, nlohmann::json&& params) {
+      auto get_tx_status = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetTxStatus::In>();
 
         if (consensus != nullptr)
@@ -77,7 +77,7 @@ namespace ccf
         .set_auto_schema<GetTxStatus>()
         .install();
 
-      auto get_metrics = [this](auto& args, nlohmann::json&& params) {
+      auto get_metrics = [this](auto&, nlohmann::json&&) {
         auto result = metrics.get_metrics();
         return make_success(result);
       };
@@ -122,7 +122,7 @@ namespace ccf
           .install();
       }
 
-      auto get_primary_info = [this](auto& args, nlohmann::json&& params) {
+      auto get_primary_info = [this](auto& args, nlohmann::json&&) {
         if ((nodes != nullptr) && (consensus != nullptr))
         {
           NodeId primary_id = consensus->primary();
@@ -150,7 +150,7 @@ namespace ccf
         .set_auto_schema<void, GetPrimaryInfo::Out>()
         .install();
 
-      auto get_network_info = [this](auto& args, nlohmann::json&& params) {
+      auto get_network_info = [this](auto& args, nlohmann::json&&) {
         GetNetworkInfo::Out out;
         if (consensus != nullptr)
         {
@@ -173,7 +173,7 @@ namespace ccf
         .set_auto_schema<void, GetNetworkInfo::Out>()
         .install();
 
-      auto get_code = [this](auto& args, nlohmann::json&& params) {
+      auto get_code = [this](auto& args, nlohmann::json&&) {
         GetCode::Out out;
 
         auto code_view = args.tx.get_read_only_view(*node_code_ids);
@@ -215,7 +215,7 @@ namespace ccf
         .set_auto_schema<GetNodesByRPCAddress::In, GetNodesByRPCAddress::Out>()
         .install();
 
-      auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&&) {
         ListMethods::Out out;
 
         list_methods(tx, out);
@@ -237,7 +237,7 @@ namespace ccf
         .set_auto_schema<void, EndpointMetrics::Out>()
         .install();
 
-      auto get_schema = [this](auto& args, nlohmann::json&& params) {
+      auto get_schema = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetSchema::In>();
 
         auto j = nlohmann::json::object();
@@ -288,7 +288,7 @@ namespace ccf
         .set_auto_schema<GetSchema>()
         .install();
 
-      auto get_receipt = [this](auto& args, nlohmann::json&& params) {
+      auto get_receipt = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<GetReceipt::In>();
 
         if (history != nullptr)
@@ -319,7 +319,7 @@ namespace ccf
         .set_auto_schema<GetReceipt>()
         .install();
 
-      auto verify_receipt = [this](auto& args, nlohmann::json&& params) {
+      auto verify_receipt = [this](auto&, nlohmann::json&& params) {
         const auto in = params.get<VerifyReceipt::In>();
 
         if (history != nullptr)

@@ -117,23 +117,21 @@ namespace ccf
 
       LOG_INFO_FMT("Node {} added as {}", joining_node_id, node_status);
 
+      JoinNetworkNodeToNode::Out rep;
+      rep.node_status = node_status;
+      rep.node_id = joining_node_id;
+
       if (node_status == NodeStatus::TRUSTED)
       {
-        return make_success(
-          JoinNetworkNodeToNode::Out({node_status,
-                                      joining_node_id,
-                                      node.is_part_of_public_network(),
-                                      node.get_last_recovered_commit_idx(),
-                                      this->network.consensus_type,
-                                      {*this->network.ledger_secrets.get(),
-                                       *this->network.identity.get(),
-                                       *this->network.encryption_key.get()}}));
+        rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
+          node.is_part_of_public_network(),
+          node.get_last_recovered_commit_idx(),
+          this->network.consensus_type,
+          *this->network.ledger_secrets.get(),
+          *this->network.identity.get(),
+          *this->network.encryption_key.get()};
       }
-      else
-      {
-        return make_success(
-          JoinNetworkNodeToNode::Out({node_status, joining_node_id}));
-      }
+      return make_success(rep);
     }
 
   public:
@@ -199,15 +197,16 @@ namespace ccf
             check_node_exists(args.tx, caller_pem, joining_node_status);
           if (existing_node_id.has_value())
           {
-            return make_success(JoinNetworkNodeToNode::Out(
-              {joining_node_status,
-               existing_node_id.value(),
-               node.is_part_of_public_network(),
-               node.get_last_recovered_commit_idx(),
-               this->network.consensus_type,
-               {*this->network.ledger_secrets.get(),
-                *this->network.identity.get(),
-                *this->network.encryption_key.get()}}));
+            JoinNetworkNodeToNode::Out rep;
+            rep.node_status = joining_node_status;
+            rep.node_id = existing_node_id.value();
+            rep.network_info = {node.is_part_of_public_network(),
+                                node.get_last_recovered_commit_idx(),
+                                this->network.consensus_type,
+                                *this->network.ledger_secrets.get(),
+                                *this->network.identity.get(),
+                                *this->network.encryption_key.get()};
+            return make_success(rep);
           }
 
           return add_node(args.tx, caller_pem, in, joining_node_status);
@@ -221,25 +220,27 @@ namespace ccf
         auto existing_node_id = check_node_exists(args.tx, caller_pem);
         if (existing_node_id.has_value())
         {
+          JoinNetworkNodeToNode::Out rep;
+          rep.node_id = existing_node_id.value();
+
           // If the node already exists, return network secrets if is already
           // trusted. Otherwise, only return its node id
           auto node_status = nodes_view->get(existing_node_id.value())->status;
+          rep.node_status = node_status;
           if (node_status == NodeStatus::TRUSTED)
           {
-            return make_success(JoinNetworkNodeToNode::Out(
-              {node_status,
-               existing_node_id.value(),
-               node.is_part_of_public_network(),
-               node.get_last_recovered_commit_idx(),
-               this->network.consensus_type,
-               {*this->network.ledger_secrets.get(),
-                *this->network.identity.get(),
-                *this->network.encryption_key.get()}}));
+            rep.network_info = {node.is_part_of_public_network(),
+                                node.get_last_recovered_commit_idx(),
+                                this->network.consensus_type,
+                                *this->network.ledger_secrets.get(),
+                                *this->network.identity.get(),
+                                *this->network.encryption_key.get()};
+            return make_success(rep);
           }
           else if (node_status == NodeStatus::PENDING)
           {
-            return make_success(JoinNetworkNodeToNode::Out(
-              {node_status, existing_node_id.value()}));
+            // Only return node status and ID
+            return make_success(rep);
           }
           else
           {
@@ -255,7 +256,7 @@ namespace ccf
       };
       make_endpoint("join", HTTP_POST, json_adapter(accept)).install();
 
-      auto get_state = [this](auto& args, nlohmann::json&& params) {
+      auto get_state = [this](auto& args, nlohmann::json&&) {
         GetState::Out result;
         auto [s, rts, lrs] = this->node.state();
         result.state = s;
@@ -265,9 +266,13 @@ namespace ccf
         auto sig_view = args.tx.get_read_only_view(*signatures);
         auto sig = sig_view->get(0);
         if (!sig.has_value())
+        {
           result.last_signed_seqno = 0;
+        }
         else
+        {
           result.last_signed_seqno = sig.value().seqno;
+        }
 
         return result;
       };
@@ -299,6 +304,7 @@ namespace ccf
         "quotes", HTTP_GET, json_read_only_adapter(get_quotes))
         .set_auto_schema<GetQuotes>()
         .install();
+
       auto network_status = [this](auto& args, nlohmann::json&&) {
         auto service_view = args.tx.get_read_only_view(network.service);
         auto service_state = service_view->get(0);

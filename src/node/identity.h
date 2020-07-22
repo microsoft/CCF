@@ -19,7 +19,7 @@ namespace ccf
       return cert == other.cert && priv_key == other.priv_key;
     }
 
-    NetworkIdentity() {}
+    NetworkIdentity() = default;
 
     NetworkIdentity(const std::string& name)
     {

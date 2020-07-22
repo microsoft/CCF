@@ -178,11 +178,12 @@ namespace raft
       election_timeout(election_timeout_),
       public_only(public_only_),
 
-      ledger(std::move(ledger_)),
-      channels(channels_),
-
       distrib(0, (int)election_timeout_.count() / 2),
-      rand((int)(uintptr_t)this)
+      rand((int)(uintptr_t)this),
+
+      ledger(std::move(ledger_)),
+      channels(channels_)
+
     {}
 
     NodeId leader()
@@ -497,10 +498,8 @@ namespace raft
         end_idx,
         commit_idx);
 
-      AppendEntries ae = {raft_append_entries,
-                          local_id,
-                          end_idx,
-                          prev_idx,
+      AppendEntries ae = {{raft_append_entries, local_id},
+                          {end_idx, prev_idx},
                           current_term,
                           prev_term,
                           commit_idx,
@@ -703,7 +702,10 @@ namespace raft
         answer);
 
       AppendEntriesResponse response = {
-        raft_append_entries_response, local_id, current_term, last_idx, answer};
+        {raft_append_entries_response, local_id},
+        current_term,
+        last_idx,
+        answer};
 
       channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, response);
@@ -797,8 +799,7 @@ namespace raft
     {
       LOG_INFO_FMT("Send request vote from {} to {}", local_id, to);
 
-      RequestVote rv = {raft_request_vote,
-                        local_id,
+      RequestVote rv = {{raft_request_vote, local_id},
                         current_term,
                         commit_idx,
                         get_term_internal(commit_idx)};
@@ -892,7 +893,7 @@ namespace raft
         "Send request vote response from {} to {}: {}", local_id, to, answer);
 
       RequestVoteResponse response = {
-        raft_request_vote_response, local_id, current_term, answer};
+        {raft_request_vote_response, local_id}, current_term, answer};
 
       channels->send_authenticated(
         ccf::NodeMsgType::consensus_msg, to, response);

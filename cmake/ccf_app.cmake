@@ -169,7 +169,7 @@ function(add_ccf_app name)
     target_include_directories(
       ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
-
+    add_warning_checks(${enc_name})
     target_link_libraries(
       ${enc_name}
       PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
@@ -199,6 +199,7 @@ function(add_ccf_app name)
     target_include_directories(
       ${virt_name} SYSTEM PRIVATE ${PARSED_ARGS_INCLUDE_DIRS}
     )
+    add_warning_checks(${virt_name})
 
     target_link_libraries(
       ${virt_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_VIRTUAL} ccf.virtual

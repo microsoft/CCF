@@ -450,9 +450,9 @@ namespace ccf
       EndpointRegistry& handlers_,
       ClientSignatures* client_sigs_ = nullptr) :
       tables(tables_),
+      endpoints(handlers_),
       nodes(tables.get<Nodes>(Tables::NODES)),
       client_signatures(client_sigs_),
-      endpoints(handlers_),
       pbft_requests_map(
         tables.get<pbft::RequestsMap>(pbft::Tables::PBFT_REQUESTS)),
       consensus(nullptr),
@@ -683,7 +683,7 @@ namespace ccf
     // certs, but couldn't find caller. Default behaviour is that there are no
     // caller certs, so nothing is changed but we return true
     virtual bool lookup_forwarded_caller_cert(
-      std::shared_ptr<enclave::RpcContext> ctx, kv::Tx& tx)
+      std::shared_ptr<enclave::RpcContext>, kv::Tx&)
     {
       return true;
     }
