@@ -6,9 +6,47 @@
     deb: "{{ oe_deb }}"
   become: true
 
-- name: Install LVI mitigation tools
-  shell: |
-    echo yes | ./scripts/lvi-mitigation/install_lvi_mitigation_bindir
-  args:
-    chdir: /opt/openenclave/bin
+- name: Make OE LVI dir
+  file:
+    path: "{{ oe_lvi_bin_dir }}"
+    state: directory
   become: true
+
+- name: Copy invoke_compiler to OE LVI dir
+  copy:
+    remote_src: true
+    src: "{{ oe_lvi_scripts_dir }}/invoke_compiler"
+    dest: "{{ oe_lvi_bin_dir }}/invoke_compiler"
+    mode: preserve
+  become: true
+
+- name: Create OE LVI symlink to clang-8
+  file:
+    src: /usr/bin/clang-8
+    dest: "{{ oe_lvi_bin_dir }}/clang-8_symlink"
+    state: link
+  become: true
+
+- name: Generate OE LVI wrapper for clang-8
+  shell: |
+    "{{ oe_lvi_scripts_dir }}/generate_wrapper" --name=clang-8 --path="{{ oe_lvi_bin_dir }}"
+  args:
+    chdir: "{{ oe_lvi_bin_dir }}"
+  become: true
+
+- name: Create OE LVI symlink to clang++-8
+  file:
+    src: /usr/bin/clang++-8
+    dest: "{{ oe_lvi_bin_dir }}/clang++-8_symlink"
+    state: link
+  become: true
+
+- name: Generate OE LVI wrapper for clang++-8
+  shell: |
+    "{{ oe_lvi_scripts_dir }}/generate_wrapper" --name=clang++-8 --path="{{ oe_lvi_bin_dir }}"
+  args:
+    chdir: "{{ oe_lvi_bin_dir }}"
+  become: true
+
+
+# TODO: Download specific as and ld
