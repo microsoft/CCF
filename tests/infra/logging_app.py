@@ -162,7 +162,7 @@ class LoggingTxs:
         while time.time() < end_time:
             with node.client(self.user) as uc:
                 rep = uc.get(cmd, {"id": idx})
-                if rep.status == 404:
+                if rep.status_code == 404:
                     LOG.warning("User frontend is not yet opened")
                     time.sleep(0.1)
                 else:

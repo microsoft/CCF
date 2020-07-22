@@ -156,7 +156,7 @@ class Consortium:
                 accept=True,
                 wait_for_global_commit=wait_for_global_commit,
             )
-            assert response.status == http.HTTPStatus.OK.value
+            assert response.status_code == http.HTTPStatus.OK.value
             proposal.state = infra.proposal.ProposalState(response.body["state"])
             proposal.increment_votes_for()
 
@@ -177,7 +177,7 @@ class Consortium:
         proposals = []
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post("/gov/query", {"text": script})
-            assert r.status == http.HTTPStatus.OK.value
+            assert r.status_code == http.HTTPStatus.OK.value
             for proposal_id, attr in r.body.items():
                 has_proposer_voted_for = False
                 for vote in attr["votes"]:
@@ -231,7 +231,7 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
-        member_to_retire.status = infra.member.MemberStatus.RETIRED
+        member_to_retire.status_code = infra.member.MemberStatus.RETIRED
 
     def open_network(self, remote_node, pbft_open=False):
         """
@@ -358,7 +358,7 @@ class Consortium:
                         LOG_DEBUG("Service is nil")
                     else
                         LOG_DEBUG("Service version: ", tostring(service.version))
-                        LOG_DEBUG("Service status: ", tostring(service.status))
+                        LOG_DEBUG("Service status: ", tostring(service.status_code))
                         cert_len = #service.cert
                         LOG_DEBUG("Service cert len: ", tostring(cert_len))
                         LOG_DEBUG("Service cert bytes: " ..
@@ -389,7 +389,7 @@ class Consortium:
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post("/gov/read", {"table": "ccf.nodes", "key": node_id})
 
-            if r.status != 200 or (
+            if r.status_code != 200 or (
                 node_status and r.body["status"] != node_status.name
             ):
                 return False

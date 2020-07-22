@@ -121,8 +121,7 @@ def test_remove(network, args):
                     )
                     check(c.get(resource, {"id": log_id}), result={"msg": msg})
                     check(
-                        c.delete(resource, {"id": log_id}, params_in_query=True),
-                        result=None,
+                        c.delete(resource, {"id": log_id}), result=None,
                     )
                     get_r = c.get(resource, {"id": log_id})
                     if args.package == "libjs_generic":
@@ -180,7 +179,7 @@ def test_anonymous_caller(network, args):
             r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.body == True
             r = c.get("/app/log/private", {"id": log_id})
-            assert r.status == 403, r
+            assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r
 
         with primary.client("user0") as c:
             r = c.get("/app/log/private", {"id": log_id})
@@ -208,7 +207,7 @@ def test_raw_text(network, args):
                 msg,
                 headers={"content-type": "text/plain"},
             )
-            assert r.status == http.HTTPStatus.OK.value
+            assert r.status_code == http.HTTPStatus.OK.value
             r = c.get("/app/log/private", {"id": log_id})
             assert msg in r.body["msg"], r
 
@@ -261,25 +260,25 @@ def test_historical_query(network, args):
                     get_response = c.get(
                         "/app/log/private/historical", params, headers=headers
                     )
-                    if get_response.status == http.HTTPStatus.ACCEPTED:
+                    if get_response.status_code == http.HTTPStatus.ACCEPTED:
                         retry_after = get_response.headers.get("retry-after")
                         if retry_after is None:
                             raise ValueError(
-                                f"Response with status {get_response.status} is missing 'retry-after' header"
+                                f"Response with status {get_response.status_code} is missing 'retry-after' header"
                             )
                         retry_after = int(retry_after)
                         time.sleep(retry_after)
-                    elif get_response.status == http.HTTPStatus.OK:
+                    elif get_response.status_code == http.HTTPStatus.OK:
                         assert get_response.body["msg"] == msg, get_response
                         found = True
                         break
-                    elif get_response.status == http.HTTPStatus.NO_CONTENT:
+                    elif get_response.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
                             f"Historical query response claims there was no write to {log_id} at {view}.{seqno}"
                         )
                     else:
                         raise ValueError(
-                            f"Unexpected response status {get_response.status}: {get_response.body}"
+                            f"Unexpected response status code {get_response.status_code}: {get_response.body}"
                         )
 
                 if not found:

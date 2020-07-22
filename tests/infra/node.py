@@ -236,7 +236,7 @@ class Node:
             with self.client(connection_timeout=timeout) as nc:
                 rep = nc.get("/node/commit")
                 assert (
-                    rep.status == 200
+                    rep.status_code == 200
                 ), f"An error occured after node {self.node_id} joined the network: {rep.body}"
         except ccf.clients.CCFConnectionException:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")

@@ -20,8 +20,8 @@ def wait_for_global_commit(client, seqno, view, timeout=3):
     while time.time() < end_time:
         r = client.get("/node/tx", {"view": view, "seqno": seqno})
         assert (
-            r.status == http.HTTPStatus.OK
-        ), f"tx request returned HTTP status {r.status}"
+            r.status_code == http.HTTPStatus.OK
+        ), f"tx request returned HTTP status {r.status_code}"
         status = TxStatus(r.body["status"])
         if status == TxStatus.Committed:
             return
@@ -57,8 +57,8 @@ class Checker:
         if error is not None:
             if callable(error):
                 assert error(
-                    rpc_result.status, rpc_result.body
-                ), f"{rpc_result.status}: {rpc_result.body}"
+                    rpc_result.status_code, rpc_result.body
+                ), f"{rpc_result.status_code}: {rpc_result.body}"
             else:
                 assert rpc_result.body == error, "Expected {}, got {}".format(
                     error, rpc_result.body

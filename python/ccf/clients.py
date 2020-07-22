@@ -39,21 +39,15 @@ DEFAULT_REQUEST_TIMEOUT_SEC = 3
 
 
 class Request:
-    def __init__(
-        self, path, params=None, http_verb="POST", headers=None, params_in_query=None
-    ):
+    def __init__(self, path, params=None, http_verb="POST", headers=None):
         if headers is None:
             headers = {}
-
-        # TODO: remove
-        if params_in_query is None:
-            params_in_query = http_verb == "GET"
 
         self.path = path
         self.params = params
         self.http_verb = http_verb
         self.headers = headers
-        self.params_in_query = params_in_query
+        self.params_in_query = http_verb == "GET" or http_verb == "DELETE"
 
     def __str__(self):
         return (
@@ -194,14 +188,12 @@ class CurlClient:
     the resulting logs nicely illustrate manual usage in a way using the requests API doesn't
     """
 
-    def __init__(
-        self, host, port, cert=None, key=None, ca=None, binary_dir=".", **kwargs,
-    ):
+    def __init__(self, host, port, ca=None, cert=None, key=None, binary_dir="."):
         self.host = host
         self.port = port
+        self.ca = ca
         self.cert = cert
         self.key = key
-        self.ca = ca
         self.binary_dir = binary_dir
 
         ca_curve = get_curve(self.ca)
@@ -275,6 +267,10 @@ class CurlClient:
 
 
 class TlsAdapter(HTTPAdapter):
+    """
+    Support for secp256k1 as node and network identity curve.
+    """
+
     def __init__(self, ca_file):
         self.ca_curve = None
         if ca_file is not None:
@@ -291,6 +287,10 @@ class TlsAdapter(HTTPAdapter):
 
 
 class HTTPSignatureAuth_AlwaysDigest(HTTPSignatureAuth):
+    """
+    Support for HTTP signatures with empty body.
+    """
+
     def add_digest(self, request):
         # Add digest of empty body, never leave it blank
         if request.body is None:
@@ -303,22 +303,16 @@ class HTTPSignatureAuth_AlwaysDigest(HTTPSignatureAuth):
 
 
 class RequestClient:
-    def __init__(
-        self,
-        host,
-        port,
-        cert=None,
-        key=None,
-        ca=None,
-        # request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
-        **kwargs,
-    ):
+    """
+    Wrapper around Python Requests, handling HTTP signatures
+    """
+
+    def __init__(self, host, port, ca, cert=None, key=None):
         self.host = host
         self.port = port
+        self.ca = ca
         self.cert = cert
         self.key = key
-        self.ca = ca
-        # self.request_timeout = request_timeout
         self.session = requests.Session()
         self.session.verify = self.ca
         self.session.cert = (self.cert, self.key)
@@ -369,14 +363,12 @@ class RequestClient:
 
 
 class WSClient:
-    def __init__(
-        self, host, port, cert=None, key=None, ca=None, **kwargs,
-    ):
+    def __init__(self, host, port, ca, cert=None, key=None):
         self.host = host
         self.port = port
+        self.ca = ca
         self.cert = cert
         self.key = key
-        self.ca = ca
         self.ws = None
 
     def request(self, request, is_signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
@@ -422,7 +414,7 @@ class CCFClient:
     """
     Client to communicate with a given CCF node.
 
-    This is a very thin wrapper around Python Requests with:
+    This is a very thin wrapper around Python Requests with added:
 
     - Retry logic when connecting to nodes that are joining the network
     - Support for HTTP signatures (https://tools.ietf.org/html/draft-cavage-http-signatures-12).
@@ -431,64 +423,87 @@ class CCFClient:
 
     :param str host: RPC IP address or domain name of node to connect to.
     :param int port: RPC port number of node to connect to.
+    :param str ca: Path to CCF network certificate.
     :param str cert: Path to client certificate (optional).
     :param str key: Path to client private key (optional).
-    :param str ca: Path to CCF network certificate.
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
+    :param str description: Message to print on each request emitted with this client.
+    :param str binary_dir: Path to binary directory (curl client only).
     :param bool ws: Use WebSocket client (experimental).
     """
 
-    def __init__(self, host, port, *args, **kwargs):
-        self.description = (
-            kwargs.pop("description") if "description" in kwargs else None
-        )
-        self.connection_timeout = (
-            kwargs.pop("connection_timeout")
-            if "connection_timeout" in kwargs
-            else DEFAULT_CONNECTION_TIMEOUT_SEC
-        )
+    def __init__(
+        self,
+        host,
+        port,
+        ca,
+        cert=None,
+        key=None,
+        connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
+        description=None,
+        binary_dir=".",
+        ws=False,
+    ):
+        self.connection_timeout = connection_timeout
+        self.description = description
         self.name = f"[{host}:{port}]"
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, *args, **kwargs)
-        elif os.getenv("WEBSOCKETS_CLIENT") or kwargs.get("ws"):
-            self.client_impl = WSClient(host, port, *args, **kwargs)
+            self.client_impl = CurlClient(host, port, ca, cert, key, binary_dir)
+        elif os.getenv("WEBSOCKETS_CLIENT") or ws:
+            self.client_impl = WSClient(host, port, ca, cert, key)
         else:
-            self.client_impl = RequestClient(host, port, *args, **kwargs)
+            self.client_impl = RequestClient(host, port, ca, cert, key)
 
     def _response(self, response):
         LOG.info(response)
         return response
 
     # pylint: disable=method-hidden
-    def _direct_call(self, method, *args, **kwargs):
-        is_signed = "signed" in kwargs and kwargs.pop("signed")
-        r = Request(method, *args, **kwargs)
-
+    def _direct_call(
+        self,
+        path,
+        params=None,
+        http_verb="POST",
+        headers=None,
+        signed=False,
+        timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+    ):
         description = ""
         if self.description:
-            description = f" ({self.description})" + (" [signed]" if is_signed else "")
+            description = f" ({self.description})" + (" [signed]" if signed else "")
+
+        r = Request(path, params, http_verb, headers)
         LOG.info(f"{self.name} {r} ({description})")
-        return self._response(self.client_impl.request(r, is_signed))
+        return self._response(self.client_impl.request(r, signed, timeout))
 
-    def call(self, *args, **kwargs):
+    def call(
+        self,
+        path,
+        params=None,
+        http_verb="POST",
+        headers=None,
+        signed=False,
+        timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+    ):
         """
-        Issue request.
+        Issues one request, synchronously, and returns the reponse.
 
-        :param str method:
-        :param bool signed: Sign request with client private key. TODO: Only if true?
-        :param params: Request parameters.
-        :param str http_verb: HTTP verb (e.g. "GET" or "POST").
-
-        # TODO: More
+        :param str path: URI of the resource.
+        :param dict params: Request parameters (optional).
+        :param http_verb: HTTP verb (e.g. "POST" or "GET").
+        :param headers: HTTP request headers (optional).
+        :param bool signed: Sign request with client private key.
+        :param int timeout: Maximum time to wait corresponding response before giving up.
 
         :return: :py:class:`ccf.clients.Response`
-
         """
         end_time = time.time() + self.connection_timeout
         while True:
             try:
-                response = self._direct_call(*args, **kwargs)
+                response = self._direct_call(
+                    path, params, http_verb, headers, signed, timeout
+                )
                 # Only the first request gets this timeout logic - future calls
                 # call _direct_call directly
                 self.call = self._direct_call
@@ -506,10 +521,7 @@ class CCFClient:
     def get(self, *args, **kwargs):
         """
         Issue GET request.
-
         Wrapper for ``call()`` with ``http_verb`` set to ``GET``.
-
-        # TODO: No argument?
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -518,7 +530,6 @@ class CCFClient:
     def post(self, *args, **kwargs):
         """
         Issue POST request.
-
         Wrapper for ``call()`` with ``http_verb`` set to ``POST``.
 
         :return: :py:class:`ccf.clients.Response`
@@ -528,7 +539,6 @@ class CCFClient:
     def put(self, *args, **kwargs):
         """
         Issue PUT request.
-
         Wrapper for ``call()`` with ``http_verb`` set to ``PUT``.
 
         :return: :py:class:`ccf.clients.Response`
@@ -538,7 +548,6 @@ class CCFClient:
     def delete(self, *args, **kwargs):
         """
         Issue DELETE request.
-
         Wrapper for ``call()`` with `http_verb`` set to ``DELETE``.
 
         :return: :py:class:`ccf.clients.Response`
@@ -547,29 +556,5 @@ class CCFClient:
 
 
 @contextlib.contextmanager
-def client(
-    host,
-    port,
-    cert=None,
-    key=None,
-    ca=None,
-    description=None,
-    binary_dir=".",
-    connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
-    # request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
-    ws=False,
-):
-    c = CCFClient(
-        host=host,
-        port=port,
-        cert=cert,
-        key=key,
-        ca=ca,
-        description=description,
-        binary_dir=binary_dir,
-        connection_timeout=connection_timeout,
-        # request_timeout=request_timeout,
-        ws=ws,
-    )
-
-    yield c
+def client(*args, **kwargs):
+    yield CCFClient(*args, **kwargs)

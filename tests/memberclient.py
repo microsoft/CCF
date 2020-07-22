@@ -80,7 +80,7 @@ def test_missing_signature(network, args):
     member = network.consortium.get_any_active_member()
     with primary.client(f"member{member.member_id}") as mc:
         r = mc.post("/gov/proposals", signed=False)
-        assert r.status == http.HTTPStatus.UNAUTHORIZED, r.status
+        assert r.status_code_code_code == http.HTTPStatus.UNAUTHORIZED, r.status_code_code
         www_auth = "www-authenticate"
         assert www_auth in r.headers, r.headers
         auth_header = r.headers[www_auth]
@@ -187,25 +187,25 @@ def run(args):
         assert (
             network.consortium.get_member_by_id(0)
             .vote(primary, new_member_proposal, accept=True)
-            .status
+            .status_code_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(0)
             .vote(primary, new_member_proposal, accept=False)
-            .status
+            .status_code_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(1)
             .vote(primary, new_member_proposal, accept=True)
-            .status
+            .status_code_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(1)
             .vote(primary, new_member_proposal, accept=False)
-            .status
+            .status_code_code
             == params_error
         )
 
@@ -213,7 +213,7 @@ def run(args):
         response = network.consortium.get_member_by_id(
             new_member_proposal.proposer_id
         ).withdraw(primary, new_member_proposal)
-        assert response.status == params_error
+        assert response.status_code_code == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
         proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(
@@ -225,7 +225,7 @@ def run(args):
                 False
             ), "New non-active member should get insufficient rights response"
         except infra.proposal.ProposalNotCreated as e:
-            assert e.response.status == http.HTTPStatus.FORBIDDEN.value
+            assert e.response.status_code_code == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("New member ACK")
         new_member.ack(primary)
@@ -248,11 +248,11 @@ def run(args):
         response = network.consortium.get_member_by_id(1).withdraw(
             primary, trust_node_proposal
         )
-        assert response.status == http.HTTPStatus.FORBIDDEN.value
+        assert response.status_code_code == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("Proposer withdraws their proposal")
         response = new_member.withdraw(primary, trust_node_proposal)
-        assert response.status == http.HTTPStatus.OK.value
+        assert response.status_code_code == http.HTTPStatus.OK.value
         assert trust_node_proposal.state == infra.proposal.ProposalState.Withdrawn
 
         proposals = network.consortium.get_proposals(primary)
@@ -265,14 +265,14 @@ def run(args):
 
         LOG.debug("Further withdraw proposals fail")
         response = new_member.withdraw(primary, trust_node_proposal)
-        assert response.status == params_error
+        assert response.status_code_code == params_error
 
         LOG.debug("Further votes fail")
         response = new_member.vote(primary, trust_node_proposal, accept=True)
-        assert response.status == params_error
+        assert response.status_code_code == params_error
 
         response = new_member.vote(primary, trust_node_proposal, accept=False)
-        assert response.status == params_error
+        assert response.status_code_code == params_error
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with Raft
@@ -289,7 +289,7 @@ def run(args):
                 )
                 assert False, "Retired member cannot make a new proposal"
             except infra.proposal.ProposalNotCreated as e:
-                assert e.response.status == http.HTTPStatus.FORBIDDEN.value
+                assert e.response.status_code_code == http.HTTPStatus.FORBIDDEN.value
                 assert e.response.body == "Member is not active"
 
             LOG.debug("New member should still be able to make a new proposal")
