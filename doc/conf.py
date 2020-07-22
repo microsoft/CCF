@@ -14,9 +14,9 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import os
+import sys
+sys.path.insert(0, os.path.abspath('../python'))
 
 
 # -- Project information -----------------------------------------------------
@@ -51,6 +51,7 @@ extensions = [
     "sphinx.ext.githubpages",
     "sphinx_multiversion",
     "sphinx_copybutton",
+    "sphinx.ext.autodoc"
 ]
 
 autosectionlabel_prefix_document = True
@@ -213,4 +214,5 @@ def setup(self):
     srcdir = pathlib.Path(self.srcdir)
 
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
-    subprocess.run(["doxygen"], cwd=srcdir / '..', check=True)
+    # TODO: Revert
+    # subprocess.run(["doxygen"], cwd=srcdir / '..', check=True)

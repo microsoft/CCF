@@ -427,6 +427,10 @@ class WSClient:
 
 
 class CCFClient:
+    """
+    CCFClient class to communicate with CCF nodes
+    """
+
     def __init__(self, host, port, *args, **kwargs):
         self.description = (
             kwargs.pop("description") if "description" in kwargs else None

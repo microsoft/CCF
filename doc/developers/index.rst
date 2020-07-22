@@ -20,4 +20,5 @@ These endpoints mutate the state of a unique :ref:`developers/kv/index:Key-Value
   cryptography
   threading
   performance
+  python
   api
