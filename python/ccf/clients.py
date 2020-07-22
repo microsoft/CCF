@@ -21,6 +21,8 @@ from loguru import logger as LOG
 from requests_http_signature import HTTPSignatureAuth
 import websocket
 
+import ccf.commit
+
 
 def truncate(string, max_len=256):
     if len(string) > max_len:
@@ -36,6 +38,7 @@ CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
 DEFAULT_REQUEST_TIMEOUT_SEC = 3
+DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 
 class Request:
@@ -49,12 +52,23 @@ class Request:
         self.headers = headers
         self.params_in_query = http_verb == "GET" or http_verb == "DELETE"
 
+    def get_params(self):
+        if self.params_in_query and self.params is not None:
+            return f"?{build_query_string(self.params)}"
+        else:
+            return truncate(f"{self.params}") if self.params is not None else ""
+
     def __str__(self):
-        return (
-            f"{self.http_verb} {self.path} {self.headers} " + truncate(f"{self.params}")
-            if self.params is not None
-            else ""
-        )
+        headers = self.headers or ""
+        params_ = self.get_params()
+        if self.params_in_query:
+            params = ""
+            query_params = params_
+        else:
+            params = params_
+            query_params = ""
+
+        return f"{self.http_verb} {self.path}{query_params} {headers} {params}"
 
 
 def int_or_none(v):
@@ -71,8 +85,7 @@ class FakeSocket:
 
 class Response:
     """
-    Response to request.
-
+    Response to request sent via :py:class:`ccf.clients.CCFClient`
     """
 
     def __init__(self, status_code, body, seqno, view, global_commit, headers):
@@ -80,23 +93,14 @@ class Response:
         self.status_code = status_code
         #: Response body
         self.body = body
-        #: CCF transaction sequence number
+        #: CCF sequence number
         self.seqno = seqno
-        #: CCF transaction consensus view
+        #: CCF consensus view
         self.view = view
         #: CCF global commit sequence number (deprecated)
         self.global_commit = global_commit
         #: Response HTTP headers
         self.headers = headers
-
-    # TODO: what's this for?
-    def to_dict(self):
-        return {
-            "seqno": self.seqno,
-            "global_commit": self.global_commit,
-            "view": self.view,
-            "body": self.body,
-        }
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
@@ -212,9 +216,8 @@ class CurlClient:
 
             url = f"https://{self.host}:{self.port}{request.path}"
 
-            if request.params_in_query:
-                if request.params is not None:
-                    url += f"?{build_query_string(request.params)}"
+            if request.params_in_query and request.params is not None:
+                url += f"?{request.get_params()}"
 
             cmd += [
                 url,
@@ -425,7 +428,7 @@ class WSClient:
 
 class CCFClient:
     """
-    Client to communicate with a given CCF node.
+    Client used to issue requests to a given CCF node.
 
     This is a very thin wrapper around Python Requests with added:
 
@@ -487,7 +490,7 @@ class CCFClient:
             description = f" ({self.description})" + (" [signed]" if signed else "")
 
         r = Request(path, params, http_verb, headers)
-        LOG.info(f"{self.name} {r} ({description})")
+        LOG.info(f"{self.name} {r} {description}")
         return self._response(self.client_impl.request(r, signed, timeout))
 
     def call(
@@ -500,9 +503,9 @@ class CCFClient:
         timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
     ):
         """
-        Issues one request, synchronously, and returns the reponse.
+        Issues one request, synchronously, and returns the response.
 
-        :param str path: URI of the resource.
+        :param str path: URI of the targeted resource.
         :param dict params: Request parameters (optional).
         :param http_verb: HTTP verb (e.g. "POST" or "GET").
         :param headers: HTTP request headers (optional).
@@ -566,6 +569,20 @@ class CCFClient:
         :return: :py:class:`ccf.clients.Response`
         """
         return self.call(*args, http_verb="DELETE", **kwargs)
+
+    def wait_for_commit(self, response, timeout=DEFAULT_COMMIT_TIMEOUT_SEC):
+        """
+        Given a :py:class:`ccf.clients.Response`, this functions waits
+        for the associated sequence number and view be committed by the CCF network.
+
+        The client will poll the `/node/tx` endpoint until `COMMITTED` is returned.
+
+        :param ccf.clients.Response response: Response returned by :py:class:`ccf.clients.CCFClient.
+        :param int timeout: Maximum time (secs) to wait for commit before giving up.
+
+        A TimeoutError is raised if the transaction is not committed within ``timeout`` seconds.
+        """
+        ccf.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
 
 @contextlib.contextmanager

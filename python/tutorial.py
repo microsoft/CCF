@@ -1,4 +1,3 @@
-
 # SNIPPET: import_clients
 import ccf.clients
 
@@ -28,13 +27,24 @@ assert r.status_code == http.HTTPStatus.OK
 # SNIPPET: authenticated_client
 user_client = ccf.clients.CCFClient(host, port, ca, cert, key)
 
-# SNIPPET_START: authenticated_requests
-r = user_client.post("/app/log/hohoh", params={"id": 0, "msg": "Private message"})
+# SNIPPET_START: authenticated_post_requests
+r = user_client.post("/app/log/private", params={"id": 0, "msg": "Private message"})
 assert r.status_code == http.HTTPStatus.OK
 r = user_client.post("/app/log/public", params={"id": 0, "msg": "Public message"})
 assert r.status_code == http.HTTPStatus.OK
-# SNIPPET_END: authenticated_requests
+# SNIPPET_END: authenticated_post_requests
 
-# TODO: Checker
+# SNIPPET_START: authenticated_get_requests
+r = user_client.get("/app/log/private", params={"id": 0})
+assert r.status_code == http.HTTPStatus.OK
+assert r.body == {"msg": "Private message"}
+r = user_client.get("/app/log/public", params={"id": 0})
+assert r.status_code == http.HTTPStatus.OK
+assert r.body == {"msg": "Public message"}
+# SNIPPET_END: authenticated_post_requests
 
+# SNIPPET: wait_for_commit
+# user_client.wait_for_commit(r)
 
+# SNIPPED: any_client_can_wait
+anonymous_client.wait_for_commit(r)
