@@ -8,16 +8,10 @@ if(NOT DEFINED OE_BINDIR)
   )
 endif()
 
-# Run OE script to create local binary directory (at configure time!)
-set(LVI_MITIGATION_BINDIR ${CMAKE_CURRENT_BINARY_DIR}/lvi_mitigation_bin)
-execute_process(
-  COMMAND echo yes
-  COMMAND ${OE_BINDIR}/scripts/lvi-mitigation/install_lvi_mitigation_bindir
-  RESULT_VARIABLE LVI_BIN_DIR_RET
-)
-
-if(NOT LVI_BIN_DIR_RET EQUAL "0")
-    message(FATAL_ERROR "Failed to create LVI mitigation binary directory")
+# Check that LVI mitigations have been installed into expected dir
+set(LVI_MITIGATION_BINDIR ${OE_BINDIR}/lvi_mitigation_bin)
+if(NOT IS_DIRECTORY "${LVI_MITIGATION_BINDIR}")
+    message(FATAL_ERROR "LVI mitigation tools must be installed at ${LVI_MITIGATION_BINDIR}")
 endif()
 
 # OE_LVI_MITIGATION holds the value of LVI_MITIGATION from the configuration of

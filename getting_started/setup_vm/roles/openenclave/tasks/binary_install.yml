@@ -5,3 +5,10 @@
   apt:
     deb: "{{ oe_deb }}"
   become: true
+
+- name: Install LVI mitigation tools
+  shell: |
+    echo yes | ./scripts/lvi-mitigation/install_lvi_mitigation_bindir
+  args:
+    chdir: /opt/openenclave/bin
+  become: true
