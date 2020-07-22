@@ -92,10 +92,8 @@ namespace ccf
       std::string method;
       EndpointFunction func;
       EndpointRegistry* registry = nullptr;
-
+      Metrics metrics = {};
       nlohmann::json params_schema = nullptr;
-
-      Metrics metrics;
 
       /** Sets the JSON schema that the request parameters must comply with.
        *
@@ -503,7 +501,7 @@ namespace ccf
      */
     Endpoint& set_default(EndpointFunction f)
     {
-      default_endpoint = {"", f, this, {}, {}};
+      default_endpoint = {"", f, this};
       return default_endpoint.value();
     }
 
