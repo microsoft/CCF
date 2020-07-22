@@ -7,7 +7,6 @@ import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
 import time
-import pprint
 
 from loguru import logger as LOG
 
