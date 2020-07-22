@@ -19,7 +19,9 @@ steps:
       -p ../../build/liblogging \
       -b $INSTALL_PREFIX/bin \
       -g $(pwd)/../../src/runtime_config/gov.lua \
-      -v
+      -v &
+    sleep 20
+    python3.7 ../../python/tutorial.py client_info.txt
     cp -r ./workspace/start_network_0/0.ledger .
     cp ./workspace/start_network_0/network_enc_pubk.pem .
     timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \

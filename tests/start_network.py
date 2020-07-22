@@ -4,8 +4,18 @@ import infra.e2e_args
 import infra.network
 import time
 import sys
+import json
 
 from loguru import logger as LOG
+
+def dump_client_info(path, network, node):
+    client_info = {}
+    client_info["host"] = node.pubhost
+    client_info["port"] = node.rpc_port
+    client_info["common_dir"] = network.common_dir
+
+    with open(path, "w") as client_info_file:
+        json.dump(client_info, client_info_file)
 
 
 def run(args):
@@ -50,6 +60,9 @@ def run(args):
         for b in backups:
             LOG.info("  Node [{:2d}] = {}:{}".format(b.node_id, b.pubhost, b.rpc_port))
 
+        # Dump primary info to file to tutorial testing
+        dump_client_info(args.client_info_file, network, primary)
+
         LOG.info(
             f"You can now issue business transactions to the {args.package} application."
         )
@@ -90,6 +103,11 @@ if __name__ == "__main__":
             help="If set, start up logs are displayed",
             action="store_true",
             default=False,
+        )
+        parser.add_argument(
+            "--client-info-file",
+            help="Path to output file where client information will be dumped to (useful for scripting)",
+            default="client_info.txt"
         )
         parser.add_argument(
             "-r",

@@ -1,17 +1,29 @@
+import sys
+import http
+import json
+import os
+
 # SNIPPET: import_clients
 import ccf.clients
 
-# SNIPPET: import_checker
-import infra.checker
+# Load client info file.
+if len(sys.argv) < 2:
+    print("Client info file should be specified as first argument")
+    sys.exit(1)
 
-import http
+client_info_file = sys.argv[1]
 
-host = "127.159.75.34"
-port = 42099
-common_dir = "/datadrive/git/CCF/build/workspace/test_network_common/"
-ca = f"{common_dir}/networkcert.pem"
-cert = f"{common_dir}/user0_cert.pem"
-key = f"{common_dir}/user0_privk.pem"
+client_info = {}
+with open(sys.argv[1]) as client_info_file:
+    client_info = json.load(client_info_file)
+
+host = client_info["host"]
+port = client_info["port"]
+common_dir = client_info["common_dir"]
+ca = os.path.join(common_dir, "networkcert.pem")
+cert = os.path.join(common_dir, "user0_cert.pem")
+key = os.path.join(common_dir, "user0_privk.pem")
+# Client info loaded. Tutorial starts below.
 
 
 # SNIPPET: anonymous_client
