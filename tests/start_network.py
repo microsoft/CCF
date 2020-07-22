@@ -120,4 +120,5 @@ if __name__ == "__main__":
             "Error: --recover requires --ledger, --network-enc-pubk and --common-dir arguments."
         )
         sys.exit(1)
+
     run(args)
