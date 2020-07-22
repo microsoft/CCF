@@ -76,12 +76,23 @@ class FakeSocket:
 
 
 class Response:
-    def __init__(self, status, body, seqno, view, global_commit, headers):
-        self.status = status
+    """
+    Response to request.
+
+    """
+
+    def __init__(self, status_code, body, seqno, view, global_commit, headers):
+        #: Response HTTP status code
+        self.status_code = status_code
+        #: Response body
         self.body = body
+        #: CCF transaction sequence number
         self.seqno = seqno
+        #: CCF transaction consensus view
         self.view = view
+        #: CCF global commit sequence number (deprecated)
         self.global_commit = global_commit
+        #: Response HTTP headers
         self.headers = headers
 
     # TODO: what's this for?
@@ -96,7 +107,7 @@ class Response:
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
         return (
-            f"{self.status} "
+            f"{self.status_code} "
             + (f"@{self.view}.{self.seqno} " if versioned else "")
             + truncate(f"{self.body}")
         )
@@ -114,7 +125,7 @@ class Response:
             raise ValueError(f"Unhandled content type: {content_type}")
 
         return Response(
-            status=rr.status_code,
+            status_code=rr.status_code,
             body=parsed_body,
             seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
@@ -140,7 +151,7 @@ class Response:
             raise ValueError(f"Unhandled content type: {content_type}")
 
         return Response(
-            status=response.status,
+            status_code=response.status,
             body=parsed_body,
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
@@ -184,15 +195,7 @@ class CurlClient:
     """
 
     def __init__(
-        self,
-        host,
-        port,
-        cert=None,
-        key=None,
-        ca=None,
-        binary_dir=".",
-        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
-        **kwargs,
+        self, host, port, cert=None, key=None, ca=None, binary_dir=".", **kwargs,
     ):
         self.host = host
         self.port = port
@@ -200,7 +203,6 @@ class CurlClient:
         self.key = key
         self.ca = ca
         self.binary_dir = binary_dir
-        self.request_timeout = request_timeout
 
         ca_curve = get_curve(self.ca)
         if ca_curve.name == "secp256k1":
@@ -209,7 +211,7 @@ class CurlClient:
                 "Use RequestClient class instead."
             )
 
-    def request(self, request, is_signed=False):
+    def request(self, request, is_signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         with tempfile.NamedTemporaryFile() as nf:
             if is_signed:
                 cmd = [os.path.join(self.binary_dir, "scurl.sh")]
@@ -227,7 +229,7 @@ class CurlClient:
                 "-X",
                 request.http_verb,
                 "-i",
-                f"-m {self.request_timeout}",
+                f"-m {timeout}",
             ]
 
             if not request.params_in_query and request.params is not None:
@@ -308,7 +310,7 @@ class RequestClient:
         cert=None,
         key=None,
         ca=None,
-        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+        # request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
         **kwargs,
     ):
         self.host = host
@@ -316,13 +318,13 @@ class RequestClient:
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.request_timeout = request_timeout
+        # self.request_timeout = request_timeout
         self.session = requests.Session()
         self.session.verify = self.ca
         self.session.cert = (self.cert, self.key)
         self.session.mount("https://", TlsAdapter(self.ca))
 
-    def request(self, request, is_signed=False):
+    def request(self, request, is_signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         extra_headers = {}
         extra_headers.update(request.headers)
 
@@ -355,9 +357,7 @@ class RequestClient:
                 request_args["json"] = request_params
 
         try:
-            response = self.session.request(
-                timeout=self.request_timeout, **request_args
-            )
+            response = self.session.request(timeout=timeout, **request_args)
         except requests.exceptions.ReadTimeout as exc:
             raise TimeoutError from exc
         except requests.exceptions.SSLError as exc:
@@ -370,24 +370,16 @@ class RequestClient:
 
 class WSClient:
     def __init__(
-        self,
-        host,
-        port,
-        cert=None,
-        key=None,
-        ca=None,
-        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
-        **kwargs,
+        self, host, port, cert=None, key=None, ca=None, **kwargs,
     ):
         self.host = host
         self.port = port
         self.cert = cert
         self.key = key
         self.ca = ca
-        self.request_timeout = request_timeout
         self.ws = None
 
-    def request(self, request, is_signed=False):
+    def request(self, request, is_signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         assert not is_signed
 
         if not self.ws:
@@ -400,7 +392,7 @@ class WSClient:
                         "keyfile": self.key,
                         "ca_certs": self.ca,
                     },
-                    timeout=self.request_timeout,
+                    timeout=timeout,
                 )
             except Exception as exc:
                 raise CCFConnectionException from exc
@@ -413,22 +405,37 @@ class WSClient:
         )
         self.ws.send_frame(frame)
         out = self.ws.recv_frame().data
-        (status,) = struct.unpack("<h", out[:2])
+        (status_code,) = struct.unpack("<h", out[:2])
         (seqno,) = struct.unpack("<Q", out[2:10])
         (view,) = struct.unpack("<Q", out[10:18])
         (global_commit,) = struct.unpack("<Q", out[18:26])
         payload = out[26:]
         # TODO: move out the decoding!
-        if status == 200:
+        if status_code == 200:
             body = json.loads(payload) if payload else None
         else:
             body = payload.decode()
-        return Response(status, body, seqno, view, global_commit, headers={})
+        return Response(status_code, body, seqno, view, global_commit, headers={})
 
 
 class CCFClient:
     """
-    CCFClient class to communicate with CCF nodes
+    Client to communicate with a given CCF node.
+
+    This is a very thin wrapper around Python Requests with:
+
+    - Retry logic when connecting to nodes that are joining the network
+    - Support for HTTP signatures (https://tools.ietf.org/html/draft-cavage-http-signatures-12).
+
+    Note: Experimental support for WebSocket is also available by setting ``ws`` parameter to ``True``.
+
+    :param str host: RPC IP address or domain name of node to connect to.
+    :param int port: RPC port number of node to connect to.
+    :param str cert: Path to client certificate (optional).
+    :param str key: Path to client private key (optional).
+    :param str ca: Path to CCF network certificate.
+    :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
+    :param bool ws: Use WebSocket client (experimental).
     """
 
     def __init__(self, host, port, *args, **kwargs):
@@ -465,6 +472,19 @@ class CCFClient:
         return self._response(self.client_impl.request(r, is_signed))
 
     def call(self, *args, **kwargs):
+        """
+        Issue request.
+
+        :param str method:
+        :param bool signed: Sign request with client private key. TODO: Only if true?
+        :param params: Request parameters.
+        :param str http_verb: HTTP verb (e.g. "GET" or "POST").
+
+        # TODO: More
+
+        :return: :py:class:`ccf.clients.Response`
+
+        """
         end_time = time.time() + self.connection_timeout
         while True:
             try:
@@ -484,15 +504,45 @@ class CCFClient:
                 time.sleep(0.1)
 
     def get(self, *args, **kwargs):
+        """
+        Issue GET request.
+
+        Wrapper for ``call()`` with ``http_verb`` set to ``GET``.
+
+        # TODO: No argument?
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         return self.call(*args, http_verb="GET", **kwargs)
 
     def post(self, *args, **kwargs):
+        """
+        Issue POST request.
+
+        Wrapper for ``call()`` with ``http_verb`` set to ``POST``.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         return self.call(*args, http_verb="POST", **kwargs)
 
     def put(self, *args, **kwargs):
+        """
+        Issue PUT request.
+
+        Wrapper for ``call()`` with ``http_verb`` set to ``PUT``.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         return self.call(*args, http_verb="PUT", **kwargs)
 
     def delete(self, *args, **kwargs):
+        """
+        Issue DELETE request.
+
+        Wrapper for ``call()`` with `http_verb`` set to ``DELETE``.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         return self.call(*args, http_verb="DELETE", **kwargs)
 
 
@@ -506,7 +556,7 @@ def client(
     description=None,
     binary_dir=".",
     connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
-    request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+    # request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
     ws=False,
 ):
     c = CCFClient(
@@ -518,7 +568,7 @@ def client(
         description=description,
         binary_dir=binary_dir,
         connection_timeout=connection_timeout,
-        request_timeout=request_timeout,
+        # request_timeout=request_timeout,
         ws=ws,
     )
 

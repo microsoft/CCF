@@ -1,15 +1,18 @@
 Python
 ======
 
-CCFClient
----------
+Client
+------
 
 .. autoclass:: ccf.clients.CCFClient
     :members:
 
+.. autoclass:: ccf.clients.Response
+    :members:
+
 
 .. autoclass:: ccf.checker.Checker
-    :members:
+    :members: __call__
 
 Proposal Generator
 ------------------

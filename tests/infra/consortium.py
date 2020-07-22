@@ -348,10 +348,7 @@ class Consortium:
         """
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
-        with remote_node.client(
-            f"member{self.get_any_active_member().member_id}",
-            request_timeout=(30 if pbft_open else 3),
-        ) as c:
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post(
                 "/gov/query",
                 {
@@ -373,6 +370,7 @@ class Consortium:
                     return service
                     """
                 },
+                timeout=(30 if pbft_open else 3),
             )
             current_status = r.body["status"]
             current_cert = array.array("B", r.body["cert"]).tobytes()

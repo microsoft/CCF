@@ -206,6 +206,14 @@ html_context = {
     "doc_path": "doc/",
 }
 
+# Python autodoc options
+autodoc_default_options = {
+    # 'members':         True,
+    'member-order':    'bysource',
+    # 'special-members': '__init__',
+}
+
+
 
 def setup(self):
     import subprocess

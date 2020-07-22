@@ -509,7 +509,7 @@ class Network:
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3, request_timeout=3):
+    def find_primary(self, timeout=3):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -520,9 +520,9 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in self.get_joined_nodes():
-                with node.client(request_timeout=request_timeout) as c:
+                with node.client() as c:
                     try:
-                        res = c.get("/node/primary_info")
+                        res = c.get("/node/primary_info", timeout=request_timeout)
                         if res.status == 200:
                             primary_id = res.body["primary_id"]
                             view = res.body["current_view"]

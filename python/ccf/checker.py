@@ -35,6 +35,12 @@ def wait_for_global_commit(client, seqno, view, timeout=3):
 
 
 class Checker:
+    """
+    Utility to verify that a CCF transaction has been committed.
+
+    :param ccf.clients.CCFClient client: CCF client used to verify response.
+    :param notification_queue: Notification queue.
+    """
     def __init__(self, client=None, notification_queue=None):
         self.client = client
         self.notification_queue = notification_queue
@@ -42,6 +48,12 @@ class Checker:
 
     # TODO: that API's not right!
     def __call__(self, rpc_result, result=None, error=None, timeout=2):
+        """
+        Lalala.
+
+        :param ccf.clients.Response rpc_result: Hey there.
+
+        """
         if error is not None:
             if callable(error):
                 assert error(
