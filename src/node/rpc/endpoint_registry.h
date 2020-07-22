@@ -503,7 +503,7 @@ namespace ccf
      */
     Endpoint& set_default(EndpointFunction f)
     {
-      default_endpoint = {"", f, this};
+      default_endpoint = {"", f, this, {}, {}};
       return default_endpoint.value();
     }
 
@@ -532,7 +532,7 @@ namespace ccf
       }
     }
 
-    virtual void endpoint_metrics(kv::Tx& tx, EndpointMetrics::Out& out)
+    virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)
     {
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {

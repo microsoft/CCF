@@ -217,7 +217,6 @@ namespace ccf
 
       auto list_methods_fn = [this](kv::Tx& tx, nlohmann::json&&) {
         ListMethods::Out out;
-
         list_methods(tx, out);
 
         return make_success(out);
@@ -226,9 +225,8 @@ namespace ccf
         .set_auto_schema<void, ListMethods::Out>()
         .install();
 
-      auto endpoint_metrics_fn = [this](kv::Tx& tx, nlohmann::json&& params) {
+      auto endpoint_metrics_fn = [this](kv::Tx& tx, nlohmann::json&&) {
         EndpointMetrics::Out out;
-
         endpoint_metrics(tx, out);
 
         return make_success(out);
