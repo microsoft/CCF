@@ -77,6 +77,22 @@ namespace ccf
       endpoints.set_history(history);
     }
 
+    void update_metrics(
+      const std::shared_ptr<enclave::RpcContext> ctx,
+      EndpointRegistry::Metrics& m)
+    {
+      int cat = ctx->get_response_status() / 100;
+      switch (cat)
+      {
+        case 4:
+          m.errors++;
+          return;
+        case 5:
+          m.failures++;
+          return;
+      }
+    }
+
     std::vector<uint8_t> get_cert_to_forward(
       std::shared_ptr<enclave::RpcContext> ctx,
       EndpointRegistry::Endpoint* endpoint = nullptr)
@@ -118,7 +134,7 @@ namespace ccf
         ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
         ctx->set_response_body(
           "RPC could not be forwarded to unknown primary.");
-        endpoint->metrics.failures++;
+        update_metrics(ctx, endpoint->metrics);
         return ctx->serialise_response();
       }
       else
@@ -141,6 +157,7 @@ namespace ccf
           }
         }
 
+        update_metrics(ctx, endpoint->metrics);
         return ctx->serialise_response();
       }
     }
@@ -253,6 +270,8 @@ namespace ccf
         }
       }
 
+      // Note: calls that could not be dispatched (cases handled above)
+      // are not counted against any particular endpoint.
       endpoint->metrics.calls++;
 
       if (endpoint->require_client_identity && endpoints.has_certs())
@@ -267,7 +286,7 @@ namespace ccf
         {
           ctx->set_response_status(HTTP_STATUS_FORBIDDEN);
           ctx->set_response_body(invalid_caller_error_message());
-          endpoint->metrics.errors++;
+          update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
       }
@@ -280,7 +299,7 @@ namespace ccf
       {
         set_response_unauthorized(
           ctx, fmt::format("'{}' RPC must be signed", ctx->get_method()));
-        endpoint->metrics.errors++;
+        update_metrics(ctx, endpoint->metrics);
         return ctx->serialise_response();
       }
 
@@ -300,7 +319,7 @@ namespace ccf
             ctx->session->caller_cert, caller_id, signed_request.value()))
         {
           set_response_unauthorized(ctx);
-          endpoint->metrics.errors++;
+          update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
 
@@ -356,7 +375,7 @@ namespace ccf
 
           if (!ctx->should_apply_writes())
           {
-            //TODO: return based on status
+            update_metrics(ctx, endpoint->metrics);
             return ctx->serialise_response();
           }
 
@@ -392,7 +411,7 @@ namespace ccf
                 }
               }
 
-              //TODO: return based on status
+              update_metrics(ctx, endpoint->metrics);
               return ctx->serialise_response();
             }
 
@@ -405,7 +424,7 @@ namespace ccf
             {
               ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
               ctx->set_response_body("Transaction failed to replicate.");
-              endpoint->metrics.failures++;
+              update_metrics(ctx, endpoint->metrics);
               return ctx->serialise_response();
             }
           }
@@ -414,7 +433,7 @@ namespace ccf
         {
           ctx->set_response_status(e.status);
           ctx->set_response_body(e.what());
-          endpoint->metrics.failures++;
+          update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
         catch (JsonParseError& e)
@@ -422,7 +441,7 @@ namespace ccf
           auto err = fmt::format("At {}:\n\t{}", e.pointer(), e.what());
           ctx->set_response_status(HTTP_STATUS_BAD_REQUEST);
           ctx->set_response_body(std::move(err));
-          endpoint->metrics.failures++;
+          update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
         catch (const kv::KvSerialiserException& e)
@@ -438,7 +457,7 @@ namespace ccf
         {
           ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
           ctx->set_response_body(e.what());
-          endpoint->metrics.failures++;
+          update_metrics(ctx, endpoint->metrics);
           return ctx->serialise_response();
         }
       }

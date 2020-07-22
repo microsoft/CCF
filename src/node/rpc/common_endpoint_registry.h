@@ -231,7 +231,8 @@ namespace ccf
 
         return make_success(out);
       };
-      make_endpoint("endpoint_metrics", HTTP_GET, json_adapter(endpoint_metrics_fn))
+      make_endpoint(
+        "endpoint_metrics", HTTP_GET, json_adapter(endpoint_metrics_fn))
         .set_auto_schema<void, EndpointMetrics::Out>()
         .install();
 

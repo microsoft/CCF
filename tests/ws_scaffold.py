@@ -17,7 +17,7 @@ from loguru import logger as LOG
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     primary, other = network.find_primary_and_any_backup()
-            
+
     msg = "Hello world"
     LOG.info("Write on primary")
     with primary.client("user0", ws=True) as c:

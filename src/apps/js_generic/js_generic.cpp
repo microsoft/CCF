@@ -290,8 +290,14 @@ namespace ccfapp
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {
-        out.endpoints.push_back({"POST", key});
-        return true;
+        size_t s = key.find(' ');
+        if (s != std::string::npos)
+        {
+          out.endpoints.push_back(
+            {key.substr(0, s), key.substr(s + 1, key.size() - (s + 1))});
+          return true;
+        }
+        return false;
       });
     }
   };

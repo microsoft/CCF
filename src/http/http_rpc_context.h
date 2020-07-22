@@ -285,6 +285,11 @@ namespace http
       response_status = (http_status)status;
     }
 
+    virtual int get_response_status() const override
+    {
+      return response_status;
+    }
+
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) override
     {

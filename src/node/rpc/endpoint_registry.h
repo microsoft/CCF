@@ -517,7 +517,7 @@ namespace ccf
     {
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
-        for (const auto& [verb, endpoint]: verb_endpoints)
+        for (const auto& [verb, endpoint] : verb_endpoints)
         {
           out.endpoints.push_back({verb.c_str(), path});
         }
@@ -525,7 +525,7 @@ namespace ccf
 
       for (const auto& [path, verb_endpoints] : templated_endpoints)
       {
-        for (const auto& [verb, endpoint]: verb_endpoints)
+        for (const auto& [verb, endpoint] : verb_endpoints)
         {
           out.endpoints.push_back({verb.c_str(), path});
         }
@@ -536,17 +536,25 @@ namespace ccf
     {
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
-        for (const auto& [verb, endpoint]: verb_endpoints)
+        for (const auto& [verb, endpoint] : verb_endpoints)
         {
-          out.metrics.push_back({verb.c_str(), path, endpoint.metrics.calls, endpoint.metrics.errors, endpoint.metrics.failures});
+          out.metrics.push_back({verb.c_str(),
+                                 path,
+                                 endpoint.metrics.calls,
+                                 endpoint.metrics.errors,
+                                 endpoint.metrics.failures});
         }
       }
 
       for (const auto& [path, verb_endpoints] : templated_endpoints)
       {
-        for (const auto& [verb, endpoint]: verb_endpoints)
+        for (const auto& [verb, endpoint] : verb_endpoints)
         {
-          out.metrics.push_back({verb.c_str(), path, endpoint.metrics.calls, endpoint.metrics.errors, endpoint.metrics.failures});
+          out.metrics.push_back({verb.c_str(),
+                                 path,
+                                 endpoint.metrics.calls,
+                                 endpoint.metrics.errors,
+                                 endpoint.metrics.failures});
         }
       }
     }
