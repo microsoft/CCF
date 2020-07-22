@@ -198,6 +198,9 @@ class Ledger:
 
     def __init__(self, name: str):
 
+        self._filenames = []
+        self._fileindex = 0
+
         contents = os.listdir(name)
         # Sorts the list based off the first number after ledger_ so that the ledger is verified in sequence
         sort = sorted(
@@ -216,7 +219,6 @@ class Ledger:
                     LOG.warning(f"The file {chunk} has not been committed")
                     self._filenames.append(os.path.join(name, chunk))
 
-        self._fileindex = 0
         self._current_tx = Transaction(self._filenames[0])
 
     def __next__(self):

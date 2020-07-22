@@ -88,12 +88,17 @@ def run(args):
         )
         proposals_issued += 1
 
-        response = network.consortium.get_member_by_id(
-            new_member_proposal.proposer_id
-        ).withdraw(primary, new_member_proposal)
+        with primary.client() as c:
+            response = network.consortium.get_member_by_id(
+                new_member_proposal.proposer_id
+            ).withdraw(primary, new_member_proposal)
+            ccf.checker.Checker(c)(response)
         assert response.status == http.HTTPStatus.OK.value
         assert response.body["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1
+
+    # Refresh ledger to beginning
+    ledger = ccf.ledger.Ledger(ledger_directory)
 
     (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(
         ledger
