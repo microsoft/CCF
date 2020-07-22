@@ -8,7 +8,7 @@ import infra.network
 import infra.proc
 import infra.notification
 import infra.net
-import ccf.checker
+import infra.checker
 import suite.test_requirements as reqs
 import infra.e2e_args
 
@@ -25,7 +25,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
 
     # Set extended timeout, since some of these successful transactions will take many seconds
     with primary.client("user0") as c:
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
 
         message_ids = [next(id_gen) for _ in range(batch_size)]
         messages = [

@@ -41,6 +41,13 @@ DEFAULT_REQUEST_TIMEOUT_SEC = 3
 DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 
+def build_query_string(params):
+    return "&".join(
+        f"{urllib.parse.quote_plus(k)}={urllib.parse.quote_plus(json.dumps(v))}"
+        for k, v in params.items()
+    )
+
+
 class Request:
     def __init__(self, path, params=None, http_verb="POST", headers=None):
         if headers is None:
@@ -171,13 +178,6 @@ class CCFConnectionException(Exception):
     pass
 
 
-def build_query_string(params):
-    return "&".join(
-        f"{urllib.parse.quote_plus(k)}={urllib.parse.quote_plus(json.dumps(v))}"
-        for k, v in params.items()
-    )
-
-
 def get_curve(ca_file):
     # Auto detect EC curve to use based on server CA
     ca_bytes = open(ca_file, "rb").read()
@@ -217,7 +217,7 @@ class CurlClient:
             url = f"https://{self.host}:{self.port}{request.path}"
 
             if request.params_in_query and request.params is not None:
-                url += f"?{request.get_params()}"
+                url += request.get_params()
 
             cmd += [
                 url,
@@ -446,6 +446,8 @@ class CCFClient:
     :param str description: Message to print on each request emitted with this client.
     :param str binary_dir: Path to binary directory (curl client only).
     :param bool ws: Use WebSocket client (experimental).
+
+    A CCFConnectionException exception if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
     def __init__(
@@ -575,12 +577,12 @@ class CCFClient:
         Given a :py:class:`ccf.clients.Response`, this functions waits
         for the associated sequence number and view be committed by the CCF network.
 
-        The client will poll the `/node/tx` endpoint until `COMMITTED` is returned.
+        The client will poll the ``/node/tx`` endpoint until ``COMMITTED`` is returned.
 
         :param ccf.clients.Response response: Response returned by :py:class:`ccf.clients.CCFClient.
         :param int timeout: Maximum time (secs) to wait for commit before giving up.
 
-        A TimeoutError is raised if the transaction is not committed within ``timeout`` seconds.
+        A TimeoutError exception is raised if the transaction is not committed within ``timeout`` seconds.
         """
         ccf.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 

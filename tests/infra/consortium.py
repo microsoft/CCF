@@ -8,7 +8,7 @@ import http
 import random
 import infra.network
 import infra.proc
-import ccf.checker
+import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
@@ -304,7 +304,7 @@ class Consortium:
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
         with remote_node.client() as nc:
-            check_commit = ccf.checker.Checker(nc)
+            check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_members():
                 r = m.get_and_submit_recovery_share(

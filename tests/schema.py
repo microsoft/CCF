@@ -7,7 +7,7 @@ import http
 import infra.network
 import infra.proc
 import infra.e2e_args
-import ccf.checker
+import infra.checker
 
 from loguru import logger as LOG
 
@@ -92,7 +92,7 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
 
         with primary.client("user0") as user_client:
             LOG.info("user frontend")

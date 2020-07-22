@@ -5,7 +5,7 @@ import math
 import infra.network
 import infra.proc
 import infra.e2e_args
-import ccf.checker
+import infra.checker
 import http
 import suite.test_requirements as reqs
 
@@ -71,7 +71,7 @@ def run(args):
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
 
         network.start_and_join(args)
         current_view = None

@@ -2,7 +2,7 @@
 import ccf.clients
 
 # SNIPPET: import_checker
-import ccf.checker
+import infra.checker
 
 import http
 

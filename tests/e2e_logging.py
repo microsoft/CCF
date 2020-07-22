@@ -6,7 +6,7 @@ import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
 from ccf.tx_status import TxStatus
-import ccf.checker
+import infra.checker
 import inspect
 import http
 import ssl
@@ -80,8 +80,8 @@ def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
     with primary.client() as nc:
-        check_commit = ccf.checker.Checker(nc)
-        check = ccf.checker.Checker()
+        check_commit = infra.checker.Checker(nc)
+        check = infra.checker.Checker()
 
         with primary.client("user0") as c:
             log_id = 44
@@ -107,8 +107,8 @@ def test_remove(network, args):
         primary, _ = network.find_primary()
 
         with primary.client() as nc:
-            check_commit = ccf.checker.Checker(nc)
-            check = ccf.checker.Checker()
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
 
             with primary.client("user0") as c:
                 log_id = 44
@@ -230,8 +230,8 @@ def test_historical_query(network, args):
         primary, _ = network.find_primary()
 
         with primary.client() as nc:
-            check_commit = ccf.checker.Checker(nc)
-            check = ccf.checker.Checker()
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
 
             with primary.client("user0") as c:
                 log_id = 10
@@ -301,13 +301,13 @@ def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
     with backup.client() as c:
-        check_commit = ccf.checker.Checker(c)
+        check_commit = infra.checker.Checker(c)
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
 
     with backup.client("user0") as c:
-        check_commit = ccf.checker.Checker(c)
-        check = ccf.checker.Checker()
+        check_commit = infra.checker.Checker(c)
+        check = infra.checker.Checker()
         msg = "forwarded_msg"
         log_id = 123
         check_commit(
@@ -325,7 +325,7 @@ def test_update_lua(network, args):
         LOG.info("Updating Lua application")
         primary, _ = network.find_primary()
 
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
 
         # Create a new lua application file (minimal app)
         new_app_file = "new_lua_app.lua"
@@ -374,7 +374,7 @@ def test_view_history(network, args):
         LOG.warning("Skipping view reconstruction in PBFT")
         return network
 
-    check = ccf.checker.Checker()
+    check = infra.checker.Checker()
 
     for node in network.get_joined_nodes():
         with node.client("user0") as c:
@@ -470,7 +470,7 @@ def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
     with primary.client("user0") as c:
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
         r = c.post("/app/log/private", {"id": 0, "msg": "Ignored"})
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
