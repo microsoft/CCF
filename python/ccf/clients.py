@@ -184,8 +184,8 @@ def get_curve(ca_file):
 
 class CurlClient:
     """
-    We keep this around in a limited fashion still, because
-    the resulting logs nicely illustrate manual usage in a way using the requests API doesn't
+    Curl client.
+    Note: The resulting logs nicely illustrate manual usage in a way that using other client implementations don't.
     """
 
     def __init__(self, host, port, ca=None, cert=None, key=None, binary_dir="."):
@@ -203,9 +203,9 @@ class CurlClient:
                 "Use RequestClient class instead."
             )
 
-    def request(self, request, is_signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
+    def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         with tempfile.NamedTemporaryFile() as nf:
-            if is_signed:
+            if signed:
                 cmd = [os.path.join(self.binary_dir, "scurl.sh")]
             else:
                 cmd = ["curl"]
@@ -304,7 +304,7 @@ class HTTPSignatureAuth_AlwaysDigest(HTTPSignatureAuth):
 
 class RequestClient:
     """
-    Wrapper around Python Requests, handling HTTP signatures
+    CCF default client and wrapper around Python Requests, handling HTTP signatures.
     """
 
     def __init__(self, host, port, ca, cert=None, key=None):
@@ -318,12 +318,12 @@ class RequestClient:
         self.session.cert = (self.cert, self.key)
         self.session.mount("https://", TlsAdapter(self.ca))
 
-    def request(self, request, is_signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
+    def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         extra_headers = {}
         extra_headers.update(request.headers)
 
         auth_value = None
-        if is_signed:
+        if signed:
             auth_value = HTTPSignatureAuth_AlwaysDigest(
                 algorithm="ecdsa-sha256",
                 key=open(self.key, "rb").read(),
@@ -363,6 +363,12 @@ class RequestClient:
 
 
 class WSClient:
+    """
+    CCF WebSocket client implementation.
+
+    Warning: Does not handle client signatures.
+    """
+
     def __init__(self, host, port, ca, cert=None, key=None):
         self.host = host
         self.port = port
@@ -371,8 +377,15 @@ class WSClient:
         self.key = key
         self.ws = None
 
-    def request(self, request, is_signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
-        assert not is_signed
+        ca_curve = get_curve(self.ca)
+        if ca_curve.name == "secp256k1":
+            raise RuntimeError(
+                f"WSClient cannot perform TLS handshake with {ca_curve.name} ECDH curve. "
+                "Use RequestClient class instead."
+            )
+
+    def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
+        assert not signed
 
         if not self.ws:
             LOG.info("Creating WSS connection")
