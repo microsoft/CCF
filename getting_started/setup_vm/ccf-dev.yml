@@ -1,14 +1,8 @@
 - hosts: localhost
-  vars:
-    oe_playbook: scripts/ansible/oe-contributors-acc-setup-no-driver.yml
-    oe_build_opts: ""
   tasks:
     - import_role:
         name: intel
         tasks_from: sgx-psw.yml
-    - import_role:
-        name: intel
-        tasks_from: sgx-psw-dev.yml
     - import_role:
         name: az_dcap
         tasks_from: install.yml
