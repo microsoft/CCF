@@ -6,3 +6,5 @@ Python Client API
 
 .. autoclass:: ccf.clients.Response
     :members:
+
+.. autoexception:: ccf.clients.CCFConnectionException

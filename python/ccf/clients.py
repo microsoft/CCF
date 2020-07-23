@@ -175,6 +175,9 @@ def human_readable_size(n):
 
 
 class CCFConnectionException(Exception):
+    """
+    Exception raised if a :py:class:`ccf.clients.CCFClient` instance cannot successfully establish a connection with a target CCF node.
+    """
     pass
 
 
@@ -427,14 +430,14 @@ class WSClient:
 
 class CCFClient:
     """
-    Client used to issue requests to a given CCF node.
+    Client used to connect securely and issue requests to a given CCF node.
 
-    This is a very thin wrapper around Python Requests with added:
+    This is a very thin wrapper around Python Requests with TLS with added:
 
     - Retry logic when connecting to nodes that are joining the network
     - Support for HTTP signatures (https://tools.ietf.org/html/draft-cavage-http-signatures-12).
 
-    Note: Experimental support for WebSocket is also available by setting ``ws`` parameter to ``True``.
+    Note: Experimental support for WebSocket is also available by setting the ``ws`` parameter to ``True``.
 
     :param str host: RPC IP address or domain name of node to connect to.
     :param int port: RPC port number of node to connect to.
@@ -445,7 +448,7 @@ class CCFClient:
     :param str description: Message to print on each request emitted with this client.
     :param bool ws: Use WebSocket client (experimental).
 
-    A CCFConnectionException exception if the connection is not established successfully within ``connection_timeout`` seconds.
+    A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
     """
 
     def __init__(
@@ -535,8 +538,8 @@ class CCFClient:
 
     def get(self, *args, **kwargs):
         """
-        Issue GET request.
-        Wrapper for ``call()`` with ``http_verb`` set to ``GET``.
+        Issue ``GET`` request.
+        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``GET``.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -544,8 +547,8 @@ class CCFClient:
 
     def post(self, *args, **kwargs):
         """
-        Issue POST request.
-        Wrapper for ``call()`` with ``http_verb`` set to ``POST``.
+        Issue ``POST`` request.
+        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``POST``.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -553,8 +556,8 @@ class CCFClient:
 
     def put(self, *args, **kwargs):
         """
-        Issue PUT request.
-        Wrapper for ``call()`` with ``http_verb`` set to ``PUT``.
+        Issue ``PUT`` request.
+        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``PUT``.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -562,8 +565,8 @@ class CCFClient:
 
     def delete(self, *args, **kwargs):
         """
-        Issue DELETE request.
-        Wrapper for ``call()`` with `http_verb`` set to ``DELETE``.
+        Issue ``DELETE`` request.
+        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``DELETE``.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -579,7 +582,7 @@ class CCFClient:
         :param ccf.clients.Response response: Response returned by :py:class:`ccf.clients.CCFClient.
         :param int timeout: Maximum time (secs) to wait for commit before giving up.
 
-        A TimeoutError exception is raised if the transaction is not committed within ``timeout`` seconds.
+        A ``TimeoutError`` exception is raised if the transaction is not committed within ``timeout`` seconds.
         """
         ccf.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
