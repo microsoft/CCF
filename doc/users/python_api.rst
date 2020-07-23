@@ -1,8 +1,5 @@
-Python
-======
-
-Client
-------
+Python Client API
+=================
 
 .. autoclass:: ccf.clients.CCFClient
     :members:
