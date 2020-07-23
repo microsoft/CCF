@@ -108,7 +108,7 @@ def run_to_destruction(args):
                 wsm += 5000
         except Exception as e:
             timeout = 10
-            
+
             LOG.info("Large write set caused an exception, as expected")
             LOG.info(f"Exception was: {e}")
             LOG.info(f"Polling for {timeout}s for node to terminate")
@@ -123,9 +123,7 @@ def run_to_destruction(args):
                     break
 
             if time.time() > end_time:
-                raise TimeoutError(
-                    f"Node took longer than {end_time}s to terminate"
-                )
+                raise TimeoutError(f"Node took longer than {end_time}s to terminate")
 
             network.ignore_errors_on_shutdown()
 
