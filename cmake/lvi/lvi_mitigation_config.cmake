@@ -11,7 +11,10 @@ endif()
 # Check that LVI mitigations have been installed into expected dir
 set(LVI_MITIGATION_BINDIR /opt/oe_lvi)
 if(NOT IS_DIRECTORY "${LVI_MITIGATION_BINDIR}")
-    message(FATAL_ERROR "LVI mitigation tools must be installed at ${LVI_MITIGATION_BINDIR}")
+  message(
+    FATAL_ERROR
+      "LVI mitigation tools must be installed at ${LVI_MITIGATION_BINDIR}"
+  )
 endif()
 
 # OE_LVI_MITIGATION holds the value of LVI_MITIGATION from the configuration of
