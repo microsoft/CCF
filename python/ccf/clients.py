@@ -56,10 +56,8 @@ class Request:
         self.params_in_query = params_in_query
 
     def __str__(self):
-        return (
-            f"{self.http_verb} {self.path} {self.headers} " + truncate(f"{self.params}")
-            if self.params is not None
-            else ""
+        return f"{self.http_verb} {self.path} {self.headers}" + (
+            truncate(f" {self.params}") if self.params is not None else ""
         )
 
 
