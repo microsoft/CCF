@@ -389,7 +389,7 @@ class Consortium:
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post("/gov/read", {"table": "ccf.nodes", "key": node_id})
 
-            if r.status_code != 200 or (
+            if r.status_code != http.HTTPStatus.OK.value or (
                 node_status and r.body["status"] != node_status.name
             ):
                 return False

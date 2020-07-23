@@ -184,7 +184,7 @@ def get_curve(ca_file):
 class CurlClient:
     """
     Curl client.
-    Note: The resulting logs nicely illustrate manual usage in a way that using other client implementations don't.
+    This client uses Curl to send HTTP requests to CCF, and logs all Curl commands it runs. These commands could also be run manually, or used by another client tool.
     """
 
     def __init__(self, host, port, ca=None, cert=None, key=None):
@@ -570,11 +570,11 @@ class CCFClient:
     def wait_for_commit(self, response, timeout=DEFAULT_COMMIT_TIMEOUT_SEC):
         """
         Given a :py:class:`ccf.clients.Response`, this functions waits
-        for the associated sequence number and view be committed by the CCF network.
+        for the associated sequence number and view to be committed by the CCF network.
 
         The client will poll the ``/node/tx`` endpoint until ``COMMITTED`` is returned.
 
-        :param ccf.clients.Response response: Response returned by :py:class:`ccf.clients.CCFClient.
+        :param ccf.clients.Response response: Response returned by :py:meth:`ccf.clients.CCFClient.call`
         :param int timeout: Maximum time (secs) to wait for commit before giving up.
 
         A ``TimeoutError`` exception is raised if the transaction is not committed within ``timeout`` seconds.

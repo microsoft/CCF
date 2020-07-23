@@ -1,7 +1,7 @@
 Python Client Tutorial
 ======================
 
-.. note:: See :ref:`Python Client API <users/python_api:Python Client API>` for complete full API specification.
+.. note:: See :ref:`Python Client API <users/python_api:Python Client API>` for the complete API specification.
 
 First, install the CCF Python package:
 
@@ -20,8 +20,8 @@ Set the following CCF node variables:
 
 .. code-block:: python
 
-    host = "<node-rpc-host>"        # Node RPC address or domain
-    port = <node-rpc-port>          # Node RPC port
+    host = "<node-host>"            # Node address or domain (str)
+    port = <node-port>              # Node port (int)
     ca = "<path/to/network/cert>"   # Network certificate path
 
 .. note:: :ref:`When deploying a test network <users/deploy_app:Deploying an Application>`, use any node's IP address and port number. All certificates and keys can be found in the associated ``common_dir`` folder.
@@ -75,7 +75,7 @@ In fact, even an anonymous client can be used to verify that a transaction is co
     :start-after: SNIPPET: any_client_can_wait
     :lines: 1
 
-Finally, the authenticated client can used to issue ``GET`` requests and verify that the previous messages have successfully been recorded.
+Finally, the authenticated client can used to issue ``GET`` requests and verify that the previous messages have successfully been recorded:
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py
