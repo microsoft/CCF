@@ -22,6 +22,7 @@ with open(sys.argv[1]) as client_info_file:
 
 host = client_info["host"]
 port = client_info["port"]
+ledger_dir = client_info["ledger"]
 common_dir = client_info["common_dir"]
 ca = os.path.join(common_dir, "networkcert.pem")
 cert = os.path.join(common_dir, "user0_cert.pem")
@@ -63,3 +64,25 @@ r = user_client.get("/app/log/public", params={"id": 0})
 assert r.status_code == http.HTTPStatus.OK
 assert r.body == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests
+
+# SNIPPET: import_ledger
+import ccf.ledger
+
+# SNIPPET: create_ledger
+ledger = ccf.ledger.Ledger(ledger_dir)
+
+# SNIPPET: target_table
+target_table = "ccf.nodes"
+
+# SNIPPET_START: iterate_over_ledger
+target_table_changes = 0  # Simple counter
+
+for transaction in ledger:
+    # Retrieve all public tables changed in transaction
+    public_tables = transaction.get_public_domain().get_tables()
+
+    # If target_table was changed, count the number of keys changed
+    if target_table in public_tables:
+        for key, value in public_tables[target_table].items():
+            target_table_changes += 1 # A key was changed
+# SNIPPET_END: iterate_over_ledger

@@ -13,6 +13,7 @@ def dump_client_info(path, network, node):
     client_info = {}
     client_info["host"] = node.pubhost
     client_info["port"] = node.rpc_port
+    client_info["ledger"] = node.remote.ledger_path()
     client_info["common_dir"] = network.common_dir
 
     with open(path, "w") as client_info_file:
