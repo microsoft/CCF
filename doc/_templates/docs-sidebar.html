@@ -34,13 +34,23 @@
     </ul>
 
     {% if versions %}
-    {%- for item in versions|sort(attribute='name', reverse=True) %}
-      <ul>
+    <ul>
+    {%- for item in versions.branches|sort(attribute='name', reverse=True) %}
         <li>
           <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
         </li>
-      </ul>
     {%- endfor %}
+    {%- for item in versions.releases|sort(attribute='name', reverse=True) %}
+        <li>
+          <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
+        </li>
+    {%- endfor %}
+    {%- for item in versions.tags|sort(attribute='name', reverse=True) %}
+        <li>
+          <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
+        </li>
+    {%- endfor %}
+    </ul>
     {% endif %}
 
 </nav>
