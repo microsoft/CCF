@@ -6,7 +6,6 @@
 #include "node/network_tables.h"
 #include "node/rpc/rpc_exception.h"
 
-#include <openenclave/enclave.h>
 #include <sstream>
 #include <type_traits>
 #include <unordered_map>
@@ -203,43 +202,6 @@ namespace ccf
         return 0;
       }
 
-      static int lua_verify_cert_and_get_claims(lua_State* l)
-      {
-        std::string cert_der = get_var_string_from_args(l);
-
-        oe_identity_t claims;
-        oe_result_t res = oe_verify_attestation_certificate(
-          cert_der.c_str(),
-          cert_der.size(),
-          [&claims](oe_identity_t* identity, void*) {
-            std::memcpy(&claims, identity, sizeof(claims));
-            return OE_OK;
-          },
-          nullptr);
-
-        if (res != OE_OK)
-        {
-          // TODO should this raise an exception?
-          throw std::runtime_error("certificate not valid");
-        }
-
-        lua_newtable(l);
-        const int table_idx = -2;
-
-        // TODO hex encode
-        push_raw(l, claims.signer_id);
-        lua_setfield(l, table_idx, "mrsigner");
-
-        // TODO hex encode
-        push_raw(l, claims.unique_id);
-        lua_setfield(l, table_idx, "mrenclave");
-
-        push_raw(l, static_cast<bool>(claims.attributes & OE_REPORT_ATTRIBUTES_DEBUG));
-        lua_setfield(l, table_idx, "is_debuggable");
-
-        return 1;
-      }
-
       virtual void setup_environment(
         lua::Interpreter& li, const std::optional<Script>& env_script) const
       {
@@ -251,9 +213,6 @@ namespace ccf
         lua_register(l, "LOG_INFO", lua_log_info);
         lua_register(l, "LOG_FAIL", lua_log_fail);
         lua_register(l, "LOG_FATAL", lua_log_fatal);
-
-        lua_register(
-          l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
 
         if (env_script)
         {

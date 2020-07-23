@@ -11,6 +11,7 @@
 #include "node/share_manager.h"
 #include "node_interface.h"
 #include "tls/key_pair.h"
+#include "enclave/oe_shim.h"
 
 #include <charconv>
 #include <exception>
@@ -22,6 +23,62 @@
 
 namespace ccf
 {
+  class MemberTsr : public TxScriptRunner
+  {
+    void setup_environment(
+      lua::Interpreter& li,
+      const std::optional<Script>& env_script) const override
+    {
+      lua_register(l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
+
+      TxScriptRunner::setup_environment(li, env_script);
+    }
+
+    static int lua_verify_cert_and_get_claims(lua_State* l)
+    {
+      std::string cert_der = get_var_string_from_args(l);
+
+      oe_identity_t claims;
+#ifndef VIRTUAL_ENCLAVE
+      oe_result_t res = oe_verify_attestation_certificate(
+        cert_der.c_str(),
+        cert_der.size(),
+        [&claims](oe_identity_t* identity, void*) {
+          std::memcpy(&claims, identity, sizeof(claims));
+          return OE_OK;
+        },
+        nullptr);
+
+      if (res != OE_OK)
+      {
+        // TODO should this raise an exception?
+        throw std::runtime_error("certificate not valid");
+      }
+#endif
+
+      lua_newtable(l);
+      const int table_idx = -2;
+
+      std::string mrsigner = fmt::format("{:02x}", fmt::join(claims.signer_id, ""));
+      lua::push_raw(l, mrsigner);
+      lua_setfield(l, table_idx, "mrsigner");
+
+      std::string mrenclave = fmt::format("{:02x}", fmt::join(claims.unique_id, ""));
+      lua::push_raw(l, mrenclave);
+      lua_setfield(l, table_idx, "mrenclave");
+
+      lua::push_raw(l, static_cast<bool>(claims.attributes & OE_REPORT_ATTRIBUTES_DEBUG));
+      lua_setfield(l, table_idx, "is_debuggable");
+
+      return 1;
+    }
+
+  public:
+    MemberTsr(NetworkTables& network) :
+      TxScriptRunner(network)
+    {}
+  };
+
   struct SetUserData
   {
     UserId user_id;
@@ -599,7 +656,7 @@ namespace ccf
     NetworkTables& network;
     AbstractNodeState& node;
     ShareManager& share_manager;
-    const lua::TxScriptRunner tsr;
+    const MemberTsr tsr;
 
   public:
     MemberEndpoints(
