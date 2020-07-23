@@ -227,11 +227,9 @@ def test_metrics(network, args):
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        metrics = {m["path"]: m for m in r.body["metrics"]}
-        assert metrics["endpoint_metrics"]["calls"] == 1
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == 1
         r = c.get("/app/endpoint_metrics")
-        metrics = {m["path"]: m for m in r.body["metrics"]}
-        assert metrics["endpoint_metrics"]["calls"] == 2
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == 2
 
     with primary.client() as c:
         r = c.get("/app/endpoint_metrics")
@@ -239,8 +237,7 @@ def test_metrics(network, args):
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        metrics = {m["path"]: m for m in r.body["metrics"]}
-        assert metrics["endpoint_metrics"]["errors"] == 1
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["errors"] == 1
 
     return network
 

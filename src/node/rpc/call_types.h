@@ -150,8 +150,6 @@ namespace ccf
   {
     struct Metric
     {
-      std::string verb;
-      std::string path;
       size_t calls = 0;
       size_t errors = 0;
       size_t failures = 0;
@@ -159,7 +157,7 @@ namespace ccf
 
     struct Out
     {
-      std::vector<Metric> metrics;
+      std::map<std::string, std::map<std::string, Metric>> metrics;
     };
   };
 

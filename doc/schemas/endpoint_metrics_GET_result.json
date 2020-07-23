@@ -3,37 +3,48 @@
   "properties": {
     "metrics": {
       "items": {
-        "properties": {
-          "calls": {
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "errors": {
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "failures": {
-            "maximum": 18446744073709551615,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "path": {
+        "items": [
+          {
             "type": "string"
           },
-          "verb": {
-            "type": "string"
+          {
+            "items": {
+              "items": [
+                {
+                  "type": "string"
+                },
+                {
+                  "properties": {
+                    "calls": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "errors": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "failures": {
+                      "maximum": 18446744073709551615,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "calls",
+                    "errors",
+                    "failures"
+                  ],
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
           }
-        },
-        "required": [
-          "verb",
-          "path",
-          "calls",
-          "errors",
-          "failures"
         ],
-        "type": "object"
+        "type": "array"
       },
       "type": "array"
     }

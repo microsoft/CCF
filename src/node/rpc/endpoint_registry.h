@@ -534,26 +534,28 @@ namespace ccf
     {
       for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
+        std::map<std::string, EndpointMetrics::Metric> e;
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
-          out.metrics.push_back({verb.c_str(),
-                                 path,
-                                 endpoint.metrics.calls,
-                                 endpoint.metrics.errors,
-                                 endpoint.metrics.failures});
+          std::string v(verb.c_str());
+          e[v] = {endpoint.metrics.calls,
+                  endpoint.metrics.errors,
+                  endpoint.metrics.failures};
         }
+        out.metrics[path] = e;
       }
 
       for (const auto& [path, verb_endpoints] : templated_endpoints)
       {
+        std::map<std::string, EndpointMetrics::Metric> e;
         for (const auto& [verb, endpoint] : verb_endpoints)
         {
-          out.metrics.push_back({verb.c_str(),
-                                 path,
-                                 endpoint.metrics.calls,
-                                 endpoint.metrics.errors,
-                                 endpoint.metrics.failures});
+          std::string v(verb.c_str());
+          e[v] = {endpoint.metrics.calls,
+                  endpoint.metrics.errors,
+                  endpoint.metrics.failures};
         }
+        out.metrics[path] = e;
       }
     }
 

@@ -118,8 +118,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, endpoints)
 
   DECLARE_JSON_TYPE(EndpointMetrics::Metric)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    EndpointMetrics::Metric, verb, path, calls, errors, failures)
+  DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Metric, calls, errors, failures)
   DECLARE_JSON_TYPE(EndpointMetrics::Out)
   DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Out, metrics)
 
