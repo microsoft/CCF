@@ -20,32 +20,32 @@
     mode: "0555"
   become: yes
 
-- name: Create OE LVI symlink to clang-8
+- name: "Create OE LVI symlink to {{ oe_lvi_clang_version }}"
   file:
-    src: /usr/bin/clang-8
-    dest: "{{ oe_lvi_bin_dir }}/clang-8_symlink"
+    src: "/usr/bin/{{ oe_lvi_clang_version }}"
+    dest: "{{ oe_lvi_bin_dir }}/{{ oe_lvi_clang_version }}_symlink"
     state: link
     force: yes
   become: yes
 
-- name: Generate OE LVI wrapper for clang-8
+- name: "Generate OE LVI wrapper for {{ oe_lvi_clang_version }}"
   shell: |
-    "{{ oe_lvi_scripts_dir }}/generate_wrapper" --name=clang-8 --path="{{ oe_lvi_bin_dir }}"
+    "{{ oe_lvi_scripts_dir }}/generate_wrapper" --name="{{ oe_lvi_clang_version }}" --path="{{ oe_lvi_bin_dir }}"
   args:
     chdir: "{{ oe_lvi_bin_dir }}"
   become: yes
 
-- name: Create OE LVI symlink to clang++-8
+- name: "Create OE LVI symlink to {{ oe_lvi_clangpp_version }}"
   file:
-    src: /usr/bin/clang++-8
-    dest: "{{ oe_lvi_bin_dir }}/clang++-8_symlink"
+    src: "/usr/bin/{{ oe_lvi_clangpp_version }}"
+    dest: "{{ oe_lvi_bin_dir }}/{{ oe_lvi_clangpp_version }}_symlink"
     state: link
     force: yes
   become: yes
 
-- name: Generate OE LVI wrapper for clang++-8
+- name: "Generate OE LVI wrapper for {{ oe_lvi_clangpp_version }}"
   shell: |
-    "{{ oe_lvi_scripts_dir }}/generate_wrapper" --name=clang++-8 --path="{{ oe_lvi_bin_dir }}"
+    "{{ oe_lvi_scripts_dir }}/generate_wrapper" --name="{{ oe_lvi_clangpp_version }}" --path="{{ oe_lvi_bin_dir }}"
   args:
     chdir: "{{ oe_lvi_bin_dir }}"
   become: yes
