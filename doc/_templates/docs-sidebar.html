@@ -40,12 +40,7 @@
           <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
         </li>
     {%- endfor %}
-    {%- for item in versions.releases|sort(attribute='name', reverse=True) %}
-        <li>
-          <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
-        </li>
-    {%- endfor %}
-    {%- for item in versions.in_development |sort(attribute='name', reverse=True) %}
+    {%- for item in versions.tags|sort(attribute='name', reverse=True) %}
         <li>
           <a href="{{ item.url }}" class="badge">{{ item.name }}</a>
         </li>
