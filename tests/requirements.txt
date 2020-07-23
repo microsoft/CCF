@@ -1,4 +1,0 @@
-paramiko
-msgpack
-loguru
-coincurve
