@@ -60,7 +60,7 @@ def run(args):
         for b in backups:
             LOG.info("  Node [{:2d}] = {}:{}".format(b.node_id, b.pubhost, b.rpc_port))
 
-        # Dump primary info to file to tutorial testing
+        # Dump primary info to file for tutorial testing
         dump_client_info(args.client_info_file, network, primary)
 
         LOG.info(

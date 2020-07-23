@@ -208,9 +208,7 @@ html_context = {
 
 # Python autodoc options
 autodoc_default_options = {
-    # 'members':         True,
     'member-order':    'bysource',
-    # 'special-members': '__init__',
 }
 
 
