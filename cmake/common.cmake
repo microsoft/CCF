@@ -29,7 +29,7 @@ if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
-option(LVI_MITIGATIONS "Enable LVI mitigations" OFF)
+option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
 if(LVI_MITIGATIONS)
   set(OE_TARGET_LIBC openenclave::oelibc-lvi-cfg)
   set(OE_TARGET_ENCLAVE_AND_STD

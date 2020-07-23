@@ -11,5 +11,5 @@ steps:
 - script: |
     mkdir build
     cd build
-    cmake -L -GNinja .. ${{ parameters.cmake_args }} -DLVI_MITIGATIONS=ON
+    cmake -L -GNinja .. ${{ parameters.cmake_args }}
   displayName: CMake
