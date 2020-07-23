@@ -317,6 +317,18 @@ namespace ccf
       make_read_only_endpoint(
         "network", HTTP_GET, json_read_only_adapter(network_status))
         .install();
+
+      auto is_primary = [this](CommandEndpointContext& args) {
+        if (this->node.is_primary())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        }
+        else
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+        }
+      };
+      make_command_endpoint("primary", HTTP_GET, is_primary).install();
     }
   };
 
