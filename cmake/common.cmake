@@ -101,7 +101,9 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py)
+set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
+                       test_install.sh
+)
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
     ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY

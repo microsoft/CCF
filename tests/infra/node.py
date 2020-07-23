@@ -254,7 +254,6 @@ class Node:
             else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
             "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
-            "binary_dir": self.binary_dir,
         }
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)
@@ -269,7 +268,7 @@ class Node:
 
 
 @contextmanager
-def node(node_id, host, binary_directory, debug=False, perf=False, pdb=False):
+def node(node_id, host, debug=False, perf=False, pdb=False):
     """
     Context manager for Node class.
     :param node_id: unique ID of node

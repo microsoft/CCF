@@ -192,13 +192,12 @@ class CurlClient:
     Note: The resulting logs nicely illustrate manual usage in a way that using other client implementations don't.
     """
 
-    def __init__(self, host, port, ca=None, cert=None, key=None, binary_dir="."):
+    def __init__(self, host, port, ca=None, cert=None, key=None):
         self.host = host
         self.port = port
         self.ca = ca
         self.cert = cert
         self.key = key
-        self.binary_dir = binary_dir
 
         ca_curve = get_curve(self.ca)
         if ca_curve.name == "secp256k1":
@@ -210,7 +209,7 @@ class CurlClient:
     def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         with tempfile.NamedTemporaryFile() as nf:
             if signed:
-                cmd = [os.path.join(self.binary_dir, "scurl.sh")]
+                cmd = ["scurl.sh"]
             else:
                 cmd = ["curl"]
 
@@ -444,7 +443,6 @@ class CCFClient:
     :param str key: Path to client private key (optional).
     :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
     :param str description: Message to print on each request emitted with this client.
-    :param str binary_dir: Path to binary directory (curl client only).
     :param bool ws: Use WebSocket client (experimental).
 
     A CCFConnectionException exception if the connection is not established successfully within ``connection_timeout`` seconds.
@@ -459,7 +457,6 @@ class CCFClient:
         key=None,
         connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
         description=None,
-        binary_dir=".",
         ws=False,
     ):
         self.connection_timeout = connection_timeout
@@ -467,7 +464,7 @@ class CCFClient:
         self.name = f"[{host}:{port}]"
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, ca, cert, key, binary_dir)
+            self.client_impl = CurlClient(host, port, ca, cert, key)
         elif os.getenv("WEBSOCKETS_CLIENT") or ws:
             self.client_impl = WSClient(host, port, ca, cert, key)
         else:
