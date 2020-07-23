@@ -588,6 +588,12 @@ if(BUILD_TESTS)
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
     )
+
+    add_e2e_test(
+      NAME governance_cert_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_cert.py
+      CONSENSUS raft
+    )
   endif()
 
   if(BUILD_SMALLBANK)
