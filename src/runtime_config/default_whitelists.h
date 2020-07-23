@@ -26,7 +26,8 @@ namespace ccf
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
       Tables::SERVICE,
-      Tables::CONFIGURATION}},
+      Tables::CONFIGURATION,
+      Tables::ROOT_CA_CERT_DERS}},
 
     {MEMBER_CAN_PROPOSE,
      {Tables::USERS,
@@ -35,7 +36,8 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
-      Tables::CONFIGURATION}},
+      Tables::CONFIGURATION,
+      Tables::ROOT_CA_CERT_DERS}},
 
     {USER_APP_CAN_READ_ONLY,
      {Tables::MEMBERS,
@@ -45,5 +47,6 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
-      Tables::GOV_HISTORY}}};
+      Tables::GOV_HISTORY,
+      Tables::ROOT_CA_CERT_DERS}}};
 }

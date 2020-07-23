@@ -6,4 +6,5 @@
 namespace ccf
 {
   using CertDERs = kv::Map<Cert, ObjectId>;
+  using RootCACerts = kv::Map<std::string, Cert>;
 }

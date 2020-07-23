@@ -84,6 +84,7 @@ namespace ccf
     static constexpr auto USER_CODE_IDS = "ccf.users.code_ids";
     static constexpr auto CONFIGURATION = "ccf.config";
     static constexpr auto SUBMITTED_SHARES = "ccf.submitted_shares";
+    static constexpr auto ROOT_CA_CERT_DERS = "ccf.root_ca_cert_ders";
   };
 }
 
