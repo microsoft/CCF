@@ -222,5 +222,4 @@ def setup(self):
     srcdir = pathlib.Path(self.srcdir)
 
     breathe_projects["CCF"] = str(srcdir / breathe_projects["CCF"])
-    # TODO: Revert
-    # subprocess.run(["doxygen"], cwd=srcdir / '..', check=True)
+    subprocess.run(["doxygen"], cwd=srcdir / '..', check=True)
