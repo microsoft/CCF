@@ -178,7 +178,6 @@ class CCFConnectionException(Exception):
     """
     Exception raised if a :py:class:`ccf.clients.CCFClient` instance cannot successfully establish a connection with a target CCF node.
     """
-    pass
 
 
 def get_curve(ca_file):

@@ -8,6 +8,7 @@ import json
 
 from loguru import logger as LOG
 
+
 def dump_client_info(path, network, node):
     client_info = {}
     client_info["host"] = node.pubhost
@@ -107,7 +108,7 @@ if __name__ == "__main__":
         parser.add_argument(
             "--client-info-file",
             help="Path to output file where client information will be dumped to (useful for scripting)",
-            default="client_info.txt"
+            default="client_info.txt",
         )
         parser.add_argument(
             "-r",
