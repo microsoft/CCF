@@ -8,7 +8,6 @@ import infra.crypto
 import ccf.ledger
 from infra.proposal import ProposalState
 import http
-import os
 from loguru import logger as LOG
 
 
@@ -64,11 +63,8 @@ def run(args):
         primary, _ = network.find_primary()
 
         ledger_directory = network.find_primary()[0].remote.ledger_path()
-        # For now, this test only works with one ledger file
-        for l in os.listdir(ledger_directory):
-            if l.endswith("_1"):
-                ledger_filename = os.path.join(ledger_directory, l)
-        ledger = ccf.ledger.Ledger(ledger_filename)
+
+        ledger = ccf.ledger.Ledger(ledger_directory)
         (
             original_proposals,
             original_votes,
@@ -92,12 +88,17 @@ def run(args):
         )
         proposals_issued += 1
 
-        response = network.consortium.get_member_by_id(
-            new_member_proposal.proposer_id
-        ).withdraw(primary, new_member_proposal)
-        assert response.status_code == http.HTTPStatus.OK.value
+        with primary.client() as c:
+            response = network.consortium.get_member_by_id(
+                new_member_proposal.proposer_id
+            ).withdraw(primary, new_member_proposal)
+            ccf.checker.Checker(c)(response)
+        assert response.status _code== http.HTTPStatus.OK.value
         assert response.body["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1
+
+    # Refresh ledger to beginning
+    ledger = ccf.ledger.Ledger(ledger_directory)
 
     (final_proposals, final_votes, final_withdrawals,) = count_governance_operations(
         ledger
