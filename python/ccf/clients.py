@@ -456,7 +456,7 @@ class CCFClient:
 
         description = ""
         if self.description:
-            description = f" ({self.description})" + (" [signed]" if is_signed else "")
+            description = f"({self.description})" + (" [signed]" if is_signed else "")
         LOG.info(f"{self.name} {r} ({description})")
         return self._response(self.client_impl.request(r, is_signed))
 
