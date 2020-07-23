@@ -7,7 +7,7 @@ steps:
   displayName: 'Install'
 
 - script: |
-    ./test_install.sh
+    cat /tmp/install_prefix | xargs ./test_install.sh
   displayName: Test installed CCF
 
 - script: |

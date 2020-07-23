@@ -3,8 +3,15 @@
 # Licensed under the Apache 2.0 License.
 set -e
 
+if [ "$#" -ne 1 ]; then
+    echo "Install prefix should be passed as first argument to $0"
+    exit 1
+fi
+
+echo "Install prefix is ${1}"
+
 # Setup env
-INSTALL_PREFIX=$(cat /tmp/install_prefix)
+INSTALL_PREFIX="$1"
 mkdir -p nested/run
 cd nested/run
 
