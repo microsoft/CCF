@@ -67,7 +67,9 @@ def run(args):
         LOG.info(
             f"You can now issue business transactions to the {args.package} application."
         )
-        LOG.info(f"Certificates have been copied to {network.common_dir}")
+        LOG.info(
+            f"Keys and certificates have been copied to the common folder: {network.common_dir}"
+        )
         LOG.info(
             "See https://microsoft.github.io/CCF/users/issue_commands.html for more information."
         )

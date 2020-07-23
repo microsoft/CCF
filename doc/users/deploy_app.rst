@@ -19,7 +19,7 @@ For example, deploying the ``liblogging`` example application:
     [2019-10-29 14:48:12.138]   Node [ 1] = 127.169.74.37:58343
     [2019-10-29 14:48:12.138]   Node [ 2] = 127.131.108.179:50532
     [2019-10-29 14:48:12.138] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
-    [2019-10-29 14:48:12.138] Certificates have been copied to /path/to/test_network_common
+    [2019-10-29 14:48:12.138] Keys and certificates have been copied to the common folder: /path/to/test_network_common
     [2019-10-29 14:48:12.138] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
     [2019-10-29 14:48:12.138] Press Ctrl+C to shutdown the network.
 
@@ -55,6 +55,7 @@ The ``start_test_network.sh`` script can also be used to automatically recover a
     [2020-05-14 14:50:24.388]   Node [ 4] = 127.184.250.157:35113
     [2020-05-14 14:50:24.388]   Node [ 5] = 127.175.51.36:34699
     [2020-05-14 14:50:24.388] You can now issue business transactions to the liblogging.enclave.so.signed application.
+    [2020-05-14 14:50:24.388] Keys and certificates have been copied to the common folder: /path/to/test_network_common
     [2020-05-14 14:50:24.388] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
     [2020-05-14 14:50:24.388] Press Ctrl+C to shutdown the network.
 
