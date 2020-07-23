@@ -10,8 +10,8 @@
 #include "node/secret_share.h"
 #include "node/share_manager.h"
 #include "node_interface.h"
+#include "tls/base64.h"
 #include "tls/key_pair.h"
-#include "enclave/oe_shim.h"
 
 #include <charconv>
 #include <exception>
@@ -21,32 +21,42 @@
 #include <set>
 #include <sstream>
 
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include <openenclave/enclave.h>
+#else
+#  include <openenclave/host_verify.h>
+#endif
+
 namespace ccf
 {
-  class MemberTsr : public TxScriptRunner
+  class MemberTsr : public lua::TxScriptRunner
   {
     void setup_environment(
       lua::Interpreter& li,
       const std::optional<Script>& env_script) const override
     {
-      lua_register(l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
+      auto l = li.get_state();
+      lua_register(
+        l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
 
       TxScriptRunner::setup_environment(li, env_script);
     }
 
     static int lua_verify_cert_and_get_claims(lua_State* l)
     {
-      std::string cert_der = get_var_string_from_args(l);
+      std::string cert_der_b64 = get_var_string_from_args(l);
+      std::vector<uint8_t> cert_der = tls::raw_from_b64(cert_der_b64);
 
       oe_identity_t claims;
-#ifndef VIRTUAL_ENCLAVE
-      oe_result_t res = oe_verify_attestation_certificate(
-        cert_der.c_str(),
-        cert_der.size(),
+      std::function<oe_result_t(oe_identity_t*, void*)> cb =
         [&claims](oe_identity_t* identity, void*) {
-          std::memcpy(&claims, identity, sizeof(claims));
-          return OE_OK;
-        },
+        std::memcpy(&claims, identity, sizeof(claims));
+        return OE_OK;
+      };
+      oe_result_t res = oe_verify_attestation_certificate(
+        cert_der.data(),
+        cert_der.size(),
+        *cb.target<oe_identity_verify_callback_t>(),
         nullptr);
 
       if (res != OE_OK)
@@ -54,29 +64,29 @@ namespace ccf
         // TODO should this raise an exception?
         throw std::runtime_error("certificate not valid");
       }
-#endif
 
       lua_newtable(l);
       const int table_idx = -2;
 
-      std::string mrsigner = fmt::format("{:02x}", fmt::join(claims.signer_id, ""));
+      std::string mrsigner =
+        fmt::format("{:02x}", fmt::join(claims.signer_id, ""));
       lua::push_raw(l, mrsigner);
       lua_setfield(l, table_idx, "mrsigner");
 
-      std::string mrenclave = fmt::format("{:02x}", fmt::join(claims.unique_id, ""));
+      std::string mrenclave =
+        fmt::format("{:02x}", fmt::join(claims.unique_id, ""));
       lua::push_raw(l, mrenclave);
       lua_setfield(l, table_idx, "mrenclave");
 
-      lua::push_raw(l, static_cast<bool>(claims.attributes & OE_REPORT_ATTRIBUTES_DEBUG));
+      lua::push_raw(
+        l, static_cast<bool>(claims.attributes & OE_REPORT_ATTRIBUTES_DEBUG));
       lua_setfield(l, table_idx, "is_debuggable");
 
       return 1;
     }
 
   public:
-    MemberTsr(NetworkTables& network) :
-      TxScriptRunner(network)
-    {}
+    MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}
   };
 
   struct SetUserData
