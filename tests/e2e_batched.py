@@ -101,6 +101,7 @@ def run_to_destruction(args):
     ) as network:
         network.start_and_join(args)
 
+        LOG.warning("About to issue transactions until destruction")
         try:
             wsm = 5000
             while True:

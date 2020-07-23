@@ -41,13 +41,6 @@ DEFAULT_REQUEST_TIMEOUT_SEC = 3
 DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 
-def build_query_string(params):
-    return "&".join(
-        f"{urllib.parse.quote_plus(k)}={urllib.parse.quote_plus(json.dumps(v))}"
-        for k, v in params.items()
-    )
-
-
 class Request:
     def __init__(self, path, params=None, http_verb="POST", headers=None):
         if headers is None:
@@ -61,7 +54,7 @@ class Request:
 
     def get_params(self):
         if self.params_in_query and self.params is not None:
-            return f"?{build_query_string(self.params)}"
+            return f"?{urllib.parse.urlencode(self.params)}"
         else:
             return truncate(f"{self.params}") if self.params is not None else ""
 
@@ -350,7 +343,7 @@ class RequestClient:
                 request_params = json.load(open(request.params[1:]))
 
             if request.params_in_query:
-                request_args["params"] = build_query_string(request_params)
+                request_args["params"] = urllib.parse.urlencode(request.params)
             else:
                 request_args["json"] = request_params
 
@@ -370,7 +363,7 @@ class WSClient:
     """
     CCF WebSocket client implementation.
 
-    Warning: Does not handle client signatures.
+    Note: Client signatures over WebSocket are not supported by CCF.
     """
 
     def __init__(self, host, port, ca, cert=None, key=None):
@@ -389,7 +382,10 @@ class WSClient:
             )
 
     def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
-        assert not signed
+        if signed:
+            raise RuntimeError(
+                "Client signatures over WebSocket are not supported by CCF"
+            )
 
         if not self.ws:
             LOG.info("Creating WSS connection")

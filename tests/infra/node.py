@@ -268,7 +268,7 @@ class Node:
 
 
 @contextmanager
-def node(node_id, host, debug=False, perf=False, pdb=False):
+def node(node_id, host, binary_directory, debug=False, perf=False, pdb=False):
     """
     Context manager for Node class.
     :param node_id: unique ID of node
