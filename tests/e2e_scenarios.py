@@ -52,7 +52,7 @@ def run(args):
                             txs += json.load(f)
 
                     for tx in txs:
-                        r = client.rpc(
+                        r = client.call(
                             tx["method"],
                             params=tx["params"],
                             http_verb=tx.get("verb", "POST"),

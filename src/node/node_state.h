@@ -4,7 +4,12 @@
 
 #include "call_types.h"
 #include "consensus/ledger_enclave.h"
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
 #include "consensus/pbft/pbft.h"
+#pragma clang diagnostic pop
+
 #include "consensus/raft/raft_consensus.h"
 #include "crypto/crypto_box.h"
 #include "ds/logger.h"
@@ -14,7 +19,7 @@
 #include "genesis_gen.h"
 #include "history.h"
 #include "network_state.h"
-#include "node/rpc/json_rpc.h"
+#include "node/rpc/serdes.h"
 #include "node_to_node.h"
 #include "notifier.h"
 #include "rpc/frontend.h"
@@ -304,7 +309,7 @@ namespace ccf
 
           sm.advance(State::pending);
 
-          return Success<CreateNew::Out>({node_cert});
+          return Success<CreateNew::Out>({node_cert, {}, {}});
         }
         case StartType::Recover:
         {
@@ -361,9 +366,7 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port,
         [this, args](
-          http_status status,
-          http::HeaderMap&& headers,
-          std::vector<uint8_t>&& data) {
+          http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
           std::lock_guard<SpinLock> guard(lock);
           if (!sm.check(State::pending))
           {
@@ -382,7 +385,7 @@ namespace ccf
             return false;
           }
 
-          auto j = jsonrpc::unpack(data, jsonrpc::Pack::Text);
+          auto j = serdes::unpack(data, serdes::Pack::Text);
 
           JoinNetworkNodeToNode::Out resp;
           try
@@ -411,26 +414,30 @@ namespace ccf
 
             self = resp.node_id;
 
-            if (resp.consensus_type != network.consensus_type)
+            if (resp.network_info.consensus_type != network.consensus_type)
             {
               throw std::logic_error(fmt::format(
                 "Enclave initiated with consensus type {} but target node "
                 "responded with consensus {}",
                 network.consensus_type,
-                resp.consensus_type));
+                resp.network_info.consensus_type));
             }
 
-            setup_encryptor(resp.consensus_type);
-            setup_consensus(resp.consensus_type, args.config, resp.public_only);
+            setup_encryptor(resp.network_info.consensus_type);
+            setup_consensus(
+              resp.network_info.consensus_type,
+              args.config,
+              resp.network_info.public_only);
             setup_history();
 
             open_member_frontend();
 
             accept_network_tls_connections(args.config);
 
-            if (resp.public_only)
+            if (resp.network_info.public_only)
             {
-              last_recovered_commit_idx = resp.last_recovered_commit_idx;
+              last_recovered_commit_idx =
+                resp.network_info.last_recovered_commit_idx;
               setup_recovery_hook();
               sm.advance(State::partOfPublicNetwork);
             }
@@ -445,7 +452,7 @@ namespace ccf
             LOG_INFO_FMT(
               "Node has now joined the network as node {}: {}",
               self,
-              (resp.public_only ? "public only" : "all domains"));
+              (resp.network_info.public_only ? "public only" : "all domains"));
           }
           else if (resp.node_status == NodeStatus::PENDING)
           {
@@ -471,7 +478,7 @@ namespace ccf
         args.config.joining.target_host,
         args.config.joining.target_port);
 
-      const auto body = jsonrpc::pack(join_params, jsonrpc::Pack::Text);
+      const auto body = serdes::pack(join_params, serdes::Pack::Text);
 
       http::Request r(fmt::format(
         "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::nodes), "join"));
@@ -898,8 +905,6 @@ namespace ccf
       }
 
       OArray oa(std::move(data));
-
-      Header header;
       NodeMsgType msg_type =
         serialized::overlay<NodeMsgType>(oa.data(), oa.size());
 
@@ -964,7 +969,7 @@ namespace ccf
       }
       else
       {
-        return {s, {}, {}};
+        return {s, std::nullopt, std::nullopt};
       }
     }
 
@@ -1014,9 +1019,9 @@ namespace ccf
             q.node_id = nid;
             q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 
-#ifdef GET_QUOTE
             if (this->network.consensus_type != ConsensusType::PBFT)
             {
+#ifdef GET_QUOTE
               auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
               if (!code_id_opt.has_value())
               {
@@ -1027,8 +1032,8 @@ namespace ccf
                 q.mrenclave =
                   fmt::format("{:02x}", fmt::join(code_id_opt.value(), ""));
               }
-            }
 #endif
+            }
             result.quotes.push_back(q);
           }
         }
@@ -1171,7 +1176,7 @@ namespace ccf
       create_params.consensus_type = network.consensus_type;
       create_params.recovery_threshold = args.config.genesis.recovery_threshold;
 
-      const auto body = jsonrpc::pack(create_params, jsonrpc::Pack::Text);
+      const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
       http::Request request(fmt::format(
         "/{}/{}", ccf::get_actor_prefix(ccf::ActorsType::members), "create"));
@@ -1218,7 +1223,7 @@ namespace ccf
         return false;
       }
 
-      const auto body = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+      const auto body = serdes::unpack(r.body, serdes::Pack::Text);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
@@ -1314,7 +1319,7 @@ namespace ccf
     void setup_basic_hooks()
     {
       network.service.set_global_hook(
-        [this](kv::Version version, const Service::Write& w) {
+        [this](kv::Version, const Service::Write& w) {
           const auto it = w.find(0);
           if (it == w.end() || !it->second.has_value())
           {

@@ -6,8 +6,8 @@
 #include "ds/logger.h"
 #include "nlohmann/json.hpp"
 #include "node/genesis_gen.h"
-#include "node/rpc/json_rpc.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/serdes.h"
 #include "node_stub.h"
 #include "tls/pem.h"
 #include "tls/verifier.h"
@@ -16,7 +16,7 @@
 
 using namespace ccf;
 using namespace nlohmann;
-using namespace jsonrpc;
+using namespace serdes;
 
 extern "C"
 {
@@ -48,7 +48,7 @@ TResponse frontend_process(
   http::Request r(method);
   const auto body = json_params.is_null() ?
     std::vector<uint8_t>() :
-    jsonrpc::pack(json_params, Pack::Text);
+    serdes::pack(json_params, Pack::Text);
   r.set_body(&body);
   auto serialise_request = r.build_request();
 
@@ -72,7 +72,7 @@ TResponse frontend_process(
 template <typename T>
 T parse_response_body(const TResponse& r)
 {
-  const auto body_j = jsonrpc::unpack(r.body, jsonrpc::Pack::Text);
+  const auto body_j = serdes::unpack(r.body, serdes::Pack::Text);
   return body_j.get<T>();
 }
 
@@ -148,7 +148,7 @@ TEST_CASE("Add a node to an opening service")
     CHECK(
       response.network_info.encryption_key == *network.encryption_key.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
-    CHECK(response.public_only == false);
+    CHECK(response.network_info.public_only == false);
 
     kv::Tx tx;
     const NodeId node_id = response.node_id;
@@ -298,7 +298,7 @@ TEST_CASE("Add a node to an open service")
     CHECK(
       response.network_info.encryption_key == *network.encryption_key.get());
     CHECK(response.node_status == NodeStatus::TRUSTED);
-    CHECK(response.public_only == true);
+    CHECK(response.network_info.public_only == true);
   }
 }
 

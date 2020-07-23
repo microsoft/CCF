@@ -69,6 +69,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   target_compile_options(ccf.enclave PUBLIC -nostdinc -nostdinc++)
+  add_warning_checks(ccf.enclave)
 
   target_include_directories(
     ccf.enclave SYSTEM
@@ -122,6 +123,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
 
   target_compile_options(ccf.virtual PUBLIC -stdlib=libc++)
+  add_warning_checks(ccf.virtual)
 
   target_include_directories(
     ccf.virtual SYSTEM

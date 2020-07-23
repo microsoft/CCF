@@ -101,11 +101,11 @@ class LoggingTxs:
                                 f"Private message at index {self.next_priv_index}"
                             )
                             pub_msg = f"Public message at index {self.next_pub_index}"
-                            rep_priv = uc.rpc(
+                            rep_priv = uc.post(
                                 "/app/log/private",
                                 {"id": self.next_priv_index, "msg": priv_msg,},
                             )
-                            rep_pub = uc.rpc(
+                            rep_pub = uc.post(
                                 "/app/log/public",
                                 {"id": self.next_pub_index, "msg": pub_msg,},
                             )

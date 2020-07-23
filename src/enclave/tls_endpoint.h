@@ -563,9 +563,8 @@ namespace enclave
     }
 
     static void dbg_callback(
-      void* ctx, int level, const char* file, int line, const char* str)
+      void*, int, const char* file, int line, const char* str)
     {
-      (void)level;
       LOG_DEBUG_FMT("{}:{}: {}", file, line, str);
     }
   };

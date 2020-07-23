@@ -70,7 +70,7 @@ namespace tls
       void (*dbg)(void*, int, const char*, int, const char*))
     {
       mbedtls_ssl_conf_dbg(&cfg, dbg, enclave);
-      mbedtls_ssl_set_bio(&ssl, enclave, send, recv, NULL);
+      mbedtls_ssl_set_bio(&ssl, enclave, send, recv, nullptr);
     }
 
     int handshake()

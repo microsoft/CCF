@@ -137,6 +137,12 @@ namespace ringbuffer
       "No payload specialization for this Message");
   };
 
+#define DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(MTYPE) \
+  template <> \
+  struct ringbuffer::MessageSerializers<MTYPE> \
+    : public serializer::EmptySerializer \
+  {};
+
 #define DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(MTYPE, ...) \
   template <> \
   struct ringbuffer::MessageSerializers<MTYPE> \

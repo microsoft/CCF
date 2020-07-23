@@ -3,9 +3,9 @@
 #include "enclave/app_interface.h"
 #include "kv/untyped_map.h"
 #include "node/rpc/user_frontend.h"
-#include "quickjs.h"
 
 #include <memory>
+#include <quickjs/quickjs.h>
 #include <vector>
 
 namespace ccfapp
@@ -16,8 +16,11 @@ namespace ccfapp
 
   using Table = kv::Map<std::vector<uint8_t>, std::vector<uint8_t>>;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-extensions"
+
   static JSValue js_print(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     int i;
     const char* str;
@@ -66,7 +69,7 @@ namespace ccfapp
   }
 
   static JSValue js_get(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 1)
@@ -89,7 +92,7 @@ namespace ccfapp
   }
 
   static JSValue js_remove(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 1)
@@ -111,7 +114,7 @@ namespace ccfapp
   }
 
   static JSValue js_put(
-    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
     auto table_view = (Table::TxView*)JS_GetContextOpaque(ctx);
     if (argc != 2)
@@ -151,8 +154,6 @@ namespace ccfapp
       network(network),
       table(network.tables->create<Table>("data"))
     {
-      auto& tables = *network.tables;
-
       auto default_handler = [this](EndpointContext& args) {
         const auto method = args.rpc_ctx->get_method();
         const auto local_method = method.substr(method.find_first_not_of('/'));
@@ -272,7 +273,7 @@ namespace ccfapp
 
         args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         args.rpc_ctx->set_response_body(
-          jsonrpc::pack(response, jsonrpc::Pack::Text));
+          serdes::pack(response, serdes::Pack::Text));
         args.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         return;
@@ -295,6 +296,8 @@ namespace ccfapp
     }
   };
 
+#pragma clang diagnostic pop
+
   class JS : public ccf::UserRpcFrontend
   {
   private:
@@ -308,7 +311,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+    NetworkTables& network, ccfapp::AbstractNodeContext&)
   {
     return make_shared<JS>(network);
   }
