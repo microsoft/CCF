@@ -341,7 +341,7 @@ class RequestClient:
             "url": f"https://{self.host}:{self.port}{request.path}",
             "auth": auth_value,
             "headers": extra_headers,
-            "allow_redirects": False
+            "allow_redirects": False,
         }
 
         if request.params is not None:
