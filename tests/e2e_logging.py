@@ -220,6 +220,36 @@ def test_raw_text(network, args):
     return network
 
 
+@reqs.description("Read metrics")
+@reqs.supports_methods("endpoint_metrics")
+def test_metrics(network, args):
+    primary, _ = network.find_primary()
+
+    calls = 0
+    errors = 0
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        m = r.body["metrics"]["endpoint_metrics"]["GET"]
+        calls = m["calls"]
+        errors = m["errors"]
+
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
+
+    with primary.client() as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.status == http.HTTPStatus.FORBIDDEN.value
+
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
+
+    return network
+
+
 @reqs.description("Read historical state")
 @reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
@@ -563,6 +593,7 @@ def run(args):
             network = test_historical_query(network, args)
             network = test_view_history(network, args)
             network = test_primary(network, args)
+            network = test_metrics(network, args)
 
 
 if __name__ == "__main__":
