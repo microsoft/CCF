@@ -105,7 +105,7 @@ def run_to_destruction(args):
             while True:
                 LOG.info(f"Trying with writes scaled by {wsm}")
                 network = test(network, args, batch_size=10, write_size_multiplier=wsm)
-                wsm += 5000
+                wsm += 50000 # Grow very quickly, expect to fail on the second iteration
         except Exception as e:
             timeout = 10
 
