@@ -225,11 +225,19 @@ def test_raw_text(network, args):
 def test_metrics(network, args):
     primary, _ = network.find_primary()
 
+    calls = 0
+    errors = 0
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == 1
+        m = r.body["metrics"]["endpoint_metrics"]["GET"]
+        calls = m["calls"]
+        errors = m["errors"]
+
+    with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == 2
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
 
     with primary.client() as c:
         r = c.get("/app/endpoint_metrics")
@@ -237,7 +245,7 @@ def test_metrics(network, args):
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.body["metrics"]["endpoint_metrics"]["GET"]["errors"] == 1
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
 
     return network
 

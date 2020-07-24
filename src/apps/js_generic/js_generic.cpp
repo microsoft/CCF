@@ -295,9 +295,12 @@ namespace ccfapp
         {
           out.endpoints.push_back(
             {key.substr(0, s), key.substr(s + 1, key.size() - (s + 1))});
-          return true;
         }
-        return false;
+        else
+        {
+          out.endpoints.push_back({"POST", key});
+        }
+        return true;
       });
     }
   };
