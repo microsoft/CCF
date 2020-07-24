@@ -16,6 +16,8 @@ jobs:
       clean: true
 
     - script: |
+        env
+        git status
         git checkout -b master $BUILD_SOURCEVERSION
       displayName: Prepare repo
 
