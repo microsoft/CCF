@@ -27,6 +27,11 @@ steps:
   condition: or(failed(), canceled())
   displayName: 'Upload logs (only on failure)'
 
+- script: |
+    sed -i -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g" Testing/*/Test.xml
+  displayName: 'Remove color codes'
+  workingDirectory: build
+
 - task: PublishTestResults@2
   inputs:
     testResultsFormat: cTest
