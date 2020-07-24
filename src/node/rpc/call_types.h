@@ -134,9 +134,30 @@ namespace ccf
 
   struct ListMethods
   {
+    struct Endpoint
+    {
+      std::string verb;
+      std::string path;
+    };
+
     struct Out
     {
-      std::vector<std::string> methods;
+      std::vector<Endpoint> endpoints;
+    };
+  };
+
+  struct EndpointMetrics
+  {
+    struct Metric
+    {
+      size_t calls = 0;
+      size_t errors = 0;
+      size_t failures = 0;
+    };
+
+    struct Out
+    {
+      std::map<std::string, std::map<std::string, Metric>> metrics;
     };
   };
 
