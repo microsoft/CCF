@@ -173,6 +173,7 @@ namespace ccf
         std::ref(governance_history),
         std::ref(member_client_signatures),
         std::ref(config),
+        std::ref(root_ca_certs),
         std::ref(users),
         std::ref(user_certs),
         std::ref(user_client_signatures),

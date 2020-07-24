@@ -125,7 +125,7 @@ return {
   LOG_INFO("cert: ", args.cert)
   t = tables["ccf.root_ca_cert_ders"]
   LOG_INFO("put in ccf.root_ca_cert_ders")
-  -- TODO why does this fail with "attempt to index a nil value"??
+  -- TODO decode base64 string to uint8 array
   t:put(args.name, args.cert)
   LOG_INFO("put done")
   return true
