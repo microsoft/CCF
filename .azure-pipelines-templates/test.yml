@@ -30,7 +30,7 @@ steps:
 - task: PublishTestResults@2
   inputs:
     testResultsFormat: cTest
-    testResultsFiles: 'Testing/*/Test.xml'
+    testResultsFiles: '**/Test.xml'
     testRunTitle: "${{ parameters.suite_name_suffix }}"
     platform: "$(Agent.MachineName)"
   condition: succeededOrFailed()
