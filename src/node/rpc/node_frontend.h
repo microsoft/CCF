@@ -341,7 +341,9 @@ namespace ccf
           }
         }
       };
-      make_read_only_endpoint("primary", HTTP_GET, is_primary).install();
+      make_read_only_endpoint("primary", HTTP_HEAD, is_primary)
+        .set_forwarding_required(ForwardingRequired::Never)
+        .install();
     }
   };
 

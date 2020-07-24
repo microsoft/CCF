@@ -542,14 +542,17 @@ def test_tx_statuses(network, args):
 @reqs.description("Primary and redirection")
 @reqs.at_least_n_nodes(2)
 def test_primary(network, args, notifications_queue=None, verify=True):
+    LOG.error(network.nodes)
     primary, _ = network.find_primary()
+    LOG.error(f"PRIMARY {primary.pubhost}")
     with primary.client() as c:
-        r = c.get("/node/primary")
+        r = c.head("/node/primary")
         assert r.status == http.HTTPStatus.OK.value
 
     backup = network.find_any_backup()
+    LOG.error(f"BACKUP {backup.pubhost}")
     with backup.client() as c:
-        r = c.get("/node/primary")
+        r = c.head("/node/primary")
         assert r.status == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]

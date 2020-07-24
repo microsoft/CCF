@@ -341,6 +341,7 @@ class RequestClient:
             "url": f"https://{self.host}:{self.port}{request.path}",
             "auth": auth_value,
             "headers": extra_headers,
+            "allow_redirects": False
         }
 
         if request.params is not None:
@@ -490,6 +491,9 @@ class CCFClient:
 
     def delete(self, *args, **kwargs):
         return self.call(*args, http_verb="DELETE", **kwargs)
+
+    def head(self, *args, **kwargs):
+        return self.call(*args, http_verb="HEAD", **kwargs)
 
 
 @contextlib.contextmanager
