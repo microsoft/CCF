@@ -1,10 +1,5 @@
 steps:
 
-# TODO: Temporary debugging feature - show the commands for an enclave so we can confirm LVI mitigations
-- script: ninja -t commands js_generic
-  displayName: Sample build commands
-  workingDirectory: build
-
 - script: ninja
   displayName: Ninja
   workingDirectory: build
