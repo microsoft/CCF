@@ -54,7 +54,9 @@ return {
       LOG_INFO("cert name: ", call.args.name)
       LOG_INFO("cert (base64): ", call.args.cert)
       claims = verify_cert_and_get_claims(call.args.cert)
-      if claims.mrsigner ~= "abc" then
+      expected_mrsigner = "ca9ad7331448980aa28890ce73e433638377f179ab4456b2fe237193193a8d0a"
+      if claims.mrsigner ~= expected_mrsigner then
+        LOG_INFO("mrsigner mismatch: ", expected_mrsigner, " != ", claims.mrsigner)
         return REJECTED
       end
       --if claims.is_debuggable then

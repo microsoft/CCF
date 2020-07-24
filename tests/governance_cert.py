@@ -36,7 +36,7 @@ def test_cert_store(network, args, notifications_queue=None, verify=True):
 
     primary, _ = network.find_nodes()
 
-    with open(os.path.join(this_dir, 'ca_cert.der'), 'rb') as f:
+    with open(os.path.join(this_dir, 'attested_cert.der'), 'rb') as f:
         ca_cert = f.read()
     ca_cert_b64 = base64.b64encode(ca_cert).decode('ascii')
 
