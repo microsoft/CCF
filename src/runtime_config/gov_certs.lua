@@ -120,8 +120,14 @@ return {
 
   update_root_ca_cert = [[
   tables, args = ...
+  LOG_INFO("calling update_root_ca_cert")
+  LOG_INFO("name: ", args.name)
+  LOG_INFO("cert: ", args.cert)
   t = tables["ccf.root_ca_cert_ders"]
+  LOG_INFO("put in ccf.root_ca_cert_ders")
+  -- TODO why does this fail with "attempt to index a nil value"??
   t:put(args.name, args.cert)
+  LOG_INFO("put done")
   return true
   ]],
 }
