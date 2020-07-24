@@ -18,6 +18,7 @@ jobs:
     - script: |
         env
         git status
+        git rev-parse HEAD
         git checkout -b master $BUILD_SOURCEVERSION
       displayName: Prepare repo
 
