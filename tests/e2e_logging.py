@@ -509,6 +509,25 @@ def test_tx_statuses(network, args):
     return network
 
 
+@reqs.description("Primary and redirection")
+@reqs.at_least_n_nodes(2)
+def test_primary(network, args, notifications_queue=None, verify=True):
+    primary, _ = network.find_primary()
+    with primary.client() as c:
+        r = c.get("/node/primary")
+        assert r.status == http.HTTPStatus.OK.value
+
+    backup = network.find_any_backup()
+    with backup.client() as c:
+        r = c.get("/node/primary")
+        assert r.status == http.HTTPStatus.PERMANENT_REDIRECT.value
+        assert (
+            r.headers["location"]
+            == f"https://{primary.pubhost}:{primary.rpc_port}/node/primary"
+        )
+    return network
+
+
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
 
@@ -543,6 +562,7 @@ def run(args):
             network = test_raw_text(network, args)
             network = test_historical_query(network, args)
             network = test_view_history(network, args)
+            network = test_primary(network, args)
 
 
 if __name__ == "__main__":

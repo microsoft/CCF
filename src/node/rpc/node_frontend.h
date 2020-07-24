@@ -318,7 +318,7 @@ namespace ccf
         "network", HTTP_GET, json_read_only_adapter(network_status))
         .install();
 
-      auto is_primary = [this](CommandEndpointContext& args) {
+      auto is_primary = [this](ReadOnlyEndpointContext& args) {
         if (this->node.is_primary())
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
@@ -326,9 +326,22 @@ namespace ccf
         else
         {
           args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+          if (consensus != nullptr)
+          {
+            NodeId primary_id = consensus->primary();
+            auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+            auto info = nodes_view->get(primary_id);
+            if (info)
+            {
+              args.rpc_ctx->set_response_header(
+                "Location",
+                fmt::format(
+                  "https://{}:{}/node/primary", info->pubhost, info->rpcport));
+            }
+          }
         }
       };
-      make_command_endpoint("primary", HTTP_GET, is_primary).install();
+      make_read_only_endpoint("primary", HTTP_GET, is_primary).install();
     }
   };
 
