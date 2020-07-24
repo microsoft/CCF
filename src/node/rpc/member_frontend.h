@@ -42,22 +42,24 @@ namespace ccf
       TxScriptRunner::setup_environment(li, env_script);
     }
 
+    static oe_result_t oe_verify_attestation_certificate_cb(oe_identity_t* identity, void* arg)
+    {
+        std::memcpy(arg, identity, sizeof(oe_identity_t));
+        return OE_OK;
+    }
+
     static int lua_verify_cert_and_get_claims(lua_State* l)
     {
+      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
       std::string cert_der_b64 = get_var_string_from_args(l);
       std::vector<uint8_t> cert_der = tls::raw_from_b64(cert_der_b64);
 
-      oe_identity_t claims;
-      std::function<oe_result_t(oe_identity_t*, void*)> cb =
-        [&claims](oe_identity_t* identity, void*) {
-        std::memcpy(&claims, identity, sizeof(claims));
-        return OE_OK;
-      };
+      oe_identity_t identity;
       oe_result_t res = oe_verify_attestation_certificate(
         cert_der.data(),
         cert_der.size(),
-        *cb.target<oe_identity_verify_callback_t>(),
-        nullptr);
+        oe_verify_attestation_certificate_cb,
+        &identity);
 
       if (res != OE_OK)
       {
@@ -69,17 +71,17 @@ namespace ccf
       const int table_idx = -2;
 
       std::string mrsigner =
-        fmt::format("{:02x}", fmt::join(claims.signer_id, ""));
+        fmt::format("{:02x}", fmt::join(identity.signer_id, ""));
       lua::push_raw(l, mrsigner);
       lua_setfield(l, table_idx, "mrsigner");
 
       std::string mrenclave =
-        fmt::format("{:02x}", fmt::join(claims.unique_id, ""));
+        fmt::format("{:02x}", fmt::join(identity.unique_id, ""));
       lua::push_raw(l, mrenclave);
       lua_setfield(l, table_idx, "mrenclave");
 
       lua::push_raw(
-        l, static_cast<bool>(claims.attributes & OE_REPORT_ATTRIBUTES_DEBUG));
+        l, static_cast<bool>(identity.attributes & OE_REPORT_ATTRIBUTES_DEBUG));
       lua_setfield(l, table_idx, "is_debuggable");
 
       return 1;

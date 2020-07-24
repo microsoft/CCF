@@ -2,10 +2,10 @@
 -- Licensed under the Apache 2.0 License.
 
 -- This file defines the default initial contents (ie, Lua scripts) of the governance scripts table.
+
 return {
   pass = [[
   tables, calls, votes = ...
-
   -- interface definitions
   PASSED = 1
   PENDING = 0
@@ -50,10 +50,10 @@ return {
   -- validate update_root_ca_cert calls
   for _, call in pairs(calls) do
     if call.func == "update_root_ca_cert" then
-      LOG_INFO("found update_root_ca_cert")
-      cert = call.args[0]
       LOG_INFO("calling verify_cert_and_get_claims")
-      claims = verify_cert_and_get_claims(cert)
+      LOG_INFO("cert name: ", call.args.name)
+      LOG_INFO("cert (base64): ", call.args.cert)
+      claims = verify_cert_and_get_claims(call.args.cert)
       if claims.mrsigner ~= "abc" then
         return REJECTED
       end
@@ -117,9 +117,9 @@ return {
   return true]],
 
   update_root_ca_cert = [[
-  tables, name, cert = ...
+  tables, args = ...
   t = tables["ccf.root_ca_cert_ders"]
-  t:put(name, cert)
+  t:put(args.name, args.cert)
   return true
   ]],
 }
