@@ -21,6 +21,7 @@
 #include <set>
 #include <sstream>
 
+#include <openenclave/attestation/verifier.h>
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 #  include <openenclave/enclave.h>
 #else
@@ -41,6 +42,65 @@ namespace ccf
 
       TxScriptRunner::setup_environment(li, env_script);
     }
+
+#if 0
+    // Uses the new API: oe_verify_attestation_certificate_with_evidence.
+    // Requires OE 0.11.
+    // The quote is assumed to be an OE attestation (with oe_attestation_header_t header)
+    // stored at 1.2.840.113556.10.1.2 in the cert.
+
+    static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
+      oe_claim_t* claims, size_t claims_length, void* arg)
+    {
+      auto claims_map = (std::map<std::string,std::vector<uint8_t>>*)arg;
+      for (size_t i=0; i < claims_length; i++)
+      {
+        std::string claim_name(claims[i].name);
+        std::vector<uint8_t> claim_value(claims[i].value, claims[i].value + claims[i].value_size);
+        claims_map->emplace(std::move(claim_name), std::move(claim_value));
+      }
+      return OE_OK;
+    }
+
+    static int lua_verify_cert_and_get_claims(lua_State* l)
+    {
+      LOG_INFO_FMT("lua_verify_cert_and_get_claims");
+      std::string cert_der_b64 = get_var_string_from_args(l);
+      std::vector<uint8_t> cert_der = tls::raw_from_b64(cert_der_b64);
+
+      std::map<std::string, std::vector<uint8_t>> claims;
+
+      oe_verifier_initialize();
+      oe_result_t res = oe_verify_attestation_certificate_with_evidence(
+        cert_der.data(),
+        cert_der.size(),
+        oe_verify_attestation_certificate_with_evidence_cb,
+        &claims);
+
+      if (res != OE_OK)
+      {
+        // TODO should this raise an exception?
+        throw std::runtime_error("certificate not valid");
+      }
+
+      lua_newtable(l);
+      const int table_idx = -2;
+
+      for (auto const& item : claims)
+      {
+        LOG_INFO_FMT("claim: {}", item.first);
+        // TODO not all claims should be hex-encoded
+        std::string val_hex = fmt::format("{:02x}", fmt::join(item.second, ""));
+        lua::push_raw(l, val_hex);
+        lua_setfield(l, table_idx, item.first.c_str());
+      }
+
+      return 1;
+    }
+#else
+    // Uses the old API: oe_verify_attestation_certificate.
+    // The quote is assumed to be an OE report (with oe_report_header_t header)
+    // stored at 1.2.840.113556.10.1.1 in the cert.
 
     static oe_result_t oe_verify_attestation_certificate_cb(oe_identity_t* identity, void* arg)
     {
@@ -86,6 +146,7 @@ namespace ccf
 
       return 1;
     }
+#endif
 
   public:
     MemberTsr(NetworkTables& network) : TxScriptRunner(network) {}

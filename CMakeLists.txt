@@ -147,7 +147,8 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            secp256k1.host
            sss.host
            byz.host
-           openenclave::oehostverify
+           #openenclave::oehostverify
+           openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )
 

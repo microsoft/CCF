@@ -177,7 +177,7 @@ function(add_unit_test name)
   target_compile_options(${name} PRIVATE -stdlib=libc++)
   target_include_directories(${name} PRIVATE src ${CCFCRYPTO_INC})
   enable_coverage(${name})
-  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehostverify)
+  target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host openenclave::oehost) #openenclave::oehostverify
   use_client_mbedtls(${name})
   add_san(${name})
 
