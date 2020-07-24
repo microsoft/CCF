@@ -14,7 +14,6 @@ jobs:
   steps:
     - checkout: self
       clean: true
-      submodules: true
 
     - script: |
         git checkout -b master $BUILD_SOURCEVERSION
