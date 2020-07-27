@@ -12,11 +12,6 @@ steps:
 
 - script: |
     INSTALL_PREFIX=`cat /tmp/install_prefix`
-    cp -r /opt/openenclave $INSTALL_PREFIX
-  displayName: Copy OE into install dir
-
-- script: |
-    INSTALL_PREFIX=`cat /tmp/install_prefix`
     tar czf $(Build.ArtifactStagingDirectory)/ccf.tar.gz ${INSTALL_PREFIX##/opt/}
   displayName: Create release tarball
   workingDirectory: /opt
