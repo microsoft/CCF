@@ -520,10 +520,10 @@ class Network:
         end_time = time.time() + timeout
         while time.time() < end_time:
             for node in self.get_joined_nodes():
-                with node.client(request_timeout=request_timeout) as c:
+                with node.client() as c:
                     try:
-                        res = c.get("/node/primary_info")
-                        if res.status == 200:
+                        res = c.get("/node/primary_info", timeout=request_timeout)
+                        if res.status_code == 200:
                             primary_id = res.body["primary_id"]
                             view = res.body["current_view"]
                             break
@@ -580,8 +580,8 @@ class Network:
             caught_up_nodes = []
             for node in self.get_joined_nodes():
                 with node.client() as c:
-                    resp = c.get("/node/tx", {"view": view, "seqno": seqno})
-                    if resp.status != 200:
+                    resp = c.get(f"/node/tx?view={view}&seqno={seqno}")
+                    if resp.status_code != 200:
                         # Node may not have joined the network yet, try again
                         break
                     status = TxStatus(resp.body["status"])
