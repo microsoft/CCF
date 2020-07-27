@@ -5,6 +5,8 @@ import sys
 import subprocess
 import base64
 import tempfile
+from cryptography import x509
+import cryptography.hazmat.backends as crypto_backends
 import infra.network
 import infra.path
 import infra.proc
@@ -61,12 +63,16 @@ def test_cert_store(network, args, notifications_queue=None, verify=True):
     proposal = network.consortium.get_any_active_member().propose(primary, proposal_body)
     assert proposal.state == ProposalState.Accepted
     
-    #txs = app.LoggingTxs(notifications_queue=notifications_queue, user_id=3)
-    
-    with primary.client() as c:
-        pass
-        #r = c.get("/app/log/private")
-        #assert r.status == 403
+    with primary.client(f"member{network.consortium.get_any_active_member().member_id}") as c:
+        r = c.post(
+            "/gov/read", {"table": "ccf.root_ca_cert_ders", "key": "mycert"}
+        )
+        assert r.status == 200, r.status
+        cert_pem_str = open(ca_cert_path).read()
+        cert_ref = x509.load_pem_x509_certificate(cert_pem_str.encode(), crypto_backends.default_backend())
+        cert_kv = x509.load_der_x509_certificate(bytes(r.body), crypto_backends.default_backend())
+        assert cert_ref == cert_kv, f"stored cert not equal to input cert: {cert_ref} != {cert_kv}"
+
     return network
 
 def run(args):
