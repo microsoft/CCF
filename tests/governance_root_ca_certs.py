@@ -51,7 +51,7 @@ def test_cert_store(network, args, notifications_queue=None, verify=True):
             assert False, "Proposal should not have been created"
 
     LOG.info("Member makes a root ca cert update proposal with valid cert")
-    ca_cert_path = os.path.join(this_dir, 'attested_cert.pem')
+    ca_cert_path = os.path.join(this_dir, 'root_ca_cert.pem')
     proposal_body, _ = ccf.proposal_generator.update_root_ca_cert("mycert", ca_cert_path)
     proposal = network.consortium.get_any_active_member().propose(primary, proposal_body)
     assert proposal.state == ProposalState.Accepted
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     # temporary hack...
     for i, arg in enumerate(sys.argv):
         if 'gov.lua' in arg:
-            sys.argv[i] = arg.replace('gov.lua', 'gov_certs.lua')
+            sys.argv[i] = arg.replace('gov.lua', 'gov_root_ca_certs.lua')
 
     args = infra.e2e_args.cli_args(add=add)
 

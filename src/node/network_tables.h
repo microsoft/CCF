@@ -56,7 +56,7 @@ namespace ccf
     SubmittedShares& submitted_shares;
     Configuration& config;
 
-    RootCACerts& root_ca_certs;
+    RootCACertDERs& root_ca_certs;
 
     //
     // User tables
@@ -125,7 +125,7 @@ namespace ccf
         Tables::SUBMITTED_SHARES, kv::SecurityDomain::PUBLIC)),
       config(tables->create<Configuration>(
         Tables::CONFIGURATION, kv::SecurityDomain::PUBLIC)),
-      root_ca_certs(tables->create<RootCACerts>(
+      root_ca_certs(tables->create<RootCACertDERs>(
         Tables::ROOT_CA_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       users(tables->create<Users>(Tables::USERS, kv::SecurityDomain::PUBLIC)),
       user_certs(tables->create<CertDERs>(

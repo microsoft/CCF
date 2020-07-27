@@ -135,7 +135,6 @@ namespace ccf
 
       if (res != OE_OK)
       {
-        // TODO should this raise an exception?
         throw std::runtime_error("certificate not valid");
       }
 
