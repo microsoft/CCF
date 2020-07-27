@@ -21,16 +21,19 @@ python -m pip install -U -r "$INSTALL_PREFIX"/bin/requirements.txt
 pip freeze > "$INSTALL_PREFIX"/bin/requirements.txt
 
 # Start ephemeral network in the background
+network_info_file="network_info.txt"
+
 timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
     -p ../../build/liblogging \
     -b "$INSTALL_PREFIX"/bin \
     -g "$(pwd)"/../../src/runtime_config/gov.lua \
+    --network-info-file "$network_info_file" \
     -v &
 
 # Issue tutorial transactions to ephemeral network
 sleep 20
-python ../../python/tutorial.py client_info.txt
+python ../../python/tutorial.py "$network_info_file"
 sleep 15
 
 # Recover network
