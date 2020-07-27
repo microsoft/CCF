@@ -65,6 +65,41 @@ namespace threading
 #endif
     }
 
+    ~Task()
+    {
+#ifdef USE_MPSCQ
+      while (!queue.is_emtpy())
+      {
+        ThreadMsg* current;
+        bool result;
+        std::tie(current, result) = queue.dequeue();
+        if (result)
+        {
+          delete current;
+        }
+      }
+#else
+      bool done = false;
+      while (!done)
+      {
+        if (local_msg == nullptr && item_head != nullptr)
+        {
+          local_msg = item_head.exchange(nullptr);
+          reverse_local_messages();
+        }
+
+        if (local_msg == nullptr)
+        {
+          break;
+        }
+
+        ThreadMsg* current = local_msg;
+        local_msg = local_msg->next;
+        delete current;
+      }
+#endif
+    }
+
     bool run_next_task()
     {
 #ifdef USE_MPSCQ
@@ -149,7 +184,6 @@ namespace threading
 
     static const uint16_t max_num_threads = 24;
 
-  public:
     ThreadMessaging(uint16_t num_threads = max_num_threads) :
       finished(false),
       tasks(num_threads)
