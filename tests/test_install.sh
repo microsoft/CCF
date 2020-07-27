@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-set -e
+set -ex
 
 if [ "$#" -ne 1 ]; then
     echo "Install prefix should be passed as first argument to $0"
@@ -25,7 +25,7 @@ network_info_file="network_info.txt"
 
 timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p ../../build/liblogging \
+    -p ../../../build/liblogging \
     -b "$INSTALL_PREFIX"/bin \
     -g "$(pwd)"/../../../src/runtime_config/gov.lua \
     --network-info-file "$network_info_file" \
@@ -42,7 +42,7 @@ cp ./workspace/start_network_0/network_enc_pubk.pem .
 
 timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
-    -p ../../build/liblogging \
+    -p ../../../build/liblogging \
     -b "$INSTALL_PREFIX"/bin \
     -v \
     --recover \

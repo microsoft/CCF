@@ -5,6 +5,7 @@ import infra.network
 import time
 import sys
 import json
+import os
 
 from loguru import logger as LOG
 
@@ -18,7 +19,7 @@ def dump_network_info(path, network, node):
     with open(path, "w") as network_info_file:
         json.dump(network_info, network_info_file)
 
-    LOG.debug(f"Dumped network information to {path}")
+    LOG.debug(f"Dumped network information to {os.path.abspath(path)}")
 
 
 def run(args):
