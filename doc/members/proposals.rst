@@ -3,11 +3,69 @@ Proposing and Voting for a Proposal
 
 This page explains how members can submit and vote for proposals.
 
+Proposals and vote ballots are submitted as Lua scripts. These scripts are executed transactionally, able to read from the current KV state but not write directly to it. Proposals return a list of proposed actions which can make writes, but are only applied when the proposal is accepted. Each vote script is given this list of proposed calls, and also able to read from the KV, and returns a boolean indicating whether it supports or rejects the proposed actions.
+
 Any member can submit a new proposal. All members can then vote on this proposal using its unique proposal id. Each member may alter their vote (by submitting a new vote) any number of times while the proposal is open. The member who originally submitted the proposal (the `proposer`) votes for the proposal by default, but has the option to include a negative or conditional vote like any other member. Additionally, the proposer has the ability to `withdraw` a proposal while it is open.
 
 Each time a vote is submitted, all vote ballots for this proposal are re-executed on the current state to determine whether they are `for` or `against` the proposal. This vote tally is passed to the :term:`Constitution`, which determines whether the proposal is accepted or remains open. Once a proposal is accepted under the rules of the :term:`Constitution`, it is executed and its effects are recorded in the ledger.
 
 For transparency and auditability, all governance operations (including votes) are recorded in plaintext in the ledger and members are required to sign their requests.
+
+Creating a Proposal
+-------------------
+
+For custom proposals with multiple actions and precise conditional requirements you will need to write the proposal script by hand. For simple proposals there is a helper script in the CCF Python package - `proposal_generator.py`. This can be used to create proposals for common operations like adding members and users, without writing any Lua. It also produces sample vote scripts, which validate that the executed proposed actions exactly match what is expected. These sample proposals and votes can be used as a syntax and API reference for producing more complex custom proposals.
+
+Assuming the CCF Python package has been installed in the current Python environment, the proposal generator can be invoked directly as ``ccf.proposal_generator``. With no further argument it will print help text, including the list of possible actions as subcommands:
+
+.. code-block:: bash
+
+    $ python -m ccf.proposal_generator
+    usage: proposal_generator.py [-h] [-po PROPOSAL_OUTPUT_FILE]
+                             [-vo VOTE_OUTPUT_FILE] [-pp] [-i]
+                             [--vote-against] [-v]
+                             {accept_recovery,new_member,new_node_code,new_user,new_user_code,open_network,rekey_ledger,remove_user,retire_member,retire_node,set_js_app,set_lua_app,set_recovery_threshold,set_user_data,trust_node,update_recovery_shares}
+
+Additional detail is available from the ``--help`` option. You can also find the script in a checkout of CCF:
+
+.. code-block:: bash
+
+    $ python CCF/python/ccf/proposal_generator.py
+
+Some of these subcommands require additional arguments, such as the node ID or user certificate to add to the service. Additional options allow the generated votes and proposals to be redirected to other files or pretty-printed:
+
+.. code-block:: bash
+
+    $ python -m ccf.proposal_generator trust_node 5
+    SUCCESS | Writing proposal to ./trust_node_proposal.json
+    SUCCESS | Wrote vote to ./trust_node_vote_for.json
+
+    $ cat trust_node_proposal.json 
+    {"script": {"text": "tables, args = ...; return Calls:call(\"trust_node\", args)"}, "parameter": "5"}
+
+    $ cat trust_node_vote_for.json 
+    {"ballot": {"text": "tables, calls = ...; if not #calls == 1 then return false end; call = calls[1]; if not call.func == \"trust_node\" then return false end; args = call.args; if args == nil then return false end; if not args == [====[5]====] then return false end; return true"}}
+
+    $python -m ccf.proposal_generator --pretty-print --proposal-output-file add_pedro.json --vote-output-file vote_for_pedro.json new_user pedro_cert.pem 
+    SUCCESS | Writing proposal to ./add_pedro.json
+    SUCCESS | Wrote vote to ./vote_for_pedro.json
+    
+    $ cat add_pedro.json 
+    {
+      "script": {
+        "text": "tables, args = ...; return Calls:call(\"new_user\", args)"
+      },
+      "parameter": "-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUJY+H0OzuFQWz/udd+WCD7Cv+cgwwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcyNDE1MzYyOFoXDTIxMDcyNDE1MzYyOFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE7h75Xd1+0QDD\nWF2edGphgryHcDoBXdRowq6ciYH2++ilXXagi5Rybai7ewgV0YuvrDm+WfGyJ9CC\n5HbT6C/z5GCJQnLH2t3LaZrw9MQDF3bH6XOHGmaJh6m7rfpZZljpo1MwUTAdBgNV\nHQ4EFgQUN/LhCyVExERjt5f1RZx7820934wwHwYDVR0jBBgwFoAUN/LhCyVExERj\nt5f1RZx7820934wwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\n5MsDNvjEMSgYXy+bPbE2nxOlmH6OhP375IVZxNQALJGzTfgHu+IbpyvDF0/VrMrW\nAjEA723VxgMgpuxB5SszN6eZuz8EW51DsgRIVWMSbBZYYBYyQmu5x3T+Hx/Cs7TD\nu4Ee\n-----END CERTIFICATE-----\n"
+    }
+    
+    $ cat vote_for_pedro.json 
+    {
+      "ballot": {
+        "text": "tables, calls = ...; if not #calls == 1 then return false end; call = calls[1]; if not call.func == \"new_user\" then return false end; args = call.args; if args == nil then return false end; if not args == [====[-----BEGIN CERTIFICATE-----\nMIIBrzCCATSgAwIBAgIUJY+H0OzuFQWz/udd+WCD7Cv+cgwwCgYIKoZIzj0EAwMw\nDjEMMAoGA1UEAwwDYm9iMB4XDTIwMDcyNDE1MzYyOFoXDTIxMDcyNDE1MzYyOFow\nDjEMMAoGA1UEAwwDYm9iMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE7h75Xd1+0QDD\nWF2edGphgryHcDoBXdRowq6ciYH2++ilXXagi5Rybai7ewgV0YuvrDm+WfGyJ9CC\n5HbT6C/z5GCJQnLH2t3LaZrw9MQDF3bH6XOHGmaJh6m7rfpZZljpo1MwUTAdBgNV\nHQ4EFgQUN/LhCyVExERjt5f1RZx7820934wwHwYDVR0jBBgwFoAUN/LhCyVExERj\nt5f1RZx7820934wwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAwNpADBmAjEA\n5MsDNvjEMSgYXy+bPbE2nxOlmH6OhP375IVZxNQALJGzTfgHu+IbpyvDF0/VrMrW\nAjEA723VxgMgpuxB5SszN6eZuz8EW51DsgRIVWMSbBZYYBYyQmu5x3T+Hx/Cs7TD\nu4Ee\n-----END CERTIFICATE-----\n]====] then return false end; return true"
+      }
+    }
+
+These proposals and votes should be sent as the body of HTTP requests as described below.
 
 Submitting a New Proposal
 -------------------------
