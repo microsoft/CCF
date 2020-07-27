@@ -77,7 +77,7 @@ In fact, even an anonymous client can be used to verify that a transaction is co
     :start-after: SNIPPET: any_client_can_wait
     :lines: 1
 
-.. warning:: This does not imply that the confidential content of a transaction issued by an authenticated client is visible by an authenticated client. Indeed, access control to the confidential resource is handled by the CCF application logic.
+.. warning:: This does not imply that the content of a confidential transaction issued by an authenticated client is visible by an unauthenticated client. Access control to the confidential resource is handled by the CCF application logic.
 
 Finally, the authenticated client can be used to issue ``GET`` requests and verify that the previous messages have successfully been recorded:
 
