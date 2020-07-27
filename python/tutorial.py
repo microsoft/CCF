@@ -44,9 +44,9 @@ assert r.status_code == http.HTTPStatus.OK
 user_client = ccf.clients.CCFClient(host, port, ca, cert, key)
 
 # SNIPPET_START: authenticated_post_requests
-r = user_client.post("/app/log/private", params={"id": 0, "msg": "Private message"})
+r = user_client.post("/app/log/private", body={"id": 0, "msg": "Private message"})
 assert r.status_code == http.HTTPStatus.OK
-r = user_client.post("/app/log/public", params={"id": 0, "msg": "Public message"})
+r = user_client.post("/app/log/public", body={"id": 0, "msg": "Public message"})
 assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: authenticated_post_requests
 
@@ -57,10 +57,10 @@ user_client.wait_for_commit(r)
 anonymous_client.wait_for_commit(r)
 
 # SNIPPET_START: authenticated_get_requests
-r = user_client.get("/app/log/private", params={"id": 0})
+r = user_client.get("/app/log/private?id=0")
 assert r.status_code == http.HTTPStatus.OK
 assert r.body == {"msg": "Private message"}
-r = user_client.get("/app/log/public", params={"id": 0})
+r = user_client.get("/app/log/public?id=0")
 assert r.status_code == http.HTTPStatus.OK
 assert r.body == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests

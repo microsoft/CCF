@@ -151,6 +151,7 @@ namespace enclave
     virtual void set_response_body(std::string&& body) = 0;
 
     virtual void set_response_status(int status) = 0;
+    virtual int get_response_status() const = 0;
 
     virtual void set_seqno(kv::Version) = 0;
     virtual void set_view(kv::Consensus::View) = 0;

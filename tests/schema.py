@@ -36,14 +36,12 @@ def run(args):
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
-        methods = list_response.body["methods"]
-        all_methods.extend(methods)
+        methods = list_response.body["endpoints"]
+        all_methods.extend([m["path"] for m in methods])
 
-        for method in methods:
+        for method in [m["path"] for m in methods]:
             schema_found = False
-            schema_response = client.get(
-                f"/{prefix}/api/schema", params={"method": method}
-            )
+            schema_response = client.get(f'/{prefix}/api/schema?method="{method}"')
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,

@@ -14,10 +14,12 @@ jobs:
   steps:
     - checkout: self
       clean: true
-      submodules: true
 
     - script: |
-        git checkout -b master $BUILD_SOURCEVERSION
+        env
+        git status
+        git rev-parse HEAD
+        git checkout -b master $(git rev-parse HEAD)
       displayName: Prepare repo
 
     - script: |

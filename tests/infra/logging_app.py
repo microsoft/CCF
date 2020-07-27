@@ -5,6 +5,7 @@ import infra.checker
 import ccf.clients
 import suite.test_requirements as reqs
 import time
+import http
 
 from loguru import logger as LOG
 
@@ -161,8 +162,8 @@ class LoggingTxs:
         end_time = time.time() + timeout
         while time.time() < end_time:
             with node.client(self.user) as uc:
-                rep = uc.get(cmd, {"id": idx})
-                if rep.status_code == 404:
+                rep = uc.get(f"{cmd}?id={idx}")
+                if rep.status_code == http.HTTPStatus.NOT_FOUND.value:
                     LOG.warning("User frontend is not yet opened")
                     time.sleep(0.1)
                 else:

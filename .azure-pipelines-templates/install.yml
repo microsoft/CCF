@@ -7,13 +7,9 @@ steps:
   displayName: 'Install'
 
 - script: |
-    ./test_install.sh
+    cat /tmp/install_prefix | xargs ./test_install.sh
+  workingDirectory: build
   displayName: Test installed CCF
-
-- script: |
-    INSTALL_PREFIX=`cat /tmp/install_prefix`
-    cp -r /opt/openenclave $INSTALL_PREFIX
-  displayName: Copy OE into install dir
 
 - script: |
     INSTALL_PREFIX=`cat /tmp/install_prefix`

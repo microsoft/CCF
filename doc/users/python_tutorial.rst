@@ -1,7 +1,9 @@
 Python Client Tutorial
 ======================
 
-.. note:: See :ref:`Python Client API <users/python_api:Python Client API>` for complete full API specification.
+This tutorial describes how a Python client can securely issue requests to a running CCF network. It is assumed that the CCF network has already been started (e.g. after having :ref:`deployed a test network <users/deploy_app:Deploying an Application>`).
+
+.. note:: See :ref:`Python Client API <users/python_api:Python Client API>` for the complete API specification.
 
 First, install the CCF Python package:
 
@@ -20,8 +22,8 @@ Set the following CCF node variables:
 
 .. code-block:: python
 
-    host = "<node-rpc-host>"        # Node RPC address or domain
-    port = <node-rpc-port>          # Node RPC port
+    host = "<node-host>"            # Node address or domain (str)
+    port = <node-port>              # Node port (int)
     ca = "<path/to/network/cert>"   # Network certificate path
 
 .. note:: :ref:`When deploying a test network <users/deploy_app:Deploying an Application>`, use any node's IP address and port number. All certificates and keys can be found in the associated ``common_dir`` folder.
@@ -61,21 +63,23 @@ The authenticated client can then be used to issue ``POST`` requests, e.g. regis
     :start-after: SNIPPET_START: authenticated_post_requests
     :end-before: SNIPPET_END: authenticated_post_requests
 
-It is posible to use the same :py:class:`ccf.clients.CCFClient` instance to wait for the transaction to be committed by the network:
+It is possible to use the same :py:class:`ccf.clients.CCFClient` instance to wait for the transaction to be committed by the network:
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py
     :start-after: SNIPPET: wait_for_commit
     :lines: 1
 
-In fact, even an anonymous client can be used to verify that a transaction is committed:
+In fact, even an anonymous client can be used to verify that a transaction is committed. This is because only the sequence number and view associated with the transaction are required to verify that a transaction is committed.
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py
     :start-after: SNIPPET: any_client_can_wait
     :lines: 1
 
-Finally, the authenticated client can used to issue ``GET`` requests and verify that the previous messages have successfully been recorded.
+.. warning:: This does not imply that the content of a confidential transaction issued by an authenticated client is visible by an unauthenticated client. Access control to the confidential resource is handled by the CCF application logic.
+
+Finally, the authenticated client can be used to issue ``GET`` requests and verify that the previous messages have successfully been recorded:
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py

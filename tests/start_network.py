@@ -5,19 +5,21 @@ import infra.network
 import time
 import sys
 import json
-
+import os
 from loguru import logger as LOG
 
 
-def dump_client_info(path, network, node):
-    client_info = {}
-    client_info["host"] = node.pubhost
-    client_info["port"] = node.rpc_port
-    client_info["ledger"] = node.remote.ledger_path()
-    client_info["common_dir"] = network.common_dir
+def dump_network_info(path, network, node):
+    network_info = {}
+    network_info["host"] = node.pubhost
+    network_info["port"] = node.rpc_port
+    network_info["ledger"] = node.remote.ledger_path()
+    network_info["common_dir"] = network.common_dir
 
-    with open(path, "w") as client_info_file:
-        json.dump(client_info, client_info_file)
+    with open(path, "w") as network_info_file:
+        json.dump(network_info, network_info_file)
+
+    LOG.debug(f"Dumped network information to {os.path.abspath(path)}")
 
 
 def run(args):
@@ -63,7 +65,8 @@ def run(args):
             LOG.info("  Node [{:2d}] = {}:{}".format(b.node_id, b.pubhost, b.rpc_port))
 
         # Dump primary info to file for tutorial testing
-        dump_client_info(args.client_info_file, network, primary)
+        if args.network_info_file is not None:
+            dump_network_info(args.network_info_file, network, primary)
 
         LOG.info(
             f"You can now issue business transactions to the {args.package} application."
@@ -109,9 +112,9 @@ if __name__ == "__main__":
             default=False,
         )
         parser.add_argument(
-            "--client-info-file",
-            help="Path to output file where client information will be dumped to (useful for scripting)",
-            default="client_info.txt",
+            "--network-info-file",
+            help="Path to output file where network information will be dumped to (useful for scripting)",
+            default=None,
         )
         parser.add_argument(
             "-r",

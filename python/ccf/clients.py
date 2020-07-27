@@ -6,7 +6,7 @@ import time
 import os
 import subprocess
 import tempfile
-import urllib.parse
+from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
 from requests.adapters import HTTPAdapter
@@ -15,6 +15,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
+from typing import Union, Optional
 
 import requests
 from loguru import logger as LOG
@@ -41,34 +42,25 @@ DEFAULT_REQUEST_TIMEOUT_SEC = 3
 DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 
+@dataclass
 class Request:
-    def __init__(self, path, params=None, http_verb="POST", headers=None):
-        if headers is None:
-            headers = {}
-
-        self.path = path
-        self.params = params
-        self.http_verb = http_verb
-        self.headers = headers
-        self.params_in_query = http_verb == "GET" or http_verb == "DELETE"
-
-    def get_params(self):
-        if self.params_in_query and self.params is not None:
-            return f"?{urllib.parse.urlencode(self.params)}"
-        else:
-            return truncate(f"{self.params}") if self.params is not None else ""
+    #: Resource path (with optional query string)
+    path: str
+    #: Body of request
+    body: Optional[Union[dict, str]]
+    #: HTTP verb
+    http_verb: Optional[int]
+    #: HTTP headers
+    headers: dict
 
     def __str__(self):
-        headers = self.headers or ""
-        params_ = self.get_params()
-        if self.params_in_query:
-            params = ""
-            query_params = params_
-        else:
-            params = params_
-            query_params = ""
+        string = f"{self.http_verb} {self.path}"
+        if self.headers:
+            string += f" {self.headers}"
+        if self.body is not None:
+            string += f'{truncate(f"{self.body}")}'
 
-        return f"{self.http_verb} {self.path}{query_params} {headers} {params}"
+        return string
 
 
 def int_or_none(v):
@@ -83,24 +75,24 @@ class FakeSocket:
         return self.file
 
 
+@dataclass
 class Response:
     """
     Response to request sent via :py:class:`ccf.clients.CCFClient`
     """
 
-    def __init__(self, status_code, body, seqno, view, global_commit, headers):
-        #: Response HTTP status code
-        self.status_code = status_code
-        #: Response body
-        self.body = body
-        #: CCF sequence number
-        self.seqno = seqno
-        #: CCF consensus view
-        self.view = view
-        #: CCF global commit sequence number (deprecated)
-        self.global_commit = global_commit
-        #: Response HTTP headers
-        self.headers = headers
+    #: Response HTTP status code
+    status_code: int
+    #: Response body
+    body: Optional[Union[str, dict]]
+    #: CCF sequence number
+    seqno: Optional[int]
+    #: CCF consensus view
+    view: Optional[int]
+    #: CCF global commit sequence number (deprecated)
+    global_commit: Optional[int]
+    #: Response HTTP headers
+    headers: dict
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
@@ -149,7 +141,7 @@ class Response:
             raise ValueError(f"Unhandled content type: {content_type}")
 
         return Response(
-            status_code=response.status,
+            response.status,
             body=parsed_body,
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
@@ -169,7 +161,8 @@ def human_readable_size(n):
 
 class CCFConnectionException(Exception):
     """
-    Exception raised if a :py:class:`ccf.clients.CCFClient` instance cannot successfully establish a connection with a target CCF node.
+    Exception raised if a :py:class:`ccf.clients.CCFClient` instance cannot successfully establish
+    a connection with a target CCF node.
     """
 
 
@@ -183,8 +176,8 @@ def get_curve(ca_file):
 
 class CurlClient:
     """
-    Curl client.
-    Note: The resulting logs nicely illustrate manual usage in a way that using other client implementations don't.
+    This client uses Curl to send HTTP requests to CCF, and logs all Curl commands it runs.
+    These commands could also be run manually, or used by another client tool.
     """
 
     def __init__(self, host, port, ca=None, cert=None, key=None):
@@ -210,9 +203,6 @@ class CurlClient:
 
             url = f"https://{self.host}:{self.port}{request.path}"
 
-            if request.params_in_query and request.params is not None:
-                url += request.get_params()
-
             cmd += [
                 url,
                 "-X",
@@ -221,16 +211,16 @@ class CurlClient:
                 f"-m {timeout}",
             ]
 
-            if not request.params_in_query and request.params is not None:
-                if isinstance(request.params, str) and request.params.startswith("@"):
+            if request.body is not None:
+                if isinstance(request.body, str) and request.body.startswith("@"):
                     # Request is already a file path - pass it directly
-                    cmd.extend(["--data-binary", request.params])
+                    cmd.extend(["--data-binary", request.body])
                 else:
-                    # Write request to temp file
-                    if isinstance(request.params, bytes):
-                        msg_bytes = request.params
+                    # Write request body to temp file
+                    if isinstance(request.body, bytes):
+                        msg_bytes = request.body
                     else:
-                        msg_bytes = json.dumps(request.params).encode()
+                        msg_bytes = json.dumps(request.body).encode()
                     LOG.debug(f"Writing request body: {truncate(msg_bytes)}")
                     nf.write(msg_bytes)
                     nf.flush()
@@ -334,18 +324,16 @@ class RequestClient:
             "url": f"https://{self.host}:{self.port}{request.path}",
             "auth": auth_value,
             "headers": extra_headers,
+            "allow_redirects": False,
         }
 
-        if request.params is not None:
-            request_params = request.params
-            if isinstance(request.params, str) and request.params.startswith("@"):
+        if request.body is not None:
+            if isinstance(request.body, str) and request.body.startswith("@"):
                 # Request is a file path - read contents, assume json
-                request_params = json.load(open(request.params[1:]))
-
-            if request.params_in_query:
-                request_args["params"] = urllib.parse.urlencode(request.params)
+                request_body = json.load(open(request.body[1:]))
             else:
-                request_args["json"] = request_params
+                request_body = request.body
+            request_args["json"] = request_body
 
         try:
             response = self.session.request(timeout=timeout, **request_args)
@@ -401,7 +389,7 @@ class WSClient:
                 )
             except Exception as exc:
                 raise CCFConnectionException from exc
-        payload = json.dumps(request.params).encode()
+        payload = json.dumps(request.body).encode()
         path = (request.path).encode()
         header = struct.pack("<h", len(path)) + path
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
@@ -415,7 +403,6 @@ class WSClient:
         (view,) = struct.unpack("<Q", out[10:18])
         (global_commit,) = struct.unpack("<Q", out[18:26])
         payload = out[26:]
-        # TODO: move out the decoding!
         if status_code == 200:
             body = json.loads(payload) if payload else None
         else:
@@ -476,7 +463,7 @@ class CCFClient:
     def _direct_call(
         self,
         path,
-        params=None,
+        body=None,
         http_verb="POST",
         headers=None,
         signed=False,
@@ -484,16 +471,18 @@ class CCFClient:
     ):
         description = ""
         if self.description:
-            description = f" ({self.description})" + (" [signed]" if signed else "")
+            description = f"({self.description})" + (" [signed]" if signed else "")
 
-        r = Request(path, params, http_verb, headers)
+        if headers is None:
+            headers = {}
+        r = Request(path, body, http_verb, headers)
         LOG.info(f"{self.name} {r} {description}")
         return self._response(self.client_impl.request(r, signed, timeout))
 
     def call(
         self,
         path,
-        params=None,
+        body=None,
         http_verb="POST",
         headers=None,
         signed=False,
@@ -503,7 +492,7 @@ class CCFClient:
         Issues one request, synchronously, and returns the response.
 
         :param str path: URI of the targeted resource.
-        :param dict params: Request parameters (optional).
+        :param dict body: Request body (optional).
         :param http_verb: HTTP verb (e.g. "POST" or "GET").
         :param headers: HTTP request headers (optional).
         :param bool signed: Sign request with client private key.
@@ -515,7 +504,7 @@ class CCFClient:
         while True:
             try:
                 response = self._direct_call(
-                    path, params, http_verb, headers, signed, timeout
+                    path, body, http_verb, headers, signed, timeout
                 )
                 # Only the first request gets this timeout logic - future calls
                 # call _direct_call directly
@@ -534,7 +523,7 @@ class CCFClient:
     def get(self, *args, **kwargs):
         """
         Issue ``GET`` request.
-        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``GET``.
+        See :py:meth:`ccf.clients.CCFClient.call`.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -543,7 +532,7 @@ class CCFClient:
     def post(self, *args, **kwargs):
         """
         Issue ``POST`` request.
-        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``POST``.
+        See :py:meth:`ccf.clients.CCFClient.call`.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -552,7 +541,7 @@ class CCFClient:
     def put(self, *args, **kwargs):
         """
         Issue ``PUT`` request.
-        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``PUT``.
+        See :py:meth:`ccf.clients.CCFClient.call`.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -561,20 +550,29 @@ class CCFClient:
     def delete(self, *args, **kwargs):
         """
         Issue ``DELETE`` request.
-        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``DELETE``.
+        See :py:meth:`ccf.clients.CCFClient.call`.
 
         :return: :py:class:`ccf.clients.Response`
         """
         return self.call(*args, http_verb="DELETE", **kwargs)
 
+    def head(self, *args, **kwargs):
+        """
+        Issue ``HEAD`` request.
+        See :py:meth:`ccf.clients.CCFClient.call`.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
+        return self.call(*args, http_verb="HEAD", **kwargs)
+
     def wait_for_commit(self, response, timeout=DEFAULT_COMMIT_TIMEOUT_SEC):
         """
         Given a :py:class:`ccf.clients.Response`, this functions waits
-        for the associated sequence number and view be committed by the CCF network.
+        for the associated sequence number and view to be committed by the CCF network.
 
         The client will poll the ``/node/tx`` endpoint until ``COMMITTED`` is returned.
 
-        :param ccf.clients.Response response: Response returned by :py:class:`ccf.clients.CCFClient.
+        :param ccf.clients.Response response: Response returned by :py:meth:`ccf.clients.CCFClient.call`
         :param int timeout: Maximum time (secs) to wait for commit before giving up.
 
         A ``TimeoutError`` exception is raised if the transaction is not committed within ``timeout`` seconds.

@@ -19,7 +19,7 @@ def wait_for_commit(client, seqno, view, timeout=3):
     """
     end_time = time.time() + timeout
     while time.time() < end_time:
-        r = client.get("/node/tx", {"view": view, "seqno": seqno})
+        r = client.get(f"/node/tx?view={view}&seqno={seqno}")
         assert (
             r.status_code == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status_code}"
