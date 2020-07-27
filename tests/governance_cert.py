@@ -4,12 +4,14 @@ import os
 import sys
 import subprocess
 import base64
+import tempfile
 import infra.network
 import infra.path
 import infra.proc
 import infra.notification
 import infra.net
 import infra.e2e_args
+from infra.proposal import ProposalState
 import suite.test_requirements as reqs
 import infra.logging_app as app
 import ccf.proposal_generator
@@ -21,10 +23,6 @@ this_dir = os.path.dirname(__file__)
 @reqs.description("Add certificate with quote, query, update")
 #@reqs.supports_methods("log/private")
 def test_cert_store(network, args, notifications_queue=None, verify=True):
-    # Test 1:
-    # Propose a cert update with badly formatted cert
-    # Check that proposal gets rejected
-
     # Test 2:
     # Propose a cert update with valid cert but mismatching mrsigner
     # Check that proposal gets rejected
@@ -36,16 +34,32 @@ def test_cert_store(network, args, notifications_queue=None, verify=True):
 
     primary, _ = network.find_nodes()
 
-    with open(os.path.join(this_dir, 'attested_cert.der'), 'rb') as f:
-        ca_cert = f.read()
-    ca_cert_b64 = base64.b64encode(ca_cert).decode('ascii')
+    LOG.info("Member builds a root ca cert update proposal with malformed cert")
+    with tempfile.NamedTemporaryFile('w') as f:
+        f.write('foo')
+        try:
+            proposal_body, _ = ccf.proposal_generator.update_root_ca_cert("mycert", f.name)
+        except ValueError:
+            pass
+        else:
+            assert False, "update_root_ca_cert should have raised an error"
 
-    LOG.info("Member makes a root ca cert update proposal")
-    proposal_args = {"name": "maa", "cert": ca_cert_b64}
-    proposal_body, _ = ccf.proposal_generator.build_proposal("update_root_ca_cert", proposal_args)
-    print(proposal_body)
+    LOG.info("Member makes a root ca cert update proposal with malformed cert")
+    with tempfile.NamedTemporaryFile('w') as f:
+        f.write('foo')
+        proposal_body, _ = ccf.proposal_generator.update_root_ca_cert("mycert", f.name, skip_checks=True)
+        try:
+            proposal = network.consortium.get_any_active_member().propose(primary, proposal_body)
+        except infra.proposal.ProposalNotCreated:
+            pass
+        else:
+            assert False, "Proposal should not have been created"
+
+    LOG.info("Member makes a root ca cert update proposal with valid cert")
+    ca_cert_path = os.path.join(this_dir, 'attested_cert.pem')
+    proposal_body, _ = ccf.proposal_generator.update_root_ca_cert("mycert", ca_cert_path)
     proposal = network.consortium.get_any_active_member().propose(primary, proposal_body)
-    network.consortium.vote_using_majority(primary, proposal)
+    assert proposal.state == ProposalState.Accepted
     
     #txs = app.LoggingTxs(notifications_queue=notifications_queue, user_id=3)
     

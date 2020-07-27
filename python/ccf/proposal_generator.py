@@ -8,6 +8,8 @@ import json
 import os
 import sys
 import functools
+from cryptography import x509
+import cryptography.hazmat.backends as crypto_backends
 
 from loguru import logger as LOG
 
@@ -298,6 +300,30 @@ def update_recovery_shares(**kwargs):
 @cli_proposal
 def set_recovery_threshold(threshold, **kwargs):
     return build_proposal("set_recovery_threshold", threshold, **kwargs)
+
+@cli_proposal
+def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
+    cert_pem = open(cert_path).read()
+
+    if not skip_checks:
+        try:
+            cert = x509.load_pem_x509_certificate(cert_pem.encode(), crypto_backends.default_backend())
+        except:
+            raise ValueError("Cannot parse PEM certificate")
+        
+        # TODO remove one of the OID code paths, depending on which one OE chooses
+        try:
+            oid_old = x509.ObjectIdentifier("1.2.840.113556.10.1.1")
+            _ = cert.extensions.get_extension_for_oid(oid_old)
+        except x509.ExtensionNotFound:
+            try:
+                oid_new = x509.ObjectIdentifier("1.2.840.113556.10.1.2")
+                _ = cert.extensions.get_extension_for_oid(oid_new)
+            except x509.ExtensionNotFound:
+                raise ValueError("X.509 extension with SGX quote not found in certificate")
+        
+    args = {"name": cert_name, "cert": cert_pem}
+    return build_proposal("update_root_ca_cert", args, **kwargs)
 
 
 class ProposalGenerator:
