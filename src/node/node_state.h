@@ -922,8 +922,7 @@ namespace ccf
         }
 
         default:
-        {
-        }
+        {}
       }
     }
 
@@ -1327,9 +1326,11 @@ namespace ccf
               "Unexpected: write to service table does not include key 0");
           }
 
+          // Only open service to users if the current service is opened (i.e.
+          // past services openings are ignored)
           if (
             it->second.value().status == ServiceStatus::OPEN &&
-            !this->is_part_of_public_network())
+            this->network.identity->cert.raw() == it->second->cert)
           {
             this->consensus->set_f(1);
             open_user_frontend();
@@ -1557,8 +1558,7 @@ namespace ccf
                 break;
               }
               default:
-              {
-              }
+              {}
             }
           }
 
