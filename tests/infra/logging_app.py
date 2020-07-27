@@ -5,6 +5,7 @@ import infra.checker
 import ccf.clients
 import suite.test_requirements as reqs
 import time
+import http
 
 from loguru import logger as LOG
 

@@ -41,6 +41,13 @@ DEFAULT_REQUEST_TIMEOUT_SEC = 3
 DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 
+def build_query_string(params):
+    return "&".join(
+        f"{urllib.parse.quote_plus(k)}={urllib.parse.quote_plus(json.dumps(v))}"
+        for k, v in params.items()
+    )
+
+
 class Request:
     def __init__(self, path, params=None, http_verb="POST", headers=None):
         if headers is None:
@@ -54,7 +61,7 @@ class Request:
 
     def get_params(self):
         if self.params_in_query and self.params is not None:
-            return f"?{urllib.parse.urlencode(self.params)}"
+            return f"?{build_query_string(self.params)}"
         else:
             return truncate(f"{self.params}") if self.params is not None else ""
 
@@ -343,7 +350,7 @@ class RequestClient:
                 request_params = json.load(open(request.params[1:]))
 
             if request.params_in_query:
-                request_args["params"] = urllib.parse.urlencode(request.params)
+                request_args["params"] = build_query_string(request.params)
             else:
                 request_args["json"] = request_params
 
