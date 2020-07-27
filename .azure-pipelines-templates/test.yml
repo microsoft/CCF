@@ -27,13 +27,15 @@ steps:
   condition: or(failed(), canceled())
   displayName: 'Upload logs (only on failure)'
 
-- script: 'xsltproc --stringparam suiteName "$(Agent.MachineName) ${{ parameters.suite_name_suffix }}" ../tests/infra/ctest_to_junit.xslt Testing/*/Test.xml | sed -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g"> JUnit.xml'
-  displayName: XSLT
+- script: |
+    sed -i -r "s/\[NON-XML-CHAR-0x1B\]\[([0-9]*)m//g" Testing/*/Test.xml
+  displayName: 'Remove color codes'
   workingDirectory: build
-  condition: succeededOrFailed()
 
 - task: PublishTestResults@2
   inputs:
-    testResultsFiles: '**/JUnit.xml'
-    publishRunAttachments: true
+    testResultsFormat: cTest
+    testResultsFiles: '**/Test.xml'
+    testRunTitle: "${{ parameters.suite_name_suffix }}"
+    platform: "$(Agent.MachineName)"
   condition: succeededOrFailed()
