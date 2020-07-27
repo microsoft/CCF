@@ -84,5 +84,5 @@ for transaction in ledger:
     # If target_table was changed, count the number of keys changed
     if target_table in public_tables:
         for key, value in public_tables[target_table].items():
-            target_table_changes += 1 # A key was changed
+            target_table_changes += 1  # A key was changed
 # SNIPPET_END: iterate_over_ledger
