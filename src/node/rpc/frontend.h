@@ -335,6 +335,11 @@ namespace ccf
       {
         switch (endpoint->forwarding_required)
         {
+          case ForwardingRequired::Never:
+          {
+            break;
+          }
+
           case ForwardingRequired::Sometimes:
           {
             if (ctx->session->is_forwarding)
