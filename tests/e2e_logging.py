@@ -546,13 +546,13 @@ def test_primary(network, args, notifications_queue=None, verify=True):
     LOG.error(f"PRIMARY {primary.pubhost}")
     with primary.client() as c:
         r = c.head("/node/primary")
-        assert r.status == http.HTTPStatus.OK.value
+        assert r.status_code == http.HTTPStatus.OK.value
 
     backup = network.find_any_backup()
     LOG.error(f"BACKUP {backup.pubhost}")
     with backup.client() as c:
         r = c.head("/node/primary")
-        assert r.status == http.HTTPStatus.PERMANENT_REDIRECT.value
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
         assert (
             r.headers["location"]
             == f"https://{primary.pubhost}:{primary.rpc_port}/node/primary"

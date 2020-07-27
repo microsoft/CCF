@@ -7,6 +7,7 @@ import os
 import subprocess
 import tempfile
 import urllib.parse
+from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
 from requests.adapters import HTTPAdapter
@@ -15,6 +16,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
+from typing import Union, Optional
 
 import requests
 from loguru import logger as LOG
@@ -90,24 +92,24 @@ class FakeSocket:
         return self.file
 
 
+@dataclass()
 class Response:
     """
     Response to request sent via :py:class:`ccf.clients.CCFClient`
     """
 
-    def __init__(self, status_code, body, seqno, view, global_commit, headers):
-        #: Response HTTP status code
-        self.status_code = status_code
-        #: Response body
-        self.body = body
-        #: CCF sequence number
-        self.seqno = seqno
-        #: CCF consensus view
-        self.view = view
-        #: CCF global commit sequence number (deprecated)
-        self.global_commit = global_commit
-        #: Response HTTP headers
-        self.headers = headers
+    #: Response HTTP status code
+    status_code: int
+    #: Response body
+    body: Optional[Union[str,dict]]
+    #: CCF sequence number
+    seqno: Optional[int]
+    #: CCF consensus view
+    view: Optional[int]
+    #: CCF global commit sequence number (deprecated)
+    global_commit: Optional[int]
+    #: Response HTTP headers
+    headers: dict
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
@@ -156,7 +158,7 @@ class Response:
             raise ValueError(f"Unhandled content type: {content_type}")
 
         return Response(
-            status_code=response.status,
+            response.status,
             body=parsed_body,
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
