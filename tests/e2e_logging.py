@@ -240,7 +240,7 @@ def test_metrics(network, args):
 
     with primary.client() as c:
         r = c.get("/app/endpoint_metrics")
-        assert r.status == http.HTTPStatus.FORBIDDEN.value
+        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
 
     with primary.client("user0") as c:
         r = c.get("/app/endpoint_metrics")

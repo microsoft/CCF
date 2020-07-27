@@ -35,6 +35,7 @@ anonymous_client = ccf.clients.CCFClient(host, port, ca)
 # SNIPPET_START: anonymous_requests
 r = anonymous_client.get("/node/state")
 assert r.status_code == http.HTTPStatus.OK
+# r.body is HTTP response body
 r = anonymous_client.get("/node/network")
 assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: anonymous_requests
