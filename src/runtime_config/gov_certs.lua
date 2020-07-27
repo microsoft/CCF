@@ -52,8 +52,9 @@ return {
     if call.func == "update_root_ca_cert" then
       LOG_INFO("calling verify_cert_and_get_claims")
       LOG_INFO("cert name: ", call.args.name)
-      LOG_INFO("cert (base64): ", call.args.cert)
-      claims = verify_cert_and_get_claims(call.args.cert)
+      LOG_INFO("cert: ", call.args.cert)
+      cert_der = pem_to_der(call.args.cert)
+      claims = verify_cert_and_get_claims(cert_der)
       expected_mrsigner = "ca9ad7331448980aa28890ce73e433638377f179ab4456b2fe237193193a8d0a"
       if claims.mrsigner ~= expected_mrsigner then
         LOG_INFO("mrsigner mismatch: ", expected_mrsigner, " != ", claims.mrsigner)
@@ -124,8 +125,8 @@ return {
   LOG_INFO("name: ", args.name)
   LOG_INFO("cert: ", args.cert)
   t = tables["ccf.root_ca_cert_ders"]
-  cert_arr = base64_to_array(args.cert)
-  t:put(args.name, cert_arr)
+  cert_der = pem_to_der(args.cert)
+  t:put(args.name, cert_der)
   return true
   ]],
 }

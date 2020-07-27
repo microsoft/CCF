@@ -39,18 +39,18 @@ namespace ccf
     {
       auto l = li.get_state();
       lua_register(
-        l, "base64_to_array", lua_base64_to_array);
+        l, "pem_to_der", lua_pem_to_der);
       lua_register(
         l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
 
       TxScriptRunner::setup_environment(li, env_script);
     }
 
-    static int lua_base64_to_array(lua_State* l)
+    static int lua_pem_to_der(lua_State* l)
     {
-      std::string b64 = get_var_string_from_args(l);
-      std::vector<uint8_t> arr = tls::raw_from_b64(b64);
-      nlohmann::json json = arr;
+      std::string pem = get_var_string_from_args(l);
+      std::vector<uint8_t> der = tls::make_verifier(pem)->der_cert_data();
+      nlohmann::json json = der;
       lua::push_raw(l, json);
       return 1;
     }
@@ -77,8 +77,8 @@ namespace ccf
     static int lua_verify_cert_and_get_claims(lua_State* l)
     {
       LOG_INFO_FMT("lua_verify_cert_and_get_claims");
-      std::string cert_der_b64 = get_var_string_from_args(l);
-      std::vector<uint8_t> cert_der = tls::raw_from_b64(cert_der_b64);
+      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+      std::vector<uint8_t> cert_der = json;
 
       std::map<std::string, std::vector<uint8_t>> claims;
 
@@ -123,8 +123,8 @@ namespace ccf
     static int lua_verify_cert_and_get_claims(lua_State* l)
     {
       LOG_INFO_FMT("lua_verify_cert_and_get_claims");
-      std::string cert_der_b64 = get_var_string_from_args(l);
-      std::vector<uint8_t> cert_der = tls::raw_from_b64(cert_der_b64);
+      nlohmann::json json = lua::check_get<nlohmann::json>(l, -1);
+      std::vector<uint8_t> cert_der = json;
 
       oe_identity_t identity;
       oe_result_t res = oe_verify_attestation_certificate(
