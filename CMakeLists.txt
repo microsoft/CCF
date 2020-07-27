@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.11)
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
+include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 project(
   ccf
