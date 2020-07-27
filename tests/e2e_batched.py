@@ -8,7 +8,7 @@ import infra.network
 import infra.proc
 import infra.notification
 import infra.net
-import ccf.checker
+import infra.checker
 import suite.test_requirements as reqs
 import infra.e2e_args
 
@@ -24,8 +24,8 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
     primary, _ = network.find_primary()
 
     # Set extended timeout, since some of these successful transactions will take many seconds
-    with primary.client("user0", request_timeout=30) as c:
-        check = ccf.checker.Checker()
+    with primary.client("user0") as c:
+        check = infra.checker.Checker()
 
         message_ids = [next(id_gen) for _ in range(batch_size)]
         messages = [
@@ -42,6 +42,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
                     "write_key_divisor": write_key_divisor,
                     "write_size_multiplier": write_size_multiplier,
                 },
+                timeout=30,
             ),
             result=len(messages),
         )
@@ -50,7 +51,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
             f"Submitting {batch_size} new keys took {post_submit - pre_submit}s"
         )
 
-        fetch_response = c.post("/app/BATCH_fetch", message_ids)
+        fetch_response = c.post("/app/BATCH_fetch", message_ids, timeout=30)
 
         if write_key_divisor == 1 and write_size_multiplier == 1:
             check(fetch_response, result=messages)
@@ -100,6 +101,7 @@ def run_to_destruction(args):
     ) as network:
         network.start_and_join(args)
 
+        LOG.warning("About to issue transactions until destruction")
         try:
             wsm = 5000
             while True:
@@ -107,15 +109,23 @@ def run_to_destruction(args):
                 network = test(network, args, batch_size=10, write_size_multiplier=wsm)
                 wsm += 5000
         except Exception as e:
-            sleep_time = 3
+            timeout = 10
+
             LOG.info("Large write set caused an exception, as expected")
             LOG.info(f"Exception was: {e}")
-            LOG.info(f"Waiting {sleep_time}s for node to terminate")
+            LOG.info(f"Polling for {timeout}s for node to terminate")
 
-            time.sleep(sleep_time)
-            assert (
-                network.nodes[0].remote.remote.proc.poll() is not None
-            ), "Primary should have been terminated"
+            end_time = time.time() + timeout
+            while time.time() < end_time:
+                time.sleep(0.1)
+                exit_code = network.nodes[0].remote.remote.proc.poll()
+                if exit_code is not None:
+                    LOG.info(f"Node terminated with exit code {exit_code}")
+                    assert exit_code != 0
+                    break
+
+            if time.time() > end_time:
+                raise TimeoutError(f"Node took longer than {timeout}s to terminate")
 
             network.ignore_errors_on_shutdown()
 

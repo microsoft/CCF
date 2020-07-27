@@ -31,7 +31,7 @@ It is possible for a set of operators to host a CCF network without being member
 In case of catastrophic failure, operators could also:
 
 - Start a network in recovery mode from the ledger
-- Hand it over to the members for them to Open (see :ref:`members/accepting_recovery_and_submitting_shares:Accepting Recovery`)
+- Hand it over to the members for them to Open (see :ref:`members/accept_recovery:Accepting Recovery`)
 
 Finally, operators could:
 

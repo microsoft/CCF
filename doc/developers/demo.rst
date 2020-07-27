@@ -24,7 +24,7 @@ The following command will run a simple 3-node test network on a single machine:
 
     $ cd CCF/build
 
-    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed 
+    $ ../start_test_network.sh --package ./liblogging.enclave.so.signed
     Setting up Python environment...
     ...
     Python environment successfully setup
@@ -34,7 +34,7 @@ The following command will run a simple 3-node test network on a single machine:
     [2020-07-17 15:27:46.643]   Node [ 1] = 127.98.174.190:36795
     [2020-07-17 15:27:46.643]   Node [ 2] = 127.113.40.231:33227
     [2020-07-17 15:27:46.644] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
-    [2020-07-17 15:27:46.644] Certificates have been copied to /data/src/CCF/build/workspace/test_network_common
+    [2020-07-17 15:27:46.644] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/test_network_common
     [2020-07-17 15:27:46.644] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
     [2020-07-17 15:27:46.644] Press Ctrl+C to shutdown the network.
 
