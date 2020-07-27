@@ -68,7 +68,7 @@ namespace threading
     ~Task()
     {
 #ifdef USE_MPSCQ
-      while (!queue.is_emtpy())
+      while (!queue.is_empty())
       {
         ThreadMsg* current;
         bool result;
@@ -79,8 +79,7 @@ namespace threading
         }
       }
 #else
-      bool done = false;
-      while (!done)
+      while (true)
       {
         if (local_msg == nullptr && item_head != nullptr)
         {
