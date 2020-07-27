@@ -35,7 +35,6 @@ anonymous_client = ccf.clients.CCFClient(host, port, ca)
 # SNIPPET_START: anonymous_requests
 r = anonymous_client.get("/node/state")
 assert r.status_code == http.HTTPStatus.OK
-# r.body is HTTP response body
 r = anonymous_client.get("/node/network")
 assert r.status_code == http.HTTPStatus.OK
 # SNIPPET_END: anonymous_requests
@@ -57,10 +56,10 @@ user_client.wait_for_commit(r)
 anonymous_client.wait_for_commit(r)
 
 # SNIPPET_START: authenticated_get_requests
-r = user_client.get("/app/log/private", params={"id": 0})
+r = user_client.get("/app/log/private?id=0")
 assert r.status_code == http.HTTPStatus.OK
 assert r.body == {"msg": "Private message"}
-r = user_client.get("/app/log/public", params={"id": 0})
+r = user_client.get("/app/log/public?id=0")
 assert r.status_code == http.HTTPStatus.OK
 assert r.body == {"msg": "Public message"}
 # SNIPPET_END: authenticated_get_requests
