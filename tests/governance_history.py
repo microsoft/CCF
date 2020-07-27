@@ -92,8 +92,8 @@ def run(args):
             response = network.consortium.get_member_by_id(
                 new_member_proposal.proposer_id
             ).withdraw(primary, new_member_proposal)
-            ccf.checker.Checker(c)(response)
-        assert response.status == http.HTTPStatus.OK.value
+            infra.checker.Checker(c)(response)
+        assert response.status_code == http.HTTPStatus.OK.value
         assert response.body["state"] == ProposalState.Withdrawn.value
         withdrawals_issued += 1
 
