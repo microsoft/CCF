@@ -8,6 +8,7 @@ steps:
 
 - script: |
     cat /tmp/install_prefix | xargs ./test_install.sh
+  workingDirectory: build
   displayName: Test installed CCF
 
 - script: |

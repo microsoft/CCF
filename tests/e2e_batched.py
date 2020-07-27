@@ -125,7 +125,7 @@ def run_to_destruction(args):
                     break
 
             if time.time() > end_time:
-                raise TimeoutError(f"Node took longer than {end_time}s to terminate")
+                raise TimeoutError(f"Node took longer than {timeout}s to terminate")
 
             network.ignore_errors_on_shutdown()
 
