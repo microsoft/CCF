@@ -317,6 +317,33 @@ namespace ccf
       make_read_only_endpoint(
         "network", HTTP_GET, json_read_only_adapter(network_status))
         .install();
+
+      auto is_primary = [this](ReadOnlyEndpointContext& args) {
+        if (this->node.is_primary())
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        }
+        else
+        {
+          args.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+          if (consensus != nullptr)
+          {
+            NodeId primary_id = consensus->primary();
+            auto nodes_view = args.tx.get_read_only_view(this->network.nodes);
+            auto info = nodes_view->get(primary_id);
+            if (info)
+            {
+              args.rpc_ctx->set_response_header(
+                "Location",
+                fmt::format(
+                  "https://{}:{}/node/primary", info->pubhost, info->rpcport));
+            }
+          }
+        }
+      };
+      make_read_only_endpoint("primary", HTTP_HEAD, is_primary)
+        .set_forwarding_required(ForwardingRequired::Never)
+        .install();
     }
   };
 

@@ -341,6 +341,7 @@ class RequestClient:
             "url": f"https://{self.host}:{self.port}{request.path}",
             "auth": auth_value,
             "headers": extra_headers,
+            "allow_redirects": False,
         }
 
         if request.params is not None:
@@ -573,6 +574,15 @@ class CCFClient:
         :return: :py:class:`ccf.clients.Response`
         """
         return self.call(*args, http_verb="DELETE", **kwargs)
+
+    def head(self, *args, **kwargs):
+        """
+        Issue ``HEAD`` request.
+        See :py:meth:`ccf.clients.CCFClient.call`.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
+        return self.call(*args, http_verb="HEAD", **kwargs)
 
     def wait_for_commit(self, response, timeout=DEFAULT_COMMIT_TIMEOUT_SEC):
         """
