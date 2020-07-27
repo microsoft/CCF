@@ -273,8 +273,7 @@ namespace ccf
     void create_service(const tls::Pem& network_cert, kv::Version version = 1)
     {
       auto service_view = tx.get_view(tables.service);
-      service_view->put(
-        0, {version, network_cert.raw(), ServiceStatus::OPENING});
+      service_view->put(0, {version, network_cert, ServiceStatus::OPENING});
     }
 
     bool is_service_created()

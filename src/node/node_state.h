@@ -1330,7 +1330,7 @@ namespace ccf
           // past services openings are ignored)
           if (
             it->second.value().status == ServiceStatus::OPEN &&
-            this->network.identity->cert.raw() == it->second->cert)
+            this->network.identity->cert == it->second->cert)
           {
             this->consensus->set_f(1);
             open_user_frontend();

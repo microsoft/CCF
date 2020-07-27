@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import array
 import os
 import time
 import http
@@ -375,13 +374,14 @@ class Consortium:
                 },
             )
             current_status = r.body["status"]
-            current_cert = array.array("B", r.body["cert"]).tobytes()
+            current_cert = r.body["cert"]
 
             expected_cert = open(
                 os.path.join(self.common_dir, "networkcert.pem"), "rb"
             ).read()
+
             assert (
-                current_cert == expected_cert
+                current_cert == expected_cert[:-1].decode()
             ), "Current service certificate did not match with networkcert.pem"
             assert (
                 current_status == status.name
