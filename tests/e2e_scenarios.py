@@ -54,7 +54,7 @@ def run(args):
                     for tx in txs:
                         r = client.call(
                             tx["method"],
-                            params=tx["params"],
+                            body=tx["body"],
                             http_verb=tx.get("verb", "POST"),
                         )
 

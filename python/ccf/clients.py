@@ -403,7 +403,6 @@ class WSClient:
         (view,) = struct.unpack("<Q", out[10:18])
         (global_commit,) = struct.unpack("<Q", out[18:26])
         payload = out[26:]
-        # TODO: move out the decoding!
         if status_code == 200:
             body = json.loads(payload) if payload else None
         else:
@@ -464,7 +463,7 @@ class CCFClient:
     def _direct_call(
         self,
         path,
-        params=None,
+        body=None,
         http_verb="POST",
         headers=None,
         signed=False,
@@ -476,14 +475,14 @@ class CCFClient:
 
         if headers is None:
             headers = {}
-        r = Request(path, params, http_verb, headers)
+        r = Request(path, body, http_verb, headers)
         LOG.info(f"{self.name} {r} {description}")
         return self._response(self.client_impl.request(r, signed, timeout))
 
     def call(
         self,
         path,
-        params=None,
+        body=None,
         http_verb="POST",
         headers=None,
         signed=False,
@@ -493,7 +492,7 @@ class CCFClient:
         Issues one request, synchronously, and returns the response.
 
         :param str path: URI of the targeted resource.
-        :param dict params: Request parameters (optional).
+        :param dict body: Request body (optional).
         :param http_verb: HTTP verb (e.g. "POST" or "GET").
         :param headers: HTTP request headers (optional).
         :param bool signed: Sign request with client private key.
@@ -505,7 +504,7 @@ class CCFClient:
         while True:
             try:
                 response = self._direct_call(
-                    path, params, http_verb, headers, signed, timeout
+                    path, body, http_verb, headers, signed, timeout
                 )
                 # Only the first request gets this timeout logic - future calls
                 # call _direct_call directly

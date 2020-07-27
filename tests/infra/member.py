@@ -84,7 +84,7 @@ class Member:
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
-                params=proposal.vote_for,
+                body=proposal.vote_for,
                 signed=True,
             )
 
@@ -124,7 +124,7 @@ class Member:
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
-                "/gov/ack", params={"state_digest": list(state_digest)}, signed=True
+                "/gov/ack", body={"state_digest": list(state_digest)}, signed=True
             )
             assert r.status_code == 200, f"Error ACK: {r}"
             self.status_code = MemberStatus.ACTIVE
