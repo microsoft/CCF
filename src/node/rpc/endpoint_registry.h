@@ -56,6 +56,7 @@ namespace ccf
   {
     Sometimes,
     Always,
+    Never
   };
 
   /** The EndpointRegistry records the user-defined endpoints for a given

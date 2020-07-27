@@ -9,7 +9,7 @@
       "transactions": [
         {
           "method": "/app/log/private",
-          "params": {
+          "body": {
             "id": 42,
             "msg": "Hello world"
           },
@@ -17,10 +17,8 @@
         },
         {
           "verb": "GET",
-          "method": "/app/log/private",
-          "params": {
-            "id": 42
-          },
+          "method": "/app/log/private?id=42",
+          "body": {},
           "expected_result": {
             "msg": "Hello world"
           }
@@ -32,7 +30,7 @@
       "transactions": [
         {
           "method": "/app/log/private",
-          "params": {
+          "body": {
             "id": 42,
             "msg": "Hello world"
           },
@@ -40,10 +38,8 @@
         },
         {
           "verb": "GET",
-          "method": "/app/log/private",
-          "params": {
-            "id": 42
-          },
+          "method": "/app/log/private?id=42",
+          "body": {},
           "expected_result": {
             "msg": "Hello world"
           }

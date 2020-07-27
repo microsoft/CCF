@@ -63,6 +63,7 @@ You can quickly spin up a CCF network and start :ref:`issuing commands to the de
     [2019-10-29 14:48:12.138]   Node [ 1] = 127.169.74.37:58343
     [2019-10-29 14:48:12.138]   Node [ 2] = 127.131.108.179:50532
     [2019-10-29 14:48:12.138] You can now issue business transactions to the ./liblogging.enclave.so.signed application.
+    [2019-10-29 14:48:12.138] Keys and certificates have been copied to the common folder: /data/src/CCF/build/workspace/test_network_common
     [2019-10-29 14:48:12.138] See https://microsoft.github.io/CCF/users/issue_commands.html for more information.
     [2019-10-29 14:48:12.138] Press Ctrl+C to shutdown the network.
 

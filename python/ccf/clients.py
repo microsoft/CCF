@@ -6,7 +6,7 @@ import time
 import os
 import subprocess
 import tempfile
-import urllib.parse
+from dataclasses import dataclass
 from http.client import HTTPResponse
 from io import BytesIO
 from requests.adapters import HTTPAdapter
@@ -15,11 +15,14 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 import struct
 import base64
+from typing import Union, Optional
 
 import requests
 from loguru import logger as LOG
 from requests_http_signature import HTTPSignatureAuth
 import websocket
+
+import ccf.commit
 
 
 def truncate(string, max_len=256):
@@ -36,29 +39,28 @@ CCF_GLOBAL_COMMIT_HEADER = "x-ccf-global-commit"
 
 DEFAULT_CONNECTION_TIMEOUT_SEC = 3
 DEFAULT_REQUEST_TIMEOUT_SEC = 3
+DEFAULT_COMMIT_TIMEOUT_SEC = 3
 
 
+@dataclass
 class Request:
-    def __init__(
-        self, path, params=None, http_verb="POST", headers=None, params_in_query=None
-    ):
-        if headers is None:
-            headers = {}
-
-        # TODO: remove
-        if params_in_query is None:
-            params_in_query = http_verb == "GET"
-
-        self.path = path
-        self.params = params
-        self.http_verb = http_verb
-        self.headers = headers
-        self.params_in_query = params_in_query
+    #: Resource path (with optional query string)
+    path: str
+    #: Body of request
+    body: Optional[Union[dict, str]]
+    #: HTTP verb
+    http_verb: Optional[int]
+    #: HTTP headers
+    headers: dict
 
     def __str__(self):
-        return f"{self.http_verb} {self.path} {self.headers}" + (
-            truncate(f" {self.params}") if self.params is not None else ""
-        )
+        string = f"{self.http_verb} {self.path}"
+        if self.headers:
+            string += f" {self.headers}"
+        if self.body is not None:
+            string += f'{truncate(f"{self.body}")}'
+
+        return string
 
 
 def int_or_none(v):
@@ -73,28 +75,29 @@ class FakeSocket:
         return self.file
 
 
+@dataclass
 class Response:
-    def __init__(self, status, body, seqno, view, global_commit, headers):
-        self.status = status
-        self.body = body
-        self.seqno = seqno
-        self.view = view
-        self.global_commit = global_commit
-        self.headers = headers
+    """
+    Response to request sent via :py:class:`ccf.clients.CCFClient`
+    """
 
-    # TODO: what's this for?
-    def to_dict(self):
-        return {
-            "seqno": self.seqno,
-            "global_commit": self.global_commit,
-            "view": self.view,
-            "body": self.body,
-        }
+    #: Response HTTP status code
+    status_code: int
+    #: Response body
+    body: Optional[Union[str, dict]]
+    #: CCF sequence number
+    seqno: Optional[int]
+    #: CCF consensus view
+    view: Optional[int]
+    #: CCF global commit sequence number (deprecated)
+    global_commit: Optional[int]
+    #: Response HTTP headers
+    headers: dict
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
         return (
-            f"{self.status} "
+            f"{self.status_code} "
             + (f"@{self.view}.{self.seqno} " if versioned else "")
             + truncate(f"{self.body}")
         )
@@ -112,7 +115,7 @@ class Response:
             raise ValueError(f"Unhandled content type: {content_type}")
 
         return Response(
-            status=rr.status_code,
+            status_code=rr.status_code,
             body=parsed_body,
             seqno=int_or_none(rr.headers.get(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(rr.headers.get(CCF_TX_VIEW_HEADER)),
@@ -138,7 +141,7 @@ class Response:
             raise ValueError(f"Unhandled content type: {content_type}")
 
         return Response(
-            status=response.status,
+            response.status,
             body=parsed_body,
             seqno=int_or_none(response.getheader(CCF_TX_SEQNO_HEADER)),
             view=int_or_none(response.getheader(CCF_TX_VIEW_HEADER)),
@@ -157,14 +160,10 @@ def human_readable_size(n):
 
 
 class CCFConnectionException(Exception):
-    pass
-
-
-def build_query_string(params):
-    return "&".join(
-        f"{urllib.parse.quote_plus(k)}={urllib.parse.quote_plus(json.dumps(v))}"
-        for k, v in params.items()
-    )
+    """
+    Exception raised if a :py:class:`ccf.clients.CCFClient` instance cannot successfully establish
+    a connection with a target CCF node.
+    """
 
 
 def get_curve(ca_file):
@@ -177,28 +176,16 @@ def get_curve(ca_file):
 
 class CurlClient:
     """
-    We keep this around in a limited fashion still, because
-    the resulting logs nicely illustrate manual usage in a way using the requests API doesn't
+    This client uses Curl to send HTTP requests to CCF, and logs all Curl commands it runs.
+    These commands could also be run manually, or used by another client tool.
     """
 
-    def __init__(
-        self,
-        host,
-        port,
-        cert=None,
-        key=None,
-        ca=None,
-        binary_dir=".",
-        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
-        **kwargs,
-    ):
+    def __init__(self, host, port, ca=None, cert=None, key=None):
         self.host = host
         self.port = port
+        self.ca = ca
         self.cert = cert
         self.key = key
-        self.ca = ca
-        self.binary_dir = binary_dir
-        self.request_timeout = request_timeout
 
         ca_curve = get_curve(self.ca)
         if ca_curve.name == "secp256k1":
@@ -207,37 +194,33 @@ class CurlClient:
                 "Use RequestClient class instead."
             )
 
-    def request(self, request, is_signed=False):
+    def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         with tempfile.NamedTemporaryFile() as nf:
-            if is_signed:
-                cmd = [os.path.join(self.binary_dir, "scurl.sh")]
+            if signed:
+                cmd = ["scurl.sh"]
             else:
                 cmd = ["curl"]
 
             url = f"https://{self.host}:{self.port}{request.path}"
-
-            if request.params_in_query:
-                if request.params is not None:
-                    url += f"?{build_query_string(request.params)}"
 
             cmd += [
                 url,
                 "-X",
                 request.http_verb,
                 "-i",
-                f"-m {self.request_timeout}",
+                f"-m {timeout}",
             ]
 
-            if not request.params_in_query and request.params is not None:
-                if isinstance(request.params, str) and request.params.startswith("@"):
+            if request.body is not None:
+                if isinstance(request.body, str) and request.body.startswith("@"):
                     # Request is already a file path - pass it directly
-                    cmd.extend(["--data-binary", request.params])
+                    cmd.extend(["--data-binary", request.body])
                 else:
-                    # Write request to temp file
-                    if isinstance(request.params, bytes):
-                        msg_bytes = request.params
+                    # Write request body to temp file
+                    if isinstance(request.body, bytes):
+                        msg_bytes = request.body
                     else:
-                        msg_bytes = json.dumps(request.params).encode()
+                        msg_bytes = json.dumps(request.body).encode()
                     LOG.debug(f"Writing request body: {truncate(msg_bytes)}")
                     nf.write(msg_bytes)
                     nf.flush()
@@ -271,6 +254,10 @@ class CurlClient:
 
 
 class TlsAdapter(HTTPAdapter):
+    """
+    Support for secp256k1 as node and network identity curve.
+    """
+
     def __init__(self, ca_file):
         self.ca_curve = None
         if ca_file is not None:
@@ -287,6 +274,10 @@ class TlsAdapter(HTTPAdapter):
 
 
 class HTTPSignatureAuth_AlwaysDigest(HTTPSignatureAuth):
+    """
+    Support for HTTP signatures with empty body.
+    """
+
     def add_digest(self, request):
         # Add digest of empty body, never leave it blank
         if request.body is None:
@@ -299,33 +290,27 @@ class HTTPSignatureAuth_AlwaysDigest(HTTPSignatureAuth):
 
 
 class RequestClient:
-    def __init__(
-        self,
-        host,
-        port,
-        cert=None,
-        key=None,
-        ca=None,
-        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
-        **kwargs,
-    ):
+    """
+    CCF default client and wrapper around Python Requests, handling HTTP signatures.
+    """
+
+    def __init__(self, host, port, ca, cert=None, key=None):
         self.host = host
         self.port = port
+        self.ca = ca
         self.cert = cert
         self.key = key
-        self.ca = ca
-        self.request_timeout = request_timeout
         self.session = requests.Session()
         self.session.verify = self.ca
         self.session.cert = (self.cert, self.key)
         self.session.mount("https://", TlsAdapter(self.ca))
 
-    def request(self, request, is_signed=False):
+    def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
         extra_headers = {}
         extra_headers.update(request.headers)
 
         auth_value = None
-        if is_signed:
+        if signed:
             auth_value = HTTPSignatureAuth_AlwaysDigest(
                 algorithm="ecdsa-sha256",
                 key=open(self.key, "rb").read(),
@@ -339,23 +324,19 @@ class RequestClient:
             "url": f"https://{self.host}:{self.port}{request.path}",
             "auth": auth_value,
             "headers": extra_headers,
+            "allow_redirects": False,
         }
 
-        if request.params is not None:
-            request_params = request.params
-            if isinstance(request.params, str) and request.params.startswith("@"):
+        if request.body is not None:
+            if isinstance(request.body, str) and request.body.startswith("@"):
                 # Request is a file path - read contents, assume json
-                request_params = json.load(open(request.params[1:]))
-
-            if request.params_in_query:
-                request_args["params"] = build_query_string(request_params)
+                request_body = json.load(open(request.body[1:]))
             else:
-                request_args["json"] = request_params
+                request_body = request.body
+            request_args["json"] = request_body
 
         try:
-            response = self.session.request(
-                timeout=self.request_timeout, **request_args
-            )
+            response = self.session.request(timeout=timeout, **request_args)
         except requests.exceptions.ReadTimeout as exc:
             raise TimeoutError from exc
         except requests.exceptions.SSLError as exc:
@@ -367,26 +348,32 @@ class RequestClient:
 
 
 class WSClient:
-    def __init__(
-        self,
-        host,
-        port,
-        cert=None,
-        key=None,
-        ca=None,
-        request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
-        **kwargs,
-    ):
+    """
+    CCF WebSocket client implementation.
+
+    Note: Client signatures over WebSocket are not supported by CCF.
+    """
+
+    def __init__(self, host, port, ca, cert=None, key=None):
         self.host = host
         self.port = port
+        self.ca = ca
         self.cert = cert
         self.key = key
-        self.ca = ca
-        self.request_timeout = request_timeout
         self.ws = None
 
-    def request(self, request, is_signed=False):
-        assert not is_signed
+        ca_curve = get_curve(self.ca)
+        if ca_curve.name == "secp256k1":
+            raise RuntimeError(
+                f"WSClient cannot perform TLS handshake with {ca_curve.name} ECDH curve. "
+                "Use RequestClient class instead."
+            )
+
+    def request(self, request, signed=False, timeout=DEFAULT_REQUEST_TIMEOUT_SEC):
+        if signed:
+            raise RuntimeError(
+                "Client signatures over WebSocket are not supported by CCF"
+            )
 
         if not self.ws:
             LOG.info("Creating WSS connection")
@@ -398,11 +385,11 @@ class WSClient:
                         "keyfile": self.key,
                         "ca_certs": self.ca,
                     },
-                    timeout=self.request_timeout,
+                    timeout=timeout,
                 )
             except Exception as exc:
                 raise CCFConnectionException from exc
-        payload = json.dumps(request.params).encode()
+        payload = json.dumps(request.body).encode()
         path = (request.path).encode()
         header = struct.pack("<h", len(path)) + path
         # FIN, no RSV, BIN, UNMASKED every time, because it's all we support right now
@@ -411,58 +398,114 @@ class WSClient:
         )
         self.ws.send_frame(frame)
         out = self.ws.recv_frame().data
-        (status,) = struct.unpack("<h", out[:2])
+        (status_code,) = struct.unpack("<h", out[:2])
         (seqno,) = struct.unpack("<Q", out[2:10])
         (view,) = struct.unpack("<Q", out[10:18])
         (global_commit,) = struct.unpack("<Q", out[18:26])
         payload = out[26:]
-        # TODO: move out the decoding!
-        if status == 200:
+        if status_code == 200:
             body = json.loads(payload) if payload else None
         else:
             body = payload.decode()
-        return Response(status, body, seqno, view, global_commit, headers={})
+        return Response(status_code, body, seqno, view, global_commit, headers={})
 
 
 class CCFClient:
-    def __init__(self, host, port, *args, **kwargs):
-        self.description = (
-            kwargs.pop("description") if "description" in kwargs else None
-        )
-        self.connection_timeout = (
-            kwargs.pop("connection_timeout")
-            if "connection_timeout" in kwargs
-            else DEFAULT_CONNECTION_TIMEOUT_SEC
-        )
+    """
+    Client used to connect securely and issue requests to a given CCF node.
+
+    This is a very thin wrapper around Python Requests with TLS with added:
+
+    - Retry logic when connecting to nodes that are joining the network
+    - Support for HTTP signatures (https://tools.ietf.org/html/draft-cavage-http-signatures-12).
+
+    Note: Experimental support for WebSocket is also available by setting the ``ws`` parameter to ``True``.
+
+    :param str host: RPC IP address or domain name of node to connect to.
+    :param int port: RPC port number of node to connect to.
+    :param str ca: Path to CCF network certificate.
+    :param str cert: Path to client certificate (optional).
+    :param str key: Path to client private key (optional).
+    :param int connection_timeout: Maximum time to wait for successful connection establishment before giving up.
+    :param str description: Message to print on each request emitted with this client.
+    :param bool ws: Use WebSocket client (experimental).
+
+    A :py:exc:`CCFConnectionException` exception is raised if the connection is not established successfully within ``connection_timeout`` seconds.
+    """
+
+    def __init__(
+        self,
+        host,
+        port,
+        ca,
+        cert=None,
+        key=None,
+        connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
+        description=None,
+        ws=False,
+    ):
+        self.connection_timeout = connection_timeout
+        self.description = description
         self.name = f"[{host}:{port}]"
 
         if os.getenv("CURL_CLIENT"):
-            self.client_impl = CurlClient(host, port, *args, **kwargs)
-        elif os.getenv("WEBSOCKETS_CLIENT") or kwargs.get("ws"):
-            self.client_impl = WSClient(host, port, *args, **kwargs)
+            self.client_impl = CurlClient(host, port, ca, cert, key)
+        elif os.getenv("WEBSOCKETS_CLIENT") or ws:
+            self.client_impl = WSClient(host, port, ca, cert, key)
         else:
-            self.client_impl = RequestClient(host, port, *args, **kwargs)
+            self.client_impl = RequestClient(host, port, ca, cert, key)
 
     def _response(self, response):
         LOG.info(response)
         return response
 
     # pylint: disable=method-hidden
-    def _direct_call(self, method, *args, **kwargs):
-        is_signed = "signed" in kwargs and kwargs.pop("signed")
-        r = Request(method, *args, **kwargs)
-
+    def _direct_call(
+        self,
+        path,
+        body=None,
+        http_verb="POST",
+        headers=None,
+        signed=False,
+        timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+    ):
         description = ""
         if self.description:
-            description = f"({self.description})" + (" [signed]" if is_signed else "")
-        LOG.info(f"{self.name} {r} ({description})")
-        return self._response(self.client_impl.request(r, is_signed))
+            description = f"({self.description})" + (" [signed]" if signed else "")
 
-    def call(self, *args, **kwargs):
+        if headers is None:
+            headers = {}
+        r = Request(path, body, http_verb, headers)
+        LOG.info(f"{self.name} {r} {description}")
+        return self._response(self.client_impl.request(r, signed, timeout))
+
+    def call(
+        self,
+        path,
+        body=None,
+        http_verb="POST",
+        headers=None,
+        signed=False,
+        timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
+    ):
+        """
+        Issues one request, synchronously, and returns the response.
+
+        :param str path: URI of the targeted resource.
+        :param dict body: Request body (optional).
+        :param http_verb: HTTP verb (e.g. "POST" or "GET").
+        :param headers: HTTP request headers (optional).
+        :param bool signed: Sign request with client private key.
+        :param int timeout: Maximum time to wait corresponding response before giving up.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         end_time = time.time() + self.connection_timeout
         while True:
             try:
-                response = self._direct_call(*args, **kwargs)
+                response = self._direct_call(
+                    path, body, http_verb, headers, signed, timeout
+                )
                 # Only the first request gets this timeout logic - future calls
                 # call _direct_call directly
                 self.call = self._direct_call
@@ -478,42 +521,65 @@ class CCFClient:
                 time.sleep(0.1)
 
     def get(self, *args, **kwargs):
+        """
+        Issue ``GET`` request.
+        See :py:meth:`ccf.clients.CCFClient.call`.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         return self.call(*args, http_verb="GET", **kwargs)
 
     def post(self, *args, **kwargs):
+        """
+        Issue ``POST`` request.
+        See :py:meth:`ccf.clients.CCFClient.call`.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         return self.call(*args, http_verb="POST", **kwargs)
 
     def put(self, *args, **kwargs):
+        """
+        Issue ``PUT`` request.
+        See :py:meth:`ccf.clients.CCFClient.call`.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         return self.call(*args, http_verb="PUT", **kwargs)
 
     def delete(self, *args, **kwargs):
+        """
+        Issue ``DELETE`` request.
+        See :py:meth:`ccf.clients.CCFClient.call`.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
         return self.call(*args, http_verb="DELETE", **kwargs)
+
+    def head(self, *args, **kwargs):
+        """
+        Issue ``HEAD`` request.
+        See :py:meth:`ccf.clients.CCFClient.call`.
+
+        :return: :py:class:`ccf.clients.Response`
+        """
+        return self.call(*args, http_verb="HEAD", **kwargs)
+
+    def wait_for_commit(self, response, timeout=DEFAULT_COMMIT_TIMEOUT_SEC):
+        """
+        Given a :py:class:`ccf.clients.Response`, this functions waits
+        for the associated sequence number and view to be committed by the CCF network.
+
+        The client will poll the ``/node/tx`` endpoint until ``COMMITTED`` is returned.
+
+        :param ccf.clients.Response response: Response returned by :py:meth:`ccf.clients.CCFClient.call`
+        :param int timeout: Maximum time (secs) to wait for commit before giving up.
+
+        A ``TimeoutError`` exception is raised if the transaction is not committed within ``timeout`` seconds.
+        """
+        ccf.commit.wait_for_commit(self, response.seqno, response.view, timeout)
 
 
 @contextlib.contextmanager
-def client(
-    host,
-    port,
-    cert=None,
-    key=None,
-    ca=None,
-    description=None,
-    binary_dir=".",
-    connection_timeout=DEFAULT_CONNECTION_TIMEOUT_SEC,
-    request_timeout=DEFAULT_REQUEST_TIMEOUT_SEC,
-    ws=False,
-):
-    c = CCFClient(
-        host=host,
-        port=port,
-        cert=cert,
-        key=key,
-        ca=ca,
-        description=description,
-        binary_dir=binary_dir,
-        connection_timeout=connection_timeout,
-        request_timeout=request_timeout,
-        ws=ws,
-    )
-
-    yield c
+def client(*args, **kwargs):
+    yield CCFClient(*args, **kwargs)

@@ -5,7 +5,7 @@ import math
 import infra.network
 import infra.proc
 import infra.e2e_args
-import ccf.checker
+import infra.checker
 import http
 import suite.test_requirements as reqs
 
@@ -42,10 +42,10 @@ def wait_for_seqno_to_commit(seqno, view, nodes):
         up_to_date_f = []
         for f in nodes:
             with f.client() as c:
-                r = c.get("/node/tx", {"view": view, "seqno": seqno})
+                r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                 assert (
-                    r.status == http.HTTPStatus.OK
-                ), f"tx request returned HTTP status {r.status}"
+                    r.status_code == http.HTTPStatus.OK
+                ), f"tx request returned HTTP status {r.status_code}"
                 status = TxStatus(r.body["status"])
                 if status == TxStatus.Committed:
                     up_to_date_f.append(f.node_id)
@@ -71,7 +71,7 @@ def run(args):
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
 
         network.start_and_join(args)
         current_view = None
