@@ -57,7 +57,7 @@ class Request:
         self.params = params
         self.http_verb = http_verb
         self.headers = headers
-        self.params_in_query = http_verb == "GET" or http_verb == "DELETE"
+        self.params_in_query = http_verb in {"GET", "DELETE"}
 
     def get_params(self):
         if self.params_in_query and self.params is not None:
@@ -190,7 +190,6 @@ def get_curve(ca_file):
 
 class CurlClient:
     """
-    Curl client.
     This client uses Curl to send HTTP requests to CCF, and logs all Curl commands it runs. These commands could also be run manually, or used by another client tool.
     """
 

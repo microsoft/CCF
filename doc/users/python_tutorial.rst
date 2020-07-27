@@ -63,21 +63,23 @@ The authenticated client can then be used to issue ``POST`` requests, e.g. regis
     :start-after: SNIPPET_START: authenticated_post_requests
     :end-before: SNIPPET_END: authenticated_post_requests
 
-It is posible to use the same :py:class:`ccf.clients.CCFClient` instance to wait for the transaction to be committed by the network:
+It is possible to use the same :py:class:`ccf.clients.CCFClient` instance to wait for the transaction to be committed by the network:
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py
     :start-after: SNIPPET: wait_for_commit
     :lines: 1
 
-In fact, even an anonymous client can be used to verify that a transaction is committed:
+In fact, even an anonymous client can be used to verify that a transaction is committed. This is because only the sequence number and view associated with the transaction are required to verify that a transaction is committed.
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py
     :start-after: SNIPPET: any_client_can_wait
     :lines: 1
 
-Finally, the authenticated client can used to issue ``GET`` requests and verify that the previous messages have successfully been recorded:
+.. warning:: This does not imply that the confidential content of a transaction issued by an authenticated client is visible by an authenticated client. Indeed, access control to the confidential resource is handled by the CCF application logic.
+
+Finally, the authenticated client can be used to issue ``GET`` requests and verify that the previous messages have successfully been recorded:
 
 .. literalinclude:: ../../python/tutorial.py
     :language: py
