@@ -25,14 +25,7 @@ this_dir = os.path.dirname(__file__)
 @reqs.description("Add certificate with quote, query, update")
 #@reqs.supports_methods("log/private")
 def test_cert_store(network, args, notifications_queue=None, verify=True):
-    # Test 2:
-    # Propose a cert update with valid cert but mismatching mrsigner
-    # Check that proposal gets rejected
-
-    # Test 3:
-    # Propose a cert update with valid cert and matching mrsigner
-    # Check that proposal gets accepted
-    # Check that cert can be queried and matches the input
+    # TODO: propose a cert update with valid cert but mismatching mrsigner
 
     primary, _ = network.find_nodes()
 
