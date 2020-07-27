@@ -27,13 +27,13 @@ timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
 python "$INSTALL_PREFIX"/bin/start_network.py \
     -p ../../build/liblogging \
     -b "$INSTALL_PREFIX"/bin \
-    -g "$(pwd)"/../../src/runtime_config/gov.lua \
+    -g "$(pwd)"/../../../src/runtime_config/gov.lua \
     --network-info-file "$network_info_file" \
     -v &
 
 # Issue tutorial transactions to ephemeral network
 sleep 20
-python ../../python/tutorial.py "$network_info_file"
+python ../../../python/tutorial.py "$network_info_file"
 sleep 15
 
 # Recover network
