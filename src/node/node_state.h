@@ -595,7 +595,7 @@ namespace ccf
 
       kv::Tx tx;
       GenesisGenerator g(network, tx);
-      g.create_service(network.identity->cert, last_recovered_commit_idx + 1);
+      g.create_service(network.identity->cert);
       g.retire_active_nodes();
 
       self = g.add_node({node_info_network,
