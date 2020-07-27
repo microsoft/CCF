@@ -124,10 +124,8 @@ return {
   LOG_INFO("name: ", args.name)
   LOG_INFO("cert: ", args.cert)
   t = tables["ccf.root_ca_cert_ders"]
-  LOG_INFO("put in ccf.root_ca_cert_ders")
-  -- TODO decode base64 string to uint8 array
-  t:put(args.name, args.cert)
-  LOG_INFO("put done")
+  cert_arr = base64_to_array(args.cert)
+  t:put(args.name, cert_arr)
   return true
   ]],
 }

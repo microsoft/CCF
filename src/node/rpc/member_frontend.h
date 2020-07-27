@@ -3,6 +3,7 @@
 #pragma once
 #include "frontend.h"
 #include "lua_interp/tx_script_runner.h"
+#include "lua_interp/lua_json.h"
 #include "node/genesis_gen.h"
 #include "node/members.h"
 #include "node/nodes.h"
@@ -38,9 +39,20 @@ namespace ccf
     {
       auto l = li.get_state();
       lua_register(
+        l, "base64_to_array", lua_base64_to_array);
+      lua_register(
         l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
 
       TxScriptRunner::setup_environment(li, env_script);
+    }
+
+    static int lua_base64_to_array(lua_State* l)
+    {
+      std::string b64 = get_var_string_from_args(l);
+      std::vector<uint8_t> arr = tls::raw_from_b64(b64);
+      nlohmann::json json = arr;
+      lua::push_raw(l, json);
+      return 1;
     }
 
 #if 0
