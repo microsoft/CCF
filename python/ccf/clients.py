@@ -541,7 +541,7 @@ class CCFClient:
     def get(self, *args, **kwargs):
         """
         Issue ``GET`` request.
-        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``GET``.
+        See :py:meth:`ccf.clients.CCFClient.call`.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -550,7 +550,7 @@ class CCFClient:
     def post(self, *args, **kwargs):
         """
         Issue ``POST`` request.
-        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``POST``.
+        See :py:meth:`ccf.clients.CCFClient.call`.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -559,7 +559,7 @@ class CCFClient:
     def put(self, *args, **kwargs):
         """
         Issue ``PUT`` request.
-        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``PUT``.
+        See :py:meth:`ccf.clients.CCFClient.call`.
 
         :return: :py:class:`ccf.clients.Response`
         """
@@ -568,7 +568,7 @@ class CCFClient:
     def delete(self, *args, **kwargs):
         """
         Issue ``DELETE`` request.
-        Wrapper for :py:meth:`ccf.clients.CCFClient.call` with ``http_verb`` set to ``DELETE``.
+        See :py:meth:`ccf.clients.CCFClient.call`.
 
         :return: :py:class:`ccf.clients.Response`
         """
