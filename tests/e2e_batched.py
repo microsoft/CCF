@@ -51,7 +51,7 @@ def test(network, args, batch_size=100, write_key_divisor=1, write_size_multipli
             f"Submitting {batch_size} new keys took {post_submit - pre_submit}s"
         )
 
-        fetch_response = c.post("/app/BATCH_fetch", message_ids)
+        fetch_response = c.post("/app/BATCH_fetch", message_ids, timeout=30)
 
         if write_key_divisor == 1 and write_size_multiplier == 1:
             check(fetch_response, result=messages)
