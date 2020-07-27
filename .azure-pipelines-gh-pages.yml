@@ -27,6 +27,7 @@ jobs:
         source env/bin/activate
         pip install wheel
         pip install -U -r doc/requirements.txt
+        pip install -U -e ./python
         sphinx-multiversion doc build/html
       displayName: Sphinx
 

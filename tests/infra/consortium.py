@@ -8,7 +8,7 @@ import http
 import random
 import infra.network
 import infra.proc
-import ccf.checker
+import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
@@ -156,7 +156,7 @@ class Consortium:
                 accept=True,
                 wait_for_global_commit=wait_for_global_commit,
             )
-            assert response.status == http.HTTPStatus.OK.value
+            assert response.status_code == http.HTTPStatus.OK.value
             proposal.state = infra.proposal.ProposalState(response.body["state"])
             proposal.increment_votes_for()
 
@@ -177,7 +177,7 @@ class Consortium:
         proposals = []
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post("/gov/query", {"text": script})
-            assert r.status == http.HTTPStatus.OK.value
+            assert r.status_code == http.HTTPStatus.OK.value
             for proposal_id, attr in r.body.items():
                 has_proposer_voted_for = False
                 for vote in attr["votes"]:
@@ -231,7 +231,7 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
-        member_to_retire.status = infra.member.MemberStatus.RETIRED
+        member_to_retire.status_code = infra.member.MemberStatus.RETIRED
 
     def open_network(self, remote_node, pbft_open=False):
         """
@@ -304,7 +304,7 @@ class Consortium:
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
         with remote_node.client() as nc:
-            check_commit = ccf.checker.Checker(nc)
+            check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_members():
                 r = m.get_and_submit_recovery_share(
@@ -348,10 +348,7 @@ class Consortium:
         """
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
-        with remote_node.client(
-            f"member{self.get_any_active_member().member_id}",
-            request_timeout=(30 if pbft_open else 3),
-        ) as c:
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post(
                 "/gov/query",
                 {
@@ -361,7 +358,7 @@ class Consortium:
                         LOG_DEBUG("Service is nil")
                     else
                         LOG_DEBUG("Service version: ", tostring(service.version))
-                        LOG_DEBUG("Service status: ", tostring(service.status))
+                        LOG_DEBUG("Service status: ", tostring(service.status_code))
                         cert_len = #service.cert
                         LOG_DEBUG("Service cert len: ", tostring(cert_len))
                         LOG_DEBUG("Service cert bytes: " ..
@@ -373,6 +370,7 @@ class Consortium:
                     return service
                     """
                 },
+                timeout=(30 if pbft_open else 3),
             )
             current_status = r.body["status"]
             current_cert = array.array("B", r.body["cert"]).tobytes()
@@ -391,7 +389,7 @@ class Consortium:
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
             r = c.post("/gov/read", {"table": "ccf.nodes", "key": node_id})
 
-            if r.status != 200 or (
+            if r.status_code != http.HTTPStatus.OK.value or (
                 node_status and r.body["status"] != node_status.name
             ):
                 return False

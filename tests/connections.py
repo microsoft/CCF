@@ -4,7 +4,7 @@ import infra.e2e_args
 import time
 import infra.network
 import infra.proc
-import ccf.checker
+import infra.checker
 import contextlib
 import resource
 import psutil
@@ -19,7 +19,7 @@ def run(args):
     with infra.network.network(
         hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
         network.start_and_join(args)
         primary, _ = network.find_nodes()
 
