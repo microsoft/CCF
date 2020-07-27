@@ -115,8 +115,3 @@ Summary Diagram
 
         Note over Node 2: Recovery procedure complete
         Note over Node 3: Recovery procedure complete
-
-
-.. rubric:: Footnotes
-
-.. [#recovery_share] Recovery shares are encrypted with the respective member public key and stored in CCF. As such, a recovery share can only be retrieved and used by the member who owns it.
