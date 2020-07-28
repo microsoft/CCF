@@ -52,6 +52,8 @@ TEST_CASE("Unpopped messages are freed")
     tm.add_task<Foo>(0, std::move(m2));
     // Task is owned by the queue, hasn't run
     CHECK(Foo::count == 1);
+
+    tm.drop_tasks();
   }
   // Task payload (and TMsg) is also freed if it hasn't run
   // but the queue was destructed
