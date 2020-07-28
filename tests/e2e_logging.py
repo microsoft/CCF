@@ -431,7 +431,7 @@ def test_user_data_ACL(network, args):
 
 
 @reqs.description("Check for commit of every prior transaction")
-@reqs.supports_methods("/node/commit")
+@reqs.supports_methods("commit")
 def test_view_history(network, args):
     if args.consensus == "pbft":
         # This appears to work in PBFT, but it is unacceptably slow:
