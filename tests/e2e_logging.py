@@ -387,6 +387,7 @@ def test_update_lua(network, args):
 
     return network
 
+
 @reqs.description("Test user-data used for access permissions")
 @reqs.supports_methods("log/private/admin_only")
 def test_user_data_ACL(network, args):
@@ -397,12 +398,9 @@ def test_user_data_ACL(network, args):
 
     # Give isAdmin permissions to a single user
     proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-        user_id,
-        {"isAdmin": True},
+        user_id, {"isAdmin": True},
     )
-    proposal = proposing_member.propose(
-        primary, proposal_body
-    )
+    proposal = proposing_member.propose(primary, proposal_body)
     proposal.vote_for = careful_vote
     network.consortium.vote_using_majority(primary, proposal)
 
@@ -413,12 +411,9 @@ def test_user_data_ACL(network, args):
 
     # Remove permission
     proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
-        user_id,
-        {"isAdmin": False},
+        user_id, {"isAdmin": False},
     )
-    proposal = proposing_member.propose(
-        primary, proposal_body
-    )
+    proposal = proposing_member.propose(primary, proposal_body)
     proposal.vote_for = careful_vote
     network.consortium.vote_using_majority(primary, proposal)
 
