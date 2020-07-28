@@ -6,7 +6,6 @@ import time
 import sys
 import json
 import os
-
 from loguru import logger as LOG
 
 
@@ -14,6 +13,7 @@ def dump_network_info(path, network, node):
     network_info = {}
     network_info["host"] = node.pubhost
     network_info["port"] = node.rpc_port
+    network_info["ledger"] = node.remote.ledger_path()
     network_info["common_dir"] = network.common_dir
 
     with open(path, "w") as network_info_file:
