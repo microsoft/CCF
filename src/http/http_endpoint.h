@@ -36,7 +36,7 @@ namespace http
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
       auto ptr = msg->data.self.lock();
-      reinterpret_cast<TLSEndpoint*>(ptr.get())->send_raw_thread(
+      reinterpret_cast<HTTPEndpoint*>(ptr.get())->send_raw_thread(
         msg->data.data);
     }
 
