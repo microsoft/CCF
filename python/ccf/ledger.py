@@ -1,11 +1,15 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import io
-import msgpack.fallback as msgpack  # Default implementation has buggy interaction between read_bytes and tell, so use fallback
+
+# Default implementation has buggy interaction between read_bytes and tell, so use fallback
+import msgpack.fallback as msgpack  # type: ignore
 import struct
 import os
 
 from loguru import logger as LOG
+
+from typing import BinaryIO, Optional, Set
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -45,7 +49,15 @@ class PublicDomain:
     All public tables within a :py:class:`ccf.ledger.Transaction`.
     """
 
-    def __init__(self, buffer):
+    _buffer: io.BytesIO
+    _buffer_size: int
+    _unpacker: msgpack.Unpacker
+    _is_snapshot: bool
+    _version: int
+    _tables: dict
+    _msgpacked_tables: Set[str]
+
+    def __init__(self, buffer: io.BytesIO):
         self._buffer = buffer
         self._buffer_size = buffer.getbuffer().nbytes
         self._unpacker = msgpack.Unpacker(self._buffer, **UNPACK_ARGS)
@@ -112,7 +124,7 @@ class PublicDomain:
                 f"Found {read_count} reads, {write_count} writes, and {remove_count} removes"
             )
 
-    def get_tables(self):
+    def get_tables(self) -> dict:
         """
         Returns a dictionnary of all public tables (with their content) in a :py:class:`ccf.ledger.Transaction`.
 
@@ -136,17 +148,20 @@ class Transaction:
     A transaction represents one entry in the CCF ledger.
     """
 
-    _file = None
-    _total_size = 0
-    _public_domain_size = 0
-    _next_offset = LEDGER_HEADER_SIZE
-    _public_domain = None
-    _file_size = 0
-    gcm_header = None
-    _tx_offset = 0
+    _file: Optional[BinaryIO] = None
+    _total_size: int = 0
+    _public_domain_size: int = 0
+    _next_offset: int = LEDGER_HEADER_SIZE
+    _public_domain: Optional[PublicDomain] = None
+    _file_size: int = 0
+    gcm_header: Optional[GcmHeader] = None
+    _tx_offset: int = 0
 
-    def __init__(self, filename):
+    def __init__(self, filename: str):
         self._file = open(filename, mode="rb")
+        if self._file is None:
+            raise RuntimeError(f"Ledger file {filename} could not be opened")
+
         self._file_size = int.from_bytes(
             _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
         )
@@ -170,9 +185,11 @@ class Transaction:
         buffer = _byte_read_safe(self._file, LEDGER_DOMAIN_SIZE)
         self._public_domain_size = to_uint_64(buffer)
 
-    def get_public_domain(self):
+    def get_public_domain(self) -> Optional[PublicDomain]:
         """
         Retrieve the public (i.e. non-encrypted) domain for that transaction.
+
+        Note: If the transaction is private-only, nothing is returned.
 
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
@@ -187,6 +204,8 @@ class Transaction:
 
         :return: Raw transaction bytes.
         """
+        assert self._file is not None
+
         # remember where the pointer is in the file before we go back for the transaction bytes
         header = self._file.tell()
         self._file.seek(self._tx_offset)
@@ -220,12 +239,16 @@ class Ledger:
     :param str name: Ledger directory for a single CCF node.
     """
 
-    def __init__(self, name: str):
+    _filenames: list
+    _fileindex: int
+    _current_tx: Transaction
+
+    def __init__(self, directory: str):
 
         self._filenames = []
         self._fileindex = 0
 
-        ledgers = os.listdir(name)
+        ledgers = os.listdir(directory)
         # Sorts the list based off the first number after ledger_ so that
         # the ledger is verified in sequence
         sorted_ledgers = sorted(
@@ -236,14 +259,14 @@ class Ledger:
         )
 
         for chunk in sorted_ledgers:
-            if os.path.isfile(os.path.join(name, chunk)):
+            if os.path.isfile(os.path.join(directory, chunk)):
                 if not chunk.endswith(".committed"):
                     LOG.warning(f"The file {chunk} has not been committed")
-                self._filenames.append(os.path.join(name, chunk))
+                self._filenames.append(os.path.join(directory, chunk))
 
         self._current_tx = Transaction(self._filenames[0])
 
-    def __next__(self):
+    def __next__(self) -> Transaction:
         try:
             return next(self._current_tx)
         except StopIteration:

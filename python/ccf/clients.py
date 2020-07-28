@@ -343,6 +343,7 @@ class RequestClient:
             "allow_redirects": False,
         }
 
+        request_body = None
         if request.body is not None:
             if isinstance(request.body, str) and request.body.startswith("@"):
                 # Request is a file path - read contents, assume json

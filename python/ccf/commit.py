@@ -6,16 +6,14 @@ import time
 
 
 from ccf.tx_status import TxStatus
-import ccf.clients
 
 
-def wait_for_commit(
-    client: ccf.clients.CCFClient, seqno: int, view: int, timeout: int = 3
-) -> None:
+def wait_for_commit(client, seqno: int, view: int, timeout: int = 3) -> None:
     """
     Waits for a specific seqno/view pair to be committed by the network,
     as per the node to which client is connected to.
 
+    :param client: Instance of :py:class:`ccf.clients.CCFClient`
     :param int seqno: Transaction sequence number.
     :param int view: Consensus view.
     :param str timeout: Maximum time to wait for this seqno/view pair to be committed before giving up.
