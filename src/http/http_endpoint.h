@@ -35,8 +35,9 @@ namespace http
   public:
     static void recv_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<HTTPEndpoint*>(msg->data.self.get())
-        ->recv_(msg->data.data.data(), msg->data.data.size());
+      auto ptr = msg->data.self.lock();
+      reinterpret_cast<TLSEndpoint*>(ptr.get())->send_raw_thread(
+        msg->data.data);
     }
 
     void recv(const uint8_t* data, size_t size) override

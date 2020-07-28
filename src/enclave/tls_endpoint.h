@@ -220,13 +220,14 @@ namespace enclave
     struct SendRecvMsg
     {
       std::vector<uint8_t> data;
-      std::shared_ptr<Endpoint> self;
+      std::weak_ptr<Endpoint> self;
     };
 
     static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
     {
-      reinterpret_cast<TLSEndpoint*>(msg->data.self.get())
-        ->send_raw_thread(msg->data.data);
+      auto ptr = msg->data.self.lock();
+      reinterpret_cast<TLSEndpoint*>(ptr.get())->send_raw_thread(
+        msg->data.data);
     }
 
     void send_raw(const std::vector<uint8_t>& data)
