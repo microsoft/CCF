@@ -33,13 +33,16 @@ namespace ccf
 {
   struct ServiceInfo
   {
-    tls::Pem cert;
+    // Version at which the service is applicable from
+    kv::Version version;
+
+    std::vector<uint8_t> cert;
     ServiceStatus status;
 
-    MSGPACK_DEFINE(cert, status);
+    MSGPACK_DEFINE(version, cert, status);
   };
   DECLARE_JSON_TYPE(ServiceInfo);
-  DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, cert, status);
+  DECLARE_JSON_REQUIRED_FIELDS(ServiceInfo, version, cert, status);
 
   // As there is only one service active at a given time, the key for the
   // Service table is always 0.

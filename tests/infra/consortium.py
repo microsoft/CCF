@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
+import array
 import os
 import time
 import http
@@ -372,14 +373,13 @@ class Consortium:
                 timeout=(30 if pbft_open else 3),
             )
             current_status = r.body["status"]
-            current_cert = r.body["cert"]
+            current_cert = array.array("B", r.body["cert"]).tobytes()
 
             expected_cert = open(
                 os.path.join(self.common_dir, "networkcert.pem"), "rb"
             ).read()
-
             assert (
-                current_cert == expected_cert[:-1].decode()
+                current_cert == expected_cert
             ), "Current service certificate did not match with networkcert.pem"
             assert (
                 current_status == status.name
