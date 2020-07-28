@@ -74,7 +74,7 @@ User Data
 
 For each user, CCF also stores arbitrary user-data in a JSON object. This can only be written to by members, subject to the standard proposal-vote governance mechanism, via the ``set_user_data`` action. This lets members define initial metadata for certain users; for example to grant specific privileges, associate a human-readable name, or categorise the users. This user-data can then be read (but not written) by user-facing endpoints.
 
-For example, the C++ logging sample app has an endpoint (``/log/private/admin_only``) which uses user-data to restrict who is permitted to call it:
+For example, the ``/log/private/admin_only`` endpoint in the C++ logging sample app uses user-data to restrict who is permitted to call it:
 
 .. literalinclude:: ../../src/apps/logging/logging.cpp
     :language: cpp
