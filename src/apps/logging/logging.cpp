@@ -395,6 +395,49 @@ namespace loggingapp
           get_historical, context.get_historical_state(), is_tx_committed))
         .install();
 
+      auto record_admin_only =
+        [this, &nwt](ccf::EndpointContext& ctx, nlohmann::json&& params) {
+          {
+            // SNIPPET_START: user_data_check
+            // Check caller's user-data for required permissions
+            auto users_view = ctx.tx.get_view(nwt.users);
+            const auto user_opt = users_view->get(ctx.caller_id);
+            const nlohmann::json user_data = user_opt.has_value() ?
+              user_opt->user_data :
+              nlohmann::json(nullptr);
+            const auto is_admin_it = user_data.find("isAdmin");
+
+            // Exit if this user has no user data, or the user data is not an
+            // object with isAdmin field, or the value of this field is not true
+            if (
+              !user_data.is_object() || is_admin_it == user_data.end() ||
+              !is_admin_it.value().get<bool>())
+            {
+              return ccf::make_error(
+                HTTP_STATUS_FORBIDDEN, "Only admins may access this endpoint");
+            }
+            // SNIPPET_END: user_data_check
+          }
+
+          const auto in = params.get<LoggingRecord::In>();
+
+          if (in.msg.empty())
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST, "Cannot record an empty log message");
+          }
+
+          auto view = ctx.tx.get_view(records);
+          view->put(in.id, in.msg);
+          return ccf::make_success(true);
+        };
+      make_endpoint(
+        "log/private/admin_only",
+        HTTP_POST,
+        ccf::json_adapter(record_admin_only))
+        .set_auto_schema<LoggingRecord::In, bool>()
+        .install();
+
       auto& notifier = context.get_notifier();
       nwt.signatures.set_global_hook(
         [&notifier](kv::Version version, const ccf::Signatures::Write& w) {
