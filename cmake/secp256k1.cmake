@@ -15,7 +15,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_compile_definitions(
     secp256k1.enclave PRIVATE HAVE_CONFIG_H SECP256K1_BUILD
   )
-  target_link_libraries(secp256k1.enclave PRIVATE openenclave::oelibc)
+  target_link_libraries(secp256k1.enclave PRIVATE ${OE_TARGET_LIBC})
   set_property(TARGET secp256k1.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   install(
     TARGETS secp256k1.enclave

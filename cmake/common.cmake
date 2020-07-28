@@ -29,6 +29,35 @@ if(VERBOSE_LOGGING)
   set(TEST_HOST_LOGGING_LEVEL "debug")
 endif()
 
+option(LVI_MITIGATIONS "Enable LVI mitigations" ON)
+if(LVI_MITIGATIONS)
+  set(OE_TARGET_LIBC openenclave::oelibc-lvi-cfg)
+  set(OE_TARGET_ENCLAVE_AND_STD
+      openenclave::oeenclave-lvi-cfg openenclave::oelibcxx-lvi-cfg
+      openenclave::oelibc-lvi-cfg
+  )
+  set(OE_TARGET_ENCLAVE_CORE_LIBS
+      openenclave::oeenclave-lvi-cfg openenclave::oesnmalloc-lvi-cfg
+      openenclave::oecore-lvi-cfg openenclave::oesyscall-lvi-cfg
+  )
+else()
+  set(OE_TARGET_LIBC openenclave::oelibc)
+  set(OE_TARGET_ENCLAVE_AND_STD openenclave::oeenclave openenclave::oelibcxx
+                                openenclave::oelibc
+  )
+  # These oe libraries must be linked in specific order
+  set(OE_TARGET_ENCLAVE_CORE_LIBS
+      openenclave::oeenclave openenclave::oesnmalloc openenclave::oecore
+      openenclave::oesyscall
+  )
+endif()
+
+function(add_lvi_mitigations name)
+  if(LVI_MITIGATIONS)
+    apply_lvi_mitigation(${name})
+  endif()
+endfunction()
+
 option(NO_STRICT_TLS_CIPHERSUITES
        "Disable strict list of valid TLS ciphersuites" OFF
 )
@@ -202,6 +231,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   target_compile_options(cchost PRIVATE -stdlib=libc++)
   target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
+  add_lvi_mitigations(cchost)
 
   target_link_libraries(
     cchost
@@ -243,6 +273,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
   add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
+  add_lvi_mitigations(cchost.virtual)
   enable_coverage(cchost.virtual)
   target_link_libraries(
     cchost.virtual
@@ -376,33 +407,47 @@ function(add_e2e_test)
 
     # Make python test client framework importable
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
 
     if(SHUFFLE_SUITE)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
       )
     endif()
 
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS e2e)
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL}
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS e2e
+    )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_LABEL}
     )
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
     )
 
     if(DEFINED DEFAULT_ENCLAVE_TYPE)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     endif()
@@ -451,20 +496,28 @@ function(add_perf_test)
 
   # Make python test client framework importable
   set_property(
-    TEST ${PARSED_ARGS_NAME} APPEND
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
     PROPERTY
       ENVIRONMENT
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
-  set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
   set_property(
-    TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY LABELS perf
+  )
+  set_property(
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
   )
 endfunction()
 
@@ -475,6 +528,8 @@ function(add_picobench name)
   )
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
+
+  add_lvi_mitigations(${name})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 
