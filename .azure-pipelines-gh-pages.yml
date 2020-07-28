@@ -7,7 +7,7 @@ trigger:
 
 jobs:
 - job: build_and_publish_docs
-  container: ccfciteam/ccf-ci:oe0.10
+  container: ccfciteam/ccf-ci:oe0.10-lvi
   pool:
     vmImage: ubuntu-18.04
 
@@ -27,6 +27,7 @@ jobs:
         source env/bin/activate
         pip install wheel
         pip install -U -r doc/requirements.txt
+        pip install -U -e ./python
         sphinx-multiversion doc build/html
       displayName: Sphinx
 

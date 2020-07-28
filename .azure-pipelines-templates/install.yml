@@ -7,30 +7,8 @@ steps:
   displayName: 'Install'
 
 - script: |
-    INSTALL_PREFIX=`cat /tmp/install_prefix`
-    mkdir -p nested/run
-    cd nested/run
-    python3.7 -m venv env
-    source env/bin/activate
-    python -m pip install -U -r $INSTALL_PREFIX/bin/requirements.txt
-    pip freeze > $INSTALL_PREFIX/bin/requirements.txt
-    timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
-      python $INSTALL_PREFIX/bin/start_network.py \
-      -p ../../build/liblogging \
-      -b $INSTALL_PREFIX/bin \
-      -g $(pwd)/../../src/runtime_config/gov.lua \
-      -v
-    cp -r ./workspace/start_network_0/0.ledger .
-    cp ./workspace/start_network_0/network_enc_pubk.pem .
-    timeout --signal=SIGINT --kill-after=30s --preserve-status 30s \
-      python $INSTALL_PREFIX/bin/start_network.py \
-      -p ../../build/liblogging \
-      -b $INSTALL_PREFIX/bin \
-      -v \
-      --recover \
-      --ledger-dir 0.ledger \
-      --network-enc-pubk network_enc_pubk.pem \
-      --common-dir ./workspace/start_network_common/
+    cat /tmp/install_prefix | xargs ./test_install.sh
+  workingDirectory: build
   displayName: Test installed CCF
 
 - script: |

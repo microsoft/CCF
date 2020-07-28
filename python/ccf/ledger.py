@@ -40,7 +40,11 @@ class GcmHeader:
         return GCM_SIZE_TAG + GCM_SIZE_IV
 
 
-class LedgerDomain:
+class PublicDomain:
+    """
+    All public tables within a :py:class:`ccf.ledger.Transaction`.
+    """
+
     def __init__(self, buffer):
         self._buffer = buffer
         self._buffer_size = buffer.getbuffer().nbytes
@@ -109,6 +113,11 @@ class LedgerDomain:
             )
 
     def get_tables(self):
+        """
+        Returns a dictionnary of all public tables (with their content) in a :py:class:`ccf.ledger.Transaction`.
+
+        :return: Dictionnary of public tables with their content.
+        """
         return self._tables
 
 
@@ -123,6 +132,9 @@ def _byte_read_safe(file, num_of_bytes):
 
 
 class Transaction:
+    """
+    A transaction represents one entry in the CCF ledger.
+    """
 
     _file = None
     _total_size = 0
@@ -159,12 +171,22 @@ class Transaction:
         self._public_domain_size = to_uint_64(buffer)
 
     def get_public_domain(self):
+        """
+        Retrieve the public (i.e. non-encrypted) domain for that transaction.
+
+        :return: :py:class:`ccf.ledger.PublicDomain`
+        """
         if self._public_domain == None:
             buffer = io.BytesIO(_byte_read_safe(self._file, self._public_domain_size))
-            self._public_domain = LedgerDomain(buffer)
+            self._public_domain = PublicDomain(buffer)
         return self._public_domain
 
     def get_public_tx(self) -> bytes:
+        """
+        Returns raw transaction bytes.
+
+        :return: Raw transaction bytes.
+        """
         # remember where the pointer is in the file before we go back for the transaction bytes
         header = self._file.tell()
         self._file.seek(self._tx_offset)
@@ -192,32 +214,32 @@ class Transaction:
 
 
 class Ledger:
+    """
+    Class used to parse and iterate over all :py:class:`ccf.ledger.Transaction` stored in a CCF ledger.
 
-    _filenames = []
-    _fileindex = 0
+    :param str name: Ledger directory for a single CCF node.
+    """
 
     def __init__(self, name: str):
 
         self._filenames = []
         self._fileindex = 0
 
-        contents = os.listdir(name)
-        # Sorts the list based off the first number after ledger_ so that the ledger is verified in sequence
-        sort = sorted(
-            contents,
+        ledgers = os.listdir(name)
+        # Sorts the list based off the first number after ledger_ so that
+        # the ledger is verified in sequence
+        sorted_ledgers = sorted(
+            ledgers,
             key=lambda x: int(
                 x.replace(".committed", "").replace("ledger_", "").split("-")[0]
             ),
         )
 
-        for chunk in sort:
-            # Add only the .committed ledgers to be verified
+        for chunk in sorted_ledgers:
             if os.path.isfile(os.path.join(name, chunk)):
-                if chunk.endswith(".committed"):
-                    self._filenames.append(os.path.join(name, chunk))
-                else:
+                if not chunk.endswith(".committed"):
                     LOG.warning(f"The file {chunk} has not been committed")
-                    self._filenames.append(os.path.join(name, chunk))
+                self._filenames.append(os.path.join(name, chunk))
 
         self._current_tx = Transaction(self._filenames[0])
 
@@ -234,6 +256,3 @@ class Ledger:
 
     def __iter__(self):
         return self
-
-    def get_ledger_files(self) -> list:
-        return self._filenames
