@@ -320,7 +320,8 @@ namespace http
         }
 
         // On any exception, close the connection.
-        LOG_TRACE_FMT("Closing connection due to exception: {}", e.what());
+        LOG_FAIL_FMT("Closing connection");
+        LOG_DEBUG_FMT("Closing connection due to exception: {}", e.what());
         close();
         throw;
       }

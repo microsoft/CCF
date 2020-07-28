@@ -3,7 +3,7 @@
 import infra.e2e_args
 import infra.network
 import ccf.proposal_generator
-import ccf.checker
+import infra.checker
 import os
 import logging
 from time import gmtime, strftime, perf_counter
@@ -98,7 +98,7 @@ def run(args):
 
         for regulator in regulators:
             with primary.user_client(format="msgpack", user_id=regulator.name) as c:
-                check = ccf.checker.Checker()
+                check = infra.checker.Checker()
 
                 check(
                     c.post(
@@ -125,7 +125,7 @@ def run(args):
 
         with primary.user_client(format="msgpack", user_id=regulators[0].name) as c:
             for bank in banks:
-                check = ccf.checker.Checker()
+                check = infra.checker.Checker()
 
                 check(
                     c.post(

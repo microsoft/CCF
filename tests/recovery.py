@@ -3,7 +3,7 @@
 import infra.e2e_args
 import infra.network
 import infra.logging_app as app
-import ccf.checker
+import infra.checker
 import suite.test_requirements as reqs
 import time
 
@@ -51,7 +51,7 @@ def test_share_resilience(network, args):
                 last_member_to_submit = m
                 break
 
-            check_commit = ccf.checker.Checker(nc)
+            check_commit = infra.checker.Checker(nc)
             check_commit(
                 m.get_and_submit_recovery_share(primary, defunct_network_enc_pubk)
             )
