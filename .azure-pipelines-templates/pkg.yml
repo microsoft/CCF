@@ -1,0 +1,15 @@
+steps:
+- script: |
+    cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
+    cpack -G DEB
+    PKG=`ls *.deb`
+    cp $PKG $(Build.ArtifactStagingDirectory)
+    echo "##vso[task.setvariable variable=pkgname]$PKG"
+  workingDirectory: build
+  displayName: 'Make .deb package'
+
+- task: PublishPipelineArtifact@1
+  inputs:
+    path: $(Build.ArtifactStagingDirectory)/$[variables['pkgname']]
+    artifact: $[variables['pkgname']]
+    displayName: 'Publish CCF Install'
