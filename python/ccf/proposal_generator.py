@@ -10,7 +10,7 @@ import sys
 import functools
 from typing import Union, Optional, Any
 
-from loguru import logger as LOG
+from loguru import logger as LOG  # type: ignore
 
 
 def dump_to_file(output_path: str, obj: dict, dump_args: dict):

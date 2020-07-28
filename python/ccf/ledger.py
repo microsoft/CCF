@@ -7,7 +7,7 @@ import msgpack.fallback as msgpack  # type: ignore
 import struct
 import os
 
-from loguru import logger as LOG
+from loguru import logger as LOG  # type: ignore
 
 from typing import BinaryIO, Optional, Set
 

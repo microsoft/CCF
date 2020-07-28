@@ -18,7 +18,7 @@ import base64
 from typing import Union, Optional
 
 import requests
-from loguru import logger as LOG
+from loguru import logger as LOG  # type: ignore
 from requests_http_signature import HTTPSignatureAuth  # type: ignore
 import websocket  # type: ignore
 
