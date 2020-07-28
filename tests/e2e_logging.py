@@ -387,6 +387,48 @@ def test_update_lua(network, args):
 
     return network
 
+@reqs.description("Test user-data used for access permissions")
+@reqs.supports_methods("log/private/admin_only")
+def test_user_data_ACL(network, args):
+    primary, _ = network.find_primary()
+
+    proposing_member = network.consortium.get_any_active_member()
+    user_id = 0
+
+    # Give isAdmin permissions to a single user
+    proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
+        user_id,
+        {"isAdmin": True},
+    )
+    proposal = proposing_member.propose(
+        primary, proposal_body
+    )
+    proposal.vote_for = careful_vote
+    network.consortium.vote_using_majority(primary, proposal)
+
+    # Confirm that user can now use this endpoint
+    with primary.client(f"user{user_id}") as c:
+        r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+    # Remove permission
+    proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
+        user_id,
+        {"isAdmin": False},
+    )
+    proposal = proposing_member.propose(
+        primary, proposal_body
+    )
+    proposal.vote_for = careful_vote
+    network.consortium.vote_using_majority(primary, proposal)
+
+    # Confirm that user is now forbidden on this endpoint
+    with primary.client(f"user{user_id}") as c:
+        r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+        assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
+
+    return network
+
 
 @reqs.description("Check for commit of every prior transaction")
 @reqs.supports_methods("/node/commit")
@@ -586,6 +628,7 @@ def run(args):
             network = test_remove(network, args)
             network = test_forwarding_frontends(network, args)
             network = test_update_lua(network, args)
+            network = test_user_data_ACL(network, args)
             network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
             network = test_raw_text(network, args)
