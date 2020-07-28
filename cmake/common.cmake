@@ -407,33 +407,47 @@ function(add_e2e_test)
 
     # Make python test client framework importable
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
 
     if(SHUFFLE_SUITE)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
       )
     endif()
 
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS e2e)
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL}
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS e2e
+    )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_LABEL}
     )
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
     )
 
     if(DEFINED DEFAULT_ENCLAVE_TYPE)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     endif()
@@ -482,20 +496,28 @@ function(add_perf_test)
 
   # Make python test client framework importable
   set_property(
-    TEST ${PARSED_ARGS_NAME} APPEND
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
     PROPERTY
       ENVIRONMENT
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
-  set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
   set_property(
-    TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY LABELS perf
+  )
+  set_property(
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
   )
 endfunction()
 
