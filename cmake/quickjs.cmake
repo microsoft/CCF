@@ -31,7 +31,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
     quickjs.enclave PUBLIC -nostdinc -DCONFIG_VERSION="${QUICKJS_VERSION}"
                            -DEMSCRIPTEN
   )
-  target_link_libraries(quickjs.enclave PUBLIC openenclave::oelibc)
+  target_link_libraries(quickjs.enclave PUBLIC ${OE_TARGET_LIBC})
   set_property(TARGET quickjs.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(quickjs.enclave PUBLIC ${QUICKJS_INC})
 
