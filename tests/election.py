@@ -86,7 +86,7 @@ def run(args):
             LOG.debug("Find freshly elected primary")
             # After a view change in pbft, finding the new primary takes longer
             primary, current_view = network.find_primary(
-                request_timeout=(30 if args.consensus == "pbft" else 3)
+                timeout=(30 if args.consensus == "pbft" else 3)
             )
 
             LOG.debug(
