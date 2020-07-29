@@ -9,6 +9,6 @@ steps:
 
 - task: PublishPipelineArtifact@1
   inputs:
-    path: $(Build.ArtifactStagingDirectory)/$[variables['pkgname']]
+    path: $(Build.ArtifactStagingDirectory)/$(pkgname)]
     artifact: $[variables['pkgname']]
     displayName: 'Publish CCF Install'
