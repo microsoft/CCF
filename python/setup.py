@@ -14,14 +14,13 @@ with open(path.join(path_here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name=PACKAGE_NAME,
-    version="0.11.7",
+    version="0.12",
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/microsoft/CCF/python/ccf",
     license="Apache License 2.0",
     author="CCF Team",
-    author_email="ccfeng@microsoft.com",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
