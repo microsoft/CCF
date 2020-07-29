@@ -50,7 +50,7 @@ namespace ccf
 
   struct SetModule
   {
-    std::string module_name;
+    ModuleName module_name;
     Script module_content;
   };
   DECLARE_JSON_TYPE(SetModule)
@@ -104,13 +104,19 @@ namespace ccf
       }
     }
 
-    void set_module(kv::Tx& tx, std::string name, Script content)
+    void set_module(kv::Tx& tx, ModuleName name, Script content)
     {
       auto tx_modules = tx.get_view(network.modules);
       tx_modules->put(name, content);
     }
 
-    Script get_module(kv::Tx& tx, std::string name)
+    void remove_module(kv::Tx& tx, ModuleName name)
+    {
+      auto tx_modules = tx.get_view(network.modules);
+      tx_modules->remove(name);
+    }
+
+    Script get_module(kv::Tx& tx, ModuleName name)
     {
       const auto s = tx.get_view(network.modules)->get(name);
       if (!s)
@@ -166,6 +172,13 @@ namespace ccf
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetModule>();
            set_module(tx, parsed.module_name, parsed.module_content);
+           return true;
+         }},
+        // remove a module
+        {"remove_module",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto module_name = args.get<ModuleName>();
+           remove_module(tx, module_name);
            return true;
          }},
         // add a new member
