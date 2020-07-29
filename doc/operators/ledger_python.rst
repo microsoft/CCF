@@ -1,13 +1,11 @@
 Parsing the Ledger with Python
 ==============================
 
-This page describes the Python API of the :py:class:`ccf.ledger` module which can be used by auditors to parse a CCF ledger.
+This page describes the Python API of the :py:class:`ccf.ledger` module which can be used by auditors to parse a CCF ledger. To install the `ccf` Python package, run:
 
-.. note:: To install the ``ccf`` python package, run:
+.. code-block:: bash
 
-    .. code-block:: bash
-
-        $ pip install ccf
+    $ pip install ccf
 
 Tutorial
 --------
@@ -36,7 +34,7 @@ In this particular example, a target table is set. This is a public table that c
     :start-after: SNIPPET: target_table
     :lines: 1
 
-.. note:: In practice, it is likely that auditors will want to run more complicated logic when parsing the ledger. For example, this might involve verifying signatures transactions or auditing governance operations and looping over multiple tables.
+.. note:: In practice, it is likely that auditors will want to run more elaborate logic when parsing the ledger. For example, this might involve verifying signatures transactions or auditing governance operations and looping over multiple tables.
 
 Finally, the ledger can be iterated over. For each transaction in the ledger, the public tables changed within that transaction are observed. If the target table is included, we loop through all keys and values modified in that transaction.
 
