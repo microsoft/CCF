@@ -7,7 +7,7 @@ import http
 import infra.network
 import infra.proc
 import infra.e2e_args
-import ccf.checker
+import infra.checker
 
 from loguru import logger as LOG
 
@@ -36,14 +36,12 @@ def run(args):
         check(
             list_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
-        methods = list_response.body["methods"]
-        all_methods.extend(methods)
+        methods = list_response.body["endpoints"]
+        all_methods.extend([m["path"] for m in methods])
 
-        for method in methods:
+        for method in [m["path"] for m in methods]:
             schema_found = False
-            schema_response = client.get(
-                f"/{prefix}/api/schema", params={"method": method}
-            )
+            schema_response = client.get(f'/{prefix}/api/schema?method="{method}"')
             check(
                 schema_response,
                 error=lambda status, msg: status == http.HTTPStatus.OK.value,
@@ -92,7 +90,7 @@ def run(args):
         network.start_and_join(args)
         primary, _ = network.find_primary()
 
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
 
         with primary.client("user0") as user_client:
             LOG.info("user frontend")

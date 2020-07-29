@@ -12,7 +12,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("/app/log/private")
+@reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     primary, other = network.find_primary_and_any_backup()
@@ -32,11 +32,11 @@ def test(network, args, notifications_queue=None):
     with other.client("user0") as nc:
         while time.time() < end_time:
             r = nc.post("/app/log/private", {"id": 42, "msg": msg * i})
-            if r.status == 200:
+            if r.status_code == 200:
                 break
             else:
                 time.sleep(0.1)
-        assert r.status == 200, r
+        assert r.status_code == 200, r
 
     LOG.info("Write on secondary through forwarding")
     with other.client("user0", ws=True) as c:

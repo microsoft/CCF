@@ -242,7 +242,7 @@ class Node:
             with self.client(connection_timeout=timeout) as nc:
                 rep = nc.get("/node/commit")
                 assert (
-                    rep.status == 200
+                    rep.status_code == 200
                 ), f"An error occured after node {self.node_id} joined the network: {rep.body}"
         except ccf.clients.CCFConnectionException:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
@@ -260,7 +260,6 @@ class Node:
             else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
             "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
-            "binary_dir": self.binary_dir,
         }
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)

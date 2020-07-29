@@ -1,15 +1,27 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "properties": {
-    "methods": {
+    "endpoints": {
       "items": {
-        "type": "string"
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "verb": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "verb",
+          "path"
+        ],
+        "type": "object"
       },
       "type": "array"
     }
   },
   "required": [
-    "methods"
+    "endpoints"
   ],
   "title": "api/result",
   "type": "object"
