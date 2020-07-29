@@ -17,6 +17,7 @@
 #include "kv/map.h"
 #include "kv/store.h"
 #include "members.h"
+#include "modules.h"
 #include "nodes.h"
 #include "proposals.h"
 #include "scripts.h"
@@ -46,6 +47,7 @@ namespace ccf
     CertDERs& member_certs;
 
     Scripts& gov_scripts;
+    Modules& modules;
     Proposals& proposals;
     Whitelists& whitelists;
     CodeIDs& node_code_ids;
@@ -105,6 +107,8 @@ namespace ccf
         Tables::MEMBER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       gov_scripts(tables->create<Scripts>(
         Tables::GOV_SCRIPTS, kv::SecurityDomain::PUBLIC)),
+      modules(tables->create<Modules>(
+        Tables::MODULES, kv::SecurityDomain::PUBLIC)),
       proposals(tables->create<Proposals>(
         Tables::PROPOSALS, kv::SecurityDomain::PUBLIC)),
       whitelists(tables->create<Whitelists>(
@@ -161,6 +165,7 @@ namespace ccf
         std::ref(members),
         std::ref(member_certs),
         std::ref(gov_scripts),
+        std::ref(modules),
         std::ref(proposals),
         std::ref(whitelists),
         std::ref(node_code_ids),
