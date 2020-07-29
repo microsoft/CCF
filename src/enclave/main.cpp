@@ -20,6 +20,7 @@ static uint8_t* reserved_memory;
 std::atomic<std::chrono::milliseconds> logger::config::ms =
   std::chrono::milliseconds::zero();
 std::atomic<uint16_t> num_pending_threads = 0;
+std::atomic<uint16_t> num_complete_threads = 0;
 
 threading::ThreadMessaging threading::ThreadMessaging::thread_messaging;
 std::atomic<uint16_t> threading::ThreadMessaging::thread_count = 0;
@@ -126,11 +127,21 @@ extern "C"
 
       if (tid == 0)
       {
-        return e.load()->run_main();
+        auto s = e.load()->run_main();
+        while (num_complete_threads !=
+               threading::ThreadMessaging::thread_count - 1)
+        {
+        }
+        // All threads are done, we can drop any remaining tasks safely and
+        // completely
+        threading::ThreadMessaging::thread_messaging.drop_tasks();
+        return s;
       }
       else
       {
-        return e.load()->run_worker();
+        auto s = e.load()->run_worker();
+        num_complete_threads.fetch_add(1);
+        return s;
       }
     }
     else
