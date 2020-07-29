@@ -26,13 +26,21 @@ namespace messaging
   };
 
   template <typename MessageType>
+  using MessageCounts = std::unordered_map<MessageType, size_t>;
+
+  template <typename MessageType>
   class Dispatcher
   {
+  public:
+    using MessageCounts = MessageCounts<MessageType>;
+
+  private:
     // Store a name to distinguish error messages
     char const* const name;
 
     std::map<MessageType, Handler> handlers;
     std::map<MessageType, char const*> message_labels;
+    MessageCounts message_counts;
 
     std::string get_error_prefix()
     {
@@ -144,6 +152,15 @@ namespace messaging
 
       // Handlers may register or remove handlers, so iterator is invalidated
       it->second(data, size);
+
+      ++message_counts[m];
+    }
+
+    MessageCounts retrieve_message_counts()
+    {
+      MessageCounts current;
+      std::swap(message_counts, current);
+      return current;
     }
   };
 
