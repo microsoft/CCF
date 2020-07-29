@@ -14,10 +14,10 @@ if len(sys.argv) < 2:
     print("Client info file should be specified as first argument")
     sys.exit(1)
 
-client_info_file = sys.argv[1]
+client_info_file_path = sys.argv[1]
 
 client_info = {}
-with open(sys.argv[1]) as client_info_file:
+with open(client_info_file_path) as client_info_file:
     client_info = json.load(client_info_file)
 
 host = client_info["host"]

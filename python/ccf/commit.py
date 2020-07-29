@@ -8,14 +8,17 @@ import time
 from ccf.tx_status import TxStatus
 
 
-def wait_for_commit(client, seqno, view, timeout=3):
+def wait_for_commit(client, seqno: int, view: int, timeout: int = 3) -> None:
     """
-    Given a client to a CCF network and a seqno/view pair, this function
-    waits for this specific commit index to be committed by the
-    network in this view.
+    Waits for a specific seqno/view pair to be committed by the network,
+    as per the node to which client is connected to.
 
-    A TimeoutError exception is raised if the commit index is not globally
-    committed within the given timeout.
+    :param client: Instance of :py:class:`ccf.clients.CCFClient`
+    :param int seqno: Transaction sequence number.
+    :param int view: Consensus view.
+    :param str timeout: Maximum time to wait for this seqno/view pair to be committed before giving up.
+
+    A TimeoutError exception is raised if the commit index is not committed within the given timeout.
     """
     end_time = time.time() + timeout
     while time.time() < end_time:
@@ -23,6 +26,7 @@ def wait_for_commit(client, seqno, view, timeout=3):
         assert (
             r.status_code == http.HTTPStatus.OK
         ), f"tx request returned HTTP status {r.status_code}"
+        assert isinstance(r.body, dict), "/node/tx should return a JSON object"
         status = TxStatus(r.body["status"])
         if status == TxStatus.Committed:
             return
