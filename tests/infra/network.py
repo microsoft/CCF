@@ -247,7 +247,11 @@ class Network:
 
         LOG.info("All nodes started")
 
-        primary, _ = self.find_primary()
+        # Here, recovery nodes might still be catching up, and possibly swamp
+        # the current primary which would not be able to serve user requests
+        primary, _ = self.find_primary(
+            timeout=args.ledger_recovery_timeout if recovery else 3
+        )
         return primary
 
     def _setup_common_folder(self, gov_script):
@@ -509,7 +513,7 @@ class Network:
     def _get_node_by_id(self, node_id):
         return next((node for node in self.nodes if node.node_id == node_id), None)
 
-    def find_primary(self, timeout=3, request_timeout=3):
+    def find_primary(self, timeout=3):
         """
         Find the identity of the primary in the network and return its identity
         and the current view.
@@ -522,15 +526,18 @@ class Network:
             for node in self.get_joined_nodes():
                 with node.client() as c:
                     try:
-                        res = c.get("/node/primary_info", timeout=request_timeout)
+                        res = c.get("/node/primary_info")
                         if res.status_code == 200:
                             primary_id = res.body["primary_id"]
                             view = res.body["current_view"]
                             break
                         else:
                             assert "Primary unknown" in res.body, res
+                            LOG.warning("Primary unknown. Retrying...")
                     except CCFConnectionException:
-                        pass
+                        LOG.warning(
+                            f"Could not successful connect to node {node.node_id}. Retrying..."
+                        )
             if primary_id is not None:
                 break
             time.sleep(0.1)
