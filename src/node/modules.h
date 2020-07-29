@@ -6,6 +6,5 @@
 
 namespace ccf
 {
-  using ModuleName = std::string;
-  using Modules = kv::Map<ModuleName, Script>;
+  using Modules = kv::Map<std::string, Script>;
 }

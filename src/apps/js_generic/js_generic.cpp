@@ -142,6 +142,59 @@ namespace ccfapp
     return r;
   }
 
+  struct JSModuleLoaderArg
+  {
+    ccf::NetworkTables* network;
+    kv::Tx* tx;
+  };
+
+  static JSModuleDef *js_module_loader(
+    JSContext *ctx, const char *module_name, void *opaque)
+  {
+    auto arg = (JSModuleLoaderArg*)opaque;
+    
+    // module_name: /modules/foo.js
+    // module name in kv table: foo.js
+    std::string module_name_kv(module_name);
+    const std::string prefix = "/modules/";
+    size_t pos = module_name_kv.find(prefix);
+    if (pos != 0)
+    {
+      JS_ThrowReferenceError(ctx, "invalid module name '%s'", module_name);
+      return nullptr;
+    }
+    module_name_kv.erase(0, prefix.length());
+
+    const auto modules = arg->tx->get_view(arg->network->modules);
+    auto module = modules->get(module_name_kv);
+    if (!module.has_value())
+    {
+      JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name_kv.c_str());
+      return nullptr;
+    }
+    if (!module->text.has_value())
+    {
+      JS_ThrowReferenceError(ctx, "module '%s' not stored as text in kv", module_name_kv.c_str());
+      return nullptr;
+    }
+    std::string text = module->text.value();
+
+    const char *buf = text.c_str();
+    size_t buf_len = text.size() + 1;
+    JSValue func_val = JS_Eval(
+      ctx, buf, buf_len, module_name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    if (JS_IsException(func_val))
+    {
+      js_dump_error(ctx);
+      return nullptr;
+    }
+
+    auto m = (JSModuleDef*)JS_VALUE_GET_PTR(func_val);
+    // module already referenced, decrement ref count
+    JS_FreeValue(ctx, func_val);
+    return m;
+  }
+
   class JSHandlers : public UserEndpointRegistry
   {
   private:
@@ -190,6 +243,9 @@ namespace ccfapp
         {
           throw std::runtime_error("Failed to initialise QuickJS runtime");
         }
+
+        JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
+        JS_SetModuleLoaderFunc(rt, nullptr, js_module_loader, &js_module_loader_arg);
 
         JSContext* ctx = JS_NewContext(rt);
         if (ctx == nullptr)
