@@ -92,7 +92,7 @@ def can_kill_n_nodes(nodes_to_kill_count):
         primary, _ = network.find_primary()
         with primary.client("member0") as c:
             r = c.post(
-                "gov/query",
+                "/gov/query",
                 {
                     "text": """tables = ...
                         trusted_nodes_count = 0
