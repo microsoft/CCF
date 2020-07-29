@@ -1,7 +1,6 @@
 steps:
 - script: |
-    cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
-    cpack -G DEB
+    cpack -V -G DEB
     PKG=`ls *.deb`
     cp $PKG $(Build.ArtifactStagingDirectory)
     echo "##vso[task.setvariable variable=pkgname]$PKG"
