@@ -543,7 +543,7 @@ class CCFClient:
         :return: :py:class:`ccf.clients.Response`
         """
         if self.is_connected:
-            self._direct_call(path, body, http_verb, headers, signed, timeout)
+            return self._direct_call(path, body, http_verb, headers, signed, timeout)
 
         end_time = time.time() + self.connection_timeout
         while True:
