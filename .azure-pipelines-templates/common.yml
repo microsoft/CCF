@@ -22,11 +22,11 @@ jobs:
       parameters:
         cmake_args: '${{ parameters.cmake_args }}'
 
-    - template: test.yml
-      parameters:
-        ctest_filter: ${{ parameters.ctest_filter }}
-        suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }}'
-        ctest_timeout: ${{ parameters.ctest_timeout }}
+    # - template: test.yml
+    #   parameters:
+    #     ctest_filter: ${{ parameters.ctest_filter }}
+    #     suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }}'
+    #     ctest_timeout: ${{ parameters.ctest_timeout }}
 
     - ${{ if eq(parameters.suffix, 'Instrumented') }}:
       - template: coverage.yml
