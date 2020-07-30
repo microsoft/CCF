@@ -533,7 +533,7 @@ class CCFClient:
         """
         Issues one request, synchronously, and returns the response.
 
-        :param str path: URI of the targeted resource.
+        :param str path: URI of the targeted resource. Must begin with '/'
         :param dict body: Request body (optional).
         :param str http_verb: HTTP verb (e.g. "POST" or "GET").
         :param dict headers: HTTP request headers (optional).
@@ -542,6 +542,9 @@ class CCFClient:
 
         :return: :py:class:`ccf.clients.Response`
         """
+        if not path.startswith("/"):
+            raise ValueError(f"URL path '{path}' is invalid, must start with /")
+
         if self.is_connected:
             return self._direct_call(path, body, http_verb, headers, signed, timeout)
 
