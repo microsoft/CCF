@@ -60,7 +60,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
   set_property(TARGET byz.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
   target_include_directories(
-    byz.enclave PRIVATE ${CCF_DIR}/src/ds openenclave::oelibc
+    byz.enclave PRIVATE ${CCF_DIR}/src/ds ${OE_TARGET_LIBC}
                         ${PARSED_ARGS_INCLUDE_DIRS} ${EVERCRYPT_INC}
   )
   use_oe_mbedtls(byz.enclave)

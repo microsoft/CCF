@@ -5,7 +5,7 @@ With every release, a sample runtime base container is provided. It contains the
 but no particular enclave file, and may be helpful when deploying CCF nodes via docker, k8s etc.
 
 That image is optimised for size above all. If you need an image that comes with peripheral utilities,
-you probably want the :doc:`Build Container <developers/build_app>` instead.
+you probably want the :ref:`Build Container <developers/build_app:Build Container>` instead.
 
 Dockerfile
 ----------

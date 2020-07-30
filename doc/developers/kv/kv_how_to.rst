@@ -10,7 +10,7 @@ The Key-Value :cpp:class:`kv::Store` is a collection of :cpp:class:`kv::Maps` th
 Creating a Map
 --------------
 
-A :cpp:class:`kv::Map` (often referred to as a ``Table``) is created in the constructor of an application. It maps a unique ``key`` to a ``value``.
+A :cpp:type:`kv::Map` (often referred to as a ``Table``) is created in the constructor of an application. It maps a unique ``key`` to a ``value``.
 
 When a ``Map`` is created, its name and the types of the key and value mapping should be specified.
 

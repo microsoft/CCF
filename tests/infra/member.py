@@ -7,7 +7,7 @@ import infra.node
 import infra.proposal
 import infra.crypto
 import ccf.clients
-import ccf.checker
+import infra.checker
 import http
 import os
 import base64
@@ -29,7 +29,7 @@ class Member:
     def __init__(self, member_id, curve, common_dir, share_script, key_generator=None):
         self.common_dir = common_dir
         self.member_id = member_id
-        self.status = MemberStatus.ACCEPTED
+        self.status_code = MemberStatus.ACCEPTED
         self.share_script = share_script
 
         if key_generator is not None:
@@ -59,16 +59,16 @@ class Member:
             )
 
     def is_active(self):
-        return self.status == MemberStatus.ACTIVE
+        return self.status_code == MemberStatus.ACTIVE
 
     def set_active(self):
         # Use this with caution (i.e. only when the network is opening)
-        self.status = MemberStatus.ACTIVE
+        self.status_code = MemberStatus.ACTIVE
 
     def propose(self, remote_node, proposal, has_proposer_voted_for=True):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post("/gov/proposals", proposal, signed=True,)
-            if r.status != http.HTTPStatus.OK.value:
+            if r.status_code != http.HTTPStatus.OK.value:
                 raise infra.proposal.ProposalNotCreated(r)
 
             return infra.proposal.Proposal(
@@ -84,11 +84,11 @@ class Member:
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
                 f"/gov/proposals/{proposal.proposal_id}/votes",
-                params=proposal.vote_for,
+                body=proposal.vote_for,
                 signed=True,
             )
 
-        if r.status != 200:
+        if r.status_code != 200:
             return r
 
         # If the proposal was accepted, wait for it to be globally committed
@@ -103,37 +103,37 @@ class Member:
                 # can only commit after it has successfully joined and caught up.
                 # Given that the retry timer on join RPC is 4 seconds, anything less is very
                 # likely to time out!
-                ccf.checker.wait_for_global_commit(mc, r.seqno, r.view, timeout=6)
+                ccf.commit.wait_for_commit(mc, r.seqno, r.view, timeout=6)
 
         return r
 
     def withdraw(self, remote_node, proposal):
         with remote_node.client(f"member{self.member_id}") as c:
             r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw", signed=True)
-            if r.status == http.HTTPStatus.OK.value:
+            if r.status_code == http.HTTPStatus.OK.value:
                 proposal.state = infra.proposal.ProposalState.Withdrawn
             return r
 
     def update_ack_state_digest(self, remote_node):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post("/gov/ack/update_state_digest")
-            assert r.status == 200, f"Error ack/update_state_digest: {r}"
+            assert r.status_code == 200, f"Error ack/update_state_digest: {r}"
             return bytearray(r.body["state_digest"])
 
     def ack(self, remote_node):
         state_digest = self.update_ack_state_digest(remote_node)
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.post(
-                "/gov/ack", params={"state_digest": list(state_digest)}, signed=True
+                "/gov/ack", body={"state_digest": list(state_digest)}, signed=True
             )
-            assert r.status == 200, f"Error ACK: {r}"
-            self.status = MemberStatus.ACTIVE
+            assert r.status_code == 200, f"Error ACK: {r}"
+            self.status_code = MemberStatus.ACTIVE
             return r
 
     def get_and_decrypt_recovery_share(self, remote_node, defunct_network_enc_pubk):
         with remote_node.client(f"member{self.member_id}") as mc:
             r = mc.get("/gov/recovery_share")
-            if r.status != http.HTTPStatus.OK.value:
+            if r.status_code != http.HTTPStatus.OK.value:
                 raise NoRecoveryShareFound(r)
 
             ctx = infra.crypto.CryptoBoxCtx(
