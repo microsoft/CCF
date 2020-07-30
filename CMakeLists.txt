@@ -147,7 +147,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            secp256k1.host
            sss.host
            byz.host
-           #openenclave::oehostverify
+           #TODO: replace with openenclave::oehostverify once OE 0.11 is released (OE#3312)
            openenclave::oehost
            ${CMAKE_THREAD_LIBS_INIT}
   )

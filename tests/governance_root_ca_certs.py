@@ -23,7 +23,6 @@ from loguru import logger as LOG
 this_dir = os.path.dirname(__file__)
 
 @reqs.description("Add certificate with quote, query, update")
-#@reqs.supports_methods("log/private")
 def test_cert_store(network, args, notifications_queue=None, verify=True):
     # TODO: propose a cert update with valid cert but mismatching mrsigner
 
@@ -92,12 +91,10 @@ if __name__ == "__main__":
     def add(parser):
         pass
 
-    # temporary hack...
-    for i, arg in enumerate(sys.argv):
-        if 'gov.lua' in arg:
-            sys.argv[i] = arg.replace('gov.lua', 'gov_root_ca_certs.lua')
-
     args = infra.e2e_args.cli_args(add=add)
+    
+    # temporary hack...
+    args.gov_script = "gov_root_ca_certs.lua"
 
     notify_server_host = "localhost"
     args.notify_server = (
