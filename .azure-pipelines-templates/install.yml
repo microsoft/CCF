@@ -9,7 +9,7 @@ steps:
   displayName: 'Make .deb package'
 
 - script: |
-    apt install ./$(pkgname)
+    sudo apt install ./$(pkgname)
     cat /tmp/install_prefix | xargs ./test_install.sh
   workingDirectory: build
   displayName: Test installed CCF
