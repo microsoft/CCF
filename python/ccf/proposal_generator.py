@@ -308,7 +308,7 @@ def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
     if not skip_checks:
         try:
             cert = x509.load_pem_x509_certificate(cert_pem.encode(), crypto_backends.default_backend())
-        except:
+        except Exception:
             raise ValueError("Cannot parse PEM certificate")
         
         # TODO remove one of the OID code paths, depending on which one OE chooses
