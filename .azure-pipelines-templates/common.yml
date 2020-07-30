@@ -28,20 +28,20 @@ jobs:
     #     suite_name_suffix: '${{ parameters.target }} ${{ parameters.suffix }}'
     #     ctest_timeout: ${{ parameters.ctest_timeout }}
 
-    - ${{ if eq(parameters.suffix, 'Instrumented') }}:
-      - template: coverage.yml
+    # - ${{ if eq(parameters.suffix, 'Instrumented') }}:
+    #   - template: coverage.yml
 
-    - ${{ if eq(parameters.suffix, 'Instrumented') }}:
-      - template: scan_build.yml
+    # - ${{ if eq(parameters.suffix, 'Instrumented') }}:
+    #   - template: scan_build.yml
 
-    - ${{ if eq(parameters.suffix, 'Perf') }}:
-      - template: push_perf_data.yml
-      - template: metrics.yml
+    # - ${{ if eq(parameters.suffix, 'Perf') }}:
+    #   - template: push_perf_data.yml
+    #   - template: metrics.yml
 
     - ${{ if eq(parameters.suffix, 'Release') }}:
-      - template: publish_build.yml
-        parameters:
-          artifact_name: ${{ parameters.artifact_name }}
-          tls_report: ${{ parameters.tls_report }}
+      # - template: publish_build.yml
+      #   parameters:
+      #     artifact_name: ${{ parameters.artifact_name }}
+      #     tls_report: ${{ parameters.tls_report }}
 
       - template: install.yml
