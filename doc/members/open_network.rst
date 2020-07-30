@@ -26,7 +26,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
         "state": "OPEN"
     }
 
-Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``5``). They may submit an unconditional approval, or their vote may query the current state and the proposed calls. These votes `must` be signed.
+Other members are then allowed to vote for the proposal, using the proposal id returned to the proposer member (here ``5``). They may submit an unconditional approval, or their vote may query the current state and the proposed actions. These votes `must` be signed.
 
 .. code-block:: bash
 
@@ -69,7 +69,53 @@ The user can then make user RPCs, for example ``user_id`` to retrieve the unique
         "caller_id": 4
     }
 
-For each user CCF also stores arbitrary user-data in a JSON object, which can only be written to by members, subject to the standard proposal-vote governance mechanism. This lets members define initial metadata for certain users; for example to grant specific privileges, associate a human-readable name, or categorise the users. This user-data can then be read (but not written) by user-facing apps.
+User Data
+---------
+
+For each user, CCF also stores arbitrary user-data in a JSON object. This can only be written to by members, subject to the standard proposal-vote governance mechanism, via the ``set_user_data`` action. This lets members define initial metadata for certain users; for example to grant specific privileges, associate a human-readable name, or categorise the users. This user-data can then be read (but not written) by user-facing endpoints.
+
+For example, the ``/log/private/admin_only`` endpoint in the C++ logging sample app uses user-data to restrict who is permitted to call it:
+
+.. literalinclude:: ../../src/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: user_data_check
+    :end-before: SNIPPET_END: user_data_check
+    :dedent: 12
+
+Members configure this permission with ``set_user_data`` proposals:
+
+.. code-block:: bash
+
+    $ cat set_user_data_proposal.json 
+    {
+        "script": {
+            "text": "tables, args = ...; return Calls:call(\"set_user_data\", args)"
+        },
+        "parameter": {
+            "user_id": 0,
+            "user_data": {
+                "isAdmin": true
+            }
+        }
+    }
+
+Once this proposal is accepted, user 0 is able to use this endpoint:
+
+.. code-block:: bash
+
+    $ curl https://<ccf-node-address>/app/log/private/admin_only --key user0_privk.pem --cert user0_cert.pem --cacert networkcert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
+    HTTP/1.1 200 OK
+
+    true
+
+All other users have empty or non-matching user-data, so will receive a HTTP error if they attempt to access it:
+
+.. code-block:: bash
+
+    $ curl https://<ccf-node-address>/app/log/private/admin_only --key user1_privk.pem --cert user1_cert.pem --cacert networkcert.pem -X POST --data-binary '{"id": 42, "msg": "hello world"}' -H "Content-type: application/json" -i
+    HTTP/1.1 403 Forbidden
+
+    Only admins may access this endpoint
 
 Registering the Lua Application
 -------------------------------
