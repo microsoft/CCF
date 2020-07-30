@@ -7,7 +7,7 @@
 
 namespace asynchost
 {
-  class MessageCounterImpl
+  class LoadMonitorImpl
   {
     using TClock = std::chrono::high_resolution_clock;
     TClock::time_point start_time;
@@ -15,10 +15,8 @@ namespace asynchost
 
     messaging::Dispatcher<ringbuffer::Message>& dispatcher;
 
-    std::map<size_t, std::string> message_names;
-
   public:
-    MessageCounterImpl(messaging::Dispatcher<ringbuffer::Message>& disp) :
+    LoadMonitorImpl(messaging::Dispatcher<ringbuffer::Message>& disp) :
       dispatcher(disp)
     {
       dispatcher.retrieve_message_counts();
@@ -57,5 +55,5 @@ namespace asynchost
     }
   };
 
-  using MessageCounter = proxy_ptr<Timer<MessageCounterImpl>>;
+  using LoadMonitor = proxy_ptr<Timer<LoadMonitorImpl>>;
 }

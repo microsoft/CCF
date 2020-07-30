@@ -9,7 +9,7 @@
 #include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
-#include "message_counter.h"
+#include "load_monitor.h"
 #include "node_connections.h"
 #include "notify_connections.h"
 #include "rpc_connections.h"
@@ -516,8 +516,8 @@ int main(int argc, char** argv)
   // regularly update the time given to the enclave
   asynchost::TimeUpdater time_updater(1);
 
-  // regularly count the messages dispatched on the host side
-  asynchost::MessageCounter message_counter(100, bp.get_dispatcher());
+  // regularly record some load statistics
+  asynchost::LoadMonitor load_monitor(100, bp.get_dispatcher());
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
