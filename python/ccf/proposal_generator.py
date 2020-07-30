@@ -252,6 +252,22 @@ def set_js_app(app_script_path, **kwargs):
 
 
 @cli_proposal
+def set_module(module_name, module_path, **kwargs):
+    if module_name.endswith(".js"):            
+        with open(module_path) as f:
+            js = f.read()
+        proposal_args = {"name": module_name, "module": {"js": js}}
+    else:
+        raise ValueError("module name must end with .js")
+    return build_proposal("set_module", proposal_args, **kwargs)
+
+
+@cli_proposal
+def remove_module(module_name, **kwargs):
+    return build_proposal("remove_module", module_name, **kwargs)
+
+
+@cli_proposal
 def trust_node(node_id, **kwargs):
     return build_proposal("trust_node", node_id, **kwargs)
 

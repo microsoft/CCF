@@ -50,11 +50,11 @@ namespace ccf
 
   struct SetModule
   {
-    std::string module_name;
-    Script module_content;
+    std::string name;
+    Module module;
   };
   DECLARE_JSON_TYPE(SetModule)
-  DECLARE_JSON_REQUIRED_FIELDS(SetModule, module_name, module_content)
+  DECLARE_JSON_REQUIRED_FIELDS(SetModule, name, module)
 
   class MemberEndpoints : public CommonEndpointRegistry
   {
@@ -104,10 +104,10 @@ namespace ccf
       }
     }
 
-    void set_module(kv::Tx& tx, std::string name, Script content)
+    void set_module(kv::Tx& tx, std::string name, Module module)
     {
       auto tx_modules = tx.get_view(network.modules);
-      tx_modules->put(name, content);
+      tx_modules->put(name, module);
     }
 
     void remove_module(kv::Tx& tx, std::string name)
@@ -116,7 +116,7 @@ namespace ccf
       tx_modules->remove(name);
     }
 
-    Script get_module(kv::Tx& tx, std::string name)
+    Module get_module(kv::Tx& tx, std::string name)
     {
       const auto s = tx.get_view(network.modules)->get(name);
       if (!s)
@@ -167,18 +167,18 @@ namespace ccf
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
-        // set module (currently js only, later wasm)
+        // add/update a module
         {"set_module",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetModule>();
-           set_module(tx, parsed.module_name, parsed.module_content);
+           set_module(tx, parsed.name, parsed.module);
            return true;
          }},
         // remove a module
         {"remove_module",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
-           const auto module_name = args.get<std::string>();
-           remove_module(tx, module_name);
+           const auto name = args.get<std::string>();
+           remove_module(tx, name);
            return true;
          }},
         // add a new member

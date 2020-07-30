@@ -153,34 +153,22 @@ namespace ccfapp
   {
     auto arg = (JSModuleLoaderArg*)opaque;
     
-    // module_name: /modules/foo.js
-    // module name in kv table: foo.js
-    std::string module_name_kv(module_name);
-    const std::string prefix = "/modules/";
-    size_t pos = module_name_kv.find(prefix);
-    if (pos != 0)
-    {
-      JS_ThrowReferenceError(ctx, "invalid module name '%s'", module_name);
-      return nullptr;
-    }
-    module_name_kv.erase(0, prefix.length());
-
     const auto modules = arg->tx->get_view(arg->network->modules);
-    auto module = modules->get(module_name_kv);
+    auto module = modules->get(std::string(module_name));
     if (!module.has_value())
     {
-      JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name_kv.c_str());
+      JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
       return nullptr;
     }
-    if (!module->text.has_value())
+    if (!module->js.has_value())
     {
-      JS_ThrowReferenceError(ctx, "module '%s' not stored as text in kv", module_name_kv.c_str());
+      JS_ThrowReferenceError(ctx, "module '%s' not a JS module", module_name);
       return nullptr;
     }
-    std::string text = module->text.value();
+    std::string js = module->js.value();
 
-    const char *buf = text.c_str();
-    size_t buf_len = text.size() + 1;
+    const char *buf = js.c_str();
+    size_t buf_len = js.size() + 1;
     JSValue func_val = JS_Eval(
       ctx, buf, buf_len, module_name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
     if (JS_IsException(func_val))
