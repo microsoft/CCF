@@ -54,6 +54,9 @@ namespace messaging
         std::to_string(m) + ">";
     }
 
+  public:
+    Dispatcher(char const* name) : name(name), handlers() {}
+
     std::string get_message_name(MessageType m)
     {
       const auto it = message_labels.find(m);
@@ -64,9 +67,6 @@ namespace messaging
 
       return build_message_name(m, it->second);
     }
-
-  public:
-    Dispatcher(char const* name) : name(name), handlers() {}
 
     /** Set a callback for this message type
      *

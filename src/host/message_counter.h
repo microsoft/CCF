@@ -14,6 +14,8 @@ namespace asynchost
 
     messaging::Dispatcher<ringbuffer::Message>& dispatcher;
 
+    std::map<size_t, std::string> message_names;
+
   public:
     MessageCounterImpl(messaging::Dispatcher<ringbuffer::Message>& disp) :
       dispatcher(disp)
@@ -37,7 +39,8 @@ namespace asynchost
             formatted += ", ";
           }
 
-          formatted += fmt::format("{}={}", it.first, it.second);
+          formatted += fmt::format(
+            "{}={}", dispatcher.get_message_name(it.first), it.second);
         }
 
         LOG_INFO_FMT(
