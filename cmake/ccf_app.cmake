@@ -66,10 +66,17 @@ function(add_lvi_mitigations name)
 endfunction()
 
 if(LVI_MITIGATIONS)
-  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/lvi_mitigation_config.cmake DESTINATION cmake/lvi)
-  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/configure_lvi_mitigation_build.cmake DESTINATION cmake/lvi)
-  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/apply_lvi_mitigation.cmake DESTINATION cmake/lvi)
-  
+  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/lvi_mitigation_config.cmake
+          DESTINATION cmake/lvi
+  )
+  install(
+    FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/configure_lvi_mitigation_build.cmake
+    DESTINATION cmake/lvi
+  )
+  install(FILES ${CMAKE_CURRENT_LIST_DIR}/lvi/apply_lvi_mitigation.cmake
+          DESTINATION cmake/lvi
+  )
+
   # Also pull in the LVI mitigation wrappers
   include(${CMAKE_CURRENT_LIST_DIR}/lvi/lvi_mitigation_config.cmake)
 endif()
@@ -88,8 +95,17 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(TMP_FOLDER ${CMAKE_CURRENT_BINARY_DIR}/${name}_tmp)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-      COMMAND cp ${app_oe_conf_path} ${DEBUG_CONF_NAME}
-      COMMAND echo "Debug=1" >> ${DEBUG_CONF_NAME}
+      COMMAND
+        cp ${app_oe_conf_path} ${DEBUG_CONF_NAME} && (grep
+                                                      "Debug\=.*"
+                                                      ${DEBUG_CONF_NAME}
+                                                      &&
+                                                      (sed -i
+                                                       "s/Debug=\.*/Debug=1/"
+                                                       ${DEBUG_CONF_NAME})
+                                                      ||
+                                                      (echo "Debug=1" >>
+                                                       ${DEBUG_CONF_NAME}))
       COMMAND mkdir -p ${TMP_FOLDER}
       COMMAND ln -s ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so
               ${TMP_FOLDER}/lib${name}.so
@@ -111,8 +127,17 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
     set(SIGNED_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.signed.conf)
     add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-      COMMAND cp ${app_oe_conf_path} ${SIGNED_CONF_NAME}
-      COMMAND echo "Debug=0" >> ${SIGNED_CONF_NAME}
+      COMMAND
+        cp ${app_oe_conf_path} ${SIGNED_CONF_NAME} && (grep
+                                                       "Debug\=.*"
+                                                       ${SIGNED_CONF_NAME}
+                                                       &&
+                                                       (sed -i
+                                                        "s/Debug=\.*/Debug=0/"
+                                                        ${SIGNED_CONF_NAME})
+                                                       ||
+                                                       (echo "Debug=0" >>
+                                                        ${SIGNED_CONF_NAME}))
       COMMAND
         openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
         ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
