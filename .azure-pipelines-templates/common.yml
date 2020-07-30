@@ -44,6 +44,4 @@ jobs:
           artifact_name: ${{ parameters.artifact_name }}
           tls_report: ${{ parameters.tls_report }}
 
-      - template: pkg.yml
-
       - template: install.yml
