@@ -14,11 +14,11 @@ import ccf.proposal_generator
 
 from loguru import logger as LOG
 
-MODULE_CONTENT = """
-export function foo() {
-    console.log("FOOO");
-    return "Hello world!";
-}
+MODULE_RETURN = "Hello world!"
+MODULE_CONTENT = f"""
+export function foo() {{
+    return "{MODULE_RETURN}";
+}}
 """
 
 APP_SCRIPT = """
@@ -90,7 +90,7 @@ def test_module_import(network, args):
             "/app/test_module", {}
         )
         assert r.status_code == 200, r.status_code
-        assert r.body == "Hello world!"
+        assert r.body == MODULE_RETURN
 
     return network
 

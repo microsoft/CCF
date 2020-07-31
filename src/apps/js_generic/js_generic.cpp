@@ -162,12 +162,7 @@ namespace ccfapp
       JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
       return nullptr;
     }
-    if (!module->js.has_value())
-    {
-      JS_ThrowReferenceError(ctx, "module '%s' not a JS module", module_name);
-      return nullptr;
-    }
-    std::string js = module->js.value();
+    std::string js = module->js;
 
     const char *buf = js.c_str();
     size_t buf_len = js.size() + 1;
