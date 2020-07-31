@@ -25,6 +25,7 @@ namespace ccf
       Tables::PROPOSALS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
+      Tables::MODULES,
       Tables::SERVICE,
       Tables::CONFIGURATION,
       Tables::ROOT_CA_CERT_DERS}},
@@ -36,6 +37,7 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
+      Tables::MODULES,
       Tables::CONFIGURATION,
       Tables::ROOT_CA_CERT_DERS}},
 
@@ -47,6 +49,7 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
+      Tables::MODULES,
       Tables::GOV_HISTORY,
       Tables::ROOT_CA_CERT_DERS}}};
 }

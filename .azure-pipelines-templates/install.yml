@@ -1,24 +1,21 @@
 steps:
 - script: |
-    sudo chmod a+w /opt
-    ninja install
     cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
+    cpack -V -G DEB
+    PKG=`ls *.deb`
+    cp $PKG $(Build.ArtifactStagingDirectory)
+    echo "##vso[task.setvariable variable=pkgname]$PKG"
   workingDirectory: build
-  displayName: 'Install'
+  displayName: 'Make .deb package'
 
 - script: |
+    sudo apt -y install ./$(pkgname)
     cat /tmp/install_prefix | xargs ./test_install.sh
   workingDirectory: build
   displayName: Test installed CCF
 
-- script: |
-    INSTALL_PREFIX=`cat /tmp/install_prefix`
-    tar czf $(Build.ArtifactStagingDirectory)/ccf.tar.gz ${INSTALL_PREFIX##/opt/}
-  displayName: Create release tarball
-  workingDirectory: /opt
-
 - task: PublishPipelineArtifact@1
   inputs:
-    path: $(Build.ArtifactStagingDirectory)/ccf.tar.gz
-    artifact: ccf.tar.gz
+    path: $(Build.ArtifactStagingDirectory)/$(pkgname)
+    artifact: $(pkgname)
     displayName: 'Publish CCF Install'

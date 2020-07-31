@@ -76,6 +76,7 @@ namespace ccf
     static constexpr auto PROPOSALS = "ccf.proposals";
     static constexpr auto GOV_SCRIPTS = "ccf.governance.scripts";
     static constexpr auto APP_SCRIPTS = "ccf.app_scripts";
+    static constexpr auto MODULES = "ccf.modules";
     static constexpr auto SECRETS = "ccf.secrets";
     static constexpr auto NODE_CODE_IDS = "ccf.nodes.code_ids";
     static constexpr auto GOV_HISTORY = "ccf.governance.history";
