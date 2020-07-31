@@ -593,8 +593,8 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME governance_cert_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_cert.py
+      NAME governance_root_ca_certs_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_root_ca_certs.py
       CONSENSUS raft
     )
   endif()
