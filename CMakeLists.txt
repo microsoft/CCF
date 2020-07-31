@@ -606,6 +606,13 @@ if(BUILD_TESTS)
       GOV_SCRIPT ${CCF_DIR}/src/runtime_config/gov_root_ca_certs.lua
       CONSENSUS raft
     )
+
+    add_e2e_test(
+      NAME governance_root_ca_cert_mismatch_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_root_ca_cert_mismatch.py
+      GOV_SCRIPT ${CCF_DIR}/src/runtime_config/gov_root_ca_cert_mismatch.lua
+      CONSENSUS raft
+    )
   endif()
 
   if(BUILD_SMALLBANK)

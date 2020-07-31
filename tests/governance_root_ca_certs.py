@@ -21,8 +21,6 @@ this_dir = os.path.dirname(__file__)
 
 @reqs.description("Add certificate with quote, query, update")
 def test_cert_store(network, args):
-    # TODO: propose a cert update with valid cert but mismatching mrsigner
-
     primary, _ = network.find_nodes()
 
     LOG.info("Member builds a root ca cert update proposal with malformed cert")
