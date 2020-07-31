@@ -17,6 +17,8 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 message(STATUS "CCF version=${CCF_VERSION}")
 message(STATUS "CCF release version=${CCF_RELEASE_VERSION}")
 
+include(${CCF_DIR}/cmake/cpack_settings.cmake)
+
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
@@ -588,6 +590,12 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
+    )
+
+    add_e2e_test(
+      NAME modules_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
+      CONSENSUS raft
     )
   endif()
 
