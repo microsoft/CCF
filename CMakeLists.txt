@@ -43,6 +43,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
 configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
 )
+configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
 if(PBFT_TESTS)
   set(CONSENSUSES raft pbft)
