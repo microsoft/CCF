@@ -303,7 +303,8 @@ def set_recovery_threshold(threshold, **kwargs):
 
 @cli_proposal
 def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
-    cert_pem = open(cert_path).read()
+    with open(cert_path) as f:
+        cert_pem = f.read()
 
     if not skip_checks:
         try:

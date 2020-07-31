@@ -12,6 +12,9 @@ return {
   REJECTED = -1
   STATE_ACTIVE = "ACTIVE"
 
+  -- Root CA validation definitions
+  EXPECTED_MRSIGNER = "ca9ad7331448980aa28890ce73e433638377f179ab4456b2fe237193193a8d0a"
+
   -- count member votes
   member_votes = 0
 
@@ -52,9 +55,8 @@ return {
     if call.func == "update_root_ca_cert" then
       cert_der = pem_to_der(call.args.cert)
       claims = verify_cert_and_get_claims(cert_der)
-      expected_mrsigner = "ca9ad7331448980aa28890ce73e433638377f179ab4456b2fe237193193a8d0a"
-      if claims.mrsigner ~= expected_mrsigner then
-        LOG_INFO("mrsigner mismatch: ", expected_mrsigner, " != ", claims.mrsigner)
+      if claims.mrsigner ~= EXPECTED_MRSIGNER then
+        LOG_INFO("mrsigner mismatch: ", EXPECTED_MRSIGNER, " != ", claims.mrsigner)
         return REJECTED
       end
       --if claims.is_debuggable then

@@ -2,20 +2,16 @@
 # Licensed under the Apache 2.0 License.
 import os
 import sys
-import subprocess
-import base64
 import tempfile
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
 import infra.network
 import infra.path
 import infra.proc
-import infra.notification
 import infra.net
 import infra.e2e_args
 from infra.proposal import ProposalState
 import suite.test_requirements as reqs
-import infra.logging_app as app
 import ccf.proposal_generator
 
 from loguru import logger as LOG
@@ -23,7 +19,7 @@ from loguru import logger as LOG
 this_dir = os.path.dirname(__file__)
 
 @reqs.description("Add certificate with quote, query, update")
-def test_cert_store(network, args, notifications_queue=None, verify=True):
+def test_cert_store(network, args):
     # TODO: propose a cert update with valid cert but mismatching mrsigner
 
     primary, _ = network.find_nodes()
@@ -31,6 +27,7 @@ def test_cert_store(network, args, notifications_queue=None, verify=True):
     LOG.info("Member builds a root ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile('w') as f:
         f.write('foo')
+        f.flush()
         try:
             proposal_body, _ = ccf.proposal_generator.update_root_ca_cert("mycert", f.name)
         except ValueError:
@@ -41,6 +38,7 @@ def test_cert_store(network, args, notifications_queue=None, verify=True):
     LOG.info("Member makes a root ca cert update proposal with malformed cert")
     with tempfile.NamedTemporaryFile('w') as f:
         f.write('foo')
+        f.flush()
         proposal_body, _ = ccf.proposal_generator.update_root_ca_cert("mycert", f.name, skip_checks=True)
         try:
             proposal = network.consortium.get_any_active_member().propose(primary, proposal_body)
@@ -59,7 +57,7 @@ def test_cert_store(network, args, notifications_queue=None, verify=True):
         r = c.post(
             "/gov/read", {"table": "ccf.root_ca_cert_ders", "key": "mycert"}
         )
-        assert r.status == 200, r.status
+        assert r.status_code == 200, r.status_code
         cert_pem_str = open(ca_cert_path).read()
         cert_ref = x509.load_pem_x509_certificate(cert_pem_str.encode(), crypto_backends.default_backend())
         cert_kv = x509.load_der_x509_certificate(bytes(r.body), crypto_backends.default_backend())
@@ -70,38 +68,19 @@ def test_cert_store(network, args, notifications_queue=None, verify=True):
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
 
-    with infra.notification.notification_server(args.notify_server) as notifications:
-        # Lua apps do not support notifications
-        # https://github.com/microsoft/CCF/issues/415
-        notifications_queue = (
-            notifications.get_queue()
-            if (args.package == "liblogging" and args.consensus == "raft")
-            else None
-        )
-
-        with infra.network.network(
-            hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-        ) as network:
-            network.start_and_join(args)
-            network = test_cert_store(network, args, notifications_queue)
+    with infra.network.network(
+        hosts, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_join(args)
+        network = test_cert_store(network, args)
 
 
 if __name__ == "__main__":
 
-    def add(parser):
-        pass
-
-    args = infra.e2e_args.cli_args(add=add)
+    args = infra.e2e_args.cli_args()
     
     # temporary hack...
     args.gov_script = "gov_root_ca_certs.lua"
-
-    notify_server_host = "localhost"
-    args.notify_server = (
-        notify_server_host
-        + ":"
-        + str(infra.net.probably_free_local_port(notify_server_host))
-    )
 
     args.package = "liblogging"
     run(args)

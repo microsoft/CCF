@@ -91,7 +91,8 @@ namespace ccf
 
       if (res != OE_OK)
       {
-        // TODO should this raise an exception?
+        // TODO Validation should happen before the proposal is registered.
+        //      See https://github.com/microsoft/CCF/issues/1458.
         throw std::runtime_error("certificate not valid");
       }
 
