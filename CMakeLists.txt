@@ -603,6 +603,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME governance_root_ca_certs_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance_root_ca_certs.py
+      GOV_SCRIPT ${CCF_DIR}/src/runtime_config/gov_root_ca_certs.lua
       CONSENSUS raft
     )
   endif()
