@@ -249,13 +249,13 @@ namespace ccf
           return Fail<CreateNew::Out>("Quote could not be retrieved");
         }
         quote = quote_opt.value();
-        auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
-        if (!node_code_id_opt.has_value())
-        {
-          return Fail<CreateNew::Out>(
-            "Code ID could not be retrieved from quote");
-        }
-        node_code_id = node_code_id_opt.value();
+        // auto node_code_id_opt = QuoteGenerator::get_code_id(quote);
+        // if (!node_code_id_opt.has_value())
+        // {
+        //   return Fail<CreateNew::Out>(
+        //     "Code ID could not be retrieved from quote");
+        // }
+        // node_code_id = node_code_id_opt.value();
       }
 #endif
 
