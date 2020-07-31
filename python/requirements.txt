@@ -1,6 +1,6 @@
-msgpack
-loguru
-requests
-requests-http-signature
-websocket-client
-cryptography
+msgpack==1.0.0
+loguru==0.5.1
+requests==2.24.0
+requests-http-signature==0.1.0
+websocket-client==0.57.0
+cryptography==3.0
