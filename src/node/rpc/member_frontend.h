@@ -48,6 +48,14 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     GetEncryptedRecoveryShare, encrypted_recovery_share, nonce)
 
+  struct SetModule
+  {
+    std::string name;
+    Module module;
+  };
+  DECLARE_JSON_TYPE(SetModule)
+  DECLARE_JSON_REQUIRED_FIELDS(SetModule, name, module)
+
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -96,6 +104,28 @@ namespace ccf
       }
     }
 
+    void set_module(kv::Tx& tx, std::string name, Module module)
+    {
+      auto tx_modules = tx.get_view(network.modules);
+      tx_modules->put(name, module);
+    }
+
+    void remove_module(kv::Tx& tx, std::string name)
+    {
+      auto tx_modules = tx.get_view(network.modules);
+      tx_modules->remove(name);
+    }
+
+    Module get_module(kv::Tx& tx, std::string name)
+    {
+      const auto s = tx.get_view(network.modules)->get(name);
+      if (!s)
+      {
+        throw std::logic_error(fmt::format("Could not find module: {}", name));
+      }
+      return *s;
+    }
+
     bool add_new_code_id(
       kv::Tx& tx,
       const CodeDigest& new_code_id,
@@ -134,6 +164,20 @@ namespace ccf
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
+           return true;
+         }},
+        // add/update a module
+        {"set_module",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetModule>();
+           set_module(tx, parsed.name, parsed.module);
+           return true;
+         }},
+        // remove a module
+        {"remove_module",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto name = args.get<std::string>();
+           remove_module(tx, name);
            return true;
          }},
         // add a new member
