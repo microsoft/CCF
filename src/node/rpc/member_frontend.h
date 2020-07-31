@@ -91,8 +91,8 @@ namespace ccf
 
       if (res != OE_OK)
       {
-        // TODO Validation should happen before the proposal is registered.
-        //      See https://github.com/microsoft/CCF/issues/1458.
+        // Validation should happen before the proposal is registered.
+        // See https://github.com/microsoft/CCF/issues/1458.
         throw std::runtime_error("certificate not valid");
       }
 
@@ -102,7 +102,6 @@ namespace ccf
       for (auto const& item : claims)
       {
         LOG_INFO_FMT("claim: {}", item.first);
-        // TODO not all claims should be hex-encoded
         std::string val_hex = fmt::format("{:02x}", fmt::join(item.second, ""));
         lua::push_raw(l, val_hex);
         lua_setfield(l, table_idx, item.first.c_str());
