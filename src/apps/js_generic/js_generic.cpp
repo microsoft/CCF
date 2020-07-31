@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <quickjs/quickjs.h>
+#include <quickjs/quickjs-exports.h>
 #include <vector>
 
 namespace ccfapp

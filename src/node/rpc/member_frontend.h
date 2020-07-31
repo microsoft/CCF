@@ -110,20 +110,10 @@ namespace ccf
       tx_modules->put(name, module);
     }
 
-    void remove_module(kv::Tx& tx, std::string name)
+    bool remove_module(kv::Tx& tx, std::string name)
     {
       auto tx_modules = tx.get_view(network.modules);
-      tx_modules->remove(name);
-    }
-
-    Module get_module(kv::Tx& tx, std::string name)
-    {
-      const auto s = tx.get_view(network.modules)->get(name);
-      if (!s)
-      {
-        throw std::logic_error(fmt::format("Could not find module: {}", name));
-      }
-      return *s;
+      return tx_modules->remove(name);
     }
 
     bool add_new_code_id(
@@ -177,8 +167,7 @@ namespace ccf
         {"remove_module",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto name = args.get<std::string>();
-           remove_module(tx, name);
-           return true;
+           return remove_module(tx, name);
          }},
         // add a new member
         {"new_member",

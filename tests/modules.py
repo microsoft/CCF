@@ -3,6 +3,7 @@
 import os
 import sys
 import tempfile
+import http
 import infra.network
 import infra.path
 import infra.proc
@@ -49,7 +50,7 @@ def test_module_set_and_remove(network, args):
         r = c.post(
             "/gov/read", {"table": "ccf.modules", "key": "foo.js"}
         )
-        assert r.status_code == 200, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body['js'] == MODULE_CONTENT, r.body
 
     LOG.info("Member makes a module remove proposal")
@@ -61,7 +62,7 @@ def test_module_set_and_remove(network, args):
         r = c.post(
             "/gov/read", {"table": "ccf.modules", "key": "foo.js"}
         )
-        assert r.status_code == 400, r.status_code
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
     return network
 
@@ -89,7 +90,7 @@ def test_module_import(network, args):
         r = c.post(
             "/app/test_module", {}
         )
-        assert r.status_code == 200, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body == MODULE_RETURN
 
     return network
