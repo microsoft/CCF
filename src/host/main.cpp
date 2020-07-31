@@ -32,6 +32,8 @@ using namespace std::chrono_literals;
 
 ::timespec logger::config::start{0, 0};
 
+size_t asynchost::TCPImpl::remaining_read_quota;
+
 void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
@@ -511,6 +513,9 @@ int main(int argc, char** argv)
   asynchost::Ticker ticker(tick_period_ms, writer_factory, [](auto s) {
     logger::config::set_start(s);
   });
+
+  // reset the inbound-TCP processing quota each iteration
+  asynchost::ResetTCPReadQuota reset_tcp_quota;
 
   // regularly update the time given to the enclave
   asynchost::TimeUpdater time_updater(1);
