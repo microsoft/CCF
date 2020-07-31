@@ -270,7 +270,7 @@ def set_js_app(app_script_path: str, **kwargs):
 
 @cli_proposal
 def set_module(module_name, module_path, **kwargs):
-    if module_name.endswith(".js"):            
+    if module_name.endswith(".js"):
         with open(module_path) as f:
             js = f.read()
         proposal_args = {"name": module_name, "module": {"js": js}}
