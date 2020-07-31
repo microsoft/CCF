@@ -52,8 +52,8 @@ def supports_methods(*methods):
         primary, _ = network.find_primary()
         with primary.client("user0") as c:
             response = c.get("/app/api")
-            supported_methods = response.body["methods"]
-            missing = {*methods}.difference(supported_methods)
+            supported_methods = response.body["endpoints"]
+            missing = {*methods}.difference([sm["path"] for sm in supported_methods])
             if missing:
                 concat = ", ".join(missing)
                 raise TestRequirementsNotMet(f"Missing required methods: {concat}")
@@ -92,7 +92,7 @@ def can_kill_n_nodes(nodes_to_kill_count):
         primary, _ = network.find_primary()
         with primary.client("member0") as c:
             r = c.post(
-                "gov/query",
+                "/gov/query",
                 {
                     "text": """tables = ...
                         trusted_nodes_count = 0

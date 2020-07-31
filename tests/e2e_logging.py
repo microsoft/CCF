@@ -6,7 +6,7 @@ import suite.test_requirements as reqs
 import infra.logging_app as app
 import infra.e2e_args
 from ccf.tx_status import TxStatus
-import ccf.checker
+import infra.checker
 import inspect
 import http
 import ssl
@@ -80,8 +80,8 @@ def test_large_messages(network, args):
     primary, _ = network.find_primary()
 
     with primary.client() as nc:
-        check_commit = ccf.checker.Checker(nc)
-        check = ccf.checker.Checker()
+        check_commit = infra.checker.Checker(nc)
+        check = infra.checker.Checker()
 
         with primary.client("user0") as c:
             log_id = 44
@@ -91,9 +91,7 @@ def test_large_messages(network, args):
                     c.post("/app/log/private", {"id": log_id, "msg": long_msg}),
                     result=True,
                 )
-                check(
-                    c.get("/app/log/private", {"id": log_id}), result={"msg": long_msg}
-                )
+                check(c.get(f"/app/log/private?id={log_id}"), result={"msg": long_msg})
                 log_id += 1
 
     return network
@@ -107,8 +105,8 @@ def test_remove(network, args):
         primary, _ = network.find_primary()
 
         with primary.client() as nc:
-            check_commit = ccf.checker.Checker(nc)
-            check = ccf.checker.Checker()
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
 
             with primary.client("user0") as c:
                 log_id = 44
@@ -119,12 +117,11 @@ def test_remove(network, args):
                     check_commit(
                         c.post(resource, {"id": log_id, "msg": msg}), result=True,
                     )
-                    check(c.get(resource, {"id": log_id}), result={"msg": msg})
+                    check(c.get(f"{resource}?id={log_id}"), result={"msg": msg})
                     check(
-                        c.delete(resource, {"id": log_id}, params_in_query=True),
-                        result=None,
+                        c.delete(f"{resource}?id={log_id}"), result=None,
                     )
-                    get_r = c.get(resource, {"id": log_id})
+                    get_r = c.get(f"{resource}?id={log_id}")
                     if args.package == "libjs_generic":
                         check(
                             get_r, result={"error": "No such key"},
@@ -154,7 +151,7 @@ def test_cert_prefix(network, args):
                 log_id = 101
                 msg = "This message will be prefixed"
                 c.post("/app/log/private/prefix_cert", {"id": log_id, "msg": msg})
-                r = c.get("/app/log/private", {"id": log_id})
+                r = c.get(f"/app/log/private?id={log_id}")
                 assert f"CN=user{user_id}" in r.body["msg"], r
 
     else:
@@ -179,11 +176,11 @@ def test_anonymous_caller(network, args):
         with primary.client("user4") as c:
             r = c.post("/app/log/private/anonymous", {"id": log_id, "msg": msg})
             assert r.body == True
-            r = c.get("/app/log/private", {"id": log_id})
-            assert r.status == 403, r
+            r = c.get(f"/app/log/private?id={log_id}")
+            assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r
 
         with primary.client("user0") as c:
-            r = c.get("/app/log/private", {"id": log_id})
+            r = c.get(f"/app/log/private?id={log_id}")
             assert msg in r.body["msg"], r
 
     else:
@@ -208,14 +205,44 @@ def test_raw_text(network, args):
                 msg,
                 headers={"content-type": "text/plain"},
             )
-            assert r.status == http.HTTPStatus.OK.value
-            r = c.get("/app/log/private", {"id": log_id})
+            assert r.status_code == http.HTTPStatus.OK.value
+            r = c.get(f"/app/log/private?id={log_id}")
             assert msg in r.body["msg"], r
 
     else:
         LOG.warning(
             f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
         )
+
+    return network
+
+
+@reqs.description("Read metrics")
+@reqs.supports_methods("endpoint_metrics")
+def test_metrics(network, args):
+    primary, _ = network.find_primary()
+
+    calls = 0
+    errors = 0
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        m = r.body["metrics"]["endpoint_metrics"]["GET"]
+        calls = m["calls"]
+        errors = m["errors"]
+
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 1
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["calls"] == calls + 2
+
+    with primary.client() as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
+
+    with primary.client("user0") as c:
+        r = c.get("/app/endpoint_metrics")
+        assert r.body["metrics"]["endpoint_metrics"]["GET"]["errors"] == errors + 1
 
     return network
 
@@ -231,8 +258,8 @@ def test_historical_query(network, args):
         primary, _ = network.find_primary()
 
         with primary.client() as nc:
-            check_commit = ccf.checker.Checker(nc)
-            check = ccf.checker.Checker()
+            check_commit = infra.checker.Checker(nc)
+            check = infra.checker.Checker()
 
             with primary.client("user0") as c:
                 log_id = 10
@@ -246,7 +273,7 @@ def test_historical_query(network, args):
                 check_commit(
                     c.post("/app/log/private", {"id": log_id, "msg": msg2}), result=True
                 )
-                check(c.get("/app/log/private", {"id": log_id}), result={"msg": msg2})
+                check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg2})
 
                 timeout = 15
                 found = False
@@ -254,32 +281,31 @@ def test_historical_query(network, args):
                     ccf.clients.CCF_TX_VIEW_HEADER: str(view),
                     ccf.clients.CCF_TX_SEQNO_HEADER: str(seqno),
                 }
-                params = {"id": log_id}
                 end_time = time.time() + timeout
 
                 while time.time() < end_time:
                     get_response = c.get(
-                        "/app/log/private/historical", params, headers=headers
+                        f"/app/log/private/historical?id={log_id}", headers=headers
                     )
-                    if get_response.status == http.HTTPStatus.ACCEPTED:
+                    if get_response.status_code == http.HTTPStatus.ACCEPTED:
                         retry_after = get_response.headers.get("retry-after")
                         if retry_after is None:
                             raise ValueError(
-                                f"Response with status {get_response.status} is missing 'retry-after' header"
+                                f"Response with status {get_response.status_code} is missing 'retry-after' header"
                             )
                         retry_after = int(retry_after)
                         time.sleep(retry_after)
-                    elif get_response.status == http.HTTPStatus.OK:
+                    elif get_response.status_code == http.HTTPStatus.OK:
                         assert get_response.body["msg"] == msg, get_response
                         found = True
                         break
-                    elif get_response.status == http.HTTPStatus.NO_CONTENT:
+                    elif get_response.status_code == http.HTTPStatus.NO_CONTENT:
                         raise ValueError(
                             f"Historical query response claims there was no write to {log_id} at {view}.{seqno}"
                         )
                     else:
                         raise ValueError(
-                            f"Unexpected response status {get_response.status}: {get_response.body}"
+                            f"Unexpected response status code {get_response.status_code}: {get_response.body}"
                         )
 
                 if not found:
@@ -302,19 +328,19 @@ def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
 
     with backup.client() as c:
-        check_commit = ccf.checker.Checker(c)
+        check_commit = infra.checker.Checker(c)
         ack = network.consortium.get_any_active_member().ack(backup)
         check_commit(ack)
 
     with backup.client("user0") as c:
-        check_commit = ccf.checker.Checker(c)
-        check = ccf.checker.Checker()
+        check_commit = infra.checker.Checker(c)
+        check = infra.checker.Checker()
         msg = "forwarded_msg"
         log_id = 123
         check_commit(
             c.post("/app/log/private", {"id": log_id, "msg": msg}), result=True,
         )
-        check(c.get("/app/log/private", {"id": log_id}), result={"msg": msg})
+        check(c.get(f"/app/log/private?id={log_id}"), result={"msg": msg})
 
     return network
 
@@ -326,7 +352,7 @@ def test_update_lua(network, args):
         LOG.info("Updating Lua application")
         primary, _ = network.find_primary()
 
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
 
         # Create a new lua application file (minimal app)
         new_app_file = "new_lua_app.lua"
@@ -362,8 +388,50 @@ def test_update_lua(network, args):
     return network
 
 
+@reqs.description("Test user-data used for access permissions")
+@reqs.supports_methods("log/private/admin_only")
+def test_user_data_ACL(network, args):
+    if args.package == "liblogging":
+        primary, _ = network.find_primary()
+
+        proposing_member = network.consortium.get_any_active_member()
+        user_id = 0
+
+        # Give isAdmin permissions to a single user
+        proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
+            user_id, {"isAdmin": True},
+        )
+        proposal = proposing_member.propose(primary, proposal_body)
+        proposal.vote_for = careful_vote
+        network.consortium.vote_using_majority(primary, proposal)
+
+        # Confirm that user can now use this endpoint
+        with primary.client(f"user{user_id}") as c:
+            r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        # Remove permission
+        proposal_body, careful_vote = ccf.proposal_generator.set_user_data(
+            user_id, {"isAdmin": False},
+        )
+        proposal = proposing_member.propose(primary, proposal_body)
+        proposal.vote_for = careful_vote
+        network.consortium.vote_using_majority(primary, proposal)
+
+        # Confirm that user is now forbidden on this endpoint
+        with primary.client(f"user{user_id}") as c:
+            r = c.post("/app/log/private/admin_only", {"id": 42, "msg": "hello world"})
+            assert r.status_code == http.HTTPStatus.FORBIDDEN.value, r.status_code
+
+    else:
+        LOG.warning(
+            f"Skipping {inspect.currentframe().f_code.co_name} as application is not C++"
+        )
+
+    return network
+
+
 @reqs.description("Check for commit of every prior transaction")
-@reqs.supports_methods("/node/commit", "/node/tx")
 def test_view_history(network, args):
     if args.consensus == "pbft":
         # This appears to work in PBFT, but it is unacceptably slow:
@@ -375,7 +443,7 @@ def test_view_history(network, args):
         LOG.warning("Skipping view reconstruction in PBFT")
         return network
 
-    check = ccf.checker.Checker()
+    check = infra.checker.Checker()
 
     for node in network.get_joined_nodes():
         with node.client("user0") as c:
@@ -390,7 +458,7 @@ def test_view_history(network, args):
             for seqno in range(1, commit_seqno + 1):
                 views = []
                 for view in range(1, commit_view + 1):
-                    r = c.get("/node/tx", {"view": view, "seqno": seqno})
+                    r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                     check(r)
                     status = TxStatus(r.body["status"])
                     if status == TxStatus.Committed:
@@ -466,12 +534,12 @@ class SentTxs:
 
 
 @reqs.description("Build a list of Tx IDs, check they transition states as expected")
-@reqs.supports_methods("log/private", "/node/tx")
+@reqs.supports_methods("log/private")
 def test_tx_statuses(network, args):
     primary, _ = network.find_primary()
 
     with primary.client("user0") as c:
-        check = ccf.checker.Checker()
+        check = infra.checker.Checker()
         r = c.post("/app/log/private", {"id": 0, "msg": "Ignored"})
         check(r)
         # Until this tx is globally committed, poll for the status of this and some other
@@ -491,7 +559,7 @@ def test_tx_statuses(network, args):
 
             done = False
             for view, seqno in SentTxs.get_all_tx_ids():
-                r = c.get("/node/tx", {"view": view, "seqno": seqno})
+                r = c.get(f"/node/tx?view={view}&seqno={seqno}")
                 check(r)
                 status = TxStatus(r.body["status"])
                 SentTxs.update_status(view, seqno, status)
@@ -506,6 +574,28 @@ def test_tx_statuses(network, args):
                 break
             time.sleep(0.1)
 
+    return network
+
+
+@reqs.description("Primary and redirection")
+@reqs.at_least_n_nodes(2)
+def test_primary(network, args, notifications_queue=None, verify=True):
+    LOG.error(network.nodes)
+    primary, _ = network.find_primary()
+    LOG.error(f"PRIMARY {primary.pubhost}")
+    with primary.client() as c:
+        r = c.head("/node/primary")
+        assert r.status_code == http.HTTPStatus.OK.value
+
+    backup = network.find_any_backup()
+    LOG.error(f"BACKUP {backup.pubhost}")
+    with backup.client() as c:
+        r = c.head("/node/primary")
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value
+        assert (
+            r.headers["location"]
+            == f"https://{primary.pubhost}:{primary.rpc_port}/node/primary"
+        )
     return network
 
 
@@ -538,11 +628,14 @@ def run(args):
             network = test_remove(network, args)
             network = test_forwarding_frontends(network, args)
             network = test_update_lua(network, args)
+            network = test_user_data_ACL(network, args)
             network = test_cert_prefix(network, args)
             network = test_anonymous_caller(network, args)
             network = test_raw_text(network, args)
             network = test_historical_query(network, args)
             network = test_view_history(network, args)
+            network = test_primary(network, args)
+            network = test_metrics(network, args)
 
 
 if __name__ == "__main__":

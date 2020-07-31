@@ -8,23 +8,20 @@ import json
 import os
 import sys
 import functools
+from typing import Union, Optional, Any
+
 from cryptography import x509
 import cryptography.hazmat.backends as crypto_backends
+from loguru import logger as LOG  # type: ignore
 
-from loguru import logger as LOG
 
-
-def dump_to_file(output_path, obj, dump_args):
+def dump_to_file(output_path: str, obj: dict, dump_args: dict):
     with open(output_path, "w") as f:
         json.dump(obj, f, **dump_args)
 
 
 def list_as_lua_literal(l):
     return str(l).translate(str.maketrans("[]", "{}"))
-
-
-def script_to_vote_object(script):
-    return {"ballot": {"text": script}}
 
 
 LUA_FUNCTION_EQUAL_ARRAYS = """function equal_arrays(a, b)
@@ -45,7 +42,9 @@ DEFAULT_VOTE_OUTPUT = "{proposal_name}_vote_for.json"
 
 
 def complete_proposal_output_path(
-    proposal_name, proposal_output_path=None, common_dir="."
+    proposal_name: str,
+    proposal_output_path: Optional[str] = None,
+    common_dir: str = ".",
 ):
     if proposal_output_path is None:
         proposal_output_path = DEFAULT_PROPOSAL_OUTPUT.format(
@@ -60,7 +59,9 @@ def complete_proposal_output_path(
     return proposal_output_path
 
 
-def complete_vote_output_path(proposal_name, vote_output_path=None, common_dir="."):
+def complete_vote_output_path(
+    proposal_name: str, vote_output_path: Optional[str] = None, common_dir: str = "."
+):
     if vote_output_path is None:
         vote_output_path = DEFAULT_VOTE_OUTPUT.format(proposal_name=proposal_name)
 
@@ -72,7 +73,11 @@ def complete_vote_output_path(proposal_name, vote_output_path=None, common_dir="
     return vote_output_path
 
 
-def add_arg_construction(lines, arg, arg_name="args"):
+def add_arg_construction(
+    lines: list,
+    arg: Union[str, collections.abc.Sequence, collections.abc.Mapping],
+    arg_name: str = "args",
+):
     if isinstance(arg, str):
         lines.append(f"{arg_name} = [====[{arg}]====]")
     elif isinstance(arg, collections.abc.Sequence):
@@ -85,7 +90,12 @@ def add_arg_construction(lines, arg, arg_name="args"):
         lines.append(f"{arg_name} = {arg}")
 
 
-def add_arg_checks(lines, arg, arg_name="args", added_equal_arrays_fn=False):
+def add_arg_checks(
+    lines: list,
+    arg: Union[str, collections.abc.Sequence, collections.abc.Mapping],
+    arg_name: str = "args",
+    added_equal_arrays_fn: bool = False,
+):
     lines.append(f"if {arg_name} == nil then return false end")
     if isinstance(arg, str):
         lines.append(f"if not {arg_name} == [====[{arg}]====] then return false end")
@@ -112,7 +122,12 @@ def add_arg_checks(lines, arg, arg_name="args", added_equal_arrays_fn=False):
         lines.append(f"if not {arg_name} == {arg} then return false end")
 
 
-def build_proposal(proposed_call, args=None, inline_args=False, vote_against=False):
+def build_proposal(
+    proposed_call: str,
+    args: Optional[Any] = None,
+    inline_args: bool = False,
+    vote_against: bool = False,
+):
     LOG.trace(f"Generating {proposed_call} proposal")
 
     proposal_script_lines = []
@@ -159,7 +174,7 @@ def cli_proposal(func):
 
 
 @cli_proposal
-def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
+def new_member(member_cert_path: str, member_enc_pubk_path: str, **kwargs):
     LOG.debug("Generating new_member proposal")
 
     # Read certs
@@ -218,60 +233,60 @@ def new_member(member_cert_path, member_enc_pubk_path, **kwargs):
 
 
 @cli_proposal
-def retire_member(member_id, **kwargs):
+def retire_member(member_id: int, **kwargs):
     return build_proposal("retire_member", member_id, **kwargs)
 
 
 @cli_proposal
-def new_user(user_cert_path, **kwargs):
+def new_user(user_cert_path: str, **kwargs):
     user_cert = open(user_cert_path).read()
     return build_proposal("new_user", user_cert, **kwargs)
 
 
 @cli_proposal
-def remove_user(user_id, **kwargs):
+def remove_user(user_id: int, **kwargs):
     return build_proposal("remove_user", user_id, **kwargs)
 
 
 @cli_proposal
-def set_user_data(user_id, user_data, **kwargs):
+def set_user_data(user_id: int, user_data: dict, **kwargs):
     proposal_args = {"user_id": user_id, "user_data": user_data}
     return build_proposal("set_user_data", proposal_args, **kwargs)
 
 
 @cli_proposal
-def set_lua_app(app_script_path, **kwargs):
+def set_lua_app(app_script_path: str, **kwargs):
     with open(app_script_path) as f:
         app_script = f.read()
     return build_proposal("set_lua_app", app_script, **kwargs)
 
 
 @cli_proposal
-def set_js_app(app_script_path, **kwargs):
+def set_js_app(app_script_path: str, **kwargs):
     with open(app_script_path) as f:
         app_script = f.read()
     return build_proposal("set_js_app", app_script, **kwargs)
 
 
 @cli_proposal
-def trust_node(node_id, **kwargs):
+def trust_node(node_id: int, **kwargs):
     return build_proposal("trust_node", node_id, **kwargs)
 
 
 @cli_proposal
-def retire_node(node_id, **kwargs):
+def retire_node(node_id: int, **kwargs):
     return build_proposal("retire_node", node_id, **kwargs)
 
 
 @cli_proposal
-def new_node_code(code_digest, **kwargs):
+def new_node_code(code_digest: Union[str, list], **kwargs):
     if isinstance(code_digest, str):
         code_digest = list(bytearray.fromhex(code_digest))
     return build_proposal("new_node_code", code_digest, **kwargs)
 
 
 @cli_proposal
-def new_user_code(code_digest, **kwargs):
+def new_user_code(code_digest: Union[str, list], **kwargs):
     if isinstance(code_digest, str):
         code_digest = list(bytearray.fromhex(code_digest))
     return build_proposal("new_user_code", code_digest, **kwargs)
@@ -298,7 +313,7 @@ def update_recovery_shares(**kwargs):
 
 
 @cli_proposal
-def set_recovery_threshold(threshold, **kwargs):
+def set_recovery_threshold(threshold: int, **kwargs):
     return build_proposal("set_recovery_threshold", threshold, **kwargs)
 
 @cli_proposal
@@ -328,24 +343,27 @@ def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
 
 
 class ProposalGenerator:
-    def __init__(self, common_dir="."):
+    def __init__(self, common_dir: str = "."):
         self.common_dir = common_dir
 
         # Auto-generate methods wrapping inspected functions, dumping outputs to file
         def wrapper(func):
             @functools.wraps(func)
             def wrapper_func(
-                *args, proposal_output_path=None, vote_output_path=None, **kwargs,
+                *args,
+                proposal_output_path_: Optional[str] = None,
+                vote_output_path_: Optional[str] = None,
+                **kwargs,
             ):
                 proposal_output_path = complete_proposal_output_path(
                     func.__name__,
-                    proposal_output_path=proposal_output_path,
+                    proposal_output_path=proposal_output_path_,
                     common_dir=self.common_dir,
                 )
 
                 vote_output_path = complete_vote_output_path(
                     func.__name__,
-                    vote_output_path=vote_output_path,
+                    vote_output_path=vote_output_path_,
                     common_dir=self.common_dir,
                 )
 
@@ -372,9 +390,7 @@ class ProposalGenerator:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
+    parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "-po",

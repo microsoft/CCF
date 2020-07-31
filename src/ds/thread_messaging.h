@@ -46,6 +46,8 @@ namespace threading
   }
 #endif
 
+  class ThreadMessaging;
+
   class Task
   {
 #ifdef USE_MPSCQ
@@ -135,6 +137,42 @@ namespace threading
       local_msg = prev;
     }
 #endif
+
+    void drop()
+    {
+#ifdef USE_MPSCQ
+      while (!queue.is_empty())
+      {
+        ThreadMsg* current;
+        bool result;
+        std::tie(current, result) = queue.dequeue();
+        if (result)
+        {
+          delete current;
+        }
+      }
+#else
+      while (true)
+      {
+        if (local_msg == nullptr && item_head != nullptr)
+        {
+          local_msg = item_head.exchange(nullptr);
+          reverse_local_messages();
+        }
+
+        if (local_msg == nullptr)
+        {
+          break;
+        }
+
+        ThreadMsg* current = local_msg;
+        local_msg = local_msg->next;
+        delete current;
+      }
+#endif
+    }
+
+    friend ThreadMessaging;
   };
 
   class ThreadMessaging
@@ -149,11 +187,21 @@ namespace threading
 
     static const uint16_t max_num_threads = 24;
 
-  public:
     ThreadMessaging(uint16_t num_threads = max_num_threads) :
       finished(false),
       tasks(num_threads)
     {}
+
+    // Drop all pending tasks, this is only ever to be used
+    // on shutdown, to avoid leaks, and after all thread but
+    // the main one have been shut down.
+    void drop_tasks()
+    {
+      for (auto& t : tasks)
+      {
+        t.drop();
+      }
+    }
 
     void set_finished(bool v = true)
     {
