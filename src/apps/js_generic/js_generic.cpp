@@ -148,13 +148,13 @@ namespace ccfapp
     kv::Tx* tx;
   };
 
-  static JSModuleDef *js_module_loader(
-    JSContext *ctx, const char *module_name, void *opaque)
+  static JSModuleDef* js_module_loader(
+    JSContext* ctx, const char* module_name, void* opaque)
   {
     LOG_INFO_FMT("Loading module '{}'", module_name);
 
     auto arg = (JSModuleLoaderArg*)opaque;
-    
+
     const auto modules = arg->tx->get_view(arg->network->modules);
     auto module = modules->get(std::string(module_name));
     if (!module.has_value())
@@ -164,10 +164,14 @@ namespace ccfapp
     }
     std::string js = module->js;
 
-    const char *buf = js.c_str();
+    const char* buf = js.c_str();
     size_t buf_len = js.size() + 1;
     JSValue func_val = JS_Eval(
-      ctx, buf, buf_len, module_name, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+      ctx,
+      buf,
+      buf_len,
+      module_name,
+      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
     if (JS_IsException(func_val))
     {
       js_dump_error(ctx);
@@ -230,7 +234,8 @@ namespace ccfapp
         }
 
         JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
-        JS_SetModuleLoaderFunc(rt, nullptr, js_module_loader, &js_module_loader_arg);
+        JS_SetModuleLoaderFunc(
+          rt, nullptr, js_module_loader, &js_module_loader_arg);
 
         JSContext* ctx = JS_NewContext(rt);
         if (ctx == nullptr)
@@ -287,8 +292,11 @@ namespace ccfapp
         std::string code = handler_script.value().text.value();
         auto path = fmt::format("app_scripts::{}", local_method);
         JSValue module = JS_Eval(
-          ctx, code.c_str(), code.size() + 1, path.c_str(), 
-            JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+          ctx,
+          code.c_str(),
+          code.size() + 1,
+          path.c_str(),
+          JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
         if (JS_IsException(module))
         {
@@ -308,26 +316,28 @@ namespace ccfapp
           return;
         }
         JS_FreeValue(ctx, eval_val);
-        
+
         // Get exported function from module
         assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
         auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
-        if (JS_GetModuleExportEntriesCount(module_def) != 1) 
+        if (JS_GetModuleExportEntriesCount(module_def) != 1)
         {
-          throw std::runtime_error("Endpoint module exports more than one function");
+          throw std::runtime_error(
+            "Endpoint module exports more than one function");
         }
         auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
         if (!JS_IsFunction(ctx, export_func))
         {
-          throw std::runtime_error("Endpoint module exports something that is not a function");
+          throw std::runtime_error(
+            "Endpoint module exports something that is not a function");
         }
 
         // Call exported function
         int argc = 0;
-        JSValueConst *argv = nullptr;
+        JSValueConst* argv = nullptr;
         auto val = JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv);
         JS_FreeValue(ctx, export_func);
-  
+
         if (JS_IsException(val))
         {
           js_dump_error(ctx);

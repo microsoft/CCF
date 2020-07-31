@@ -107,8 +107,8 @@ namespace ccf
         Tables::MEMBER_CERT_DERS, kv::SecurityDomain::PUBLIC)),
       gov_scripts(tables->create<Scripts>(
         Tables::GOV_SCRIPTS, kv::SecurityDomain::PUBLIC)),
-      modules(tables->create<Modules>(
-        Tables::MODULES, kv::SecurityDomain::PUBLIC)),
+      modules(
+        tables->create<Modules>(Tables::MODULES, kv::SecurityDomain::PUBLIC)),
       proposals(tables->create<Proposals>(
         Tables::PROPOSALS, kv::SecurityDomain::PUBLIC)),
       whitelists(tables->create<Whitelists>(

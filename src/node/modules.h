@@ -16,9 +16,7 @@ namespace ccf
 
     Module() = default;
 
-    Module(const std::string& js_) :
-      js(js_)
-    {}
+    Module(const std::string& js_) : js(js_) {}
 
     MSGPACK_DEFINE(js);
   };

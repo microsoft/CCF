@@ -121,8 +121,7 @@ namespace ccf
       const auto s = tx.get_view(network.modules)->get(name);
       if (!s)
       {
-        throw std::logic_error(
-          fmt::format("Could not find module: {}", name));
+        throw std::logic_error(fmt::format("Could not find module: {}", name));
       }
       return *s;
     }
