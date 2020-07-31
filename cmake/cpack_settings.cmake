@@ -4,7 +4,7 @@
 include(InstallRequiredSystemLibraries)
 set(CPACK_PACKAGE_NAME "ccf")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Confidential Consortium Framework")
-set(CPACK_PACKAGE_CONTACT "ccfeng@microsoft.com")
+set(CPACK_PACKAGE_CONTACT "https://github.com/Microsoft/CCF")
 set(CPACK_RESOURCE_FILE_LICENSE "${CCF_DIR}/LICENSE")
 set(CPACK_PACKAGE_VERSION ${CCF_RELEASE_VERSION})
 set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
