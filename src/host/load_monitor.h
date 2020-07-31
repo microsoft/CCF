@@ -10,47 +10,49 @@ namespace asynchost
   class LoadMonitorImpl
   {
     using TClock = std::chrono::high_resolution_clock;
-    TClock::time_point start_time;
-    TClock::duration last_update = {};
+    std::chrono::milliseconds last_update;
 
     messaging::Dispatcher<ringbuffer::Message>& dispatcher;
+
+    std::fstream output_file;
 
   public:
     LoadMonitorImpl(messaging::Dispatcher<ringbuffer::Message>& disp) :
       dispatcher(disp)
     {
       dispatcher.retrieve_message_counts();
-      start_time = TClock::now();
+      last_update = std::chrono::duration_cast<std::chrono::milliseconds>(
+        TClock::now().time_since_epoch());
+
+      output_file.open("host_load.log", std::fstream::out);
     }
 
     void on_timer()
     {
       const auto message_counts = dispatcher.retrieve_message_counts();
-      const auto duration_now = TClock::now() - start_time;
+      const auto time_now =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+          TClock::now().time_since_epoch());
 
       if (!message_counts.empty())
       {
-        std::string formatted;
+        auto j = nlohmann::json::object();
+
+        j["start_time_ms"] = last_update.count();
+        j["end_time_ms"] = time_now.count();
+
+        auto& messages = j["ringbuffer_messages"];
         for (const auto& it : message_counts)
         {
-          if (!formatted.empty())
-          {
-            formatted += ", ";
-          }
-
-          formatted += fmt::format(
-            "{}={}", dispatcher.get_message_name(it.first), it.second);
+          messages[dispatcher.get_message_name(it.first)] = {
+            {"count", it.second}};
         }
 
-        LOG_INFO_FMT(
-          "Outbound messages from {} to {}: {}",
-          std::chrono::duration_cast<std::chrono::milliseconds>(last_update)
-            .count(),
-          std::chrono::duration_cast<std::chrono::milliseconds>(duration_now)
-            .count(),
-          formatted);
+        const auto line = j.dump();
+        output_file.write(line.data(), line.size());
+        output_file << std::endl;
 
-        last_update = duration_now;
+        last_update = time_now;
       }
     }
   };
