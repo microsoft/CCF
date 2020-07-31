@@ -311,7 +311,7 @@ def update_root_ca_cert(cert_name, cert_path, skip_checks=False, **kwargs):
         except Exception:
             raise ValueError("Cannot parse PEM certificate")
         
-        # TODO remove one of the OID code paths, depending on which one OE chooses
+        # TODO remove one of the OID code paths, depending on which one OE chooses (OE#3312)
         try:
             oid_old = x509.ObjectIdentifier("1.2.840.113556.10.1.1")
             _ = cert.extensions.get_extension_for_oid(oid_old)
