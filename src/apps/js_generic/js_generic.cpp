@@ -142,6 +142,48 @@ namespace ccfapp
     return r;
   }
 
+  struct JSModuleLoaderArg
+  {
+    ccf::NetworkTables* network;
+    kv::Tx* tx;
+  };
+
+  static JSModuleDef* js_module_loader(
+    JSContext* ctx, const char* module_name, void* opaque)
+  {
+    LOG_INFO_FMT("Loading module '{}'", module_name);
+
+    auto arg = (JSModuleLoaderArg*)opaque;
+
+    const auto modules = arg->tx->get_view(arg->network->modules);
+    auto module = modules->get(std::string(module_name));
+    if (!module.has_value())
+    {
+      JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
+      return nullptr;
+    }
+    std::string js = module->js;
+
+    const char* buf = js.c_str();
+    size_t buf_len = js.size() + 1;
+    JSValue func_val = JS_Eval(
+      ctx,
+      buf,
+      buf_len,
+      module_name,
+      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    if (JS_IsException(func_val))
+    {
+      js_dump_error(ctx);
+      return nullptr;
+    }
+
+    auto m = (JSModuleDef*)JS_VALUE_GET_PTR(func_val);
+    // module already referenced, decrement ref count
+    JS_FreeValue(ctx, func_val);
+    return m;
+  }
+
   class JSHandlers : public UserEndpointRegistry
   {
   private:
@@ -190,6 +232,10 @@ namespace ccfapp
         {
           throw std::runtime_error("Failed to initialise QuickJS runtime");
         }
+
+        JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
+        JS_SetModuleLoaderFunc(
+          rt, nullptr, js_module_loader, &js_module_loader_arg);
 
         JSContext* ctx = JS_NewContext(rt);
         if (ctx == nullptr)
@@ -242,12 +288,55 @@ namespace ccfapp
           throw std::runtime_error("Could not find script text");
         }
 
+        // Compile module
         std::string code = handler_script.value().text.value();
         auto path = fmt::format("app_scripts::{}", local_method);
-        JSValue val = JS_Eval(
-          ctx, code.c_str(), code.size(), path.c_str(), JS_EVAL_TYPE_GLOBAL);
+        JSValue module = JS_Eval(
+          ctx,
+          code.c_str(),
+          code.size() + 1,
+          path.c_str(),
+          JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
-        auto status = true;
+        if (JS_IsException(module))
+        {
+          js_dump_error(ctx);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body("Exception thrown while compiling");
+          return;
+        }
+
+        // Evaluate module
+        auto eval_val = JS_EvalFunction(ctx, module);
+        if (JS_IsException(eval_val))
+        {
+          js_dump_error(ctx);
+          args.rpc_ctx->set_response_status(HTTP_STATUS_INTERNAL_SERVER_ERROR);
+          args.rpc_ctx->set_response_body("Exception thrown while executing");
+          return;
+        }
+        JS_FreeValue(ctx, eval_val);
+
+        // Get exported function from module
+        assert(JS_VALUE_GET_TAG(module) == JS_TAG_MODULE);
+        auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module);
+        if (JS_GetModuleExportEntriesCount(module_def) != 1)
+        {
+          throw std::runtime_error(
+            "Endpoint module exports more than one function");
+        }
+        auto export_func = JS_GetModuleExportEntry(ctx, module_def, 0);
+        if (!JS_IsFunction(ctx, export_func))
+        {
+          throw std::runtime_error(
+            "Endpoint module exports something that is not a function");
+        }
+
+        // Call exported function
+        int argc = 0;
+        JSValueConst* argv = nullptr;
+        auto val = JS_Call(ctx, export_func, JS_UNDEFINED, argc, argv);
+        JS_FreeValue(ctx, export_func);
 
         if (JS_IsException(val))
         {
@@ -257,6 +346,8 @@ namespace ccfapp
           return;
         }
 
+        // Handle return value
+        auto status = true;
         if (JS_IsBool(val) && !JS_VALUE_GET_BOOL(val))
           status = false;
 

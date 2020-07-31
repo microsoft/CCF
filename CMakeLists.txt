@@ -591,6 +591,12 @@ if(BUILD_TESTS)
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
     )
+
+    add_e2e_test(
+      NAME modules_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
+      CONSENSUS raft
+    )
   endif()
 
   if(BUILD_SMALLBANK)
