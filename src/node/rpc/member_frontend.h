@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "frontend.h"
-#include "lua_interp/tx_script_runner.h"
 #include "lua_interp/lua_json.h"
+#include "lua_interp/tx_script_runner.h"
 #include "node/genesis_gen.h"
 #include "node/members.h"
 #include "node/nodes.h"
@@ -19,10 +19,9 @@
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <openenclave/attestation/verifier.h>
 #include <set>
 #include <sstream>
-
-#include <openenclave/attestation/verifier.h>
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
 #  include <openenclave/enclave.h>
 #else
@@ -38,8 +37,7 @@ namespace ccf
       const std::optional<Script>& env_script) const override
     {
       auto l = li.get_state();
-      lua_register(
-        l, "pem_to_der", lua_pem_to_der);
+      lua_register(l, "pem_to_der", lua_pem_to_der);
       lua_register(
         l, "verify_cert_and_get_claims", lua_verify_cert_and_get_claims);
 
@@ -114,10 +112,11 @@ namespace ccf
     // The quote is assumed to be an OE report (with oe_report_header_t header)
     // stored at 1.2.840.113556.10.1.1 in the cert.
 
-    static oe_result_t oe_verify_attestation_certificate_cb(oe_identity_t* identity, void* arg)
+    static oe_result_t oe_verify_attestation_certificate_cb(
+      oe_identity_t* identity, void* arg)
     {
-        std::memcpy(arg, identity, sizeof(oe_identity_t));
-        return OE_OK;
+      std::memcpy(arg, identity, sizeof(oe_identity_t));
+      return OE_OK;
     }
 
     static int lua_verify_cert_and_get_claims(lua_State* l)
