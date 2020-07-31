@@ -9,7 +9,7 @@ namespace asynchost
 {
   class LoadMonitorImpl
   {
-    using TClock = std::chrono::high_resolution_clock;
+    using TClock = std::chrono::system_clock;
     std::chrono::milliseconds last_update;
 
     messaging::Dispatcher<ringbuffer::Message>& dispatcher;

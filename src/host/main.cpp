@@ -517,7 +517,7 @@ int main(int argc, char** argv)
   asynchost::TimeUpdater time_updater(1);
 
   // regularly record some load statistics
-  asynchost::LoadMonitor load_monitor(100, bp.get_dispatcher());
+  asynchost::LoadMonitor load_monitor(500, bp.get_dispatcher());
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
