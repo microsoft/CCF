@@ -14,7 +14,7 @@ with open(path.join(path_here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name=PACKAGE_NAME,
-    version="0.12",
+    version="0.12.1",
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",

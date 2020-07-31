@@ -17,6 +17,8 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 message(STATUS "CCF version=${CCF_VERSION}")
 message(STATUS "CCF release version=${CCF_RELEASE_VERSION}")
 
+include(${CCF_DIR}/cmake/cpack_settings.cmake)
+
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
