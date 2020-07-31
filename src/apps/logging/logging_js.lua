@@ -3,10 +3,10 @@
 
 return {
   ["GET log/private"] = [[
-    function get(query)
+    export default function()
     {
       const elements = query.split("&");
-      for (kv of elements) {
+      for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
           try
@@ -21,14 +21,13 @@ return {
       }
       throw "Could not find 'id' in query";
     }
-    get(query)
   ]],
 
   ["GET log/public"] = [[
-    function get(query)
+    export default function()
     {
       const elements = query.split("&");
-      for (kv of elements) {
+      for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
           try
@@ -43,32 +42,31 @@ return {
       }
       throw "Could not find 'id' in query";
     }
-    get(query)
   ]],
 
   ["POST log/private"] = [[
-    function record(params)
+    export default function()
     {
+      let params = JSON.parse(body);
       tables.data.put(params.id.toString(), params.msg);
       return true;
     }
-    record(JSON.parse(body))
   ]],
 
   ["POST log/public"] = [[
-    function record(params)
+    export default function()
     {
+      let params = JSON.parse(body);
       tables.data.put(params.id.toString(), params.msg);
       return true;
     }
-    record(JSON.parse(body))
   ]],
 
   ["DELETE log/public"] = [[
-    function remove(query)
+    export default function()
     {
       const elements = query.split("&");
-      for (kv of elements) {
+      for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
           return tables.data.remove(JSON.parse(v).toString());
@@ -76,14 +74,13 @@ return {
       }
       throw "Could not find 'id' in query";
     }
-    remove(query)
   ]],
 
   ["DELETE log/private"] = [[
-    function remove(query)
+    export default function()
     {
       const elements = query.split("&");
-      for (kv of elements) {
+      for (const kv of elements) {
         const [k, v] = kv.split("=");
         if (k == "id") {
           return tables.data.remove(JSON.parse(v).toString());
@@ -91,6 +88,5 @@ return {
       }
       throw "Could not find 'id' in query";
     }
-    remove(query)
   ]]
 }

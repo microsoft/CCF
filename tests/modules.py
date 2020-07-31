@@ -15,19 +15,20 @@ import ccf.proposal_generator
 from loguru import logger as LOG
 
 MODULE_CONTENT = """
-export default function() {
+export function foo() {
+    console.log("FOOO");
     return "Hello world!";
 }
 """
 
 APP_SCRIPT = """
 return {
-  ["GET myapp/test_module"] = [[
-    import default_fn from "foo.js";
-    return function()
+  ["POST test_module"] = [[
+    import {foo} from "foo.js";
+    export default function()
     {
-      return default_fn();
-    }()
+      return foo();
+    }
   ]]
 }
 """
@@ -48,7 +49,7 @@ def test_module_set_and_remove(network, args):
         r = c.post(
             "/gov/read", {"table": "ccf.modules", "key": "foo.js"}
         )
-        assert r.status == 200, r.status
+        assert r.status_code == 200, r.status_code
         assert r.body['js'] == MODULE_CONTENT, r.body
 
     LOG.info("Member makes a module remove proposal")
@@ -60,7 +61,7 @@ def test_module_set_and_remove(network, args):
         r = c.post(
             "/gov/read", {"table": "ccf.modules", "key": "foo.js"}
         )
-        assert r.status == 400, r.status
+        assert r.status_code == 400, r.status_code
 
     return network
 
@@ -68,7 +69,7 @@ def test_module_set_and_remove(network, args):
 def test_module_import(network, args):
     primary, _ = network.find_nodes()
 
-    LOG.info("Member makes a module update proposal")
+    # Add module
     with tempfile.NamedTemporaryFile('w') as f:
         f.write(MODULE_CONTENT)
         f.flush()
@@ -76,10 +77,20 @@ def test_module_import(network, args):
     proposal = network.consortium.get_any_active_member().propose(primary, proposal_body)
     network.consortium.vote_using_majority(primary, proposal)
 
-    # TODO set app script
+    # Update JS app which imports module
+    with tempfile.NamedTemporaryFile('w') as f:
+        f.write(APP_SCRIPT)
+        f.flush()
+        network.consortium.set_js_app(
+            remote_node=primary, app_script_path=f.name
+        )
 
-    # TODO invoke endpoint
-    # TODO check return value
+    with primary.client("user0") as c:
+        r = c.post(
+            "/app/test_module", {}
+        )
+        assert r.status_code == 200, r.status_code
+        assert r.body == "Hello world!"
 
     return network
 
