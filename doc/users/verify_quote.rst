@@ -20,7 +20,7 @@ The raw quote should be decoded and output to file for verification via the Open
     Verifying report ccf_node_quote.bin...
     Report verification succeeded (0).
 
-.. note:: The ``host_verify`` CLI is included in the Open Enclave's ``hostverify`` package available on the `Open Enclave's release page <https://github.com/openenclave/openenclave/releases>`_.
+.. note:: The ``host_verify`` CLI is included in the Open Enclave ``hostverify`` package available on the `Open Enclave release page <https://github.com/openenclave/openenclave/releases>`_.
 
 The SGX quotes of all currently trusted nodes can also be retrieved via the ``/node/quotes`` endpoint:
 
@@ -30,4 +30,3 @@ The SGX quotes of all currently trusted nodes can also be retrieved via the ``/n
     {"quotes": [
     {"mrenclave":"<measurement_hash>, "node_id":<node_id>, "raw":"<hex_encoded_raw_quote>"},
     {"mrenclave":"<measurement_hash>, "node_id":<node_id>, "raw":"<hex_encoded_raw_quote>"}]}
-
