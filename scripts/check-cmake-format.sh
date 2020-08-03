@@ -38,7 +38,7 @@ pip install --disable-pip-version-check cmake_format 1>/dev/null
 
 unformatted_files=""
 for file in $(find "$@" -name "*.cmake" -o -name "CMakeLists.txt"); do
-  cmake-format --check "$file"
+  cmake-format --check "$file" > /dev/null
   d=$?
   if $fix ; then
     cmake-format -i "$file"
