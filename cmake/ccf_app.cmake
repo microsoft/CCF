@@ -97,6 +97,7 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
       COMMAND
         cp ${app_oe_conf_path} ${DEBUG_CONF_NAME} && (grep
+                                                      -q
                                                       "Debug\=.*"
                                                       ${DEBUG_CONF_NAME}
                                                       &&
@@ -129,6 +130,7 @@ function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
       COMMAND
         cp ${app_oe_conf_path} ${SIGNED_CONF_NAME} && (grep
+                                                       -q
                                                        "Debug\=.*"
                                                        ${SIGNED_CONF_NAME}
                                                        &&
