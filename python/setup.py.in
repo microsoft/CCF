@@ -12,9 +12,12 @@ path_here = path.abspath(path.dirname(__file__))
 with open(path.join(path_here, "README.md"), encoding="utf-8") as f:
     long_description = f.read()
 
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
+
 setup(
     name=PACKAGE_NAME,
-    version="0.12.1",
+    version="@CCF_RELEASE_VERSION@",
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -28,14 +31,7 @@ setup(
     ],
     packages=[PACKAGE_NAME],
     python_requires=">=3.7",
-    install_requires=[
-        "msgpack",
-        "loguru",
-        "requests",
-        "requests-http-signature",
-        "websocket-client",
-        "cryptography",
-    ],
+    install_requires=requirements,
     scripts=[
         path.join(PACKAGE_NAME, "proposal_generator.py"),
         path.join(UTILITIES_PATH, "keygenerator.sh"),
