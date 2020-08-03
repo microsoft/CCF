@@ -45,7 +45,7 @@ namespace asynchost
         for (const auto& it : message_counts)
         {
           messages[dispatcher.get_message_name(it.first)] = {
-            {"count", it.second}};
+            {"count", it.second.messages}, {"bytes", it.second.bytes}};
         }
 
         const auto line = j.dump();

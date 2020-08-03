@@ -25,8 +25,14 @@ namespace messaging
     using logic_error::logic_error;
   };
 
+  struct Counts
+  {
+    size_t messages;
+    size_t bytes;
+  };
+
   template <typename MessageType>
-  using MessageCounts = std::unordered_map<MessageType, size_t>;
+  using MessageCounts = std::unordered_map<MessageType, Counts>;
 
   template <typename MessageType>
   class Dispatcher
@@ -157,7 +163,9 @@ namespace messaging
       // Handlers may register or remove handlers, so iterator is invalidated
       it->second(data, size);
 
-      ++message_counts[m];
+      auto& counts = message_counts[m];
+      counts.messages++;
+      counts.bytes += size;
     }
 
     MessageCounts retrieve_message_counts()

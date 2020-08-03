@@ -207,7 +207,8 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
     const auto counts = bp.get_dispatcher().retrieve_message_counts();
     REQUIRE(counts.size() == 1);
     REQUIRE(counts.find(finish) != counts.end());
-    REQUIRE(counts.at(finish) == 1);
+    REQUIRE(counts.at(finish).messages == 1);
+    REQUIRE(counts.at(finish).bytes == 0);
   }
 
   SUBCASE("Message handlers can affect external state")
@@ -221,9 +222,11 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
     const auto counts = bp.get_dispatcher().retrieve_message_counts();
     REQUIRE(counts.size() == 2);
     REQUIRE(counts.find(set_x) != counts.end());
-    REQUIRE(counts.at(set_x) == 1);
+    REQUIRE(counts.at(set_x).messages == 1);
+    REQUIRE(counts.at(set_x).bytes == sizeof(new_x));
     REQUIRE(counts.find(finish) != counts.end());
-    REQUIRE(counts.at(finish) == 1);
+    REQUIRE(counts.at(finish).messages == 1);
+    REQUIRE(counts.at(finish).bytes == 0);
   }
 
   SUBCASE("Message handlers can communicate through the writer")
@@ -247,9 +250,11 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
     const auto counts = bp.get_dispatcher().retrieve_message_counts();
     REQUIRE(counts.size() == 2);
     REQUIRE(counts.find(echo) != counts.end());
-    REQUIRE(counts.at(echo) == 1);
+    REQUIRE(counts.at(echo).messages == 1);
+    REQUIRE(counts.at(echo).bytes == actual.size());
     REQUIRE(counts.find(finish) != counts.end());
-    REQUIRE(counts.at(finish) == 1);
+    REQUIRE(counts.at(finish).messages == 1);
+    REQUIRE(counts.at(finish).bytes == 0);
   }
 
   SUBCASE("Dispatcher can be accessed directly")
@@ -275,7 +280,8 @@ TEST_CASE("Basic message loop" * doctest::test_suite("messaging"))
     const auto counts = bp.get_dispatcher().retrieve_message_counts();
     REQUIRE(counts.size() == 1);
     REQUIRE(counts.find(set_x) != counts.end());
-    REQUIRE(counts.at(set_x) == 1);
+    REQUIRE(counts.at(set_x).messages == 1);
+    REQUIRE(counts.at(set_x).bytes == 0);
   }
 }
 
