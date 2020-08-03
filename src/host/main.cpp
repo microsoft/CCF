@@ -521,8 +521,10 @@ int main(int argc, char** argv)
   // regularly update the time given to the enclave
   asynchost::TimeUpdater time_updater(1);
 
+#ifdef ENABLE_LOAD_MONITOR
   // regularly record some load statistics
   asynchost::LoadMonitor load_monitor(500, bp.get_dispatcher());
+#endif
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
