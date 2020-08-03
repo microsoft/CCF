@@ -46,13 +46,13 @@ def test_module_set_and_remove(network, args):
         primary, proposal_body
     )
     network.consortium.vote_using_majority(primary, proposal)
-    
-    with primary.client(f"member{network.consortium.get_any_active_member().member_id}") as c:
-        r = c.post(
-            "/gov/read", {"table": "ccf.modules", "key": "foo.js"}
-        )
+
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": "foo.js"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body['js'] == MODULE_CONTENT, r.body
+        assert r.body["js"] == MODULE_CONTENT, r.body
 
     LOG.info("Member makes a module remove proposal")
     proposal_body, _ = ccf.proposal_generator.remove_module("foo.js")
@@ -61,11 +61,10 @@ def test_module_set_and_remove(network, args):
     )
     network.consortium.vote_using_majority(primary, proposal)
 
-
-    with primary.client(f"member{network.consortium.get_any_active_member().member_id}") as c:
-        r = c.post(
-            "/gov/read", {"table": "ccf.modules", "key": "foo.js"}
-        )
+    with primary.client(
+        f"member{network.consortium.get_any_active_member().member_id}"
+    ) as c:
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": "foo.js"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
     return network
 
@@ -91,9 +90,7 @@ def test_module_import(network, args):
         network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
 
     with primary.client("user0") as c:
-        r = c.post(
-            "/app/test_module", {}
-        )
+        r = c.post("/app/test_module", {})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body == MODULE_RETURN
 
