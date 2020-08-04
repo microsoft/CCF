@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import functools
+from pathlib import PurePosixPath
 from typing import Union, Optional, Any
 
 from loguru import logger as LOG  # type: ignore
@@ -268,7 +269,12 @@ def set_js_app(app_script_path: str, **kwargs):
 
 @cli_proposal
 def set_module(module_name, module_path, **kwargs):
-    if module_name.endswith(".js"):
+    module_name_ = PurePosixPath(module_name)
+    if not module_name_.is_absolute():
+        raise ValueError("module name must be an absolute path")
+    if any(folder in [".", ".."] for folder in module_name_.parents):
+        raise ValueError("module name must not contain . or .. components")
+    if module_name_.suffix == ".js":
         with open(module_path) as f:
             js = f.read()
         proposal_args = {"name": module_name, "module": {"js": js}}

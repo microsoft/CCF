@@ -13,49 +13,64 @@ import ccf.proposal_generator
 
 from loguru import logger as LOG
 
-MODULE_RETURN = "Hello world!"
-MODULE_CONTENT = f"""
+MODULE_PATH_1 = "/app/foo.js"
+MODULE_RETURN_1 = "Hello world!"
+MODULE_CONTENT_1 = f"""
 export function foo() {{
-    return "{MODULE_RETURN}";
+    return "{MODULE_RETURN_1}";
 }}
 """
 
+MODULE_PATH_2 = "/app/bar.js"
+MODULE_CONTENT_2 = f"""
+import {{foo}} from "./foo.js"
+export function bar() {{
+    return foo();
+}}
+"""
+
+# For the purpose of resolving relative import paths, 
+# app script modules are currently assumed to be located at /.
+# This will likely change.
 APP_SCRIPT = """
 return {
   ["POST test_module"] = [[
-    import {foo} from "foo.js";
+    import {bar} from "./app/bar.js";
     export default function()
     {
-      return foo();
+      return bar();
     }
   ]]
 }
 """
 
+def make_module_set_proposal(path, content, network):
+    primary, _ = network.find_nodes()
+    with tempfile.NamedTemporaryFile("w") as f:
+        f.write(content)
+        f.flush()
+        proposal_body, _ = ccf.proposal_generator.set_module(path, f.name)
+    proposal = network.consortium.get_any_active_member().propose(
+        primary, proposal_body
+    )
+    network.consortium.vote_using_majority(primary, proposal)
 
 @reqs.description("Test module set and remove")
 def test_module_set_and_remove(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Member makes a module update proposal")
-    with tempfile.NamedTemporaryFile("w") as f:
-        f.write(MODULE_CONTENT)
-        f.flush()
-        proposal_body, _ = ccf.proposal_generator.set_module("foo.js", f.name)
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    network.consortium.vote_using_majority(primary, proposal)
+    make_module_set_proposal(MODULE_PATH_1, MODULE_CONTENT_1, network)
 
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": "foo.js"})
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body["js"] == MODULE_CONTENT, r.body
+        assert r.body["js"] == MODULE_CONTENT_1, r.body
 
     LOG.info("Member makes a module remove proposal")
-    proposal_body, _ = ccf.proposal_generator.remove_module("foo.js")
+    proposal_body, _ = ccf.proposal_generator.remove_module(MODULE_PATH_1)
     proposal = network.consortium.get_any_active_member().propose(
         primary, proposal_body
     )
@@ -64,7 +79,7 @@ def test_module_set_and_remove(network, args):
     with primary.client(
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
-        r = c.post("/gov/read", {"table": "ccf.modules", "key": "foo.js"})
+        r = c.post("/gov/read", {"table": "ccf.modules", "key": MODULE_PATH_1})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
     return network
 
@@ -73,15 +88,9 @@ def test_module_set_and_remove(network, args):
 def test_module_import(network, args):
     primary, _ = network.find_nodes()
 
-    # Add module
-    with tempfile.NamedTemporaryFile("w") as f:
-        f.write(MODULE_CONTENT)
-        f.flush()
-        proposal_body, _ = ccf.proposal_generator.set_module("foo.js", f.name)
-    proposal = network.consortium.get_any_active_member().propose(
-        primary, proposal_body
-    )
-    network.consortium.vote_using_majority(primary, proposal)
+    # Add modules
+    make_module_set_proposal(MODULE_PATH_1, MODULE_CONTENT_1, network)
+    make_module_set_proposal(MODULE_PATH_2, MODULE_CONTENT_2, network)
 
     # Update JS app which imports module
     with tempfile.NamedTemporaryFile("w") as f:
@@ -92,7 +101,7 @@ def test_module_import(network, args):
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        assert r.body == MODULE_RETURN
+        assert r.body == MODULE_RETURN_1
 
     return network
 
