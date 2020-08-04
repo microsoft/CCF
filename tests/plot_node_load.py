@@ -80,7 +80,7 @@ def plot_stacked(jsons, key):
         s = ms / 1000.0
         return datetime.datetime.fromtimestamp(s).strftime("%H:%M:%S")
 
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
     plt.title(f"Ringbuffer messages - {key}")
     plt.ylabel(f"{key}")
     plt.ticklabel_format(useOffset=False)
