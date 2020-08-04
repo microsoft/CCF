@@ -29,7 +29,7 @@ export function bar() {{
 }}
 """
 
-# For the purpose of resolving relative import paths, 
+# For the purpose of resolving relative import paths,
 # app script modules are currently assumed to be located at /.
 # This will likely change.
 APP_SCRIPT = """
@@ -44,6 +44,7 @@ return {
 }
 """
 
+
 def make_module_set_proposal(path, content, network):
     primary, _ = network.find_nodes()
     with tempfile.NamedTemporaryFile("w") as f:
@@ -54,6 +55,7 @@ def make_module_set_proposal(path, content, network):
         primary, proposal_body
     )
     network.consortium.vote_using_majority(primary, proposal)
+
 
 @reqs.description("Test module set and remove")
 def test_module_set_and_remove(network, args):
