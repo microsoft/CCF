@@ -25,14 +25,13 @@ LABELS_TO_COLOURS = {
     "tls::tls_connect": "khaki",
     "tls::tls_outbound": "gold",
     "tls::tls_stop": "goldenrod",
-
     # Processed in enclave
     "AdminMessage::tick": "dimgray",
     "ccf::node_inbound": "darkgreen",
+    "consensus::ledger_entry": "red",
     "tls::tls_close": "darkkhaki",
     "tls::tls_inbound": "gold",
     "tls::tls_start": "goldenrod",
-
     # Processed in both
     "OversizedMessage::fragment": "slategray",
 }
@@ -99,7 +98,7 @@ def plot_stacked(jsons, key):
     path_without_ext, _ = os.path.splitext(args.load_file.name)
     output_path = f"{path_without_ext}_{key}.png"
     print(f"Saving plot to {output_path}")
-    plt.savefig(output_path)
+    plt.savefig(output_path, bbox_inches="tight")
 
 
 if __name__ == "__main__":
