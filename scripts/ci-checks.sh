@@ -52,6 +52,7 @@ fi
 
 # Install test dependencies before linting
 pip --disable-pip-version-check install -U -r tests/requirements.txt 1>/dev/null
+pip --disable-pip-version-check install -U -r python/requirements.txt 1>/dev/null
 
 echo "Python lint"
 find tests/ python/ -type f -name "*.py" -exec python -m pylint {} +

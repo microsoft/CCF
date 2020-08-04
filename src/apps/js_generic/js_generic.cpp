@@ -5,6 +5,7 @@
 #include "node/rpc/user_frontend.h"
 
 #include <memory>
+#include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 #include <vector>
 

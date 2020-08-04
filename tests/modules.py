@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import tempfile
+import http
 import infra.network
 import infra.path
 import infra.proc
@@ -50,7 +51,7 @@ def test_module_set_and_remove(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post("/gov/read", {"table": "ccf.modules", "key": "foo.js"})
-        assert r.status_code == 200, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body["js"] == MODULE_CONTENT, r.body
 
     LOG.info("Member makes a module remove proposal")
@@ -64,8 +65,7 @@ def test_module_set_and_remove(network, args):
         f"member{network.consortium.get_any_active_member().member_id}"
     ) as c:
         r = c.post("/gov/read", {"table": "ccf.modules", "key": "foo.js"})
-        assert r.status_code == 400, r.status_code
-
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
     return network
 
 
@@ -91,7 +91,7 @@ def test_module_import(network, args):
 
     with primary.client("user0") as c:
         r = c.post("/app/test_module", {})
-        assert r.status_code == 200, r.status_code
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body == MODULE_RETURN
 
     return network
