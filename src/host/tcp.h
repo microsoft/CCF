@@ -612,6 +612,12 @@ namespace asynchost
         return;
       }
 
+      if (sz == UV_ENOBUFS)
+      {
+        LOG_DEBUG_FMT("TCP on_read reached allocation quota");
+        return;
+      }
+
       if (sz < 0)
       {
         assert_status(CONNECTED, DISCONNECTED);
