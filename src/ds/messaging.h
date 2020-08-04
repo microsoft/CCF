@@ -46,11 +46,23 @@ namespace messaging
 
     std::map<MessageType, Handler> handlers;
     std::map<MessageType, char const*> message_labels;
+
     MessageCounts message_counts;
 
     std::string get_error_prefix()
     {
       return std::string("[") + std::string(name) + std::string("] ");
+    }
+
+    char const* get_message_name(MessageType m)
+    {
+      const auto it = message_labels.find(m);
+      if (it == message_labels.end())
+      {
+        return "unknown";
+      }
+
+      return it->second;
     }
 
     static std::string decorate_message_name(MessageType m, char const* s)
@@ -65,17 +77,6 @@ namespace messaging
 
   public:
     Dispatcher(char const* name) : name(name), handlers() {}
-
-    char const* get_message_name(MessageType m)
-    {
-      const auto it = message_labels.find(m);
-      if (it == message_labels.end())
-      {
-        return "unknown";
-      }
-
-      return it->second;
-    }
 
     /** Set a callback for this message type
      *
@@ -173,6 +174,17 @@ namespace messaging
       MessageCounts current;
       std::swap(message_counts, current);
       return current;
+    }
+
+    nlohmann::json convert_message_counts(const MessageCounts& mc)
+    {
+      auto j = nlohmann::json::object();
+      for (const auto& it : mc)
+      {
+        j[get_message_name(it.first)] = {{"count", it.second.messages},
+                                         {"bytes", it.second.bytes}};
+      }
+      return j;
     }
   };
 

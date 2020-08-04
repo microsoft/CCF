@@ -14,17 +14,49 @@ namespace asynchost
 
     messaging::Dispatcher<ringbuffer::Message>& dispatcher;
 
-    std::fstream output_file;
+    std::fstream host_output_file;
+
+    std::fstream enclave_output_file;
+    nlohmann::json enclave_counts;
 
   public:
-    LoadMonitorImpl(messaging::Dispatcher<ringbuffer::Message>& disp) :
-      dispatcher(disp)
+    LoadMonitorImpl(messaging::BufferProcessor& bp) :
+      dispatcher(bp.get_dispatcher())
     {
       dispatcher.retrieve_message_counts();
       last_update = std::chrono::duration_cast<std::chrono::milliseconds>(
         TClock::now().time_since_epoch());
 
-      output_file.open("host_load.log", std::fstream::out);
+      host_output_file.open("host_load.log", std::fstream::out);
+
+      enclave_output_file.open("enclave_load.log", std::fstream::out);
+      enclave_counts = nlohmann::json::object();
+
+      // Register message handler for work_stats message from enclave
+      DISPATCHER_SET_MESSAGE_HANDLER(
+        bp, AdminMessage::work_stats, [this](const uint8_t* data, size_t size) {
+          auto [dumped_json] =
+            ringbuffer::read_message<AdminMessage::work_stats>(data, size);
+
+          const auto j = nlohmann::json::parse(dumped_json);
+          for (const auto& [outer_key, outer_value] : j.items())
+          {
+            for (const auto& [inner_key, inner_value] : outer_value.items())
+            {
+              auto& outer_obj = enclave_counts[outer_key];
+              auto it = outer_obj.find(inner_key);
+              if (it == outer_obj.end())
+              {
+                outer_obj[inner_key] = inner_value;
+              }
+              else
+              {
+                const auto prev = it.value().get<size_t>();
+                outer_obj[inner_key] = prev + inner_value.get<size_t>();
+              }
+            }
+          }
+        });
     }
 
     void on_timer()
@@ -41,16 +73,23 @@ namespace asynchost
         j["start_time_ms"] = last_update.count();
         j["end_time_ms"] = time_now.count();
 
-        auto& messages = j["ringbuffer_messages"];
-        for (const auto& it : message_counts)
         {
-          messages[dispatcher.get_message_name(it.first)] = {
-            {"count", it.second.messages}, {"bytes", it.second.bytes}};
+          j["ringbuffer_messages"] =
+            dispatcher.convert_message_counts(message_counts);
+
+          const auto line = j.dump();
+          host_output_file.write(line.data(), line.size());
+          host_output_file << std::endl;
         }
 
-        const auto line = j.dump();
-        output_file.write(line.data(), line.size());
-        output_file << std::endl;
+        {
+          j["ringbuffer_messages"] = enclave_counts;
+          enclave_counts = nlohmann::json::object();
+
+          const auto line = j.dump();
+          enclave_output_file.write(line.data(), line.size());
+          enclave_output_file << std::endl;
+        }
 
         last_update = time_now;
       }

@@ -49,18 +49,6 @@ option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
 
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(DEFAULT_LOAD_MONITOR_ENABLED ON)
-else()
-  set(DEFAULT_LOAD_MONITOR_ENABLED OFF)
-endif()
-
-option(ENABLE_LOAD_MONITOR "Turn on load monitoring system" ${DEFAULT_LOAD_MONITOR_ENABLED})
-if(ENABLE_LOAD_MONITOR)
-  add_compile_definitions(ENABLE_LOAD_MONITOR)
-endif()
-
 option(DEBUG_CONFIG "Enable non-production options options to aid debugging"
        OFF
 )

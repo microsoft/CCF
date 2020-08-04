@@ -11,19 +11,30 @@ import os
 # We could do this programatically from the hashes to handle general values, but
 # this is sufficient and makes it simple to group similar messages with similar
 LABELS_TO_COLOURS = {
+    # Processed on Host
     "AdminMessage::log_msg": "dimgray",
     "AdminMessage::notification": "silver",
+    "AdminMessage::work_stats": "gainsboro",
     "ccf::add_node": "lime",
     "ccf::node_outbound": "darkgreen",
     "consensus::ledger_append": "red",
     "consensus::ledger_get": "indianred",
     "consensus::ledger_commit": "maroon",
     "consensus::ledger_truncate": "rosybrown",
-    "OversizedMessage::fragment": "slategray",
     "tls::tls_closed": "darkkhaki",
     "tls::tls_connect": "khaki",
     "tls::tls_outbound": "gold",
     "tls::tls_stop": "goldenrod",
+
+    # Processed in enclave
+    "AdminMessage::tick": "dimgray",
+    "ccf::node_inbound": "darkgreen",
+    "tls::tls_close": "darkkhaki",
+    "tls::tls_inbound": "gold",
+    "tls::tls_start": "goldenrod",
+
+    # Processed in both
+    "OversizedMessage::fragment": "slategray",
 }
 
 
@@ -45,7 +56,14 @@ def plot_stacked(jsons, key):
 
     labels.sort()
 
-    colours = [LABELS_TO_COLOURS.get(label) for label in labels]
+    colours = []
+    default_colour = "black"
+    for i, label in enumerate(labels):
+        try:
+            colours.append(LABELS_TO_COLOURS[label])
+        except KeyError:
+            print(f"No colour for '{label}', defaulting to {default_colour}")
+            colours.append(default_colour)
 
     xs = []
     ys = [[] for _ in range(len(labels))]
@@ -64,12 +82,13 @@ def plot_stacked(jsons, key):
         return datetime.datetime.fromtimestamp(s).strftime("%H:%M:%S")
 
     fig, ax = plt.subplots()
-    plt.title(f"Host ringbuffer {key}")
+    plt.title(f"Ringbuffer messages - {key}")
     plt.ylabel(f"{key}")
     plt.ticklabel_format(useOffset=False)
 
     ax.xaxis.set_major_formatter(ms_to_date_formatter)
     ax.locator_params(axis="x", nbins=5)
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(1000))
 
     if key == "bytes":
         ax.yaxis.set_major_formatter(num_to_bytes_formatter)
