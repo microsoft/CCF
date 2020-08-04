@@ -22,11 +22,11 @@ export function foo() {{
 """
 
 MODULE_PATH_2 = "/app/bar.js"
-MODULE_CONTENT_2 = f"""
-import {{foo}} from "./foo.js"
-export function bar() {{
+MODULE_CONTENT_2 = """
+import {foo} from "./foo.js"
+export function bar() {
     return foo();
-}}
+}
 """
 
 # For the purpose of resolving relative import paths,
