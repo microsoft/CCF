@@ -62,9 +62,9 @@ return {
     import {pb} from "./my-npm-app/src/endpoints.js";
     export default () => pb();
   ]],
-  ["POST npm/sign"] = [[
-    import {sign} from "./my-npm-app/src/endpoints.js";
-    export default () => sign();
+  ["POST npm/crypto"] = [[
+    import {crypto} from "./my-npm-app/src/endpoints.js";
+    export default () => crypto();
   ]]
 }
 """
@@ -170,10 +170,10 @@ def test_npm_app(network, args):
         assert r.status_code == 200, r.status_code
         assert len(r.body) > 0, r.body
 
-        r = c.post("/app/npm/sign", body)
+        r = c.post("/app/npm/crypto", body)
         assert r.status_code == 200, r.status_code
         r_body = json.loads(r.body)
-        assert "pubKey" in r_body and "signed" in r_body, r.body
+        assert r_body["available"], r.body
 
 
 def run(args):

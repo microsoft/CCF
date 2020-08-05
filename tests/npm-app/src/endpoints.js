@@ -20,17 +20,12 @@ export function pb() {
     return buffer;
 }
 
-export function sign() {
-    // Example from https://github.com/kjur/jsrsasign.
-    let kp = rs.KEYUTIL.generateKeypair("EC", "secp256r1");
-    let prvKey = kp.prvKeyObj;
-    let pubKey = kp.pubKeyObj;
-
-    let sig = new rs.KJUR.crypto.Signature({alg: 'SHA1withRSA'});
-    sig.init(prvKey);
-    sig.updateString(body);
-    let sigHex = sig.sign();
-
-    let pubKeyPEM = rs.KEYUTIL.getPEM(pubKey);
-    return JSON.stringify({pubKey: pubKeyPEM, signed: sigHex});
+export function crypto() {
+    let response;
+    if (rs.KEYUTIL.generateKeypair) {
+        response = { available: true };
+    } else {
+        response = { available: false };
+    }
+    return JSON.stringify(response);
 }
