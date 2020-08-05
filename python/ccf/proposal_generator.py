@@ -300,14 +300,14 @@ def retire_node(node_id: int, **kwargs):
 
 @cli_proposal
 def new_node_code(code_digest: str, **kwargs):
-    code_digest = list(bytearray.fromhex(code_digest))
-    return build_proposal("new_node_code", code_digest, **kwargs)
+    code_digest_bytes = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_node_code", code_digest_bytes, **kwargs)
 
 
 @cli_proposal
 def new_user_code(code_digest: str, **kwargs):
-    code_digest = list(bytearray.fromhex(code_digest))
-    return build_proposal("new_user_code", code_digest, **kwargs)
+    code_digest_bytes = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_user_code", code_digest_bytes, **kwargs)
 
 
 @cli_proposal
@@ -443,7 +443,7 @@ if __name__ == "__main__":
                 param_type = json.loads
             else:
                 param_type = param.annotation
-            subparser.add_argument(param_name, type=param_type)
+            subparser.add_argument(param_name, type=param_type)  # type: ignore
             func_param_names.append(param_name)
         subparser.set_defaults(func=func, param_names=func_param_names)
 
