@@ -25,58 +25,77 @@ def run(args):
 
         primary_pid = primary.remote.remote.proc.pid
         num_fds = psutil.Process(primary_pid).num_fds()
-        max_fds = num_fds + 50
-        LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
+        max_fds = num_fds + 150
+        LOG.success(f"{primary_pid} has {num_fds} open file descriptors")
 
         resource.prlimit(primary_pid, resource.RLIMIT_NOFILE, (max_fds, max_fds))
-        LOG.info(f"set max fds to {max_fds} on {primary_pid}")
+        LOG.success(f"set max fds to {max_fds} on {primary_pid}")
 
         nb_conn = (max_fds - num_fds) * 2
         clients = []
 
         with contextlib.ExitStack() as es:
+            LOG.success(f"Creating {nb_conn} clients")
             for i in range(nb_conn):
                 try:
                     clients.append(es.enter_context(primary.client("user0")))
-                    LOG.info(f"Connected client {i}")
+                    LOG.info(f"Created client {i}")
                 except OSError:
-                    LOG.error(f"Failed to connect client {i}")
+                    LOG.error(f"Failed to create client {i}")
 
-            c = clients[int(random.random() * len(clients))]
-            check(c.post("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
+            # Creating clients may not actually create connections/fds. Send messages until we run out of fds
+            for i, c in enumerate(clients):
+                if psutil.Process(primary_pid).num_fds() >= max_fds:
+                    LOG.warning(f"Reached fd limit at client {i}")
+                    break
+                LOG.info(f"Sending as client {i}")
+                check(c.post("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
 
-            assert (
-                len(clients) >= max_fds - num_fds - 1
-            ), f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
+            try:
+                clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"})
+            except Exception as e:
+                pass
+            else:
+                assert False, "Expected error due to fd limit"
 
             num_fds = psutil.Process(primary_pid).num_fds()
-            LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
+            LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
             LOG.info("Disconnecting clients")
+            clients = []
 
         time.sleep(1)
         num_fds = psutil.Process(primary_pid).num_fds()
-        LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
+        LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
 
-        clients = []
         with contextlib.ExitStack() as es:
-            for i in range(max_fds - num_fds):
+            to_create = max_fds - num_fds + 1
+            LOG.success(f"Creating {to_create} clients")
+            for i in range(to_create):
                 clients.append(es.enter_context(primary.client("user0")))
-                LOG.info(f"Connected client {i}")
+                LOG.info(f"Created client {i}")
 
-            c = clients[int(random.random() * len(clients))]
-            check(c.post("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
+            for i, c in enumerate(clients):
+                if psutil.Process(primary_pid).num_fds() >= max_fds:
+                    LOG.warning(f"Reached fd limit at client {i}")
+                    break
+                LOG.info(f"Sending as client {i}")
+                check(c.post("/app/log/private", {"id": 42, "msg": "foo"}), result=True)
 
-            assert (
-                len(clients) >= max_fds - num_fds - 1
-            ), f"{len(clients)}, expected at least {max_fds - num_fds - 1}"
+            try:
+                clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"})
+            except Exception as e:
+                pass
+            else:
+                assert False, "Expected error due to fd limit"
 
             num_fds = psutil.Process(primary_pid).num_fds()
-            LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
+            LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
             LOG.info("Disconnecting clients")
+            clients = []
 
         time.sleep(1)
         num_fds = psutil.Process(primary_pid).num_fds()
-        LOG.info(f"{primary_pid} has {num_fds} open file descriptors")
+        LOG.success(f"{primary_pid} has {num_fds}/{max_fds} open file descriptors")
 
 
 if __name__ == "__main__":
