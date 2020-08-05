@@ -8,7 +8,6 @@ import infra.checker
 import contextlib
 import resource
 import psutil
-import random
 
 from loguru import logger as LOG
 
@@ -53,7 +52,7 @@ def run(args):
 
             try:
                 clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"})
-            except Exception as e:
+            except Exception:
                 pass
             else:
                 assert False, "Expected error due to fd limit"
@@ -83,7 +82,7 @@ def run(args):
 
             try:
                 clients[-1].post("/app/log/private", {"id": 42, "msg": "foo"})
-            except Exception as e:
+            except Exception:
                 pass
             else:
                 assert False, "Expected error due to fd limit"
