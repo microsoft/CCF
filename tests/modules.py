@@ -69,6 +69,7 @@ return {
 }
 """
 
+
 def make_module_set_proposal(path, content, network):
     primary, _ = network.find_nodes()
     with tempfile.NamedTemporaryFile("w") as f:
@@ -131,26 +132,27 @@ def test_module_import(network, args):
 
     return network
 
+
 @reqs.description("Test Node.js/npm app")
 def test_npm_app(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Building npm app")
-    app_dir = os.path.join(THIS_DIR, 'npm-app')
-    subprocess.run(['npm', 'ci'], cwd=app_dir, check=True)
-    subprocess.run(['npm', 'run', 'build'], cwd=app_dir, check=True)
+    app_dir = os.path.join(THIS_DIR, "npm-app")
+    subprocess.run(["npm", "ci"], cwd=app_dir, check=True)
+    subprocess.run(["npm", "run", "build"], cwd=app_dir, check=True)
 
     LOG.info("Deploying npm app modules")
-    kv_prefix = '/my-npm-app'
-    dist_dir = os.path.join(app_dir, 'dist')
-    for module_path in glob.glob(os.path.join(dist_dir, '**', '*.js'), recursive=True):
+    kv_prefix = "/my-npm-app"
+    dist_dir = os.path.join(app_dir, "dist")
+    for module_path in glob.glob(os.path.join(dist_dir, "**", "*.js"), recursive=True):
         module_name = os.path.join(kv_prefix, os.path.relpath(module_path, dist_dir))
         proposal_body, _ = ccf.proposal_generator.set_module(module_name, module_path)
         proposal = network.consortium.get_any_active_member().propose(
             primary, proposal_body
         )
         network.consortium.vote_using_majority(primary, proposal)
-    
+
     LOG.info("Deploying endpoint script")
     with tempfile.NamedTemporaryFile("w") as f:
         f.write(NPM_APP_SCRIPT)
@@ -171,7 +173,7 @@ def test_npm_app(network, args):
         r = c.post("/app/npm/sign", body)
         assert r.status_code == 200, r.status_code
         r_body = json.loads(r.body)
-        assert 'pubKey' in r_body and 'signed' in r_body, r.body
+        assert "pubKey" in r_body and "signed" in r_body, r.body
 
 
 def run(args):
