@@ -22,7 +22,7 @@ export function pb() {
 
 export function sign() {
     // Example from https://github.com/kjur/jsrsasign.
-    let kp = rs.KEYUTIL.generateKeypair("RSA", 512);
+    let kp = rs.KEYUTIL.generateKeypair("EC", "secp256r1");
     let prvKey = kp.prvKeyObj;
     let pubKey = kp.pubKeyObj;
 
