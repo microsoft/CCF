@@ -1,7 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import tempfile
+import json
 import http
+import subprocess
+import os
+import glob
 import infra.network
 import infra.path
 import infra.proc
@@ -12,6 +16,8 @@ import suite.test_requirements as reqs
 import ccf.proposal_generator
 
 from loguru import logger as LOG
+
+THIS_DIR = os.path.dirname(__file__)
 
 MODULE_PATH_1 = "/app/foo.js"
 MODULE_RETURN_1 = "Hello world!"
@@ -44,6 +50,24 @@ return {
 }
 """
 
+# Eventually, the npm app will contain these modules as well
+# together with an API description.
+NPM_APP_SCRIPT = """
+return {
+  ["POST npm/partition"] = [[
+    import {partition} from "./my-npm-app/src/endpoints.js";
+    export default () => partition();
+  ]],
+  ["POST npm/pb"] = [[
+    import {pb} from "./my-npm-app/src/endpoints.js";
+    export default () => pb();
+  ]],
+  ["POST npm/sign"] = [[
+    import {sign} from "./my-npm-app/src/endpoints.js";
+    export default () => sign();
+  ]]
+}
+"""
 
 def make_module_set_proposal(path, content, network):
     primary, _ = network.find_nodes()
@@ -107,6 +131,48 @@ def test_module_import(network, args):
 
     return network
 
+@reqs.description("Test Node.js/npm app")
+def test_npm_app(network, args):
+    primary, _ = network.find_nodes()
+
+    LOG.info("Building npm app")
+    app_dir = os.path.join(THIS_DIR, 'npm-app')
+    subprocess.run(['npm', 'ci'], cwd=app_dir, check=True)
+    subprocess.run(['npm', 'run', 'build'], cwd=app_dir, check=True)
+
+    LOG.info("Deploying npm app modules")
+    kv_prefix = '/my-npm-app'
+    dist_dir = os.path.join(app_dir, 'dist')
+    for module_path in glob.glob(os.path.join(dist_dir, '**', '*.js'), recursive=True):
+        module_name = os.path.join(kv_prefix, os.path.relpath(module_path, dist_dir))
+        proposal_body, _ = ccf.proposal_generator.set_module(module_name, module_path)
+        proposal = network.consortium.get_any_active_member().propose(
+            primary, proposal_body
+        )
+        network.consortium.vote_using_majority(primary, proposal)
+    
+    LOG.info("Deploying endpoint script")
+    with tempfile.NamedTemporaryFile("w") as f:
+        f.write(NPM_APP_SCRIPT)
+        f.flush()
+        network.consortium.set_js_app(remote_node=primary, app_script_path=f.name)
+
+    LOG.info("Calling npm app endpoints")
+    with primary.client("user0") as c:
+        body = [1, 2, 3, 4]
+        r = c.post("/app/npm/partition", body)
+        assert r.status_code == 200, r.status_code
+        assert json.loads(r.body) == [[1, 3], [2, 4]], r.body
+
+        r = c.post("/app/npm/pb", body)
+        assert r.status_code == 200, r.status_code
+        assert len(r.body) > 0, r.body
+
+        r = c.post("/app/npm/sign", body)
+        assert r.status_code == 200, r.status_code
+        r_body = json.loads(r.body)
+        assert 'pubKey' in r_body and 'signed' in r_body, r.body
+
 
 def run(args):
     hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
@@ -117,6 +183,7 @@ def run(args):
         network.start_and_join(args)
         network = test_module_set_and_remove(network, args)
         network = test_module_import(network, args)
+        network = test_npm_app(network, args)
 
 
 if __name__ == "__main__":
