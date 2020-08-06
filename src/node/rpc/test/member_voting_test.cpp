@@ -1597,6 +1597,8 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   }
 }
 
+// TODO: Modify this test to also test initial user data
+
 DOCTEST_TEST_CASE("User data")
 {
   NetworkState network;
@@ -1607,7 +1609,7 @@ DOCTEST_TEST_CASE("User data")
   gen.create_service({});
   const auto member_id = gen.add_member(member_cert, {});
   gen.activate_member(member_id);
-  const auto user_id = gen.add_user(user_cert);
+  const auto user_id = gen.add_user({user_cert});
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
   gen.finalize();

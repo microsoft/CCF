@@ -237,9 +237,11 @@ def retire_member(member_id: int, **kwargs):
 
 
 @cli_proposal
-def new_user(user_cert_path: str, **kwargs):
-    user_cert = open(user_cert_path).read()
-    return build_proposal("new_user", user_cert, **kwargs)
+def new_user(user_cert_path: str, user_data: dict = None, **kwargs):
+    user_info = {"cert": open(user_cert_path).read()}
+    if user_data is not None:
+        user_info["user_data"] = user_data
+    return build_proposal("new_user", user_info, **kwargs)
 
 
 @cli_proposal
