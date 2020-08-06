@@ -1236,8 +1236,8 @@ DOCTEST_TEST_CASE("Add and remove user via proposed calls")
     DOCTEST_INFO("Add user");
 
     Script proposal(R"xxx(
-      tables, user_cert = ...
-        return Calls:call("new_user", user_cert)
+        tables, user_cert = ...
+        return Calls:call("new_user", {cert = user_cert})
       )xxx");
 
     const auto user_cert = kp->self_sign("CN=new user");
@@ -1597,8 +1597,6 @@ DOCTEST_TEST_CASE("Members passing an operator vote")
   }
 }
 
-// TODO: Modify this test to also test initial user data
-
 DOCTEST_TEST_CASE("User data")
 {
   NetworkState network;
@@ -1609,24 +1607,48 @@ DOCTEST_TEST_CASE("User data")
   gen.create_service({});
   const auto member_id = gen.add_member(member_cert, {});
   gen.activate_member(member_id);
-  const auto user_id = gen.add_user({user_cert});
   set_whitelists(gen);
   gen.set_gov_scripts(lua::Interpreter().invoke<json>(gov_script_file));
-  gen.finalize();
 
   ShareManager share_manager(network);
   StubNodeState node(share_manager);
   MemberRpcFrontend frontend(network, node, share_manager);
   frontend.open();
 
-  const auto read_user_info =
-    create_request(read_params(user_id, Tables::USERS), "read");
+  ccf::UserId user_id;
+  std::vector<uint8_t> read_user_info;
 
+  DOCTEST_SUBCASE("No initial user data")
   {
-    DOCTEST_INFO("user data is initially empty");
-    const auto read_response = parse_response_body<ccf::UserInfo>(
-      frontend_process(frontend, read_user_info, member_cert));
-    DOCTEST_CHECK(read_response.user_data.is_null());
+    user_id = gen.add_user({user_cert});
+    gen.finalize();
+
+    read_user_info =
+      create_request(read_params(user_id, Tables::USERS), "read");
+
+    {
+      DOCTEST_INFO("user data is initially empty");
+      const auto read_response = parse_response_body<ccf::UserInfo>(
+        frontend_process(frontend, read_user_info, member_cert));
+      DOCTEST_CHECK(read_response.user_data.is_null());
+    }
+  }
+
+  DOCTEST_SUBCASE("Initial user data")
+  {
+    const auto user_data_string = "BOB";
+    user_id = gen.add_user({user_cert, user_data_string});
+    gen.finalize();
+
+    read_user_info =
+      create_request(read_params(user_id, Tables::USERS), "read");
+
+    {
+      DOCTEST_INFO("initial user data object can be read");
+      const auto read_response = parse_response_body<ccf::UserInfo>(
+        frontend_process(frontend, read_user_info, member_cert));
+      DOCTEST_CHECK(read_response.user_data == user_data_string);
+    }
   }
 
   {
