@@ -195,12 +195,12 @@ namespace ccf
       return member.value();
     }
 
-    auto add_user(const tls::Pem& user_cert)
+    auto add_user(const ccf::UserInfo& user_info)
     {
       auto [u, uc, v] =
         tx.get_view(tables.users, tables.user_certs, tables.values);
 
-      auto user_cert_der = tls::make_verifier(user_cert)->der_cert_data();
+      auto user_cert_der = tls::make_verifier(user_info.cert)->der_cert_data();
 
       // Cert should be unique
       auto user_id = uc->get(user_cert_der);
@@ -211,7 +211,7 @@ namespace ccf
       }
 
       const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
-      u->put(id, {user_cert});
+      u->put(id, user_info);
       uc->put(user_cert_der, id);
       return id;
     }
