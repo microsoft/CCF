@@ -241,6 +241,8 @@ namespace ccfapp
           throw std::runtime_error("Failed to initialise QuickJS runtime");
         }
 
+        JS_SetMaxStackSize(rt, 1024 * 1024);
+
         JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
         JS_SetModuleLoaderFunc(
           rt, nullptr, js_module_loader, &js_module_loader_arg);
@@ -298,7 +300,7 @@ namespace ccfapp
 
         // Compile module
         std::string code = handler_script.value().text.value();
-        auto path = fmt::format("/__endpoint__{}.js", local_method);
+        auto path = fmt::format("/__endpoint__.js", local_method);
         JSValue module = JS_Eval(
           ctx,
           code.c_str(),
