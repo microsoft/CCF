@@ -5,10 +5,10 @@ import * as rs  from 'jsrsasign';
 export function partition() {
     // Example from https://lodash.com.
     let arr = JSON.parse(body);
-    return JSON.stringify(_.partition(arr, n => n % 2));
+    return _.partition(arr, n => n % 2);
 }
 
-export function pb() {
+export function proto() {
     // Example from https://github.com/protobufjs/protobuf.js.
     let Type  = protobuf.Type;
     let Field = protobuf.Field;
@@ -17,7 +17,11 @@ export function pb() {
     
     let message = AwesomeMessage.create({ awesomeField: body });
     let buffer = AwesomeMessage.encode(message).finish();
-    return buffer;
+
+    // CCF doesn't support binary responses yet, so we'll convert the Uint8Array into a hex string.
+    let hex = [...buffer].map(b => ('00' + b.toString(16)).slice(-2)).join("");
+
+    return hex;
 }
 
 export function crypto() {
@@ -27,5 +31,5 @@ export function crypto() {
     } else {
         response = { available: false };
     }
-    return JSON.stringify(response);
+    return response;
 }

@@ -58,11 +58,11 @@ return {
     import {partition} from "./my-npm-app/src/endpoints.js";
     export default () => partition();
   ]],
-  ["POST npm/pb"] = [[
-    import {pb} from "./my-npm-app/src/endpoints.js";
-    export default () => pb();
+  ["POST npm/proto"] = [[
+    import {proto} from "./my-npm-app/src/endpoints.js";
+    export default () => proto();
   ]],
-  ["POST npm/crypto"] = [[
+  ["GET npm/crypto"] = [[
     import {crypto} from "./my-npm-app/src/endpoints.js";
     export default () => crypto();
   ]]
@@ -163,17 +163,20 @@ def test_npm_app(network, args):
     with primary.client("user0") as c:
         body = [1, 2, 3, 4]
         r = c.post("/app/npm/partition", body)
-        assert r.status_code == 200, r.status_code
-        assert json.loads(r.body) == [[1, 3], [2, 4]], r.body
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body == [[1, 3], [2, 4]], r.body
 
-        r = c.post("/app/npm/pb", body)
-        assert r.status_code == 200, r.status_code
-        assert len(r.body) > 0, r.body
+        r = c.post("/app/npm/proto", body)
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        # CCF does not support binary responses yet.
+        pb = bytes.fromhex(r.body)
+        # We could now decode the protobuf message but given all the machinery
+        # involved to make it happen (code generation with protoc) we'll leave it at that.
+        assert len(pb) == 14, len(pb)
 
-        r = c.post("/app/npm/crypto", body)
-        assert r.status_code == 200, r.status_code
-        r_body = json.loads(r.body)
-        assert r_body["available"], r.body
+        r = c.get("/app/npm/crypto")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert r.body["available"], r.body
 
 
 def run(args):
