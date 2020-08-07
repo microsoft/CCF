@@ -26,6 +26,9 @@ export function proto() {
 
 export function crypto() {
     let response;
+    // Most functionality of jsrsasign requires keys.
+    // Generating a key here is too slow, so we'll just check if the
+    // JS API got exported correctly.
     if (rs.KEYUTIL.generateKeypair) {
         response = { available: true };
     } else {
