@@ -59,13 +59,14 @@ def test_quote(network, args, notifications_queue=None, verify=True):
     return network
 
 
-@reqs.description("Add user, remove user, add user back")
+@reqs.description("Add user, remove user")
 @reqs.supports_methods("log/private")
 def test_user(network, args, notifications_queue=None, verify=True):
     primary, _ = network.find_nodes()
     new_user_id = 3
     network.create_users([new_user_id], args.participants_curve)
-    network.consortium.add_user(primary, new_user_id)
+    user_data = {"lifetime": "temporary"}
+    network.consortium.add_user(primary, new_user_id, user_data)
     txs = app.LoggingTxs(notifications_queue=notifications_queue, user_id=3)
     txs.issue(
         network=network, number_txs=1, consensus=args.consensus,
