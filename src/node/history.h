@@ -507,6 +507,12 @@ namespace ccf
       id = id_;
     }
 
+    // TODO: Remove
+    T& get_tree()
+    {
+      return replicated_state_tree;
+    }
+
     crypto::Sha256Hash get_replicated_state_root() override
     {
       return replicated_state_tree.get_root();

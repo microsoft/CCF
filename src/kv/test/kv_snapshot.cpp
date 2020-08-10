@@ -6,6 +6,13 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/tx.h"
 
+// TODO: Remove
+#include "kv/test/stub_consensus.h"
+#include "node/history.h"
+#include "node/nodes.h"
+#include "node/signatures.h"
+#include "tls/key_pair.h"
+
 #include <doctest/doctest.h>
 
 struct MapTypes
@@ -149,5 +156,87 @@ TEST_CASE(
     view = tx.get_view(*new_string_map);
     view->put("baz", "baz");
     REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+  }
+}
+
+// TODO: Move outside of KV test
+TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
+{
+  auto consensus = std::make_shared<kv::StubConsensus>();
+  kv::Store store(consensus);
+
+  ccf::NodeId node_id = 0;
+  auto node_kp = tls::make_key_pair();
+
+  auto& signatures =
+    store.create<ccf::Signatures>("ccf.signatures", kv::SecurityDomain::PUBLIC);
+  auto& nodes =
+    store.create<ccf::Nodes>("ccf.nodes", kv::SecurityDomain::PUBLIC);
+
+  auto history = std::make_shared<ccf::MerkleTxHistory>(
+    store, 0, *node_kp, signatures, nodes);
+
+  store.set_history(history);
+
+  auto& string_map = store.create<MapTypes::StringString>(
+    "string_map", kv::SecurityDomain::PUBLIC);
+
+  kv::Version snapshot_version = kv::NoVersion;
+  size_t transactions_count = 10;
+
+  for (size_t n = 0; n < transactions_count; n++)
+  {
+    INFO("Apply transactions to original store");
+    {
+      for (size_t i = 0; i < n; i++)
+      {
+        kv::Tx tx;
+        auto view = tx.get_view(string_map);
+        view->put(fmt::format("key#{}", i), "value");
+        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+      }
+    }
+
+    auto& original_tree = history->get_tree();
+    auto serialised_tree_before_signature = original_tree.serialise();
+    auto root_before_signature = original_tree.get_root();
+    LOG_DEBUG_FMT("Root before signature is: {}", root_before_signature);
+
+    INFO("Apply signature");
+    {
+      history->emit_signature();
+    }
+
+    // First tree
+    auto serialised_signature = consensus->get_latest_data().value();
+    auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
+
+    LOG_DEBUG_FMT("Serialised signature hash: {}", serialised_signature_hash);
+
+    LOG_DEBUG_FMT("Root after signature is: {}", original_tree.get_root());
+
+    LOG_DEBUG_FMT("\n\n\n");
+
+    // Second tree
+    ccf::MerkleTreeHistory target_history(serialised_tree_before_signature);
+
+    LOG_DEBUG_FMT(
+      "Target root before signature is: {}", target_history.get_root());
+
+    target_history.append(serialised_signature_hash);
+
+    LOG_DEBUG_FMT(
+      "Target root after signature is: {}", target_history.get_root());
+
+    for (size_t i = target_history.begin_index();
+         i <= target_history.end_index();
+         ++i)
+    {
+      LOG_DEBUG_FMT("One leaf: {}", i);
+      REQUIRE(target_history.get_leaf(i) == original_tree.get_leaf(i));
+    }
+
+    LOG_DEBUG_FMT("Transactions count: {}", n);
+    REQUIRE(target_history.get_root() == original_tree.get_root());
   }
 }
