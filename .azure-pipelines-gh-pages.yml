@@ -22,6 +22,11 @@ jobs:
         git checkout -b master $(git rev-parse HEAD)
       displayName: Prepare repo
 
+    # Used to generate setup.py
+    - template: .azure-pipelines-templates/cmake.yml
+      parameters:
+        cmake_args: ''
+
     - script: |
         python3.7 -m venv env
         source env/bin/activate
