@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import functools
+from pathlib import PurePosixPath
 from typing import Union, Optional, Any
 
 from loguru import logger as LOG  # type: ignore
@@ -236,9 +237,11 @@ def retire_member(member_id: int, **kwargs):
 
 
 @cli_proposal
-def new_user(user_cert_path: str, **kwargs):
-    user_cert = open(user_cert_path).read()
-    return build_proposal("new_user", user_cert, **kwargs)
+def new_user(user_cert_path: str, user_data: Any = None, **kwargs):
+    user_info = {"cert": open(user_cert_path).read()}
+    if user_data is not None:
+        user_info["user_data"] = user_data
+    return build_proposal("new_user", user_info, **kwargs)
 
 
 @cli_proposal
@@ -247,7 +250,7 @@ def remove_user(user_id: int, **kwargs):
 
 
 @cli_proposal
-def set_user_data(user_id: int, user_data: dict, **kwargs):
+def set_user_data(user_id: int, user_data: Any, **kwargs):
     proposal_args = {"user_id": user_id, "user_data": user_data}
     return build_proposal("set_user_data", proposal_args, **kwargs)
 
@@ -267,8 +270,13 @@ def set_js_app(app_script_path: str, **kwargs):
 
 
 @cli_proposal
-def set_module(module_name, module_path, **kwargs):
-    if module_name.endswith(".js"):
+def set_module(module_name: str, module_path: str, **kwargs):
+    module_name_ = PurePosixPath(module_name)
+    if not module_name_.is_absolute():
+        raise ValueError("module name must be an absolute path")
+    if any(folder in [".", ".."] for folder in module_name_.parents):
+        raise ValueError("module name must not contain . or .. components")
+    if module_name_.suffix == ".js":
         with open(module_path) as f:
             js = f.read()
         proposal_args = {"name": module_name, "module": {"js": js}}
@@ -278,7 +286,7 @@ def set_module(module_name, module_path, **kwargs):
 
 
 @cli_proposal
-def remove_module(module_name, **kwargs):
+def remove_module(module_name: str, **kwargs):
     return build_proposal("remove_module", module_name, **kwargs)
 
 
@@ -293,17 +301,15 @@ def retire_node(node_id: int, **kwargs):
 
 
 @cli_proposal
-def new_node_code(code_digest: Union[str, list], **kwargs):
-    if isinstance(code_digest, str):
-        code_digest = list(bytearray.fromhex(code_digest))
-    return build_proposal("new_node_code", code_digest, **kwargs)
+def new_node_code(code_digest: str, **kwargs):
+    code_digest_bytes = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_node_code", code_digest_bytes, **kwargs)
 
 
 @cli_proposal
-def new_user_code(code_digest: Union[str, list], **kwargs):
-    if isinstance(code_digest, str):
-        code_digest = list(bytearray.fromhex(code_digest))
-    return build_proposal("new_user_code", code_digest, **kwargs)
+def new_user_code(code_digest: str, **kwargs):
+    code_digest_bytes = list(bytearray.fromhex(code_digest))
+    return build_proposal("new_user_code", code_digest_bytes, **kwargs)
 
 
 @cli_proposal
@@ -433,7 +439,13 @@ if __name__ == "__main__":
         for param_name, param in parameters.items():
             if param.kind == param.VAR_POSITIONAL or param.kind == param.VAR_KEYWORD:
                 continue
-            subparser.add_argument(param_name)
+            if param.annotation == param.empty:
+                param_type = None
+            elif param.annotation == dict:
+                param_type = json.loads
+            else:
+                param_type = param.annotation
+            subparser.add_argument(param_name, type=param_type)  # type: ignore
             func_param_names.append(param_name)
         subparser.set_defaults(func=func, param_names=func_param_names)
 

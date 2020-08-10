@@ -563,6 +563,12 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
   )
 
+  add_e2e_test(
+    NAME modules_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
+    CONSENSUS raft
+  )
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
@@ -582,12 +588,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSENSUS raft
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
-    )
-
-    add_e2e_test(
-      NAME modules_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
-      CONSENSUS raft
     )
   endif()
 

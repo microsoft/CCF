@@ -104,10 +104,16 @@ namespace ccf
       }
     }
 
-    void set_module(kv::Tx& tx, std::string name, Module module)
+    bool set_module(kv::Tx& tx, std::string name, Module module)
     {
+      if (name.empty() || name[0] != '/')
+      {
+        LOG_FAIL_FMT("module names must start with /");
+        return false;
+      }
       auto tx_modules = tx.get_view(network.modules);
       tx_modules->put(name, module);
+      return true;
     }
 
     bool remove_module(kv::Tx& tx, std::string name)
@@ -160,8 +166,7 @@ namespace ccf
         {"set_module",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<SetModule>();
-           set_module(tx, parsed.name, parsed.module);
-           return true;
+           return set_module(tx, parsed.name, parsed.module);
          }},
         // remove a module
         {"remove_module",
@@ -212,10 +217,10 @@ namespace ccf
          }},
         {"new_user",
          [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
-           const auto pem_cert = args.get<tls::Pem>();
+           const auto user_info = args.get<ccf::UserInfo>();
 
            GenesisGenerator g(this->network, tx);
-           g.add_user(pem_cert);
+           g.add_user(user_info);
 
            return true;
          }},

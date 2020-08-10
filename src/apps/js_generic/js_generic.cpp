@@ -152,12 +152,19 @@ namespace ccfapp
   static JSModuleDef* js_module_loader(
     JSContext* ctx, const char* module_name, void* opaque)
   {
-    LOG_INFO_FMT("Loading module '{}'", module_name);
+    // QuickJS resolves relative paths but in some cases omits leading slashes.
+    std::string module_name_kv(module_name);
+    if (module_name_kv[0] != '/')
+    {
+      module_name_kv.insert(0, "/");
+    }
+
+    LOG_INFO_FMT("Loading module '{}'", module_name_kv);
 
     auto arg = (JSModuleLoaderArg*)opaque;
 
     const auto modules = arg->tx->get_view(arg->network->modules);
-    auto module = modules->get(std::string(module_name));
+    auto module = modules->get(module_name_kv);
     if (!module.has_value())
     {
       JS_ThrowReferenceError(ctx, "module '%s' not found in kv", module_name);
@@ -234,6 +241,8 @@ namespace ccfapp
           throw std::runtime_error("Failed to initialise QuickJS runtime");
         }
 
+        JS_SetMaxStackSize(rt, 1024 * 1024);
+
         JSModuleLoaderArg js_module_loader_arg{&this->network, &args.tx};
         JS_SetModuleLoaderFunc(
           rt, nullptr, js_module_loader, &js_module_loader_arg);
@@ -291,7 +300,7 @@ namespace ccfapp
 
         // Compile module
         std::string code = handler_script.value().text.value();
-        auto path = fmt::format("app_scripts::{}", local_method);
+        auto path = fmt::format("/__endpoint__.js", local_method);
         JSValue module = JS_Eval(
           ctx,
           code.c_str(),
