@@ -39,6 +39,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/aft.cmake)
 
 configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
@@ -95,6 +96,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
            lua.enclave
            secp256k1.enclave
            sss.enclave
+           aft.enclave
            byz.enclave
   )
 
@@ -149,6 +151,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
            lua.host
            secp256k1.host
            sss.host
+           aft.host
            byz.host
            ${CMAKE_THREAD_LIBS_INIT}
   )

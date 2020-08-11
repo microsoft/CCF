@@ -78,7 +78,9 @@ int main(int argc, char** argv)
 
   ConsensusType consensus;
   std::vector<std::pair<std::string, ConsensusType>> consensus_map{
-    {"raft", ConsensusType::RAFT}, {"pbft", ConsensusType::PBFT}};
+    {"raft", ConsensusType::RAFT},
+    {"pbft", ConsensusType::PBFT},
+    {"aft", ConsensusType::AFT}};
   app.add_option("-c,--consensus", consensus, "Consensus")
     ->required()
     ->transform(CLI::CheckedTransformer(consensus_map, CLI::ignore_case));

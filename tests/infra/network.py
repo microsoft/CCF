@@ -183,7 +183,7 @@ class Network:
 
         # If the network is opening, node are trusted without consortium approval
         if self.status == ServiceStatus.OPENING:
-            if args.consensus != "pbft":
+            if args.consensus != "pbft" and args.consensus != "aft":
                 try:
                     node.wait_for_node_to_join(timeout=JOIN_TIMEOUT)
                 except TimeoutError:
@@ -245,7 +245,7 @@ class Network:
 
         self.election_duration = (
             args.pbft_view_change_timeout / 1000
-            if args.consensus == "pbft"
+            if args.consensus == "pbft" or args.consensus == "aft"
             else args.raft_election_timeout / 1000
         )
 
@@ -304,7 +304,7 @@ class Network:
         self.create_users(initial_users, args.participants_curve)
 
         primary = self._start_all_nodes(args)
-        if args.consensus != "pbft":
+        if args.consensus != "pbft" and args.consensus != "aft":
             self.wait_for_all_nodes_to_catch_up(primary)
         LOG.success("All nodes joined network")
 
@@ -328,7 +328,7 @@ class Network:
         LOG.info("Initial set of users added")
 
         self.consortium.open_network(
-            remote_node=primary, pbft_open=(args.consensus == "pbft")
+            remote_node=primary, pbft_open=(args.consensus == "pbft" or args.consensus == "aft")
         )
         self.status = ServiceStatus.OPEN
         LOG.success("***** Network is now open *****")
@@ -379,7 +379,7 @@ class Network:
             )
 
         self.consortium.check_for_service(
-            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft")
+            primary, ServiceStatus.OPEN, pbft_open=(args.consensus == "pbft" or args.consensus == "aft")
         )
         LOG.success("***** Recovered network is now open *****")
 
@@ -457,7 +457,7 @@ class Network:
         try:
             if self.status is ServiceStatus.OPEN:
                 self.consortium.trust_node(primary, new_node.node_id)
-            if args.consensus != "pbft":
+            if args.consensus != "pbft" and args.consensus != "aft":
                 # Here, quote verification has already been run when the node
                 # was added as pending. Only wait for the join timer for the
                 # joining node to retrieve network secrets.
@@ -468,7 +468,7 @@ class Network:
             raise
 
         new_node.network_state = infra.node.NodeNetworkState.joined
-        if args.consensus != "pbft":
+        if args.consensus != "pbft" and args.consensus != "aft":
             self.wait_for_all_nodes_to_catch_up(primary)
 
         return new_node

@@ -17,7 +17,7 @@ def build_schema_file_path(root, verb, method, schema_type):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" or args.consensus == "aft" else 2)
     os.makedirs(args.schema_dir, exist_ok=True)
 
     changed_files = []

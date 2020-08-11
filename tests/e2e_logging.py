@@ -250,7 +250,7 @@ def test_metrics(network, args):
 @reqs.description("Read historical state")
 @reqs.supports_methods("log/private", "log/private/historical")
 def test_historical_query(network, args):
-    if args.consensus == "pbft":
+    if args.consensus == "pbft" or args.consensus == "aft":
         LOG.warning("Skipping historical queries in PBFT")
         return network
 
@@ -433,7 +433,7 @@ def test_user_data_ACL(network, args):
 
 @reqs.description("Check for commit of every prior transaction")
 def test_view_history(network, args):
-    if args.consensus == "pbft":
+    if args.consensus == "pbft" or args.consensus == "aft":
         # This appears to work in PBFT, but it is unacceptably slow:
         # - Each /tx request is a write, with a non-trivial roundtrip response time
         # - Since each read (eg - /tx and /commit) has produced writes and a unique tx ID,
@@ -600,7 +600,7 @@ def test_primary(network, args, notifications_queue=None, verify=True):
 
 
 def run(args):
-    hosts = ["localhost"] * (3 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (3 if (args.consensus == "pbft" or args.consensus == "aft") else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         # Lua apps do not support notifications

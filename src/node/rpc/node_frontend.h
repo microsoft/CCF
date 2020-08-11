@@ -87,7 +87,9 @@ namespace ccf
       }
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (
+        network.consensus_type != ConsensusType::PBFT &&
+        network.consensus_type != ConsensusType::AFT)
       {
         QuoteVerificationResult verify_result =
           QuoteVerifier::verify_quote_against_store(

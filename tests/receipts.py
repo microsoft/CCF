@@ -52,7 +52,7 @@ def test(network, args, notifications_queue=None):
 
 
 def run(args):
-    hosts = ["localhost"] * (4 if args.consensus == "pbft" else 2)
+    hosts = ["localhost"] * (4 if args.consensus == "pbft" or args.consensus == "aft" else 2)
 
     with infra.notification.notification_server(args.notify_server) as notifications:
         notifications_queue = (

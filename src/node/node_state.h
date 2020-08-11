@@ -10,6 +10,7 @@
 #include "consensus/pbft/pbft.h"
 #pragma clang diagnostic pop
 
+#include "consensus/aft/aft.h"
 #include "consensus/raft/raft_consensus.h"
 #include "crypto/crypto_box.h"
 #include "ds/logger.h"
@@ -71,6 +72,7 @@ namespace ccf
     raft::RaftConsensus<consensus::LedgerEnclave, NodeToNode>;
   using RaftType = raft::Raft<consensus::LedgerEnclave, NodeToNode>;
   using PbftConsensusType = pbft::Pbft<consensus::LedgerEnclave, NodeToNode>;
+  using AftConsensusType = aft::aft;
 
   template <typename T>
   class StateMachine
@@ -241,7 +243,9 @@ namespace ccf
       open_node_frontend();
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (
+        network.consensus_type != ConsensusType::PBFT &&
+        network.consensus_type != ConsensusType::AFT)
       {
         auto quote_opt = QuoteGenerator::get_quote(node_cert);
         if (!quote_opt.has_value())
@@ -638,7 +642,9 @@ namespace ccf
       g.trust_node(self);
 
 #ifdef GET_QUOTE
-      if (network.consensus_type != ConsensusType::PBFT)
+      if (
+        network.consensus_type != ConsensusType::PBFT &&
+        network.consensus_type != ConsensusType::AFT)
       {
         g.trust_node_code_id(node_code_id);
       }
@@ -794,7 +800,9 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       recovery_encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (
+        network.consensus_type == ConsensusType::PBFT ||
+        network.consensus_type == ConsensusType::AFT)
       {
         recovery_encryptor =
           std::make_shared<PbftTxEncryptor>(network.ledger_secrets, true);
@@ -1019,7 +1027,9 @@ namespace ccf
             q.node_id = nid;
             q.raw = fmt::format("{:02x}", fmt::join(ni.quote, ""));
 
-            if (this->network.consensus_type != ConsensusType::PBFT)
+            if (
+              this->network.consensus_type != ConsensusType::PBFT &&
+              this->network.consensus_type != ConsensusType::AFT)
             {
 #ifdef GET_QUOTE
               auto code_id_opt = QuoteGenerator::get_code_id(ni.quote);
@@ -1274,7 +1284,9 @@ namespace ccf
     {
       const auto create_success =
         send_create_request(serialize_create_request(args, quote));
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (
+        network.consensus_type == ConsensusType::PBFT ||
+        network.consensus_type == ConsensusType::AFT)
       {
         return true;
       }
@@ -1595,7 +1607,9 @@ namespace ccf
 #ifdef USE_NULL_ENCRYPTOR
       encryptor = std::make_shared<kv::NullTxEncryptor>();
 #else
-      if (network.consensus_type == ConsensusType::PBFT)
+      if (
+        network.consensus_type == ConsensusType::PBFT ||
+        network.consensus_type == ConsensusType::AFT)
       {
         encryptor = std::make_shared<PbftTxEncryptor>(network.ledger_secrets);
       }
@@ -1619,9 +1633,11 @@ namespace ccf
       const CCFConfig& config,
       bool public_only = false)
     {
-      if (consensus_type == ConsensusType::PBFT)
+      if (
+        consensus_type == ConsensusType::PBFT ||
+        consensus_type == ConsensusType::AFT)
       {
-        setup_pbft(config);
+        setup_bft(config, consensus_type);
       }
       else if (consensus_type == ConsensusType::RAFT)
       {
@@ -1648,10 +1664,12 @@ namespace ccf
       RINGBUFFER_WRITE_MESSAGE(consensus::ledger_truncate, to_host, idx);
     }
 
-    void setup_pbft(const CCFConfig& config)
+    void setup_bft(const CCFConfig& config, ConsensusType consensus_type)
     {
       setup_n2n_channels();
 
+      if (consensus_type == ConsensusType::PBFT)
+      {
       consensus = std::make_shared<PbftConsensusType>(
         std::make_unique<pbft::Adaptor<kv::Store, kv::DeserialiseSuccess>>(
           network.tables),
@@ -1668,6 +1686,17 @@ namespace ccf
         node_sign_kp->private_key_pem().str(),
         node_cert.raw(),
         consensus_config);
+      }
+      else
+      {
+        consensus = std::make_shared<AftConsensusType>(
+          self,
+          node_cert.raw(),
+          rpcsessions,
+          rpc_map,
+          std::make_unique<consensus::LedgerEnclave>(writer_factory));
+      }
+      
 
       network.tables->set_consensus(consensus);
 
