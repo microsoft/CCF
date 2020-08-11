@@ -182,31 +182,32 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     "string_map", kv::SecurityDomain::PUBLIC);
 
   kv::Version snapshot_version = kv::NoVersion;
-  size_t transactions_count = 10;
+  size_t transactions_count = 4;
 
-  for (size_t n = 0; n < transactions_count; n++)
+  INFO("Apply transactions to original store");
   {
-    INFO("Apply transactions to original store");
+    for (size_t i = 0; i < transactions_count; i++)
     {
-      for (size_t i = 0; i < n; i++)
-      {
-        kv::Tx tx;
-        auto view = tx.get_view(string_map);
-        view->put(fmt::format("key#{}", i), "value");
-        REQUIRE(tx.commit() == kv::CommitSuccess::OK);
-      }
+      kv::Tx tx;
+      auto view = tx.get_view(string_map);
+      view->put(fmt::format("key#{}", i), "value");
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
     }
+  }
 
-    auto& original_tree = history->get_tree();
-    auto serialised_tree_before_signature = original_tree.serialise();
-    auto root_before_signature = original_tree.get_root();
-    LOG_DEBUG_FMT("Root before signature is: {}", root_before_signature);
+  auto& original_tree = history->get_tree();
+  auto serialised_tree_before_signature = original_tree.serialise();
+  auto root_before_signature = original_tree.get_root();
+  LOG_DEBUG_FMT("Root before signature is: {}", root_before_signature);
 
-    INFO("Apply signature");
-    {
-      history->emit_signature();
-    }
+  INFO("Apply signature");
+  {
+    history->emit_signature();
+    snapshot_version = transactions_count + 1;
+  }
 
+  INFO("Check tree serialisation/deserialisation");
+  {
     // First tree
     auto serialised_signature = consensus->get_latest_data().value();
     auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
@@ -228,15 +229,20 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     LOG_DEBUG_FMT(
       "Target root after signature is: {}", target_history.get_root());
 
-    for (size_t i = target_history.begin_index();
-         i <= target_history.end_index();
-         ++i)
-    {
-      LOG_DEBUG_FMT("One leaf: {}", i);
-      REQUIRE(target_history.get_leaf(i) == original_tree.get_leaf(i));
-    }
-
-    LOG_DEBUG_FMT("Transactions count: {}", n);
     REQUIRE(target_history.get_root() == original_tree.get_root());
   }
+
+  INFO("Snapshot at signature");
+  {
+    LOG_DEBUG_FMT("\n\nSnapshot!!");
+    auto snapshot = store.serialise_snapshot(snapshot_version);
+
+    kv::Store new_store;
+    new_store.clone_schema(store);
+    new_store.deserialise_snapshot(snapshot);
+
+    new_store.set_history(history);
+
+  }
+
 }

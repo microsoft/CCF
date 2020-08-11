@@ -381,6 +381,7 @@ namespace kv
       const AbstractTxView* view, KvStoreSerialiser& s, bool include_reads) = 0;
     virtual AbstractTxView* deserialise(
       KvStoreDeserialiser& d, Version version) = 0;
+    virtual AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) = 0;
     virtual const std::string& get_name() const = 0;
     virtual void compact(Version v) = 0;
     virtual std::unique_ptr<Snapshot> snapshot(Version v) = 0;

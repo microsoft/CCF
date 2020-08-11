@@ -423,6 +423,86 @@ namespace kv::untyped
       }
     }
 
+    class SnapshotTxView : public AbstractTxView
+    {
+    private:
+      Map& map;
+
+      SnapshotChangeSet change_set;
+      Version version;
+
+    public:
+      SnapshotTxView(Map& m) : map(m) {}
+
+      bool has_writes() override
+      {
+        return true;
+      }
+
+      virtual bool has_changes() override
+      {
+        return true;
+      }
+
+      bool prepare() override
+      {
+        // Snapshot never conflicts
+        return true;
+      }
+
+      void commit(Version v) override
+      {
+        // Version argument is ignored. The version of the roll after the
+        // snapshot is applied depends on the version of the map at which the
+        // snapshot was taken.
+        map.roll.reset_commits();
+        map.roll.rollback_counter++;
+
+        auto r = map.roll.commits->get_head();
+
+        r->state = change_set.state;
+        r->version = version;
+      }
+
+      void post_commit() override
+      {
+        // For now, local hooks with snapshots are not supported
+      }
+
+      void set_version(Version v)
+      {
+        version = v;
+      }
+
+      // TODO: Refactor with other view
+      // Used by owning map during serialise and deserialise
+      SnapshotChangeSet& get_change_set()
+      {
+        return change_set;
+      }
+    };
+
+    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
+    {
+      return deserialise_snapshot_internal(d);
+    }
+
+    SnapshotTxView* deserialise_snapshot_internal(KvStoreDeserialiser& d)
+    {
+      // Create a new empty view and deserialise d's contents into it.
+      auto snapshot_view = new SnapshotTxView(*this);
+
+      auto& change_set = snapshot_view->get_change_set();
+
+      auto v = d.deserialise_entry_version();
+      snapshot_view->set_version(v);
+
+      auto map_snapshot = d.deserialise_raw();
+      change_set.state = State::deserialize_map(map_snapshot);
+
+      return snapshot_view;
+    }
+
     AbstractTxView* deserialise(
       KvStoreDeserialiser& d, Version version) override
     {
@@ -621,6 +701,7 @@ namespace kv::untyped
         name, security_domain, r->version, StateSnapshot(r->state));
     }
 
+    // TODO: Delete
     void apply_snapshot(
       Version version, const std::vector<uint8_t>& snapshot) override
     {

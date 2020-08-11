@@ -80,7 +80,9 @@ namespace kv
     }
 
     if (!ok)
+    {
       return std::nullopt;
+    }
 
     return version;
   }

@@ -68,6 +68,11 @@ namespace kv
       return untyped_map.deserialise_internal<TxView>(d, version);
     }
 
+    AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
+    {
+      return untyped_map.deserialise_snapshot(d);
+    }
+
     const std::string& get_name() const override
     {
       return untyped_map.get_name();
@@ -83,9 +88,13 @@ namespace kv
       return untyped_map.snapshot(v);
     }
 
+    // TODO: Delete
     void apply_snapshot(
       Version v, const std::vector<uint8_t>& snapshot) override
     {
+      // TODO:
+      // 1. If this is ccf.signatures, cast snapshot to V
+
       untyped_map.apply_snapshot(v, snapshot);
     }
 

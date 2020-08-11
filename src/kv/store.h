@@ -249,7 +249,17 @@ namespace kv
         for (auto& map : maps)
         {
           snapshot.add_map_snapshot(map.second->snapshot(v));
+
+          if (map.second->get_name() == "ccf.signatures")
+          {
+            LOG_FAIL_FMT("Snapshotting ccf.signatures table!");
+            // snapshot.add_history_seed(map.second->get_writes(v));
+          }
         }
+
+        // TODO:
+        // 1. If ccf.signatures table, retrieve write set at version
+        // snapshot.add_history_seed(map.second->write_set_at(v))
 
         for (auto& map : maps)
         {
@@ -279,12 +289,14 @@ namespace kv
 
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      for (auto& map : maps)
-      {
-        map.second->lock();
-      }
+      // for (auto& map : maps)
+      // {
+      //   map.second->lock();
+      // }
 
-      bool success = true;
+      bool success = true; // TODO: No longer needed as maps are locked later
+
+      OrderedViews views;
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
         const auto map_name = r.value();
@@ -298,19 +310,36 @@ namespace kv
           break;
         }
 
-        auto map_version = d.deserialise_entry_version();
-        auto map_snapshot = d.deserialise_raw();
+        auto view_search = views.find(map_name);
+        if (view_search != views.end())
+        {
+          LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
+          LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
+          success = false;
+          break;
+        }
 
-        search->second->apply_snapshot(map_version, map_snapshot);
+        // auto map_version = d.deserialise_entry_version();
+        // auto map_snapshot = d.deserialise_raw();
+
+        auto deserialise_snapshot_view =
+          search->second->deserialise_snapshot(d);
+
+        // search->second->apply_snapshot(map_version, map_snapshot);
+
+        views[map_name] = {
+          search->second.get(),
+          std::unique_ptr<AbstractTxView>(deserialise_snapshot_view)};
       }
 
-      for (auto& map : maps)
-      {
-        map.second->unlock();
-      }
+      // for (auto& map : maps)
+      // {
+      //   map.second->unlock();
+      // }
 
       if (!success)
       {
+        // TODO: No longer needed
         return DeserialiseSuccess::FAILED;
       }
 
@@ -319,6 +348,9 @@ namespace kv
         LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
         success = false;
       }
+
+      // TODO: Apply views
+      apply_views(views, [v]() { return NoVersion; });
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
@@ -513,9 +545,9 @@ namespace kv
         // otherwise the view will be considered as having a committed
         // version
         auto deserialise_version = (commit ? v : NoVersion);
-        auto deserialised_write_set =
+        auto deserialised_view =
           search->second->deserialise(d, deserialise_version);
-        if (deserialised_write_set == nullptr)
+        if (deserialised_view == nullptr)
         {
           LOG_FAIL_FMT(
             "Failed to deserialise transaction at version {}",
@@ -527,9 +559,8 @@ namespace kv
 
         // Take ownership of the produced write set, store it to be committed
         // later
-        views[map_name] = {
-          search->second.get(),
-          std::unique_ptr<AbstractTxView>(deserialised_write_set)};
+        views[map_name] = {search->second.get(),
+                           std::unique_ptr<AbstractTxView>(deserialised_view)};
       }
 
       if (!d.end())
