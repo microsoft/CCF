@@ -429,7 +429,8 @@ namespace kv::untyped
       Map& map;
 
       SnapshotChangeSet change_set;
-      Version version;
+
+      Version commit_version = NoVersion;
 
     public:
       SnapshotTxView(Map& m) : map(m) {}
@@ -461,7 +462,7 @@ namespace kv::untyped
         auto r = map.roll.commits->get_head();
 
         r->state = change_set.state;
-        r->version = version;
+        r->version = commit_version;
       }
 
       void post_commit() override
@@ -469,9 +470,10 @@ namespace kv::untyped
         // For now, local hooks with snapshots are not supported
       }
 
-      void set_version(Version v)
+      // TODO: Refactor with other view
+      void set_commit_version(Version v)
       {
-        version = v;
+        commit_version = v;
       }
 
       // TODO: Refactor with other view
@@ -495,7 +497,7 @@ namespace kv::untyped
       auto& change_set = snapshot_view->get_change_set();
 
       auto v = d.deserialise_entry_version();
-      snapshot_view->set_version(v);
+      snapshot_view->set_commit_version(v);
 
       auto map_snapshot = d.deserialise_raw();
       change_set.state = State::deserialize_map(map_snapshot);

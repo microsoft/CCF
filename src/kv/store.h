@@ -289,13 +289,6 @@ namespace kv
 
       std::lock_guard<SpinLock> mguard(maps_lock);
 
-      // for (auto& map : maps)
-      // {
-      //   map.second->lock();
-      // }
-
-      bool success = true; // TODO: No longer needed as maps are locked later
-
       OrderedViews views;
       for (auto r = d.start_map(); r.has_value(); r = d.start_map())
       {
@@ -306,8 +299,7 @@ namespace kv
         {
           LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
           LOG_DEBUG_FMT("No such map in store {}", map_name);
-          success = false;
-          break;
+          return DeserialiseSuccess::FAILED;
         }
 
         auto view_search = views.find(map_name);
@@ -315,41 +307,27 @@ namespace kv
         {
           LOG_FAIL_FMT("Failed to deserialise snapshot at version {}", v);
           LOG_DEBUG_FMT("Multiple writes on map {}", map_name);
-          success = false;
-          break;
+          return DeserialiseSuccess::FAILED;
         }
-
-        // auto map_version = d.deserialise_entry_version();
-        // auto map_snapshot = d.deserialise_raw();
 
         auto deserialise_snapshot_view =
           search->second->deserialise_snapshot(d);
 
-        // search->second->apply_snapshot(map_version, map_snapshot);
-
+        // Take ownership of the produced write set, store it to be committed
+        // later
         views[map_name] = {
           search->second.get(),
           std::unique_ptr<AbstractTxView>(deserialise_snapshot_view)};
       }
 
-      // for (auto& map : maps)
-      // {
-      //   map.second->unlock();
-      // }
-
-      if (!success)
-      {
-        // TODO: No longer needed
-        return DeserialiseSuccess::FAILED;
-      }
-
       if (!d.end())
       {
         LOG_FAIL_FMT("Unexpected content in snapshot at version {}", v);
-        success = false;
+        return DeserialiseSuccess::FAILED;
       }
 
-      // TODO: Apply views
+      // Each map is committed at a different version, independently of the
+      // snapshot version
       apply_views(views, [v]() { return NoVersion; });
 
       {
@@ -547,15 +525,6 @@ namespace kv
         auto deserialise_version = (commit ? v : NoVersion);
         auto deserialised_view =
           search->second->deserialise(d, deserialise_version);
-        if (deserialised_view == nullptr)
-        {
-          LOG_FAIL_FMT(
-            "Failed to deserialise transaction at version {}",
-            deserialise_version);
-          LOG_DEBUG_FMT(
-            "Could not deserialise transaction for map {}", map_name);
-          return DeserialiseSuccess::FAILED;
-        }
 
         // Take ownership of the produced write set, store it to be committed
         // later
