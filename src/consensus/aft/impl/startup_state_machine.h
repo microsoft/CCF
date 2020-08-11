@@ -17,7 +17,7 @@ namespace aft
     IStartupStateMachine() = default;
     virtual ~IStartupStateMachine() = default;
 
-    virtual void receive_request(std::unique_ptr<RequestMessage> request) = 0;
+    virtual kv::Version receive_request(std::unique_ptr<RequestMessage> request) = 0;
   };
 
   class StartupStateMachine : public IStartupStateMachine
@@ -26,7 +26,7 @@ namespace aft
     StartupStateMachine() : is_first_message(true) {}
     virtual ~StartupStateMachine() = default;
 
-    void receive_request(std::unique_ptr<RequestMessage> request) override
+    kv::Version receive_request(std::unique_ptr<RequestMessage> request) override
     {
       LOG_INFO_FMT("CCCCCCCCCCCCCCCC");
       // TODO: the network is not open so we will execute everything inline
@@ -48,6 +48,8 @@ namespace aft
 
       is_first_message = false;
       //throw ccf::ccf_logic_error("we should be here");
+
+      return rep.version;
     }
 
   private:

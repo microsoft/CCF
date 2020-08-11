@@ -18,13 +18,15 @@ namespace aft
       const std::vector<uint8_t>& cert,
       std::shared_ptr<enclave::RPCSessions> rpc_sessions_,
       std::shared_ptr<enclave::RPCMap> rpc_map_,
+      std::unique_ptr<IStore> store_,
       std::unique_ptr<consensus::LedgerEnclave> ledger_) :
       Consensus(id),
       rpc_sessions(rpc_sessions_),
       rpc_map(rpc_map_),
+      store(std::move(store_)),
       ledger(std::move(ledger_))
     {
-      state_machine = create_state_machine(id, cert);
+      state_machine = create_state_machine(id, cert, *store);
     }
     virtual ~aft() = default;
 
@@ -42,10 +44,9 @@ namespace aft
       throw ccf::ccf_logic_error("Not implemented");
     }
 
-    View get_view(SeqNo /*seqno*/) override
+    View get_view(SeqNo seqno) override
     {
-      // TODO: this not correct and needs to be fixed
-      return state_machine->view() + 2;
+      return state_machine->get_view_for_version(seqno) + 2;
     }
 
     View get_view() override
@@ -55,7 +56,7 @@ namespace aft
 
     SeqNo get_committed_seqno() override
     {
-      return global_commit_seqno;
+      return state_machine->get_last_committed_version();
     }
 
     kv::NodeId primary() override
@@ -167,8 +168,8 @@ namespace aft
     std::unique_ptr<IStateMachine> state_machine;
     std::shared_ptr<enclave::RPCSessions> rpc_sessions;
     std::shared_ptr<enclave::RPCMap> rpc_map;
+    std::unique_ptr<IStore> store;
     std::unique_ptr<consensus::LedgerEnclave> ledger;
-    SeqNo global_commit_seqno = 1;
 
     std::unique_ptr<RequestCtx> create_request_ctx(
       uint8_t* req_start, size_t req_size)

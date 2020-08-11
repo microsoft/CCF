@@ -462,6 +462,7 @@ namespace pbft
       message_receiver_base->register_mark_stable(
         mark_stable_cb, &register_mark_stable_ctx);
 
+      // XXX: this is what we use to the view and last global commit
       auto global_commit_cb = [](
                                 kv::Version version,
                                 ::View view,

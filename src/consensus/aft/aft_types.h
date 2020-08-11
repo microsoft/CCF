@@ -5,6 +5,7 @@
 #include "kv/kv_types.h"
 #include "enclave/rpc_context.h"
 #include "enclave/rpc_handler.h"
+#include "kv/store.h"
 
 #include <functional>
 #include <vector>
@@ -24,6 +25,13 @@ namespace aft
     int status,
     std::vector<uint8_t>& data)>;
 
+  class IStore
+  {
+  public:
+    virtual ~IStore() = default;
+    virtual void compact(kv::Version v) = 0;
+  };
+
   class IStateMachine
   {
   public:
@@ -35,7 +43,13 @@ namespace aft
     virtual bool is_primary() = 0;
     virtual kv::NodeId primary() = 0;
     virtual kv::Consensus::View view() = 0;
+    virtual kv::Consensus::View get_view_for_version(kv::Version version) = 0;
+    virtual kv::Version get_last_committed_version() = 0;
   };
 
-  std::unique_ptr<IStateMachine> create_state_machine(kv::NodeId my_node_id, const std::vector<uint8_t>& cert);
+  std::unique_ptr<IStateMachine> create_state_machine(
+    kv::NodeId my_node_id, const std::vector<uint8_t>& cert, IStore& store);
+
+  std::unique_ptr<IStore> create_store_adaptor(
+    std::shared_ptr<kv::Store> store);
 }
