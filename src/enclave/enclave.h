@@ -63,13 +63,13 @@ namespace enclave
 
   public:
     Enclave(
-      EnclaveConfig* enclave_config,
+      const EnclaveConfig& enclave_config,
       const CCFConfig::SignatureIntervals& signature_intervals,
       const ConsensusType& consensus_type_,
       const consensus::Config& consensus_config) :
-      circuit(enclave_config->circuit),
+      circuit(enclave_config.circuit),
       basic_writer_factory(*circuit),
-      writer_factory(basic_writer_factory, enclave_config->writer_config),
+      writer_factory(basic_writer_factory, enclave_config.writer_config),
       network(consensus_type_),
       share_manager(network),
       n2n_channels(std::make_shared<ccf::NodeToNode>(writer_factory)),
