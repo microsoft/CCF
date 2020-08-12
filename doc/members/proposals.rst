@@ -67,6 +67,24 @@ Some of these subcommands require additional arguments, such as the node ID or u
 
 These proposals and votes should be sent as the body of HTTP requests as described below.
 
+Creating Proposals in Python
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``ccf.proposal_generator`` can also be imported and used in a Python application instead of as a command-line tool.
+
+.. code-block:: python
+
+    import ccf.proposal_generator
+
+    proposal, vote = ccf.proposal_generator.open_network()
+
+    # Suppose `ccf_client` is an instance of `CCFClient` with 
+    # the default `RequestClient` client implementation.
+    response = ccf_client.post(
+        "/gov/proposals", body=proposal, signed=True,
+    )
+
+Avoid using the ``ccf.proposal_generator.ProposalGenerator`` class, which wraps the proposal generation functions to write proposals and votes to disk as JSON instead of directly returning dictionaries.
+
 Submitting a New Proposal
 -------------------------
 
