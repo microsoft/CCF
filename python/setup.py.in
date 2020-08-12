@@ -21,7 +21,7 @@ setup(
     description="Set of tools and utilities for the Confidential Consortium Framework (CCF)",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/microsoft/CCF/python/ccf",
+    url="https://github.com/microsoft/CCF/tree/master/python",
     license="Apache License 2.0",
     author="CCF Team",
     classifiers=[
