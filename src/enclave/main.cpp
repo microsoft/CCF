@@ -70,11 +70,16 @@ extern "C"
       return false;
     }
 
+    // Check that where we expect arguments to be in host-memory, they really
+    // are
+    if (oe_is_within_enclave(time_location, sizeof(enclave::host_time)))
+    {
+      return false;
+    }
+
     enclave::host_time =
       static_cast<decltype(enclave::host_time)>(time_location);
 
-    // Check that where we expect arguments to be in host-memory, they really
-    // are
     if (oe_is_within_enclave(enclave_config, sizeof(EnclaveConfig)))
     {
       return false;
