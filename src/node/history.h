@@ -119,6 +119,8 @@ namespace ccf
 
     void compact(kv::Version) override {}
 
+    void init_from_seed() override {}
+
     void emit_signature() override
     {
       auto txid = store.next_txid();
@@ -302,6 +304,7 @@ namespace ccf
 
     ~MerkleTreeHistory()
     {
+      LOG_FAIL_FMT("Freeeeing treeeee");
       mt_free(tree);
     }
 
@@ -507,10 +510,31 @@ namespace ccf
       id = id_;
     }
 
-    // TODO: Remove
+    // TODO: Remove, testing purposes only
     T& get_tree()
     {
       return replicated_state_tree;
+    }
+
+    void init_from_seed() override
+    {
+      kv::ReadOnlyTx tx;
+      auto sig_tv = tx.get_read_only_view(signatures);
+      auto sig = sig_tv->get(0);
+      if (!sig.has_value())
+      {
+        LOG_FAIL_FMT("No signature found in signatures map");
+        return;
+        // TODO: Raise exception instead?
+      }
+
+      LOG_FAIL_FMT("\n\n\n\n INIT FROM SEED!");
+
+      CCF_ASSERT_FMT(
+        !replicated_state_tree.in_range(1),
+        "Tree is not empty before initialising from snapshot");
+
+      replicated_state_tree = T(sig->tree);
     }
 
     crypto::Sha256Hash get_replicated_state_root() override

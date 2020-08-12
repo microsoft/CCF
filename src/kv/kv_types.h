@@ -12,6 +12,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -52,15 +53,14 @@ namespace kv
 
   enum SecurityDomain
   {
-    PUBLIC, // Public domains indicate the version and always appears, first
+    PUBLIC, // Public domain indicates the version and always appears first
     PRIVATE,
     SECURITY_DOMAIN_MAX
   };
 
-  // Note that failed = 0, and all other values are
-  // variants of PASS, which allows DeserialiseSuccess
-  // to be used as a boolean in code that does not need
-  // any detail about what happened on success
+  // Note that failed = 0, and all other values are variants of PASS, which
+  // allows DeserialiseSuccess to be used as a boolean in code that does not
+  // need any detail about what happened on success
   enum DeserialiseSuccess
   {
     FAILED = 0,
@@ -136,6 +136,11 @@ namespace kv
     virtual void append(const uint8_t* replicated, size_t replicated_size) = 0;
     virtual bool verify(Term* term = nullptr) = 0;
     virtual void emit_signature() = 0;
+    virtual crypto::Sha256Hash get_replicated_state_root() = 0;
+    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
+    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
+    virtual void init_from_seed() = 0;
+
     virtual bool add_request(
       kv::TxHistory::RequestID id,
       uint64_t caller_id,
@@ -163,9 +168,6 @@ namespace kv
     virtual void register_on_response(ResponseCallbackHandler func) = 0;
     virtual void clear_on_result() = 0;
     virtual void clear_on_response() = 0;
-    virtual crypto::Sha256Hash get_replicated_state_root() = 0;
-    virtual std::vector<uint8_t> get_receipt(Version v) = 0;
-    virtual bool verify_receipt(const std::vector<uint8_t>& receipt) = 0;
   };
 
   class Consensus

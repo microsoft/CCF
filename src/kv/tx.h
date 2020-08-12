@@ -28,6 +28,11 @@ namespace kv
     {
       using MapView = typename M::TxView;
 
+      // TODO: ISSUE HERE
+      // Because the TxView used for snapshots is different from the TxView
+      // here, the dynamic_cast fails.
+      // Solution: Understand the relationship between the types here!!
+
       // If the M is present, its AbstractTxView should be an M::TxView. This
       // invariant could be broken by set_view_list, which will produce an error
       // here

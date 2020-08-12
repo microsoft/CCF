@@ -206,31 +206,31 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     snapshot_version = transactions_count + 1;
   }
 
-  INFO("Check tree serialisation/deserialisation");
-  {
-    // First tree
-    auto serialised_signature = consensus->get_latest_data().value();
-    auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
+  // INFO("Check tree serialisation/deserialisation");
+  // {
+  //   // First tree
+  //   auto serialised_signature = consensus->get_latest_data().value();
+  //   auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
 
-    LOG_DEBUG_FMT("Serialised signature hash: {}", serialised_signature_hash);
+  //   LOG_DEBUG_FMT("Serialised signature hash: {}", serialised_signature_hash);
 
-    LOG_DEBUG_FMT("Root after signature is: {}", original_tree.get_root());
+  //   LOG_DEBUG_FMT("Root after signature is: {}", original_tree.get_root());
 
-    LOG_DEBUG_FMT("\n\n\n");
+  //   LOG_DEBUG_FMT("\n\n\n");
 
-    // Second tree
-    ccf::MerkleTreeHistory target_history(serialised_tree_before_signature);
+  //   // Second tree
+  //   ccf::MerkleTreeHistory target_history(serialised_tree_before_signature);
 
-    LOG_DEBUG_FMT(
-      "Target root before signature is: {}", target_history.get_root());
+  //   LOG_DEBUG_FMT(
+  //     "Target root before signature is: {}", target_history.get_root());
 
-    target_history.append(serialised_signature_hash);
+  //   target_history.append(serialised_signature_hash);
 
-    LOG_DEBUG_FMT(
-      "Target root after signature is: {}", target_history.get_root());
+  //   LOG_DEBUG_FMT(
+  //     "Target root after signature is: {}", target_history.get_root());
 
-    REQUIRE(target_history.get_root() == original_tree.get_root());
-  }
+  //   REQUIRE(target_history.get_root() == original_tree.get_root());
+  // }
 
   INFO("Snapshot at signature");
   {
@@ -238,11 +238,20 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     auto snapshot = store.serialise_snapshot(snapshot_version);
 
     kv::Store new_store;
+    auto new_node_kp = tls::make_key_pair();
+
     new_store.clone_schema(store);
+
+    auto new_signatures = new_store.get<ccf::Signatures>("ccf.signatures");
+    auto new_nodes = new_store.get<ccf::Nodes>("ccf.nodes");
+
+    auto new_history = std::make_shared<ccf::MerkleTxHistory>(
+      new_store, 0, *new_node_kp, *new_signatures, *new_nodes);
+
+    new_store.set_history(new_history);
+
     new_store.deserialise_snapshot(snapshot);
 
-    new_store.set_history(history);
-
+    LOG_DEBUG_FMT("Root after snapshot is: {}", new_history->get_replicated_state_root());
   }
-
 }

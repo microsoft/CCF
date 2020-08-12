@@ -253,13 +253,8 @@ namespace kv
           if (map.second->get_name() == "ccf.signatures")
           {
             LOG_FAIL_FMT("Snapshotting ccf.signatures table!");
-            // snapshot.add_history_seed(map.second->get_writes(v));
           }
         }
-
-        // TODO:
-        // 1. If ccf.signatures table, retrieve write set at version
-        // snapshot.add_history_seed(map.second->write_set_at(v))
 
         for (auto& map : maps)
         {
@@ -335,6 +330,18 @@ namespace kv
         version = v;
         last_replicated = v;
         last_committable = v;
+      }
+
+      auto h = get_history();
+      if (h)
+      {
+        // BaseTx tx;
+        // Term term = 0; // For now, term is ignored
+        // tx.set_view_list(views, term);
+
+        h->init_from_seed();
+
+        // h->init_from_seed(tx);
       }
 
       return DeserialiseSuccess::PASS;
