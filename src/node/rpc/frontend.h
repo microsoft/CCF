@@ -624,6 +624,10 @@ namespace ccf
              ctx.session->caller_cert,
              ctx.get_serialised_request(),
              ctx.pbft_raw});
+          LOG_INFO_FMT(
+            "QQQQQQQQ adding, serialized_request.size:{}, pbft_raw.size:{}",
+            ctx.get_serialised_request().size(),
+            ctx.pbft_raw.size());
         };
       }
 
