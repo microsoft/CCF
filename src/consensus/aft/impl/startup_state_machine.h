@@ -36,6 +36,7 @@ namespace aft
       std::shared_ptr<enclave::RpcContext>& ctx = request->get_request_ctx().ctx;
       std::shared_ptr<enclave::RpcHandler>& frontend = request->get_request_ctx().frontend;
 
+      ctx->pbft_raw = std::move(request->serialize_request_message());
       ctx->is_create_request = is_first_message;
       ctx->set_apply_writes(true);
 
