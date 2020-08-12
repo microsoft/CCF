@@ -48,6 +48,7 @@ namespace aft
 
       is_first_message = false;
       //throw ccf::ccf_logic_error("we should be here");
+      request->callback(rep.result);
 
       return rep.version;
     }

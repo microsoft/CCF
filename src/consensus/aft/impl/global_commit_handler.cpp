@@ -20,7 +20,11 @@ namespace aft
   class GlobalCommitHandler : public IGlobalCommitHandler
   {
   public:
-    GlobalCommitHandler(IStore& store_) : store(store_) {}
+    GlobalCommitHandler(IStore& store_) : store(store_)
+    {
+      view_change_list.emplace_back(0, 0);
+    }
+
     void perform_global_commit(kv::Version version, kv::Consensus::View view) override
     {
       if (version == kv::NoVersion || version <= last_global_commit_version)
@@ -51,7 +55,7 @@ namespace aft
         ViewChangeInfo& info = *rit;
         if (info.min_global_commit <= version)
         {
-          return info.view + 2;
+          return info.view;
         }
       }
       throw std::logic_error("should never be here");

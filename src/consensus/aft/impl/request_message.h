@@ -31,6 +31,11 @@ namespace aft
       return *ctx;
     }
 
+    void callback(std::vector<uint8_t>& data)
+    {
+      cb(nullptr, rid, 0, data);
+    }
+
   private:
       std::vector<uint8_t> request;
       kv::TxHistory::RequestID rid;

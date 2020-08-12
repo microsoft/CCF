@@ -46,12 +46,12 @@ namespace aft
 
     View get_view(SeqNo seqno) override
     {
-      return state_machine->get_view_for_version(seqno) + 2;
+      return state_machine->get_view_for_version(seqno);
     }
 
     View get_view() override
     {
-      return state_machine->view() + 2;
+      return state_machine->view();
     }
 
     SeqNo get_committed_seqno() override
@@ -104,9 +104,11 @@ namespace aft
       throw ccf::ccf_logic_error("Not implemented");
     }
 
-    void set_f(size_t /*f*/) override
+    void set_f(size_t f) override
     {
-      throw ccf::ccf_logic_error("Not implemented");
+      LOG_INFO_FMT("Attempting to open network with f set to {0}", f);
+      // TODO: at this point we want to send messages to the other replicas to
+      //       make sure that everything is ready to be open.
     }
     void emit_signature() override
     {
