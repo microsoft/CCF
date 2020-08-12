@@ -38,7 +38,17 @@ namespace asynchost
           auto [dumped_json] =
             ringbuffer::read_message<AdminMessage::work_stats>(data, size);
 
-          const auto j = nlohmann::json::parse(dumped_json);
+          nlohmann::json j;
+          try
+          {
+            j = nlohmann::json::parse(dumped_json);
+          }
+          catch (const nlohmann::json::parse_error& e)
+          {
+            LOG_FAIL_FMT("Received unparseable work_stats from enclave");
+            return;
+          }
+
           for (const auto& [outer_key, outer_value] : j.items())
           {
             for (const auto& [inner_key, inner_value] : outer_value.items())

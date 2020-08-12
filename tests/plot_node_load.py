@@ -9,7 +9,7 @@ import os
 
 # For consistency between plots we want a function from label (name) to colour.
 # We could do this programatically from the hashes to handle general values, but
-# this is sufficient and makes it simple to group similar messages with similar
+# this is sufficient and makes it simple to group similar messages with similar colours
 LABELS_TO_COLOURS = {
     # Processed on Host
     "AdminMessage::log_msg": "dimgray",
