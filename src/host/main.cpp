@@ -9,6 +9,7 @@
 #include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
+#include "load_monitor.h"
 #include "node_connections.h"
 #include "notify_connections.h"
 #include "rpc_connections.h"
@@ -31,6 +32,8 @@ using namespace std::string_literals;
 using namespace std::chrono_literals;
 
 ::timespec logger::config::start{0, 0};
+
+size_t asynchost::TCPImpl::remaining_read_quota;
 
 void print_version(size_t)
 {
@@ -512,8 +515,14 @@ int main(int argc, char** argv)
     logger::config::set_start(s);
   });
 
+  // reset the inbound-TCP processing quota each iteration
+  asynchost::ResetTCPReadQuota reset_tcp_quota;
+
   // regularly update the time given to the enclave
   asynchost::TimeUpdater time_updater(1);
+
+  // regularly record some load statistics
+  asynchost::LoadMonitor load_monitor(500, bp);
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(

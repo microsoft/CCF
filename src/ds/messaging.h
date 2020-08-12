@@ -25,36 +25,54 @@ namespace messaging
     using logic_error::logic_error;
   };
 
+  struct Counts
+  {
+    size_t messages;
+    size_t bytes;
+  };
+
+  template <typename MessageType>
+  using MessageCounts = std::unordered_map<MessageType, Counts>;
+
   template <typename MessageType>
   class Dispatcher
   {
+  public:
+    using MessageCounts = MessageCounts<MessageType>;
+
+  private:
     // Store a name to distinguish error messages
     char const* const name;
 
     std::map<MessageType, Handler> handlers;
     std::map<MessageType, char const*> message_labels;
 
+    MessageCounts message_counts;
+
     std::string get_error_prefix()
     {
       return std::string("[") + std::string(name) + std::string("] ");
     }
 
-    static std::string build_message_name(
-      MessageType m, char const* s = nullptr)
-    {
-      return std::string("<") + (s == nullptr ? "unknown" : s) + ":" +
-        std::to_string(m) + ">";
-    }
-
-    std::string get_message_name(MessageType m)
+    char const* get_message_name(MessageType m)
     {
       const auto it = message_labels.find(m);
       if (it == message_labels.end())
       {
-        return build_message_name(m);
+        return "unknown";
       }
 
-      return build_message_name(m, it->second);
+      return it->second;
+    }
+
+    static std::string decorate_message_name(MessageType m, char const* s)
+    {
+      return fmt::format("<{}:{}>", s, m);
+    }
+
+    std::string get_decorated_message_name(MessageType m)
+    {
+      return decorate_message_name(m, get_message_name(m));
     }
 
   public:
@@ -81,8 +99,9 @@ namespace messaging
       {
         throw already_handled(
           get_error_prefix() + "MessageType " + std::to_string(m) +
-          " already handled by " + get_message_name(m) +
-          ", cannot set handler for " + build_message_name(m, message_label));
+          " already handled by " + get_decorated_message_name(m) +
+          ", cannot set handler for " +
+          decorate_message_name(m, message_label));
       }
 
       LOG_DEBUG_FMT("Setting handler for {} ({})", message_label, m);
@@ -109,7 +128,7 @@ namespace messaging
         throw no_handler(
           get_error_prefix() +
           "Can't remove non-existent handler for this message: " +
-          get_message_name(m));
+          get_decorated_message_name(m));
       }
 
       handlers.erase(it);
@@ -139,11 +158,33 @@ namespace messaging
       {
         throw no_handler(
           get_error_prefix() +
-          "No handler for this message: " + get_message_name(m));
+          "No handler for this message: " + get_decorated_message_name(m));
       }
 
       // Handlers may register or remove handlers, so iterator is invalidated
       it->second(data, size);
+
+      auto& counts = message_counts[m];
+      counts.messages++;
+      counts.bytes += size;
+    }
+
+    MessageCounts retrieve_message_counts()
+    {
+      MessageCounts current;
+      std::swap(message_counts, current);
+      return current;
+    }
+
+    nlohmann::json convert_message_counts(const MessageCounts& mc)
+    {
+      auto j = nlohmann::json::object();
+      for (const auto& it : mc)
+      {
+        j[get_message_name(it.first)] = {{"count", it.second.messages},
+                                         {"bytes", it.second.bytes}};
+      }
+      return j;
     }
   };
 
