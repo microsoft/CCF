@@ -5,6 +5,7 @@
 #include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "enclave_time.h"
+#include "oe_shim.h"
 
 #include <chrono>
 #include <msgpack/msgpack.hpp>
@@ -69,10 +70,45 @@ extern "C"
       return false;
     }
 
+    // Check that where we expect arguments to be in host-memory, they really
+    // are. lfence after these checks to prevent speculative execution
+    if (oe_is_within_enclave(time_location, sizeof(enclave::host_time)))
+    {
+      return false;
+    }
+
     enclave::host_time =
       static_cast<decltype(enclave::host_time)>(time_location);
 
-    EnclaveConfig* ec = (EnclaveConfig*)enclave_config;
+    if (oe_is_within_enclave(enclave_config, sizeof(EnclaveConfig)))
+    {
+      return false;
+    }
+
+    EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
+
+    {
+      if (oe_is_within_enclave(ec.circuit, sizeof(ringbuffer::Circuit)))
+      {
+        return false;
+      }
+
+      oe_lfence();
+
+      const auto& reader = ec.circuit->read_from_outside();
+      auto [data, size] = reader.get_memory_range();
+      if (oe_is_within_enclave(data, size))
+      {
+        return false;
+      }
+    }
+
+    if (oe_is_within_enclave(ccf_config, ccf_config_size))
+    {
+      return false;
+    }
+
+    oe_lfence();
 
     msgpack::object_handle oh = msgpack::unpack(ccf_config, ccf_config_size);
     msgpack::object obj = oh.get();
