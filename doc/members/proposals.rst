@@ -71,19 +71,32 @@ Creating Proposals in Python
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ``ccf.proposal_generator`` can also be imported and used in a Python application instead of as a command-line tool.
 
-.. code-block:: python
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET: import_proposal_generator
+    :lines: 1
 
-    import ccf.proposal_generator
+To retrieve a proposal and vote as dictionaries, use the proposal generation functions directly.
 
-    proposal, vote = ccf.proposal_generator.open_network()
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: dict_proposal
+    :end-before: SNIPPET_END: dict_proposal
 
-    # Suppose `ccf_client` is an instance of `CCFClient` with 
-    # the default `RequestClient` client implementation.
-    response = ccf_client.post(
-        "/gov/proposals", body=proposal, signed=True,
-    )
+To generate proposals and votes that are written to disk as JSON, use the ``ccf.proposal_generator.ProposalGenerator`` class. This causes the functions to return strings indicating the location of the generated files. If the ``ProposalGenerator`` was created with a ``common_dir`` argument, generated files have that ``common_dir`` prepended.
+Though the ``proposal`` and ``vote`` values returned are now strings, this is still compatible with the ``ccf.client.CCFClient``, which will now build its request body by loading from file.
 
-Avoid using the ``ccf.proposal_generator.ProposalGenerator`` class, which wraps the proposal generation functions to write proposals and votes to disk as JSON instead of directly returning dictionaries.
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: json_proposal
+    :end-before: SNIPPET_END: json_proposal
+
+Proposal generation calls from a ``ProposalGenerator`` can optionally include file names specifying where to write output to, which allows you to save different proposals separately.
+
+.. literalinclude:: ../../python/tutorial.py
+    :language: py
+    :start-after: SNIPPET_START: json_proposal_with_file
+    :end-before: SNIPPET_END: json_proposal_with_file
 
 Submitting a New Proposal
 -------------------------
