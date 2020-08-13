@@ -11,6 +11,7 @@
 
 #ifndef VIRTUAL_ENCLAVE
 
+#  include <openenclave/edger8r/enclave.h> // For oe_lfence
 #  include <openenclave/enclave.h>
 
 #else
@@ -31,7 +32,7 @@
 
 #  define OE_ECALL OE_EXTERNC OE_EXPORT __attribute__((section(".ecall")))
 
-OE_EXTERNC bool oe_is_within_enclave(const void* p, std::size_t n)
+OE_EXTERNC bool oe_is_within_enclave(const void*, std::size_t)
 {
   return false;
 }
@@ -40,5 +41,7 @@ OE_EXTERNC bool oe_is_outside_enclave(const void* p, std::size_t n)
 {
   return !oe_is_within_enclave(p, n);
 }
+
+#  define oe_lfence() // nop
 
 #endif
