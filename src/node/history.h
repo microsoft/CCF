@@ -119,8 +119,11 @@ namespace ccf
 
     void compact(kv::Version) override {}
 
-    void init_from_seed(const std::vector<uint8_t>& hash_at_snapshot) override
-    {}
+    bool init_from_snapshot(
+      const std::vector<uint8_t>& hash_at_snapshot) override
+    {
+      return true;
+    }
 
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override
     {
@@ -521,51 +524,32 @@ namespace ccf
       id = id_;
     }
 
-    // TODO: Remove, testing purposes only
-    T& get_tree()
+    bool init_from_snapshot(
+      const std::vector<uint8_t>& hash_at_snapshot) override
     {
-      return replicated_state_tree;
-    }
-
-    void init_from_seed(const std::vector<uint8_t>& hash_at_snapshot) override
-    {
+      // The history can be initialised after a snapshot has been applied by
+      // deserialising the tree in the signatures table and then applying the
+      // hash of the transaction at which the snapshot was taken
       kv::ReadOnlyTx tx;
       auto sig_tv = tx.get_read_only_view(signatures);
       auto sig = sig_tv->get(0);
       if (!sig.has_value())
       {
         LOG_FAIL_FMT("No signature found in signatures map");
-        return;
-        // TODO: Raise exception instead?
+        return false;
       }
-
-      LOG_FAIL_FMT("\n\n\n\n INIT FROM SEED!");
 
       CCF_ASSERT_FMT(
         !replicated_state_tree.in_range(1),
         "Tree is not empty before initialising from snapshot");
 
-      // T replicated_state_tree_copy(sig->tree);
-
       replicated_state_tree.deserialise(sig->tree);
 
-      auto& new_tree = replicated_state_tree;
-
-      LOG_FAIL_FMT(
-        "Size of serialised tree after tree is deserialised in it: {}",
-        new_tree.serialise().size());
-
-      LOG_FAIL_FMT("Root before hash at snapshot: {}", new_tree.get_root());
-
-      // TODO: Ugly :(
       crypto::Sha256Hash hash;
       std::copy_n(
         hash_at_snapshot.begin(), crypto::Sha256Hash::SIZE, hash.h.begin());
-
-      log_hash(hash, APPEND);
-      new_tree.append(hash);
-
-      LOG_FAIL_FMT("Root after sig: {}", new_tree.get_root());
+      replicated_state_tree.append(hash);
+      return true;
     }
 
     crypto::Sha256Hash get_replicated_state_root() override

@@ -13,26 +13,26 @@
 
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {
-  auto consensus = std::make_shared<kv::StubConsensus>();
-  kv::Store store(consensus);
+  auto source_consensus = std::make_shared<kv::StubConsensus>();
+  kv::Store source_store(source_consensus);
 
-  ccf::NodeId node_id = 0;
-  auto node_kp = tls::make_key_pair();
+  ccf::NodeId source_node_id = 0;
+  auto source_node_kp = tls::make_key_pair();
 
-  auto& signatures =
-    store.create<ccf::Signatures>("ccf.signatures", kv::SecurityDomain::PUBLIC);
+  auto& signatures = source_store.create<ccf::Signatures>(
+    "ccf.signatures", kv::SecurityDomain::PUBLIC);
   auto& nodes =
-    store.create<ccf::Nodes>("ccf.nodes", kv::SecurityDomain::PUBLIC);
+    source_store.create<ccf::Nodes>("ccf.nodes", kv::SecurityDomain::PUBLIC);
 
-  auto history = std::make_shared<ccf::MerkleTxHistory>(
-    store, 0, *node_kp, signatures, nodes);
+  auto source_history = std::make_shared<ccf::MerkleTxHistory>(
+    source_store, 0, *source_node_kp, signatures, nodes);
 
-  store.set_history(history);
+  source_store.set_history(source_history);
 
-  auto& string_map = store.create<kv::Map<std::string, std::string>>(
+  auto& string_map = source_store.create<kv::Map<std::string, std::string>>(
     "string_map", kv::SecurityDomain::PUBLIC);
 
-  size_t transactions_count = 1025;
+  size_t transactions_count = 3;
   kv::Version snapshot_version = kv::NoVersion;
 
   INFO("Apply transactions to original store");
@@ -46,70 +46,95 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     }
   }
 
-  auto serialised_tree_before_signature = history->get_tree().serialise();
+  auto source_root_before_signature =
+    source_history->get_replicated_state_root();
+  LOG_DEBUG_FMT("Root before signature is: {}", source_root_before_signature);
 
-  auto root_before_signature = history->get_replicated_state_root();
-  LOG_DEBUG_FMT("Root before signature is: {}", root_before_signature);
-
-  INFO("Apply signature");
+  INFO("Emit signature");
   {
-    LOG_DEBUG_FMT("\n\n Apply signature");
-    history->emit_signature();
+    source_history->emit_signature();
+    // Snapshot version is the version of the signature
     snapshot_version = transactions_count + 1;
 
     LOG_DEBUG_FMT(
-      "Root after signature: {}", history->get_replicated_state_root());
+      "Root after signature: {}", source_history->get_replicated_state_root());
   }
 
-  INFO("Check tree serialisation/deserialisation");
+  INFO("Check tree start from mini-tree and sig hash");
   {
-    // First tree
-    auto serialised_signature = consensus->get_latest_data().value();
+    // No snapshot here, only verify that a fresh tree can be started from the
+    // mini-tree in a signature and the hash of the signature
+    kv::ReadOnlyTx tx;
+    auto view = tx.get_read_only_view(signatures);
+    auto sig = view->get(0).value();
+
+    auto serialised_signature = source_consensus->get_latest_data().value();
     auto serialised_signature_hash = crypto::Sha256Hash(serialised_signature);
 
-    LOG_DEBUG_FMT("Serialised signature hash: {}", serialised_signature_hash);
+    ccf::MerkleTreeHistory target_tree(sig.tree);
 
-    LOG_DEBUG_FMT("\n\n\n");
+    REQUIRE(source_root_before_signature == target_tree.get_root());
 
-    // Second tree
-    ccf::MerkleTreeHistory target_history(serialised_tree_before_signature);
-
-    LOG_DEBUG_FMT(
-      "Target root before signature is: {}", target_history.get_root());
-
-    target_history.append(serialised_signature_hash);
-
-    LOG_DEBUG_FMT(
-      "Target root after signature is: {}", target_history.get_root());
-
-    REQUIRE(target_history.get_root() == history->get_replicated_state_root());
+    target_tree.append(serialised_signature_hash);
+    REQUIRE(
+      target_tree.get_root() == source_history->get_replicated_state_root());
   }
 
   INFO("Snapshot at signature");
   {
-    LOG_DEBUG_FMT("\n\n\n\nSnapshot!!: {}", transactions_count);
-    auto snapshot = store.serialise_snapshot(snapshot_version);
+    kv::Store target_store;
+    INFO("Setup target store");
+    {
+      auto target_node_kp = tls::make_key_pair();
+      target_store.clone_schema(source_store);
 
-    kv::Store new_store;
-    auto new_node_kp = tls::make_key_pair();
+      auto target_signatures =
+        target_store.get<ccf::Signatures>("ccf.signatures");
+      auto target_nodes = target_store.get<ccf::Nodes>("ccf.nodes");
 
-    new_store.clone_schema(store);
+      auto target_history = std::make_shared<ccf::MerkleTxHistory>(
+        target_store, 0, *target_node_kp, *target_signatures, *target_nodes);
+      target_store.set_history(target_history);
+    }
 
-    auto new_signatures = new_store.get<ccf::Signatures>("ccf.signatures");
-    auto new_nodes = new_store.get<ccf::Nodes>("ccf.nodes");
+    auto target_history = target_store.get_history();
 
-    auto new_history = std::make_shared<ccf::MerkleTxHistory>(
-      new_store, 0, *new_node_kp, *new_signatures, *new_nodes);
+    INFO("Apply snapshot taken before any signature was emitted");
+    {
+      auto snapshot = source_store.serialise_snapshot(snapshot_version - 1);
 
-    new_store.set_history(new_history);
+      // There is not signature to read to seed the target history
+      REQUIRE(
+        target_store.deserialise_snapshot(snapshot) ==
+        kv::DeserialiseSuccess::FAILED);
+    }
 
-    new_store.deserialise_snapshot(snapshot);
-
-    LOG_DEBUG_FMT(
-      "Root after snapshot is: {}", new_history->get_replicated_state_root());
+    INFO("Apply snapshot taken at signature");
+    {
+      auto snapshot = source_store.serialise_snapshot(snapshot_version);
+      REQUIRE(
+        target_store.deserialise_snapshot(snapshot) ==
+        kv::DeserialiseSuccess::PASS);
+    }
 
     REQUIRE(
-      history->get_replicated_state_root() ==
-      new_history->get_replicated_state_root());
+      source_history->get_replicated_state_root() ==
+      target_history->get_replicated_state_root());
+
+    INFO("Deserialise additional transaction after restart");
+    {
+      kv::Tx tx;
+      auto view = tx.get_view(string_map);
+      view->put("key", "value");
+      REQUIRE(tx.commit() == kv::CommitSuccess::OK);
+
+      auto serialised_tx = source_consensus->get_latest_data().value();
+
+      target_store.deserialise(serialised_tx);
+
+      REQUIRE(
+        target_history->get_replicated_state_root() ==
+        source_history->get_replicated_state_root());
+    }
   }
 }

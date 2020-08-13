@@ -336,7 +336,12 @@ namespace kv
 
       // Each map is committed at a different version, independently of the
       // snapshot version
-      apply_views(views, [v]() { return NoVersion; });
+      auto c = apply_views(views, []() { return NoVersion; });
+      if (!c.has_value())
+      {
+        LOG_FAIL_FMT("Failed to commit deserialised snapshot at version {}", v);
+        return DeserialiseSuccess::FAILED;
+      }
 
       {
         std::lock_guard<SpinLock> vguard(version_lock);
@@ -347,11 +352,13 @@ namespace kv
 
       if (h)
       {
-        // TODO: For now, this is not atomic as a new transaction is created in
-        // init_from_seed() to read the views from the transaction.
-        // A better way to do this is to pass a Tx object to init_from_seed()
-        // that has been populated with the view from the snapshot
-        h->init_from_seed(hash_at_snapshot);
+        // For now, this is not atomic as a new transaction is created in
+        // init_from_snapshot() to read the views from the transaction. This is OK
+        // in practice as snapshots are deserialised sequentially.
+        if (!h->init_from_snapshot(hash_at_snapshot))
+        {
+          return DeserialiseSuccess::FAILED;
+        }
       }
 
       return DeserialiseSuccess::PASS;

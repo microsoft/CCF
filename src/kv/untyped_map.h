@@ -486,11 +486,6 @@ namespace kv::untyped
 
     AbstractTxView* deserialise_snapshot(KvStoreDeserialiser& d) override
     {
-      return deserialise_snapshot_internal(d);
-    }
-
-    SnapshotTxView* deserialise_snapshot_internal(KvStoreDeserialiser& d)
-    {
       // Create a new empty view and deserialise d's contents into it.
       auto snapshot_view = new SnapshotTxView(*this);
 
