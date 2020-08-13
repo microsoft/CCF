@@ -88,16 +88,6 @@ namespace kv
       return untyped_map.snapshot(v);
     }
 
-    // TODO: Delete
-    void apply_snapshot(
-      Version v, const std::vector<uint8_t>& snapshot) override
-    {
-      // TODO:
-      // 1. If this is ccf.signatures, cast snapshot to V
-
-      untyped_map.apply_snapshot(v, snapshot);
-    }
-
     void post_compact() override
     {
       return untyped_map.post_compact();

@@ -249,11 +249,6 @@ namespace kv
         for (auto& map : maps)
         {
           snapshot.add_map_snapshot(map.second->snapshot(v));
-
-          if (map.second->get_name() == "ccf.signatures")
-          {
-            LOG_FAIL_FMT("Snapshotting ccf.signatures table!");
-          }
         }
 
         auto h = get_history();
@@ -321,7 +316,7 @@ namespace kv
         auto deserialise_snapshot_view =
           search->second->deserialise_snapshot(d);
 
-        // Take ownership of the produced write set, store it to be committed
+        // Take ownership of the produced view, store it to be committed
         // later
         views[map_name] = {
           search->second.get(),
@@ -353,8 +348,8 @@ namespace kv
       if (h)
       {
         // For now, this is not atomic as a new transaction is created in
-        // init_from_snapshot() to read the views from the transaction. This is OK
-        // in practice as snapshots are deserialised sequentially.
+        // init_from_snapshot() to read the views from the transaction. This is
+        // OK in practice as snapshots are deserialised sequentially.
         if (!h->init_from_snapshot(hash_at_snapshot))
         {
           return DeserialiseSuccess::FAILED;
@@ -542,14 +537,14 @@ namespace kv
           return DeserialiseSuccess::FAILED;
         }
 
-        // if we are not committing now then use NoVersion to deserialise
+        // If we are not committing now then use NoVersion to deserialise
         // otherwise the view will be considered as having a committed
         // version
         auto deserialise_version = (commit ? v : NoVersion);
         auto deserialised_view =
           search->second->deserialise(d, deserialise_version);
 
-        // Take ownership of the produced write set, store it to be committed
+        // Take ownership of the produced view, store it to be applied
         // later
         views[map_name] = {search->second.get(),
                            std::unique_ptr<AbstractTxView>(deserialised_view)};

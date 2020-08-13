@@ -484,8 +484,7 @@ namespace kv::untyped
       auto v = d.deserialise_entry_version();
       auto map_snapshot = d.deserialise_raw();
 
-      return new SnapshotTxView(
-        *this, State::deserialize_map(map_snapshot), v);
+      return new SnapshotTxView(*this, State::deserialize_map(map_snapshot), v);
     }
 
     AbstractTxView* deserialise(
@@ -684,21 +683,6 @@ namespace kv::untyped
 
       return std::make_unique<Snapshot>(
         name, security_domain, r->version, StateSnapshot(r->state));
-    }
-
-    // TODO: Delete
-    void apply_snapshot(
-      Version version, const std::vector<uint8_t>& snapshot) override
-    {
-      // This discards all entries in the roll and applies the given
-      // snapshot. The Map expects to be locked while applying the snapshot.
-      roll.reset_commits();
-      roll.rollback_counter++;
-
-      auto r = roll.commits->get_head();
-
-      r->state = State::deserialize_map(snapshot);
-      r->version = version;
     }
 
     void compact(Version v) override

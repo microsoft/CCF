@@ -313,7 +313,6 @@ namespace ccf
 
     ~MerkleTreeHistory()
     {
-      LOG_FAIL_FMT("Freeeeing treeeee");
       mt_free(tree);
     }
 
@@ -676,7 +675,6 @@ namespace ccf
     std::vector<uint8_t> get_raw_leaf(uint64_t index) override
     {
       auto leaf = replicated_state_tree.get_leaf(index);
-      LOG_FAIL_FMT("Leaf: {}", leaf);
       return {leaf.h.begin(), leaf.h.end()};
     }
 
