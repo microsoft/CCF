@@ -48,6 +48,14 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     GetEncryptedRecoveryShare, encrypted_recovery_share, nonce)
 
+  struct SetModule
+  {
+    std::string name;
+    Module module;
+  };
+  DECLARE_JSON_TYPE(SetModule)
+  DECLARE_JSON_REQUIRED_FIELDS(SetModule, name, module)
+
   class MemberEndpoints : public CommonEndpointRegistry
   {
   private:
@@ -68,7 +76,7 @@ namespace ccf
 
       // First, remove all existing handlers
       tx_scripts->foreach(
-        [&tx_scripts](const std::string& name, const Script& script) {
+        [&tx_scripts](const std::string& name, const Script&) {
           tx_scripts->remove(name);
           return true;
         });
@@ -85,7 +93,7 @@ namespace ccf
 
       // First, remove all existing handlers
       tx_scripts->foreach(
-        [&tx_scripts](const std::string& name, const Script& script) {
+        [&tx_scripts](const std::string& name, const Script&) {
           tx_scripts->remove(name);
           return true;
         });
@@ -94,6 +102,24 @@ namespace ccf
       {
         tx_scripts->put(rs.first, {rs.second});
       }
+    }
+
+    bool set_module(kv::Tx& tx, std::string name, Module module)
+    {
+      if (name.empty() || name[0] != '/')
+      {
+        LOG_FAIL_FMT("module names must start with /");
+        return false;
+      }
+      auto tx_modules = tx.get_view(network.modules);
+      tx_modules->put(name, module);
+      return true;
+    }
+
+    bool remove_module(kv::Tx& tx, std::string name)
+    {
+      auto tx_modules = tx.get_view(network.modules);
+      return tx_modules->remove(name);
     }
 
     bool add_new_code_id(
@@ -123,7 +149,7 @@ namespace ccf
       hardcoded_funcs = {
         // set the lua application script
         {"set_lua_app",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_app_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
 
@@ -131,23 +157,35 @@ namespace ccf
          }},
         // set the js application script
         {"set_js_app",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const std::string app = args;
            set_js_scripts(tx, lua::Interpreter().invoke<nlohmann::json>(app));
            return true;
          }},
+        // add/update a module
+        {"set_module",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto parsed = args.get<SetModule>();
+           return set_module(tx, parsed.name, parsed.module);
+         }},
+        // remove a module
+        {"remove_module",
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto name = args.get<std::string>();
+           return remove_module(tx, name);
+         }},
         // add a new member
         {"new_member",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto parsed = args.get<MemberPubInfo>();
            GenesisGenerator g(this->network, tx);
-           auto new_member_id = g.add_member(parsed.cert, parsed.keyshare);
+           g.add_member(parsed.cert, parsed.keyshare);
 
            return true;
          }},
         // retire an existing member
         {"retire_member",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
            const auto member_id = args.get<MemberId>();
 
            GenesisGenerator g(this->network, tx);
@@ -178,11 +216,11 @@ namespace ccf
            return true;
          }},
         {"new_user",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto pem_cert = args.get<tls::Pem>();
+         [this](ObjectId, kv::Tx& tx, const nlohmann::json& args) {
+           const auto user_info = args.get<ccf::UserInfo>();
 
            GenesisGenerator g(this->network, tx);
-           g.add_user(pem_cert);
+           g.add_user(user_info);
 
            return true;
          }},
@@ -267,7 +305,6 @@ namespace ccf
         // accept new node code ID
         {"new_node_code",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto id = args.get<CodeDigest>();
            return this->add_new_code_id(
              tx,
              args.get<CodeDigest>(),
@@ -277,7 +314,6 @@ namespace ccf
         // accept new user code ID
         {"new_user_code",
          [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
-           const auto id = args.get<CodeDigest>();
            return this->add_new_code_id(
              tx,
              args.get<CodeDigest>(),
@@ -288,7 +324,7 @@ namespace ccf
         // that case, members will have to submit their shares after this
         // proposal is accepted.
         {"accept_recovery",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            if (node.is_part_of_public_network())
            {
              const auto accept_recovery = node.accept_recovery(tx);
@@ -306,7 +342,7 @@ namespace ccf
            }
          }},
         {"open_network",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            // On network open, the service checks that a sufficient number of
            // members have become active. If so, recovery shares are allocated
            // to each active member.
@@ -333,7 +369,7 @@ namespace ccf
            return network_opened;
          }},
         {"rekey_ledger",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            const auto ledger_rekeyed = node.rekey_ledger(tx);
            if (!ledger_rekeyed)
            {
@@ -342,7 +378,7 @@ namespace ccf
            return ledger_rekeyed;
          }},
         {"update_recovery_shares",
-         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json& args) {
+         [this](ObjectId proposal_id, kv::Tx& tx, const nlohmann::json&) {
            try
            {
              share_manager.issue_shares(tx);
@@ -383,7 +419,9 @@ namespace ccf
            catch (const std::logic_error& e)
            {
              LOG_FAIL_FMT(
-               "Proposal {}: Setting recovery threshold failed: {}", e.what());
+               "Proposal {}: Setting recovery threshold failed: {}",
+               proposal_id,
+               e.what());
              return false;
            }
            return true;
@@ -697,7 +735,7 @@ namespace ccf
         .install();
 
       auto get_proposal =
-        [this](ReadOnlyEndpointContext& args, nlohmann::json&& params) {
+        [this](ReadOnlyEndpointContext& args, nlohmann::json&&) {
           if (!check_member_active(args.tx, args.caller_id))
           {
             return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -730,7 +768,7 @@ namespace ccf
         .set_auto_schema<void, Proposal>()
         .install();
 
-      auto withdraw = [this](EndpointContext& args, nlohmann::json&& params) {
+      auto withdraw = [this](EndpointContext& args, nlohmann::json&&) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -847,50 +885,49 @@ namespace ccf
         .set_require_client_signature(true)
         .install();
 
-      auto get_vote =
-        [this](ReadOnlyEndpointContext& args, nlohmann::json&& params) {
-          if (!check_member_active(args.tx, args.caller_id))
-          {
-            return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
-          }
+      auto get_vote = [this](ReadOnlyEndpointContext& args, nlohmann::json&&) {
+        if (!check_member_active(args.tx, args.caller_id))
+        {
+          return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
+        }
 
-          std::string error;
-          ObjectId proposal_id;
-          if (!get_proposal_id_from_path(
-                args.rpc_ctx->get_request_path_params(), proposal_id, error))
-          {
-            return make_error(HTTP_STATUS_BAD_REQUEST, error);
-          }
+        std::string error;
+        ObjectId proposal_id;
+        if (!get_proposal_id_from_path(
+              args.rpc_ctx->get_request_path_params(), proposal_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
 
-          MemberId member_id;
-          if (!get_member_id_from_path(
-                args.rpc_ctx->get_request_path_params(), member_id, error))
-          {
-            return make_error(HTTP_STATUS_BAD_REQUEST, error);
-          }
+        MemberId member_id;
+        if (!get_member_id_from_path(
+              args.rpc_ctx->get_request_path_params(), member_id, error))
+        {
+          return make_error(HTTP_STATUS_BAD_REQUEST, error);
+        }
 
-          auto proposals = args.tx.get_read_only_view(this->network.proposals);
-          auto proposal = proposals->get(proposal_id);
-          if (!proposal)
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              fmt::format("Proposal {} does not exist", proposal_id));
-          }
+        auto proposals = args.tx.get_read_only_view(this->network.proposals);
+        auto proposal = proposals->get(proposal_id);
+        if (!proposal)
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format("Proposal {} does not exist", proposal_id));
+        }
 
-          const auto vote_it = proposal->votes.find(member_id);
-          if (vote_it == proposal->votes.end())
-          {
-            return make_error(
-              HTTP_STATUS_NOT_FOUND,
-              fmt::format(
-                "Member {} has not voted for proposal {}",
-                member_id,
-                proposal_id));
-          }
+        const auto vote_it = proposal->votes.find(member_id);
+        if (vote_it == proposal->votes.end())
+        {
+          return make_error(
+            HTTP_STATUS_NOT_FOUND,
+            fmt::format(
+              "Member {} has not voted for proposal {}",
+              member_id,
+              proposal_id));
+        }
 
-          return make_success(vote_it->second);
-        };
+        return make_success(vote_it->second);
+      };
       make_read_only_endpoint(
         "proposals/{proposal_id}/votes/{member_id}",
         HTTP_GET,
@@ -898,7 +935,7 @@ namespace ccf
         .set_auto_schema<void, Vote>()
         .install();
 
-      auto complete = [this](EndpointContext& ctx, nlohmann::json&& params) {
+      auto complete = [this](EndpointContext& ctx, nlohmann::json&&) {
         if (!check_member_active(ctx.tx, ctx.caller_id))
         {
           return make_error(HTTP_STATUS_FORBIDDEN, "Member is not active");
@@ -996,7 +1033,7 @@ namespace ccf
 
       //! A member asks for a fresher state digest
       auto update_state_digest =
-        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&& params) {
+        [this](kv::Tx& tx, CallerId caller_id, nlohmann::json&&) {
           auto [ma_view, sig_view] =
             tx.get_view(this->network.member_acks, this->network.signatures);
           auto ma = ma_view->get(caller_id);
@@ -1025,7 +1062,7 @@ namespace ccf
 
       auto get_encrypted_recovery_share = [this](
                                             EndpointContext& args,
-                                            nlohmann::json&& params) {
+                                            nlohmann::json&&) {
         if (!check_member_active(args.tx, args.caller_id))
         {
           return make_error(

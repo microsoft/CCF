@@ -9,6 +9,7 @@
 #include "ds/stacktrace_utils.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
+#include "load_monitor.h"
 #include "node_connections.h"
 #include "notify_connections.h"
 #include "rpc_connections.h"
@@ -31,6 +32,8 @@ using namespace std::string_literals;
 using namespace std::chrono_literals;
 
 ::timespec logger::config::start{0, 0};
+
+size_t asynchost::TCPImpl::remaining_read_quota;
 
 void print_version(size_t)
 {
@@ -516,8 +519,14 @@ int main(int argc, char** argv)
     logger::config::set_start(s);
   });
 
+  // reset the inbound-TCP processing quota each iteration
+  asynchost::ResetTCPReadQuota reset_tcp_quota;
+
   // regularly update the time given to the enclave
   asynchost::TimeUpdater time_updater(1);
+
+  // regularly record some load statistics
+  asynchost::LoadMonitor load_monitor(500, bp);
 
   // handle outbound messages from the enclave
   asynchost::HandleRingbuffer handle_ringbuffer(
@@ -565,9 +574,9 @@ int main(int argc, char** argv)
   const size_t pubk_size = 1024;
   std::vector<uint8_t> node_cert(certificate_size);
   std::vector<uint8_t> network_cert(certificate_size);
-  std::vector<uint8_t> network_enc_pubk(certificate_size);
+  std::vector<uint8_t> network_enc_pubk(pubk_size);
 
-  StartType start_type;
+  StartType start_type = StartType::Unknown;
 
   EnclaveConfig enclave_config;
   enclave_config.circuit = &circuit;
@@ -623,6 +632,11 @@ int main(int argc, char** argv)
   {
     LOG_INFO_FMT("Creating new node - recover");
     start_type = StartType::Recover;
+  }
+
+  if (start_type == StartType::Unknown)
+  {
+    LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
   }
 
   enclave.create_node(

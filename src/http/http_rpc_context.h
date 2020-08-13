@@ -10,7 +10,8 @@
 
 namespace http
 {
-  static std::optional<std::string> extract_actor(enclave::RpcContext& ctx)
+  inline static std::optional<std::string> extract_actor(
+    enclave::RpcContext& ctx)
   {
     const auto path = ctx.get_method();
 
@@ -284,6 +285,11 @@ namespace http
       response_status = (http_status)status;
     }
 
+    virtual int get_response_status() const override
+    {
+      return response_status;
+    }
+
     virtual void set_response_header(
       const std::string_view& name, const std::string_view& value) override
     {
@@ -427,7 +433,7 @@ namespace enclave
         ws::RequestParser parser(processor);
 
         auto next_read = 2;
-        auto index = 0;
+        size_t index = 0;
         while (index < packed.size())
         {
           auto chunk = std::vector(

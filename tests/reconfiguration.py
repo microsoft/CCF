@@ -17,7 +17,7 @@ def check_can_progress(node, timeout=3):
             uc.post("/app/log/private", {"id": 42, "msg": "Hello world"})
         end_time = time.time() + timeout
         while time.time() < end_time:
-            if c.get("/node/commit").result["seqno"] > r.result["seqno"]:
+            if c.get("/node/commit").body["seqno"] > r.body["seqno"]:
                 return
             time.sleep(0.1)
         assert False, f"Stuck at {r}"

@@ -167,6 +167,12 @@ class Node:
         self.remote.setup()
         self.network_state = NodeNetworkState.started
         if self.debug:
+            with open(os.path.join(self.binary_dir, "vscode-gdb.sh"), "a") as f:
+                f.write(f"if [ $1 -eq {self.remote.local_node_id} ]; then\n")
+                f.write(f"cd {self.remote.remote.root}\n")
+                f.write(f"{' '.join(self.remote.remote.cmd)}\n")
+                f.write("fi\n")
+
             print("")
             phost = "localhost" if self.host.startswith("127.") else self.host
             print(
@@ -236,8 +242,8 @@ class Node:
             with self.client(connection_timeout=timeout) as nc:
                 rep = nc.get("/node/commit")
                 assert (
-                    rep.error is None and rep.result is not None
-                ), f"An error occured after node {self.node_id} joined the network: {rep.error}"
+                    rep.status_code == 200
+                ), f"An error occured after node {self.node_id} joined the network: {rep.body}"
         except ccf.clients.CCFConnectionException:
             raise TimeoutError(f"Node {self.node_id} failed to join the network")
 
@@ -254,7 +260,6 @@ class Node:
             else None,
             "ca": os.path.join(self.common_dir, "networkcert.pem"),
             "description": f"node {self.node_id} as {identity or 'unauthenticated'}",
-            "binary_dir": self.binary_dir,
         }
         akwargs.update(kwargs)
         return ccf.clients.client(self.pubhost, self.rpc_port, **akwargs)

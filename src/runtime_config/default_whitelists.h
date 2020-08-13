@@ -25,6 +25,7 @@ namespace ccf
       Tables::PROPOSALS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
+      Tables::MODULES,
       Tables::SERVICE,
       Tables::CONFIGURATION}},
 
@@ -35,6 +36,7 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
+      Tables::MODULES,
       Tables::CONFIGURATION}},
 
     {USER_APP_CAN_READ_ONLY,
@@ -45,5 +47,6 @@ namespace ccf
       Tables::WHITELISTS,
       Tables::GOV_SCRIPTS,
       Tables::APP_SCRIPTS,
+      Tables::MODULES,
       Tables::GOV_HISTORY}}};
 }

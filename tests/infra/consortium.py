@@ -1,24 +1,20 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import array
 import os
 import time
 import http
 import random
 import infra.network
 import infra.proc
-import ccf.checker
+import infra.checker
 import infra.node
 import infra.crypto
 import infra.member
-import ccf.proposal_generator
+from ccf.proposal_generator import ProposalGenerator
 from infra.proposal import ProposalState
 
 from loguru import logger as LOG
-
-# Votes are currently produced but unused, so temporarily disable this pylint warning throughout this file
-# pylint: disable=unused-variable
 
 
 class Consortium:
@@ -37,6 +33,7 @@ class Consortium:
         self.share_script = share_script
         self.members = []
         self.recovery_threshold = None
+        self.proposal_generator = ProposalGenerator(common_dir=self.common_dir)
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the state of CCF.
         if member_ids is not None:
@@ -48,7 +45,7 @@ class Consortium:
             self.recovery_threshold = len(self.members)
         else:
             with remote_node.client("member0") as mc:
-                r = mc.rpc(
+                r = mc.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
@@ -62,7 +59,7 @@ class Consortium:
                         """
                     },
                 )
-                for m in r.result or []:
+                for m in r.body or []:
                     new_member = infra.member.Member(
                         m[0], curve, self.common_dir, share_script
                     )
@@ -74,7 +71,7 @@ class Consortium:
                     self.members.append(new_member)
                     LOG.info(f"Successfully recovered member {m[0]} with status {m[1]}")
 
-                r = mc.rpc(
+                r = mc.post(
                     "/gov/query",
                     {
                         "text": """tables = ...
@@ -82,7 +79,7 @@ class Consortium:
                         """
                     },
                 )
-                self.recovery_threshold = r.result["recovery_threshold"]
+                self.recovery_threshold = r.body["recovery_threshold"]
 
     def activate(self, remote_node):
         for m in self.members:
@@ -96,13 +93,16 @@ class Consortium:
             new_member_id, curve, self.common_dir, self.share_script, self.key_generator
         )
 
-        proposal, vote = ccf.proposal_generator.new_member(
+        proposal_body, careful_vote = self.proposal_generator.new_member(
             os.path.join(self.common_dir, f"member{new_member_id}_cert.pem"),
             os.path.join(self.common_dir, f"member{new_member_id}_enc_pubk.pem"),
         )
 
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
+
         return (
-            self.get_any_active_member().propose(remote_node, proposal),
+            proposal,
             new_member,
         )
 
@@ -155,8 +155,8 @@ class Consortium:
                 accept=True,
                 wait_for_global_commit=wait_for_global_commit,
             )
-            assert response.status == http.HTTPStatus.OK.value
-            proposal.state = infra.proposal.ProposalState(response.result["state"])
+            assert response.status_code == http.HTTPStatus.OK.value
+            proposal.state = infra.proposal.ProposalState(response.body["state"])
             proposal.increment_votes_for()
 
         if proposal.state is not ProposalState.Accepted:
@@ -175,9 +175,9 @@ class Consortium:
 
         proposals = []
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc("/gov/query", {"text": script})
-            assert r.status == http.HTTPStatus.OK.value
-            for proposal_id, attr in r.result.items():
+            r = c.post("/gov/query", {"text": script})
+            assert r.status_code == http.HTTPStatus.OK.value
+            for proposal_id, attr in r.body.items():
                 has_proposer_voted_for = False
                 for vote in attr["votes"]:
                     if attr["proposer"] == vote[0]:
@@ -194,15 +194,18 @@ class Consortium:
         return proposals
 
     def retire_node(self, remote_node, node_to_retire):
-        proposal_body, vote = ccf.proposal_generator.retire_node(node_to_retire.node_id)
+        proposal_body, careful_vote = self.proposal_generator.retire_node(
+            node_to_retire.node_id
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
 
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc(
+            r = c.post(
                 "/gov/read", {"table": "ccf.nodes", "key": node_to_retire.node_id}
             )
-            assert r.result["status"] == infra.node.NodeStatus.RETIRED.name
+            assert r.body["status"] == infra.node.NodeStatus.RETIRED.name
 
     def trust_node(self, remote_node, node_id):
         if not self._check_node_exists(
@@ -210,9 +213,9 @@ class Consortium:
         ):
             raise ValueError(f"Node {node_id} does not exist in state PENDING")
 
-        proposal_body, vote = ccf.proposal_generator.trust_node(node_id)
-
+        proposal_body, careful_vote = self.proposal_generator.trust_node(node_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
 
         if not self._check_node_exists(
@@ -221,12 +224,13 @@ class Consortium:
             raise ValueError(f"Node {node_id} does not exist in state TRUSTED")
 
     def retire_member(self, remote_node, member_to_retire):
-        proposal_body, vote = ccf.proposal_generator.retire_member(
+        proposal_body, careful_vote = self.proposal_generator.retire_member(
             member_to_retire.member_id
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
-        member_to_retire.status = infra.member.MemberStatus.RETIRED
+        member_to_retire.status_code = infra.member.MemberStatus.RETIRED
 
     def open_network(self, remote_node, pbft_open=False):
         """
@@ -234,30 +238,33 @@ class Consortium:
         proposal and make members vote to transition the network to state
         OPEN.
         """
-        proposal_body, vote = ccf.proposal_generator.open_network()
+        proposal_body, careful_vote = self.proposal_generator.open_network()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         self.vote_using_majority(
             remote_node, proposal, wait_for_global_commit=(not pbft_open)
         )
         self.check_for_service(remote_node, infra.network.ServiceStatus.OPEN, pbft_open)
 
     def rekey_ledger(self, remote_node):
-        proposal_body, vote = ccf.proposal_generator.rekey_ledger()
+        proposal_body, careful_vote = self.proposal_generator.rekey_ledger()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def update_recovery_shares(self, remote_node):
-        proposal_body, vote = ccf.proposal_generator.update_recovery_shares()
+        proposal_body, careful_vote = self.proposal_generator.update_recovery_shares()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
-    def add_user(self, remote_node, user_id):
-        user_cert = []
-        proposal, vote = ccf.proposal_generator.new_user(
-            os.path.join(self.common_dir, f"user{user_id}_cert.pem")
+    def add_user(self, remote_node, user_id, user_data=None):
+        proposal, careful_vote = self.proposal_generator.new_user(
+            os.path.join(self.common_dir, f"user{user_id}_cert.pem"), user_data
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
+        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def add_users(self, remote_node, users):
@@ -265,30 +272,38 @@ class Consortium:
             self.add_user(remote_node, u)
 
     def remove_user(self, remote_node, user_id):
-        proposal, vote = ccf.proposal_generator.remove_user(user_id)
+        proposal, careful_vote = self.proposal_generator.remove_user(user_id)
 
         proposal = self.get_any_active_member().propose(remote_node, proposal)
+        proposal.vote_for = careful_vote
         self.vote_using_majority(remote_node, proposal)
 
     def set_lua_app(self, remote_node, app_script_path):
-        proposal_body, vote = ccf.proposal_generator.set_lua_app(app_script_path)
+        proposal_body, careful_vote = self.proposal_generator.set_lua_app(
+            app_script_path
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def set_js_app(self, remote_node, app_script_path):
-        proposal_body, vote = ccf.proposal_generator.set_js_app(app_script_path)
+        proposal_body, careful_vote = self.proposal_generator.set_js_app(
+            app_script_path
+        )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def accept_recovery(self, remote_node):
-        proposal_body, vote = ccf.proposal_generator.accept_recovery()
+        proposal_body, careful_vote = self.proposal_generator.accept_recovery()
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def recover_with_shares(self, remote_node, defunct_network_enc_pubk):
         submitted_shares_count = 0
         with remote_node.client() as nc:
-            check_commit = ccf.checker.Checker(nc)
+            check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_members():
                 r = m.get_and_submit_recovery_share(
@@ -298,27 +313,30 @@ class Consortium:
                 check_commit(r)
 
                 if submitted_shares_count >= self.recovery_threshold:
-                    assert "End of recovery procedure initiated" in r.result
+                    assert "End of recovery procedure initiated" in r.body
                     break
                 else:
-                    assert "End of recovery procedure initiated" not in r.result
+                    assert "End of recovery procedure initiated" not in r.body
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
-        proposal_body, vote = ccf.proposal_generator.set_recovery_threshold(
+        proposal_body, careful_vote = self.proposal_generator.set_recovery_threshold(
             recovery_threshold
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         self.recovery_threshold = recovery_threshold
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_code(self, remote_node, new_code_id):
-        proposal_body, vote = ccf.proposal_generator.new_node_code(new_code_id)
+        proposal_body, careful_vote = self.proposal_generator.new_node_code(new_code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def add_new_user_code(self, remote_node, new_code_id):
-        proposal_body, vote = ccf.proposal_generator.new_user_code(new_code_id)
+        proposal_body, careful_vote = self.proposal_generator.new_user_code(new_code_id)
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        proposal.vote_for = careful_vote
         return self.vote_using_majority(remote_node, proposal)
 
     def check_for_service(self, remote_node, status, pbft_open=False):
@@ -329,11 +347,8 @@ class Consortium:
         """
         # When opening the service in PBFT, the first transaction to be
         # completed when f = 1 takes a significant amount of time
-        with remote_node.client(
-            f"member{self.get_any_active_member().member_id}",
-            request_timeout=(30 if pbft_open else 3),
-        ) as c:
-            r = c.rpc(
+        with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
+            r = c.post(
                 "/gov/query",
                 {
                     "text": """tables = ...
@@ -342,7 +357,7 @@ class Consortium:
                         LOG_DEBUG("Service is nil")
                     else
                         LOG_DEBUG("Service version: ", tostring(service.version))
-                        LOG_DEBUG("Service status: ", tostring(service.status))
+                        LOG_DEBUG("Service status: ", tostring(service.status_code))
                         cert_len = #service.cert
                         LOG_DEBUG("Service cert len: ", tostring(cert_len))
                         LOG_DEBUG("Service cert bytes: " ..
@@ -354,15 +369,17 @@ class Consortium:
                     return service
                     """
                 },
+                timeout=(30 if pbft_open else 3),
             )
-            current_status = r.result["status"]
-            current_cert = array.array("B", r.result["cert"]).tobytes()
+            current_status = r.body["status"]
+            current_cert = r.body["cert"]
 
             expected_cert = open(
                 os.path.join(self.common_dir, "networkcert.pem"), "rb"
             ).read()
+
             assert (
-                current_cert == expected_cert
+                current_cert == expected_cert[:-1].decode()
             ), "Current service certificate did not match with networkcert.pem"
             assert (
                 current_status == status.name
@@ -370,10 +387,10 @@ class Consortium:
 
     def _check_node_exists(self, remote_node, node_id, node_status=None):
         with remote_node.client(f"member{self.get_any_active_member().member_id}") as c:
-            r = c.rpc("/gov/read", {"table": "ccf.nodes", "key": node_id})
+            r = c.post("/gov/read", {"table": "ccf.nodes", "key": node_id})
 
-            if r.error is not None or (
-                node_status and r.result["status"] != node_status.name
+            if r.status_code != http.HTTPStatus.OK.value or (
+                node_status and r.body["status"] != node_status.name
             ):
                 return False
 

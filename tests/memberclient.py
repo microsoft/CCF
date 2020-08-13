@@ -48,7 +48,7 @@ def test_add_member(network, args):
         )
         assert False, "New accepted members are not given recovery shares"
     except infra.member.NoRecoveryShareFound as e:
-        assert e.response.error == "Only active members are given recovery shares"
+        assert e.response.body == "Only active members are given recovery shares"
 
     new_member.ack(primary)
 
@@ -79,8 +79,8 @@ def test_missing_signature(network, args):
     primary, _ = network.find_primary()
     member = network.consortium.get_any_active_member()
     with primary.client(f"member{member.member_id}") as mc:
-        r = mc.rpc("/gov/proposals", signed=False)
-        assert r.status == http.HTTPStatus.UNAUTHORIZED, r.status
+        r = mc.post("/gov/proposals", signed=False)
+        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
         www_auth = "www-authenticate"
         assert www_auth in r.headers, r.headers
         auth_header = r.headers[www_auth]
@@ -187,25 +187,25 @@ def run(args):
         assert (
             network.consortium.get_member_by_id(0)
             .vote(primary, new_member_proposal, accept=True)
-            .status
+            .status_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(0)
             .vote(primary, new_member_proposal, accept=False)
-            .status
+            .status_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(1)
             .vote(primary, new_member_proposal, accept=True)
-            .status
+            .status_code
             == params_error
         )
         assert (
             network.consortium.get_member_by_id(1)
             .vote(primary, new_member_proposal, accept=False)
-            .status
+            .status_code
             == params_error
         )
 
@@ -213,29 +213,34 @@ def run(args):
         response = network.consortium.get_member_by_id(
             new_member_proposal.proposer_id
         ).withdraw(primary, new_member_proposal)
-        assert response.status == params_error
+        assert response.status_code == params_error
 
         LOG.info("New non-active member should get insufficient rights response")
-        proposal_trust_0, _ = ccf.proposal_generator.trust_node(0)
+        proposal_trust_0, careful_vote = ccf.proposal_generator.trust_node(
+            0, vote_against=True
+        )
         try:
-            new_member.propose(primary, proposal_trust_0)
+            new_member.propose(primary, proposal_trust_0, has_proposer_voted_for=False)
             assert (
                 False
             ), "New non-active member should get insufficient rights response"
         except infra.proposal.ProposalNotCreated as e:
-            assert e.response.status == http.HTTPStatus.FORBIDDEN.value
+            assert e.response.status_code == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("New member ACK")
         new_member.ack(primary)
 
         LOG.info("New member is now active and send an accept node proposal")
-        trust_node_proposal_0 = new_member.propose(primary, proposal_trust_0)
+        trust_node_proposal_0 = new_member.propose(
+            primary, proposal_trust_0, has_proposer_voted_for=False
+        )
+        trust_node_proposal_0.vote_for = careful_vote
 
         LOG.debug("Members vote to accept the accept node proposal")
         network.consortium.vote_using_majority(primary, trust_node_proposal_0)
         assert trust_node_proposal_0.state == infra.proposal.ProposalState.Accepted
 
-        LOG.info("New member makes a new proposal")
+        LOG.info("New member makes a new proposal, with initial no vote")
         proposal_trust_1, _ = ccf.proposal_generator.trust_node(1)
         trust_node_proposal = new_member.propose(primary, proposal_trust_1)
 
@@ -243,11 +248,11 @@ def run(args):
         response = network.consortium.get_member_by_id(1).withdraw(
             primary, trust_node_proposal
         )
-        assert response.status == http.HTTPStatus.FORBIDDEN.value
+        assert response.status_code == http.HTTPStatus.FORBIDDEN.value
 
         LOG.debug("Proposer withdraws their proposal")
         response = new_member.withdraw(primary, trust_node_proposal)
-        assert response.status == http.HTTPStatus.OK.value
+        assert response.status_code == http.HTTPStatus.OK.value
         assert trust_node_proposal.state == infra.proposal.ProposalState.Withdrawn
 
         proposals = network.consortium.get_proposals(primary)
@@ -260,14 +265,14 @@ def run(args):
 
         LOG.debug("Further withdraw proposals fail")
         response = new_member.withdraw(primary, trust_node_proposal)
-        assert response.status == params_error
+        assert response.status_code == params_error
 
         LOG.debug("Further votes fail")
         response = new_member.vote(primary, trust_node_proposal, accept=True)
-        assert response.status == params_error
+        assert response.status_code == params_error
 
         response = new_member.vote(primary, trust_node_proposal, accept=False)
-        assert response.status == params_error
+        assert response.status_code == params_error
 
         # Membership changes trigger re-sharing and re-keying and are
         # only supported with Raft
@@ -284,8 +289,8 @@ def run(args):
                 )
                 assert False, "Retired member cannot make a new proposal"
             except infra.proposal.ProposalNotCreated as e:
-                assert e.response.status == http.HTTPStatus.FORBIDDEN.value
-                assert e.response.error == "Member is not active"
+                assert e.response.status_code == http.HTTPStatus.FORBIDDEN.value
+                assert e.response.body == "Member is not active"
 
             LOG.debug("New member should still be able to make a new proposal")
             new_proposal = new_member.propose(primary, proposal_trust_0)

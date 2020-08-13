@@ -97,23 +97,21 @@ foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
     ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
   )
-  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION BIN)
+  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py)
+set(CCF_TEST_UTILITIES tests.sh cimetrics_env.sh upload_pico_metrics.py
+                       test_install.sh
+)
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
     ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
   )
 endforeach()
 
-# Install specific utilities
-install(
-  PROGRAMS ${CCF_DIR}/python/utils/scurl.sh
-           ${CCF_DIR}/python/utils/keygenerator.sh ${CCF_DIR}/tests/sgxinfo.sh
-           ${CCF_DIR}/python/utils/submit_recovery_share.sh DESTINATION bin
-)
+# Install additional utilities
+install(PROGRAMS ${CCF_DIR}/tests/sgxinfo.sh DESTINATION bin)
 
 # Install getting_started scripts for VM creation and setup
 install(DIRECTORY ${CCF_DIR}/getting_started/ DESTINATION getting_started)
@@ -198,12 +196,13 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   add_executable(
     cchost ${CCF_DIR}/src/host/main.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
   )
+
+  add_warning_checks(cchost)
   use_client_mbedtls(cchost)
   target_compile_options(cchost PRIVATE -stdlib=libc++)
-  target_include_directories(
-    cchost PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CCF_GENERATED_DIR}
-  )
+  target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
   add_san(cchost)
+  add_lvi_mitigations(cchost)
 
   target_link_libraries(
     cchost
@@ -241,10 +240,11 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   target_compile_definitions(cchost.virtual PRIVATE -DVIRTUAL_ENCLAVE)
   target_compile_options(cchost.virtual PRIVATE -stdlib=libc++)
   target_include_directories(
-    cchost.virtual PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${OE_INCLUDEDIR}
-                           ${CCF_GENERATED_DIR}
+    cchost.virtual PRIVATE ${OE_INCLUDEDIR} ${CCF_GENERATED_DIR}
   )
+  add_warning_checks(cchost.virtual)
   add_san(cchost.virtual)
+  add_lvi_mitigations(cchost.virtual)
   enable_coverage(cchost.virtual)
   target_link_libraries(
     cchost.virtual
@@ -378,33 +378,47 @@ function(add_e2e_test)
 
     # Make python test client framework importable
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY ENVIRONMENT "PYTHONPATH=${CCF_DIR}/tests:$ENV{PYTHONPATH}"
     )
 
     if(SHUFFLE_SUITE)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "SHUFFLE_SUITE=1"
       )
     endif()
 
-    set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS e2e)
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_LABEL}
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS e2e
+    )
+    set_property(
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_LABEL}
     )
 
     if(${PARSED_ARGS_CURL_CLIENT})
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
+        PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
+      PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
     )
 
     if(DEFINED DEFAULT_ENCLAVE_TYPE)
       set_property(
-        TEST ${PARSED_ARGS_NAME} APPEND
+        TEST ${PARSED_ARGS_NAME}
+        APPEND
         PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
       )
     endif()
@@ -453,20 +467,28 @@ function(add_perf_test)
 
   # Make python test client framework importable
   set_property(
-    TEST ${PARSED_ARGS_NAME} APPEND
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
     PROPERTY
       ENVIRONMENT
       "PYTHONPATH=${CCF_DIR}/tests:${CMAKE_CURRENT_BINARY_DIR}:$ENV{PYTHONPATH}"
   )
   if(DEFINED DEFAULT_ENCLAVE_TYPE)
     set_property(
-      TEST ${PARSED_ARGS_NAME} APPEND
+      TEST ${PARSED_ARGS_NAME}
+      APPEND
       PROPERTY ENVIRONMENT "DEFAULT_ENCLAVE_TYPE=${DEFAULT_ENCLAVE_TYPE}"
     )
   endif()
-  set_property(TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS perf)
   set_property(
-    TEST ${PARSED_ARGS_NAME} APPEND PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY LABELS perf
+  )
+  set_property(
+    TEST ${PARSED_ARGS_NAME}
+    APPEND
+    PROPERTY LABELS ${PARSED_ARGS_CONSENSUS}
   )
 endfunction()
 
@@ -477,6 +499,8 @@ function(add_picobench name)
   )
 
   add_executable(${name} ${PARSED_ARGS_SRCS})
+
+  add_lvi_mitigations(${name})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

@@ -18,48 +18,18 @@ namespace ccf
   private:
     NodeId self;
     std::unique_ptr<ChannelManager> channels;
-    ringbuffer::WriterPtr to_host;
     ringbuffer::AbstractWriterFactory& writer_factory;
-
-    bool try_establish_channel(NodeId peer_id, Channel& channel)
-    {
-      if (channel.get_status() != ChannelStatus::ESTABLISHED)
-      {
-        // If the channel is not yet established, replace all sent messages with
-        // a key exchange message. In the case of raft, this is acceptable since
-        // append entries and vote requests are re-sent after a short timeout
-        // https://github.com/microsoft/CCF/issues/1015
-        auto signed_public = channels->get_signed_public(peer_id);
-        if (!signed_public.has_value())
-        {
-          return false;
-        }
-
-        ChannelHeader msg = {ChannelMsg::key_exchange, self};
-        to_host->write(
-          node_outbound,
-          peer_id,
-          NodeMsgType::channel_msg,
-          msg,
-          signed_public.value());
-
-        LOG_DEBUG_FMT("node2node channel with {} initiated", peer_id);
-        return false;
-      }
-
-      return true;
-    }
 
   public:
     NodeToNode(ringbuffer::AbstractWriterFactory& writer_factory_) :
-      writer_factory(writer_factory_),
-      to_host(writer_factory_.create_writer_to_outside())
+      writer_factory(writer_factory_)
     {}
 
     void initialize(NodeId self_id, const tls::Pem& network_pkey)
     {
       self = self_id;
-      channels = std::make_unique<ChannelManager>(writer_factory, network_pkey);
+      channels =
+        std::make_unique<ChannelManager>(writer_factory, network_pkey, self);
     }
 
     void create_channel(
@@ -93,17 +63,7 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const T& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_establish_channel(to, n2n_channel))
-      {
-        return false;
-      }
-
-      // The secure channel between self and to has already been established
-      GcmHdr hdr;
-      n2n_channel.tag(hdr, asCb(data));
-
-      to_host->write(node_outbound, to, msg_type, data, hdr);
-      return true;
+      return n2n_channel.send(msg_type, asCb(data));
     }
 
     template <>
@@ -111,78 +71,7 @@ namespace ccf
       const NodeMsgType& msg_type, NodeId to, const std::vector<uint8_t>& data)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_establish_channel(to, n2n_channel))
-      {
-        return false;
-      }
-
-      // The secure channel between self and to has already been established
-      GcmHdr hdr;
-      n2n_channel.tag(hdr, data);
-
-      to_host->write(node_outbound, to, msg_type, data, hdr);
-      return true;
-    }
-
-    template <class T>
-    const T& recv_authenticated(const uint8_t*& data, size_t& size)
-    {
-      const auto& t = serialized::overlay<T>(data, size);
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-
-      auto& n2n_channel = channels->get(t.from_node);
-      if (!n2n_channel.verify(hdr, asCb(t)))
-      {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {} (size: {})",
-          t.from_node,
-          size));
-      }
-
-      return t;
-    }
-
-    template <class T>
-    RecvNonce get_recv_nonce(const uint8_t* data, size_t size)
-    {
-      const auto& t = serialized::overlay<T>(data, size);
-      serialized::skip(data, size, (size - sizeof(GcmHdr)));
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      return ccf::Channel::get_nonce(hdr);
-    }
-
-    template <class T>
-    RecvNonce get_encrypted_recv_nonce(const uint8_t* data, size_t size)
-    {
-      const auto& t = serialized::overlay<T>(data, size);
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      return ccf::Channel::get_nonce(hdr);
-    }
-
-    template <class T>
-    CBuffer recv_authenticated_with_load(const uint8_t*& data, size_t& size)
-    {
-      // data contains the message header of type T, the raw data, and the gcm
-      // header at the end
-      const auto* payload_data = data;
-      auto payload_size = size - sizeof(GcmHdr);
-
-      const auto& t = serialized::overlay<T>(data, size);
-      serialized::skip(data, size, (size - sizeof(GcmHdr)));
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-
-      auto& n2n_channel = channels->get(t.from_node);
-
-      if (!n2n_channel.verify(hdr, {payload_data, payload_size}))
-      {
-        throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {} (size: {})",
-          t.from_node,
-          size));
-      }
-
-      serialized::skip(payload_data, payload_size, sizeof(T));
-      return {payload_data, payload_size};
+      return n2n_channel.send(msg_type, data);
     }
 
     template <class T>
@@ -193,18 +82,43 @@ namespace ccf
       const T& msg_hdr)
     {
       auto& n2n_channel = channels->get(to);
-      if (!try_establish_channel(to, n2n_channel))
+      return n2n_channel.send(msg_type, asCb(msg_hdr), data);
+    }
+
+    template <class T>
+    const T& recv_authenticated(const uint8_t*& data, size_t& size)
+    {
+      auto& t = serialized::overlay<T>(data, size);
+      auto& n2n_channel = channels->get(t.from_node);
+
+      if (!n2n_channel.recv_authenticated(asCb(t), data, size))
       {
-        return false;
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message from node {}", t.from_node));
       }
 
-      GcmHdr hdr;
-      std::vector<uint8_t> cipher(data.size());
-      n2n_channel.encrypt(hdr, asCb(msg_hdr), data, cipher);
+      return t;
+    }
 
-      to_host->write(node_outbound, to, msg_type, msg_hdr, hdr, cipher);
+    template <class T>
+    const T& recv_authenticated_with_load(const uint8_t*& data, size_t& size)
+    {
+      // PBFT only
+      const auto* data_ = data;
+      auto size_ = size;
 
-      return true;
+      const auto& t = serialized::overlay<T>(data_, size_);
+      auto& n2n_channel = channels->get(t.from_node);
+
+      if (!n2n_channel.recv_authenticated_with_load(data, size))
+      {
+        throw std::logic_error(fmt::format(
+          "Invalid authenticated node2node message with load from node {}",
+          t.from_node));
+      }
+      serialized::skip(data, size, sizeof(T));
+
+      return t;
     }
 
     template <class T>
@@ -212,19 +126,35 @@ namespace ccf
       const uint8_t* data, size_t size)
     {
       auto t = serialized::read<T>(data, size);
-      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
-      std::vector<uint8_t> plain(size);
-
       auto& n2n_channel = channels->get(t.from_node);
-      if (!n2n_channel.decrypt(hdr, asCb(t), {data, size}, plain))
+
+      auto plain = n2n_channel.recv_encrypted(asCb(t), data, size);
+      if (!plain.has_value())
       {
         throw std::logic_error(fmt::format(
-          "Invalid authenticated node2node message from node {} (size: {})",
-          t.from_node,
-          size));
+          "Invalid encrypted node2node message from node {}", t.from_node));
       }
 
-      return std::make_pair(t, plain);
+      return std::make_pair(t, plain.value());
+    }
+
+    template <class T>
+    RecvNonce get_recv_nonce(const uint8_t* data, size_t size)
+    {
+      // PBFT only
+      serialized::read<T>(data, size);
+      serialized::skip(data, size, (size - sizeof(GcmHdr)));
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      return ccf::get_nonce(hdr);
+    }
+
+    template <class T>
+    RecvNonce get_encrypted_recv_nonce(const uint8_t* data, size_t size)
+    {
+      // PBFT only
+      serialized::read<T>(data, size);
+      const auto& hdr = serialized::overlay<GcmHdr>(data, size);
+      return ccf::get_nonce(hdr);
     }
 
     void process_key_exchange(const uint8_t* data, size_t size)
@@ -233,26 +163,8 @@ namespace ccf
       // the initiator
       const auto& ke = serialized::overlay<ChannelHeader>(data, size);
 
-      auto signed_public = channels->get_signed_public(ke.from_node);
-      if (!signed_public.has_value())
-      {
-        // Channel is already established
-        return;
-      }
-
-      if (!channels->load_peer_signed_public(
-            ke.from_node, std::vector<uint8_t>(data, data + size)))
-      {
-        return;
-      }
-
-      ChannelHeader msg = {ChannelMsg::key_exchange_response, self};
-      to_host->write(
-        node_outbound,
-        ke.from_node,
-        NodeMsgType::channel_msg,
-        msg,
-        signed_public.value());
+      auto& n2n_channel = channels->get(ke.from_node);
+      n2n_channel.load_peer_signed_public(false, data, size);
     }
 
     void complete_key_exchange(const uint8_t* data, size_t size)
@@ -261,11 +173,8 @@ namespace ccf
       // received from the target
       const auto& ke = serialized::overlay<ChannelHeader>(data, size);
 
-      if (!channels->load_peer_signed_public(
-            ke.from_node, std::vector<uint8_t>(data, data + size)))
-      {
-        return;
-      }
+      auto& n2n_channel = channels->get(ke.from_node);
+      n2n_channel.load_peer_signed_public(true, data, size);
     }
 
     void recv_message(OArray&& oa)
@@ -287,7 +196,8 @@ namespace ccf
         }
 
         default:
-        {}
+        {
+        }
         break;
       }
     }

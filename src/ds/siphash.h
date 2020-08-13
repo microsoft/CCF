@@ -42,7 +42,7 @@ namespace siphash
 
   inline void sip_rounds(SipState& s, size_t rounds)
   {
-    for (auto i = 0; i < rounds; ++i)
+    for (size_t i = 0; i < rounds; ++i)
     {
       s[0] += s[1];
       s[1] = rotl(s[1], 13);

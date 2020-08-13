@@ -13,9 +13,9 @@
 #include "node/history.h"
 #include "node/network_state.h"
 #include "node/rpc/json_handler.h"
-#include "node/rpc/json_rpc.h"
 #include "node/rpc/member_frontend.h"
 #include "node/rpc/node_frontend.h"
+#include "node/rpc/serdes.h"
 #include "node/rpc/user_frontend.h"
 #include "node/test/channel_stub.h"
 #include "node_stub.h"
@@ -33,7 +33,7 @@ using namespace ccfapp;
 using namespace ccf;
 using namespace std;
 
-static constexpr auto default_pack = jsonrpc::Pack::MsgPack;
+static constexpr auto default_pack = serdes::Pack::MsgPack;
 
 class TestUserFrontend : public SimpleUserRpcFrontend
 {
@@ -157,7 +157,7 @@ public:
 
     auto maybe_commit = [this](EndpointContext& args) {
       const auto parsed =
-        jsonrpc::unpack(args.rpc_ctx->get_request_body(), default_pack);
+        serdes::unpack(args.rpc_ctx->get_request_body(), default_pack);
 
       const auto new_value = parsed["value"].get<size_t>();
       auto view = args.tx.get_view(values);
@@ -363,7 +363,7 @@ StubNodeState stub_node(share_manager);
 
 auto create_simple_request(
   const std::string& method = "empty_function",
-  jsonrpc::Pack pack = default_pack)
+  serdes::Pack pack = default_pack)
 {
   http::Request request(method);
   request.set_header(
@@ -402,9 +402,9 @@ http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
 }
 
 nlohmann::json parse_response_body(
-  const vector<uint8_t>& body, jsonrpc::Pack pack = default_pack)
+  const vector<uint8_t>& body, serdes::Pack pack = default_pack)
 {
-  return jsonrpc::unpack(body, pack);
+  return serdes::unpack(body, pack);
 }
 
 std::optional<SignedReq> get_signed_req(CallerId caller_id)
@@ -472,8 +472,8 @@ void prepare_callers()
   GenesisGenerator g(network, tx);
   g.init_values();
   g.create_service({});
-  user_id = g.add_user(user_caller);
-  nos_id = g.add_user(nos_caller);
+  user_id = g.add_user({user_caller});
+  nos_id = g.add_user({nos_caller});
   member_id = g.add_member(member_caller, dummy_key_share);
   invalid_member_id = g.add_member(invalid_caller, dummy_key_share);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
@@ -486,7 +486,7 @@ void add_callers_primary_store()
   GenesisGenerator g(network2, gen_tx);
   g.init_values();
   g.create_service({});
-  user_id = g.add_user(user_caller);
+  user_id = g.add_user({user_caller});
   member_id = g.add_member(member_caller, dummy_key_share);
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
@@ -504,7 +504,7 @@ void add_callers_pbft_store()
   GenesisGenerator g(pbft_network, gen_tx);
   g.init_values();
   g.create_service({});
-  user_id = g.add_user(user_caller);
+  user_id = g.add_user({user_caller});
   CHECK(g.finalize() == kv::CommitSuccess::OK);
 }
 
@@ -515,7 +515,7 @@ TEST_CASE("process_pbft")
   auto simple_call = create_simple_request();
 
   const nlohmann::json call_body = {{"foo", "bar"}, {"baz", 42}};
-  const auto serialized_body = jsonrpc::pack(call_body, default_pack);
+  const auto serialized_body = serdes::pack(call_body, default_pack);
   simple_call.set_body(&serialized_body);
 
   const auto serialized_call = simple_call.build_request();
@@ -813,14 +813,14 @@ TEST_CASE("MinimalEndpointFunction")
 {
   prepare_callers();
   TestMinimalEndpointFunction frontend(*network.tables);
-  for (const auto pack_type : {jsonrpc::Pack::Text, jsonrpc::Pack::MsgPack})
+  for (const auto pack_type : {serdes::Pack::Text, serdes::Pack::MsgPack})
   {
     {
       INFO("Calling echo, with params in body");
       auto echo_call = create_simple_request("echo", pack_type);
       const nlohmann::json j_body = {{"data", {"nested", "Some string"}},
                                      {"other", "Another string"}};
-      const auto serialized_body = jsonrpc::pack(j_body, pack_type);
+      const auto serialized_body = serdes::pack(j_body, pack_type);
 
       auto [signed_call, signed_req] =
         create_signed_request(echo_call, &serialized_body);
@@ -892,7 +892,7 @@ TEST_CASE("MinimalEndpointFunction")
       auto fail = create_simple_request("failable");
       const nlohmann::json j_body = {
         {"error", {{"code", err}, {"message", msg}}}};
-      const auto serialized_body = jsonrpc::pack(j_body, default_pack);
+      const auto serialized_body = serdes::pack(j_body, default_pack);
 
       const auto [signed_call, signed_req] =
         create_signed_request(fail, &serialized_body);
@@ -1022,7 +1022,7 @@ TEST_CASE("Explicit commitability")
 
       const nlohmann::json request_body = {{"value", new_value},
                                            {"status", status}};
-      const auto serialized_body = jsonrpc::pack(request_body, default_pack);
+      const auto serialized_body = serdes::pack(request_body, default_pack);
       request.set_body(&serialized_body);
 
       const auto serialized_request = request.build_request();
@@ -1058,7 +1058,7 @@ TEST_CASE("Explicit commitability")
 
         const nlohmann::json request_body = {
           {"value", new_value}, {"apply", apply}, {"status", status}};
-        const auto serialized_body = jsonrpc::pack(request_body, default_pack);
+        const auto serialized_body = serdes::pack(request_body, default_pack);
         request.set_body(&serialized_body);
 
         const auto serialized_request = request.build_request();

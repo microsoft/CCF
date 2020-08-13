@@ -17,13 +17,10 @@ namespace ccf
      {ccf::State::partOfNetwork, "partOfNetwork"},
      {ccf::State::readingPublicLedger, "readingPublicLedger"},
      {ccf::State::readingPrivateLedger, "readingPrivateLedger"}})
-  DECLARE_JSON_TYPE(GetState::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    GetState::Out,
-    state,
-    last_signed_seqno,
-    recovery_target_seqno,
-    last_recovered_seqno)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetState::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(GetState::Out, state, last_signed_seqno)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    GetState::Out, recovery_target_seqno, last_recovered_seqno)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(GetQuotes::Quote)
   DECLARE_JSON_REQUIRED_FIELDS(GetQuotes::Quote, node_id, raw)
@@ -51,21 +48,19 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(LedgerSecrets, secrets_list)
   DECLARE_JSON_TYPE(NetworkEncryptionKey)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkEncryptionKey, private_raw)
+
   DECLARE_JSON_TYPE(JoinNetworkNodeToNode::Out::NetworkInfo)
   DECLARE_JSON_REQUIRED_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo,
+    public_only,
+    last_recovered_commit_idx,
+    consensus_type,
     ledger_secrets,
     identity,
     encryption_key)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    JoinNetworkNodeToNode::Out,
-    node_status,
-    node_id,
-    public_only,
-    consensus_type)
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::Out, last_recovered_commit_idx, network_info)
+  DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status, node_id)
+  DECLARE_JSON_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out, network_info)
 
   DECLARE_JSON_TYPE(CreateNetworkNodeToNode::In)
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -117,8 +112,15 @@ namespace ccf
   DECLARE_JSON_TYPE(GetUserId::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetUserId::In, cert)
 
+  DECLARE_JSON_TYPE(ListMethods::Endpoint)
+  DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Endpoint, verb, path)
   DECLARE_JSON_TYPE(ListMethods::Out)
-  DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, methods)
+  DECLARE_JSON_REQUIRED_FIELDS(ListMethods::Out, endpoints)
+
+  DECLARE_JSON_TYPE(EndpointMetrics::Metric)
+  DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Metric, calls, errors, failures)
+  DECLARE_JSON_TYPE(EndpointMetrics::Out)
+  DECLARE_JSON_REQUIRED_FIELDS(EndpointMetrics::Out, metrics)
 
   DECLARE_JSON_TYPE(GetSchema::In)
   DECLARE_JSON_REQUIRED_FIELDS(GetSchema::In, method)

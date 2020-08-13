@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 import sys
+import http
 import subprocess
 import infra.network
 import infra.path
@@ -38,7 +39,7 @@ def test_quote(network, args, notifications_queue=None, verify=True):
         expected_mrenclave = lines[0].strip().split("=")[1]
 
         r = c.get("/node/quote")
-        quotes = r.result["quotes"]
+        quotes = r.body["quotes"]
         assert len(quotes) == 1
         primary_quote = quotes[0]
         assert primary_quote["node_id"] == 0
@@ -49,7 +50,7 @@ def test_quote(network, args, notifications_queue=None, verify=True):
         )
 
         r = c.get("/node/quotes")
-        quotes = r.result["quotes"]
+        quotes = r.body["quotes"]
         assert len(quotes) == len(network.find_nodes())
         for quote in quotes:
             mrenclave = quote["mrenclave"]
@@ -58,13 +59,14 @@ def test_quote(network, args, notifications_queue=None, verify=True):
     return network
 
 
-@reqs.description("Add user, remove user, add user back")
+@reqs.description("Add user, remove user")
 @reqs.supports_methods("log/private")
 def test_user(network, args, notifications_queue=None, verify=True):
     primary, _ = network.find_nodes()
     new_user_id = 3
     network.create_users([new_user_id], args.participants_curve)
-    network.consortium.add_user(primary, new_user_id)
+    user_data = {"lifetime": "temporary"}
+    network.consortium.add_user(primary, new_user_id, user_data)
     txs = app.LoggingTxs(notifications_queue=notifications_queue, user_id=3)
     txs.issue(
         network=network, number_txs=1, consensus=args.consensus,
@@ -74,7 +76,7 @@ def test_user(network, args, notifications_queue=None, verify=True):
     network.consortium.remove_user(primary, new_user_id)
     with primary.client(f"user{new_user_id}") as c:
         r = c.get("/app/log/private")
-        assert r.status == 403
+        assert r.status_code == http.HTTPStatus.FORBIDDEN.value
     return network
 
 

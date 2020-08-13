@@ -39,10 +39,14 @@ namespace threading
     virtual ~Tmsg() = default;
   };
 
+#ifdef USE_MPSCQ
   static void init_cb(std::unique_ptr<ThreadMsg> m)
   {
     LOG_INFO_FMT("Init was called");
   }
+#endif
+
+  class ThreadMessaging;
 
   class Task
   {
@@ -117,12 +121,12 @@ namespace threading
 #ifndef USE_MPSCQ
     void reverse_local_messages()
     {
-      if (local_msg == NULL)
+      if (local_msg == nullptr)
         return;
 
-      ThreadMsg *prev = NULL, *current = NULL, *next = NULL;
+      ThreadMsg *prev = nullptr, *current = nullptr, *next = nullptr;
       current = local_msg;
-      while (current != NULL)
+      while (current != nullptr)
       {
         next = current->next;
         current->next = prev;
@@ -133,6 +137,42 @@ namespace threading
       local_msg = prev;
     }
 #endif
+
+    void drop()
+    {
+#ifdef USE_MPSCQ
+      while (!queue.is_empty())
+      {
+        ThreadMsg* current;
+        bool result;
+        std::tie(current, result) = queue.dequeue();
+        if (result)
+        {
+          delete current;
+        }
+      }
+#else
+      while (true)
+      {
+        if (local_msg == nullptr && item_head != nullptr)
+        {
+          local_msg = item_head.exchange(nullptr);
+          reverse_local_messages();
+        }
+
+        if (local_msg == nullptr)
+        {
+          break;
+        }
+
+        ThreadMsg* current = local_msg;
+        local_msg = local_msg->next;
+        delete current;
+      }
+#endif
+    }
+
+    friend ThreadMessaging;
   };
 
   class ThreadMessaging
@@ -147,11 +187,21 @@ namespace threading
 
     static const uint16_t max_num_threads = 24;
 
-  public:
     ThreadMessaging(uint16_t num_threads = max_num_threads) :
       finished(false),
       tasks(num_threads)
     {}
+
+    // Drop all pending tasks, this is only ever to be used
+    // on shutdown, to avoid leaks, and after all thread but
+    // the main one have been shut down.
+    void drop_tasks()
+    {
+      for (auto& t : tasks)
+      {
+        t.drop();
+      }
+    }
 
     void set_finished(bool v = true)
     {

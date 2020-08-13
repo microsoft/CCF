@@ -20,7 +20,7 @@ namespace enclave
     virtual void set_sig_intervals(size_t sig_max_tx_, size_t sig_max_ms_) = 0;
     virtual void set_cmd_forwarder(
       std::shared_ptr<AbstractForwarder> cmd_forwarder_) = 0;
-    virtual void tick(std::chrono::milliseconds elapsed_ms_count) {}
+    virtual void tick(std::chrono::milliseconds) {}
     virtual void open() = 0;
     virtual bool is_open() = 0;
 

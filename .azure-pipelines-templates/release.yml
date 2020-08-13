@@ -11,7 +11,7 @@ jobs:
     - task: DownloadPipelineArtifact@2
       inputs:
         source: current
-        patterns: '**/ccf*.tar.gz'
+        patterns: '**/ccf*.deb'
         path: $(Build.ArtifactStagingDirectory)
 
     - task: GitHubRelease@0
@@ -21,19 +21,19 @@ jobs:
         action: 'create'
         target: '$(Build.SourceVersion)'
         tagSource: 'auto'
-        assets: $(Build.ArtifactStagingDirectory)/**/ccf.tar.gz
+        assets: $(Build.ArtifactStagingDirectory)/**/ccf*.deb
         assetUploadMode: 'delete'
         isDraft: true
         isPreRelease: true
         addChangeLog: false
       displayName: 'GitHub release (create)'
 
-    # For now, push to test PyPi
     - script: |
         python3.7 -m venv env
         source ./env/bin/activate
-        python setup.py sdist
-        python -m pip install twine
-        twine upload -u __token__ -p $(pypi_test_token) --repository testpypi dist/*
+        pip install -r requirements.txt
+        pip install wheel twine
+        python setup.py bdist_wheel
+        twine upload -u __token__ -p $(pypi_token) dist/*
       workingDirectory: python
-      displayName: PyPi https://test.pypi.org/project/ccf/
+      displayName: PyPi https://pypi.org/project/ccf/

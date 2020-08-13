@@ -56,6 +56,7 @@ namespace ccf
   {
     Sometimes,
     Always,
+    Never
   };
 
   /** The EndpointRegistry records the user-defined endpoints for a given
@@ -68,6 +69,13 @@ namespace ccf
     {
       Read,
       Write
+    };
+
+    struct Metrics
+    {
+      size_t calls = 0;
+      size_t errors = 0;
+      size_t failures = 0;
     };
 
     /** An Endpoint represents a user-defined resource that can be invoked by
@@ -85,7 +93,7 @@ namespace ccf
       std::string method;
       EndpointFunction func;
       EndpointRegistry* registry = nullptr;
-
+      Metrics metrics = {};
       nlohmann::json params_schema = nullptr;
 
       /** Sets the JSON schema that the request parameters must comply with.
@@ -269,6 +277,7 @@ namespace ccf
       Endpoint& set_allowed_verb(RESTVerb v)
       {
         const auto previous_verb = verb;
+        verb = v;
         return registry->reinstall(*this, method, previous_verb);
       }
 
@@ -503,20 +512,55 @@ namespace ccf
      * internally, so derived implementations must be able to populate the list
      * with the supported methods however it constructs them.
      */
-    virtual void list_methods(kv::Tx& tx, ListMethods::Out& out)
+    virtual void list_methods(kv::Tx&, ListMethods::Out& out)
     {
-      for (const auto& [method, verb_endpoints] : fully_qualified_endpoints)
+      for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
       {
-        out.methods.push_back(method);
+        for (const auto& [verb, endpoint] : verb_endpoints)
+        {
+          out.endpoints.push_back({verb.c_str(), path});
+        }
       }
 
-      for (const auto& [method, verb_endpoints] : templated_endpoints)
+      for (const auto& [path, verb_endpoints] : templated_endpoints)
       {
-        out.methods.push_back(method);
+        for (const auto& [verb, endpoint] : verb_endpoints)
+        {
+          out.endpoints.push_back({verb.c_str(), path});
+        }
       }
     }
 
-    virtual void init_handlers(kv::Store& tables) {}
+    virtual void endpoint_metrics(kv::Tx&, EndpointMetrics::Out& out)
+    {
+      for (const auto& [path, verb_endpoints] : fully_qualified_endpoints)
+      {
+        std::map<std::string, EndpointMetrics::Metric> e;
+        for (const auto& [verb, endpoint] : verb_endpoints)
+        {
+          std::string v(verb.c_str());
+          e[v] = {endpoint.metrics.calls,
+                  endpoint.metrics.errors,
+                  endpoint.metrics.failures};
+        }
+        out.metrics[path] = e;
+      }
+
+      for (const auto& [path, verb_endpoints] : templated_endpoints)
+      {
+        std::map<std::string, EndpointMetrics::Metric> e;
+        for (const auto& [verb, endpoint] : verb_endpoints)
+        {
+          std::string v(verb.c_str());
+          e[v] = {endpoint.metrics.calls,
+                  endpoint.metrics.errors,
+                  endpoint.metrics.failures};
+        }
+        out.metrics[path] = e;
+      }
+    }
+
+    virtual void init_handlers(kv::Store&) {}
 
     virtual Endpoint* find_endpoint(enclave::RpcContext& rpc_ctx)
     {
@@ -599,9 +643,7 @@ namespace ccf
       return verbs;
     }
 
-    virtual void tick(
-      std::chrono::milliseconds elapsed, kv::Consensus::Statistics stats)
-    {}
+    virtual void tick(std::chrono::milliseconds, kv::Consensus::Statistics) {}
 
     bool has_certs()
     {

@@ -193,10 +193,7 @@ namespace ccfapp
 
       auto scripts = tx.get_view(this->network.app_scripts);
       scripts->foreach([&out](const auto& key, const auto&) {
-        if (key != UserScriptIds::ENV_HANDLER)
-        {
-          out.methods.push_back(key);
-        }
+        out.endpoints.push_back({"POST", key});
         return true;
       });
     }
@@ -215,7 +212,7 @@ namespace ccfapp
   };
 
   std::shared_ptr<ccf::UserRpcFrontend> get_rpc_handler(
-    NetworkTables& network, ccfapp::AbstractNodeContext& context)
+    NetworkTables& network, ccfapp::AbstractNodeContext&)
   {
     return std::make_shared<Lua>(network);
   }

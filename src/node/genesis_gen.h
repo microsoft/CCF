@@ -195,12 +195,12 @@ namespace ccf
       return member.value();
     }
 
-    auto add_user(const tls::Pem& user_cert)
+    auto add_user(const ccf::UserInfo& user_info)
     {
       auto [u, uc, v] =
         tx.get_view(tables.users, tables.user_certs, tables.values);
 
-      auto user_cert_der = tls::make_verifier(user_cert)->der_cert_data();
+      auto user_cert_der = tls::make_verifier(user_info.cert)->der_cert_data();
 
       // Cert should be unique
       auto user_id = uc->get(user_cert_der);
@@ -211,7 +211,7 @@ namespace ccf
       }
 
       const auto id = get_next_id(v, ValueIds::NEXT_USER_ID);
-      u->put(id, {user_cert});
+      u->put(id, user_info);
       uc->put(user_cert_der, id);
       return id;
     }
@@ -255,7 +255,7 @@ namespace ccf
       auto [nodes_view, secrets_view] =
         tx.get_view(tables.nodes, tables.secrets);
 
-      nodes_view->foreach([&active_nodes, self_to_exclude, this](
+      nodes_view->foreach([&active_nodes, self_to_exclude](
                             const NodeId& nid, const NodeInfo& ni) {
         if (
           ni.status == ccf::NodeStatus::TRUSTED &&
@@ -270,11 +270,10 @@ namespace ccf
     }
 
     // Service status should use a state machine, very much like NodeState.
-    void create_service(const tls::Pem& network_cert, kv::Version version = 1)
+    void create_service(const tls::Pem& network_cert)
     {
       auto service_view = tx.get_view(tables.service);
-      service_view->put(
-        0, {version, network_cert.raw(), ServiceStatus::OPENING});
+      service_view->put(0, {network_cert, ServiceStatus::OPENING});
     }
 
     bool is_service_created()
@@ -405,7 +404,7 @@ namespace ccf
       size_t active_members_count = 0;
 
       members_view->foreach(
-        [&active_members_count](const MemberId& mid, const MemberInfo& mi) {
+        [&active_members_count](const MemberId&, const MemberInfo& mi) {
           if (mi.status == MemberStatus::ACTIVE)
           {
             active_members_count++;

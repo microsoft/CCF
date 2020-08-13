@@ -93,7 +93,10 @@ enum AdminMessage : ringbuffer::Message
   DEFINE_RINGBUFFER_MSG_TYPE(notification),
 
   /// Periodically update based on current time. Host -> Enclave
-  DEFINE_RINGBUFFER_MSG_TYPE(tick)
+  DEFINE_RINGBUFFER_MSG_TYPE(tick),
+
+  /// Notify the host of work done since last message. Enclave -> Host
+  DEFINE_RINGBUFFER_MSG_TYPE(work_stats)
 };
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
@@ -105,8 +108,9 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   uint16_t,
   std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::fatal_error_msg, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::stop);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::stopped);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stop);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(AdminMessage::stopped);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   AdminMessage::notification, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::tick, size_t);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(AdminMessage::work_stats, std::string);

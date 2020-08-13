@@ -243,7 +243,8 @@ namespace champ
       const auto& entry0 = node_as<Entry<K, V>>(c_idx);
       if (k == entry0->key)
       {
-        auto current_size = get_size_with_padding<K, V>(entry0->key, entry0->value);
+        auto current_size =
+          get_size_with_padding<K, V>(entry0->key, entry0->value);
         nodes[c_idx] = std::make_shared<Entry<K, V>>(k, v);
         return current_size;
       }
@@ -333,7 +334,7 @@ namespace champ
   {
   private:
     std::shared_ptr<SubNodes<K, V, H>> root;
-    size_t size = 0;
+    size_t map_size = 0;
     size_t serialized_size = 0;
 
     Map(
@@ -341,7 +342,7 @@ namespace champ
       size_t size_,
       size_t serialized_size_) :
       root(std::move(root_)),
-      size(size_),
+      map_size(size_),
       serialized_size(serialized_size_)
     {}
 
@@ -374,7 +375,7 @@ namespace champ
 
     size_t get_size() const
     {
-      return size;
+      return map_size;
     }
 
     size_t get_serialized_size() const
@@ -384,7 +385,7 @@ namespace champ
 
     bool empty() const
     {
-      return size == 0;
+      return map_size == 0;
     }
 
     std::optional<V> get(const K& key) const
@@ -405,7 +406,7 @@ namespace champ
     const Map<K, V, H> put(const K& key, const V& value) const
     {
       auto r = root->put(0, H()(key), key, value);
-      auto size_ = size;
+      auto size_ = map_size;
       if (r.second == 0)
       {
         size_++;

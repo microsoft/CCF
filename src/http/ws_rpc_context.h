@@ -129,7 +129,7 @@ namespace ws
     }
 
     virtual std::optional<std::string> get_request_header(
-      const std::string_view& name) override
+      const std::string_view&) override
     {
       return std::nullopt;
     }
@@ -154,8 +154,13 @@ namespace ws
       response_status = (http_status)status;
     }
 
+    virtual int get_response_status() const override
+    {
+      return response_status;
+    }
+
     virtual void set_response_header(
-      const std::string_view& name, const std::string_view& value) override
+      const std::string_view&, const std::string_view&) override
     {}
 
     virtual void set_seqno(kv::Version sn) override

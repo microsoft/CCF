@@ -6,7 +6,7 @@ import infra.notification
 import infra.net
 import suite.test_requirements as reqs
 import infra.e2e_args
-import ccf.checker
+import infra.checker
 
 from loguru import logger as LOG
 
@@ -18,33 +18,33 @@ def test(network, args, notifications_queue=None):
     primary, _ = network.find_primary_and_any_backup()
 
     with primary.client() as mc:
-        check_commit = ccf.checker.Checker(mc, notifications_queue)
-        check = ccf.checker.Checker()
+        check_commit = infra.checker.Checker(mc, notifications_queue)
+        check = infra.checker.Checker()
 
         msg = "Hello world"
 
         LOG.info("Write/Read on primary")
         with primary.client("user0") as c:
-            r = c.rpc("/app/log/private", {"id": 42, "msg": msg})
+            r = c.post("/app/log/private", {"id": 42, "msg": msg})
             check_commit(r, result=True)
-            check(c.get("/app/log/private", {"id": 42}), result={"msg": msg})
+            check(c.get("/app/log/private?id=42"), result={"msg": msg})
             for _ in range(10):
-                c.rpc(
+                c.post(
                     "/app/log/private", {"id": 43, "msg": "Additional messages"},
                 )
             check_commit(
-                c.rpc("/app/log/private", {"id": 43, "msg": "A final message"}),
+                c.post("/app/log/private", {"id": 43, "msg": "A final message"}),
                 result=True,
             )
-            r = c.get("/app/receipt", {"commit": r.seqno})
+            r = c.get(f"/app/receipt?commit={r.seqno}")
             check(
-                c.rpc("/app/receipt/verify", {"receipt": r.result["receipt"]}),
+                c.post("/app/receipt/verify", {"receipt": r.body["receipt"]}),
                 result={"valid": True},
             )
-            invalid = r.result["receipt"]
+            invalid = r.body["receipt"]
             invalid[-3] += 1
             check(
-                c.rpc("/app/receipt/verify", {"receipt": invalid}),
+                c.post("/app/receipt/verify", {"receipt": invalid}),
                 result={"valid": False},
             )
 

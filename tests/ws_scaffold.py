@@ -12,7 +12,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Running transactions against logging app")
-@reqs.supports_methods("/app/log/private")
+@reqs.supports_methods("log/private")
 @reqs.at_least_n_nodes(2)
 def test(network, args, notifications_queue=None):
     primary, other = network.find_primary_and_any_backup()
@@ -21,8 +21,8 @@ def test(network, args, notifications_queue=None):
     LOG.info("Write on primary")
     with primary.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
-            r = c.rpc("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.result == True, r.result
+            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
+            assert r.body == True, r
 
     # Before we start sending transactions to the secondary,
     # we want to wait for its app frontend to be open, which is
@@ -31,18 +31,18 @@ def test(network, args, notifications_queue=None):
     end_time = time.time() + 10
     with other.client("user0") as nc:
         while time.time() < end_time:
-            r = nc.rpc("/app/log/private", {"id": 42, "msg": msg * i})
-            if r.status == 200:
+            r = nc.post("/app/log/private", {"id": 42, "msg": msg * i})
+            if r.status_code == 200:
                 break
             else:
                 time.sleep(0.1)
-        assert r.status == 200, r
+        assert r.status_code == 200, r
 
     LOG.info("Write on secondary through forwarding")
     with other.client("user0", ws=True) as c:
         for i in [1, 50, 500]:
-            r = c.rpc("/app/log/private", {"id": 42, "msg": msg * i})
-            assert r.result == True, r.result
+            r = c.post("/app/log/private", {"id": 42, "msg": msg * i})
+            assert r.body == True, r
 
     return network
 

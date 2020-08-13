@@ -38,9 +38,9 @@ namespace tls
       CBuffer pw = nullb,
       Auth auth_ = auth_default,
       std::optional<std::string> peer_hostname_ = std::nullopt) :
+      peer_hostname(peer_hostname_),
       peer_ca(peer_ca_),
       auth(auth_),
-      peer_hostname(peer_hostname_),
       has_cert(false)
     {
       mbedtls_x509_crt_init(&own_cert);
@@ -128,7 +128,8 @@ namespace tls
         }
 
         default:
-        {}
+        {
+        }
       }
 
       return MBEDTLS_SSL_VERIFY_REQUIRED;

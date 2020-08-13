@@ -17,6 +17,8 @@ set(ENV{BETTER_EXCEPTIONS} 1)
 message(STATUS "CCF version=${CCF_VERSION}")
 message(STATUS "CCF release version=${CCF_RELEASE_VERSION}")
 
+include(${CCF_DIR}/cmake/cpack_settings.cmake)
+
 # Set the default install prefix for CCF. Users may override this value with the
 # cmake command. For example:
 #
@@ -41,8 +43,13 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pbft.cmake)
 configure_file(
   ${CCF_DIR}/src/host/version.h.in ${CCF_GENERATED_DIR}/version.h @ONLY
 )
+configure_file(${CCF_DIR}/python/setup.py.in ${CCF_DIR}/python/setup.py @ONLY)
 
-set(CONSENSUSES raft pbft)
+if(PBFT_TESTS)
+  set(CONSENSUSES raft pbft)
+else()
+  set(CONSENSUSES raft)
+endif()
 
 option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
@@ -65,6 +72,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   )
 
   target_compile_options(ccf.enclave PUBLIC -nostdinc -nostdinc++)
+  add_warning_checks(ccf.enclave)
 
   target_include_directories(
     ccf.enclave SYSTEM
@@ -78,9 +86,7 @@ if("sgx" IN_LIST COMPILE_TARGETS)
 
   target_link_libraries(
     ccf.enclave
-    PUBLIC openenclave::oeenclave
-           openenclave::oelibcxx
-           openenclave::oelibc
+    PUBLIC ${OE_TARGET_ENCLAVE_AND_STD}
            -static-libgcc
            -lgcc
            ccfcrypto.enclave
@@ -95,6 +101,8 @@ if("sgx" IN_LIST COMPILE_TARGETS)
   set_property(TARGET ccf.enclave PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   enable_quote_code(ccf.enclave)
+
+  add_lvi_mitigations(ccf.enclave)
 
   install(
     TARGETS ccf.enclave
@@ -118,6 +126,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   )
 
   target_compile_options(ccf.virtual PUBLIC -stdlib=libc++)
+  add_warning_checks(ccf.virtual)
 
   target_include_directories(
     ccf.virtual SYSTEM
@@ -149,6 +158,7 @@ if("virtual" IN_LIST COMPILE_TARGETS)
   enable_coverage(ccf.virtual)
   use_client_mbedtls(ccf.virtual)
   add_san(ccf.virtual)
+  add_lvi_mitigations(ccf.virtual)
 
   install(
     TARGETS ccf.virtual
@@ -177,15 +187,6 @@ install(
   FILES_MATCHING
   PATTERN "*.h"
   PATTERN "*/test*" EXCLUDE
-)
-
-# Install CCF Python tools
-install(
-  DIRECTORY python/ccf
-  DESTINATION bin/
-  FILES_MATCHING
-  PATTERN "*.py"
-  PATTERN "*/__pycache__*" EXCLUDE
 )
 
 # Install CCF Python infrastructure
@@ -277,6 +278,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/typed_messages.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/serializer.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hash.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -358,7 +360,7 @@ if(BUILD_TESTS)
     add_unit_test(
       http_test ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_test.cpp
     )
-    target_link_libraries(http_test PRIVATE http_parser.host)
+    target_link_libraries(http_test PRIVATE http_parser.host secp256k1.host)
 
     add_unit_test(
       frontend_test
@@ -561,6 +563,12 @@ if(BUILD_TESTS)
                     ${CMAKE_SOURCE_DIR}/src/apps/batched/batched.lua
   )
 
+  add_e2e_test(
+    NAME modules_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/modules.py
+    CONSENSUS raft
+  )
+
   if(QUOTES_ENABLED)
     add_e2e_test(
       NAME reconfiguration_test
@@ -582,22 +590,6 @@ if(BUILD_TESTS)
       ADDITIONAL_ARGS --oesign ${OE_SIGN_PATH}
     )
   endif()
-
-  add_e2e_test(
-    NAME suspend_nodes_pbft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
-    CONSENSUS pbft
-    LABEL long_test
-    ADDITIONAL_ARGS --seed 42
-  )
-
-  add_e2e_test(
-    NAME replay_new_view_pbft
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
-    CONSENSUS pbft
-    LABEL long_test
-    ADDITIONAL_ARGS --seed 42
-  )
 
   if(BUILD_SMALLBANK)
     include(${CMAKE_CURRENT_SOURCE_DIR}/samples/apps/smallbank/smallbank.cmake)
@@ -712,6 +704,24 @@ if(BUILD_TESTS)
       CONSENSUS ${CONSENSUS}
       ADDITIONAL_ARGS ${ELECTION_TIMEOUT_ARG}
     )
+
+    if(${CONSENSUS} STREQUAL pbft)
+      add_e2e_test(
+        NAME suspend_nodes_pbft
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/suspend_nodes.py
+        CONSENSUS pbft
+        LABEL long_test
+        ADDITIONAL_ARGS --seed 42
+      )
+
+      add_e2e_test(
+        NAME replay_new_view_pbft
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/replay_new_view.py
+        CONSENSUS pbft
+        LABEL long_test
+        ADDITIONAL_ARGS --seed 42
+      )
+    endif()
 
   endforeach()
 

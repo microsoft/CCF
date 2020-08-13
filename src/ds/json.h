@@ -92,6 +92,11 @@ namespace std
 }
 
 // FOREACH macro machinery for counting args
+
+// -Wpedantic flags token pasting of __VA_ARGS__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+
 #define __FOR_JSON_COUNT_NN( \
   _0, \
   _1, \
@@ -591,8 +596,7 @@ namespace std
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_OPTIONAL, TYPE, ##__VA_ARGS__) \
   } \
-  inline void fill_json_schema_optional_fields( \
-    nlohmann::json& j, const TYPE& t) \
+  inline void fill_json_schema_optional_fields(nlohmann::json& j, const TYPE&) \
   { \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP1)(FILL_SCHEMA_OPTIONAL, TYPE, ##__VA_ARGS__) \
@@ -629,3 +633,5 @@ namespace std
     } \
     j["enum"] = enums; \
   }
+
+#pragma clang diagnostic pop

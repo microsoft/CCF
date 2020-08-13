@@ -7,7 +7,7 @@ import random
 import infra.network
 import infra.proc
 import infra.e2e_args
-import ccf.checker
+import infra.checker
 
 from loguru import logger as LOG
 
@@ -36,8 +36,8 @@ def run(args):
 
         with primary.client() as mc:
 
-            check = ccf.checker.Checker()
-            check_commit = ccf.checker.Checker(mc)
+            check = infra.checker.Checker()
+            check_commit = infra.checker.Checker(mc)
 
             for connection in scenario["connections"]:
                 with (
@@ -52,9 +52,9 @@ def run(args):
                             txs += json.load(f)
 
                     for tx in txs:
-                        r = client.rpc(
+                        r = client.call(
                             tx["method"],
-                            params=tx["params"],
+                            body=tx["body"],
                             http_verb=tx.get("verb", "POST"),
                         )
 
